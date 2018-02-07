@@ -1,0 +1,111 @@
+//This file is part of Rust-Witnet.
+//
+//Rust-Witnet is free software: you can redistribute it and/or modify
+//it under the terms of the GNU General Public License as published by
+//the Free Software Foundation, either version 3 of the License, or
+//(at your option) any later version.
+//
+//Rust-Witnet is distributed in the hope that it will be useful,
+//but WITHOUT ANY WARRANTY; without even the implied warranty of
+//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//GNU General Public License for more details.
+//
+//You should have received a copy of the GNU General Public License
+//along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
+//
+//This file is based on utils/src/logger.rs from
+// <https://github.com/mimblewimble/grin>,
+// originally developed by The Grin Developers and distributed under the
+// Apache License, Version 2.0. You may obtain a copy of the License at
+// <http://www.apache.org/licenses/LICENSE-2.0>.
+
+//! Logging wrapper to be used throughout all crates in the workspace
+use std::fs::OpenOptions;
+use std::sync::Mutex;
+use std::ops::Deref;
+use slog::{Discard, Drain, Duplicate, Level, LevelFilter, Logger};
+use slog_term;
+use slog_async;
+
+use types::{LogLevel, LoggingConfig};
+
+fn convert_log_level(in_level: &LogLevel) -> Level {
+    match *in_level {
+        LogLevel::Info => Level::Info,
+        LogLevel::Critical => Level::Critical,
+        LogLevel::Warning => Level::Warning,
+        LogLevel::Debug => Level::Debug,
+        LogLevel::Trace => Level::Trace,
+        LogLevel::Error => Level::Error,
+    }
+}
+
+lazy_static! {
+    /// Flag to observe whether logging was explicitly initialised (don't output otherwise)
+    static ref WAS_INIT: Mutex<bool> = Mutex::new(false);
+    /// Static Logging configuration, should only be set once, before first logging call
+    static ref LOGGING_CONFIG: Mutex<LoggingConfig> = Mutex::new(LoggingConfig::default());
+
+    /// And a static reference to the logger itself, accessible from all crates
+    pub static ref LOGGER: Logger = {
+        let was_init = WAS_INIT.lock().unwrap().clone();
+        let config = LOGGING_CONFIG.lock().unwrap();
+        let slog_level_stdout = convert_log_level(&config.stdout_log_level);
+        let slog_level_file = convert_log_level(&config.file_log_level);
+
+        //Terminal output drain
+        let terminal_decorator = slog_term::TermDecorator::new().build();
+        let terminal_drain = slog_term::FullFormat::new(terminal_decorator).build().fuse();
+        let terminal_drain = LevelFilter::new(terminal_drain, slog_level_stdout).fuse();
+        let mut terminal_drain = slog_async::Async::new(terminal_drain).build().fuse();
+        if !config.log_to_stdout || !was_init {
+            terminal_drain = slog_async::Async::new(Discard{}).build().fuse();
+        }
+
+        //File drain
+        let mut file_drain_final = slog_async::Async::new(Discard{}).build().fuse();
+        if config.log_to_file && was_init {
+            let file = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .append(config.log_file_append)
+                .truncate(false)
+                .open(&config.log_file_path)
+                .unwrap();
+
+            let file_decorator = slog_term::PlainDecorator::new(file);
+            let file_drain = slog_term::FullFormat::new(file_decorator).build().fuse();
+            let file_drain = LevelFilter::new(file_drain, slog_level_file).fuse();
+            file_drain_final = slog_async::Async::new(file_drain).build().fuse();
+        }
+
+        //Compose file and terminal drains
+        let composite_drain = Duplicate::new(terminal_drain, file_drain_final).fuse();
+
+        let log = Logger::root(composite_drain, o!());
+        log
+    };
+}
+
+/// Initialises the logger with the given configuration
+pub fn init_logger(config: Option<LoggingConfig>) {
+    if let Some(c) = config {
+        let mut config_ref = LOGGING_CONFIG.lock().unwrap();
+        *config_ref = c.clone();
+        // Logger configuration successfully injected into LOGGING_CONFIG...
+        let mut was_init_ref = WAS_INIT.lock().unwrap();
+        *was_init_ref = true;
+        // .. allow logging, having ensured that paths etc are immutable
+    }
+}
+
+/// Initializes the logger for unit and integration tests
+pub fn init_test_logger() {
+    let mut was_init_ref = WAS_INIT.lock().unwrap();
+    if *was_init_ref.deref() {
+        return;
+    }
+    let mut config_ref = LOGGING_CONFIG.lock().unwrap();
+    *config_ref = LoggingConfig::default();
+    *was_init_ref = true;
+}
