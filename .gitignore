@@ -11,3 +11,7 @@ Cargo.lock
 
 # Just in case some scatterbrain tries to commit from OS X:
 .DS_Store
+
+# Ignore auxiliar files from popular code editors
+.idea
+.vscode
