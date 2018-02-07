@@ -1,6 +1,16 @@
 [package]
-name = "rust-witnet"
+name = "witnet"
 version = "0.1.0"
-authors = ["Adán Sánchez de Pedro Crespo <adan@stampery.com>", "Johann Ortiz Grisales <johann@witnet.io>"]
+authors = ["Adán Sánchez de Pedro Crespo <adan@witnet.io>", "Johann Ortiz Grisales <johann@witnet.io>"]
+
+[[bin]]
+name = "witnet"
+path = "src/bin/witnet.rs"
 
 [dependencies]
+witnet_config = { path = "./config" }
+witnet_util = { path = "./util" }
+serde = "~1.0.8"
+serde_json = "~1.0.7"
+slog = { version = "^2.0.12", features = ["max_level_trace", "release_max_level_trace"] }
+clap = "2.29.4"
