@@ -1,17 +1,17 @@
 //This file is part of Rust-Witnet.
 //
 //Rust-Witnet is free software: you can redistribute it and/or modify
-//it under the terms of the GNU General Public License as published by
-//the Free Software Foundation, either version 3 of the License, or
-//(at your option) any later version.
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 //Rust-Witnet is distributed in the hope that it will be useful,
-//but WITHOUT ANY WARRANTY; without even the implied warranty of
-//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//GNU General Public License for more details.
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
 //
 //You should have received a copy of the GNU General Public License
-//along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
+// along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
 //
 //This file is based on config/src/lib.rs from
 // <https://github.com/mimblewimble/grin>,
@@ -27,13 +27,13 @@
 #![deny(unused_mut)]
 #![warn(missing_docs)]
 
-
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate toml;
 
 extern crate witnet_util as util;
+extern crate witnet_wit as wit;
 
 pub mod config;
 pub mod types;

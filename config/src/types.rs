@@ -1,17 +1,17 @@
 //This file is part of Rust-Witnet.
 //
 //Rust-Witnet is free software: you can redistribute it and/or modify
-//it under the terms of the GNU General Public License as published by
-//the Free Software Foundation, either version 3 of the License, or
-//(at your option) any later version.
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 //Rust-Witnet is distributed in the hope that it will be useful,
-//but WITHOUT ANY WARRANTY; without even the implied warranty of
-//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//GNU General Public License for more details.
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
 //
 //You should have received a copy of the GNU General Public License
-//along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
+// along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
 //
 //This file is based on config/src/types.rs from
 // <https://github.com/mimblewimble/grin>,
@@ -25,6 +25,7 @@ use std::path::PathBuf;
 use std::io;
 use std::fmt;
 
+use wit::ServerConfig;
 use util::LoggingConfig;
 
 /// Error type wrapping config errors.
@@ -94,6 +95,13 @@ pub struct GlobalConfig {
 /// serialised or deserialised
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConfigMembers {
+    /// Server config
+    pub server: ServerConfig,
+    ///// Mining config
+    //TODOpub mining: Option<MinerConfig>,
     /// Logging config
     pub logging: Option<LoggingConfig>,
+    ///// Wallet config
+    //#[serde(default)]
+    //TODO pub wallet: WalletConfig,
 }
