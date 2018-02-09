@@ -1,0 +1,7 @@
+[package]
+name = "witnet_pool"
+version = "0.1.0"
+authors = ["Adán Sánchez de Pedro Crespo <adan@witnet.io>"]
+workspace = ".."
+
+[dependencies]
