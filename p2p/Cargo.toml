@@ -1,0 +1,9 @@
+[package]
+name = "witnet_p2p"
+version = "0.1.0"
+authors = ["Adán Sánchez de Pedro Crespo <adan@witnet.io>"]
+workspace = ".."
+
+[dependencies]
+witnet_core = { path = "../core" }
+witnet_store = { path = "../store" }

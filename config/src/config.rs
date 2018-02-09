@@ -1,17 +1,17 @@
 //This file is part of Rust-Witnet.
 //
 //Rust-Witnet is free software: you can redistribute it and/or modify
-//it under the terms of the GNU General Public License as published by
-//the Free Software Foundation, either version 3 of the License, or
-//(at your option) any later version.
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 //Rust-Witnet is distributed in the hope that it will be useful,
-//but WITHOUT ANY WARRANTY; without even the implied warranty of
-//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//GNU General Public License for more details.
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
 //
 //You should have received a copy of the GNU General Public License
-//along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
+// along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
 //
 //This file is based on config/src/config.rs from
 // <https://github.com/mimblewimble/grin>,
@@ -27,20 +27,22 @@ use std::path::PathBuf;
 use std::fs::File;
 
 use toml;
+use wit::ServerConfig;
 use util::LoggingConfig;
 use types::{ConfigError, ConfigMembers, GlobalConfig};
 
 /// The default file name to use when trying to derive
 /// the config file location
 
-const CONFIG_FILE_NAME: &'static str = "wnd.toml";
-const WND_HOME: &'static str = ".wnd";
+const CONFIG_FILE_NAME: &'static str = "wit.toml";
+const WIT_HOME: &'static str = ".wit";
 
 /// Returns the defaults, as strewn throughout the code
 
 impl Default for ConfigMembers {
     fn default() -> ConfigMembers {
         ConfigMembers {
+            server: ServerConfig::default(),
             logging: Some(LoggingConfig::default()),
         }
     }
@@ -77,10 +79,10 @@ impl GlobalConfig {
             return Ok(());
         }
 
-        // Then look in ~/.wnd
+        // Then look in ~/.wit
         let config_path = env::home_dir();
         if let Some(mut p) = config_path {
-            p.push(WND_HOME);
+            p.push(WIT_HOME);
             p.push(CONFIG_FILE_NAME);
             if p.exists() {
                 self.config_file_path = Some(p);

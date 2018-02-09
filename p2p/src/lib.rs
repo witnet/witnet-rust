@@ -13,40 +13,24 @@
 //You should have received a copy of the GNU General Public License
 // along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
 //
-//This file is based on utils/src/lib.rs from
+//This file is based on p2p/src/lib.rs from
 // <https://github.com/mimblewimble/grin>,
 // originally developed by The Grin Developers and distributed under the
 // Apache License, Version 2.0. You may obtain a copy of the License at
 // <http://www.apache.org/licenses/LICENSE-2.0>.
 
-//! Logging, as well as various low-level utilities that factor Rust
-//! patterns that are frequent within the codebase.
+
+//! Networking code to connect to other peers and exchange block, objects,
+//! etc.
 
 #![deny(non_upper_case_globals)]
 #![deny(non_camel_case_types)]
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
-#![warn(missing_docs)]
 
-#[macro_use]
-extern crate slog;
-extern crate slog_async;
-extern crate slog_term;
+extern crate witnet_core as core;
+extern crate witnet_store as store;
 
-#[macro_use]
-extern crate lazy_static;
+mod types;
 
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-
-// Re-export SECP crate so only has to be included once
-pub extern crate secp256k1zkp as secp_;
-pub use secp_ as secp;
-
-// Logging related
-pub mod logger;
-pub use logger::{init_logger, init_test_logger, LOGGER};
-
-pub mod types;
-pub use types::{LoggingConfig, LogLevel};
+pub use types::{Error};

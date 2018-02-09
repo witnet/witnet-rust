@@ -1,17 +1,17 @@
 //This file is part of Rust-Witnet.
 //
 //Rust-Witnet is free software: you can redistribute it and/or modify
-//it under the terms of the GNU General Public License as published by
-//the Free Software Foundation, either version 3 of the License, or
-//(at your option) any later version.
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 //Rust-Witnet is distributed in the hope that it will be useful,
-//but WITHOUT ANY WARRANTY; without even the implied warranty of
-//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//GNU General Public License for more details.
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
 //
 //You should have received a copy of the GNU General Public License
-//along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
+// along with Rust-Witnet. If not, see <http://www.gnu.org/licenses/>.
 //
 //This file is based on src/bin/grin.rs from
 // <https://github.com/mimblewimble/grin>,
@@ -26,7 +26,9 @@ extern crate clap;
 extern crate slog;
 
 extern crate witnet_config as config;
+extern crate witnet_core as core;
 extern crate witnet_util as util;
+extern crate witnet_wit as wit;
 
 mod client;
 
@@ -36,6 +38,7 @@ use std::time::Duration;
 use clap::{App, Arg, ArgMatches, SubCommand};
 
 use config::GlobalConfig;
+use core::global;
 use util::{init_logger, LoggingConfig, LOGGER};
 
 fn start_from_config_file(mut global_config: GlobalConfig) {
@@ -45,6 +48,17 @@ fn start_from_config_file(mut global_config: GlobalConfig) {
         global_config.config_file_path.unwrap().to_str().unwrap()
     );
 
+    global::set_mining_mode(
+        global_config
+            .members
+            .as_mut()
+            .unwrap()
+            .server
+            .clone()
+            .chain_type,
+    );
+
+    wit::Server::start(global_config.members.as_mut().unwrap().server.clone()).unwrap();
     loop {
         thread::sleep(Duration::from_secs(60));
     }
