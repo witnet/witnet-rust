@@ -143,7 +143,7 @@ fn main() {
         }
     }
 
-    fn server_command(server_args: &ArgMatches, global_config: GlobalConfig) {
+    fn server_command(_server_args: &ArgMatches, _global_config: GlobalConfig) {
         info!(LOGGER, "Starting the Witnet server...")
     }
 }

@@ -22,7 +22,6 @@ use std::sync::atomic::AtomicBool;
 use std::thread;
 use std::time;
 
-use adapters::*;
 use types::*;
 use util::LOGGER;
 
