@@ -1,0 +1,17 @@
+[package]
+name = "witnet_wit"
+version = "0.1.0"
+authors = ["Adán Sánchez de Pedro Crespo <adan@witnet.io>"]
+workspace = ".."
+
+[dependencies]
+serde = "~1.0.27"
+serde_derive = "~1.0.27"
+slog = "~2.1.1"
+
+witnet_chain = { path = "../chain" }
+witnet_core = { path = "../core" }
+witnet_store = { path = "../store" }
+witnet_p2p = { path = "../p2p" }
+witnet_util = { path = "../util" }
+witnet_wallet = { path = "../wallet" }
