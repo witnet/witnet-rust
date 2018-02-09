@@ -17,9 +17,12 @@
 // Apache License, Version 2.0. You may obtain a copy of the License at
 // <http://www.apache.org/licenses/LICENSE-2.0>.
 
-/// Errors thrown by transaction validation
+//! Transaction structures.
+
+/// Errors thrown by transaction validation.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Error {
     //TODO
+    /// Any other error thrown by TX validation code.
     Other(String),
 }

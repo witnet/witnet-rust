@@ -19,6 +19,9 @@
 // Apache License, Version 2.0. You may obtain a copy of the License at
 // <http://www.apache.org/licenses/LICENSE-2.0>.
 
+//! Implementation of the Witnet protocol as proposed in the Witnet whitepaper:
+//! <https://arxiv.org/pdf/1711.09756.pdf>
+
 #![deny(non_upper_case_globals)]
 #![deny(non_camel_case_types)]
 #![deny(non_snake_case)]

@@ -25,5 +25,6 @@
 #[derive(Debug)]
 pub enum Error {
     // TODO Stablish all possible chain errors
+    /// Any other error thrown by chain validation code.
     Other(String),
 }

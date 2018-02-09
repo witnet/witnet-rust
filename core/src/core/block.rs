@@ -17,10 +17,13 @@
 // Apache License, Version 2.0. You may obtain a copy of the License at
 // <http://www.apache.org/licenses/LICENSE-2.0>.
 
-/// Errors thrown by Block validation
+//! Block and blockheader structures.
+
+/// Errors thrown by Block validation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     //TODO
+    /// Any other error thrown by block validation code.
     Other(String),
 }
 

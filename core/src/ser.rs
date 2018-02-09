@@ -19,6 +19,13 @@
 // Apache License, Version 2.0. You may obtain a copy of the License at
 // <http://www.apache.org/licenses/LICENSE-2.0>.
 
+//! Serialization and deserialization layer specialized for binary encoding.
+//! Ensures consistency and safety. Basically a minimal subset or
+//! rustc_serialize customized for our need.
+//!
+//! To use it simply implement `Writeable` or `Readable` and then use the
+//! `serialize` or `deserialize` functions on them as appropriate.
+
 use std::fmt;
 use std::io::{self, Read, Write};
 

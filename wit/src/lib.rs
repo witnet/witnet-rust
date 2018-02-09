@@ -17,6 +17,9 @@
 // Apache License, Version 2.0. You may obtain a copy of the License at
 // <http://www.apache.org/licenses/LICENSE-2.0>.
 
+//! Main crate putting together all the other crates that compose Rust-Witnet
+//! into a binary.
+
 #![deny(non_upper_case_globals)]
 #![deny(non_camel_case_types)]
 #![deny(non_snake_case)]
