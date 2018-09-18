@@ -1,0 +1,23 @@
+[cargo-new]
+name = "Witnet Foundation"
+email = "info@witnet.foundation"
+vcs = "none"
+
+[build]
+jobs = 1
+rustc = "rustc"
+rustdoc = "rustdoc"
+target-dir = "target"
+
+[term]
+verbose = false
+color = 'auto'
+
+[net]
+retry = 2
+
+[alias]
+b = "build"
+t = "test"
+r = "run"
+rr = "run --release"

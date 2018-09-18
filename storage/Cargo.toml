@@ -1,6 +1,6 @@
 [package]
-name = "witnet_core"
+name = "witnet_storage"
 version = "0.1.0"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
-description = "core component"
+description = "storage component"

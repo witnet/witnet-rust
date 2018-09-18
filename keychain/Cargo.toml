@@ -1,8 +1,0 @@
-[package]
-name = "witnet_keychain"
-version = "0.1.0"
-authors = ["Adán Sánchez de Pedro Crespo <adan@witnet.io>"]
-workspace = "..."
-
-[dependencies]
-witnet_util = { path = "../util" }

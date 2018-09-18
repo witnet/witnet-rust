@@ -1,19 +1,39 @@
 [package]
 name = "witnet"
 version = "0.1.0"
-authors = ["Adán Sánchez de Pedro Crespo <adan@witnet.io>", "Johann Ortiz Grisales <johann@witnet.io>"]
+authors = ["Witnet Foundation <info@witnet.foundation>"]
+publish = false
+repository = "witnet/rust-witnet"
+readme = "README.md"
+license-file = "LICENSE"
+keywords = ["witnet", "bloackchain", "smart-contracts", "dag", "cryptocurrency", "crypto", "oracles", "protocol", "p2p", "rust"]
+description = "An in-progress open source implementation of the Witnet protocol written in Rust."
 
-[[bin]]
-name = "witnet"
-path = "src/bin/witnet.rs"
+[workspace]
+members = ["config", "core", "crypto", "data_structures", "p2p", "storage"]
+
+[badges]
+travis-ci = { repository = "https://github.com/witnet/rust-witnet", branch = "master" }
 
 [dependencies]
+clap = "2.31"
+ctrlc = "3.1.1"
+env_logger = "0.5.13"
+log = "0.4.5"
+just = "0.3.12"
+toml = "0.4.6"
+serde_json = "1.0.28"
+
+
 witnet_config = { path = "./config" }
 witnet_core = { path = "./core" }
-witnet_util = { path = "./util" }
-witnet_wit = { path = "./wit" }
+witnet_crypto = { path = "./crypto" }
+witnet_data_structures = { path = "./data_structures" }
+witnet_p2p = { path = "./p2p" }
+witnet_storage = { path = "./storage" }
 
-serde = "~1.0.8"
-serde_json = "~1.0.7"
-slog = { version = "^2.0.12", features = ["max_level_trace", "release_max_level_trace"] }
-clap = "2.29.4"
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3

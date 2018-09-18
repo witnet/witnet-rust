@@ -1,9 +1,6 @@
 [package]
 name = "witnet_p2p"
 version = "0.1.0"
-authors = ["Adán Sánchez de Pedro Crespo <adan@witnet.io>"]
+authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
-
-[dependencies]
-witnet_core = { path = "../core" }
-witnet_store = { path = "../store" }
+description = "p2p component"

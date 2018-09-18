@@ -24,4 +24,6 @@ env:
   global:
     - RUST_BACKTRACE="1"
 
-script: cargo test --all --verbose
+script:
+    - cargo clippy
+    - cargo test --all --verbose
