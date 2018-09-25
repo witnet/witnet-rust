@@ -6,16 +6,6 @@
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>https://docs.witnet.io/get-started/what-is-witnet/</loc>
-     <lastmod>2018-09-25</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
-    <url>
-     <loc>https://docs.witnet.io/get-started/why-rust/</loc>
-     <lastmod>2018-09-25</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
-    <url>
      <loc></loc>
      
      <changefreq>daily</changefreq>
@@ -146,8 +136,18 @@
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>https://docs.witnet.io/contributing/</loc>
-     <lastmod>2018-09-25</lastmod>
+     <loc></loc>
+     
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc></loc>
+     
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc></loc>
+     
      <changefreq>daily</changefreq>
     </url>
     <url>
