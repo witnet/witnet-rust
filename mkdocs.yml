@@ -1,0 +1,91 @@
+site_name: Witnet-rust Documentation
+site_url: https://witnet.github.io/witnet-rust/
+copyright: © 2018 Witnet Foundation. Available under <a href="https://www.gnu.org/licenses/fdl-1.3.en.html" rel="license">GNU Free Documentation License v1.3</a>
+
+docs_dir: docs
+
+nav:
+  - Home: index.md
+  - Get started:
+    - What is Witnet: get-started/what-is-witnet.md
+    - Why Rust?: get-started/why-rust.md
+    - Design Overview: get-started/design-overview.md
+    - Install: get-started/install.md
+  - Protocol:
+    - Network messages: protocol/network.md
+    - Network objects:
+      - Data requests: protocol/data-requests.md
+      - Transactions: protocol/transactions.md
+      - Blocks: protocol/blocks.md
+    - Reputation: protocol/reputation.md
+    - Mining: protocol/mining.md
+    - Task assignment: protocol/task-assignment.md
+    - WitScript: protocol/witscript.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Peer-To-Peer:
+      - Connections: architecture/p2p/connections.md
+      - Gossiping: architecture/p2p/gossip.md
+      - Encoding (FlatBuffers): architecture/p2p/encoding.md
+    - Storage: architecture/storage.md
+    - Mempool Management: architecture/mempool-mgmt.md
+    - Block Management: architecture/block-mgmt.md
+    - UTXO Management: architecture/utxo-mgmt.md
+    - Data Requests:
+      - Overview: architecture/rad/overview.md
+      - Headless Browser Engine: architecture/rad/hbe.md
+      - retrieve.js: architecture/rad/retrieve-js.md
+      - RadLang: architecture/rad/radlang.md
+    - Witscript Parser: architecture/witscript.md
+  - Advanced:
+    - Network constants: advanced/constants.md
+    - Differences with the whitepaper: advanced/whitepaper-differences.md
+  - Roadmap: roadmap.md
+  - Contributing: contributing.md
+  - Glossary: glossary.md
+
+theme:
+  name: 'material'
+  favicon: 'assets/images/favicon.ico'
+  logo: 'assets/images/logo.svg" alt="Witnet Logo'
+  palette:
+    primary: 'indigo'
+    accent: 'deep purple'
+
+repo_name: 'witnet/witnet-rust'
+repo_url: 'https://github.com/witnet/witnet-rust'
+edit_uri: 'blob/master/docs'
+remote_name: 'upstream'
+
+extra:
+  og_image: 'assets/images/logo-docs.png'
+  social:
+    - type: 'github'
+      link: 'https://github.com/witnet'
+    - type: 'reddit'
+      link: 'https://reddit.com/r/witnet'
+    - type: 'twitter'
+      link: 'https://twitter.com/witnet_io'
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:pymdownx.emoji.to_svg
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
