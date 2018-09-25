@@ -19,3 +19,15 @@ fmt:
 # run server
 server:
     RUST_LOG=witnet=trace cargo run server
+
+# run local documentation server at localhost:8000
+docs-dev:
+    mkdocs serve
+
+# compile docs into static files
+docs-build:
+    mkdocs build
+
+# deploy compiled docs into gh-pages branch
+docs-deploy:
+    mkdocs gh-deploy
