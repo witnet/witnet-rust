@@ -40,10 +40,10 @@ See the [contributing guide][contributing] to get more information on how to con
 the [roadmap] to find out what features are coming soon.
 
 
-[why-rust]: get-started/why-rust.md
+[why-rust]: get-started/why-rust
 [whitepaper]: https://witnet.io/static/witnet-whitepaper.pdf
 [license]: https://github.com/witnet/witnet-rust/blob/master/LICENSE
-[install]: get-started/install.md
+[install]: get-started/install
 [issues]: https://github.com/witnet/witnet-rust/issues
-[contributing]: contributing.md
-[roadmap]: roadmap.md
+[contributing]: contributing
+[roadmap]: roadmap
