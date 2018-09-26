@@ -35,6 +35,10 @@ fn main() {
             let address = arg_matches
                 .value_of("address")
                 .unwrap_or(default_address);
+            // peer address to be used with incoming features
+            let _peer_address = arg_matches
+                .value_of("peer")
+                .unwrap_or("");
 
             server::run(address, || {
                 ctrlc::set_handler(move || {
