@@ -25,5 +25,7 @@ env:
     - RUST_BACKTRACE="1"
 
 script:
-    - cargo clippy
+    - rustup update
+    - rustup component add clippy-preview
+    - cargo clippy --all-targets --all-features -- -D warnings
     - cargo test --all --verbose
