@@ -4,5 +4,5 @@ use data_structures::greetings;
 
 #[test]
 fn data_structures_greeeting() {
-    assert_eq!(greetings(), String::from("Hello form data structures!"));
+    assert_eq!(greetings(), String::from("Hello from data structures!"));
 }

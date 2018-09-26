@@ -4,5 +4,5 @@ use crypto::greetings;
 
 #[test]
 fn crypto_greeeting() {
-    assert_eq!(greetings(), String::from("Hello form crypto!"));
+    assert_eq!(greetings(), String::from("Hello from crypto!"));
 }
