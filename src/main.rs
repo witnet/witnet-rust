@@ -23,19 +23,18 @@ mod server;
 fn main() {
     env_logger::init();
 
-    let configuration = config::read_config();
-    println!("{:?}", configuration);
-
+    let configuration: config::Config = config::read_config().unwrap();
+    let default_address = &format!("{}:{}", configuration.server.host, configuration.server.port);
 
     let matches = app_from_crate!()
-        .subcommand(cli::server::get_arg())
+        .subcommand(cli::server::get_arg(default_address))
         .get_matches();
 
     match matches.subcommand() {
         ("server", Some(arg_matches)) => {
             let address = arg_matches
                 .value_of("address")
-                .unwrap_or(server::DEFAULT_ADDRESS);
+                .unwrap_or(default_address);
 
             server::run(address, || {
                 ctrlc::set_handler(move || {

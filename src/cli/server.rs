@@ -1,7 +1,6 @@
 use clap::{App, Arg, SubCommand};
-use server;
 
-pub fn get_arg<'a>() -> App<'a, 'a> {
+pub fn get_arg<'a>(address: &'a str) -> App<'a, 'a> {
     SubCommand::with_name("server")
         .about("Run the Witnet server")
         .arg(
@@ -10,7 +9,7 @@ pub fn get_arg<'a>() -> App<'a, 'a> {
                 .long("address")
                 .help("TCP address to which the server should bind")
                 .takes_value(true)
-                .default_value(server::DEFAULT_ADDRESS),
+                .default_value(address),
         )
         .arg(
             Arg::with_name("background")

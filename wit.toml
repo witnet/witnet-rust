@@ -15,7 +15,6 @@
 
 #Server connection details
 [server]
-
 #The chain type, which defines the genesis block. Can be:
 #AutomatedTesting - For CI builds and instant blockchain creation
 #UserTesting - For regular user testing
@@ -26,8 +25,10 @@ chain_type = "UserTesting"
 #The directory, relative to current, in which the witnet blockchain
 #is stored
 db_root = ".wit"
+host = "0.0.0.0"
+port = 8888
 
-[server.p2p_config]
+[server.p2p]
 host = "0.0.0.0"
 port = 11337
 

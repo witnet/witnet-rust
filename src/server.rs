@@ -3,8 +3,6 @@ use std::io::{Read, Write};
 use std::net;
 use std::process::exit;
 
-pub static DEFAULT_ADDRESS: &str = "0.0.0.0:8888";
-
 pub fn run(address: &str, callback: fn()) -> io::Result<()> {
     let listener = net::TcpListener::bind(address).expect("error run");
     info!("Witnet server listening on {}", address);
