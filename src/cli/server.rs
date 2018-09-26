@@ -1,6 +1,6 @@
 use clap::{App, Arg, SubCommand};
 
-pub fn get_arg<'a>(address: &'a str) -> App<'a, 'a> {
+pub fn get_arg(address: &str) -> App {
     SubCommand::with_name("server")
         .about("Run the Witnet server")
         .arg(

@@ -26,7 +26,7 @@ fn handle_connection(mut stream: net::TcpStream) -> io::Result<()> {
         stream
             .peer_addr()
             .map(|addr| addr.to_string())
-            .unwrap_or("unknown".to_string())
+            .unwrap_or_else(|_| String::from("unknown"))
     );
     let mut buf = [0; 512];
     loop {
@@ -34,6 +34,6 @@ fn handle_connection(mut stream: net::TcpStream) -> io::Result<()> {
         if bytes_read == 0 {
             return Ok(());
         }
-        stream.write(&buf[..bytes_read])?;
+        stream.write_all(&buf[..bytes_read])?;
     }
 }
