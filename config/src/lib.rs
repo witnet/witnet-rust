@@ -1,3 +1,12 @@
+//! configuration
+
+#![deny(non_upper_case_globals)]
+#![deny(non_camel_case_types)]
+#![deny(non_snake_case)]
+#![deny(unused_mut)]
+// FIXME: doc the config
+// #![deny(missing_docs)]
+
 extern crate toml;
 extern crate serde_json;
 
