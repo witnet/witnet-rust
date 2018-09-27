@@ -1,6 +1,6 @@
 extern crate witnet_crypto as crypto;
 
-use crypto::greetings;
+use crate::crypto::greetings;
 
 #[test]
 fn crypto_greeeting() {

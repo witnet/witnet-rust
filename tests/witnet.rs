@@ -1,8 +1,8 @@
-extern crate witnet_core as core;
-extern crate witnet_crypto as crypto;
-extern crate witnet_data_structures as data_structures;
-extern crate witnet_p2p as p2p;
-extern crate witnet_storage as storage;
+use witnet_core as core;
+use witnet_crypto as crypto;
+use witnet_data_structures as data_structures;
+use witnet_p2p as p2p;
+use witnet_storage as storage;
 
 #[test]
 fn greetings() {

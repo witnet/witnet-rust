@@ -1,6 +1,6 @@
 extern crate witnet_core as core;
 
-use core::greetings;
+use crate::core::greetings;
 
 #[test]
 fn test_core_greeeting() {

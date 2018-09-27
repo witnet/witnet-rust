@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 description = "config component"
+edition = "2018"
 
 [dependencies]
 serde = "1.0.79"

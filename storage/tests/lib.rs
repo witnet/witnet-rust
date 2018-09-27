@@ -1,6 +1,6 @@
 extern crate witnet_storage as storage;
 
-use storage::greetings;
+use crate::storage::greetings;
 
 #[test]
 fn storage_greeeting() {

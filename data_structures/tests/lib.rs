@@ -1,6 +1,6 @@
 extern crate witnet_data_structures as data_structures;
 
-use data_structures::greetings;
+use crate::data_structures::greetings;
 
 #[test]
 fn data_structures_greeeting() {
