@@ -1,4 +1,4 @@
-extern crate witnet_p2p as p2p;
+use witnet_p2p as p2p;
 
 use crate::p2p::greetings;
 
