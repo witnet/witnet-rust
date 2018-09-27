@@ -10,7 +10,6 @@ use clap::*;
 
 use ctrlc;
 use witnet_config as config;
-
 use std::process::exit;
 
 mod cli;

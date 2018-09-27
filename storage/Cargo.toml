@@ -3,5 +3,14 @@ name = "witnet_storage"
 version = "0.1.0"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
-description = "storage component"
 edition = "2018"
+description = "Witnet storage module that conveniently abstracts a key/value API away from specific storage backends"
+
+[dependencies]
+env_logger = "0.5.13"
+log = "0.4.5"
+rocksdb = { version = "0.10.1", optional = true }
+witnet_util = { path = "../util" }
+
+[features]
+rocksdb-backend = ["rocksdb"]
