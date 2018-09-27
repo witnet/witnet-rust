@@ -1,4 +1,4 @@
-extern crate witnet_data_structures as data_structures;
+use witnet_data_structures as data_structures;
 
 use crate::data_structures::greetings;
 

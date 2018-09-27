@@ -1,4 +1,4 @@
-extern crate witnet_crypto as crypto;
+use witnet_crypto as crypto;
 
 use crate::crypto::greetings;
 

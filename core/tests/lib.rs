@@ -1,4 +1,4 @@
-extern crate witnet_core as core;
+use witnet_core as core;
 
 use crate::core::greetings;
 

@@ -1,4 +1,4 @@
-extern crate witnet_storage as storage;
+use witnet_storage as storage;
 
 use crate::storage::greetings;
 
