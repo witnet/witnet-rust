@@ -1,6 +1,6 @@
 extern crate witnet_p2p as p2p;
 
-use p2p::greetings;
+use crate::p2p::greetings;
 
 #[test]
 fn p2p_greeeting() {

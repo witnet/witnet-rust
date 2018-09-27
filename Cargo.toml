@@ -8,6 +8,7 @@ readme = "README.md"
 license-file = "LICENSE"
 keywords = ["witnet", "blockchain", "smart-contracts", "DON", "cryptocurrency", "crypto", "oracles", "protocol", "p2p", "rust"]
 description = "An in-progress open source implementation of the Witnet protocol written in Rust."
+edition = "2018"
 
 [workspace]
 members = ["config", "core", "crypto", "data_structures", "p2p", "storage"]

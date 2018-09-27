@@ -1,6 +1,14 @@
+//! cli server
+
+#![deny(non_upper_case_globals)]
+#![deny(non_camel_case_types)]
+#![deny(non_snake_case)]
+#![deny(unused_mut)]
+#![deny(missing_docs)]
+
 use clap::{App, Arg, SubCommand};
 
-pub fn get_arg(address: &str) -> App {
+pub fn get_arg(address: &str) -> App<'_, '_> {
     SubCommand::with_name("server")
         .about("Run the Witnet server")
         .arg(

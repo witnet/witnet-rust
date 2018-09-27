@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 description = "core component"
+edition = "2018"

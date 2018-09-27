@@ -7,13 +7,9 @@
 // FIXME: doc the config
 // #![deny(missing_docs)]
 
-extern crate toml;
-extern crate serde_json;
-
+use toml as Toml;
 use std::fs::File;
 use std::io::prelude::*;
-
-use toml as Toml;
 
 const CONFIG_FILE: &str = "wit.toml";
 

@@ -1,19 +1,11 @@
 #[macro_use]
 extern crate log;
-extern crate env_logger;
+use env_logger;
 
 #[macro_use]
 extern crate clap;
-extern crate ctrlc;
-
-extern crate serde_json;
-
-extern crate witnet_config as config;
-extern crate witnet_core as core;
-extern crate witnet_crypto as crypto;
-extern crate witnet_data_structures as data_structures;
-extern crate witnet_p2p as p2p;
-extern crate witnet_storage as storage;
+use ctrlc;
+use witnet_config as config;
 
 use std::process::exit;
 
