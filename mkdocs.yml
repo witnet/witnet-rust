@@ -42,6 +42,7 @@ nav:
     - Differences with the whitepaper: advanced/whitepaper-differences
   - Roadmap: roadmap
   - Contributing: contributing
+  - Development: development
   - Glossary: glossary
 
 theme:
