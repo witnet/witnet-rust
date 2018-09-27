@@ -32,6 +32,7 @@ witnet_crypto = { path = "./crypto" }
 witnet_data_structures = { path = "./data_structures" }
 witnet_p2p = { path = "./p2p" }
 witnet_storage = { path = "./storage" }
+witnet_util = { path = "./util" }
 
 [profile.dev]
 opt-level = 0
