@@ -1,9 +1,13 @@
-#[macro_use]
-extern crate log;
+#![deny(rust_2018_idioms)]
+#![deny(non_upper_case_globals)]
+#![deny(non_camel_case_types)]
+#![deny(non_snake_case)]
+#![deny(unused_mut)]
+
 use env_logger;
 
-#[macro_use]
-extern crate clap;
+use clap::*;
+
 use ctrlc;
 use witnet_config as config;
 
