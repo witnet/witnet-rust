@@ -27,7 +27,7 @@ nav:
       - Connections: architecture/p2p/connections
       - Gossiping: architecture/p2p/gossip
       - Encoding (FlatBuffers): architecture/p2p/encoding
-    - Storage: architecture/storage
+    - Persistent Storage: architecture/storage
     - Mempool Management: architecture/mempool-mgmt
     - Block Management: architecture/block-mgmt
     - UTXO Management: architecture/utxo-mgmt
@@ -50,8 +50,8 @@ theme:
   favicon: 'assets/images/favicon.ico'
   logo: 'assets/images/logo.svg" alt="Witnet Logo'
   palette:
-    primary: 'indigo'
-    accent: 'deep purple'
+    primary: 'brown'
+    accent: 'deep orange'
 
 repo_name: 'witnet/witnet-rust'
 repo_url: 'https://github.com/witnet/witnet-rust'
@@ -70,7 +70,8 @@ extra:
 
 markdown_extensions:
   - admonition
-  - codehilite
+  - codehilite:
+      linenums: true
   - footnotes
   - toc:
       permalink: true
