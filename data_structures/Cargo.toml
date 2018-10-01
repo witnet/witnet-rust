@@ -5,3 +5,6 @@ authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 description = "data structures component"
 edition = "2018"
+
+[dependencies]
+flatbuffers = "0.4.0"
