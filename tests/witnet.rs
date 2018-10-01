@@ -2,7 +2,6 @@ use witnet_core as core;
 use witnet_crypto as crypto;
 use witnet_data_structures as data_structures;
 use witnet_p2p as p2p;
-use witnet_storage as storage;
 
 #[test]
 fn greetings() {
@@ -10,5 +9,4 @@ fn greetings() {
   assert_eq!(crypto::greetings(), String::from("Hello from crypto!"));
   assert_eq!(data_structures::greetings(), String::from("Hello from data structures!"));
   assert_eq!(p2p::greetings(), String::from("Hello from p2p!"));
-  assert_eq!(storage::greetings(), String::from("Hello from storage!"));
 }
