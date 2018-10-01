@@ -1,0 +1,63 @@
+// Draft of initial proposal for lightweight connection protocol
+// ubyte(8) / ushort(16) / uint(32) / ulong(64)
+
+namespace Protocol;
+
+// List of available commands
+union Command (required) { Version, Verack, GetPeers, Peers, Ping, Pong }
+
+// Message Format with header
+table Message {
+    magic: uint16;
+    command: Command (required);
+}
+
+union IpAddress { Ipv4, Ipv6 }
+
+table Ipv4 {
+    ip: uint32;
+}
+
+table Ipv6 {
+    ip0: uint32;
+    ip1: uint32;
+    ip2: uint32;
+    ip3: uint32;
+}
+
+table Address {
+    ip: IpAddress;
+    port: uint16;
+}
+
+table Version {
+    version: uint32;
+    timestamp: uint64;
+    capabilities: uint64;
+    sender_address: Address;
+    receiver_address: Address;
+    user_agent: string;
+    last_epoch: uint32;
+    genesis: uint64;
+    nonce: uint64;
+}
+
+table Verack {
+}
+
+table GetPeers {
+}
+
+table Peers {
+    peers: [Address];
+}
+
+table Ping {
+    nonce: uint64;
+}
+
+table Pong {
+    nonce: uint64;
+}
+
+root_type Message;
