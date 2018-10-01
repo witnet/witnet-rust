@@ -33,6 +33,7 @@ nav:
     - UTXO Management: architecture/utxo-mgmt
     - Data Requests:
       - Overview: architecture/rad/overview
+      - Schema: arquitecture/rad/schema
       - Headless Browser Engine: architecture/rad/hbe
       - retrieve.js: architecture/rad/retrieve-js
       - RadLang: architecture/rad/radlang
