@@ -6,3 +6,5 @@ use crate::data_structures::greetings;
 fn data_structures_greeeting() {
     assert_eq!(greetings(), String::from("Hello from data structures!"));
 }
+
+mod flatbuffers;

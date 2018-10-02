@@ -5,11 +5,9 @@
 #![allow(clippy::all)]
 #![allow(missing_docs)]
 
-/// First line is a short summary describing function.
+/// # Example
 ///
-/// The next lines present detailed documentation. Code blocks start with
-/// triple backquotes and have implicit `fn main()` inside
-/// and `extern crate <cratename>`. Assume we're testing `doccomments` crate:
+/// The next lines present detailed usage example of Flatbuffers.
 ///
 /// ```
 /// use witnet_data_structures::flatbuffers::protocol_generated::protocol::{
@@ -28,8 +26,7 @@
 ///        &MessageArgs {
 ///            magic: 0,
 ///            command_type: Command::Ping,
-///            command: Some(ping_command.as_union_value()),
-///            ..Default::default()
+///            command: Some(ping_command.as_union_value())
 ///        },
 /// );
 ///
