@@ -82,7 +82,7 @@ The Stampery team has also been involved in the development of [Aragon], [Trailb
 [^1]: Otherwise, the contracts could have totally different output values when executed across all the nodes maintaining the blockchain, therefore causing inconsistencies that would lead to breaking the network consensus.
 
 [whitepaper]: https://witnet.io/static/witnet-whitepaper.pdf
-[reputation protocol]: protocol/reputation.md
+[reputation protocol]: ../protocol/reputation.md
 [Stampery]: https://stampery.com
 [Witnet Foundation]: https://witnet.foundation
 [Aragon]: https://aragon.org
