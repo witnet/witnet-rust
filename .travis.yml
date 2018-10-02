@@ -26,6 +26,7 @@ env:
 
 script:
     - rustup update
-    - rustup component add clippy-preview
-    - cargo clippy --all-targets --all-features -- -D warnings
+    - if [[ $TRAVIS_RUST_VERSION == "nightly" ]];
+        then rustup component add clippy-preview && cargo clippy --all-targets --all-features -- -D warnings;
+      fi #FIXME: remove after next beta release
     - cargo test --all --verbose
