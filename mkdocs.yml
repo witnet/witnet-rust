@@ -7,43 +7,43 @@ docs_dir: docs
 nav:
   - Home: index.md
   - Get started:
-    - What is Witnet: get-started/what-is-witnet
-    - Why Rust?: get-started/why-rust
-    - Design Overview: get-started/design-overview
-    - Install: get-started/install
+    - What is Witnet: get-started/what-is-witnet.md
+    - Why Rust?: get-started/why-rust.md
+    - Design Overview: get-started/design-overview.md
+    - Install: get-started/install.md
   - Protocol:
-    - Network messages: protocol/network
+    - Network messages: protocol/network.md
     - Network objects:
-      - Data requests: protocol/data-requests
-      - Transactions: protocol/transactions
-      - Blocks: protocol/blocks
-    - Reputation: protocol/reputation
-    - Mining: protocol/mining
-    - Task assignment: protocol/task-assignment
-    - WitScript: protocol/witscript
+      - Data requests: protocol/data-requests.md
+      - Transactions: protocol/transactions.md
+      - Blocks: protocol/blocks.md
+    - Reputation: protocol/reputation.md
+    - Mining: protocol/mining.md
+    - Task assignment: protocol/task-assignment.md
+    - WitScript: protocol/witscript.md
   - Architecture:
-    - Overview: architecture/overview
+    - Overview: architecture/overview.md
     - Peer-To-Peer:
-      - Connections: architecture/p2p/connections
-      - Gossiping: architecture/p2p/gossip
-      - Encoding (FlatBuffers): architecture/p2p/encoding
-    - Persistent Storage: architecture/storage
-    - Mempool Management: architecture/mempool-mgmt
-    - Block Management: architecture/block-mgmt
-    - UTXO Management: architecture/utxo-mgmt
+      - Connections: architecture/p2p/connections.md
+      - Gossiping: architecture/p2p/gossip.md
+      - Encoding (FlatBuffers): architecture/p2p/encoding.md
+    - Persistent Storage: architecture/storage.md
+    - Mempool Management: architecture/mempool-mgmt.md
+    - Block Management: architecture/block-mgmt.md
+    - UTXO Management: architecture/utxo-mgmt.md
     - Data Requests:
-      - Overview: architecture/rad/overview
-      - Headless Browser Engine: architecture/rad/hbe
-      - retrieve.js: architecture/rad/retrieve-js
-      - RadLang: architecture/rad/radlang
-    - Witscript Parser: architecture/witscript
+      - Overview: architecture/rad/overview.md
+      - Headless Browser Engine: architecture/rad/hbe.md
+      - retrieve.js: architecture/rad/retrieve-js.md
+      - RadLang: architecture/rad/radlang.md
+    - Witscript Parser: architecture/witscript.md
   - Advanced:
-    - Network constants: advanced/constants
-    - Differences with the whitepaper: advanced/whitepaper-differences
-  - Roadmap: roadmap
-  - Contributing: contributing
-  - Development: development
-  - Glossary: glossary
+    - Network constants: advanced/constants.md
+    - Differences with the whitepaper: advanced/whitepaper-differences.md
+  - Roadmap: roadmap.md
+  - Contributing: contributing.md
+  - Development: development.md
+  - Glossary: glossary.md
 
 theme:
   name: 'material'
