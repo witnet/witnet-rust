@@ -4,14 +4,24 @@ use std::io;
 use std::io::{Read, Write};
 use std::net;
 use std::process::exit;
+use threadpool::ThreadPool;
+
+// use crate::services;
 
 pub fn run(address: &str, callback: fn()) -> io::Result<()> {
     let listener = net::TcpListener::bind(address).expect("error run");
     info!("Witnet server listening on {}", address);
     callback();
 
-    for stream in listener.incoming() {
-        handle_connection(stream?).expect("Error handling connection")
+    let n_workers = 20;
+    let pool = ThreadPool::new(n_workers);
+    // let counter = services::counter::start();
+
+    for incoming in listener.incoming() {
+        let stream = incoming?;
+        pool.execute(move || {
+            handle_connection(stream).expect("Error handling connection")
+        })
     }
     Ok(())
 }

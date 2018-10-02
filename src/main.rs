@@ -13,8 +13,9 @@ use witnet_config as config;
 
 use std::process::exit;
 
-mod cli;
-mod server;
+pub mod cli;
+pub mod server;
+pub mod services;
 
 fn main() {
     env_logger::init();
