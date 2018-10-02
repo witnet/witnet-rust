@@ -1,6 +1,4 @@
-extern crate flatbuffers;
-
-use crate::data_structures::flatbuffers::protocol_generated::protocol::{
+use witnet_data_structures::flatbuffers::protocol_generated::protocol::{
     get_root_as_message, Command, Message, MessageArgs, Ping, PingArgs,
 };
 
