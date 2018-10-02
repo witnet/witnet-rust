@@ -3,8 +3,7 @@ cache: cargo
 dist: trusty
 sudo: false
 rust:
-  - beta # FIXME: back to stable once edition 2018 released
-  - nightly
+  - nightly # FIXME: move to beta once 1.31 enters beta channel
 
 addons:
   apt:
@@ -26,7 +25,6 @@ env:
 
 script:
     - rustup update
-    - if [[ $TRAVIS_RUST_VERSION == "nightly" ]];
-        then rustup component add clippy-preview && cargo clippy --all-targets --all-features -- -D warnings;
-      fi #FIXME: remove after next beta release
+    - rustup component add clippy-preview
+    - cargo clippy --all-targets --all-features -- -D warnings
     - cargo test --all --verbose

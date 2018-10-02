@@ -4,8 +4,8 @@ Witnet-rust is build using [The Rust Programming language](https://rust-lang-nur
 ## Installing
 
 1. Install dependencies
-    - Rust
-    - FlatBuffers (Optional)
+    - Rust 1.31 (currently on the `nightly` release channel)
+    - `flatc` FlatBuffers compiler (optional, only if recompiling schemas) 
 
 2. Clone the source code from github:
   ```
