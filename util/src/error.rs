@@ -1,7 +1,9 @@
 //! Convenient structs, implementations and types for nicer handling of our own custom error types.
 
 use core::fmt::Display;
-use std::fmt::Debug;
+use std::fmt;
+
+use failure::{Backtrace, Context, Fail};
 
 /// Generic structure for application errors that can be implemented over any error of kind `K`.
 /// Namely, `K` is intended to be a simple, C-style enum.
@@ -18,62 +20,50 @@ use std::fmt::Debug;
 /// type MyErrorType = witnet_util::error::Error<MyOwnErrorCodes>;
 /// ```
 #[derive(Debug)]
-pub struct Error<K: Debug> {
-    kind: K,
-    message: String
+pub struct Error<K: Fail> {
+    inner: Context<ErrorKind<K>>,
 }
 
-/// Implement the `::new()` constructor for the generic Error<K> type.
-impl <K: Debug> Error<K> {
+/// ErrorKind
+#[derive(Debug, Fail)]
+pub enum ErrorKind<K: Fail> {
+    /// storage error
+    #[fail(display = "StorageError: {}", 0)]
+    Storage(K),
+}
 
-    /// Constructs a new `Error<K>` for a member of `K` and a `message` string.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// #[derive(Debug)]
-    /// enum MyOwnErrorCodes {
-    ///     AnError,
-    ///     AnotherError
-    /// };
-    ///
-    /// witnet_util::error::Error::new(
-    ///     MyOwnErrorCodes::AnError,
-    ///     String::from("This is a good example of an error")
-    /// );
-    /// ```
-    pub fn new(kind: K, message: String) -> Self {
-        Error { kind, message }
+impl<K: Fail> Error<K> {
+    /// create storage error
+    pub fn storage_err(err: K) -> Self {
+        Self {
+            inner: Context::new(ErrorKind::Storage(err)),
+        }
     }
 }
 
-/// Implement the `std::error::Error` trait for our custom `Error<K>`.
-impl <K: Debug> std::error::Error for Error<K> {
-    fn description(&self) -> &str {
-        &self.message
+impl<K: Fail> From<ErrorKind<K>> for Error<K> {
+    fn from(err: ErrorKind<K>) -> Self {
+        Self {
+            inner: Context::new(err),
+        }
     }
 }
 
-/// Implement the `std::fmt::Display::fmt` trait for our custom `Error<K>`.
-impl <K: Debug> std::fmt::Display for Error<K> {
-
-    fn fmt<'f>(&self, formatter: &mut std::fmt::Formatter<'f>) -> std::fmt::Result {
-        Display::fmt(&self.message, formatter)
+impl<K: Fail> Display for Error<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.inner, f)
     }
 }
 
-/// Expose a generic `Result<T, K>` that can be used by other modules to define their own
-/// `Result<T>` type by specifying `K`.
-///
-/// # Example
-///
-/// ```
-/// #[derive(Debug)]
-/// enum MyOwnErrorCodes {
-///     AnError,
-///     AnotherError
-/// };
-///
-/// type Result<T> = witnet_util::error::Result<T, MyOwnErrorCodes>;
-/// ```
+impl<K: Fail> Fail for Error<K> {
+    fn cause(&self) -> Option<&dyn Fail> {
+        self.inner.cause()
+    }
+
+    fn backtrace(&self) -> Option<&Backtrace> {
+        self.inner.backtrace()
+    }
+}
+
+/// Result
 pub type Result<T, K> = std::result::Result<T, Error<K>>;
