@@ -7,9 +7,6 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-#[macro_use]
-extern crate log;
-
-pub mod error;
 pub mod backends;
+pub mod error;
 pub mod storage;

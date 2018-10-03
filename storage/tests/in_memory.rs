@@ -9,7 +9,7 @@ fn storage_instantiation() {
 
     // Recreate the expected final state.
     let expected = InMemoryStorage {
-        memory: HashMap::new()
+        memory: HashMap::new(),
     };
 
     // The storage instantiated through the constructor should equal the manually constructed one.
@@ -20,7 +20,7 @@ fn storage_instantiation() {
 fn storage_crud_create() {
     // Instantiate a new `InMemoryStorage` through the constructor of the `Storage` trait.
     let mut storage = InMemoryStorage {
-        memory: HashMap::new()
+        memory: HashMap::new(),
     };
     // This `&[u8]` will be used as key for the `put` method.
     let foo_slice = b"foo";
@@ -33,7 +33,9 @@ fn storage_crud_create() {
     // Recreate the expected final state.
     let mut expected_memory: HashMap<&[u8], Vec<u8>> = HashMap::new();
     expected_memory.insert(foo_slice, bar_vec);
-    let expected_storage = InMemoryStorage { memory: expected_memory };
+    let expected_storage = InMemoryStorage {
+        memory: expected_memory,
+    };
 
     // The `put` method's return value should be an unit (`()`).
     assert_eq!(return_value, ());
@@ -58,7 +60,9 @@ fn storage_crud_read() {
     // Recreate the expected final state.
     let mut expected_memory: HashMap<&[u8], Vec<u8>> = HashMap::new();
     expected_memory.insert(foo_slice, bar_vec.clone());
-    let expected_storage = InMemoryStorage { memory: expected_memory };
+    let expected_storage = InMemoryStorage {
+        memory: expected_memory,
+    };
 
     // The value returned by `get` should equal the value used when constructing the storage.
     assert_eq!(value, bar_vec);
@@ -86,7 +90,9 @@ fn storage_crud_update() {
     // Recreate the expected final state.
     let mut expected_memory: HashMap<&[u8], Vec<u8>> = HashMap::new();
     expected_memory.insert(foo_slice, beer_vec);
-    let expected_storage = InMemoryStorage { memory: expected_memory };
+    let expected_storage = InMemoryStorage {
+        memory: expected_memory,
+    };
 
     // The `put` method's return value should be an unit (`()`).
     assert_eq!(return_value, ());
@@ -110,7 +116,7 @@ fn storage_crud_delete() {
 
     // Recreate the expected final state.
     let expected_storage = InMemoryStorage {
-        memory: HashMap::new()
+        memory: HashMap::new(),
     };
 
     // The `put` method's return value should be the unit (`()`).
@@ -123,7 +129,7 @@ fn storage_crud_delete() {
 fn storage_get_nonexistent() {
     // Recreate an `InMemoryStorage` with no data in it.
     let storage = InMemoryStorage {
-        memory: HashMap::new()
+        memory: HashMap::new(),
     };
 
     // Get nonexistent key from storage.
@@ -137,7 +143,7 @@ fn storage_get_nonexistent() {
 fn storage_delete_nonexistent() {
     // Recreate an `InMemoryStorage` with no data in it.
     let mut storage = InMemoryStorage {
-        memory: HashMap::new()
+        memory: HashMap::new(),
     };
 
     // Get nonexistent key from storage.

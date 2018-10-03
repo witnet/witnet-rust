@@ -1,69 +1,69 @@
 //! Storage backend that persists data in the file system using a RocksDB database.
 
-use crate::error::{Error, Result, StorageErrors};
+use crate::error::{StorageError, StorageResult};
 use crate::storage::Storage;
 use rocksdb::DB;
+
 use std::str;
+
+use witnet_util::error::Error;
 
 /// Data structure for the RocksDB storage whose only member is a rocksdb::DB object.
 pub struct RocksStorage {
-    db: DB
+    db: DB,
 }
 
 /// Implement the Storage generic trait for the RocksStorage storage data structure.
-impl <'a> Storage<&'a str, &'a [u8], Vec<u8>> for RocksStorage {
-
-    fn new(path: &str) -> Result<Box<Self>> {
+impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
+    fn new(path: String) -> StorageResult<Box<Self>> {
         match DB::open_default(&path) {
             Ok(db) => {
                 let storage = RocksStorage { db };
                 Ok(Box::new(storage))
-            },
-            Err(e) => {
-                let message = e.to_string();
-                error!("Error initializing RocksDB storage at \"{}\".\nRocksDB said:\n{}",
-                       path, message);
-                Err(Error::new(StorageErrors::ConnectionError, message))
             }
+            Err(e) => Err(Error::storage_err(StorageError::Connection {
+                path,
+                msg: e.to_string(),
+            })),
         }
     }
 
-    fn put(&mut self, key: &[u8], value: Vec<u8>) -> Result<()> {
+    fn put(&mut self, key: &[u8], value: Vec<u8>) -> StorageResult<()> {
         match self.db.put(key, value.as_slice()) {
             Ok(_) => Ok(()),
             Err(e) => {
-                let message = e.to_string();
-                let key_str = str::from_utf8(key).unwrap();
-                error!("Error putting value for key \"{}\".\nRocksDB said:\n{}", key_str, message);
-                Err(Error::new(StorageErrors::PutError, message))
+                let key = str::from_utf8(key).unwrap();
+                Err(Error::storage_err(StorageError::Put {
+                    key: key.to_string(),
+                    msg: e.to_string(),
+                }))
             }
         }
     }
 
-    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+    fn get(&self, key: &[u8]) -> StorageResult<Option<Vec<u8>>> {
         match self.db.get(key) {
-            Ok(option) => {
-                Ok(option.map(|value| value.to_vec()))
-            },
+            Ok(option) => Ok(option.map(|value| value.to_vec())),
             Err(e) => {
-                let message = e.to_string();
-                let key_str = str::from_utf8(key).unwrap();
-                error!("Error getting value for key \"{}\".\nRocksDB said:\n{}", key_str, message);
-                Err(Error::new(StorageErrors::GetError, message))
+                let key = str::from_utf8(key).unwrap();
+                Err(Error::storage_err(StorageError::Get {
+                    key: key.to_string(),
+                    msg: e.to_string(),
+                }))
             }
         }
     }
 
-    fn delete(&mut self, key: &[u8]) -> Result<()> {
+    fn delete(&mut self, key: &[u8]) -> StorageResult<()> {
         match self.db.delete(key) {
             Ok(_) => Ok(()),
             Err(e) => {
-                let message = e.to_string();
-                let key_str = str::from_utf8(key).unwrap();
-                error!("Error deleting key \"{}\".\nRocksDB said:\n{}", key_str, message);
-                Err(Error::new(StorageErrors::DeleteError, message))
+                let key = str::from_utf8(key).unwrap();
+                Err(Error::storage_err(StorageError::Delete {
+                    key: key.to_string(),
+                    msg: e.to_string(),
+                }))
             }
         }
     }
-
 }
