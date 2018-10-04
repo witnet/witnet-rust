@@ -50,4 +50,4 @@ pub enum StorageError {
 
 /// Result type for the Storage module.
 /// This is the only return type acceptable for any public method in a storage backend.
-pub type StorageResult<T> = util::error::Result<T, StorageError>;
+pub type StorageResult<T> = util::error::WitnetResult<T, StorageError>;

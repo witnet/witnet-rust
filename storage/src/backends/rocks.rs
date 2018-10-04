@@ -4,10 +4,10 @@ use crate::error::{StorageError, StorageResult};
 use crate::storage::Storage;
 use rocksdb::DB;
 
-use std::str;
 use std::fmt::Debug;
+use std::str;
 
-use witnet_util::error::Error;
+use witnet_util::error::WitnetError;
 
 /// Data structure for the RocksDB storage whose only member is a rocksdb::DB object.
 pub struct RocksStorage {
@@ -23,7 +23,7 @@ impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
                 let storage = RocksStorage { db };
                 Ok(Box::new(storage))
             }
-            Err(e) => Err(Error::storage_err(StorageError::Connection {
+            Err(e) => Err(WitnetError::storage_err(StorageError::Connection {
                 path,
                 msg: e.to_string(),
             })),
@@ -35,7 +35,7 @@ impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
             Ok(_) => Ok(()),
             Err(e) => {
                 let key = str::from_utf8(key).unwrap();
-                Err(Error::storage_err(StorageError::Put {
+                Err(WitnetError::storage_err(StorageError::Put {
                     key: key.to_string(),
                     msg: e.to_string(),
                 }))
@@ -48,7 +48,7 @@ impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
             Ok(option) => Ok(option.map(|value| value.to_vec())),
             Err(e) => {
                 let key = str::from_utf8(key).unwrap();
-                Err(Error::storage_err(StorageError::Get {
+                Err(WitnetError::storage_err(StorageError::Get {
                     key: key.to_string(),
                     msg: e.to_string(),
                 }))
@@ -61,7 +61,7 @@ impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
             Ok(_) => Ok(()),
             Err(e) => {
                 let key = str::from_utf8(key).unwrap();
-                Err(Error::storage_err(StorageError::Delete {
+                Err(WitnetError::storage_err(StorageError::Delete {
                     key: key.to_string(),
                     msg: e.to_string(),
                 }))

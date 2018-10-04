@@ -7,20 +7,8 @@ use failure::{Backtrace, Context, Fail};
 
 /// Generic structure for application errors that can be implemented over any error of kind `K`.
 /// Namely, `K` is intended to be a simple, C-style enum.
-///
-/// # Examples
-///
-/// ```
-/// #[derive(Debug)]
-/// enum MyOwnErrorCodes {
-///     AnError,
-///     AnotherError
-/// };
-///
-/// type MyErrorType = witnet_util::error::Error<MyOwnErrorCodes>;
-/// ```
 #[derive(Debug)]
-pub struct Error<K: Fail> {
+pub struct WitnetError<K: Fail> {
     inner: Context<ErrorKind<K>>,
 }
 
@@ -32,7 +20,7 @@ pub enum ErrorKind<K: Fail> {
     Storage(K),
 }
 
-impl<K: Fail> Error<K> {
+impl<K: Fail> WitnetError<K> {
     /// create storage error
     pub fn storage_err(err: K) -> Self {
         Self {
@@ -41,7 +29,7 @@ impl<K: Fail> Error<K> {
     }
 }
 
-impl<K: Fail> From<ErrorKind<K>> for Error<K> {
+impl<K: Fail> From<ErrorKind<K>> for WitnetError<K> {
     fn from(err: ErrorKind<K>) -> Self {
         Self {
             inner: Context::new(err),
@@ -49,13 +37,13 @@ impl<K: Fail> From<ErrorKind<K>> for Error<K> {
     }
 }
 
-impl<K: Fail> Display for Error<K> {
+impl<K: Fail> Display for WitnetError<K> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.inner, f)
     }
 }
 
-impl<K: Fail> Fail for Error<K> {
+impl<K: Fail> Fail for WitnetError<K> {
     fn cause(&self) -> Option<&dyn Fail> {
         self.inner.cause()
     }
@@ -66,4 +54,4 @@ impl<K: Fail> Fail for Error<K> {
 }
 
 /// Result
-pub type Result<T, K> = std::result::Result<T, Error<K>>;
+pub type WitnetResult<T, K> = std::result::Result<T, WitnetError<K>>;
