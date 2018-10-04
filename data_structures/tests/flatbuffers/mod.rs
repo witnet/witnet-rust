@@ -16,7 +16,7 @@ fn data_structures_message_ping_encode() {
         &MessageArgs {
             magic: 0,
             command_type: Command::Ping,
-            command: Some(ping_command.as_union_value())
+            command: Some(ping_command.as_union_value()),
         },
     );
 

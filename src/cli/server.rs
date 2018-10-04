@@ -19,15 +19,13 @@ pub fn get_arg(address: &str) -> App<'_, '_> {
                 .takes_value(true)
                 .default_value(address),
         )
-
         .arg(
             Arg::with_name("peer")
-            .short("p")
-            .long("peer")
-            .help("Address to peer connect")
-            .takes_value(true)
+                .short("p")
+                .long("peer")
+                .help("Address to peer connect")
+                .takes_value(true),
         )
-
         .arg(
             Arg::with_name("background")
                 .short("b")

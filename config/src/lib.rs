@@ -8,9 +8,9 @@
 // FIXME: doc the config
 // #![deny(missing_docs)]
 
-use toml as Toml;
 use std::fs::File;
 use std::io::prelude::*;
+use toml as Toml;
 
 const CONFIG_FILE: &str = "wit.toml";
 
@@ -52,9 +52,9 @@ pub fn read_config() -> Option<Config> {
     let name: String = String::from(CONFIG_FILE);
     let mut input = String::new();
 
-    File::open(&name).and_then(|mut f| {
-        f.read_to_string(&mut input)
-    }).unwrap();
+    File::open(&name)
+        .and_then(|mut f| f.read_to_string(&mut input))
+        .unwrap();
 
     match input.parse() {
         Ok(toml) => {
