@@ -6,6 +6,7 @@
 use crate::error::StorageResult;
 use crate::storage::Storage;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 /// Data structure for the in-memory storage.
 /// Only member is a HashMap that uses references to u8 slices as keys and vectors of u8 as values.
@@ -17,7 +18,7 @@ pub struct InMemoryStorage<'a> {
 
 /// Implement the Storage generic trait for the InMemoryStorage storage data structure.
 impl<'a> Storage<&'a [u8], Vec<u8>> for InMemoryStorage<'a> {
-    fn new(_: String) -> StorageResult<Box<Self>> {
+    fn new(_: impl Debug) -> StorageResult<Box<Self>> {
         Ok(Box::new(InMemoryStorage {
             memory: HashMap::new(),
         }))

@@ -5,6 +5,7 @@ use crate::storage::Storage;
 use rocksdb::DB;
 
 use std::str;
+use std::fmt::Debug;
 
 use witnet_util::error::Error;
 
@@ -15,7 +16,8 @@ pub struct RocksStorage {
 
 /// Implement the Storage generic trait for the RocksStorage storage data structure.
 impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
-    fn new(path: String) -> StorageResult<Box<Self>> {
+    fn new(path: impl Debug) -> StorageResult<Box<Self>> {
+        let path = format!("{:?}", path);
         match DB::open_default(&path) {
             Ok(db) => {
                 let storage = RocksStorage { db };

@@ -5,7 +5,7 @@ use witnet_storage::storage::Storage;
 #[test]
 fn storage_instantiation() {
     // Instantiate a new `InMemoryStorage` through the constructor of the `Storage` trait.
-    let actual = *InMemoryStorage::new(String::new()).unwrap();
+    let actual = *InMemoryStorage::new(()).unwrap();
 
     // Recreate the expected final state.
     let expected = InMemoryStorage {
