@@ -5,32 +5,14 @@ use std::fmt;
 
 use failure::{Backtrace, Context, Fail};
 
-/// Generic structure for application errors that can be implemented over any error of kind `K`.
-/// Namely, `K` is intended to be a simple, C-style enum.
+/// Generic structure for witnet errors
 #[derive(Debug)]
 pub struct WitnetError<K: Fail> {
-    inner: Context<ErrorKind<K>>,
+    inner: Context<K>,
 }
 
-/// ErrorKind
-#[derive(Debug, Fail)]
-pub enum ErrorKind<K: Fail> {
-    /// storage error
-    #[fail(display = "StorageError: {}", 0)]
-    Storage(K),
-}
-
-impl<K: Fail> WitnetError<K> {
-    /// create storage error
-    pub fn storage_err(err: K) -> Self {
-        Self {
-            inner: Context::new(ErrorKind::Storage(err)),
-        }
-    }
-}
-
-impl<K: Fail> From<ErrorKind<K>> for WitnetError<K> {
-    fn from(err: ErrorKind<K>) -> Self {
+impl<K: Fail> From<K> for WitnetError<K> {
+    fn from(err: K) -> Self {
         Self {
             inner: Context::new(err),
         }

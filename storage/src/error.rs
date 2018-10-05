@@ -1,53 +1,47 @@
 //! Error type definitions for the Storage module.
 
-use witnet_util as util;
-
 use failure::Fail;
+use std::fmt;
+use witnet_util::error::WitnetResult;
 
-/// Storage Error caused be `C`.
+/// Storage Error
 #[derive(Debug, Fail)]
-pub enum StorageError {
-    /// Error while trying to open a connection to the storage backend.
-    #[fail(
-        display = "connection error: at \"{}\", rocksdb_msg {}",
-        path,
-        msg
-    )]
-    Connection {
-        /// Connection address
-        path: String,
-        /// Error message from rocksdb
-        msg: String,
-    },
+#[fail(display = "{} : at \"{}\", msg {}", kind, info, msg)]
+pub struct StorageError {
+    /// Operation kind
+    kind: StorageErrorKind,
+    /// Operation parameter
+    info: String,
+    /// Error message from database
+    msg: String,
+}
 
-    /// Error while trying to put a value for a certain key.
-    #[fail(display = "putting error: key={}, rocksdb_msg {}", key, msg)]
-    Put {
-        /// Key
-        key: String,
-        /// Error message from rocksdb
-        msg: String,
-    },
+impl StorageError {
+    /// Create a storage error based on operation kind and related info.
+    pub fn new(kind: StorageErrorKind, info: String, msg: String) -> Self {
+        Self { kind, info, msg }
+    }
+}
 
-    /// Error while trying to get the value for a certain key.
-    #[fail(display = "getting error: key={}, rocksdb_msg {}", key, msg)]
-    Get {
-        /// Key
-        key: String,
-        /// Error message from rocksdb
-        msg: String,
-    },
+/// Storage Errors while operating on database
+#[derive(Debug)]
+pub enum StorageErrorKind {
+    /// Errors when create a connection to backend database
+    Connection,
+    /// Errors when adding a key to database
+    Put,
+    /// Errors when getting a value of a key from database
+    Get,
+    /// Errors when deleting a key/value pair
+    Delete,
+}
 
-    #[fail(display = "deletion error: key={}, rocksdb_msg {}", key, msg)]
-    /// Error while trying to delete a key/value pair.
-    Delete {
-        /// Key
-        key: String,
-        /// Error message from rocksdb
-        msg: String,
-    },
+impl fmt::Display for StorageErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "StorageError::{:?}", self)
+    }
 }
 
 /// Result type for the Storage module.
 /// This is the only return type acceptable for any public method in a storage backend.
-pub type StorageResult<T> = util::error::WitnetResult<T, StorageError>;
+pub type StorageResult<T> = WitnetResult<T, StorageError>;

@@ -1,6 +1,6 @@
 //! Storage backend that persists data in the file system using a RocksDB database.
 
-use crate::error::{StorageError, StorageResult};
+use crate::error::{StorageError, StorageErrorKind, StorageResult};
 use crate::storage::Storage;
 use rocksdb::DB;
 
@@ -23,10 +23,11 @@ impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
                 let storage = RocksStorage { db };
                 Ok(Box::new(storage))
             }
-            Err(e) => Err(WitnetError::storage_err(StorageError::Connection {
+            Err(e) => Err(WitnetError::from(StorageError::new(
+                StorageErrorKind::Connection,
                 path,
-                msg: e.to_string(),
-            })),
+                e.to_string(),
+            ))),
         }
     }
 
@@ -35,10 +36,11 @@ impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
             Ok(_) => Ok(()),
             Err(e) => {
                 let key = str::from_utf8(key).unwrap();
-                Err(WitnetError::storage_err(StorageError::Put {
-                    key: key.to_string(),
-                    msg: e.to_string(),
-                }))
+                Err(WitnetError::from(StorageError::new(
+                    StorageErrorKind::Put,
+                    key.to_string(),
+                    e.to_string(),
+                )))
             }
         }
     }
@@ -48,10 +50,11 @@ impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
             Ok(option) => Ok(option.map(|value| value.to_vec())),
             Err(e) => {
                 let key = str::from_utf8(key).unwrap();
-                Err(WitnetError::storage_err(StorageError::Get {
-                    key: key.to_string(),
-                    msg: e.to_string(),
-                }))
+                Err(WitnetError::from(StorageError::new(
+                    StorageErrorKind::Get,
+                    key.to_string(),
+                    e.to_string(),
+                )))
             }
         }
     }
@@ -61,10 +64,11 @@ impl<'a> Storage<&'a [u8], Vec<u8>> for RocksStorage {
             Ok(_) => Ok(()),
             Err(e) => {
                 let key = str::from_utf8(key).unwrap();
-                Err(WitnetError::storage_err(StorageError::Delete {
-                    key: key.to_string(),
-                    msg: e.to_string(),
-                }))
+                Err(WitnetError::from(StorageError::new(
+                    StorageErrorKind::Delete,
+                    key.to_string(),
+                    e.to_string(),
+                )))
             }
         }
     }
