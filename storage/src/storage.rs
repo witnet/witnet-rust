@@ -7,11 +7,11 @@ use std::fmt::Debug;
 /// This is a generic trait that exposes a very simple key/value CRUD API for data storage.
 /// This trait can be easily implemented for any specific storage backend solution (databases,
 /// volatile memory, flat files, etc.)
-pub trait Storage<Key, Value> {
+pub trait Storage<ConnData: Debug, Key, Value> {
     /// Storage object constructor.
     /// `connection_data` can be used for passing credentials, urls, paths, etc. down to the storage
     /// backend.
-    fn new(connection_data: impl Debug) -> StorageResult<Box<Self>>;
+    fn new(connection_data: ConnData) -> StorageResult<Box<Self>>;
 
     /// Create / update entries in the storage, identified by a key.
     fn put(&mut self, key: Key, value: Value) -> StorageResult<()>;
