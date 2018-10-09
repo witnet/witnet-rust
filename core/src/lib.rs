@@ -7,6 +7,9 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
+/// Actors module
+pub mod actors;
+
 /// core greeting
 pub fn greetings() -> String {
     println!("Hello from core!");
