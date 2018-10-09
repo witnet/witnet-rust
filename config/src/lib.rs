@@ -12,6 +12,9 @@ use std::fs::File;
 use std::io::prelude::*;
 use toml as Toml;
 
+pub const P2P_SERVER_HOST: &str = "0.0.0.0";
+pub const P2P_SERVER_PORT: u16 = 11337;
+
 const CONFIG_FILE: &str = "witnet.toml";
 
 #[macro_use]
@@ -32,10 +35,10 @@ pub struct ServerConfig {
     pub port: u16,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct P2pConfig {
-    pub host: Option<String>,
-    pub port: Option<u16>,
+    pub host: String,
+    pub port: u16,
 }
 
 #[derive(Debug, Deserialize)]

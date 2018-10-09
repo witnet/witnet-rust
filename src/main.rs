@@ -10,10 +10,14 @@ use clap::*;
 
 use ctrlc;
 use std::process::exit;
+
 use witnet_config as config;
+use witnet_core as core;
+
+use crate::config::{P2P_SERVER_PORT, P2P_SERVER_HOST, P2pConfig};
+use crate::core::actors::node;
 
 mod cli;
-mod server;
 
 fn main() {
     env_logger::init();
@@ -21,22 +25,45 @@ fn main() {
     let configuration: config::Config = config::read_config().unwrap();
     let default_address = &format!(
         "{}:{}",
-        configuration.server.host, configuration.server.port
+        configuration
+            .server
+            .p2p.clone()
+            .unwrap_or(P2pConfig {
+                host: P2P_SERVER_HOST.to_string(),
+                port: P2P_SERVER_PORT,
+            })
+            .host,
+        configuration
+            .server
+            .p2p.clone()
+            .unwrap_or(P2pConfig {
+                host: P2P_SERVER_HOST.to_string(),
+                port: P2P_SERVER_PORT,
+            })
+            .port
     );
 
     let matches = app_from_crate!()
-        .subcommand(cli::server::get_arg(default_address))
+        .subcommand(cli::node::get_arg(default_address))
         .get_matches();
 
     match matches.subcommand() {
-        ("server", Some(arg_matches)) => {
-            let address = arg_matches.value_of("address").unwrap_or(default_address);
-            // peer address to be used with incoming features
+        ("node", Some(arg_matches)) => {
+
+            // Get p2p host and port as command line arguments or from config file
+            let address = arg_matches
+                .value_of("address")
+                .unwrap_or(default_address)
+                .parse()
+                .unwrap_or(default_address.parse().unwrap());
+
+            // Peer address to be used with incoming features
             let _peer_address = arg_matches.value_of("peer").unwrap_or("");
 
-            server::run(address, || {
+            // Call function to run system actor
+            node::run(address, || {
                 ctrlc::set_handler(move || {
-                    server::close();
+                    node::close();
                 })
                 .expect("Error setting handler for both SIGINT (Ctrl+C) and SIGTERM (kill)");
             })

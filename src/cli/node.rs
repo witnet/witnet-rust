@@ -9,7 +9,7 @@
 use clap::{App, Arg, SubCommand};
 
 pub fn get_arg(address: &str) -> App<'_, '_> {
-    SubCommand::with_name("server")
+    SubCommand::with_name("node")
         .about("Run the Witnet server")
         .arg(
             Arg::with_name("address")
