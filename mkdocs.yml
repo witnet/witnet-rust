@@ -13,14 +13,35 @@ nav:
     - Install: get-started/install.md
   - Protocol:
     - Network messages: protocol/network.md
-    - Network objects:
-      - Data requests: protocol/data-requests.md
-      - Transactions: protocol/transactions.md
-      - Blocks: protocol/blocks.md
+    - Data requests:
+      - Overview: protocol/data-requests/overview.md
+      - RADON:
+        - Encoding: protocol/data-requests/radon/encoding.md
+        - Data types: 
+          - Overview: protocol/data-requests/radon/types/overview.md
+          - Array<V>: protocol/data-requests/radon/types/array.md
+          - Boolean: protocol/data-requests/radon/types/boolean.md
+          - Int: protocol/data-requests/radon/types/int.md
+          - Float: protocol/data-requests/radon/types/float.md
+          - Map<V>: protocol/data-requests/radon/types/map.md
+          - Mixed: protocol/data-requests/radon/types/mixed.md
+          - Null: protocol/data-requests/radon/types/null.md
+          - Result<V>: protocol/data-requests/radon/types/result.md
+          - String: protocol/data-requests/radon/types/string.md
+        - Implicit `Result<V>` wrapping: protocol/data-requests/radon/wrapping.md
+        - Exception handling: protocol/data-requests/radon/exceptions.md
+        - Predefined functions:  protocol/data-requests/radon/functions.md
+        - Subscripts: protocol/data-requests/radon/subscripts.md
+        - Examples: protocol/data-requests/radon/examples.md
+        - Constants: protocol/data-requests/radon/constants.md
+      - RADlang: protocol/data-requests/radlang.md
+    - Transactions:
+      - Introduction: protocol/transactions.md
+      - WitScript: protocol/witscript.md
+    - Blocks: protocol/blocks.md
     - Reputation: protocol/reputation.md
     - Mining: protocol/mining.md
     - Task assignment: protocol/task-assignment.md
-    - WitScript: protocol/witscript.md
   - Architecture:
     - Overview: architecture/overview.md
     - Peer-To-Peer:
@@ -36,9 +57,6 @@ nav:
     - UTXO Management: architecture/utxo-mgmt.md
     - Data Requests:
       - Overview: architecture/rad/overview.md
-      - Headless Browser Engine: architecture/rad/hbe.md
-      - retrieve.js: architecture/rad/retrieve-js.md
-      - RadLang: architecture/rad/radlang.md
     - Witscript Parser: architecture/witscript.md
   - Advanced:
     - Network constants: advanced/constants.md
@@ -73,8 +91,7 @@ extra:
 
 markdown_extensions:
   - admonition
-  - codehilite:
-      linenums: true
+  - codehilite
   - footnotes
   - toc:
       permalink: true
