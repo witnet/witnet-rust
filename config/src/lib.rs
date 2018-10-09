@@ -12,7 +12,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use toml as Toml;
 
-const CONFIG_FILE: &str = "wit.toml";
+const CONFIG_FILE: &str = "witnet.toml";
 
 #[macro_use]
 extern crate serde_derive;
