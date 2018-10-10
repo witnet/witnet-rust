@@ -1,11 +1,17 @@
 /// Codec module
 pub mod codec;
 
-/// System actor module
+/// Module running system actor
 pub mod node;
+
+/// Client actor module
+pub mod client;
 
 /// Server actor module
 pub mod server;
+
+/// Session manager actor module
+pub mod session_manager;
 
 /// Session actor module
 pub mod session;
