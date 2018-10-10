@@ -4,12 +4,12 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 
+use std::process::exit;
+
 use env_logger;
 
 use clap::*;
-
 use ctrlc;
-use std::process::exit;
 
 use witnet_config as config;
 use witnet_core as core;
@@ -20,9 +20,13 @@ use crate::core::actors::node;
 mod cli;
 
 fn main() {
+    // Init app logger
     env_logger::init();
 
+    // Read configuration
     let configuration: config::Config = config::read_config().unwrap();
+
+    // Build default address
     let default_address = &format!(
         "{}:{}",
         configuration
@@ -43,11 +47,14 @@ fn main() {
             .port
     );
 
+    // TODO
     let matches = app_from_crate!()
         .subcommand(cli::node::get_arg(default_address))
         .get_matches();
 
+    // Check run mode
     match matches.subcommand() {
+        // node run mode
         ("node", Some(arg_matches)) => {
 
             // Get p2p host and port as command line arguments or from config file
@@ -69,6 +76,8 @@ fn main() {
             })
             .expect("Server error");
         }
+
+        // unknown run mode
         _ => {
             println!("Unrecognized command. Run with '--help' to learn more.");
             exit(1);
