@@ -2,17 +2,17 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
      <loc>https://docs.witnet.io/</loc>
-     <lastmod>2018-10-02</lastmod>
+     <lastmod>2018-10-15</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/get-started/what-is-witnet/</loc>
-     <lastmod>2018-10-02</lastmod>
+     <lastmod>2018-10-15</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/get-started/why-rust/</loc>
-     <lastmod>2018-10-02</lastmod>
+     <lastmod>2018-10-15</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
@@ -26,8 +26,8 @@
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc></loc>
-     
+     <loc>https://docs.witnet.io/protocol/network/</loc>
+     <lastmod>2018-10-15</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
@@ -87,7 +87,7 @@
     </url>
     <url>
      <loc>https://docs.witnet.io/architecture/storage/</loc>
-     <lastmod>2018-10-02</lastmod>
+     <lastmod>2018-10-15</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
@@ -147,12 +147,12 @@
     </url>
     <url>
      <loc>https://docs.witnet.io/contributing/</loc>
-     <lastmod>2018-10-02</lastmod>
+     <lastmod>2018-10-15</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/development/</loc>
-     <lastmod>2018-10-02</lastmod>
+     <lastmod>2018-10-15</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
