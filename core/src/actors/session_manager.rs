@@ -30,8 +30,8 @@ impl Connect {
     }
 }
 
-#[derive(Message)]
 /// Message to indicate that a session is disconnected
+#[derive(Message)]
 pub struct Disconnect {
     /// Id of the session that is to be disconnected
     id: usize,
@@ -47,8 +47,8 @@ impl Disconnect {
     }
 }
 
-#[derive(Default)]
 /// Session manager actor
+#[derive(Default)]
 pub struct SessionManager {
     /// Server sessions
     server_sessions: HashMap<usize, Addr<Session>>,

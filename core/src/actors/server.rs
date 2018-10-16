@@ -11,8 +11,8 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::actors::codec::P2PCodec;
 use crate::actors::session::{Session, SessionType};
 
-#[derive(Message, Debug)]
 /// Message to hold a TCP stream representing a bidirectional TCP connection
+#[derive(Message, Debug)]
 struct TcpConnect {
     stream: TcpStream
 }

@@ -5,15 +5,15 @@ use bytes::BytesMut;
 use log::info;
 use tokio::codec::{Decoder, Encoder};
 
-#[derive(Debug, Message)]
 /// Message coming from the network
+#[derive(Debug, Message)]
 pub enum Request {
     /// Request message
     Message(String),
 }
 
-#[derive(Debug, Message)]
 /// Message going to the network
+#[derive(Debug, Message)]
 pub enum Response {
     /// Response message
     Message(String),

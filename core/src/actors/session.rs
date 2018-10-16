@@ -10,8 +10,8 @@ use tokio::net::TcpStream;
 use crate::actors::codec::{P2PCodec, Request};
 use crate::actors::session_manager::{SessionManager, Connect, Disconnect};
 
-#[derive(Copy, Clone)]
 /// Session type
+#[derive(Copy, Clone)]
 pub enum SessionType {
     /// Server session
     Server,
