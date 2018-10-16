@@ -15,3 +15,6 @@ pub mod session_manager;
 
 /// Session actor module
 pub mod session;
+
+/// Storage manager actor module
+pub mod storage_manager;
