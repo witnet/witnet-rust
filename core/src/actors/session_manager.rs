@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use actix::{Addr, Message, Actor, Context, Handler, SystemService};
+use actix::{Actor, Addr, Context, Handler, Message, SystemService};
 use log::info;
 use rand::Rng;
 
@@ -14,7 +14,7 @@ pub struct Connect {
     addr: Addr<Session>,
 
     /// Session type
-    session_type: SessionType
+    session_type: SessionType,
 }
 
 /// Session manager returns unique session id for Connect message
@@ -26,7 +26,7 @@ impl Message for Connect {
 impl Connect {
     /// Method to create a Connect message
     pub fn new(addr: Addr<Session>, session_type: SessionType) -> Connect {
-        Connect {addr, session_type}
+        Connect { addr, session_type }
     }
 }
 
@@ -37,7 +37,7 @@ pub struct Disconnect {
     id: usize,
 
     /// Session type
-    session_type: SessionType
+    session_type: SessionType,
 }
 
 impl Disconnect {
@@ -54,7 +54,7 @@ pub struct SessionManager {
     server_sessions: HashMap<usize, Addr<Session>>,
 
     /// Client sessions
-    client_sessions: HashMap<usize, Addr<Session>>
+    client_sessions: HashMap<usize, Addr<Session>>,
 }
 
 impl SessionManager {
@@ -64,8 +64,7 @@ impl SessionManager {
     }
 
     /// Method to send a message through all client connections
-    pub fn broadcast(&self, _message: &str, _skip_id: usize) {
-    }
+    pub fn broadcast(&self, _message: &str, _skip_id: usize) {}
 }
 
 /// Make actor from `SessionManager`
@@ -77,8 +76,7 @@ impl Actor for SessionManager {
 /// Required traits for being able to retrieve session manager address from registry
 impl actix::Supervised for SessionManager {}
 impl SystemService for SessionManager {
-    fn service_started(&mut self, _ctx: &mut Context<Self>) {
-    }
+    fn service_started(&mut self, _ctx: &mut Context<Self>) {}
 }
 
 /// Handler for Connect message.
@@ -92,7 +90,7 @@ impl Handler<Connect> for SessionManager {
         // Get map to insert session to
         let sessions = match msg.session_type {
             SessionType::Server => &mut self.server_sessions,
-            SessionType::Client => &mut self.client_sessions
+            SessionType::Client => &mut self.client_sessions,
         };
 
         // Insert session in the right map
@@ -113,7 +111,7 @@ impl Handler<Disconnect> for SessionManager {
         // Get map to insert session to
         let sessions = match msg.session_type {
             SessionType::Server => &mut self.server_sessions,
-            SessionType::Client => &mut self.client_sessions
+            SessionType::Client => &mut self.client_sessions,
         };
 
         // Remove session from map

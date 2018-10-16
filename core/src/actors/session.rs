@@ -1,14 +1,16 @@
 use std::io::Error;
 
-use actix::{Actor, Context, StreamHandler, Running, AsyncContext,
-            WrapFuture, ActorFuture, ActorContext, ContextFutureSpawner, System};
 use actix::io::{FramedWrite, WriteHandler};
+use actix::{
+    Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Running,
+    StreamHandler, System, WrapFuture,
+};
 use log::info;
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
 
 use crate::actors::codec::{P2PCodec, Request};
-use crate::actors::session_manager::{SessionManager, Connect, Disconnect};
+use crate::actors::session_manager::{Connect, Disconnect, SessionManager};
 
 /// Session type
 #[derive(Copy, Clone)]
@@ -35,9 +37,15 @@ pub struct Session {
 /// Session helper methods
 impl Session {
     /// Method to create a new session
-    pub fn new(session_type: SessionType,
-               _framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>) -> Session {
-        Session { id: 0, session_type, _framed }
+    pub fn new(
+        session_type: SessionType,
+        _framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
+    ) -> Session {
+        Session {
+            id: 0,
+            session_type,
+            _framed,
+        }
     }
 }
 

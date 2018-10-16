@@ -1,6 +1,7 @@
 //! Storage backend that persists data in the file system using a RocksDB database.
 
 use crate::error::{StorageError, StorageErrorKind, StorageResult};
+
 use crate::storage::Storage;
 use rocksdb::DB;
 
@@ -15,6 +16,7 @@ pub struct RocksStorage {
 
 /// Implement the Storage generic trait for the RocksStorage storage data structure.
 impl<'a> Storage<String, &'a [u8], Vec<u8>> for RocksStorage {
+    #[allow(clippy::new_ret_no_self)]
     fn new(path: String) -> StorageResult<Box<Self>> {
         match DB::open_default(&path) {
             Ok(db) => {

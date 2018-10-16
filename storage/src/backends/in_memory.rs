@@ -2,7 +2,6 @@
 //!
 //! Please note that this backend lacks persistence. Data is preserved only for the lifetime of
 //! references to the storage object.
-
 use crate::error::StorageResult;
 use crate::storage::Storage;
 use std::collections::HashMap;
@@ -17,6 +16,7 @@ pub struct InMemoryStorage<'a> {
 
 /// Implement the Storage generic trait for the InMemoryStorage storage data structure.
 impl<'a> Storage<(), &'a [u8], Vec<u8>> for InMemoryStorage<'a> {
+    #[allow(clippy::new_ret_no_self)]
     fn new(_: ()) -> StorageResult<Box<Self>> {
         Ok(Box::new(InMemoryStorage {
             memory: HashMap::new(),

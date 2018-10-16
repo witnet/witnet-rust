@@ -1,9 +1,11 @@
 use std::net::SocketAddr;
 
 use actix::actors::resolver::{ConnectAddr, Resolver};
-use actix::{Actor, Context, SystemService, WrapFuture,
-            ActorFuture, StreamHandler, ActorContext, ContextFutureSpawner};
 use actix::io::FramedWrite;
+use actix::{
+    Actor, ActorContext, ActorFuture, Context, ContextFutureSpawner, StreamHandler, SystemService,
+    WrapFuture,
+};
 
 use log::info;
 
@@ -53,8 +55,7 @@ impl Actor for Client {
                         Session::add_stream(FramedRead::new(r, P2PCodec), ctx);
 
                         // Create the session actor and store in it the write part of the tcp stream
-                        Session::new(SessionType::Client,
-                                     FramedWrite::new(w, P2PCodec, ctx))
+                        Session::new(SessionType::Client, FramedWrite::new(w, P2PCodec, ctx))
                     });
                 }
 

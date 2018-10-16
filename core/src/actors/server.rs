@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
-use actix::{Actor, AsyncContext, Context, Handler, Message, StreamHandler};
 use actix::io::FramedWrite;
+use actix::{Actor, AsyncContext, Context, Handler, Message, StreamHandler};
 use futures::Stream;
 use log::info;
 use tokio::codec::FramedRead;
@@ -14,7 +14,7 @@ use crate::actors::session::{Session, SessionType};
 /// Message to hold a TCP stream representing a bidirectional TCP connection
 #[derive(Message, Debug)]
 struct TcpConnect {
-    stream: TcpStream
+    stream: TcpStream,
 }
 
 impl TcpConnect {
@@ -53,8 +53,7 @@ impl Handler<TcpConnect> for Server {
             Session::add_stream(FramedRead::new(r, P2PCodec), ctx);
 
             // Create the session actor and store in it the write part of the tcp stream
-            Session::new(SessionType::Server,
-                         FramedWrite::new(w, P2PCodec, ctx))
+            Session::new(SessionType::Server, FramedWrite::new(w, P2PCodec, ctx))
         });
     }
 }
@@ -70,11 +69,12 @@ impl Actor for Server {
         let listener = TcpListener::bind(&self.address).unwrap();
 
         // Add message stream which will return a TcpConnect for each incoming TCP connection
-        ctx.add_message_stream(listener.incoming()
-            .map_err(|_| ())
-            .map(|stream| {
-                TcpConnect::new(stream)
-            }));
+        ctx.add_message_stream(
+            listener
+                .incoming()
+                .map_err(|_| ())
+                .map(TcpConnect::new)
+        );
 
         info!("P2P server has been started at {:?}", &self.address);
     }

@@ -1,4 +1,3 @@
-use witnet_core as core;
 use witnet_crypto as crypto;
 use witnet_p2p as p2p;
 

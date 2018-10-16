@@ -14,7 +14,7 @@ use ctrlc;
 use witnet_config as config;
 use witnet_core as core;
 
-use crate::config::{P2P_SERVER_PORT, P2P_SERVER_HOST, DB_ROOT, P2pConfig};
+use crate::config::{P2pConfig, DB_ROOT, P2P_SERVER_HOST, P2P_SERVER_PORT};
 use crate::core::actors::node;
 
 mod cli;
@@ -31,7 +31,8 @@ fn main() {
         "{}:{}",
         configuration
             .server
-            .p2p.clone()
+            .p2p
+            .clone()
             .unwrap_or(P2pConfig {
                 host: P2P_SERVER_HOST.to_string(),
                 port: P2P_SERVER_PORT,
@@ -39,7 +40,8 @@ fn main() {
             .host,
         configuration
             .server
-            .p2p.clone()
+            .p2p
+            .clone()
             .unwrap_or(P2pConfig {
                 host: P2P_SERVER_HOST.to_string(),
                 port: P2P_SERVER_PORT,
@@ -48,7 +50,10 @@ fn main() {
     );
 
     // Get db root
-    let default_db_root = configuration.server.db_root.unwrap_or(DB_ROOT.to_string());
+    let default_db_root = configuration
+        .server
+        .db_root
+        .unwrap_or_else(|| DB_ROOT.to_string());
 
     // TODO
     let matches = app_from_crate!()
@@ -59,19 +64,18 @@ fn main() {
     match matches.subcommand() {
         // node run mode
         ("node", Some(arg_matches)) => {
-
             // Get p2p host and port as command line arguments or from config file
             let address = arg_matches
                 .value_of("address")
                 .unwrap_or(default_address)
                 .parse()
-                .unwrap_or(default_address.parse().unwrap());
+                .unwrap_or_else(|_| default_address.parse().unwrap());
 
             // Peer address to be used with incoming features
             let _peer_address = arg_matches.value_of("peer").unwrap_or("");
 
             // Call function to run system actor
-            node::run(address, default_db_root, || {
+            node::run(address, &default_db_root, || {
                 ctrlc::set_handler(move || {
                     node::close();
                 })

@@ -5,13 +5,13 @@ use std::process::exit;
 use actix::{Actor, System};
 use log::info;
 
-use crate::actors::server::Server;
 use crate::actors::client::Client;
-use crate::actors::storage_manager::StorageManager;
+use crate::actors::server::Server;
 use crate::actors::session_manager::SessionManager;
+use crate::actors::storage_manager::StorageManager;
 
 /// Function to run the main system
-pub fn run(address: SocketAddr, db_root: String, callback: fn()) -> io::Result<()> {
+pub fn run(address: SocketAddr, db_root: &str, callback: fn()) -> io::Result<()> {
     info!("Witnet server listening on {}", address);
 
     // Init system

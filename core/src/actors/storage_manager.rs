@@ -1,8 +1,8 @@
-use actix::{Message, Actor, Context, Handler, Supervised, SystemService};
+use actix::{Actor, Context, Handler, Message, Supervised, SystemService};
 
-use witnet_storage::storage::Storage;
-use witnet_storage::error::StorageResult;
 use witnet_storage::backends::rocks::RocksStorage;
+use witnet_storage::error::StorageResult;
+use witnet_storage::storage::Storage;
 
 /// Keys literals
 pub static PEERS_KEY: &'static [u8] = b"peers";
@@ -10,7 +10,7 @@ pub static PEERS_KEY: &'static [u8] = b"peers";
 /// Message to indicate that a value is requested from the storage
 pub struct Get {
     /// Requested key
-    pub key: &'static [u8]
+    pub key: &'static [u8],
 }
 
 impl Message for Get {
@@ -33,7 +33,7 @@ impl Message for Put {
 /// Message to indicate that a key-value pair needs to be removed from the storage
 pub struct Delete {
     /// Key to be deleted
-    pub key: &'static [u8]
+    pub key: &'static [u8],
 }
 
 impl Message for Delete {
@@ -44,7 +44,7 @@ impl Message for Delete {
 #[derive(Default)]
 pub struct StorageManager {
     /// DB storage
-    storage: Option<RocksStorage>
+    storage: Option<RocksStorage>,
 }
 
 impl StorageManager {
@@ -53,7 +53,7 @@ impl StorageManager {
         // Build rocks db storage
         match RocksStorage::new(db_root.to_string()) {
             Ok(db) => StorageManager { storage: Some(*db) },
-            Err(_) => StorageManager { storage: None }
+            Err(_) => StorageManager { storage: None },
         }
     }
 }
