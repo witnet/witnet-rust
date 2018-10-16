@@ -60,10 +60,7 @@ pub struct SessionManager {
 impl SessionManager {
     /// Method to build a new session manager
     pub fn new() -> SessionManager {
-        SessionManager {
-            server_sessions: HashMap::new(),
-            client_sessions: HashMap::new()
-        }
+        SessionManager::default()
     }
 
     /// Method to send a message through all client connections

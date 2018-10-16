@@ -14,7 +14,7 @@ use ctrlc;
 use witnet_config as config;
 use witnet_core as core;
 
-use crate::config::{P2P_SERVER_PORT, P2P_SERVER_HOST, P2pConfig};
+use crate::config::{P2P_SERVER_PORT, P2P_SERVER_HOST, DB_ROOT, P2pConfig};
 use crate::core::actors::node;
 
 mod cli;
@@ -26,7 +26,7 @@ fn main() {
     // Read configuration
     let configuration: config::Config = config::read_config().unwrap();
 
-    // Build default address
+    // Build default address from configuration
     let default_address = &format!(
         "{}:{}",
         configuration
@@ -46,6 +46,9 @@ fn main() {
             })
             .port
     );
+
+    // Get db root
+    let default_db_root = configuration.server.db_root.unwrap_or(DB_ROOT.to_string());
 
     // TODO
     let matches = app_from_crate!()
@@ -68,7 +71,7 @@ fn main() {
             let _peer_address = arg_matches.value_of("peer").unwrap_or("");
 
             // Call function to run system actor
-            node::run(address, || {
+            node::run(address, default_db_root, || {
                 ctrlc::set_handler(move || {
                     node::close();
                 })

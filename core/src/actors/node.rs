@@ -7,10 +7,11 @@ use log::info;
 
 use crate::actors::server::Server;
 use crate::actors::client::Client;
+use crate::actors::storage_manager::StorageManager;
 use crate::actors::session_manager::SessionManager;
 
 /// Function to run the main system
-pub fn run(address: SocketAddr, callback: fn()) -> io::Result<()> {
+pub fn run(address: SocketAddr, db_root: String, callback: fn()) -> io::Result<()> {
     info!("Witnet server listening on {}", address);
 
     // Init system
@@ -19,8 +20,13 @@ pub fn run(address: SocketAddr, callback: fn()) -> io::Result<()> {
     // Call cb function (register interrupt handlers)
     callback();
 
+    // Start storage manager actor
+    let storage_manager_addr = StorageManager::new(&db_root).start();
+    System::current().registry().set(storage_manager_addr);
+
     // Start session manager actor
-    SessionManager::new().start();
+    let session_manager_addr = SessionManager::new().start();
+    System::current().registry().set(session_manager_addr);
 
     // Start server actor
     Server::new(address).start();

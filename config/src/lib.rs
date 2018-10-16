@@ -12,8 +12,10 @@ use std::fs::File;
 use std::io::prelude::*;
 use toml as Toml;
 
+/// Default configuration values
 pub const P2P_SERVER_HOST: &str = "0.0.0.0";
 pub const P2P_SERVER_PORT: u16 = 11337;
+pub const DB_ROOT: &str = ".wit";
 
 const CONFIG_FILE: &str = "witnet.toml";
 
