@@ -23,7 +23,7 @@ fmt:
 
 # run server
 server:
-    RUST_LOG=witnet=trace cargo run server
+    RUST_LOG=witnet=trace cargo run node 
 
 # run local documentation server at localhost:8000
 docs-dev:

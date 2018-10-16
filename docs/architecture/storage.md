@@ -155,5 +155,5 @@ The full source code of the `Storage` implementor for `RocksStorage` can be foun
 
 [#21]: https://github.com/witnet/witnet-rust/pull/21
 [storage]: https://github.com/witnet/witnet-rust/blob/master/storage/src/storage.rs
-[rocks]: https://github.com/witnet/witnet-rust/blob/master/storage/src/backends/source.rs
+[rocks]: https://github.com/witnet/witnet-rust/blob/master/storage/src/backends/rocks.rs
 [in_memory]: https://github.com/witnet/witnet-rust/blob/master/storage/src/backends/in_memory.rs
