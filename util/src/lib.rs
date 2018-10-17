@@ -9,3 +9,6 @@
 #![deny(missing_docs)]
 
 pub mod error;
+
+/// Timestamp as UTC
+pub mod timestamp;
