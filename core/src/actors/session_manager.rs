@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use actix::{Actor, Addr, Context, Handler, Message, SystemService};
+use actix::{Actor, Addr, Context, Handler, Message, SystemService, AsyncContext};
 use log::info;
 use rand::Rng;
+use std::time::Duration;
 
 use crate::actors::session::{Session, SessionType};
 
@@ -65,12 +66,32 @@ impl SessionManager {
 
     /// Method to send a message through all client connections
     pub fn broadcast(&self, _message: &str, _skip_id: usize) {}
+
+    /// Method to periodically check the number of client sessions
+    fn check_num_peers(&self, ctx: &mut Context<Self>) {
+        // Schedule the execution of the check
+        ctx.run_later(Duration::new(5, 0), |act, ctx| {
+            // Get number of peers
+            let num_peers = act.client_sessions.keys().len();
+
+            info!("Number of peers {}", num_peers);
+
+            // Reschedule the check of the
+            act.check_num_peers(ctx);
+        });
+    }
 }
 
 /// Make actor from `SessionManager`
 impl Actor for SessionManager {
     /// Every actor has to provide execution `Context` in which it can run.
     type Context = Context<Self>;
+
+    /// Method to be executed when the actor is started
+    fn started(&mut self, ctx: &mut Self::Context) {
+        // We'll start the check peers process on session manager start.
+        self.check_num_peers(ctx);
+    }
 }
 
 /// Required traits for being able to retrieve session manager address from registry

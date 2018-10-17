@@ -4,9 +4,6 @@ use witnet_storage::backends::rocks::RocksStorage;
 use witnet_storage::error::StorageResult;
 use witnet_storage::storage::Storage;
 
-/// Keys literals
-pub static PEERS_KEY: &'static [u8] = b"peers";
-
 /// Message to indicate that a value is requested from the storage
 pub struct Get {
     /// Requested key
