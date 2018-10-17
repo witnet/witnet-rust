@@ -1,2 +1,2 @@
-use witnet_p2p as p2p;
-
+// Peers library tests
+pub mod peers;
