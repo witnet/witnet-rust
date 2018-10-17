@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use actix::{Actor, Addr, Context, Handler, Message, SystemService, AsyncContext};
+use actix::{Actor, Addr, AsyncContext, Context, Handler, Message, SystemService};
 use log::info;
 use rand::Rng;
 use std::time::Duration;

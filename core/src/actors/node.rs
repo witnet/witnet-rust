@@ -24,7 +24,7 @@ pub fn run(address: SocketAddr, db_root: &str, callback: fn()) -> io::Result<()>
     // Start storage manager actor
     let storage_manager_addr = StorageManager::new(&db_root).start();
     System::current().registry().set(storage_manager_addr);
-    
+
     // Start peers manager actor
     let peers_manager_addr = PeersManager::default().start();
     System::current().registry().set(peers_manager_addr);

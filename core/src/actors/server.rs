@@ -69,12 +69,7 @@ impl Actor for Server {
         let listener = TcpListener::bind(&self.address).unwrap();
 
         // Add message stream which will return a TcpConnect for each incoming TCP connection
-        ctx.add_message_stream(
-            listener
-                .incoming()
-                .map_err(|_| ())
-                .map(TcpConnect::new)
-        );
+        ctx.add_message_stream(listener.incoming().map_err(|_| ()).map(TcpConnect::new));
 
         info!("P2P server has been started at {:?}", &self.address);
     }
