@@ -28,7 +28,9 @@ nav:
       - Gossiping: architecture/p2p/gossip.md
       - Encoding (FlatBuffers): architecture/p2p/encoding.md
     - Persistent Storage: architecture/storage.md
-    - Storage Manager: architecture/storage-manager.md
+    - Managers:
+      - Storage Manager: architecture/storage-manager.md
+      - Peers Manager: architecture/managers/peers-manager.md
     - Mempool Management: architecture/mempool-mgmt.md
     - Block Management: architecture/block-mgmt.md
     - UTXO Management: architecture/utxo-mgmt.md
