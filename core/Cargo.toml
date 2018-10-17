@@ -14,3 +14,4 @@ tokio = "0.1.11"
 bytes = "0.4"
 rand = "0.5.5"
 witnet_storage = { path = "../storage" }
+witnet_p2p = { path = "../p2p" }

@@ -7,6 +7,9 @@ pub mod node;
 /// Client actor module
 pub mod client;
 
+/// Peers manager actor module
+pub mod peers_manager;
+
 /// Server actor module
 pub mod server;
 
