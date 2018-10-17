@@ -7,8 +7,4 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-/// p2p greeting
-pub fn greetings() -> String {
-    println!("Hello from p2p!");
-    String::from("Hello from p2p!")
-}
+pub mod peers;

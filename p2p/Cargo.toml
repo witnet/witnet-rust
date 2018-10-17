@@ -5,3 +5,8 @@ authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 description = "p2p component"
 edition = "2018"
+
+[dependencies]
+failure = "0.1.2"
+rand = "0.5.5"
+witnet_util = { path = "../util" }
