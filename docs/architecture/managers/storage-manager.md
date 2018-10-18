@@ -1,15 +1,16 @@
 # Storage Manager
 
-The __storage manager__ is the actor that wraps up the logic of the __persistent storage__ library. 
+The __storage manager__ is the actor that encapsulates the logic of the __persistent storage__
+library. 
 
-There will be one storage manager actor per system and it will be registered at the system
-registry. This way, any other actor will be able to get the address of the storage manager and
-send messages to it.
+There can only be one storage manager actor per system, and it must be registered into the system
+registry. This way, any other actor can get the address of the storage manager and send messages
+to it.
 
 ## State
 
-The state of the actor is just the connection to the `RocksDB` storage backend ([`rocks.rs`][rocks])
-wrapped up in an option.
+The state of the actor is an instance of the [`RocksStorage`][rocks] backend encapsulated in an
+option.
 
 ```rust
 /// Storage manager actor
@@ -39,7 +40,7 @@ The `new()` method tries to connect to the database specified in the path given 
 connection is not possible for any reason, the storage in the state will be `None`. Otherwise, the
 state will contain the handle to the database for future use.
 
-Once the storage manager actor is started, the `main` process registers the actor in the system
+Once the storage manager actor is started, the `main` process registers the actor into the system
 registry:
 
 ```rust
@@ -52,14 +53,14 @@ System::current().registry().set(storage_manager_addr);
  
 These are the messages supported by the storage manager handlers:
 
-| Message   | Inputs                                    | Outputs                               | Description                               |
+| Message   | Input type                                | Output type                           | Description                               |
 |-----------|-------------------------------------------|---------------------------------------|-------------------------------------------|
-| Get       | `key: &'static [u8]`                      | `StorageResult<Option<Vec<u8>>>`      | Wrapper to RocksStorage `get()` method    |
-| Put       | `key: &'static [u8], value: Vec<u8>`      | `StorageResult<()>`                   | Wrapper to RocksStorage `put()` method    |
-| Delete    | `key: &'static [u8]`                      | `StorageResult<()>`                   | Wrapper to RocksStorage `delete()` method |
+| Get       | `&'static [u8]`                           | `StorageResult<Option<Vec<u8>>>`      | Wrapper to RocksStorage `get()` method    |
+| Put       | `&'static [u8]`, `Vec<u8>`                | `StorageResult<()>`                   | Wrapper to RocksStorage `put()` method    |
+| Delete    | `&'static [u8]`                           | `StorageResult<()>`                   | Wrapper to RocksStorage `delete()` method |
 
 The handling of these messages is basically just calling the corresponding method from the [`Storage`][storage]
-trait that is implemented by the `RocksStorage`. For example, the handler of the `Get` message
+trait that is implemented by [`RocksStorage`][rocks]. For example, the handler of the `Get` message
 would be implemented as:
 
 ```rust
@@ -84,8 +85,8 @@ The way other actors will communicate with the storage manager is:
 let storage_manager_addr = System::current().registry().get::<StorageManager>();
 ```
 
-2. Use the methods that the address offers to send a message to the actor (`do_send()`,
-`try_send()`, `send()`):
+2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to
+send a message to the actor:
 ```rust
 // Example 
 storage_manager_addr
@@ -114,8 +115,8 @@ storage_manager_addr
 ```
 
 !!! warning
-    The keys of the storage need to be defined with the `static` lifetime. Literals can be a good
-    choice to achieve this purpose:
+    The values used as keys for the storage need to be defined with the `static` lifetime.
+    Literals can be a good choice for this purpose:
     ```rust
     pub static PEERS_KEY: &'static [u8] = b"peers";
     ```

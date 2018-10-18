@@ -1,12 +1,16 @@
 # Peers Manager
 
-The __peers manager__ is the actor that wraps up the logic of the __peers__ library, defined under the subcrate `witnet_p2p`. The library allows to manage a list of known peers to the node.
+The __peers manager__ is the actor that encapsulates the logic of the __peers__ library, defined
+under the subcrate `witnet_p2p`. The library allows to manage a list of peers known to the Witnet
+node.
 
-There will be one peers manager actor per system and it will be registered at the system registry. This way, any other actor will be able to get the address of the storage manager and send messages to it.
+There can only be one peers manager actor per system, and it must be registered into the system
+registry. This way, any other actor can get the address of the peers manager and send messages to it.
 
 ## State
 
-The state of the actor is an instantiation of the ([`peers`][peers]) library, which has a list of known peers to the Witnet node.
+The state of the actor is an instance of the [`Peers`][peers] library, which contains a list of 
+peers known to the Witnet node.
 
 ```rust
 #[derive(Default)]
@@ -16,7 +20,8 @@ pub struct PeersManager {
 }
 ```
 
-The `PeersManager` actor requires the implementation of the `Default` trait (as well as `Supervised` and `SystemService` traits) to become a service that can be registered in the system registry.
+The `PeersManager` actor requires the implementation of the `Default` trait (as well as `Supervised`
+and `SystemService` traits) to become a service that can be registered in the system registry.
 
 ## Actor creation and registration
 
@@ -28,7 +33,8 @@ let peers_manager_addr = PeersManager::default().start();
 
 The `default()` method initializes the peers manager and its underlying peers data structure.
 
-Once the peers manager actor is started, the `main` process registers the actor in the system registry:
+Once the peers manager actor is started, the `main` process registers the actor into the system
+registry:
 
 ```rust
 System::current().registry().set(storage_manager_addr);
@@ -40,14 +46,14 @@ System::current().registry().set(storage_manager_addr);
 
 These are the messages supported by the storage manager handlers:
 
-| Message    | Inputs                | Outputs                           | Description           |
+| Message    | Input type            | Output type                       | Description           |
 | ---------- | --------------------- | --------------------------------- | --------------------- |
-| GetPeer    | ()                    | `PeersResult<Option<SocketAddr>>` | Get random peer       |
+| GetPeer    | `()`                  | `PeersResult<Option<SocketAddr>>` | Get random peer       |
 | AddPeer    | `address: SocketAddr` | `PeersResult<Option<SocketAddr>>` | Add peer to list      |
 | RemovePeer | `address: SocketAddr` | `PeersResult<Option<SocketAddr>>` | Remove peer from list |
 
 The handling of these messages is basically just calling the corresponding methods from the [`Peers`][peers]
-library that is implemented by the `peers.rc` under the `witnet_p2p subcrate`. For example, the handler of the `AddPeer` message
+library that is implemented by [`peers.rs`][peers]. For example, the handler of the `AddPeer` message
 would be implemented as:
 
 ```rust
@@ -75,7 +81,8 @@ The way other actors will communicate with the storage manager is:
     let peers_manager_addr = System::current().registry().get::<PeersManager>();
     ```
 
-2. Use the methods that the address offers to send a message to the actor (`do_send()`, `try_send()`, `send()`):
+2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to
+send a message to the actor:
 
     ```rust
     // Example

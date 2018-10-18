@@ -59,11 +59,6 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
-    /// Method to build a new session manager
-    pub fn new() -> SessionManager {
-        SessionManager::default()
-    }
-
     /// Method to send a message through all client connections
     pub fn broadcast(&self, _message: &str, _skip_id: usize) {}
 

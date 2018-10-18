@@ -1,8 +1,13 @@
-use actix::{Actor, Context, Handler, Message, Supervised, SystemService};
+use actix::{Actor, ActorContext, Context, Handler, Message, Supervised, SystemService};
 
 use witnet_storage::backends::rocks::RocksStorage;
-use witnet_storage::error::StorageResult;
+use witnet_storage::error::{StorageError, StorageErrorKind, StorageResult};
 use witnet_storage::storage::Storage;
+use witnet_util::error::WitnetError;
+
+/// Type aliases for the storage manager results returned
+type ValueStorageResult = StorageResult<Option<Vec<u8>>>;
+type UnitStorageResult = StorageResult<()>;
 
 /// Message to indicate that a value is requested from the storage
 pub struct Get {
@@ -11,7 +16,7 @@ pub struct Get {
 }
 
 impl Message for Get {
-    type Result = StorageResult<Option<Vec<u8>>>;
+    type Result = ValueStorageResult;
 }
 
 /// Message to indicate that a key-value pair needs to be inserted in the storage
@@ -24,7 +29,7 @@ pub struct Put {
 }
 
 impl Message for Put {
-    type Result = StorageResult<()>;
+    type Result = UnitStorageResult;
 }
 
 /// Message to indicate that a key-value pair needs to be removed from the storage
@@ -34,7 +39,7 @@ pub struct Delete {
 }
 
 impl Message for Delete {
-    type Result = StorageResult<()>;
+    type Result = UnitStorageResult;
 }
 
 /// Storage manager actor
@@ -59,6 +64,14 @@ impl StorageManager {
 impl Actor for StorageManager {
     /// Every actor has to provide execution `Context` in which it can run.
     type Context = Context<Self>;
+
+    /// Method to be executed when the actor is started
+    fn started(&mut self, ctx: &mut Self::Context) {
+        // Stop context if the storage is not properly initialized
+        if self.storage.is_none() {
+            ctx.stop();
+        }
+    }
 }
 
 /// Required traits for being able to retrieve storage manager address from registry
@@ -70,27 +83,48 @@ impl SystemService for StorageManager {
 
 /// Handler for Get message.
 impl Handler<Get> for StorageManager {
-    type Result = StorageResult<Option<Vec<u8>>>;
+    type Result = ValueStorageResult;
 
     fn handle(&mut self, msg: Get, _: &mut Context<Self>) -> Self::Result {
-        self.storage.as_ref().unwrap().get(msg.key)
+        self.storage.as_ref().map_or(
+            Err(WitnetError::from(StorageError::new(
+                StorageErrorKind::Get,
+                String::from_utf8(msg.key.to_vec()).unwrap(),
+                "Storage was not properly initialised".to_string(),
+            ))),
+            |storage| storage.get(msg.key),
+        )
     }
 }
 
 /// Handler for Put message.
 impl Handler<Put> for StorageManager {
-    type Result = StorageResult<()>;
+    type Result = UnitStorageResult;
 
     fn handle(&mut self, msg: Put, _: &mut Context<Self>) -> Self::Result {
-        self.storage.as_mut().unwrap().put(msg.key, msg.value)
+        self.storage.as_mut().map_or(
+            Err(WitnetError::from(StorageError::new(
+                StorageErrorKind::Put,
+                String::from_utf8(msg.key.to_vec()).unwrap(),
+                "Storage was not properly initialised".to_string(),
+            ))),
+            |storage| storage.put(msg.key, msg.value),
+        )
     }
 }
 
 /// Handler for Delete message.
 impl Handler<Delete> for StorageManager {
-    type Result = StorageResult<()>;
+    type Result = UnitStorageResult;
 
     fn handle(&mut self, msg: Delete, _: &mut Context<Self>) -> Self::Result {
-        self.storage.as_mut().unwrap().delete(msg.key)
+        self.storage.as_mut().map_or(
+            Err(WitnetError::from(StorageError::new(
+                StorageErrorKind::Delete,
+                String::from_utf8(msg.key.to_vec()).unwrap(),
+                "Storage was not properly initialised".to_string(),
+            ))),
+            |storage| storage.delete(msg.key),
+        )
     }
 }

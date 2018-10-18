@@ -30,7 +30,7 @@ pub fn run(address: SocketAddr, db_root: &str, callback: fn()) -> io::Result<()>
     System::current().registry().set(peers_manager_addr);
 
     // Start session manager actor
-    let session_manager_addr = SessionManager::new().start();
+    let session_manager_addr = SessionManager::default().start();
     System::current().registry().set(session_manager_addr);
 
     // Start server actor
