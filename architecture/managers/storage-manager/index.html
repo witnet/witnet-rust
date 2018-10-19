@@ -1,0 +1,1490 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+        <link rel="canonical" href="https://docs.witnet.io/architecture/managers/storage-manager/">
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../../assets/images/favicon.ico">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
+    
+    
+      
+        <title>Storage Manager - Witnet-rust Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/application.451f80e5.css">
+      
+        <link rel="stylesheet" href="../../../assets/stylesheets/application-palette.22915126.css">
+      
+      
+        
+        
+        <meta name="theme-color" content="#795548">
+      
+    
+    
+      <script src="../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../../../assets/fonts/material-icons.css">
+    
+    
+  </head>
+  
+    
+    
+    <body dir="ltr" data-md-color-primary="brown" data-md-color-accent="deep-orange">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
+    viewBox="0 0 416 448" id="__github">
+  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
+        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
+        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
+        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
+        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
+        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
+        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
+        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
+        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
+        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
+        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
+        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
+        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
+        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
+        99.5z" />
+</svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="../../../#storage-manager" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-header-nav__button md-logo">
+          
+            <img src="../../../assets/images/logo.svg" alt="Witnet Logo" width="24" height="24">
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                Witnet-rust Documentation
+              </span>
+              <span class="md-header-nav__topic">
+                Storage Manager
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/witnet/witnet-rust/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#__github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      witnet/witnet-rust
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-nav__button md-logo">
+      
+        <img src="../../../assets/images/logo.svg" alt="Witnet Logo" width="48" height="48">
+      
+    </a>
+    Witnet-rust Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/witnet/witnet-rust/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#__github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      witnet/witnet-rust
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../.." title="Home" class="md-nav__link">
+      Home
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Get started
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Get started
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/what-is-witnet/" title="What is Witnet" class="md-nav__link">
+      What is Witnet
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/why-rust/" title="Why Rust?" class="md-nav__link">
+      Why Rust?
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/design-overview.md" title="Design Overview" class="md-nav__link">
+      Design Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/install.md" title="Install" class="md-nav__link">
+      Install
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+    
+    <label class="md-nav__link" for="nav-3">
+      Protocol
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        Protocol
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/network/" title="Network messages" class="md-nav__link">
+      Network messages
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+    
+    <label class="md-nav__link" for="nav-3-2">
+      Data requests
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-2">
+        Data requests
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/overview/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2" type="checkbox" id="nav-3-2-2">
+    
+    <label class="md-nav__link" for="nav-3-2-2">
+      RADON
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="3">
+      <label class="md-nav__title" for="nav-3-2-2">
+        RADON
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/encoding/" title="Encoding" class="md-nav__link">
+      Encoding
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2-2" type="checkbox" id="nav-3-2-2-2">
+    
+    <label class="md-nav__link" for="nav-3-2-2-2">
+      Data types
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="4">
+      <label class="md-nav__title" for="nav-3-2-2-2">
+        Data types
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/overview/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/array/" title="Array<V>" class="md-nav__link">
+      Array<V>
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/boolean/" title="Boolean" class="md-nav__link">
+      Boolean
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/int/" title="Int" class="md-nav__link">
+      Int
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/float/" title="Float" class="md-nav__link">
+      Float
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/map/" title="Map<V>" class="md-nav__link">
+      Map<V>
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/mixed/" title="Mixed" class="md-nav__link">
+      Mixed
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/null/" title="Null" class="md-nav__link">
+      Null
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/result/" title="Result<V>" class="md-nav__link">
+      Result<V>
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/types/string/" title="String" class="md-nav__link">
+      String
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
+      Implicit `Result<V>` wrapping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/exceptions/" title="Exception handling" class="md-nav__link">
+      Exception handling
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/functions/" title="Predefined functions" class="md-nav__link">
+      Predefined functions
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/subscripts/" title="Subscripts" class="md-nav__link">
+      Subscripts
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/examples/" title="Examples" class="md-nav__link">
+      Examples
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/constants/" title="Constants" class="md-nav__link">
+      Constants
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radlang.md" title="RADlang" class="md-nav__link">
+      RADlang
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-3" type="checkbox" id="nav-3-3">
+    
+    <label class="md-nav__link" for="nav-3-3">
+      Transactions
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-3">
+        Transactions
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/transactions.md" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/witscript.md" title="WitScript" class="md-nav__link">
+      WitScript
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/blocks.md" title="Blocks" class="md-nav__link">
+      Blocks
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/reputation.md" title="Reputation" class="md-nav__link">
+      Reputation
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/mining.md" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../protocol/task-assignment.md" title="Task assignment" class="md-nav__link">
+      Task assignment
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4" checked>
+    
+    <label class="md-nav__link" for="nav-4">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../overview.md" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+    
+    <label class="md-nav__link" for="nav-4-2">
+      Peer-To-Peer
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-2">
+        Peer-To-Peer
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../p2p/connections.md" title="Connections" class="md-nav__link">
+      Connections
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../p2p/gossip.md" title="Gossiping" class="md-nav__link">
+      Gossiping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../p2p/encoding.md" title="Encoding (FlatBuffers)" class="md-nav__link">
+      Encoding (FlatBuffers)
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../storage/" title="Persistent Storage" class="md-nav__link">
+      Persistent Storage
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4" checked>
+    
+    <label class="md-nav__link" for="nav-4-4">
+      Managers
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-4">
+        Managers
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Storage Manager
+      </label>
+    
+    <a href="./" title="Storage Manager" class="md-nav__link md-nav__link--active">
+      Storage Manager
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#state" title="State" class="md-nav__link">
+    State
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#actor-creation-and-registration" title="Actor creation and registration" class="md-nav__link">
+    Actor creation and registration
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api" title="API" class="md-nav__link">
+    API
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incoming-messages-others-storage-manager" title="Incoming messages: Others -&gt; Storage manager" class="md-nav__link">
+    Incoming messages: Others -&gt; Storage manager
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outgoing-messages-storage-manager-others" title="Outgoing messages: Storage manager -&gt; Others" class="md-nav__link">
+    Outgoing messages: Storage manager -&gt; Others
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#further-information" title="Further information" class="md-nav__link">
+    Further information
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../peers-manager/" title="Peers Manager" class="md-nav__link">
+      Peers Manager
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../mempool-mgmt.md" title="Mempool Management" class="md-nav__link">
+      Mempool Management
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../block-mgmt.md" title="Block Management" class="md-nav__link">
+      Block Management
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../utxo-mgmt.md" title="UTXO Management" class="md-nav__link">
+      UTXO Management
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-8" type="checkbox" id="nav-4-8">
+    
+    <label class="md-nav__link" for="nav-4-8">
+      Data Requests
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-8">
+        Data Requests
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../rad/overview.md" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../witscript.md" title="Witscript Parser" class="md-nav__link">
+      Witscript Parser
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      Advanced
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        Advanced
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../advanced/constants.md" title="Network constants" class="md-nav__link">
+      Network constants
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../advanced/whitepaper-differences.md" title="Differences with the whitepaper" class="md-nav__link">
+      Differences with the whitepaper
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../roadmap.md" title="Roadmap" class="md-nav__link">
+      Roadmap
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../contributing/" title="Contributing" class="md-nav__link">
+      Contributing
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../development/" title="Development" class="md-nav__link">
+      Development
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../glossary.md" title="Glossary" class="md-nav__link">
+      Glossary
+    </a>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#state" title="State" class="md-nav__link">
+    State
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#actor-creation-and-registration" title="Actor creation and registration" class="md-nav__link">
+    Actor creation and registration
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api" title="API" class="md-nav__link">
+    API
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incoming-messages-others-storage-manager" title="Incoming messages: Others -&gt; Storage manager" class="md-nav__link">
+    Incoming messages: Others -&gt; Storage manager
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outgoing-messages-storage-manager-others" title="Outgoing messages: Storage manager -&gt; Others" class="md-nav__link">
+    Outgoing messages: Storage manager -&gt; Others
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#further-information" title="Further information" class="md-nav__link">
+    Further information
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/managers/storage-manager.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="storage-manager">Storage Manager<a class="headerlink" href="#storage-manager" title="Permanent link">&para;</a></h1>
+<p>The <strong>storage manager</strong> is the actor that encapsulates the logic of the <strong>persistent storage</strong>
+library. </p>
+<p>There can only be one storage manager actor per system, and it must be registered into the system
+registry. This way, any other actor can get the address of the storage manager and send messages
+to it.</p>
+<h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
+<p>The state of the actor is an instance of the <a href="https://github.com/witnet/witnet-rust/blob/master/storage/src/backends/rocks.rs"><code class="codehilite">RocksStorage</code></a> backend encapsulated in an
+option.</p>
+<div class="codehilite"><pre><span></span><span class="sd">/// Storage manager actor</span>
+<span class="cp">#[derive(Default)]</span><span class="w"></span>
+<span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">StorageManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// DB storage</span>
+<span class="w">    </span><span class="n">storage</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">RocksStorage</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+
+<p>The <code class="codehilite">StorageManager</code> actor requires the implementation of the <code class="codehilite">Default</code> trait (as well as
+<code class="codehilite">Supervised</code> and <code class="codehilite">SystemService</code> traits) to become a service that can be registered in the system
+registry.</p>
+<p>The connection to the database is an <code class="codehilite">Option</code> to handle failures in the creation of the connection
+to the database.</p>
+<h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
+<p>The creation of the storage manager actor is performed directly by the <code class="codehilite">main</code> process:</p>
+<div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">storage_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">StorageManager</span>::<span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">db_root</span><span class="p">).</span><span class="n">start</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+
+<p>The <code class="codehilite">new()</code> method tries to connect to the database specified in the path given as argument. If the
+connection is not possible for any reason, the storage in the state will be <code class="codehilite">None</code>. Otherwise, the
+state will contain the handle to the database for future use.</p>
+<p>Once the storage manager actor is started, the <code class="codehilite">main</code> process registers the actor into the system
+registry:</p>
+<div class="codehilite"><pre><span></span><span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">storage_manager_addr</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+
+<h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
+<h3 id="incoming-messages-others-storage-manager">Incoming messages: Others -&gt; Storage manager<a class="headerlink" href="#incoming-messages-others-storage-manager" title="Permanent link">&para;</a></h3>
+<p>These are the messages supported by the storage manager handlers:</p>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Input type</th>
+<th>Output type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Get</td>
+<td><code class="codehilite">&amp;&#39;static [u8]</code></td>
+<td><code class="codehilite">StorageResult&lt;Option&lt;Vec&lt;u8&gt;&gt;&gt;</code></td>
+<td>Wrapper to RocksStorage <code class="codehilite">get()</code> method</td>
+</tr>
+<tr>
+<td>Put</td>
+<td><code class="codehilite">&amp;&#39;static [u8]</code>, <code class="codehilite">Vec&lt;u8&gt;</code></td>
+<td><code class="codehilite">StorageResult&lt;()&gt;</code></td>
+<td>Wrapper to RocksStorage <code class="codehilite">put()</code> method</td>
+</tr>
+<tr>
+<td>Delete</td>
+<td><code class="codehilite">&amp;&#39;static [u8]</code></td>
+<td><code class="codehilite">StorageResult&lt;()&gt;</code></td>
+<td>Wrapper to RocksStorage <code class="codehilite">delete()</code> method</td>
+</tr>
+</tbody>
+</table>
+<p>The handling of these messages is basically just calling the corresponding method from the <a href="https://github.com/witnet/witnet-rust/blob/master/storage/src/storage.rs"><code class="codehilite">Storage</code></a>
+trait that is implemented by <a href="https://github.com/witnet/witnet-rust/blob/master/storage/src/backends/rocks.rs"><code class="codehilite">RocksStorage</code></a>. For example, the handler of the <code class="codehilite">Get</code> message
+would be implemented as:</p>
+<div class="codehilite"><pre><span></span><span class="sd">/// Handler for Get message.</span>
+<span class="k">impl</span><span class="w"> </span><span class="n">Handler</span><span class="o">&lt;</span><span class="n">Get</span><span class="o">&gt;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">StorageManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">type</span> <span class="nb">Result</span> <span class="o">=</span><span class="w"> </span><span class="n">StorageResult</span><span class="o">&lt;</span><span class="nb">Option</span><span class="o">&lt;</span><span class="nb">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;&gt;&gt;</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span>: <span class="nc">Get</span><span class="p">,</span><span class="w"> </span><span class="n">_</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Context</span><span class="o">&lt;</span><span class="n">Self</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">Self</span>::<span class="nb">Result</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">storage</span><span class="p">.</span><span class="n">as_ref</span><span class="p">().</span><span class="n">unwrap</span><span class="p">().</span><span class="n">get</span><span class="p">(</span><span class="n">msg</span><span class="p">.</span><span class="n">key</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+
+<p>Being the <code class="codehilite">StorageManager</code> such a simple actor, there are no errors that can arise due to its own
+logic and thus, returning the <code class="codehilite">StorageResult</code> library generic error may be the right thing to do.</p>
+<p>The way other actors will communicate with the storage manager is:</p>
+<ol>
+<li>
+<p>Get the address of the storage manager from the registry:
+<div class="codehilite"><pre><span></span><span class="c1">// Get storage manager address</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">storage_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">get</span>::<span class="o">&lt;</span><span class="n">StorageManager</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+</pre></div></p>
+</li>
+<li>
+<p>Use any of the sending methods provided by the address (<code class="codehilite">do_send()</code>, <code class="codehilite">try_send()</code>, <code class="codehilite">send()</code>) to
+send a message to the actor:
+<div class="codehilite"><pre><span></span><span class="c1">// Example </span>
+<span class="n">storage_manager_addr</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">Get</span><span class="p">{</span><span class="n">key</span>: <span class="nc">PEERS_KEY</span><span class="p">})</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">into_actor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">then</span><span class="p">(</span><span class="o">|</span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="n">_act</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="k">match</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">                </span><span class="c1">// Process StorageResult</span>
+<span class="w">                </span><span class="k">match</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">                    </span><span class="nb">Ok</span><span class="p">(</span><span class="n">opt</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">                        </span><span class="c1">// Process Option&lt;Vec&lt;u8&gt;&gt;</span>
+<span class="w">                        </span><span class="k">match</span><span class="w"> </span><span class="n">opt</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">                            </span><span class="nb">Some</span><span class="p">(</span><span class="n">vec</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;PEERS_KEY found in storage, value: {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">vec</span><span class="p">),</span><span class="w"></span>
+<span class="w">                            </span><span class="nb">None</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;PEERS_KEY not found in storage&quot;</span><span class="p">)</span><span class="w"></span>
+<span class="w">                        </span><span class="p">};</span><span class="w"></span>
+<span class="w">                    </span><span class="p">},</span><span class="w"></span>
+<span class="w">                    </span><span class="nb">Err</span><span class="p">(</span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Something went wrong when accessing the storage&quot;</span><span class="p">)</span><span class="w"></span>
+<span class="w">                </span><span class="p">};</span><span class="w"></span>
+<span class="w">            </span><span class="p">},</span><span class="w"></span>
+<span class="w">            </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Something went really wrong in the actors message passing&quot;</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="p">};</span><span class="w"></span>
+<span class="w">        </span><span class="n">actix</span>::<span class="n">fut</span>::<span class="n">ok</span><span class="p">(())</span><span class="w"></span>
+<span class="w">    </span><span class="p">})</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">ctx</span><span class="p">);</span><span class="w"></span>
+</pre></div></p>
+</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The values used as keys for the storage need to be defined with the <code class="codehilite">static</code> lifetime.
+Literals can be a good choice for this purpose:
+<div class="codehilite"><pre><span></span><span class="k">pub</span><span class="w"> </span><span class="k">static</span><span class="w"> </span><span class="n">PEERS_KEY</span>: <span class="kp">&amp;</span><span class="nb">&#39;static</span><span class="w"> </span><span class="p">[</span><span class="kt">u8</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">b&quot;peers&quot;</span><span class="p">;</span><span class="w"></span>
+</pre></div></p>
+</div>
+<h3 id="outgoing-messages-storage-manager-others">Outgoing messages: Storage manager -&gt; Others<a class="headerlink" href="#outgoing-messages-storage-manager-others" title="Permanent link">&para;</a></h3>
+<p>The storage manager is quite a simple wrapper over the storage library and it does not need to
+start a communication with other actors in order to perform its functions.</p>
+<h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
+<p>The full source code of the <code class="codehilite">StorageManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager.rs"><code class="codehilite">storage_manager.rs</code></a>.</p>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../../storage/" title="Persistent Storage" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Persistent Storage
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../peers-manager/" title="Peers Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Peers Manager
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+          <div class="md-footer-copyright__highlight">
+            © 2018 Witnet Foundation. Available under <a href="https://www.gnu.org/licenses/fdl-1.3.en.html" rel="license">GNU Free Documentation License v1.3</a>
+          </div>
+        
+        powered by
+        <a href="https://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+  <div class="md-footer-social">
+    <link rel="stylesheet" href="../../../assets/fonts/font-awesome.css">
+    
+      <a href="https://github.com/witnet" class="md-footer-social__link fa fa-github"></a>
+    
+      <a href="https://reddit.com/r/witnet" class="md-footer-social__link fa fa-reddit"></a>
+    
+      <a href="https://twitter.com/witnet_io" class="md-footer-social__link fa fa-twitter"></a>
+    
+  </div>
+
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../../assets/javascripts/application.583bbe55.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:"../../.."}})</script>
+      
+    
+    
+      
+    
+  </body>
+</html>

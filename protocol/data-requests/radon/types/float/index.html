@@ -1,0 +1,1554 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+        <link rel="canonical" href="https://docs.witnet.io/protocol/data-requests/radon/types/float/">
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../../../../assets/images/favicon.ico">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
+    
+    
+      
+        <title>Float - Witnet-rust Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/application.451f80e5.css">
+      
+        <link rel="stylesheet" href="../../../../../assets/stylesheets/application-palette.22915126.css">
+      
+      
+        
+        
+        <meta name="theme-color" content="#795548">
+      
+    
+    
+      <script src="../../../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../../../../../assets/fonts/material-icons.css">
+    
+    
+  </head>
+  
+    
+    
+    <body dir="ltr" data-md-color-primary="brown" data-md-color-accent="deep-orange">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
+    viewBox="0 0 416 448" id="__github">
+  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
+        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
+        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
+        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
+        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
+        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
+        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
+        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
+        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
+        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
+        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
+        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
+        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
+        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
+        99.5z" />
+</svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="../../../../../#float-type" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-header-nav__button md-logo">
+          
+            <img src="../../../../../assets/images/logo.svg" alt="Witnet Logo" width="24" height="24">
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                Witnet-rust Documentation
+              </span>
+              <span class="md-header-nav__topic">
+                Float
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/witnet/witnet-rust/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#__github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      witnet/witnet-rust
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-nav__button md-logo">
+      
+        <img src="../../../../../assets/images/logo.svg" alt="Witnet Logo" width="48" height="48">
+      
+    </a>
+    Witnet-rust Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/witnet/witnet-rust/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#__github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      witnet/witnet-rust
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../../.." title="Home" class="md-nav__link">
+      Home
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Get started
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Get started
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../get-started/what-is-witnet/" title="What is Witnet" class="md-nav__link">
+      What is Witnet
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../get-started/why-rust/" title="Why Rust?" class="md-nav__link">
+      Why Rust?
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../get-started/design-overview.md" title="Design Overview" class="md-nav__link">
+      Design Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../get-started/install.md" title="Install" class="md-nav__link">
+      Install
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
+    
+    <label class="md-nav__link" for="nav-3">
+      Protocol
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        Protocol
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../network/" title="Network messages" class="md-nav__link">
+      Network messages
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2" checked>
+    
+    <label class="md-nav__link" for="nav-3-2">
+      Data requests
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-2">
+        Data requests
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../overview/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2" type="checkbox" id="nav-3-2-2" checked>
+    
+    <label class="md-nav__link" for="nav-3-2-2">
+      RADON
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="3">
+      <label class="md-nav__title" for="nav-3-2-2">
+        RADON
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../encoding/" title="Encoding" class="md-nav__link">
+      Encoding
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2-2" type="checkbox" id="nav-3-2-2-2" checked>
+    
+    <label class="md-nav__link" for="nav-3-2-2-2">
+      Data types
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="4">
+      <label class="md-nav__title" for="nav-3-2-2-2">
+        Data types
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../overview/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../array/" title="Array<V>" class="md-nav__link">
+      Array<V>
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../boolean/" title="Boolean" class="md-nav__link">
+      Boolean
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../int/" title="Int" class="md-nav__link">
+      Int
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Float
+      </label>
+    
+    <a href="./" title="Float" class="md-nav__link md-nav__link--active">
+      Float
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#floatabs" title="Float.abs()" class="md-nav__link">
+    Float.abs()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatceil" title="Float.ceil()" class="md-nav__link">
+    Float.ceil()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatfloor" title="Float.floor()" class="md-nav__link">
+    Float.floor()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatmodulomodulus" title="Float.modulo(modulus)" class="md-nav__link">
+    Float.modulo(modulus)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatmultfactor" title="Float.mult(factor)" class="md-nav__link">
+    Float.mult(factor)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatneg" title="Float.neg()" class="md-nav__link">
+    Float.neg()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatpowexponent" title="Float.pow(exponent)" class="md-nav__link">
+    Float.pow(exponent)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatrecip" title="Float.recip()" class="md-nav__link">
+    Float.recip()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatround" title="Float.round()" class="md-nav__link">
+    Float.round()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatsumaddend" title="Float.sum(addend)" class="md-nav__link">
+    Float.sum(addend)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floattostring" title="Float.toString()" class="md-nav__link">
+    Float.toString()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floattrunc" title="Float.trunc()" class="md-nav__link">
+    Float.trunc()
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../map/" title="Map<V>" class="md-nav__link">
+      Map<V>
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../mixed/" title="Mixed" class="md-nav__link">
+      Mixed
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../null/" title="Null" class="md-nav__link">
+      Null
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../result/" title="Result<V>" class="md-nav__link">
+      Result<V>
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../string/" title="String" class="md-nav__link">
+      String
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
+      Implicit `Result<V>` wrapping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../exceptions/" title="Exception handling" class="md-nav__link">
+      Exception handling
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../functions/" title="Predefined functions" class="md-nav__link">
+      Predefined functions
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../subscripts/" title="Subscripts" class="md-nav__link">
+      Subscripts
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../examples/" title="Examples" class="md-nav__link">
+      Examples
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../constants/" title="Constants" class="md-nav__link">
+      Constants
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../radlang.md" title="RADlang" class="md-nav__link">
+      RADlang
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-3" type="checkbox" id="nav-3-3">
+    
+    <label class="md-nav__link" for="nav-3-3">
+      Transactions
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-3">
+        Transactions
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../transactions.md" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../witscript.md" title="WitScript" class="md-nav__link">
+      WitScript
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../blocks.md" title="Blocks" class="md-nav__link">
+      Blocks
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../reputation.md" title="Reputation" class="md-nav__link">
+      Reputation
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../mining.md" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../task-assignment.md" title="Task assignment" class="md-nav__link">
+      Task assignment
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/overview.md" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+    
+    <label class="md-nav__link" for="nav-4-2">
+      Peer-To-Peer
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-2">
+        Peer-To-Peer
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/p2p/connections.md" title="Connections" class="md-nav__link">
+      Connections
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/p2p/gossip.md" title="Gossiping" class="md-nav__link">
+      Gossiping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/p2p/encoding.md" title="Encoding (FlatBuffers)" class="md-nav__link">
+      Encoding (FlatBuffers)
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/storage/" title="Persistent Storage" class="md-nav__link">
+      Persistent Storage
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4">
+    
+    <label class="md-nav__link" for="nav-4-4">
+      Managers
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-4">
+        Managers
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/managers/storage-manager/" title="Storage Manager" class="md-nav__link">
+      Storage Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/managers/peers-manager/" title="Peers Manager" class="md-nav__link">
+      Peers Manager
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/mempool-mgmt.md" title="Mempool Management" class="md-nav__link">
+      Mempool Management
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/block-mgmt.md" title="Block Management" class="md-nav__link">
+      Block Management
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/utxo-mgmt.md" title="UTXO Management" class="md-nav__link">
+      UTXO Management
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-8" type="checkbox" id="nav-4-8">
+    
+    <label class="md-nav__link" for="nav-4-8">
+      Data Requests
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-8">
+        Data Requests
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/rad/overview.md" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../architecture/witscript.md" title="Witscript Parser" class="md-nav__link">
+      Witscript Parser
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      Advanced
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        Advanced
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../advanced/constants.md" title="Network constants" class="md-nav__link">
+      Network constants
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../advanced/whitepaper-differences.md" title="Differences with the whitepaper" class="md-nav__link">
+      Differences with the whitepaper
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../roadmap.md" title="Roadmap" class="md-nav__link">
+      Roadmap
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../contributing/" title="Contributing" class="md-nav__link">
+      Contributing
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../development/" title="Development" class="md-nav__link">
+      Development
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../../../glossary.md" title="Glossary" class="md-nav__link">
+      Glossary
+    </a>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#floatabs" title="Float.abs()" class="md-nav__link">
+    Float.abs()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatceil" title="Float.ceil()" class="md-nav__link">
+    Float.ceil()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatfloor" title="Float.floor()" class="md-nav__link">
+    Float.floor()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatmodulomodulus" title="Float.modulo(modulus)" class="md-nav__link">
+    Float.modulo(modulus)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatmultfactor" title="Float.mult(factor)" class="md-nav__link">
+    Float.mult(factor)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatneg" title="Float.neg()" class="md-nav__link">
+    Float.neg()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatpowexponent" title="Float.pow(exponent)" class="md-nav__link">
+    Float.pow(exponent)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatrecip" title="Float.recip()" class="md-nav__link">
+    Float.recip()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatround" title="Float.round()" class="md-nav__link">
+    Float.round()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floatsumaddend" title="Float.sum(addend)" class="md-nav__link">
+    Float.sum(addend)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floattostring" title="Float.toString()" class="md-nav__link">
+    Float.toString()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#floattrunc" title="Float.trunc()" class="md-nav__link">
+    Float.trunc()
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/protocol/data-requests/radon/types/float.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="float-type"><code class="codehilite">Float</code> type<a class="headerlink" href="#float-type" title="Permanent link">&para;</a></h1>
+<h2 id="floatabs"><code class="codehilite">Float.abs()</code><a class="headerlink" href="#floatabs" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">abs</span><span class="p">()</span><span class="o">:</span> <span class="nx">Float</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="nx">FLOAT_ABS</span>
+</pre></div>
+The <code class="codehilite">abs</code> operator returns the absolute value of the input <code class="codehilite">Float</code> number. That is, its distance from zero, without
+regard of its sign.</p>
+<h2 id="floatceil"><code class="codehilite">Float.ceil()</code><a class="headerlink" href="#floatceil" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">ceil</span><span class="p">()</span><span class="o">:</span> <span class="nx">Int</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="nx">FLOAT_CEIL</span>
+</pre></div>
+The <code class="codehilite">ceil</code> operator returns the smallest <code class="codehilite">Int</code> number greater than or equal to the input <code class="codehilite">Float</code> number.</p>
+<h2 id="floatfloor"><code class="codehilite">Float.floor()</code><a class="headerlink" href="#floatfloor" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">floor</span><span class="p">()</span><span class="o">:</span> <span class="nx">Int</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="nx">FLOAT_FLOOR</span>
+</pre></div>
+The <code class="codehilite">floor</code> operator returns the largest <code class="codehilite">Int</code> number less than or equal to the input <code class="codehilite">Float</code> number.</p>
+<h2 id="floatmodulomodulus"><code class="codehilite">Float.modulo(modulus)</code><a class="headerlink" href="#floatmodulomodulus" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">modulo</span><span class="p">(</span><span class="nx">modulus</span>: <span class="kt">Int</span><span class="p">)</span><span class="o">:</span> <span class="nx">Float</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">FLOAT_MODULO</span><span class="p">,</span> <span class="nx">modulus</span> <span class="p">]</span>
+</pre></div>
+The <code class="codehilite">modulo</code> operator returns the remainder after the division of the input <code class="codehilite">Float</code> value by the <code class="codehilite"><span class="n">modulus</span><span class="o">:</span> <span class="n">Float</span></code> value
+supplied as an argument.</p>
+<div class="admonition info">
+<p>The resulting value always takes the same sign as the input <code class="codehilite">Float</code> value.</p>
+</div>
+<h2 id="floatmultfactor"><code class="codehilite">Float.mult(factor)</code><a class="headerlink" href="#floatmultfactor" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">mult</span><span class="p">(</span><span class="nx">factor</span>: <span class="kt">Float</span><span class="p">)</span><span class="o">:</span> <span class="nx">Float</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">FLOAT_MULT</span><span class="p">,</span> <span class="nx">factor</span> <span class="p">]</span>
+</pre></div>
+The <code class="codehilite">mult</code> operator returns the multiplication of the input <code class="codehilite">Float</code> value and the <code class="codehilite"><span class="n">factor</span><span class="o">:</span> <span class="n">Float</span></code> value supplied as an
+argument.</p>
+<div class="admonition tip">
+<p class="admonition-title">Where is the division operator?</p>
+<p>Division is not an elementary operator in RADON.
+It is instead achieved by composing the reciprocal (<code class="codehilite">recip</code>) and multiplication (<code class="codehilite">mult</code>) operators.</p>
+</div>
+<div class="admonition danger">
+<p>This operator can throw a runtime exception if the resulting value overflows or underflows the range of the <code class="codehilite">Float</code>
+type.
+Exceptions are handled as specified in the [Exception handling] section. </p>
+</div>
+<h2 id="floatneg"><code class="codehilite">Float.neg()</code><a class="headerlink" href="#floatneg" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">neg</span><span class="p">()</span><span class="o">:</span> <span class="nx">Float</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="nx">FLOAT_NEG</span>
+</pre></div>
+The <code class="codehilite">neg</code> operator returns the additive inverse, opposite, sign change or negation of the input <code class="codehilite">Float</code> number.
+That is, the number that, when added to the input number, yields zero.</p>
+<h2 id="floatpowexponent"><code class="codehilite">Float.pow(exponent)</code><a class="headerlink" href="#floatpowexponent" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">pow</span><span class="p">(</span><span class="nx">exponent</span>: <span class="kt">Float</span><span class="p">)</span><span class="o">:</span> <span class="nx">Float</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">FLOAT_POW</span><span class="p">,</span> <span class="nx">exponent</span> <span class="p">]</span>
+</pre></div>
+The <code class="codehilite">pow</code> operator returns the value of the input <code class="codehilite">Float</code> as base, exponentiated to the <code class="codehilite"><span class="n">exponent</span><span class="o">:</span> <span class="n">Float</span></code> power.</p>
+<div class="admonition tip">
+<p class="admonition-title">Where is the <em>nth</em>-root operator?</p>
+<p>The <em>nth</em>-root is not an elementary operator in RADON.
+It is instead achieved by composing the reciprocal (<code class="codehilite">recip</code>) and <em>nth</em>-power (<code class="codehilite">pow</code>) operators.</p>
+</div>
+<div class="admonition danger">
+<p>This operator can throw a runtime exception if the resulting value overflows or underflows the range of the <code class="codehilite">Float</code>
+type.
+Exceptions are handled as specified in the [Exception handling] section. </p>
+</div>
+<h2 id="floatrecip"><code class="codehilite">Float.recip()</code><a class="headerlink" href="#floatrecip" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">recip</span><span class="p">()</span><span class="o">:</span> <span class="nx">Float</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="nx">FLOAT_RECIP</span>
+</pre></div>
+The <code class="codehilite">recip</code> operator returns the multiplicative inverse or reciprocal of the input <code class="codehilite">Float</code> number. That is, the number
+which multiplied by the input number, yields 1.  </p>
+<div class="admonition danger">
+<p>This operator will throw a runtime exception if the input <code class="codehilite">Float</code> is <code class="codehilite">0</code>, given that the reciprocal would be
+infinity, which is way beyond the bounds of a <code class="codehilite">Float</code> number.
+Exceptions are handled as specified in the [Exception handling] section. </p>
+</div>
+<h2 id="floatround"><code class="codehilite">Float.round()</code><a class="headerlink" href="#floatround" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">round</span><span class="p">()</span><span class="o">:</span> <span class="nx">Int</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="nx">FLOAT_ROUND</span>
+</pre></div>
+The <code class="codehilite">round</code> operator returns the value of the input <code class="codehilite">Float</code> number as an <code class="codehilite">Int</code> by rounding to the nearest integer.</p>
+<h2 id="floatsumaddend"><code class="codehilite">Float.sum(addend)</code><a class="headerlink" href="#floatsumaddend" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">sum</span><span class="p">(</span><span class="nx">addend</span>: <span class="kt">Float</span><span class="p">)</span><span class="o">:</span> <span class="nx">Float</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">FLOAT_SUM</span><span class="p">,</span> <span class="nx">addend</span> <span class="p">]</span>
+</pre></div>
+The <code class="codehilite">sum</code> operator returns the sum of the input <code class="codehilite">Float</code> value and the <code class="codehilite"><span class="n">addend</span><span class="o">:</span> <span class="n">Float</span></code> value supplied as an argument.</p>
+<div class="admonition tip">
+<p class="admonition-title">Where is the difference operator?</p>
+<p>Difference is not an elementary operator in RADON.
+It is instead achieved by composing the negation (<code class="codehilite">neg</code>) and summation (<code class="codehilite">sum</code>) operators.</p>
+</div>
+<div class="admonition danger">
+<p>This operator can throw a runtime exception if the resulting value overflows or underflows the range of the <code class="codehilite">Float</code>
+type.
+Exceptions are handled as specified in the [Exception handling] section. </p>
+</div>
+<h2 id="floattostring"><code class="codehilite">Float.toString()</code><a class="headerlink" href="#floattostring" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">toString</span><span class="p">(</span><span class="nx">decimals</span>: <span class="kt">Int</span><span class="p">)</span><span class="o">:</span> <span class="nb">String</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">FLOAT_TOSTRING</span><span class="p">,</span> <span class="nx">decimals</span> <span class="p">]</span>
+</pre></div>
+The <code class="codehilite">toString</code> operator returns a <code class="codehilite">String</code> representing the input <code class="codehilite">Float</code> value using the provided base and the minimum
+number of fractional digits possible.</p>
+<p>The accepted bases are the same as in [<code class="codehilite">String::toInt(base)</code>][StringToInt].</p>
+<div class="admonition tip">
+<p>If no base is specified, the default base will be <code class="codehilite">10</code> (decimal).</p>
+</div>
+<h2 id="floattrunc"><code class="codehilite">Float.trunc()</code><a class="headerlink" href="#floattrunc" title="Permanent link">&para;</a></h2>
+<p><div class="codehilite"><pre><span></span><span class="nx">trunc</span><span class="p">()</span><span class="o">:</span> <span class="nx">Int</span>
+</pre></div>
+<div class="codehilite"><pre><span></span><span class="nx">FLOAT_TRUNC</span>
+</pre></div>
+The <code class="codehilite">trunc</code> operator returns the integer part of the input <code class="codehilite">Float</code> number as an <code class="codehilite">Int</code> by removing any fractional digits.</p>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../int/" title="Int" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Int
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../map/" title="Map<V>" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Map<V>
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+          <div class="md-footer-copyright__highlight">
+            © 2018 Witnet Foundation. Available under <a href="https://www.gnu.org/licenses/fdl-1.3.en.html" rel="license">GNU Free Documentation License v1.3</a>
+          </div>
+        
+        powered by
+        <a href="https://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+  <div class="md-footer-social">
+    <link rel="stylesheet" href="../../../../../assets/fonts/font-awesome.css">
+    
+      <a href="https://github.com/witnet" class="md-footer-social__link fa fa-github"></a>
+    
+      <a href="https://reddit.com/r/witnet" class="md-footer-social__link fa fa-reddit"></a>
+    
+      <a href="https://twitter.com/witnet_io" class="md-footer-social__link fa fa-twitter"></a>
+    
+  </div>
+
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../../../../assets/javascripts/application.583bbe55.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:"../../../../.."}})</script>
+      
+    
+    
+      
+    
+  </body>
+</html>
