@@ -733,7 +733,7 @@ impl<'a> Default for VersionArgs<'a> {
             capabilities: 0,
             sender_address: None,
             receiver_address: None,
-            user_agent: None,
+            user_agent: None, // required field
             last_epoch: 0,
             genesis: 0,
             nonce: 0,
@@ -792,6 +792,7 @@ impl<'a: 'b, 'b> VersionBuilder<'a, 'b> {
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<Version<'a>> {
     let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, Version::VT_USER_AGENT,"user__agent");
     flatbuffers::WIPOffset::new(o.value())
   }
 }

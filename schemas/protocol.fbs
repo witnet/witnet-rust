@@ -36,7 +36,7 @@ table Version {
     capabilities: uint64;
     sender_address: Address;
     receiver_address: Address;
-    user_agent: string;
+    user_agent: string (required);
     last_epoch: uint32;
     genesis: uint64;
     nonce: uint64;
