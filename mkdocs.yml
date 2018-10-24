@@ -50,6 +50,7 @@ nav:
       - Encoding (FlatBuffers): architecture/p2p/encoding.md
     - Persistent Storage: architecture/storage.md
     - Managers:
+      - Connections Manager: architecture/managers/connections-manager.md
       - Storage Manager: architecture/managers/storage-manager.md
       - Peers Manager: architecture/managers/peers-manager.md
     - Mempool Management: architecture/mempool-mgmt.md
