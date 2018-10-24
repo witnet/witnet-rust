@@ -40,12 +40,9 @@ fn main() {
     // Check run mode
     match matches.subcommand() {
         // node run mode
-        ("node", Some(arg_matches)) => {
-            // Peer address to be used with incoming features
-            let _peer_address = arg_matches.value_of("peer").unwrap_or("");
-
+        ("node", Some(_arg_matches)) => {
             // Call function to run system actor
-            node::run(default_address, &default_db_root.to_string_lossy(), || {
+            node::run(&default_db_root.to_string_lossy(), || {
                 ctrlc::set_handler(move || {
                     node::close();
                 })

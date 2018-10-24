@@ -1,21 +1,17 @@
 use std::io;
-use std::net::SocketAddr;
 use std::process::exit;
 
 use actix::{Actor, System};
 use log::info;
 
-use crate::actors::client::Client;
 use crate::actors::config_manager::ConfigManager;
+use crate::actors::connections_manager::ConnectionsManager;
 use crate::actors::peers_manager::PeersManager;
-use crate::actors::server::Server;
 use crate::actors::session_manager::SessionManager;
 use crate::actors::storage_manager::StorageManager;
 
 /// Function to run the main system
-pub fn run(address: SocketAddr, db_root: &str, callback: fn()) -> io::Result<()> {
-    info!("Witnet server listening on {}", address);
-
+pub fn run(db_root: &str, callback: fn()) -> io::Result<()> {
     // Init system
     let system = System::new("node");
 
@@ -38,12 +34,9 @@ pub fn run(address: SocketAddr, db_root: &str, callback: fn()) -> io::Result<()>
     let session_manager_addr = SessionManager::default().start();
     System::current().registry().set(session_manager_addr);
 
-    // Start server actor
-    Server::new(address).start();
-
-    // Start client actor
-    let peer_addr = "127.0.0.1:11337".parse().unwrap();
-    Client::new(peer_addr).start();
+    // Start connections manager actor
+    let connections_manager_addr = ConnectionsManager::default().start();
+    System::current().registry().set(connections_manager_addr);
 
     // Run system
     system.run();

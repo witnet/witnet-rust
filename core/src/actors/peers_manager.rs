@@ -37,7 +37,7 @@ impl SystemService for PeersManager {}
 ///  * get peer
 
 // Message result of an option of Socket Address
-type PeersSocketAddrResult = PeersResult<Option<SocketAddr>>;
+pub type PeersSocketAddrResult = PeersResult<Option<SocketAddr>>;
 
 /// Message to add a peer to list
 pub struct AddPeer {
