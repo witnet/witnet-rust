@@ -1,5 +1,5 @@
 use futures::Stream;
-use log::info;
+use log::{debug, info};
 use std::net::SocketAddr;
 
 use actix::actors::resolver::{ConnectAddr, Resolver, ResolverError};
@@ -52,6 +52,8 @@ impl Actor for ConnectionsManager {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
+        debug!("Connections Manager actor has been started!");
+
         // Start server
         // TODO[23-10-2018]: handle errors when starting server appropiately
         ConnectionsManager::start_server(ctx);
@@ -62,9 +64,7 @@ impl Actor for ConnectionsManager {
 impl actix::Supervised for ConnectionsManager {}
 
 /// Required trait for being able to retrieve connections manager address from system registry
-impl SystemService for ConnectionsManager {
-    fn service_started(&mut self, _ctx: &mut Context<Self>) {}
-}
+impl SystemService for ConnectionsManager {}
 
 /// Auxiliary methods for `ConnectionsManager` actor
 impl ConnectionsManager {
@@ -92,9 +92,12 @@ impl ConnectionsManager {
     }
 
     /// Method to create a session actor from a TCP stream
-    fn create_session(stream: TcpStream, kind: SessionType) {
+    fn create_session(stream: TcpStream, session_type: SessionType) {
         // Create a session actor
         Session::create(move |ctx| {
+            // TODO: handle error
+            let address = stream.peer_addr().unwrap();
+
             // Split TCP stream into read and write parts
             let (r, w) = stream.split();
 
@@ -102,7 +105,7 @@ impl ConnectionsManager {
             Session::add_stream(FramedRead::new(r, P2PCodec), ctx);
 
             // Create the session actor and store in its state the write part of the tcp stream
-            Session::new(kind, FramedWrite::new(w, P2PCodec, ctx))
+            Session::new(address, session_type, FramedWrite::new(w, P2PCodec, ctx))
         });
     }
 
@@ -146,7 +149,7 @@ impl ConnectionsManager {
                         info!("Connected to peer {:?}", stream.peer_addr());
 
                         // Create a session actor from connection
-                        ConnectionsManager::create_session(stream, SessionType::Client);
+                        ConnectionsManager::create_session(stream, SessionType::Outbound);
 
                         actix::fut::ok(())
                     }
@@ -175,7 +178,7 @@ impl Handler<InboundTcpConnect> for ConnectionsManager {
     /// Method to handle the InboundTcpConnect message
     fn handle(&mut self, msg: InboundTcpConnect, _ctx: &mut Self::Context) {
         // Create a session actor from connection
-        ConnectionsManager::create_session(msg.stream, SessionType::Server);
+        ConnectionsManager::create_session(msg.stream, SessionType::Inbound);
     }
 }
 

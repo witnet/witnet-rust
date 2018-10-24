@@ -7,7 +7,7 @@ use log::info;
 use crate::actors::config_manager::ConfigManager;
 use crate::actors::connections_manager::ConnectionsManager;
 use crate::actors::peers_manager::PeersManager;
-use crate::actors::session_manager::SessionManager;
+use crate::actors::sessions_manager::SessionsManager;
 use crate::actors::storage_manager::StorageManager;
 
 /// Function to run the main system
@@ -30,13 +30,13 @@ pub fn run(db_root: &str, callback: fn()) -> io::Result<()> {
     let peers_manager_addr = PeersManager::default().start();
     System::current().registry().set(peers_manager_addr);
 
-    // Start session manager actor
-    let session_manager_addr = SessionManager::default().start();
-    System::current().registry().set(session_manager_addr);
-
     // Start connections manager actor
     let connections_manager_addr = ConnectionsManager::default().start();
     System::current().registry().set(connections_manager_addr);
+
+    // Start session manager actor
+    let sessions_manager_addr = SessionsManager::default().start();
+    System::current().registry().set(sessions_manager_addr);
 
     // Run system
     system.run();

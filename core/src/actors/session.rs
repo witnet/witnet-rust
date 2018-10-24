@@ -1,31 +1,32 @@
 use std::io::Error;
+use std::net::SocketAddr;
 
 use actix::io::{FramedWrite, WriteHandler};
 use actix::{
     Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Running,
     StreamHandler, System, WrapFuture,
 };
-use log::info;
+use log::debug;
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
 
 use crate::actors::codec::{P2PCodec, Request};
-use crate::actors::session_manager::{Connect, Disconnect, SessionManager};
+use crate::actors::sessions_manager::{Register, SessionsManager, Unregister};
 
 /// Session type
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum SessionType {
-    /// Server session
-    Server,
+    /// Inbound session
+    Inbound,
 
-    /// Client session
-    Client,
+    /// Outbound session
+    Outbound,
 }
 
 /// Session representing a TCP connection
 pub struct Session {
     /// Unique session id
-    id: usize,
+    address: SocketAddr,
 
     /// Session type
     session_type: SessionType,
@@ -38,11 +39,12 @@ pub struct Session {
 impl Session {
     /// Method to create a new session
     pub fn new(
+        address: SocketAddr,
         session_type: SessionType,
         _framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
     ) -> Session {
         Session {
-            id: 0,
+            address,
             session_type,
             _framed,
         }
@@ -57,17 +59,21 @@ impl Actor for Session {
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
         // Get session manager address
-        let session_manager_addr = System::current().registry().get::<SessionManager>();
+        let session_manager_addr = System::current().registry().get::<SessionsManager>();
 
         // Register self in session manager. `AsyncContext::wait` register
         // future within context, but context waits until this future resolves
         // before processing any other events.
         session_manager_addr
-            .send(Connect::new(ctx.address(), self.session_type))
+            .send(Register {
+                address: self.address,
+                actor: ctx.address(),
+                session_type: self.session_type,
+            })
             .into_actor(self)
-            .then(|res, act, ctx| {
+            .then(|res, _act, ctx| {
                 match res {
-                    Ok(res) => act.id = res,
+                    Ok(_) => debug!("Actor successfully register against the Session Manager"),
                     // Something is wrong with session manager
                     _ => ctx.stop(),
                 }
@@ -79,10 +85,13 @@ impl Actor for Session {
     /// Method to be executed when the actor is stopping
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         // Get session manager address
-        let session_manager_addr = System::current().registry().get::<SessionManager>();
+        let session_manager_addr = System::current().registry().get::<SessionsManager>();
 
         // Deregister session from session manager
-        session_manager_addr.do_send(Disconnect::new(self.id, self.session_type));
+        session_manager_addr.do_send(Unregister {
+            address: self.address,
+            session_type: self.session_type,
+        });
 
         Running::Stop
     }
@@ -98,7 +107,7 @@ impl StreamHandler<Request, Error> for Session {
         // Handler different types of requests
         match msg {
             Request::Message(message) => {
-                info!("Session {} received message: {}", self.id, message);
+                debug!("Session {} received message: {}", self.address, message);
             }
         }
     }

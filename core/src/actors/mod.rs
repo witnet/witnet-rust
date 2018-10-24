@@ -8,7 +8,7 @@ pub mod node;
 pub mod peers_manager;
 
 /// Session manager actor module
-pub mod session_manager;
+pub mod sessions_manager;
 
 /// Session actor module
 pub mod session;
