@@ -1,75 +1,113 @@
-//! configuration
-
-#![deny(rust_2018_idioms)]
-#![deny(non_upper_case_globals)]
-#![deny(non_camel_case_types)]
-#![deny(non_snake_case)]
-#![deny(unused_mut)]
-// FIXME: doc the config
-// #![deny(missing_docs)]
-
-use std::fs::File;
-use std::io::prelude::*;
-use toml as Toml;
-
-/// Default configuration values
-pub const P2P_SERVER_HOST: &str = "0.0.0.0";
-pub const P2P_SERVER_PORT: u16 = 11337;
-pub const DB_ROOT: &str = ".wit";
-
-const CONFIG_FILE: &str = "witnet.toml";
+//! # Witnet-rust configuration library.
+//!
+//! This is the library code for reading and validating the
+//! configuration read from an external data source. External data
+//! sources and their format are handled through different loaders,
+//! see the `witnet_config::loaders` module for more information.
+//!
+//! No matter which data source you use, ultimately all of them will
+//! load the configuration as an instance of the `Config` struct which
+//! is composed of other, more specialized, structs such as
+//! `StorageConfig` and `ConnectionsConfig`. This instance is the one
+//! you use in your Rust code to interact with the loaded
+//! configuration.
+#![cfg_attr(test, allow(dead_code, unused_macros, unused_imports))]
 
 #[macro_use]
 extern crate serde_derive;
 
-#[derive(Debug, Deserialize)]
+use std::default::Default;
+use std::net::SocketAddr;
+
+pub mod loaders;
+
+/// The entire configuration
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Config {
-    pub server: ServerConfig,
-    pub logging: Option<LoggingConfig>,
+    #[serde(default = "Config::default_connections")]
+    pub connections: ConnectionsConfig,
+    #[serde(default = "Config::default_storage")]
+    pub storage: StorageConfig,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ServerConfig {
-    pub chain_type: Option<String>,
-    pub db_root: Option<String>,
-    pub host: String,
-    pub p2p: Option<P2pConfig>,
-    pub port: u16,
+/// Connections-specific configuration
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct ConnectionsConfig {
+    #[serde(default = "ConnectionsConfig::default_server_addr")]
+    pub server_addr: SocketAddr,
+    #[serde(default = "ConnectionsConfig::default_inbound_limit")]
+    pub inbound_limit: u16,
+    #[serde(default = "ConnectionsConfig::default_outbound_limit")]
+    pub outbound_limit: u16,
+    #[serde(default = "ConnectionsConfig::default_known_peers")]
+    pub known_peers: Vec<SocketAddr>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub struct P2pConfig {
-    pub host: String,
-    pub port: u16,
+/// Storage-specific configuration
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct StorageConfig {
+    #[serde(default = "StorageConfig::default_db_path")]
+    pub db_path: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct LoggingConfig {
-    pub file_log_level: Option<String>,
-    pub log_file_append: Option<bool>,
-    pub log_file_path: Option<String>,
-    pub log_to_file: Option<bool>,
-    pub log_to_stdout: Option<bool>,
-    pub stdout_log_level: Option<String>,
+impl Config {
+    fn default_connections() -> ConnectionsConfig {
+        ConnectionsConfig::default()
+    }
+
+    fn default_storage() -> StorageConfig {
+        StorageConfig::default()
+    }
 }
 
-pub fn read_config() -> Option<Config> {
-    let name: String = String::from(CONFIG_FILE);
-    let mut input = String::new();
-
-    File::open(&name)
-        .and_then(|mut f| f.read_to_string(&mut input))
-        .unwrap();
-
-    match input.parse() {
-        Ok(toml) => {
-            let toml: Toml::Value = toml;
-            let toml_str = toml.to_string();
-            let decoded: Config = Toml::from_str(&toml_str).unwrap();
-            Some(decoded)
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            connections: Self::default_connections(),
+            storage: Self::default_storage(),
         }
-        Err(error) => {
-            panic!("failed to parse TOML: {}", error);
+    }
+}
+
+impl ConnectionsConfig {
+    fn default_server_addr() -> SocketAddr {
+        "127.0.0.1:1234".parse().unwrap()
+    }
+
+    fn default_inbound_limit() -> u16 {
+        256
+    }
+
+    fn default_outbound_limit() -> u16 {
+        8
+    }
+
+    fn default_known_peers() -> Vec<SocketAddr> {
+        Vec::default()
+    }
+}
+
+impl Default for ConnectionsConfig {
+    fn default() -> ConnectionsConfig {
+        ConnectionsConfig {
+            server_addr: Self::default_server_addr(),
+            inbound_limit: Self::default_inbound_limit(),
+            outbound_limit: Self::default_outbound_limit(),
+            known_peers: Self::default_known_peers(),
+        }
+    }
+}
+
+impl StorageConfig {
+    fn default_db_path() -> String {
+        "witnet_db".to_string()
+    }
+}
+
+impl Default for StorageConfig {
+    fn default() -> StorageConfig {
+        StorageConfig {
+            db_path: Self::default_db_path(),
         }
     }
 }
