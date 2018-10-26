@@ -1,81 +1,114 @@
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use actix::{Actor, Addr, AsyncContext, Context, Handler, Message, System, SystemService};
-use log::{debug, info};
+use actix::fut::FutureResult;
+use actix::{
+    Actor, ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner, Handler, MailboxError,
+    Message, System, SystemService, WrapFuture,
+};
+
+use log::debug;
 
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
-use crate::actors::session::{Session, SessionType};
+use crate::actors::session::Session;
 
-// TODO: Replace by query to Config Manager
-const MAX_NUM_PEERS: usize = 8;
+use crate::actors::peers_manager::{GetPeer, PeersManager, PeersSocketAddrResult};
+use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};
+
+/// Period of the bootstrap peers task (in seconds)
+const BOOTSTRAP_PEERS_PERIOD: u64 = 5;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
 
-type SessionsMap = HashMap<SocketAddr, SessionInfo>;
-
-/// Session Status (used for bootstrapping)
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum SessionStatus {
-    /// Recently created session (no handshake yet)
-    Unconsolidated,
-    /// Session with successful handshake
-    Consolidated,
-}
-
-/// Session info
-pub struct SessionInfo {
-    /// Session Actor address
-    pub actor: Addr<Session>,
-    /// Session status
-    pub status: SessionStatus,
-}
-
 /// Sessions manager actor
 #[derive(Default)]
 pub struct SessionsManager {
-    /// Inbound sessions: __untrusted__ peers that connect to the server
-    inbound_sessions: SessionsMap,
-
-    /// Outbound sessions: __known__ peers that the node is connected
-    outbound_sessions: SessionsMap,
+    // Registered sessions
+    sessions: Sessions<Addr<Session>>,
 }
 
 impl SessionsManager {
-    /// Method to send a message through all client connections
-    pub fn broadcast(&self, _message: &str, _skip_id: usize) {}
-
-    /// Method to get the sessions map by a session type
-    fn get_sessions_by_type(&mut self, session_type: SessionType) -> &mut SessionsMap {
-        match session_type {
-            SessionType::Inbound => &mut self.inbound_sessions,
-            SessionType::Outbound => &mut self.outbound_sessions,
-        }
-    }
-
-    /// Method to periodically check the number of client sessions
+    /// Method to periodically bootstrap outbound sessions
     fn bootstrap_peers(&self, ctx: &mut Context<Self>) {
-        // Schedule the execution of the check to 5 seconds
-        ctx.run_later(Duration::from_secs(5), |act, ctx| {
-            // Get number of peers
-            let num_peers = act.outbound_sessions.keys().len();
-            debug!("Number of peers {}", num_peers);
+        // Schedule the bootstrap with a given period
+        ctx.run_later(Duration::from_secs(BOOTSTRAP_PEERS_PERIOD), |act, ctx| {
+            // Get number of outbound peers
+            let num_peers = act.sessions.outbound_sessions.len();
+            debug!("Number of outbound peers {}", num_peers);
 
-            if num_peers < MAX_NUM_PEERS {
-                // TODO: Include "create connection" message to ConnectionsManager (after rebase)
-                info!("Send message to Connections Manager to create a new peer connection");
+            // Check if bootstrap is required
+            if num_peers < act.sessions.outbound_limit {
+                // Get peers manager address
+                let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
-                let connections_manager_addr =
-                    System::current().registry().get::<ConnectionsManager>();
-                connections_manager_addr.do_send(OutboundTcpConnect);
+                // Start chain of actions
+                peers_manager_addr
+                    // Send GetPeer message to peers manager actor
+                    // This returns a Request Future, representing an asynchronous message sending process
+                    .send(GetPeer)
+                    // Convert a normal future into an ActorFuture
+                    .into_actor(act)
+                    // Process the response from the peers manager
+                    // This returns a FutureResult containing the socket address if present
+                    .then(|res, act, _ctx| {
+                        // Process the response from peers manager
+                        act.process_get_peer_response(res)
+                    })
+                    //// Process the socket address received
+                    // This returns a FutureResult containing a success or error
+                    .and_then(|address, _act, _ctx| {
+                        debug!("Trying to create a new outbound connection to {}", address);
+
+                        // Get connections manager from registry and send an OutboundTcpConnect message to it
+                        let connections_manager_addr =
+                            System::current().registry().get::<ConnectionsManager>();
+                        connections_manager_addr.do_send(OutboundTcpConnect { address });
+
+                        actix::fut::ok(())
+                    })
+                    .wait(ctx);
             }
 
-            // Reschedule the check of the
+            // Reschedule the bootstrap peers task
             act.bootstrap_peers(ctx);
         });
+    }
+
+    /// Method to process peers manager GetPeer response
+    fn process_get_peer_response(
+        &mut self,
+        response: Result<PeersSocketAddrResult, MailboxError>,
+    ) -> FutureResult<SocketAddr, (), Self> {
+        response
+            // Unwrap the Result<PeersSocketAddrResult, MailboxError>
+            .unwrap_or_else(|_| {
+                debug!("Unsuccessful communication with peers manager");
+                Ok(None)
+            })
+            // Unwrap the PeersSocketAddrResult
+            .unwrap_or_else(|_| {
+                debug!("An error happened in peers manager when getting a peer");
+                None
+            })
+            // Check if PeersSocketAddrResult returned `None`
+            .or_else(|| {
+                debug!("No peer obtained from peers manager");
+                None
+            })
+            // Filter the result checking if outbound address is eligible as new peer
+            .filter(|address: &SocketAddr| {
+                self.sessions.is_outbound_address_eligible(address.clone())
+            })
+            // Check if there is a peer after filter
+            .or_else(|| {
+                debug!("No eligible peer obtained from peers manager");
+                None
+            })
+            // Convert Some(SocketAddr) or None to FutureResult<SocketAddr, (), Self>
+            .map(actix::fut::ok)
+            .unwrap_or_else(|| actix::fut::err(()))
     }
 }
 
@@ -87,7 +120,13 @@ impl Actor for SessionsManager {
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("Sessions Manager actor has been started!");
-        // We'll start the check peers process on sessions manager start
+
+        // TODO: Call Config Manager --> and set server address and limits
+        self.sessions
+            .set_server_address("127.0.0.1:50000".parse().unwrap());
+        self.sessions.set_limits(2, 2);
+
+        // We'll start the bootstrap peers process on sessions manager start
         self.bootstrap_peers(ctx);
     }
 }
@@ -101,7 +140,6 @@ impl SystemService for SessionsManager {}
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// Message to indicate that a new session is created
-#[derive(Message)]
 pub struct Register {
     /// Socket address to identify the peer
     pub address: SocketAddr,
@@ -113,8 +151,11 @@ pub struct Register {
     pub session_type: SessionType,
 }
 
+impl Message for Register {
+    type Result = SessionsResult<()>;
+}
+
 /// Message to indicate that a session is disconnected
-#[derive(Message)]
 pub struct Unregister {
     /// Socket address to identify the peer
     pub address: SocketAddr,
@@ -123,8 +164,11 @@ pub struct Unregister {
     pub session_type: SessionType,
 }
 
+impl Message for Unregister {
+    type Result = SessionsResult<()>;
+}
+
 /// Message to indicate that a session is disconnected
-#[derive(Message)]
 pub struct Update {
     /// Socket address to identify the peer
     pub address: SocketAddr,
@@ -136,68 +180,85 @@ pub struct Update {
     pub session_status: SessionStatus,
 }
 
+impl Message for Update {
+    type Result = SessionsResult<()>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// Handler for Connect message.
 impl Handler<Register> for SessionsManager {
-    type Result = ();
+    type Result = SessionsResult<()>;
 
     fn handle(&mut self, msg: Register, _: &mut Context<Self>) -> Self::Result {
-        // Get map to insert session to
-        let sessions = self.get_sessions_by_type(msg.session_type);
+        // Call method register session from sessions library
+        let result = self
+            .sessions
+            .register_session(msg.session_type, msg.address, msg.actor);
 
-        // Insert session in the right map
-        sessions.insert(
-            msg.address,
-            SessionInfo {
-                actor: msg.actor,
-                status: SessionStatus::Consolidated,
-            },
-        );
+        match &result {
+            Ok(_) => debug!(
+                "Session (type {:?}) registered for peer {}",
+                msg.session_type, msg.address
+            ),
+            Err(error) => debug!(
+                "Error while registering peer {} (session type {:?}): {}",
+                msg.address, msg.session_type, error
+            ),
+        }
 
-        info!(
-            "Session (type {:?}) registered for peer {}",
-            msg.session_type, msg.address
-        );
+        result
     }
 }
 
 /// Handler for Disconnect message.
 impl Handler<Unregister> for SessionsManager {
-    type Result = ();
+    type Result = SessionsResult<()>;
 
-    fn handle(&mut self, msg: Unregister, _: &mut Context<Self>) {
-        // Get map to insert session to
-        let sessions = self.get_sessions_by_type(msg.session_type);
+    fn handle(&mut self, msg: Unregister, _: &mut Context<Self>) -> Self::Result {
+        // Call method register session from sessions library
+        let result = self
+            .sessions
+            .unregister_session(msg.session_type, msg.address);
 
-        // Remove session from map
-        sessions.remove(&msg.address);
+        match &result {
+            Ok(_) => debug!(
+                "Session (type {:?}) unregistered for peer {}",
+                msg.session_type, msg.address
+            ),
+            Err(error) => debug!(
+                "Error while unregistering peer {} (session type {:?}): {}",
+                msg.address, msg.session_type, error
+            ),
+        }
 
-        info!(
-            "Session (type {:?}) unregistered for peer {}",
-            msg.session_type, msg.address
-        );
+        result
     }
 }
 
 /// Handler for Connect message.
 impl Handler<Update> for SessionsManager {
-    type Result = ();
+    type Result = SessionsResult<()>;
 
     fn handle(&mut self, msg: Update, _: &mut Context<Self>) -> Self::Result {
-        // Get map to insert session to
-        let sessions = self.get_sessions_by_type(msg.session_type);
+        // Call method register session from sessions library
+        let result =
+            self.sessions
+                .update_session(msg.session_type, msg.address, msg.session_status);
 
-        // Insert session in the right map
-        if let Some(session) = sessions.get_mut(&msg.address) {
-            session.status = msg.session_status;
+        match &result {
+            Ok(_) => debug!(
+                "Session (type {:?}) status updated to {:?} for peer {}",
+                msg.session_type, msg.session_status, msg.address
+            ),
+            Err(error) => debug!(
+                "Error while updating peer {} (session type {:?}): {}",
+                msg.address, msg.session_type, error
+            ),
         }
 
-        info!(
-            "Session status updated to {:?} for peer {}",
-            msg.session_status, msg.address
-        );
+        result
     }
 }
