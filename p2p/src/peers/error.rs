@@ -1,4 +1,4 @@
-//! Error type definitions for the Peerss module.
+//! Error type definitions for the Peers module.
 
 use failure::Fail;
 use std::fmt;
