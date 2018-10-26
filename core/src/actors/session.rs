@@ -98,7 +98,7 @@ impl StreamHandler<Request, Error> for Session {
         // Handler different types of requests
         match msg {
             Request::Message(message) => {
-                info!("Session {} received message: {}", self.id, message);
+                info!("Session {} received message: {:?}", self.id, message);
             }
         }
     }

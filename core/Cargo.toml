@@ -8,12 +8,15 @@ edition = "2018"
 
 [dependencies]
 actix = "0.7.4"
-log = "0.4.5"
-futures = "0.1"
-tokio = "0.1.11"
+byteorder = "1.2.6"
 bytes = "0.4"
+futures = "0.1"
+log = "0.4.5"
 rand = "0.5.5"
+tokio = "0.1.11"
+
+witnet_data_structures = { path = "../data_structures" }
+witnet_p2p = { path = "../p2p" }
 witnet_storage = { path = "../storage", features = ["rocksdb-backend"] }
 witnet_config = { path = "../config" }
-witnet_p2p = { path = "../p2p" }
 witnet_util = { path = "../util" }
