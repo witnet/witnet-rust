@@ -103,7 +103,7 @@ impl StreamHandler<Request, Error> for Session {
         // Handler different types of requests
         match msg {
             Request::Message(message) => {
-                debug!("Session {} received message: {}", self.address, message);
+                debug!("Session {} received message: {:?}", self.id, message);
             }
         }
     }
