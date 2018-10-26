@@ -13,15 +13,7 @@ use tokio::net::TcpStream;
 use crate::actors::codec::{P2PCodec, Request};
 use crate::actors::sessions_manager::{Register, SessionsManager, Unregister};
 
-/// Session type
-#[derive(Copy, Clone, Debug)]
-pub enum SessionType {
-    /// Inbound session
-    Inbound,
-
-    /// Outbound session
-    Outbound,
-}
+use witnet_p2p::sessions::SessionType;
 
 /// Session representing a TCP connection
 pub struct Session {
@@ -73,9 +65,12 @@ impl Actor for Session {
             .into_actor(self)
             .then(|res, _act, ctx| {
                 match res {
-                    Ok(_) => debug!("Actor successfully register against the Session Manager"),
+                    Ok(Ok(_)) => debug!("Session successfully registered into the Session Manager"),
                     // Something is wrong with session manager
-                    _ => ctx.stop(),
+                    _ => {
+                        debug!("Session register into Session Manager failed");
+                        ctx.stop()
+                    }
                 }
                 actix::fut::ok(())
             })

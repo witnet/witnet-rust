@@ -7,15 +7,16 @@ use actix::fut::FutureResult;
 use actix::io::FramedWrite;
 use actix::{
     Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, MailboxError,
-    Message, StreamHandler, System, SystemService, WrapFuture,
+    Message, StreamHandler, SystemService, WrapFuture,
 };
 use tokio::codec::FramedRead;
 use tokio::io::AsyncRead;
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::actors::codec::P2PCodec;
-use crate::actors::peers_manager::{GetPeer, PeersManager, PeersSocketAddrResult};
-use crate::actors::session::{Session, SessionType};
+use crate::actors::session::Session;
+
+use witnet_p2p::sessions::SessionType;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGES
@@ -35,8 +36,11 @@ impl InboundTcpConnect {
 
 /// Actor message to request the creation of an outbound TCP connection to a peer.
 /// The address of the peer is not specified as it will be determined by the peers manager actor.
-#[derive(Default, Message)]
-pub struct OutboundTcpConnect;
+#[derive(Message)]
+pub struct OutboundTcpConnect {
+    /// Address of the outbound connection
+    pub address: SocketAddr,
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
@@ -70,7 +74,7 @@ impl SystemService for ConnectionsManager {}
 impl ConnectionsManager {
     /// Method to start a server
     fn start_server(ctx: &mut <Self as Actor>::Context) {
-        info!("Trying to start P2P server...");
+        debug!("Trying to start P2P server...");
 
         // Get address to launch the server
         // TODO[23-10-2018]: query server address from config manager
@@ -109,35 +113,6 @@ impl ConnectionsManager {
         });
     }
 
-    /// Method to process peers manager GetPeer response
-    fn process_get_peer_response(
-        response: Result<PeersSocketAddrResult, MailboxError>,
-    ) -> FutureResult<SocketAddr, (), Self> {
-        match response {
-            Ok(result) => match result {
-                Ok(opt_sock_addr) => match opt_sock_addr {
-                    Some(sock_addr) => {
-                        info!("Trying to connect to peer {}", sock_addr);
-                        actix::fut::ok(sock_addr)
-                    }
-
-                    None => {
-                        info!("No peer obtained from peers manager");
-                        actix::fut::err(())
-                    }
-                },
-                Err(_) => {
-                    info!("An error happened in peers manager when getting a peer");
-                    actix::fut::err(())
-                }
-            },
-            Err(_) => {
-                info!("Unsuccessful communication with peers manager");
-                actix::fut::err(())
-            }
-        }
-    }
-
     /// Method to process resolver ConnectAddr response
     fn process_connect_addr_response(
         response: Result<Result<TcpStream, ResolverError>, MailboxError>,
@@ -153,8 +128,8 @@ impl ConnectionsManager {
 
                         actix::fut::ok(())
                     }
-                    Err(_) => {
-                        info!("An error happened in resolver when trying to connect to the peer");
+                    Err(e) => {
+                        info!("Error while trying to connect to the peer: {}", e);
                         actix::fut::err(())
                     }
                 }
@@ -188,29 +163,12 @@ impl Handler<OutboundTcpConnect> for ConnectionsManager {
     type Result = ();
 
     /// Method to handle the OutboundTcpConnect message
-    fn handle(&mut self, _msg: OutboundTcpConnect, ctx: &mut Self::Context) {
-        // Get peers manager address
-        let peers_manager_addr = System::current().registry().get::<PeersManager>();
-
-        // Start chain of actions
-        peers_manager_addr
-            // Send GetPeer message to peers manager actor
-            // This returns a Request Future, representing an asynchronous message sending process
-            .send(GetPeer)
-            // Convert a normal future into an ActorFuture
+    fn handle(&mut self, msg: OutboundTcpConnect, ctx: &mut Self::Context) {
+        // Get resolver from registry and send a ConnectAddr message to it
+        Resolver::from_registry()
+            .send(ConnectAddr(msg.address))
             .into_actor(self)
-            // Process the response from the peers manager
-            // This returns a FutureResult containing the socket address if present
-            .then(|res, _act, _ctx| ConnectionsManager::process_get_peer_response(res))
-            //// Process the socket address received
-            // This returns a FutureResult containing a success or error
-            .and_then(|res, act, _ctx| {
-                // Get resolver from registry and send a ConnectAddr message to it
-                Resolver::from_registry()
-                    .send(ConnectAddr(res))
-                    .into_actor(act)
-                    .then(|res, _act, _ctx| ConnectionsManager::process_connect_addr_response(res))
-            })
+            .then(|res, _act, _ctx| ConnectionsManager::process_connect_addr_response(res))
             .wait(ctx);
     }
 }
