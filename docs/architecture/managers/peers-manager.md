@@ -44,7 +44,7 @@ System::current().registry().set(storage_manager_addr);
 
 ### Incoming: Others -> Peers Manager
 
-These are the messages supported by the storage manager handlers:
+These are the messages supported by the peers manager handlers:
 
 | Message    | Input type            | Output type                       | Description           |
 | ---------- | --------------------- | --------------------------------- | --------------------- |
@@ -52,9 +52,7 @@ These are the messages supported by the storage manager handlers:
 | AddPeer    | `address: SocketAddr` | `PeersResult<Option<SocketAddr>>` | Add peer to list      |
 | RemovePeer | `address: SocketAddr` | `PeersResult<Option<SocketAddr>>` | Remove peer from list |
 
-The handling of these messages is basically just calling the corresponding methods from the [`Peers`][peers]
-library that is implemented by [`peers.rs`][peers]. For example, the handler of the `AddPeer` message
-would be implemented as:
+The handling of these messages is basically just calling the corresponding methods from the [`Peers`][peers] library that is implemented by [`peers.rs`][peers]. For example, the handler of the `AddPeer` message would be implemented as:
 
 ```rust
 /// Handler for Add peer message.
@@ -81,8 +79,7 @@ The way other actors will communicate with the storage manager is:
     let peers_manager_addr = System::current().registry().get::<PeersManager>();
     ```
 
-2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to
-send a message to the actor:
+2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to send a message to the actor:
 
     ```rust
     // Example
