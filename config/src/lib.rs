@@ -22,7 +22,7 @@ use std::net::SocketAddr;
 pub mod loaders;
 
 /// The entire configuration
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Config {
     #[serde(default = "Config::default_connections")]
     pub connections: ConnectionsConfig,
@@ -31,7 +31,7 @@ pub struct Config {
 }
 
 /// Connections-specific configuration
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ConnectionsConfig {
     #[serde(default = "ConnectionsConfig::default_server_addr")]
     pub server_addr: SocketAddr,
@@ -44,7 +44,7 @@ pub struct ConnectionsConfig {
 }
 
 /// Storage-specific configuration
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct StorageConfig {
     #[serde(default = "StorageConfig::default_db_path")]
     pub db_path: String,
