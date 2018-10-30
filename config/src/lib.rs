@@ -18,6 +18,7 @@ extern crate serde_derive;
 
 use std::default::Default;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 pub mod loaders;
 
@@ -47,7 +48,7 @@ pub struct ConnectionsConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct StorageConfig {
     #[serde(default = "StorageConfig::default_db_path")]
-    pub db_path: String,
+    pub db_path: PathBuf,
 }
 
 impl Config {
@@ -99,8 +100,8 @@ impl Default for ConnectionsConfig {
 }
 
 impl StorageConfig {
-    fn default_db_path() -> String {
-        "witnet_db".to_string()
+    fn default_db_path() -> PathBuf {
+        PathBuf::from(".wit")
     }
 }
 
