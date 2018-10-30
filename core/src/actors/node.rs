@@ -6,6 +6,7 @@ use actix::{Actor, System};
 use log::info;
 
 use crate::actors::client::Client;
+use crate::actors::config_manager::ConfigManager;
 use crate::actors::peers_manager::PeersManager;
 use crate::actors::server::Server;
 use crate::actors::session_manager::SessionManager;
@@ -20,6 +21,10 @@ pub fn run(address: SocketAddr, db_root: &str, callback: fn()) -> io::Result<()>
 
     // Call cb function (register interrupt handlers)
     callback();
+
+    // Start config manager actor
+    let config_manager_addr = ConfigManager::default().start();
+    System::current().registry().set(config_manager_addr);
 
     // Start storage manager actor
     let storage_manager_addr = StorageManager::new(&db_root).start();
