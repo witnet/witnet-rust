@@ -61,7 +61,7 @@ impl Actor for ConnectionsManager {
         debug!("Connections Manager actor has been started!");
 
         // Start server
-        // TODO[23-10-2018]: handle errors when starting server appropiately
+        // FIXME(#72): decide what to do with actor when server cannot be started
         ConnectionsManager::start_server(ctx);
     }
 }
@@ -79,11 +79,11 @@ impl ConnectionsManager {
         debug!("Trying to start P2P server...");
 
         // Get address to launch the server
-        // TODO[23-10-2018]: query server address from config manager
+        // TODO: query server address from config manager
         let server_address = "127.0.0.1:50000".parse().unwrap();
 
         // Bind TCP listener to this address
-        // TODO[23-10-2018]: handle errors
+        // FIXME(#72): decide what to do with actor when server cannot be started
         let listener = TcpListener::bind(&server_address).unwrap();
 
         // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
@@ -101,7 +101,7 @@ impl ConnectionsManager {
     fn create_session(stream: TcpStream, session_type: SessionType) {
         // Create a session actor
         Session::create(move |ctx| {
-            // TODO: handle error
+            // Get peer address
             let address = stream.peer_addr().unwrap();
 
             // Split TCP stream into read and write parts

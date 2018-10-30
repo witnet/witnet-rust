@@ -68,7 +68,8 @@ impl Actor for Session {
                     Ok(Ok(_)) => debug!("Session successfully registered into the Session Manager"),
                     _ => {
                         debug!("Session register into Session Manager failed");
-                        // TODO: full stop should not be done perhaps, register did not complete
+                        // FIXME(#72): a full stop of the session is not correct (unregister should
+                        // be skipped)
                         ctx.stop()
                     }
                 }

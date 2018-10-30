@@ -48,7 +48,7 @@ pub fn run(db_root: &str, callback: fn()) -> io::Result<()> {
 pub fn close() {
     info!("Closing node");
 
-    // TODO: Investigate how to stop gracefully the system
+    // FIXME(#72): find out how to gracefully stop the system
     // System::current().stop();
 
     // Process exit

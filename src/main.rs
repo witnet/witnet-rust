@@ -43,6 +43,7 @@ fn main() {
         ("node", Some(_arg_matches)) => {
             // Call function to run system actor
             node::run(&default_db_root.to_string_lossy(), || {
+                // FIXME(#72): decide what to do when interrupt signals are received
                 ctrlc::set_handler(move || {
                     node::close();
                 })
