@@ -14,7 +14,7 @@ use toml;
 /// might also fail with a `std::io::Error`.
 #[derive(Debug)]
 pub enum Error {
-    /// Indicates there was an error when trying to load a file from a file.
+    /// Indicates there was an error when trying to load configuration from a file.
     IOError(io::Error),
     /// Indicates there was an error when trying to build a
     /// `witnet_config::Config` instance out of the Toml string given.
