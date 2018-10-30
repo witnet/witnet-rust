@@ -1,36 +1,8 @@
-# Sample Server Configuration File for Rust-Witnet
-#
-# When running the witnet executable without specifying any command line
-# arguments, it will look for this file in three places, in the following
-# order:
-#
-# -The working directory
-# -The directory in which the executable resides
-# -[user home]/.wit
-#
+[connections]
+server_addr = "0.0.0.0:21337"
 
-#########################################
-### SERVER CONFIGURATION              ###
-#########################################
-
-#Server connection details
-[server]
-#The chain type, which defines the genesis block. Can be:
-#AutomatedTesting - For CI builds and instant blockchain creation
-#UserTesting - For regular user testing
-#Testnet1 - Testnet1 genesis block
-#
-chain_type = "UserTesting"
-
-#The directory, relative to current, in which the witnet blockchain
-#is stored
-db_root = ".wit"
-host = "0.0.0.0"
-port = 8888
-
-[server.p2p]
-host = "0.0.0.0"
-port = 11337
+[storage]
+db_path = ".wit"
 
 #########################################
 ### LOGGING CONFIGURATION             ###

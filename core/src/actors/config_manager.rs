@@ -12,6 +12,7 @@ use witnet_config::Config;
 #[derive(Debug, Default)]
 pub struct ConfigManager {
     config: Config,
+    filename: Option<String>,
 }
 
 impl Actor for ConfigManager {
@@ -19,7 +20,21 @@ impl Actor for ConfigManager {
 
     fn started(&mut self, _ctx: &mut Self::Context) {
         debug!("[Config Manager] Started!");
-        self.config = toml::from_file("witnet.toml").unwrap();
+        match &self.filename {
+            Some(filename) => self.config = toml::from_file(&filename).unwrap(),
+            None => (),
+        }
+    }
+}
+
+impl ConfigManager {
+    /// Create a new ConfigManager instance that will try to read the
+    /// given configuration file name.
+    pub fn new(filename: &str) -> Self {
+        ConfigManager {
+            config: Config::default(),
+            filename: Some(filename.to_owned()),
+        }
     }
 }
 
