@@ -13,7 +13,10 @@ use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect}
 use crate::actors::session::Session;
 
 use crate::actors::peers_manager::{GetPeer, PeersManager, PeersSocketAddrResult};
-use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};
+use witnet_p2p::sessions::{
+    error::SessionsResult,
+    {SessionStatus, SessionType, Sessions},
+};
 
 /// Period of the bootstrap peers task (in seconds)
 const BOOTSTRAP_PEERS_PERIOD: u64 = 5;
@@ -35,11 +38,13 @@ impl SessionsManager {
         // Schedule the bootstrap with a given period
         ctx.run_later(Duration::from_secs(BOOTSTRAP_PEERS_PERIOD), |act, ctx| {
             // Get number of outbound peers
-            let num_peers = act.sessions.outbound_sessions.len();
+            let num_peers = act.sessions.outbound_sessions.collection.len();
             debug!("Number of outbound peers {}", num_peers);
 
             // Check if bootstrap is required
-            if num_peers < act.sessions.outbound_limit {
+            if act.sessions.outbound_sessions.limit.is_some()
+                && num_peers < act.sessions.outbound_sessions.limit.unwrap() as usize
+            {
                 // Get peers manager address
                 let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
@@ -56,8 +61,8 @@ impl SessionsManager {
                         // Process the response from peers manager
                         act.process_get_peer_response(res)
                     })
-                    //// Process the socket address received
-                    // This returns a FutureResult containing a success
+                    // Process the socket address received
+                    // This returns a FutureResult containing a success or error
                     .and_then(|address, _act, _ctx| {
                         debug!("Trying to create a new outbound connection to {}", address);
 
@@ -121,7 +126,7 @@ impl Actor for SessionsManager {
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("Sessions Manager actor has been started!");
 
-        // TODO: Call Config Manager --> and set server address and limits
+        // FIXME: Call Config Manager --> and set server address and limits (issue #53)
         self.sessions
             .set_server_address("127.0.0.1:50000".parse().unwrap());
         self.sessions.set_limits(2, 2);
