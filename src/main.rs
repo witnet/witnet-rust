@@ -14,7 +14,6 @@ use ctrlc;
 use witnet_config as config;
 use witnet_core as core;
 
-use crate::config::{P2pConfig, DB_ROOT, P2P_SERVER_HOST, P2P_SERVER_PORT};
 use crate::core::actors::node;
 
 mod cli;
@@ -24,58 +23,29 @@ fn main() {
     env_logger::init();
 
     // Read configuration
-    let configuration: config::Config = config::read_config().unwrap();
+    let configuration = config::Config::default();
 
     // Build default address from configuration
-    let default_address = &format!(
-        "{}:{}",
-        configuration
-            .server
-            .p2p
-            .clone()
-            .unwrap_or(P2pConfig {
-                host: P2P_SERVER_HOST.to_string(),
-                port: P2P_SERVER_PORT,
-            })
-            .host,
-        configuration
-            .server
-            .p2p
-            .clone()
-            .unwrap_or(P2pConfig {
-                host: P2P_SERVER_HOST.to_string(),
-                port: P2P_SERVER_PORT,
-            })
-            .port
-    );
+    let default_address = configuration.connections.server_addr;
+    let default_address_cli = &format!("{}", default_address);
 
     // Get db root
-    let default_db_root = configuration
-        .server
-        .db_root
-        .unwrap_or_else(|| DB_ROOT.to_string());
+    let default_db_root = configuration.storage.db_path;
 
     // TODO
     let matches = app_from_crate!()
-        .subcommand(cli::node::get_arg(default_address))
+        .subcommand(cli::node::get_arg(default_address_cli))
         .get_matches();
 
     // Check run mode
     match matches.subcommand() {
         // node run mode
         ("node", Some(arg_matches)) => {
-            // Get p2p host and port as command line arguments or from config file
-            let address = arg_matches
-                .value_of("address")
-                .unwrap_or(default_address)
-                .parse()
-                .unwrap_or_else(|_| default_address.parse().unwrap());
-
             // Peer address to be used with incoming features
             let _peer_address = arg_matches.value_of("peer").unwrap_or("");
 
             // Call function to run system actor
-            node::run(address, &default_db_root, || {
+            node::run(default_address, &default_db_root.to_string_lossy(), || {
                 ctrlc::set_handler(move || {
                     node::close();
                 })
