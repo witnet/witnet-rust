@@ -51,6 +51,7 @@ nav:
     - Persistent Storage: architecture/storage.md
     - Managers:
       - Introduction: architecture/managers/managers.md
+      - Sessions Manager: architecture/managers/sessions-manager.md
       - Connections Manager: architecture/managers/connections-manager.md
       - Storage Manager: architecture/managers/storage-manager.md
       - Peers Manager: architecture/managers/peers-manager.md
