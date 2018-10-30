@@ -72,11 +72,11 @@ impl Default for Config {
 
 impl ConnectionsConfig {
     fn default_server_addr() -> SocketAddr {
-        "127.0.0.1:1234".parse().unwrap()
+        "127.0.0.1:21337".parse().unwrap()
     }
 
     fn default_inbound_limit() -> u16 {
-        256
+        128
     }
 
     fn default_outbound_limit() -> u16 {
