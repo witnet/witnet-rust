@@ -1,18 +1,17 @@
 //! Load the configuration from a file or a `String` written in [Toml format](Tomlhttps://en.wikipedia.org/wiki/TOML)
 
 use crate::Config;
+use failure::Fail;
 use std::fmt;
 use std::fs::File;
 use std::io;
 use std::io::Read;
-use std::result;
 use toml;
+use witnet_util::error::{WitnetError, WitnetResult};
 
-/// Error type denoting the different errors this module can fail with.
-/// Parsing the configuration from Toml might fail with a
 /// `toml::de::Error`, but loading that configuration from a file
 /// might also fail with a `std::io::Error`.
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub enum Error {
     /// Indicates there was an error when trying to load configuration from a file.
     IOError(io::Error),
@@ -35,7 +34,7 @@ impl fmt::Display for Error {
 
 /// Just like `std::result::Result` but withe error param fixed to
 /// `Error` type in this module.
-pub type Result<T> = result::Result<T, Error>;
+pub type Result<T> = WitnetResult<T, Error>;
 
 /// Load configuration from a file written in Toml format.
 pub fn from_file(filename: &str) -> Result<Config> {
@@ -57,7 +56,7 @@ fn read_file_contents(_filename: &str, _contents: &mut String) -> io::Result<usi
 
 /// Load configuration from a string written in Toml format.
 pub fn from_str(contents: &str) -> Result<Config> {
-    toml::from_str(contents).map_err(Error::ParseError)
+    toml::from_str(contents).map_err(|e| WitnetError::from(Error::ParseError(e)))
 }
 
 #[cfg(test)]

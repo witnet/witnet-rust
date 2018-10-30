@@ -10,3 +10,5 @@ edition = "2018"
 serde = "1.0.79"
 serde_derive = "1.0.79"
 toml = "0.4.6"
+failure = "0.1.2"
+witnet_util = { path = "../util" }
