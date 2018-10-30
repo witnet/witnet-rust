@@ -35,12 +35,14 @@ impl InboundTcpConnect {
 }
 
 /// Actor message to request the creation of an outbound TCP connection to a peer.
-/// The address of the peer is not specified as it will be determined by the peers manager actor.
 #[derive(Message)]
 pub struct OutboundTcpConnect {
     /// Address of the outbound connection
     pub address: SocketAddr,
 }
+
+/// Returned type by the Resolver actor for the ConnectAddr message
+type ResolverResult = Result<TcpStream, ResolverError>;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
@@ -115,30 +117,33 @@ impl ConnectionsManager {
 
     /// Method to process resolver ConnectAddr response
     fn process_connect_addr_response(
-        response: Result<Result<TcpStream, ResolverError>, MailboxError>,
+        response: Result<ResolverResult, MailboxError>,
     ) -> FutureResult<(), (), Self> {
-        match response {
-            Ok(result) => {
-                match result {
-                    Ok(stream) => {
-                        info!("Connected to peer {:?}", stream.peer_addr());
+        response
+            // Process the Result<ResolverResult, MailboxError>
+            .map_or_else(
+                |e| {
+                    debug!("Unsuccessful communication with resolver: {}", e);
+                    actix::fut::err(())
+                },
+                |res| {
+                    // Process the ResolverResult
+                    res.map_or_else(
+                        |e| {
+                            debug!("Error while trying to connect to the peer: {}", e);
+                            actix::fut::err(())
+                        },
+                        |stream| {
+                            debug!("Connected to peer {:?}", stream.peer_addr());
 
-                        // Create a session actor from connection
-                        ConnectionsManager::create_session(stream, SessionType::Outbound);
+                            // Create a session actor from connection
+                            ConnectionsManager::create_session(stream, SessionType::Outbound);
 
-                        actix::fut::ok(())
-                    }
-                    Err(e) => {
-                        info!("Error while trying to connect to the peer: {}", e);
-                        actix::fut::err(())
-                    }
-                }
-            }
-            Err(_) => {
-                info!("Unsuccessful communication with resolver");
-                actix::fut::err(())
-            }
-        }
+                            actix::fut::ok(())
+                        },
+                    )
+                },
+            )
     }
 }
 

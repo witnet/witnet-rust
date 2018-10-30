@@ -17,7 +17,7 @@ use witnet_p2p::sessions::SessionType;
 
 /// Session representing a TCP connection
 pub struct Session {
-    /// Unique session id
+    /// Session socket address
     address: SocketAddr,
 
     /// Session type
@@ -66,9 +66,9 @@ impl Actor for Session {
             .then(|res, _act, ctx| {
                 match res {
                     Ok(Ok(_)) => debug!("Session successfully registered into the Session Manager"),
-                    // Something is wrong with session manager
                     _ => {
                         debug!("Session register into Session Manager failed");
+                        // TODO: full stop should not be done perhaps, register did not complete
                         ctx.stop()
                     }
                 }
@@ -92,10 +92,10 @@ impl Actor for Session {
     }
 }
 
-/// Implement write handler for Session
+/// Implement `WriteHandler` for Session
 impl WriteHandler<Error> for Session {}
 
-/// Implement `StreamHandler`trait in order to use `Framed` with an actor
+/// Implement `StreamHandler` trait in order to use `Framed` with an actor
 impl StreamHandler<Request, Error> for Session {
     /// This is main event loop for client requests
     fn handle(&mut self, msg: Request, _ctx: &mut Self::Context) {

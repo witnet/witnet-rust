@@ -6,6 +6,7 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 #![deny(missing_docs)]
+#![feature(result_map_or_else)]
 
 /// Actors module
 pub mod actors;

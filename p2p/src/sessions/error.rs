@@ -8,11 +8,11 @@ use witnet_util::error::WitnetResult;
 #[derive(Debug, Fail)]
 #[fail(display = "{} : at \"{}\", msg {}", kind, info, msg)]
 pub struct SessionsError {
-    /// Operation kind
+    /// Error kind
     kind: SessionsErrorKind,
-    /// Operation parameter
+    /// Error parameter
     info: String,
-    /// Error message from database
+    /// Error message
     msg: String,
 }
 
@@ -23,7 +23,7 @@ impl SessionsError {
     }
 }
 
-/// Sessions Errors while operating on database
+/// Sessions Errors under different operations
 #[derive(Debug)]
 pub enum SessionsErrorKind {
     /// Errors when registering sessions

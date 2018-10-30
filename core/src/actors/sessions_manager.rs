@@ -57,7 +57,7 @@ impl SessionsManager {
                         act.process_get_peer_response(res)
                     })
                     //// Process the socket address received
-                    // This returns a FutureResult containing a success or error
+                    // This returns a FutureResult containing a success
                     .and_then(|address, _act, _ctx| {
                         debug!("Trying to create a new outbound connection to {}", address);
 
@@ -138,6 +138,8 @@ impl SystemService for SessionsManager {}
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGES
 ////////////////////////////////////////////////////////////////////////////////////////
+/// Message result of unit
+pub type SessionsUnitResult = SessionsResult<()>;
 
 /// Message to indicate that a new session is created
 pub struct Register {
@@ -152,7 +154,7 @@ pub struct Register {
 }
 
 impl Message for Register {
-    type Result = SessionsResult<()>;
+    type Result = SessionsUnitResult;
 }
 
 /// Message to indicate that a session is disconnected
@@ -165,7 +167,7 @@ pub struct Unregister {
 }
 
 impl Message for Unregister {
-    type Result = SessionsResult<()>;
+    type Result = SessionsUnitResult;
 }
 
 /// Message to indicate that a session is disconnected
@@ -181,16 +183,16 @@ pub struct Update {
 }
 
 impl Message for Update {
-    type Result = SessionsResult<()>;
+    type Result = SessionsUnitResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
 ////////////////////////////////////////////////////////////////////////////////////////
 
-/// Handler for Connect message.
+/// Handler for Register message.
 impl Handler<Register> for SessionsManager {
-    type Result = SessionsResult<()>;
+    type Result = SessionsUnitResult;
 
     fn handle(&mut self, msg: Register, _: &mut Context<Self>) -> Self::Result {
         // Call method register session from sessions library
@@ -213,9 +215,9 @@ impl Handler<Register> for SessionsManager {
     }
 }
 
-/// Handler for Disconnect message.
+/// Handler for Unregister message.
 impl Handler<Unregister> for SessionsManager {
-    type Result = SessionsResult<()>;
+    type Result = SessionsUnitResult;
 
     fn handle(&mut self, msg: Unregister, _: &mut Context<Self>) -> Self::Result {
         // Call method register session from sessions library
@@ -238,9 +240,9 @@ impl Handler<Unregister> for SessionsManager {
     }
 }
 
-/// Handler for Connect message.
+/// Handler for Update message.
 impl Handler<Update> for SessionsManager {
-    type Result = SessionsResult<()>;
+    type Result = SessionsUnitResult;
 
     fn handle(&mut self, msg: Update, _: &mut Context<Self>) -> Self::Result {
         // Call method register session from sessions library
