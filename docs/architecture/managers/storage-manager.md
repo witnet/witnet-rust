@@ -3,10 +3,6 @@
 The __storage manager__ is the actor that encapsulates the logic of the __persistent storage__
 library. 
 
-There can only be one storage manager actor per system, and it must be registered into the system
-registry. This way, any other actor can get the address of the storage manager and send messages
-to it.
-
 ## State
 
 The state of the actor is an instance of the [`RocksStorage`][rocks] backend encapsulated in an
@@ -21,10 +17,6 @@ pub struct StorageManager {
 }
 ```
 
-The `StorageManager` actor requires the implementation of the `Default` trait (as well as
-`Supervised` and `SystemService` traits) to become a service that can be registered in the system
-registry.
-
 The connection to the database is an `Option` to handle failures in the creation of the connection
 to the database.
 
@@ -34,6 +26,7 @@ The creation of the storage manager actor is performed directly by the `main` pr
 
 ```rust
 let storage_manager_addr = StorageManager::new(&db_root).start();
+System::current().registry().set(storage_manager_addr);
 ```
 
 The `new()` method tries to connect to the database specified in the path given as argument. If the
@@ -41,11 +34,7 @@ connection is not possible for any reason, the storage in the state will be `Non
 state will contain the handle to the database for future use.
 
 Once the storage manager actor is started, the `main` process registers the actor into the system
-registry:
-
-```rust
-System::current().registry().set(storage_manager_addr);
-```
+registry.
 
 ## API
  

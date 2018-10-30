@@ -4,9 +4,6 @@ The __peers manager__ is the actor that encapsulates the logic of the __peers__ 
 under the subcrate `witnet_p2p`. The library allows to manage a list of peers known to the Witnet
 node.
 
-There can only be one peers manager actor per system, and it must be registered into the system
-registry. This way, any other actor can get the address of the peers manager and send messages to it.
-
 ## State
 
 The state of the actor is an instance of the [`Peers`][peers] library, which contains a list of 
@@ -20,24 +17,14 @@ pub struct PeersManager {
 }
 ```
 
-The `PeersManager` actor requires the implementation of the `Default` trait (as well as `Supervised`
-and `SystemService` traits) to become a service that can be registered in the system registry.
-
 ## Actor creation and registration
 
-The creation of the peers manager actor is performed directly by the `main` process:
+The creation of the peers manager actor and its registration into the system registry are
+performed directly by the `main` process:
 
 ```rust
 let peers_manager_addr = PeersManager::default().start();
-```
-
-The `default()` method initializes the peers manager and its underlying peers data structure.
-
-Once the peers manager actor is started, the `main` process registers the actor into the system
-registry:
-
-```rust
-System::current().registry().set(storage_manager_addr);
+System::current().registry().set(peers_manager_addr);
 ```
 
 ## API
@@ -104,7 +91,10 @@ The way other actors will communicate with the storage manager is:
 Currently, the peers manager is quite a simple wrapper over the `peers` library and it does not need to
 start a communication with other actors in order to perform its functions.
 
-However, it is foreseen that in the future, the peers manager will call the `Storage Manager` in order to store a list of known peers.
+However, it is foreseen that in the future, the peers manager will call the `Storage Manager` to
+store a list of known peers. Also, it will call the `Config Manager` or the `Storage Manager` to
+initialize its list of known peers when starting.
+
 This list might be used for initialization purposes of a future execution of the Witnet node.
 
 ## Further information

@@ -1,6 +1,6 @@
 # Managers
 
-The __managers__ are actors that are in charge of some state and that offer some functionality to
+__Managers__ are actors that are in charge of some state and that offer some functionality to
 other actors (which may be managers as well or not).
 
 The way managers offer their functionality is by handling different types of messages that other
@@ -86,11 +86,8 @@ impl Message for ManagerMessage {
 
 ### Incoming messages: Other actors -> Manager
 
-Managers will handle the reception of different messages. Each message handler will have one
-or more input parameters and one output.
-
 When a `ManagerMessage` message arrives at the manager actor, it has to be processed by a handler
-function. That handler function needs to be defined inside the `Handler<Message>` trait of the
+function. That handler function needs to be defined inside the `Handler<ManagerMessage>` trait of the
 manager. This trait must also define the `Result` type as well, just like it was done in the
 implementation of the `Message` trait:
 
@@ -107,20 +104,20 @@ impl Handler<ManagerMessage> for Manager {
 
 ### Outgoing messages: Manager -> Other actors
 
-The way other actors will communicate with the manager is:
+The way the manager will communicate with other actors is:
 
-1. Get the address of the manager from the registry:
+1. Get the address of the other manager from the registry:
 ```rust
-// Get manager address
-let manager_addr = System::current().registry().get::<Manager>();
+// Get other manager address
+let other_manager_addr = System::current().registry().get::<OtherManager>();
 ```
 
 2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to
 send a message to the actor:
 ```rust
 // Example 
-manager_addr
-    .send(ManagerMessage{param})
+other_manager_addr
+    .send(OtherManagerMessage{other_param})
     .into_actor(self)
     .then(|res, _act, _ctx| {
         actix::fut::ok(())
