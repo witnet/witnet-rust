@@ -13,6 +13,6 @@ futures = "0.1"
 tokio = "0.1.11"
 bytes = "0.4"
 rand = "0.5.5"
-witnet_storage = { path = "../storage" }
+witnet_storage = { path = "../storage", features = ["rocksdb-backend"] }
 witnet_p2p = { path = "../p2p" }
 witnet_util = { path = "../util" }
