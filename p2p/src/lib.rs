@@ -5,6 +5,7 @@
 #![deny(non_camel_case_types)]
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
+#![deny(missing_docs)]
 
 pub mod peers;
 

@@ -33,7 +33,7 @@ pub enum SessionStatus {
 /// - server address used to listen to incoming connections
 /// - lists of of inbound and outbound sessions parametrized with their reference (T)
 pub struct Sessions<T> {
-    // Server address listening to incoming connections
+    /// Server address listening to incoming connections
     pub server_address: Option<SocketAddr>,
     /// Inbound sessions: __untrusted__ peers that connect to the server
     pub inbound_sessions: BoundedSessions<T>,
