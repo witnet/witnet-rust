@@ -2,19 +2,20 @@ use futures::Stream;
 use log::{debug, info};
 use std::net::SocketAddr;
 
-use actix::actors::resolver::{ConnectAddr, Resolver, ResolverError};
-use actix::fut::FutureResult;
-use actix::io::FramedWrite;
 use actix::{
+    actors::resolver::{ConnectAddr, Resolver, ResolverError},
+    fut::FutureResult,
+    io::FramedWrite,
     Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, MailboxError,
     Message, StreamHandler, SystemService, WrapFuture,
 };
-use tokio::codec::FramedRead;
-use tokio::io::AsyncRead;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::{
+    codec::FramedRead,
+    io::AsyncRead,
+    net::{TcpListener, TcpStream},
+};
 
-use crate::actors::codec::P2PCodec;
-use crate::actors::session::Session;
+use crate::actors::{codec::P2PCodec, session::Session};
 
 use witnet_p2p::sessions::SessionType;
 
