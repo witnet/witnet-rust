@@ -10,6 +10,9 @@ use crate::actors::peers_manager::PeersManager;
 use crate::actors::sessions_manager::SessionsManager;
 use crate::actors::storage_manager::StorageManager;
 
+// Default configuration filename
+const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
+
 /// Function to run the main system
 pub fn run(db_root: &str, callback: fn()) -> io::Result<()> {
     // Init system
@@ -19,7 +22,7 @@ pub fn run(db_root: &str, callback: fn()) -> io::Result<()> {
     callback();
 
     // Start config manager actor
-    let config_manager_addr = ConfigManager::default().start();
+    let config_manager_addr = ConfigManager::new(CONFIG_DEFAULT_FILENAME).start();
     System::current().registry().set(config_manager_addr);
 
     // Start storage manager actor

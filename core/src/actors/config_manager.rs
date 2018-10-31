@@ -1,4 +1,6 @@
-use actix::{Actor, Context, Handler, Message, Supervised, SystemService};
+use actix::{
+    fut::FutureResult, Actor, Context, Handler, MailboxError, Message, Supervised, SystemService,
+};
 use log::debug;
 use std::io;
 use witnet_config::loaders::toml;
@@ -47,14 +49,42 @@ impl SystemService for ConfigManager {}
 /// actor.
 pub struct GetConfig;
 
+/// Result of the GetConfig message handling
+pub type ConfigResult = Result<Config, io::Error>;
+
 impl Message for GetConfig {
-    type Result = Result<Config, io::Error>;
+    type Result = ConfigResult;
 }
 
 impl Handler<GetConfig> for ConfigManager {
-    type Result = Result<Config, io::Error>;
+    type Result = ConfigResult;
 
     fn handle(&mut self, _msg: GetConfig, _ctx: &mut Context<Self>) -> Self::Result {
         Ok(self.config.clone())
     }
+}
+
+/// Method to process ConfigManager GetConfig response
+pub fn process_get_config_response<T>(
+    response: Result<ConfigResult, MailboxError>,
+) -> FutureResult<Config, (), T> {
+    //) -> FutureResult<Config, (), dyn Actor<Context=T>> where T: ActorContext {
+    response
+        // Process the Result<ConfigResult, MailboxError>
+        .map_or_else(
+            |e| {
+                debug!("Unsuccessful communication with config manager: {}", e);
+                actix::fut::err(())
+            },
+            |res| {
+                // Process the ConfigResult
+                res.map_or_else(
+                    |e| {
+                        debug!("Error while getting config: {}", e);
+                        actix::fut::err(())
+                    },
+                    actix::fut::ok,
+                )
+            },
+        )
 }

@@ -9,6 +9,7 @@ use actix::{
 
 use log::debug;
 
+use crate::actors::config_manager::{process_get_config_response, ConfigManager, GetConfig};
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
 use crate::actors::session::Session;
 
@@ -126,10 +127,34 @@ impl Actor for SessionsManager {
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("Sessions Manager actor has been started!");
 
-        // FIXME: Call Config Manager --> and set server address and limits (issue #53)
-        self.sessions
-            .set_server_address("127.0.0.1:50000".parse().unwrap());
-        self.sessions.set_limits(2, 2);
+        // Get address to launch the server
+        let config_manager_addr = System::current().registry().get::<ConfigManager>();
+
+        // Start chain of actions
+        config_manager_addr
+            // Send GetConfig message to config manager actor
+            // This returns a Request Future, representing an asynchronous message sending process
+            .send(GetConfig)
+            // Convert a normal future into an ActorFuture
+            .into_actor(self)
+            // Process the response from the config manager
+            // This returns a FutureResult containing the socket address if present
+            .then(|res, _act, _ctx| {
+                // Process the response from config manager
+                process_get_config_response(res)
+            })
+            // Process the received config
+            // This returns a FutureResult containing a success or error
+            .and_then(|config, act, _ctx| {
+                act.sessions
+                    .set_server_address(config.connections.server_addr);
+                act.sessions.set_limits(
+                    config.connections.inbound_limit,
+                    config.connections.outbound_limit,
+                );
+                actix::fut::ok(())
+            })
+            .wait(ctx);
 
         // We'll start the bootstrap peers process on sessions manager start
         self.bootstrap_peers(ctx);

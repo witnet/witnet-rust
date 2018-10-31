@@ -1,7 +1,12 @@
 use std::net::SocketAddr;
 
-use actix::{Actor, Context, Handler, Message, Supervised, SystemService};
+use actix::{
+    Actor, ActorFuture, Context, ContextFutureSpawner, Handler, Message, Supervised, System,
+    SystemService, WrapFuture,
+};
 use log::debug;
+
+use crate::actors::config_manager::{process_get_config_response, ConfigManager, GetConfig};
 
 use witnet_p2p::peers::{error::PeersResult, Peers};
 
@@ -22,8 +27,43 @@ pub struct PeersManager {
 impl Actor for PeersManager {
     /// Every actor has to provide execution `Context` in which it can run.
     type Context = Context<Self>;
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        debug!("Peers Manager actor has been started!")
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        debug!("Peers Manager actor has been started!");
+
+        // Get address to launch the server
+        let config_manager_addr = System::current().registry().get::<ConfigManager>();
+
+        // Start chain of actions
+        config_manager_addr
+            // Send GetConfig message to config manager actor
+            // This returns a Request Future, representing an asynchronous message sending process
+            .send(GetConfig)
+            // Convert a normal future into an ActorFuture
+            .into_actor(self)
+            // Process the response from the config manager
+            // This returns a FutureResult containing the socket address if present
+            .then(|res, _act, _ctx| {
+                // Process the response from config manager
+                process_get_config_response(res)
+            })
+            // Process the received config
+            // This returns a FutureResult containing a success or error
+            .and_then(|config, act, _ctx| {
+                // Get known peers
+                let known_peers = config.connections.known_peers;
+
+                // Add all peers
+                known_peers.iter().for_each(|peer| {
+                    match act.peers.add(*peer) {
+                        Ok(_) => debug!("Peer address added {:?}", peer),
+                        Err(e) => debug!("Error when adding peer {}", e),
+                    };
+                });
+
+                actix::fut::ok(())
+            })
+            .wait(ctx);
     }
 }
 
@@ -93,7 +133,7 @@ impl Handler<RemovePeer> for PeersManager {
     }
 }
 
-/// Handler for AddPeer message
+/// Handler for GetPeer message
 impl Handler<GetPeer> for PeersManager {
     type Result = PeersSocketAddrResult;
 
