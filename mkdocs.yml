@@ -47,7 +47,7 @@ nav:
     - Peer-To-Peer:
       - Connections: architecture/p2p/connections.md
       - Gossiping: architecture/p2p/gossip.md
-      - Encoding (FlatBuffers): architecture/p2p/encoding.md
+      - Encoding: architecture/p2p/encoding.md
     - Persistent Storage: architecture/storage.md
     - Managers:
       - Introduction: architecture/managers/managers.md
