@@ -143,31 +143,30 @@ impl ConnectionsManager {
     fn process_connect_addr_response(
         response: Result<ResolverResult, MailboxError>,
     ) -> FutureResult<(), (), Self> {
-        response
-            // Process the Result<ResolverResult, MailboxError>
-            .map_or_else(
-                |e| {
-                    debug!("Unsuccessful communication with resolver: {}", e);
-                    actix::fut::err(())
-                },
-                |res| {
-                    // Process the ResolverResult
-                    res.map_or_else(
-                        |e| {
-                            debug!("Error while trying to connect to the peer: {}", e);
-                            actix::fut::err(())
-                        },
-                        |stream| {
-                            debug!("Connected to peer {:?}", stream.peer_addr());
+        // Process the Result<ResolverResult, MailboxError>
+        match response {
+            Err(e) => {
+                debug!("Unsuccessful communication with resolver: {}", e);
+                actix::fut::err(())
+            }
+            Ok(res) => {
+                // Process the ResolverResult
+                match res {
+                    Err(e) => {
+                        debug!("Error while trying to connect to the peer: {}", e);
+                        actix::fut::err(())
+                    }
+                    Ok(stream) => {
+                        debug!("Connected to peer {:?}", stream.peer_addr());
 
-                            // Create a session actor from connection
-                            ConnectionsManager::create_session(stream, SessionType::Outbound);
+                        // Create a session actor from connection
+                        ConnectionsManager::create_session(stream, SessionType::Outbound);
 
-                            actix::fut::ok(())
-                        },
-                    )
-                },
-            )
+                        actix::fut::ok(())
+                    }
+                }
+            }
+        }
     }
 }
 
