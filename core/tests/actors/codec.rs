@@ -46,6 +46,6 @@ fn core_actors_codec_p2p_encoder() {
     );
 
     let mut dst = BytesMut::with_capacity(1024);
-    P2PCodec::encode(&mut P2PCodec {}, Response::Message(decoded), &mut dst);
+    P2PCodec::encode(&mut P2PCodec {}, Response::Message(decoded), &mut dst).unwrap();
     assert_eq!(dst, encoded);
 }
