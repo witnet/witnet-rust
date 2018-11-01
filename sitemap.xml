@@ -2,17 +2,17 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
      <loc>https://docs.witnet.io/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/get-started/what-is-witnet/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/get-started/why-rust/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
@@ -27,97 +27,97 @@
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/network/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/overview/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/encoding/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/overview/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/array/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/boolean/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/int/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/float/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/map/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/mixed/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/null/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/result/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/types/string/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/wrapping/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/exceptions/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/functions/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/subscripts/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/examples/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/protocol/data-requests/radon/constants/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
@@ -177,17 +177,17 @@
     </url>
     <url>
      <loc>https://docs.witnet.io/architecture/storage/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/architecture/managers/storage-manager/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/architecture/managers/peers-manager/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
@@ -226,23 +226,23 @@
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc></loc>
-     
+     <loc>https://docs.witnet.io/roadmap/</loc>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/contributing/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://docs.witnet.io/development/</loc>
-     <lastmod>2018-10-19</lastmod>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc></loc>
-     
+     <loc>https://docs.witnet.io/glossary/</loc>
+     <lastmod>2018-11-02</lastmod>
      <changefreq>daily</changefreq>
     </url>
 </urlset>
