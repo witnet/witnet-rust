@@ -23,30 +23,26 @@ Witnet-rust is build using [The Rust Programming language](https://rust-lang-nur
   ```
 5. Run a witnet component. Find a list of components and how to run them at [CLI](#cli).
   ```
-  $ RUST_LOG=witnet=trace cargo run server
+  $ RUST_LOG=witnet=trace cargo run node
     or
-  $ just server
+  $ just node
   ```
 
 ## CLI
 ### Synopsis
     RUST_LOG=witnet=[error | info | debug | main | trace] cargo run
-    [server [ --address address] [--peer peer-address] [--background]]
+    [node [ --address address] [--config config_filename]]
 
 ### Components
 
-#### Server
-  --address *&lt;address&gt;*
+#### Node
+  --address (-d) *&lt;address&gt;*
 
   Read server address from *&lt;address&gt;* argument.
 
-  --peer *&lt;peer-address&gt;*
+  --config (-c) *&lt;config_filename&gt;*
 
-  Read address to peer from *&lt;peer-address&gt;* argument.
-
-  --background
-
-  Not implemented.
+  Read config filename from *&lt;config_filename&gt;* argument.
 
 ## Development Scripts
 

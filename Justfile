@@ -21,8 +21,8 @@ clippy:
 fmt:
     cargo +nightly fmt -v --all
 
-# run server
-server:
+# run node
+node:
     RUST_LOG=witnet=trace cargo run node 
 
 # run local documentation server at localhost:8000
