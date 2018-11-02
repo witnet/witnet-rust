@@ -1,4 +1,3 @@
-#![feature(try_from)]
 // To enable `#[allow(clippy::all)]`
 //#![feature(tool_lints)]
 

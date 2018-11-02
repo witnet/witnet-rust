@@ -1,8 +1,6 @@
-#![feature(try_from)]
-
 use witnet_data_structures::types;
 
-use std::convert::TryFrom;
+use witnet_data_structures::serializers::MyTryFrom;
 
 #[test]
 fn message_ping_to_bytes() {
