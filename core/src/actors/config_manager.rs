@@ -6,8 +6,8 @@ use std::io;
 use witnet_config::loaders::toml;
 use witnet_config::Config;
 
-// Default configuration filename
-const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
+/// Default configuration filename
+pub const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
 
 /// Config manager actor: manages the application configuration
 ///

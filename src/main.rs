@@ -29,9 +29,6 @@ fn main() {
     let default_address = configuration.connections.server_addr;
     let default_address_cli = &format!("{}", default_address);
 
-    // Get db root
-    let default_db_root = configuration.storage.db_path;
-
     // TODO
     let matches = app_from_crate!()
         .subcommand(cli::node::get_arg(default_address_cli))
@@ -40,9 +37,10 @@ fn main() {
     // Check run mode
     match matches.subcommand() {
         // node run mode
-        ("node", Some(_arg_matches)) => {
+        ("node", Some(arg_matches)) => {
+            let config_filename = arg_matches.value_of("config").unwrap();
             // Call function to run system actor
-            node::run(&default_db_root.to_string_lossy(), || {
+            node::run(&config_filename, || {
                 // FIXME(#72): decide what to do when interrupt signals are received
                 ctrlc::set_handler(move || {
                     node::close();

@@ -11,7 +11,7 @@ use crate::actors::sessions_manager::SessionsManager;
 use crate::actors::storage_manager::StorageManager;
 
 /// Function to run the main system
-pub fn run(db_root: &str, callback: fn()) -> io::Result<()> {
+pub fn run(config_filename: &str, callback: fn()) -> io::Result<()> {
     // Init system
     let system = System::new("node");
 
@@ -19,11 +19,11 @@ pub fn run(db_root: &str, callback: fn()) -> io::Result<()> {
     callback();
 
     // Start config manager actor
-    let config_manager_addr = ConfigManager::from_default_file().start();
+    let config_manager_addr = ConfigManager::new(config_filename).start();
     System::current().registry().set(config_manager_addr);
 
     // Start storage manager actor
-    let storage_manager_addr = StorageManager::new(&db_root).start();
+    let storage_manager_addr = StorageManager::default().start();
     System::current().registry().set(storage_manager_addr);
 
     // Start peers manager actor

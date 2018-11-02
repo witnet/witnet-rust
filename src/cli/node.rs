@@ -7,6 +7,7 @@
 #![deny(missing_docs)]
 
 use clap::{App, Arg, SubCommand};
+use witnet_core::actors::config_manager::CONFIG_DEFAULT_FILENAME;
 
 pub fn get_arg(address: &str) -> App<'_, '_> {
     SubCommand::with_name("node")
@@ -20,16 +21,11 @@ pub fn get_arg(address: &str) -> App<'_, '_> {
                 .default_value(address),
         )
         .arg(
-            Arg::with_name("peer")
-                .short("p")
-                .long("peer")
-                .help("Address to peer connect")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("background")
-                .short("b")
-                .long("background")
-                .help("Run the server in the background"),
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .help("Filename with config info")
+                .takes_value(true)
+                .default_value(CONFIG_DEFAULT_FILENAME),
         )
 }
