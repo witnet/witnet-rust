@@ -1,4 +1,4 @@
-use std::convert::{Into, TryFrom};
+use std::convert::Into;
 extern crate flatbuffers;
 
 use crate::flatbuffers::protocol_generated::protocol::{
@@ -104,7 +104,13 @@ struct VersionWitnetArgs {
     version: u32,
 }
 
-impl TryFrom<Vec<u8>> for Message {
+pub trait MyTryFrom<T>: Sized {
+    type Error;
+
+    fn try_from(value: T) -> Result<Self, Self::Error>;
+}
+
+impl MyTryFrom<Vec<u8>> for Message {
     type Error = &'static str;
     // type Error = Err<&'static str>;
     fn try_from(bytes: Vec<u8>) -> Result<Self, &'static str> {
