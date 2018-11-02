@@ -1,6 +1,6 @@
 use witnet_data_structures::types;
 
-use witnet_data_structures::serializers::MyTryFrom;
+use witnet_data_structures::serializers::TryFrom;
 
 #[test]
 fn message_ping_to_bytes() {
