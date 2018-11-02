@@ -3,7 +3,7 @@ cache: cargo
 dist: trusty
 sudo: false
 rust:
-  - nightly # FIXME: move to beta once 1.31 enters beta channel
+  - nightly-2018-10-31 # FIXME: move to beta once 1.31 enters beta channel
 
 addons:
   apt:
