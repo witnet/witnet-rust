@@ -6,8 +6,7 @@ node.
 
 ## State
 
-The state of the actor is an instance of the [`Peers`][peers] library, which contains a list of 
-peers known to the Witnet node.
+The state of the actor is an instance of the [`Peers`][peers] library, which contains a list of peers known to the Witnet node.
 
 ```rust
 #[derive(Default)]
@@ -86,16 +85,21 @@ The way other actors will communicate with the storage manager is:
         .wait(ctx);
     ```
 
-### [WIP] Outgoing: Storage manager -> Others
+### Outgoing messages: Peers Manager -> Others
 
-Currently, the peers manager is quite a simple wrapper over the `peers` library and it does not need to
-start a communication with other actors in order to perform its functions.
+These are the messages sent by the peers manager:
 
-However, it is foreseen that in the future, the peers manager will call the `Storage Manager` to
-store a list of known peers. Also, it will call the `Config Manager` or the `Storage Manager` to
-initialize its list of known peers when starting.
+| Message   | Destination   | Input type | Output type                 | Description               |
+| --------- | ------------- | ---------- | --------------------------- | ------------------------- |
+| GetConfig | ConfigManager | `()`       | `Result<Config, io::Error>` | Request the configuration |
 
-This list might be used for initialization purposes of a future execution of the Witnet node.
+It is foreseen that in the future, the peers manager will call the `Storage Manager` to store a list of known peers.
+
+#### GetConfig
+
+This message is sent to the [`ConfigManager`][config_manager] actor when the peers manager actor is started.
+
+The return value is used to initialize the list of known peers. For further information, see  [`ConfigManager`][config_manager].
 
 ## Further information
 
