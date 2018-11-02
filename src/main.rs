@@ -8,15 +8,12 @@ use std::process::exit;
 
 use env_logger;
 
-use clap::*;
-use ctrlc;
-
 use witnet_config as config;
 use witnet_core as core;
 
-use crate::core::actors::node;
-
 mod cli;
+
+use cli::{Cli, exec};
 
 fn main() {
     // Init app logger
@@ -29,31 +26,12 @@ fn main() {
     let default_address = configuration.connections.server_addr;
     let default_address_cli = &format!("{}", default_address);
 
-    // TODO
-    let matches = app_from_crate!()
-        .subcommand(cli::node::get_arg(default_address_cli))
-        .get_matches();
+    // Get db root
+    let default_db_root = configuration.storage.db_path;
+}
 
-    // Check run mode
-    match matches.subcommand() {
-        // node run mode
-        ("node", Some(arg_matches)) => {
-            let config_filename = arg_matches.value_of("config").unwrap();
-            // Call function to run system actor
-            node::run(&config_filename, || {
-                // FIXME(#72): decide what to do when interrupt signals are received
-                ctrlc::set_handler(move || {
-                    node::close();
-                })
-                .expect("Error setting handler for both SIGINT (Ctrl+C) and SIGTERM (kill)");
-            })
-            .expect("Server error");
-        }
-
-        // unknown run mode
-        _ => {
-            println!("Unrecognized command. Run with '--help' to learn more.");
-            exit(1);
-        }
-    }
+fn run() -> Result<(), failure::Error> {
+    let cli_args = Cli::from_args();
+    cli::exec(args.cmd)?;
+    Ok(())
 }
