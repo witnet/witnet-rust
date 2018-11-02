@@ -9,15 +9,12 @@ use actix::{
 
 use log::debug;
 
-use crate::actors::config_manager::{process_get_config_response, ConfigManager, GetConfig};
+use crate::actors::config_manager::send_get_config_request;
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
 use crate::actors::session::Session;
 
 use crate::actors::peers_manager::{GetPeer, PeersManager, PeersSocketAddrResult};
-use witnet_p2p::sessions::{
-    error::SessionsResult,
-    {SessionStatus, SessionType, Sessions},
-};
+use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};
 
 /// Period of the bootstrap peers task (in seconds)
 const BOOTSTRAP_PEERS_PERIOD: u64 = 5;
@@ -127,34 +124,16 @@ impl Actor for SessionsManager {
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("Sessions Manager actor has been started!");
 
-        // Get address to launch the server
-        let config_manager_addr = System::current().registry().get::<ConfigManager>();
-
-        // Start chain of actions
-        config_manager_addr
-            // Send GetConfig message to config manager actor
-            // This returns a Request Future, representing an asynchronous message sending process
-            .send(GetConfig)
-            // Convert a normal future into an ActorFuture
-            .into_actor(self)
-            // Process the response from the config manager
-            // This returns a FutureResult containing the socket address if present
-            .then(|res, _act, _ctx| {
-                // Process the response from config manager
-                process_get_config_response(res)
-            })
-            // Process the received config
-            // This returns a FutureResult containing a success or error
-            .and_then(|config, act, _ctx| {
-                act.sessions
-                    .set_server_address(config.connections.server_addr);
-                act.sessions.set_limits(
-                    config.connections.inbound_limit,
-                    config.connections.outbound_limit,
-                );
-                actix::fut::ok(())
-            })
-            .wait(ctx);
+        // Send message to config manager and process its response
+        send_get_config_request(self, ctx, |s, _ctx, config| {
+            // Set server address and connections limits
+            s.sessions
+                .set_server_address(config.connections.server_addr);
+            s.sessions.set_limits(
+                config.connections.inbound_limit,
+                config.connections.outbound_limit,
+            );
+        });
 
         // We'll start the bootstrap peers process on sessions manager start
         self.bootstrap_peers(ctx);

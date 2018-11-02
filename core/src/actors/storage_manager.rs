@@ -1,9 +1,6 @@
-use actix::{
-    Actor, ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler, Message, Supervised,
-    System, SystemService, WrapFuture,
-};
+use actix::{Actor, ActorContext, Context, Handler, Message, Supervised, SystemService};
 
-use crate::actors::config_manager::{process_get_config_response, ConfigManager, GetConfig};
+use crate::actors::config_manager::send_get_config_request;
 
 use log::{debug, error};
 use witnet_storage::backends::rocks::RocksStorage;
@@ -75,39 +72,21 @@ impl Actor for StorageManager {
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("Storage Manager actor has been started!");
 
-        // Get address to launch the server
-        let config_manager_addr = System::current().registry().get::<ConfigManager>();
+        // Send message to config manager and process response
+        send_get_config_request(self, ctx, |s, ctx, config| {
+            // Get db path from configuration
+            let db_path = &config.storage.db_path;
 
-        // Start chain of actions
-        config_manager_addr
-            // Send GetConfig message to config manager actor
-            // This returns a Request Future, representing an asynchronous message sending process
-            .send(GetConfig)
-            // Convert a normal future into an ActorFuture
-            .into_actor(self)
-            // Process the response from the config manager
-            // This returns a FutureResult containing the socket address if present
-            .then(|res, _act, _ctx| {
-                // Process the response from config manager
-                process_get_config_response(res)
-            })
-            // Process the received config
-            // This returns a FutureResult containing a success or error
-            .and_then(|config, act, ctx| {
-                let db_path = config.storage.db_path;
+            // Override actor
+            *s = Self::new(&db_path.to_string_lossy());
 
-                *act = Self::new(&db_path.to_string_lossy());
-
-                // Stop context if the storage is not properly initialized
-                // FIXME(#72): check error handling
-                if act.storage.is_none() {
-                    error!("Error initializing storage");
-                    ctx.stop();
-                }
-
-                actix::fut::ok(())
-            })
-            .wait(ctx);
+            // Stop context if the storage is not properly initialized
+            // FIXME(#72): check error handling
+            if s.storage.is_none() {
+                error!("Error initializing storage");
+                ctx.stop();
+            }
+        });
     }
 }
 

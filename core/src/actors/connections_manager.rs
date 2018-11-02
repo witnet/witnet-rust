@@ -7,7 +7,7 @@ use actix::{
     fut::FutureResult,
     io::FramedWrite,
     Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, MailboxError,
-    Message, StreamHandler, System, SystemService, WrapFuture,
+    Message, StreamHandler, SystemService, WrapFuture,
 };
 use tokio::{
     codec::FramedRead,
@@ -15,9 +15,10 @@ use tokio::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::actors::config_manager::{process_get_config_response, ConfigManager, GetConfig};
+use crate::actors::config_manager::send_get_config_request;
 use crate::actors::{codec::P2PCodec, session::Session};
 
+use witnet_config::Config;
 use witnet_p2p::sessions::SessionType;
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -80,45 +81,8 @@ impl ConnectionsManager {
     fn start_server(&mut self, ctx: &mut <Self as Actor>::Context) {
         debug!("Trying to start P2P server...");
 
-        // Get address to launch the server
-        let config_manager_addr = System::current().registry().get::<ConfigManager>();
-
-        // Start chain of actions
-        config_manager_addr
-            // Send GetConfig message to config manager actor
-            // This returns a Request Future, representing an asynchronous message sending process
-            .send(GetConfig)
-            // Convert a normal future into an ActorFuture
-            .into_actor(self)
-            // Process the response from the config manager
-            // This returns a FutureResult containing the socket address if present
-            .then(|res, _act, _ctx| {
-                // Process the response from config manager
-                process_get_config_response(res)
-            })
-            // Process the received config
-            // This returns a FutureResult containing a success or error
-            .and_then(|config, _act, ctx| {
-                // Get server address from config
-                let server_address = config.connections.server_addr;
-
-                // Bind TCP listener to this address
-                // FIXME(#72): decide what to do with actor when server cannot be started
-                let listener = TcpListener::bind(&server_address).unwrap();
-
-                // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
-                ctx.add_message_stream(
-                    listener
-                        .incoming()
-                        .map_err(|_| ())
-                        .map(InboundTcpConnect::new),
-                );
-
-                info!("P2P server has been started at {:?}", server_address);
-
-                actix::fut::ok(())
-            })
-            .wait(ctx);
+        // Send message to config manager and process response
+        send_get_config_request(self, ctx, ConnectionsManager::process_config);
     }
 
     /// Method to create a session actor from a TCP stream
@@ -167,6 +131,26 @@ impl ConnectionsManager {
                 }
             }
         }
+    }
+
+    /// Method to process the configuration received from the config manager
+    fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
+        // Get server address from config
+        let server_address = config.connections.server_addr;
+
+        // Bind TCP listener to this address
+        // FIXME(#72): decide what to do with actor when server cannot be started
+        let listener = TcpListener::bind(&server_address).unwrap();
+
+        // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
+        ctx.add_message_stream(
+            listener
+                .incoming()
+                .map_err(|_| ())
+                .map(InboundTcpConnect::new),
+        );
+
+        info!("P2P server has been started at {:?}", server_address);
     }
 }
 

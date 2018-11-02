@@ -1,5 +1,6 @@
 use actix::{
-    fut::FutureResult, Actor, Context, Handler, MailboxError, Message, Supervised, SystemService,
+    fut::FutureResult, Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler,
+    MailboxError, Message, Supervised, System, SystemService, WrapFuture,
 };
 use log::debug;
 use std::io;
@@ -55,6 +56,7 @@ impl ConfigManager {
 /// Required traits for being able to retrieve the actor address from
 /// the registry.
 impl Supervised for ConfigManager {}
+
 impl SystemService for ConfigManager {}
 
 /// Message to obtain the configuration managed by the `ConfigManager`
@@ -74,6 +76,40 @@ impl Handler<GetConfig> for ConfigManager {
     fn handle(&mut self, _msg: GetConfig, _ctx: &mut Context<Self>) -> Self::Result {
         Ok(self.config.clone())
     }
+}
+
+/// Method to send a GetConfig message to the ConfigManager
+pub fn send_get_config_request<T, U: 'static>(act: &mut T, ctx: &mut T::Context, process_config: U)
+where
+    T: Actor,
+    T::Context: AsyncContext<T>,
+    U: FnOnce(&mut T, &mut T::Context, &Config),
+{
+    // Get config manager address
+    let config_manager_addr = System::current().registry().get::<ConfigManager>();
+
+    // Start chain of actions to send a message to the config manager
+    config_manager_addr
+        // Send GetConfig message to config manager actor
+        // This returns a Request Future, representing an asynchronous message sending process
+        .send(GetConfig)
+        // Convert a normal future into an ActorFuture
+        .into_actor(act)
+        // Process the response from the config manager
+        // This returns a FutureResult containing the socket address if present
+        .then(|res, _act, _ctx| {
+            // Process the response from config manager
+            process_get_config_response(res)
+        })
+        // Process the received config
+        // This returns a FutureResult containing a success
+        .and_then(|config, act, ctx| {
+            // Call function to process configuration
+            process_config(act, ctx, &config);
+
+            actix::fut::ok(())
+        })
+        .wait(ctx);
 }
 
 /// Method to process ConfigManager GetConfig response
