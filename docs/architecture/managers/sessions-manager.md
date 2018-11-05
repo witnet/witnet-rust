@@ -112,7 +112,7 @@ These are the messages sent by the connections manager:
 |-----------------------|-----------------------|---------------|-----------------------------------|---------------------------------------|
 | GetServerAddress      | ConfigManager         | `()`          | `Option<SocketAddr>`              | Request the config server address     |
 | GetConnLimits         | ConfigManager         | `()`          | `Option<(u16, u16)>`              | Request the config connections limits |
-| GetPeer               | PeersManager          | `()`          | `PeersResult<Option<SocketAddr>>` | Request the address of a peer         | 
+| GetRandomPeer         | PeersManager          | `()`          | `PeersResult<Option<SocketAddr>>` | Request the address of a peer         |
 | OutboundTcpConnect    | ConnectionsManager    | `SocketAddr`  | `()`                              | Request a TCP conn to an address      | 
 
 #### GetServerAddress
@@ -136,7 +136,7 @@ reached.
 
 For further information, see [`ConfigManager`][config_manager].
 
-#### GetPeer
+#### GetRandomPeer
 
 This message is sent to the [`PeersManager`][peers_manager] actor when the sessions manager actor
 detects that the number of outbound sessions registered is less than the configured limit. This

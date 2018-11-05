@@ -32,23 +32,26 @@ System::current().registry().set(peers_manager_addr);
 
 These are the messages supported by the peers manager handlers:
 
-| Message    | Input type            | Output type                       | Description           |
-| ---------- | --------------------- | --------------------------------- | --------------------- |
-| GetPeer    | `()`                  | `PeersResult<Option<SocketAddr>>` | Get random peer       |
-| AddPeer    | `address: SocketAddr` | `PeersResult<Option<SocketAddr>>` | Add peer to list      |
-| RemovePeer | `address: SocketAddr` | `PeersResult<Option<SocketAddr>>` | Remove peer from list |
+| Message        | Input type            | Output type                       | Description            |
+| -------------- | --------------------- | --------------------------------- | ---------------------- |
+| AddPeers       | `address: SocketAddr` | `PeersResult<Vec<SocketAddr>>`    | Add peers to list      |
+| RemovePeers    | `address: SocketAddr` | `PeersResult<Vec<SocketAddr>>`    | Remove peers from list |
+| GetRandomPeer  | `()`                  | `PeersResult<Option<SocketAddr>>` | Get random peer        |
+| GetPeers       | `()`                  | `PeersResult<Vec<SocketAddr>>`    | Get all peers          |
 
-The handling of these messages is basically just calling the corresponding methods from the [`Peers`][peers] library that is implemented by [`peers.rs`][peers]. For example, the handler of the `AddPeer` message would be implemented as:
+The handling of these messages is basically just calling the corresponding methods from the
+[`Peers`][peers] library that is implemented by [`peers.rs`][peers].
+For example, the handler of the `AddPeers` message would be implemented as:
 
 ```rust
-/// Handler for Add peer message.
-impl Handler<AddPeer> for PeersManager {
-    type Result = PeersResult<Option<SocketAddr>>;
+/// Handler for AddPeers message
+impl Handler<AddPeers> for PeersManager {
+    type Result = PeersSocketAddrsResult;
 
-    fn handle(&mut self, msg: AddPeer, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: AddPeers, _: &mut Context<Self>) -> Self::Result {
         // Insert address
-        debug!("Add peer handle for address {}", msg.address);
-        self.peers.add(msg.address)
+        debug!("Add peer handle for addresses: {:?}", msg.addresses);
+        self.peers.add(msg.addresses)
     }
 }
 ```
@@ -70,13 +73,13 @@ The way other actors will communicate with the storage manager is:
     ```rust
     // Example
     peers_manager_addr
-        .send(AddPeer { address })
+        .send(AddPeers { addresses })
         .into_actor(self)
         .then(|res, _act, _ctx| {
             match res {
                 Ok(res) => {
                     // Process PeersResult
-                    println!("Add peer {:?} returned {:?}", address, res)
+                    println!("Add peer {:?} returned {:?}", addresses, res)
                 },
                 _ => println!("Something went really wrong in the actors message passing")
             };
