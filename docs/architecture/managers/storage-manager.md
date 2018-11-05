@@ -112,8 +112,19 @@ storage_manager_addr
 
 ### Outgoing messages: Storage manager -> Others
 
-The storage manager is quite a simple wrapper over the storage library and it does not need to
-start a communication with other actors in order to perform its functions.
+These are the messages sent by the storage manager:
+
+| Message           | Destination   | Input type    | Output type                        | Description                          |
+|-------------------|---------------|---------------|------------------------------------|--------------------------------------|
+| GetConfig       | ConfigManager      | `()`  | `Result<Config, io::Error>` | Request config info     |
+
+#### GetConfig
+
+This message is sent to the [`ConfigManager`][config_manager] actor when the storage manager actor
+is started.
+
+The return value is used to launch the rocks db storage. For further information, see
+[`ConfigManager`][config_manager].
 
 ## Further information
 The full source code of the `StorageManager` can be found at [`storage_manager.rs`][storage_manager].
@@ -121,3 +132,4 @@ The full source code of the `StorageManager` can be found at [`storage_manager.r
 [storage_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager.rs
 [storage]: https://github.com/witnet/witnet-rust/blob/master/storage/src/storage.rs
 [rocks]: https://github.com/witnet/witnet-rust/blob/master/storage/src/backends/rocks.rs
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs
