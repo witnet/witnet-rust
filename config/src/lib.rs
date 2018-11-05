@@ -28,7 +28,9 @@ pub mod loaders;
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Config {
     #[serde(default = "Config::default_connections")]
+    /// Connections-specific configuration
     pub connections: ConnectionsConfig,
+    /// Storage-specific configuration
     #[serde(default = "Config::default_storage")]
     pub storage: StorageConfig,
 }
@@ -37,12 +39,25 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ConnectionsConfig {
     #[serde(default = "ConnectionsConfig::default_server_addr")]
+    /// Server address, that is, the socket address (interface ip and
+    /// port) to which the server accepting connections from other
+    /// peers should bind to
     pub server_addr: SocketAddr,
+
     #[serde(default = "ConnectionsConfig::default_inbound_limit")]
+    /// Maximum number of concurrent connections the server should
+    /// accept
     pub inbound_limit: u16,
+
     #[serde(default = "ConnectionsConfig::default_outbound_limit")]
+    /// Maximum number of opened connections to other peers this node
+    /// (acting as a client) should maintain
     pub outbound_limit: u16,
+
     #[serde(default = "ConnectionsConfig::default_known_peers")]
+    /// List of other peer addresses this node knows at start, it is
+    /// used as a bootstrap mechanism to gain access to the P2P
+    /// network
     pub known_peers: Vec<SocketAddr>,
 }
 
@@ -50,15 +65,18 @@ pub struct ConnectionsConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct StorageConfig {
     #[serde(default = "StorageConfig::default_db_path")]
+    /// Path to the directory that will contain the storage-database files
     pub db_path: PathBuf,
 }
 
 impl Config {
-    fn default_connections() -> ConnectionsConfig {
+    /// Default connections-specific configuration
+    pub fn default_connections() -> ConnectionsConfig {
         ConnectionsConfig::default()
     }
 
-    fn default_storage() -> StorageConfig {
+    /// Default storage-specific configuration
+    pub fn default_storage() -> StorageConfig {
         StorageConfig::default()
     }
 }
@@ -73,19 +91,23 @@ impl Default for Config {
 }
 
 impl ConnectionsConfig {
-    fn default_server_addr() -> SocketAddr {
+    /// Default `server_addr` value (`127.0.0.1:21337`)
+    pub fn default_server_addr() -> SocketAddr {
         "127.0.0.1:21337".parse().unwrap()
     }
 
-    fn default_inbound_limit() -> u16 {
+    /// Default `inbound_limit` value (`128`)
+    pub fn default_inbound_limit() -> u16 {
         128
     }
 
-    fn default_outbound_limit() -> u16 {
+    /// Default `outbound_limit` value (`8`)
+    pub fn default_outbound_limit() -> u16 {
         8
     }
 
-    fn default_known_peers() -> Vec<SocketAddr> {
+    /// Default `known_peers` value (`[]`)
+    pub fn default_known_peers() -> Vec<SocketAddr> {
         Vec::default()
     }
 }
@@ -102,7 +124,8 @@ impl Default for ConnectionsConfig {
 }
 
 impl StorageConfig {
-    fn default_db_path() -> PathBuf {
+    /// Default `db_path` value (`.wit`)
+    pub fn default_db_path() -> PathBuf {
         PathBuf::from(".wit")
     }
 }
