@@ -27,14 +27,17 @@ pub struct Peers {
 }
 
 impl Peers {
-    /// Add a peer address and save timestamp
-    pub fn add(&mut self, address: SocketAddr) -> PeersResult<Option<SocketAddr>> {
+    /// Add multiple peer addresses and save timestamp
+    /// If an address did already exist, it gets overwritten
+    /// Returns all the overwritten addresses
+    pub fn add(&mut self, addrs: Vec<SocketAddr>) -> PeersResult<Vec<SocketAddr>> {
         // Get timestamp
         match get_timestamp() {
             Ok(timestamp) => {
                 // Insert address
                 // Note: if the peer address exists, the peer info will be overwritten
-                Ok(self
+                Ok(addrs.into_iter().filter_map(|address| {
+                    self
                     .peers
                     .insert(
                         address,
@@ -43,22 +46,23 @@ impl Peers {
                             timestamp, //msg.timestamp,
                         },
                     )
-                    .map(|v| v.address))
+                    .map(|v| v.address)
+                }).collect())
             }
             Err(e) => Err(WitnetError::from(PeersError::new(
                 PeersErrorKind::Time,
-                address.to_string(),
+                format!("{:?}", addrs),
                 e.to_string(),
             ))),
         }
     }
 
     /// Remove a peer given an address
-    pub fn remove(&mut self, address: SocketAddr) -> PeersResult<Option<SocketAddr>> {
-        match self.peers.remove(&address) {
-            Some(info) => Ok(Some(info.address)),
-            None => Ok(None),
-        }
+    /// Returns the removed addresses
+    pub fn remove(&mut self, addrs: &[SocketAddr]) -> PeersResult<Vec<SocketAddr>> {
+        Ok(addrs.iter().filter_map(|address| {
+            self.peers.remove(&address).map(|info| info.address)
+        }).collect())
     }
 
     /// Get a random socket address from the peers list
@@ -80,5 +84,10 @@ impl Peers {
             .map(|v| v.to_owned());
 
         Ok(random_addr)
+    }
+
+    /// Get all the peers from the list
+    pub fn get_all(&self) -> PeersResult<Vec<SocketAddr>> {
+        Ok(self.peers.values().map(|v| v.address).collect())
     }
 }

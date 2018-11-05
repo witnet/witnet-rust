@@ -13,7 +13,7 @@ use crate::actors::config_manager::send_get_config_request;
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
 use crate::actors::session::Session;
 
-use crate::actors::peers_manager::{GetPeer, PeersManager, PeersSocketAddrResult};
+use crate::actors::peers_manager::{GetRandomPeer, PeersManager, PeersSocketAddrResult};
 use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};
 
 /// Period of the bootstrap peers task (in seconds)
@@ -49,7 +49,7 @@ impl SessionsManager {
                 peers_manager_addr
                     // Send GetPeer message to peers manager actor
                     // This returns a Request Future, representing an asynchronous message sending process
-                    .send(GetPeer)
+                    .send(GetRandomPeer)
                     // Convert a normal future into an ActorFuture
                     .into_actor(act)
                     // Process the response from the peers manager

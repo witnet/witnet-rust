@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use actix::{Actor, Context, Handler, Message, Supervised, SystemService};
-use log::debug;
+use log::{debug, error};
 
 use crate::actors::config_manager::send_get_config_request;
 
@@ -34,12 +34,10 @@ impl Actor for PeersManager {
             let known_peers = &config.connections.known_peers;
 
             // Add all peers
-            known_peers.iter().for_each(|peer| {
-                match s.peers.add(*peer) {
-                    Ok(_) => debug!("Peer address added {:?}", peer),
-                    Err(e) => debug!("Error when adding peer {}", e),
-                };
-            });
+            match s.peers.add(known_peers.clone()) {
+                Ok(peers) => debug!("Added the following peer addresses: {:?}", peers),
+                Err(e) => error!("Error when adding peer addresses: {}", e),
+            }
         });
     }
 }
@@ -49,73 +47,94 @@ impl Supervised for PeersManager {}
 impl SystemService for PeersManager {}
 
 /// Messages for peer management:
-///  * add peer
-///  * remove peer
-///  * get peer
+/// * Add peers
+/// * Remove peers
+/// * Get random peer
+/// * Get all peers
 
-// Message result of an option of Socket Address
+/// One peer
 pub type PeersSocketAddrResult = PeersResult<Option<SocketAddr>>;
+/// One or more peer addresses
+pub type PeersSocketAddrsResult = PeersResult<Vec<SocketAddr>>;
 
-/// Message to add a peer to list
-pub struct AddPeer {
+/// Message to add one or more peer addresses to the list
+pub struct AddPeers {
     /// Address of the peer
-    pub address: SocketAddr,
+    pub addresses: Vec<SocketAddr>,
 }
 
-impl Message for AddPeer {
-    type Result = PeersSocketAddrResult;
+impl Message for AddPeers {
+    type Result = PeersSocketAddrsResult;
 }
 
-/// Message to remove peer from list
-pub struct RemovePeer {
+/// Message to remove one or more peer addresses from the list
+pub struct RemovePeers {
     /// Address of the peer
-    pub address: SocketAddr,
+    pub addresses: Vec<SocketAddr>,
 }
 
-impl Message for RemovePeer {
+impl Message for RemovePeers {
+    type Result = PeersSocketAddrsResult;
+}
+
+/// Message to get a (random) peer address from the list
+pub struct GetRandomPeer;
+
+impl Message for GetRandomPeer {
     type Result = PeersSocketAddrResult;
 }
 
-/// Message to get a (random) peer from the list
-pub struct GetPeer;
+/// Message to get all the peer addresses from the list
+pub struct GetPeers;
 
-impl Message for GetPeer {
-    type Result = PeersSocketAddrResult;
+impl Message for GetPeers {
+    type Result = PeersSocketAddrsResult;
 }
 
 /// Handlers to manage the previous messages using the `peers` library:
-/// * Add peer
-/// * Remove peer
-/// * Get peer
+/// * Add peers
+/// * Remove peers
+/// * Get random peer
+/// * Get all peers
 
-/// Handler for AddPeer message
-impl Handler<AddPeer> for PeersManager {
-    type Result = PeersSocketAddrResult;
+/// Handler for AddPeers message
+impl Handler<AddPeers> for PeersManager {
+    type Result = PeersSocketAddrsResult;
 
-    fn handle(&mut self, msg: AddPeer, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: AddPeers, _: &mut Context<Self>) -> Self::Result {
         // Insert address
-        debug!("Add peer handle for address {}", msg.address);
-        self.peers.add(msg.address)
+        debug!("Add peer handle for addresses: {:?}", msg.addresses);
+        self.peers.add(msg.addresses)
     }
 }
 
-/// Handler for RemovePeer message
-impl Handler<RemovePeer> for PeersManager {
-    type Result = PeersSocketAddrResult;
+/// Handler for RemovePeers message
+impl Handler<RemovePeers> for PeersManager {
+    type Result = PeersSocketAddrsResult;
 
-    fn handle(&mut self, msg: RemovePeer, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: RemovePeers, _: &mut Context<Self>) -> Self::Result {
         // // Find index of element with address
-        debug!("Remove peer handle for address {}", msg.address);
-        self.peers.remove(msg.address)
+        debug!("Remove peer handle for addresses: {:?}", msg.addresses);
+        self.peers.remove(&msg.addresses)
     }
 }
 
-/// Handler for GetPeer message
-impl Handler<GetPeer> for PeersManager {
+/// Handler for GetRandomPeer message
+impl Handler<GetRandomPeer> for PeersManager {
     type Result = PeersSocketAddrResult;
 
-    fn handle(&mut self, _msg: GetPeer, _: &mut Context<Self>) -> Self::Result {
-        debug!("Get peer handle for address");
+    fn handle(&mut self, _msg: GetRandomPeer, _: &mut Context<Self>) -> Self::Result {
+        debug!("Get random peer");
         self.peers.get_random()
+    }
+}
+
+/// Handler for GetPeers message
+impl Handler<GetPeers> for PeersManager {
+    type Result = PeersSocketAddrsResult;
+
+    fn handle(&mut self, _msg: GetPeers, _: &mut Context<Self>) -> Self::Result {
+        debug!("Get all peers");
+        self.peers.get_all()
     }
 }
