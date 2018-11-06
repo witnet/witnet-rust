@@ -35,14 +35,13 @@ impl SessionsManager {
     fn bootstrap_peers(&self, ctx: &mut Context<Self>) {
         // Schedule the bootstrap with a given period
         ctx.run_later(Duration::from_secs(BOOTSTRAP_PEERS_PERIOD), |act, ctx| {
-            // Get number of outbound peers
-            let num_peers = act.sessions.outbound_sessions.collection.len();
-            debug!("Number of outbound peers {}", num_peers);
+            debug!(
+                "Number of outbound sessions {}",
+                act.sessions.get_num_outbound_sessions()
+            );
 
-            // Check if bootstrap is required
-            if act.sessions.outbound_sessions.limit.is_some()
-                && num_peers < act.sessions.outbound_sessions.limit.unwrap() as usize
-            {
+            // Check if bootstrap is needed
+            if act.sessions.is_outbound_bootstrap_needed() {
                 // Get peers manager address
                 let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
@@ -173,25 +172,25 @@ pub struct Unregister {
 
     /// Session type
     pub session_type: SessionType,
+
+    /// Session status
+    pub status: SessionStatus,
 }
 
 impl Message for Unregister {
     type Result = SessionsUnitResult;
 }
 
-/// Message to indicate that a session is disconnected
-pub struct Update {
+/// Message to indicate that a session needs to be consolidated
+pub struct Consolidate {
     /// Socket address to identify the peer
     pub address: SocketAddr,
 
     /// Session type
     pub session_type: SessionType,
-
-    /// Session status
-    pub session_status: SessionStatus,
 }
 
-impl Message for Update {
+impl Message for Consolidate {
     type Result = SessionsUnitResult;
 }
 
@@ -232,7 +231,7 @@ impl Handler<Unregister> for SessionsManager {
         // Call method register session from sessions library
         let result = self
             .sessions
-            .unregister_session(msg.session_type, msg.address);
+            .unregister_session(msg.session_type, msg.status, msg.address);
 
         match &result {
             Ok(_) => debug!(
@@ -249,23 +248,23 @@ impl Handler<Unregister> for SessionsManager {
     }
 }
 
-/// Handler for Update message.
-impl Handler<Update> for SessionsManager {
+/// Handler for Consolidate message.
+impl Handler<Consolidate> for SessionsManager {
     type Result = SessionsUnitResult;
 
-    fn handle(&mut self, msg: Update, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: Consolidate, _: &mut Context<Self>) -> Self::Result {
         // Call method register session from sessions library
-        let result =
-            self.sessions
-                .update_session(msg.session_type, msg.address, msg.session_status);
+        let result = self
+            .sessions
+            .consolidate_session(msg.session_type, msg.address);
 
         match &result {
             Ok(_) => debug!(
-                "Session (type {:?}) status updated to {:?} for peer {}",
-                msg.session_type, msg.session_status, msg.address
+                "Session (type {:?}) status consolidated for peer {}",
+                msg.session_type, msg.address
             ),
             Err(error) => debug!(
-                "Error while updating peer {} (session type {:?}): {}",
+                "Error while consolidating peer {} (session type {:?}): {}",
                 msg.address, msg.session_type, error
             ),
         }

@@ -19,7 +19,7 @@ use crate::actors::config_manager::send_get_config_request;
 use crate::actors::{codec::P2PCodec, session::Session};
 
 use witnet_config::Config;
-use witnet_p2p::sessions::SessionType;
+use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGES
@@ -99,7 +99,12 @@ impl ConnectionsManager {
             Session::add_stream(FramedRead::new(r, P2PCodec), ctx);
 
             // Create the session actor and store in its state the write part of the tcp stream
-            Session::new(address, session_type, FramedWrite::new(w, P2PCodec, ctx))
+            Session::new(
+                address,
+                session_type,
+                SessionStatus::Unconsolidated,
+                FramedWrite::new(w, P2PCodec, ctx),
+            )
         });
     }
 

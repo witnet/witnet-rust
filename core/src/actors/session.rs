@@ -13,7 +13,7 @@ use tokio::net::TcpStream;
 use crate::actors::codec::{P2PCodec, Request};
 use crate::actors::sessions_manager::{Register, SessionsManager, Unregister};
 
-use witnet_p2p::sessions::SessionType;
+use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 /// Session representing a TCP connection
 pub struct Session {
@@ -22,6 +22,9 @@ pub struct Session {
 
     /// Session type
     session_type: SessionType,
+
+    /// Session status
+    status: SessionStatus,
 
     /// Framed wrapper to send messages through the TCP connection
     _framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
@@ -33,11 +36,13 @@ impl Session {
     pub fn new(
         address: SocketAddr,
         session_type: SessionType,
+        status: SessionStatus,
         _framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
     ) -> Session {
         Session {
             address,
             session_type,
+            status,
             _framed,
         }
     }
@@ -87,6 +92,7 @@ impl Actor for Session {
         session_manager_addr.do_send(Unregister {
             address: self.address,
             session_type: self.session_type,
+            status: self.status,
         });
 
         Running::Stop
