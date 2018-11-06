@@ -20,3 +20,4 @@ witnet_p2p = { path = "../p2p" }
 witnet_storage = { path = "../storage", features = ["rocksdb-backend"] }
 witnet_config = { path = "../config" }
 witnet_util = { path = "../util" }
+

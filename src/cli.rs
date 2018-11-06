@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::result::Result;
 use structopt::StructOpt;
 
-/// witnet cli
+/// Witnet network
 #[derive(Debug, StructOpt)]
 pub(crate) struct Cli {
     /// `witnet cmd ...`
@@ -33,7 +33,7 @@ pub(crate) enum Command {
         #[structopt(name = "peer", short = "p")]
         peer: String,
 
-        /// Config file
+        /// Config file path
         #[structopt(name = "config", short = "c")]
         #[structopt(parse(from_os_str))]
         config: Option<PathBuf>,

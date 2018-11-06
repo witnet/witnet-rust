@@ -16,10 +16,19 @@ pub const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
 /// This actor is in charge of reading the configuration for the
 /// application from a given source and using a given format, and
 /// supports messages for giving access to the configuration it holds.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ConfigManager {
     config: Config,
     config_file: PathBuf,
+}
+
+impl Default for ConfigManager {
+    fn default() -> Self {
+        Self {
+            config: Config::default(),
+            config_file: PathBuf::from(CONFIG_DEFAULT_FILENAME),
+        }
+    }
 }
 
 impl Actor for ConfigManager {

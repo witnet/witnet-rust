@@ -50,7 +50,7 @@ fn read_file_contents(file: &Path, contents: &mut String) -> io::Result<usize> {
 }
 
 #[cfg(test)]
-fn read_file_contents(_filename: &str, _contents: &mut String) -> io::Result<usize> {
+fn read_file_contents(_filename: &Path, _contents: &mut String) -> io::Result<usize> {
     Ok(0)
 }
 
@@ -62,6 +62,7 @@ pub fn from_str(contents: &str) -> Result<Config> {
 #[cfg(test)]
 mod tests {
     use crate::*;
+    use std::path::Path;
 
     #[test]
     fn test_load_empty_config() {
@@ -72,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_load_empty_config_from_file() {
-        let config = super::from_file("some file name").unwrap();
+        let config = super::from_file(&Path::new("")).unwrap();
 
         assert_eq!(config, Config::default());
     }
