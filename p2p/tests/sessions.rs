@@ -12,8 +12,9 @@ fn p2p_sessions_default() {
     assert!(sessions.server_address.is_none());
 
     // Check that sessions collections are empty
-    assert_eq!(sessions.inbound_sessions.collection.len(), 0);
-    assert_eq!(sessions.outbound_sessions.collection.len(), 0);
+    assert_eq!(sessions.inbound.collection.len(), 0);
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
+    assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
 }
 
 /// Check setting the server address
@@ -41,19 +42,24 @@ fn p2p_sessions_set_limits() {
     let mut sessions = Sessions::<String>::default();
 
     // Check sessions limits are set to none
-    assert!(sessions.inbound_sessions.limit.is_none());
-    assert!(sessions.outbound_sessions.limit.is_none());
+    assert!(sessions.inbound.limit.is_none());
+    assert!(sessions.outbound_consolidated.limit.is_none());
+    assert!(sessions.outbound_unconsolidated.limit.is_none());
 
     // Set sessions limits
     let limit_inbound = 2;
-    let limit_outbound = 3;
-    sessions.set_limits(limit_inbound, limit_outbound);
+    let limit_outbound_consolidated = 3;
+    sessions.set_limits(limit_inbound, limit_outbound_consolidated);
 
-    // Check sessions limits have been set
-    assert!(sessions.inbound_sessions.limit.is_some());
-    assert_eq!(sessions.inbound_sessions.limit.unwrap(), limit_inbound);
-    assert!(sessions.outbound_sessions.limit.is_some());
-    assert_eq!(sessions.outbound_sessions.limit.unwrap(), limit_outbound);
+    // Check sessions limits have been set (except unconsolidated limit)
+    assert!(sessions.inbound.limit.is_some());
+    assert_eq!(sessions.inbound.limit.unwrap(), limit_inbound);
+    assert!(sessions.outbound_consolidated.limit.is_some());
+    assert_eq!(
+        sessions.outbound_consolidated.limit.unwrap(),
+        limit_outbound_consolidated
+    );
+    assert!(sessions.outbound_unconsolidated.limit.is_none());
 }
 
 /// Check if addresses are eligible as outbound addresses
@@ -103,6 +109,104 @@ fn p2p_sessions_is_outbound_address_eligible() {
     assert!(sessions.is_outbound_address_eligible(valid_address_3));
 }
 
+/// Check if the sum of all outbound sessions (consolidated and unconsolidated) is returned
+#[test]
+fn p2p_sessions_get_num_outbound_sessions() {
+    // Create sessions struct
+    let mut sessions = Sessions::<String>::default();
+
+    // Register an outbound unconsolidated session and check if result is Ok(())
+    let outbound_uncons_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_uncons_address,
+            "reference1".to_string()
+        )
+        .is_ok());
+
+    // Register an outbound unconsolidated session, check if result is Ok(()) and consolidate it
+    // afterwards
+    let outbound_cons_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_cons_address,
+            "reference1".to_string()
+        )
+        .is_ok());
+    assert!(sessions
+        .consolidate_session(SessionType::Outbound, outbound_cons_address)
+        .is_ok());
+
+    // Check that the function to be tested returns the total number of outbound sessions
+    assert_eq!(sessions.get_num_outbound_sessions(), 2);
+}
+
+/// Check the conditions upon which the outbound bootstrap is needed
+#[test]
+fn p2p_sessions_is_outbound_bootstrap_needed() {
+    // Create sessions struct (outbound unlimited by default)
+    let mut sessions = Sessions::<String>::default();
+
+    // Register and consolidate sessions
+    for i in 1..4 {
+        let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000 + i);
+        sessions
+            .register_session(
+                SessionType::Outbound,
+                outbound_address,
+                "reference1".to_string(),
+            )
+            .unwrap_or(());
+        sessions
+            .consolidate_session(SessionType::Outbound, outbound_address)
+            .unwrap_or(());
+    }
+
+    // Register sessions (unconsolidated)
+    for i in 1..4 {
+        let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 8000 + i);
+        sessions
+            .register_session(
+                SessionType::Outbound,
+                outbound_address,
+                "reference1".to_string(),
+            )
+            .unwrap_or(());
+    }
+
+    // Check number of sessions registered
+    assert_eq!(sessions.get_num_outbound_sessions(), 6);
+
+    // Bootstrap is always needed when there is no limit
+    assert!(sessions.is_outbound_bootstrap_needed());
+
+    // Set limits
+    let limit_inbound = 1;
+    let limit_outbound = 7;
+    sessions.set_limits(limit_inbound, limit_outbound);
+
+    // Bootstrap is needed when the limit is higher than the number of outbound sessions
+    assert!(sessions.is_outbound_bootstrap_needed());
+
+    // Set limits
+    let limit_inbound = 1;
+    let limit_outbound = 6;
+    sessions.set_limits(limit_inbound, limit_outbound);
+
+    // Bootstrap is not needed when the limit is equal to the number of outbound sessions
+    assert!(!sessions.is_outbound_bootstrap_needed());
+
+    // Set limits
+    let limit_inbound = 1;
+    let limit_outbound = 5;
+    sessions.set_limits(limit_inbound, limit_outbound);
+
+    // Bootstrap is not needed when the limit is smaller than the number of outbound sessions
+    assert!(!sessions.is_outbound_bootstrap_needed());
+}
+
 /// Check the registration of sessions
 #[test]
 fn p2p_sessions_register() {
@@ -119,11 +223,14 @@ fn p2p_sessions_register() {
         )
         .is_ok());
 
-    // Check if outbound session was register successfully
+    // Check if outbound session was registered successfully into the unconsolidated sessions
     assert!(sessions
-        .outbound_sessions
+        .outbound_unconsolidated
         .collection
         .contains_key(&outbound_address));
+
+    // Check if no sessions was registered into the consolidated sessions
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
 
     // Register an inbound session and check if result is Ok(())
     let inbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
@@ -135,11 +242,8 @@ fn p2p_sessions_register() {
         )
         .is_ok());
 
-    // Check if inbound session was register successfully
-    assert!(sessions
-        .inbound_sessions
-        .collection
-        .contains_key(&inbound_address));
+    // Check if inbound session was registered successfully
+    assert!(sessions.inbound.collection.contains_key(&inbound_address));
 }
 
 /// Check the unregistration of sessions
@@ -148,7 +252,7 @@ fn p2p_sessions_unregister() {
     // Create sessions struct
     let mut sessions = Sessions::<String>::default();
 
-    // Register an sessions and check if result is Ok(())
+    // Register sessions and check if result is Ok(())
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
     assert!(sessions
         .register_session(
@@ -168,24 +272,32 @@ fn p2p_sessions_unregister() {
 
     // Unregister sessions
     assert!(sessions
-        .unregister_session(SessionType::Outbound, outbound_address)
+        .unregister_session(
+            SessionType::Outbound,
+            SessionStatus::Unconsolidated,
+            outbound_address
+        )
         .is_ok());
     assert!(sessions
-        .unregister_session(SessionType::Inbound, inbound_address)
+        .unregister_session(
+            SessionType::Inbound,
+            SessionStatus::Unconsolidated,
+            inbound_address
+        )
         .is_ok());
 
     // Check that both sessions are removed from collections
-    assert_eq!(sessions.outbound_sessions.collection.len(), 0);
-    assert_eq!(sessions.inbound_sessions.collection.len(), 0);
+    assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
+    assert_eq!(sessions.inbound.collection.len(), 0);
 }
 
-/// Check the update of sessions
+/// Check the consolidation of sessions
 #[test]
-fn p2p_sessions_update() {
+fn p2p_sessions_consolidate() {
     // Create sessions struct
     let mut sessions = Sessions::<String>::default();
 
-    // Register an sessions and check if result is Ok(())
+    // Register sessions and check if result is Ok(())
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
     assert!(sessions
         .register_session(
@@ -205,67 +317,27 @@ fn p2p_sessions_update() {
 
     // Check status of registered sessions was set to Unconsolidated
     assert!(sessions
-        .outbound_sessions
+        .outbound_unconsolidated
         .collection
         .get(&outbound_address)
         .is_some());
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
+    assert!(sessions.inbound.collection.get(&inbound_address).is_some());
+
+    // Consolidate session
     assert!(sessions
-        .inbound_sessions
+        .consolidate_session(SessionType::Outbound, outbound_address)
+        .is_ok());
+    assert!(sessions
+        .consolidate_session(SessionType::Inbound, inbound_address)
+        .is_ok());
+
+    // Check if sessions were consolidated
+    assert!(sessions
+        .outbound_consolidated
         .collection
-        .get(&inbound_address)
+        .get(&outbound_address)
         .is_some());
-    assert_eq!(
-        sessions
-            .outbound_sessions
-            .collection
-            .get(&outbound_address)
-            .unwrap()
-            .status,
-        SessionStatus::Unconsolidated
-    );
-    assert_eq!(
-        sessions
-            .inbound_sessions
-            .collection
-            .get(&inbound_address)
-            .unwrap()
-            .status,
-        SessionStatus::Unconsolidated
-    );
-
-    // Update sessions status to Consolidated
-    assert!(sessions
-        .update_session(
-            SessionType::Outbound,
-            outbound_address,
-            SessionStatus::Consolidated
-        )
-        .is_ok());
-    assert!(sessions
-        .update_session(
-            SessionType::Inbound,
-            inbound_address,
-            SessionStatus::Consolidated
-        )
-        .is_ok());
-
-    // Check if sessions were updated
-    assert_eq!(
-        sessions
-            .outbound_sessions
-            .collection
-            .get(&outbound_address)
-            .unwrap()
-            .status,
-        SessionStatus::Consolidated
-    );
-    assert_eq!(
-        sessions
-            .inbound_sessions
-            .collection
-            .get(&inbound_address)
-            .unwrap()
-            .status,
-        SessionStatus::Consolidated
-    );
+    assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
+    assert!(sessions.inbound.collection.get(&inbound_address).is_some());
 }

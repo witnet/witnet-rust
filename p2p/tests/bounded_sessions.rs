@@ -1,7 +1,6 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use witnet_p2p::sessions::bounded_sessions::*;
-use witnet_p2p::sessions::SessionStatus;
 
 /// Check if the bounded sessions default initializes empty collection and no limit
 #[test]
@@ -32,7 +31,7 @@ fn p2p_bounded_sessions_register() {
     // Check status of recently registered session
     let session_info = sessions.collection.get(&address);
     assert!(session_info.is_some());
-    assert_eq!(session_info.unwrap().status, SessionStatus::Unconsolidated);
+    assert_eq!(session_info.unwrap().reference, "reference1");
 }
 
 // Check the unregistration of a session
@@ -51,33 +50,6 @@ fn p2p_bounded_sessions_unregister() {
 
     // Expect element to be removed
     assert_eq!(sessions.collection.len(), 0);
-}
-
-// Check the update of a session
-#[test]
-fn p2p_bounded_sessions_update() {
-    // Create bounded sessions struct
-    let mut sessions = BoundedSessions::default();
-
-    // Add session
-    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
-    assert!(sessions.register_session(address, "reference1").is_ok());
-    assert_eq!(sessions.collection.len(), 1);
-
-    // Check value of recently registered session
-    let session_info = sessions.collection.get(&address);
-    assert!(session_info.is_some());
-    assert_eq!(session_info.unwrap().status, SessionStatus::Unconsolidated);
-
-    // Update session status
-    assert!(sessions
-        .update_session(address, SessionStatus::Consolidated)
-        .is_ok());
-
-    // Check udpated status
-    let session_info = sessions.collection.get(&address);
-    assert!(session_info.is_some());
-    assert_eq!(session_info.unwrap().status, SessionStatus::Consolidated);
 }
 
 /// Check if the sessions limit is being used
@@ -118,17 +90,4 @@ fn p2p_bounded_sessions_unregister_unknown() {
     // Unregister non-existent session
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
     assert!(sessions.unregister_session(address).is_err());
-}
-
-/// Check if non-existent session cannot be updated
-#[test]
-fn p2p_bounded_sessions_update_unknown() {
-    // Create bounded sessions struct
-    let mut sessions = BoundedSessions::<String>::default();
-
-    // Unregister non-existent session
-    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
-    assert!(sessions
-        .update_session(address, SessionStatus::Consolidated)
-        .is_err());
 }
