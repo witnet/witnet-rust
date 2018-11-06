@@ -7,9 +7,9 @@
 use std::process::exit;
 use std::result::Result;
 
-use log::error;
 use env_logger;
 use failure;
+use log::error;
 use structopt::StructOpt;
 
 use witnet_core as core;

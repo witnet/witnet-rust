@@ -37,7 +37,6 @@ pub(crate) enum Command {
         #[structopt(name = "config", short = "c")]
         #[structopt(parse(from_os_str))]
         config: Option<PathBuf>,
-
         // Run the server in the background
         // #[structopt(name = "background", short = "b")]
         // background: bool,
