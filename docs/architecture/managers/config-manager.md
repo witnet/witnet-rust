@@ -2,10 +2,9 @@
 
 The __config manager__ is the actor in charge of managing the configuration required by the system. Its main responsibilities are the following:
 
-- Load configuration from a file using a given format
-- Load default parameters, if they are not defined
+- Load configuration from a file (if specified when creating the actor) and merge it with the default configuration
 - Store configuration parameters on its state
-- Provide the configuration to other actors
+- Provide a deep-copy of the configuration to other actors
 
 ## State
 
@@ -14,7 +13,10 @@ The state of the `Config Manager` is defined as library code ['Config'][config],
 ```rust
 #[derive(Debug, Default)]
 pub struct ConfigManager {
+    /// Loaded configuration
     config: Config,
+    /// Configuration file from which to read the configuration when
+    /// the actor starts, if `None` the default configuration is used
     filename: Option<String>,
 }
 ```
@@ -41,18 +43,25 @@ System::current().registry().set(config_manager_addr);
 
 ### Incoming messages: Others -> Config Manager
 
-These are the messages supported by the connections manager handlers:
+These are the messages supported by the config manager actor:
 
-| Message   | Input type | Output type    | Description                         |
-| --------- | ---------- | -------------- | ----------------------------------- |
-| GetConfig | `()`       | `ConfigResult` | Request a copy of the configuration |
+| Message   | Input type | Output type    | Description                              |
+| --------- | ---------- | -------------- | -----------------------------------      |
+| GetConfig | `()`       | `ConfigResult` | Request a deep-copy of the configuration |
 
-The way other actors will communicate with the connections manager is:
+Where `ConfigResult` is just:
 
-1. Get the address of the connections manager from the registry:
+``` rust
+/// Result of the GetConfig message handling
+pub type ConfigResult = Result<Config, io::Error>;
+```
+
+The way other actors will communicate with the config manager is:
+
+1. Get the address of the config manager from the registry:
 
     ```rust
-    // Get connections manager address
+    // Get config manager address
     let config_manager_addr = System::current().registry().get::<ConfigManager>();
     ```
 

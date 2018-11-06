@@ -2,7 +2,7 @@ use actix::{
     fut::FutureResult, Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler,
     MailboxError, Message, Supervised, System, SystemService, WrapFuture,
 };
-use log::debug;
+use log::{debug, info};
 use std::io;
 use std::path::PathBuf;
 use witnet_config::loaders::toml;
@@ -18,7 +18,11 @@ pub const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
 /// supports messages for giving access to the configuration it holds.
 #[derive(Debug)]
 pub struct ConfigManager {
+    /// Loaded configuration
     config: Config,
+
+    /// Configuration file from which to read the configuration when
+    /// the actor starts
     config_file: PathBuf,
 }
 
@@ -35,8 +39,12 @@ impl Actor for ConfigManager {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        debug!("[Config Manager] Started!");
-        self.config = toml::from_file(self.config_file.as_path()).unwrap();
+        debug!("Config Manager actor has been started!");
+        info!(
+            "Reading configuration from file: {}",
+            self.config_file.to_string_lossy()
+        );
+        self.config = toml::from_file(&self.config_file).unwrap()
     }
 }
 

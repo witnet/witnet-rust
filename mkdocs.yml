@@ -53,6 +53,7 @@ nav:
       - Introduction: architecture/managers/managers.md
       - Sessions Manager: architecture/managers/sessions-manager.md
       - Connections Manager: architecture/managers/connections-manager.md
+      - Config Manager: architecture/managers/config-manager.md
       - Storage Manager: architecture/managers/storage-manager.md
       - Peers Manager: architecture/managers/peers-manager.md
     - Mempool Management: architecture/mempool-mgmt.md
@@ -67,6 +68,9 @@ nav:
   - Roadmap: roadmap.md
   - Contributing: contributing.md
   - Development: development.md
+  - Configuration:
+    - Custom toml file: configuration/toml-file.md
+    - Command Line Interface (CLI): configuration/cli.md
   - Glossary: glossary.md
 
 theme:

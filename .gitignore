@@ -20,3 +20,6 @@ Cargo.lock
 
 # Ignore rocksdb default storage path
 .wit/
+
+# Ignore generated documentation
+site
