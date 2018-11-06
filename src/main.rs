@@ -7,6 +7,7 @@
 use std::process::exit;
 use std::result::Result;
 
+use log::error;
 use env_logger;
 use failure;
 use structopt::StructOpt;
@@ -20,9 +21,9 @@ fn main() {
     env_logger::init();
 
     if let Err(e) = run() {
-        eprintln!("Error: {}", e);
+        error!("Error: {}", e);
         for cause in e.iter_causes() {
-            eprintln!("Cause: {}", cause);
+            error!("Cause: {}", cause);
         }
         exit(1);
     }

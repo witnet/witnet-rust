@@ -25,22 +25,22 @@ pub(crate) struct Cli {
 pub(crate) enum Command {
     #[structopt(name = "node", about = "Run the Witnet server")]
     Node {
-        /// TCP address to which the server should build
-        #[structopt(name = "address", short = "d")]
-        address: String,
+        // TCP address to which the server should build
+        // #[structopt(name = "address", short = "d")]
+        // address: String,
 
-        /// Address to peer connection
-        #[structopt(name = "peer", short = "p")]
-        peer: String,
+        // Address to peer connection
+        // #[structopt(name = "peer", short = "p")]
+        // peer: String,
 
-        /// Config file path
+        // Config file path
         #[structopt(name = "config", short = "c")]
         #[structopt(parse(from_os_str))]
         config: Option<PathBuf>,
 
-        /// Run the server in the background
-        #[structopt(name = "background", short = "b")]
-        background: bool,
+        // Run the server in the background
+        // #[structopt(name = "background", short = "b")]
+        // background: bool,
     },
 }
 
