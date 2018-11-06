@@ -92,7 +92,7 @@ impl Actor for Session {
         // Get session manager address
         let session_manager_addr = System::current().registry().get::<SessionsManager>();
 
-        // Deregister session from session manager
+        // Unregister session from session manager
         session_manager_addr.do_send(Unregister {
             address: self.address,
             session_type: self.session_type,
