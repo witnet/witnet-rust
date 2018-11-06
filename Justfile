@@ -40,5 +40,6 @@ docs-deploy:
 # run travis
 travis:
     just install-setup
+    cargo fmt --all -- --check
     just clippy
     cargo test --all --verbose
