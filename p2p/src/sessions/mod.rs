@@ -31,14 +31,20 @@ pub enum SessionStatus {
 
 /// Sessions struct contains:
 /// - server address used to listen to incoming connections
-/// - lists of of inbound and outbound sessions parametrized with their reference (T)
+/// - list of inbound sessions parametrized with their reference (T)
+/// - list of consolidated outbound sessions parametrized with their reference(T)
+/// - list of unconsolidated outbound sessions parametrized with their reference(T)
 pub struct Sessions<T> {
     /// Server address listening to incoming connections
     pub server_address: Option<SocketAddr>,
     /// Inbound sessions: __untrusted__ peers that connect to the server
-    pub inbound_sessions: BoundedSessions<T>,
-    /// Outbound sessions: __known__ peers that the node is connected
-    pub outbound_sessions: BoundedSessions<T>,
+    pub inbound: BoundedSessions<T>,
+    /// Outbound consolidated sessions: __known__ peer sessions that the node is connected to (in
+    /// consolidated status)
+    pub outbound_consolidated: BoundedSessions<T>,
+    /// Outbound unconsolidated sessions: __known__ peer sessions that the node is connected to
+    /// (in unconsolidated status)
+    pub outbound_unconsolidated: BoundedSessions<T>,
 }
 
 /// Default trait implementation
@@ -46,42 +52,71 @@ impl<T> Default for Sessions<T> {
     fn default() -> Self {
         Self {
             server_address: None,
-            inbound_sessions: BoundedSessions::default(),
-            outbound_sessions: BoundedSessions::default(),
+            inbound: BoundedSessions::default(),
+            outbound_consolidated: BoundedSessions::default(),
+            outbound_unconsolidated: BoundedSessions::default(),
         }
     }
 }
 
 impl<T> Sessions<T> {
     /// Method to get the sessions map by a session type
-    fn get_sessions_by_type(&mut self, session_type: SessionType) -> &mut BoundedSessions<T> {
+    fn get_sessions(
+        &mut self,
+        session_type: SessionType,
+        status: SessionStatus,
+    ) -> &mut BoundedSessions<T> {
         match session_type {
-            SessionType::Inbound => &mut self.inbound_sessions,
-            SessionType::Outbound => &mut self.outbound_sessions,
+            SessionType::Inbound => &mut self.inbound,
+            SessionType::Outbound => match status {
+                SessionStatus::Unconsolidated => &mut self.outbound_unconsolidated,
+                SessionStatus::Consolidated => &mut self.outbound_consolidated,
+            },
         }
     }
     /// Method to set the server address
-    pub fn set_server_address(&mut self, server_adress: SocketAddr) {
-        self.server_address = Some(server_adress);
+    pub fn set_server_address(&mut self, server_address: SocketAddr) {
+        self.server_address = Some(server_address);
     }
     /// Method to set the sessions limits
-    pub fn set_limits(&mut self, inbound_limit: u16, outbound_limit: u16) {
-        self.inbound_sessions.set_limit(inbound_limit);
-        self.outbound_sessions.set_limit(outbound_limit);
+    pub fn set_limits(&mut self, inbound_limit: u16, outbound_consolidated_limit: u16) {
+        self.inbound.set_limit(inbound_limit);
+        self.outbound_consolidated
+            .set_limit(outbound_consolidated_limit);
     }
     /// Method to check if a socket address is eligible as outbound peer
     pub fn is_outbound_address_eligible(&self, candidate_addr: SocketAddr) -> bool {
-        // Check if address is already used as outbound session
-        let is_outbound = self
-            .outbound_sessions
+        // Check if address is already used as outbound session (consolidated or unconsolidated)
+        let is_outbound_consolidated = self
+            .outbound_consolidated
             .collection
             .contains_key(&candidate_addr);
+        let is_outbound_unconsolidated = self
+            .outbound_unconsolidated
+            .collection
+            .contains_key(&candidate_addr);
+
         // Check if address is the server address
-        let is_server =
-            self.server_address.is_some() && self.server_address.unwrap() == candidate_addr;
+        let is_server = self
+            .server_address
+            .map(|address| address == candidate_addr)
+            .unwrap_or(false);
 
         // Return true if the address has not been used as outbound session or server address
-        !is_outbound && !is_server
+        !is_outbound_consolidated && !is_outbound_unconsolidated && !is_server
+    }
+    /// Method to get total number of outbound peers
+    pub fn get_num_outbound_sessions(&self) -> usize {
+        self.outbound_consolidated.collection.len() + self.outbound_unconsolidated.collection.len()
+    }
+    /// Method to check if outbound bootstrap is needed
+    pub fn is_outbound_bootstrap_needed(&self) -> bool {
+        let num_outbound_sessions = self.get_num_outbound_sessions();
+
+        self.outbound_consolidated
+            .limit
+            .map(|limit| num_outbound_sessions < limit as usize)
+            .unwrap_or(true)
     }
     /// Method to insert a new session
     pub fn register_session(
@@ -91,34 +126,40 @@ impl<T> Sessions<T> {
         reference: T,
     ) -> SessionsResult<()> {
         // Get map to insert session to
-        let sessions = self.get_sessions_by_type(session_type);
+        let sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated);
 
         // Register session and return result
         sessions.register_session(address, reference)
     }
-    /// Method to insert a new session
+    /// Method to remove a session
     pub fn unregister_session(
         &mut self,
         session_type: SessionType,
+        status: SessionStatus,
         address: SocketAddr,
     ) -> SessionsResult<()> {
         // Get map to insert session to
-        let sessions = self.get_sessions_by_type(session_type);
+        let sessions = self.get_sessions(session_type, status);
 
         // Remove session and return result
-        sessions.unregister_session(address)
+        sessions.unregister_session(address).map(|_| ())
     }
-    /// Method to insert a new session
-    pub fn update_session(
+    /// Method to consolidate a session
+    pub fn consolidate_session(
         &mut self,
         session_type: SessionType,
         address: SocketAddr,
-        session_status: SessionStatus,
     ) -> SessionsResult<()> {
-        // Get map to insert session
-        let sessions = self.get_sessions_by_type(session_type);
+        // Get map to remove session from
+        let uncons_sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated);
 
-        // Update session and return result
-        sessions.update_session(address, session_status)
+        // Remove session from unconsolidated collection
+        let session_info = uncons_sessions.unregister_session(address)?;
+
+        // Get map to insert session to
+        let cons_sessions = self.get_sessions(session_type, SessionStatus::Consolidated);
+
+        // Register session into consolidated collection
+        cons_sessions.register_session(address, session_info.reference)
     }
 }

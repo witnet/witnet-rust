@@ -3,15 +3,12 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use crate::sessions::error::{SessionsError, SessionsErrorKind, SessionsResult};
-use crate::sessions::SessionStatus;
 use witnet_util::error::WitnetError;
 
 /// Session info
 pub struct SessionInfo<T> {
     /// Session reference (e.g. actor address)
     pub reference: T,
-    /// Session status
-    pub status: SessionStatus,
 }
 
 /// Sessions struct contains:
@@ -42,7 +39,11 @@ impl<T> BoundedSessions<T> {
     /// Method to insert a new session
     pub fn register_session(&mut self, address: SocketAddr, reference: T) -> SessionsResult<()> {
         // Check num peers
-        if self.limit.is_some() && self.collection.len() >= self.limit.unwrap() as usize {
+        if self
+            .limit
+            .map(|limit| self.collection.len() >= limit as usize)
+            .unwrap_or(false)
+        {
             return Err(WitnetError::from(SessionsError::new(
                 SessionsErrorKind::Register,
                 address.to_string(),
@@ -58,45 +59,21 @@ impl<T> BoundedSessions<T> {
             )));
         }
         // Insert session into the right collection
-        self.collection.insert(
-            address,
-            SessionInfo {
-                reference,
-                status: SessionStatus::Unconsolidated,
-            },
-        );
+        self.collection.insert(address, SessionInfo { reference });
 
         // Return success
         Ok(())
     }
     /// Method to insert a new session
-    pub fn unregister_session(&mut self, address: SocketAddr) -> SessionsResult<()> {
+    pub fn unregister_session(&mut self, address: SocketAddr) -> SessionsResult<SessionInfo<T>> {
         // Insert session into the right map (if not present)
         match self.collection.remove(&address) {
-            Some(_) => Ok(()),
+            Some(info) => Ok(info),
             None => Err(WitnetError::from(SessionsError::new(
                 SessionsErrorKind::Unregister,
                 address.to_string(),
                 "Address could not be unregistered (not found in sessions)".to_string(),
             ))),
         }
-    }
-    /// Method to insert a new session
-    pub fn update_session(
-        &mut self,
-        address: SocketAddr,
-        session_status: SessionStatus,
-    ) -> SessionsResult<()> {
-        // If session exists, then apply update and return success
-        if let Some(session) = self.collection.get_mut(&address) {
-            session.status = session_status;
-            return Ok(());
-        }
-        // If session does not exist, then return error
-        Err(WitnetError::from(SessionsError::new(
-            SessionsErrorKind::Update,
-            address.to_string(),
-            "Address could not be updated (not found in sessions)".to_string(),
-        )))
     }
 }
