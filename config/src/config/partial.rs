@@ -60,6 +60,9 @@ pub struct Connections {
 
     /// Period of the persist peers task
     pub storage_peers_period: Option<Duration>,
+
+    /// Period of the discovery peers task
+    pub discovery_peers_period: Option<Duration>,
 }
 
 /// Storage-specific configuration

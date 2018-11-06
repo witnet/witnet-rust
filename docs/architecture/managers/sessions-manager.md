@@ -47,11 +47,12 @@ System::current().registry().set(sessions_manager_addr);
 
 These are the messages supported by the sessions manager handlers:
 
-| Message       | Input type                                | Output type           | Description                               |
-|---------------|-------------------------------------------|-----------------------|-------------------------------------------|
-| Register      | `SocketAddr, Addr<Session>, SessionType`  | `SessionsResult<()>`  | Request to register a new session         |
-| Unregister    | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to unregister a session           |
-| Update        | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to update the status of a session |
+| Message       | Input type                                | Output type           | Description                                    |
+|---------------|-------------------------------------------|-----------------------|------------------------------------------------|
+| Register      | `SocketAddr, Addr<Session>, SessionType`  | `SessionsResult<()>`  | Request to register a new session              |
+| Unregister    | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to unregister a session                |
+| Update        | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to update the status of a session      |
+| Anycast<T>    | `T`                                       | `()`                  | Request to send a T message to a random Session|
 
 The handling of these messages is basically just calling the corresponding methods from the
 [`Sessions`][sessions] library. For example, the handler of the `Register` message would be
@@ -103,17 +104,22 @@ session_manager_addr
     })
     .wait(ctx);
 ```
+#### Anycast<T>
 
-### Outgoing messages: Connections Manager -> Others
+The handling of this messages is basically just calling the method `get_random_anycast_session` from the
+[`Sessions`][sessions] library to obtain a random Session and send a `T` message.
 
-These are the messages sent by the connections manager:
+### Outgoing messages: Sessions Manager -> Others
 
-| Message               | Destination           | Input type    | Output type                       | Description                           |
-|-----------------------|-----------------------|---------------|-----------------------------------|---------------------------------------|
-| GetServerAddress      | ConfigManager         | `()`          | `Option<SocketAddr>`              | Request the config server address     |
-| GetConnLimits         | ConfigManager         | `()`          | `Option<(u16, u16)>`              | Request the config connections limits |
-| GetRandomPeer         | PeersManager          | `()`          | `PeersResult<Option<SocketAddr>>` | Request the address of a peer         |
-| OutboundTcpConnect    | ConnectionsManager    | `SocketAddr`  | `()`                              | Request a TCP conn to an address      | 
+These are the messages sent by the sessions manager:
+
+| Message               | Destination           | Input type    | Output type                       | Description                                           |
+|-----------------------|-----------------------|---------------|-----------------------------------|-------------------------------------------------------|
+| GetServerAddress      | ConfigManager         | `()`          | `Option<SocketAddr>`              | Request the config server address                     |
+| GetConnLimits         | ConfigManager         | `()`          | `Option<(u16, u16)>`              | Request the config connections limits                 |
+| GetRandomPeer         | PeersManager          | `()`          | `PeersResult<Option<SocketAddr>>` | Request the address of a peer                         |
+| OutboundTcpConnect    | ConnectionsManager    | `SocketAddr`  | `()`                              | Request a TCP conn to an address                      | 
+| Anycast<GetPeers>     | SessionsManager       | `()`          | `()`                              | Request to send a GetPeers message to a random Session|
 
 #### GetServerAddress
 
@@ -168,6 +174,14 @@ sessions manager will detect in its next periodic bootstrap task that there are 
 connections and try to create a new one.
 
 For further information, see [`ConnectionsManager`][connections_manager].
+
+#### Anycast<GetPeers>
+This message is periodically sent to itself ([`SessionsManager`][sessions_manager]).
+
+It is a best effort message, its return value is not processed and the [`SessionsManager`][sessions_manager] 
+actor does not even wait for its response after sending it.
+
+This message request to send a `GetPeers` message to a random Session. 
 
 ## Further information
 The full source code of the `SessionsManager` can be found at [`sessions_manager.rs`][sessions_manager].
