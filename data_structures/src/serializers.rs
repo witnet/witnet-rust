@@ -1,4 +1,4 @@
-use std::convert::{TryFrom, Into};
+use std::convert::{Into, TryFrom};
 extern crate flatbuffers;
 
 use crate::flatbuffers::protocol_generated::protocol::{
@@ -114,48 +114,58 @@ impl TryFrom<Vec<u8>> for Message {
 
         // Create witnet's message to decode a flatbuffer message
         match message.command_type() {
-            FlatBuffersCommand::Ping => message.command_as_ping().map(|ping| {
-                create_ping_message(PingWitnetArgs {
-                    nonce: ping.nonce(),
-                    magic,
+            FlatBuffersCommand::Ping => message
+                .command_as_ping()
+                .map(|ping| {
+                    create_ping_message(PingWitnetArgs {
+                        nonce: ping.nonce(),
+                        magic,
+                    })
                 })
-            }).ok_or(""),
-            FlatBuffersCommand::Pong => message.command_as_pong().map(|pong| {
-                create_pong_message(PongWitnetArgs {
-                    nonce: pong.nonce(),
-                    magic,
+                .ok_or(""),
+            FlatBuffersCommand::Pong => message
+                .command_as_pong()
+                .map(|pong| {
+                    create_pong_message(PongWitnetArgs {
+                        nonce: pong.nonce(),
+                        magic,
+                    })
                 })
-            }).ok_or(""),
+                .ok_or(""),
             FlatBuffersCommand::GetPeers => {
                 Ok(create_get_peers_message(GetPeersWitnetArgs { magic }))
             }
             FlatBuffersCommand::Peers => message
                 .command_as_peers()
-                .and_then(|peers| create_peers_message(PeersWitnetArgs { magic, peers })).ok_or(""),
+                .and_then(|peers| create_peers_message(PeersWitnetArgs { magic, peers }))
+                .ok_or(""),
             FlatBuffersCommand::Verack => Ok(create_verack_message(VerackWitnetArgs { magic })),
-            FlatBuffersCommand::Version => message.command_as_version().and_then(|command| {
-                // Get ftb addresses and create witnet addresses
-                let sender_address = command.sender_address().and_then(create_address);
-                let receiver_address = command.receiver_address().and_then(create_address);
-                // Check if sender address and receiver address exist
-                if sender_address.and(receiver_address).is_some() {
-                    Some(create_version_message(VersionWitnetArgs {
-                        version: command.version(),
-                        timestamp: command.timestamp(),
-                        capabilities: command.capabilities(),
-                        sender_address: sender_address.unwrap(),
-                        receiver_address: receiver_address.unwrap(),
-                        // FIXME(#65): user_agent field should be required as specified in ftb schema
-                        user_agent: command.user_agent().unwrap_or("").to_string(),
-                        last_epoch: command.last_epoch(),
-                        genesis: command.genesis(),
-                        nonce: command.nonce(),
-                        magic,
-                    }))
-                } else {
-                    None
-                }
-            }).ok_or(""),
+            FlatBuffersCommand::Version => message
+                .command_as_version()
+                .and_then(|command| {
+                    // Get ftb addresses and create witnet addresses
+                    let sender_address = command.sender_address().and_then(create_address);
+                    let receiver_address = command.receiver_address().and_then(create_address);
+                    // Check if sender address and receiver address exist
+                    if sender_address.and(receiver_address).is_some() {
+                        Some(create_version_message(VersionWitnetArgs {
+                            version: command.version(),
+                            timestamp: command.timestamp(),
+                            capabilities: command.capabilities(),
+                            sender_address: sender_address.unwrap(),
+                            receiver_address: receiver_address.unwrap(),
+                            // FIXME(#65): user_agent field should be required as specified in ftb schema
+                            user_agent: command.user_agent().unwrap_or("").to_string(),
+                            last_epoch: command.last_epoch(),
+                            genesis: command.genesis(),
+                            nonce: command.nonce(),
+                            magic,
+                        }))
+                    } else {
+                        None
+                    }
+                })
+                .ok_or(""),
             FlatBuffersCommand::NONE => Err(""),
         }
     }

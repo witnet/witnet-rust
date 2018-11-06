@@ -4,8 +4,8 @@ use crate::Config;
 use failure::Fail;
 use std::fmt;
 use std::fs::File;
-use std::io;
-use std::io::Read;
+use std::io::{self, Read};
+use std::path::Path;
 use toml;
 use witnet_util::error::{WitnetError, WitnetResult};
 
@@ -37,15 +37,15 @@ impl fmt::Display for Error {
 pub type Result<T> = WitnetResult<T, Error>;
 
 /// Load configuration from a file written in Toml format.
-pub fn from_file(filename: &str) -> Result<Config> {
+pub fn from_file(file: &Path) -> Result<Config> {
     let mut contents = String::new();
-    read_file_contents(filename, &mut contents).map_err(Error::IOError)?;
+    read_file_contents(file, &mut contents).map_err(Error::IOError)?;
     from_str(&contents)
 }
 
 #[cfg(not(test))]
-fn read_file_contents(filename: &str, contents: &mut String) -> io::Result<usize> {
-    let mut file = File::open(filename)?;
+fn read_file_contents(file: &Path, contents: &mut String) -> io::Result<usize> {
+    let mut file = File::open(file)?;
     file.read_to_string(contents)
 }
 

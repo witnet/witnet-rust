@@ -1,5 +1,7 @@
 use std::io;
+use std::path::PathBuf;
 use std::process::exit;
+use std::result::Result;
 
 use actix::{Actor, System};
 use log::info;
@@ -11,7 +13,7 @@ use crate::actors::sessions_manager::SessionsManager;
 use crate::actors::storage_manager::StorageManager;
 
 /// Function to run the main system
-pub fn run(config_filename: &str, callback: fn()) -> io::Result<()> {
+pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Init system
     let system = System::new("node");
 
@@ -19,7 +21,7 @@ pub fn run(config_filename: &str, callback: fn()) -> io::Result<()> {
     callback();
 
     // Start config manager actor
-    let config_manager_addr = ConfigManager::new(config_filename).start();
+    let config_manager_addr = ConfigManager::new(config).start();
     System::current().registry().set(config_manager_addr);
 
     // Start storage manager actor

@@ -4,6 +4,7 @@ use actix::{
 };
 use log::debug;
 use std::io;
+use std::path::PathBuf;
 use witnet_config::loaders::toml;
 use witnet_config::Config;
 
@@ -18,7 +19,7 @@ pub const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
 #[derive(Debug, Default)]
 pub struct ConfigManager {
     config: Config,
-    filename: Option<String>,
+    config_file: PathBuf,
 }
 
 impl Actor for ConfigManager {
@@ -26,29 +27,20 @@ impl Actor for ConfigManager {
 
     fn started(&mut self, _ctx: &mut Self::Context) {
         debug!("[Config Manager] Started!");
-        match &self.filename {
-            Some(filename) => self.config = toml::from_file(&filename).unwrap(),
-            None => (),
-        }
+        self.config = toml::from_file(self.config_file.as_path()).unwrap();
     }
 }
 
 impl ConfigManager {
     /// Create a new ConfigManager instance that will try to read the
     /// given configuration file name.
-    pub fn new(filename: &str) -> Self {
-        ConfigManager {
+    pub fn new(config_file: Option<PathBuf>) -> Self {
+        Self {
             config: Config::default(),
-            filename: Some(filename.to_owned()),
-        }
-    }
-
-    /// Create a new ConfigManager instance that will try to read from
-    /// the default configuration filename `witnet.toml`.
-    pub fn from_default_file() -> Self {
-        ConfigManager {
-            config: Config::default(),
-            filename: Some(CONFIG_DEFAULT_FILENAME.to_owned()),
+            config_file: match config_file {
+                Some(path) => path,
+                None => PathBuf::from(CONFIG_DEFAULT_FILENAME),
+            },
         }
     }
 }

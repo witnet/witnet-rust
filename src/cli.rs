@@ -5,7 +5,7 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-use crate::core;
+use crate::core::actors;
 use ctrlc;
 use failure;
 
@@ -21,45 +21,40 @@ pub(crate) struct Cli {
     pub(crate) cmd: Command,
 }
 
-#[allow(missing_docs)]
 #[derive(Debug, StructOpt)]
 pub(crate) enum Command {
     #[structopt(name = "node", about = "Run the Witnet server")]
     Node {
-        #[structopt(
-            name = "address",
-            short = "d",
-            help = "TCP address to which the server should build"
-        )]
+        /// TCP address to which the server should build
+        #[structopt(name = "address", short = "d")]
         address: String,
 
-        #[structopt(name = "peer", short = "p", help = "Address to peer connection")]
+        /// Address to peer connection
+        #[structopt(name = "peer", short = "p")]
         peer: String,
 
-        #[structopt(
-            name = "background",
-            short = "b",
-            help = "Run the server in the background"
-        )]
+        /// Config file
+        #[structopt(name = "config", short = "c")]
+        #[structopt(parse(from_os_str))]
+        config: Option<PathBuf>,
+
+        /// Run the server in the background
+        #[structopt(name = "background", short = "b")]
         background: bool,
     },
 }
 
 pub(crate) fn exec(command: Command) -> Result<(), failure::Error> {
-    match Command {
-        Command::Node {
-            address,
-            peer,
-            background,
-        } => {
-            actors::node::run(address, || {
+    match command {
+        Command::Node { config, .. } => {
+            actors::node::run(config, || {
                 // FIXME(#72): decide what to do when interrupt signals are received
                 ctrlc::set_handler(move || {
                     actors::node::close();
                 })
                 .expect("Error setting handler for both SIGINT (Ctrl+C) and SIGTERM (kill)");
-            })
-            .expect("Server error");
+            })?;
         }
     }
+    Ok(())
 }
