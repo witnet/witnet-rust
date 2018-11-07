@@ -131,9 +131,8 @@ where
     }
     /// Method to get a random consolidated outbound session
     pub fn get_random_anycast_session(&self) -> Option<T> {
-        // TODO change to outbound_consolidated once the un/consolidated separation is done
         // Get iterator over the values of the hashmap
-        let mut outbound_sessions_iter = self.outbound_sessions.collection.values();
+        let mut outbound_sessions_iter = self.outbound_consolidated.collection.values();
 
         // Get the number of elements in the collection from the iterator
         let len = outbound_sessions_iter.len();

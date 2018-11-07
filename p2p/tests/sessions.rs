@@ -215,7 +215,7 @@ fn p2p_sessions_get_random_anycast_session() {
     // Create sessions struct
     let mut sessions = Sessions::<String>::default();
 
-    // Check that the function returns None when there are no valid sessions in the collection
+    // Check that the function returns None when there are no sessions in the collection
     assert_eq!(sessions.get_random_anycast_session(), None);
 
     // Register an outbound session and check if result is Ok(())
@@ -225,17 +225,29 @@ fn p2p_sessions_get_random_anycast_session() {
         .register_session(SessionType::Outbound, outbound_address, reference1.clone())
         .is_ok());
 
+    // Check that the function returns None when there are no consolidated sessions in the
+    // collection
+    assert_eq!(sessions.get_random_anycast_session(), None);
+
+    // Consolidate outbound session
+    assert!(sessions
+        .consolidate_session(SessionType::Outbound, outbound_address)
+        .is_ok());
+
     // Check that the function returns Some(T) when there is one valid session in the collection
     assert_eq!(
         sessions.get_random_anycast_session(),
         Some("reference1".to_string())
     );
 
-    // Register an outbound session and check if result is Ok(())
+    // Register and consolidate an outbound session and check if result is Ok(())
     let reference2 = "reference2".to_string();
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
     assert!(sessions
         .register_session(SessionType::Outbound, outbound_address, reference2.clone())
+        .is_ok());
+    assert!(sessions
+        .consolidate_session(SessionType::Outbound, outbound_address)
         .is_ok());
 
     // Get random session for a "big" number
