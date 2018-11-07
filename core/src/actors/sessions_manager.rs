@@ -12,7 +12,7 @@ use log::debug;
 
 use crate::actors::config_manager::send_get_config_request;
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
-use crate::actors::session::Session;
+use crate::actors::session::{SendMessage, Session, SessionSendMessageResult};
 
 use crate::actors::peers_manager::{GetRandomPeer, PeersManager, PeersSocketAddrResult};
 
