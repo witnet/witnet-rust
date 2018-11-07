@@ -107,7 +107,7 @@ pub trait StorageHelper<'a, ConnData: Debug>: Storage<ConnData, &'a [u8], Vec<u8
         }
     }
     /// Get an element from the storage
-    fn get_t<T: Storable>(&mut self, key: &'a [u8]) -> StorageResult<Option<T>> {
+    fn get_t<T: Storable>(&self, key: &'a [u8]) -> StorageResult<Option<T>> {
         let value = self.get(key)?;
         if value.is_none() {
             return Ok(None);

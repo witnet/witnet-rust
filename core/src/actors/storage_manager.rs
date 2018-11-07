@@ -3,23 +3,36 @@ use actix::{Actor, ActorContext, Context, Handler, Message, Supervised, SystemSe
 use crate::actors::config_manager::send_get_config_request;
 
 use log::{debug, error};
+use std::marker::PhantomData;
 use witnet_storage::backends::rocks::RocksStorage;
 use witnet_storage::error::{StorageError, StorageErrorKind, StorageResult};
-use witnet_storage::storage::Storage;
+use witnet_storage::storage::{Storable, Storage, StorageHelper};
 use witnet_util::error::WitnetError;
 
 /// Type aliases for the storage manager results returned
-type ValueStorageResult = StorageResult<Option<Vec<u8>>>;
+type ValueStorageResult<T> = StorageResult<Option<T>>;
 type UnitStorageResult = StorageResult<()>;
 
 /// Message to indicate that a value is requested from the storage
-pub struct Get {
+pub struct Get<T> {
     /// Requested key
     pub key: &'static [u8],
+    _phantom: PhantomData<T>,
 }
 
-impl Message for Get {
-    type Result = ValueStorageResult;
+impl<T: Storable + 'static> Get<T> {
+    /// Create a generic `Get` message which will try to convert the raw bytes from the storage
+    /// into `T`
+    pub fn new(key: &'static [u8]) -> Self {
+        Get {
+            key,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Storable + 'static> Message for Get<T> {
+    type Result = ValueStorageResult<T>;
 }
 
 /// Message to indicate that a key-value pair needs to be inserted in the storage
@@ -29,6 +42,14 @@ pub struct Put {
 
     /// Value to be inserted
     pub value: Vec<u8>,
+}
+
+impl Put {
+    /// Create a `Put` message by converting the value into bytes
+    pub fn new<T: Storable>(key: &'static [u8], value: &T) -> StorageResult<Self> {
+        let value = value.to_bytes()?;
+        Ok(Put { key, value })
+    }
 }
 
 impl Message for Put {
@@ -98,17 +119,17 @@ impl SystemService for StorageManager {
 }
 
 /// Handler for Get message.
-impl Handler<Get> for StorageManager {
-    type Result = ValueStorageResult;
+impl<T: Storable + 'static> Handler<Get<T>> for StorageManager {
+    type Result = ValueStorageResult<T>;
 
-    fn handle(&mut self, msg: Get, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: Get<T>, _: &mut Context<Self>) -> Self::Result {
         self.storage.as_ref().map_or(
             Err(WitnetError::from(StorageError::new(
                 StorageErrorKind::Get,
                 String::from_utf8(msg.key.to_vec()).unwrap(),
                 "Storage was not properly initialised".to_string(),
             ))),
-            |storage| storage.get(msg.key),
+            |storage| storage.get_t(msg.key),
         )
     }
 }
