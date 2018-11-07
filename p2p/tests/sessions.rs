@@ -1,3 +1,5 @@
+#![feature(bind_by_move_pattern_guards)]
+
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use witnet_p2p::sessions::*;
@@ -205,6 +207,57 @@ fn p2p_sessions_is_outbound_bootstrap_needed() {
 
     // Bootstrap is not needed when the limit is smaller than the number of outbound sessions
     assert!(!sessions.is_outbound_bootstrap_needed());
+}
+
+/// Check the function to get a random outbound consolidated session
+#[test]
+fn p2p_sessions_get_random_anycast_session() {
+    // Create sessions struct
+    let mut sessions = Sessions::<String>::default();
+
+    // Check that the function returns None when there are no valid sessions in the collection
+    assert_eq!(sessions.get_random_anycast_session(), None);
+
+    // Register an outbound session and check if result is Ok(())
+    let reference1 = "reference1".to_string();
+    let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
+    assert!(sessions
+        .register_session(SessionType::Outbound, outbound_address, reference1.clone())
+        .is_ok());
+
+    // Check that the function returns Some(T) when there is one valid session in the collection
+    assert_eq!(
+        sessions.get_random_anycast_session(),
+        Some("reference1".to_string())
+    );
+
+    // Register an outbound session and check if result is Ok(())
+    let reference2 = "reference2".to_string();
+    let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
+    assert!(sessions
+        .register_session(SessionType::Outbound, outbound_address, reference2.clone())
+        .is_ok());
+
+    // Get random session for a "big" number
+    let mut diff: i16 = 0;
+    for _ in 0..100000 {
+        // Get a random anycast sessions (there are only 2)
+        match sessions.get_random_anycast_session() {
+            Some(reference) if reference == reference1.clone() => diff = diff + 1,
+            Some(reference) if reference == reference2.clone() => diff = diff - 1,
+            _ => assert!(
+                false,
+                "Get random function should retrieve a random session"
+            ),
+        }
+    }
+
+    // Check both sessions were retrieved equally
+    // Acceptance criteria for randomness is 1%
+    assert!(
+        diff < 1000 && diff > -1000,
+        "Get random seems not to be following a uniform distribution"
+    );
 }
 
 /// Check the registration of sessions
