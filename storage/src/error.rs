@@ -34,6 +34,10 @@ pub enum StorageErrorKind {
     Get,
     /// Errors when deleting a key/value pair
     Delete,
+    /// Errors when converting a value into bytes
+    Encode,
+    /// Errors when creating a value from bytes
+    Decode,
 }
 
 impl fmt::Display for StorageErrorKind {

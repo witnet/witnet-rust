@@ -10,7 +10,9 @@ description = "Witnet storage module that conveniently abstracts a key/value API
 env_logger = "0.5.13"
 failure = "0.1.2"
 log = "0.4.5"
+rmp-serde = "0.13"
 rocksdb = { version = "0.10.1", optional = true }
+serde = "1.0"
 witnet_util = { path = "../util" }
 
 [features]
