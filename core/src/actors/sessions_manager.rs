@@ -11,9 +11,11 @@ use log::debug;
 
 use crate::actors::config_manager::send_get_config_request;
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
-use crate::actors::session::Session;
+use crate::actors::session::{SendMessage, Session, SessionSendMessageResult};
 
 use crate::actors::peers_manager::{GetRandomPeer, PeersManager, PeersSocketAddrResult};
+
+use witnet_data_structures::types::Message as ProtocolMessage;
 use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};
 
 /// Period of the bootstrap peers task (in seconds)
@@ -112,6 +114,17 @@ impl SessionsManager {
             .map(actix::fut::ok)
             .unwrap_or_else(|| actix::fut::err(()))
     }
+
+    /// Method to process session SendMessage response
+    fn process_send_message_response(
+        &mut self,
+        response: Result<SessionSendMessageResult, MailboxError>,
+    ) -> FutureResult<(), (), Self> {
+        response
+            // Convert Ok(()) to FutureResult<(), (), Self>
+            .map(actix::fut::ok)
+            .unwrap_or_else(|_| actix::fut::err(()))
+    }
 }
 
 /// Make actor from `SessionsManager`
@@ -134,7 +147,7 @@ impl Actor for SessionsManager {
             );
         });
 
-        // We'll start the bootstrap peers process on sessions manager start
+        // Start the bootstrap peers process on sessions manager start
         self.bootstrap_peers(ctx);
     }
 }
@@ -192,6 +205,16 @@ pub struct Consolidate {
 
 impl Message for Consolidate {
     type Result = SessionsUnitResult;
+}
+
+/// Message to indicate that a message is to be forwarded to a random consolidated outbound session
+pub struct Anycast {
+    /// Message to be sent to the session
+    pub message: ProtocolMessage,
+}
+
+impl Message for Anycast {
+    type Result = SessionSendMessageResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -270,5 +293,42 @@ impl Handler<Consolidate> for SessionsManager {
         }
 
         result
+    }
+}
+
+/// Handler for Anycast message
+impl Handler<Anycast> for SessionsManager {
+    type Result = SessionSendMessageResult;
+
+    fn handle(&mut self, msg: Anycast, ctx: &mut Context<Self>) -> Self::Result {
+        debug!(
+            "Received a message to send to a random session {:?}",
+            msg.message
+        );
+
+        // Request a random consolidated outbound session
+        self.sessions
+            .get_random_anycast_session()
+            .map(|session_addr| {
+                // Send message to session and await for response
+                session_addr
+                    // Send SendMessage message to session actor
+                    // This returns a Request Future, representing an asynchronous message sending process
+                    .send(SendMessage {
+                        message: msg.message,
+                    })
+                    // Convert a normal future into an ActorFuture
+                    .into_actor(self)
+                    // Process the response from the session
+                    // This returns a FutureResult containing the socket address if present
+                    .then(|res, act, _ctx| {
+                        // Process the response from session
+                        act.process_send_message_response(res)
+                    })
+                    .wait(ctx);
+            })
+            .unwrap_or_else(|| {
+                debug!("No consolidated outbound session was found");
+            });
     }
 }
