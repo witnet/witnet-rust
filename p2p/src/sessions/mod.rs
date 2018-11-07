@@ -8,6 +8,8 @@ pub mod bounded_sessions;
 
 use std::net::SocketAddr;
 
+use rand::{thread_rng, Rng};
+
 use crate::sessions::bounded_sessions::BoundedSessions;
 use crate::sessions::error::SessionsResult;
 
@@ -34,7 +36,10 @@ pub enum SessionStatus {
 /// - list of inbound sessions parametrized with their reference (T)
 /// - list of consolidated outbound sessions parametrized with their reference(T)
 /// - list of unconsolidated outbound sessions parametrized with their reference(T)
-pub struct Sessions<T> {
+pub struct Sessions<T>
+where
+    T: Clone,
+{
     /// Server address listening to incoming connections
     pub server_address: Option<SocketAddr>,
     /// Inbound sessions: __untrusted__ peers that connect to the server
@@ -48,7 +53,10 @@ pub struct Sessions<T> {
 }
 
 /// Default trait implementation
-impl<T> Default for Sessions<T> {
+impl<T> Default for Sessions<T>
+where
+    T: Clone,
+{
     fn default() -> Self {
         Self {
             server_address: None,
@@ -59,7 +67,10 @@ impl<T> Default for Sessions<T> {
     }
 }
 
-impl<T> Sessions<T> {
+impl<T> Sessions<T>
+where
+    T: Clone,
+{
     /// Method to get the sessions map by a session type
     fn get_sessions(
         &mut self,
@@ -117,6 +128,27 @@ impl<T> Sessions<T> {
             .limit
             .map(|limit| num_outbound_sessions < limit as usize)
             .unwrap_or(true)
+    }
+    /// Method to get a random consolidated outbound session
+    pub fn get_random_anycast_session(&self) -> Option<T> {
+        // TODO change to outbound_consolidated once the un/consolidated separation is done
+        // Get iterator over the values of the hashmap
+        let mut outbound_sessions_iter = self.outbound_sessions.collection.values();
+
+        // Get the number of elements in the collection from the iterator
+        let len = outbound_sessions_iter.len();
+
+        // Get random index
+        let index: usize = if len == 0 {
+            0
+        } else {
+            thread_rng().gen_range(0, len)
+        };
+
+        // Get session info reference at random index (None if no elements in the collection)
+        outbound_sessions_iter
+            .nth(index)
+            .map(|info| info.reference.clone())
     }
     /// Method to insert a new session
     pub fn register_session(
