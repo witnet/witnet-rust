@@ -36,18 +36,20 @@ impl Peers {
             Ok(timestamp) => {
                 // Insert address
                 // Note: if the peer address exists, the peer info will be overwritten
-                Ok(addrs.into_iter().filter_map(|address| {
-                    self
-                    .peers
-                    .insert(
-                        address,
-                        PeerInfo {
-                            address,
-                            timestamp, //msg.timestamp,
-                        },
-                    )
-                    .map(|v| v.address)
-                }).collect())
+                Ok(addrs
+                    .into_iter()
+                    .filter_map(|address| {
+                        self.peers
+                            .insert(
+                                address,
+                                PeerInfo {
+                                    address,
+                                    timestamp, //msg.timestamp,
+                                },
+                            )
+                            .map(|v| v.address)
+                    })
+                    .collect())
             }
             Err(e) => Err(WitnetError::from(PeersError::new(
                 PeersErrorKind::Time,
@@ -60,9 +62,10 @@ impl Peers {
     /// Remove a peer given an address
     /// Returns the removed addresses
     pub fn remove(&mut self, addrs: &[SocketAddr]) -> PeersResult<Vec<SocketAddr>> {
-        Ok(addrs.iter().filter_map(|address| {
-            self.peers.remove(&address).map(|info| info.address)
-        }).collect())
+        Ok(addrs
+            .iter()
+            .filter_map(|address| self.peers.remove(&address).map(|info| info.address))
+            .collect())
     }
 
     /// Get a random socket address from the peers list

@@ -14,7 +14,7 @@ fn message_ping_to_bytes() {
         16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0, 5, 12, 0, 0, 0, 0,
         0, 6, 0, 12, 0, 4, 0, 6, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0,
     ]
-    .to_vec();
+        .to_vec();
     let result: Vec<u8> = msg.into();
 
     assert_eq!(result, expected_buf);
@@ -26,7 +26,7 @@ fn message_ping_from_bytes() {
         16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0, 5, 12, 0, 0, 0, 0,
         0, 6, 0, 12, 0, 4, 0, 6, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0,
     ]
-    .to_vec();
+        .to_vec();
     let expected_msg = types::Message {
         kind: types::Command::Ping { nonce: 7 },
         magic: 0,
@@ -57,7 +57,7 @@ fn message_pong_to_bytes() {
         16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0, 6, 12, 0, 0, 0, 0,
         0, 6, 0, 12, 0, 4, 0, 6, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0,
     ]
-    .to_vec();
+        .to_vec();
     let result: Vec<u8> = msg.into();
 
     assert_eq!(result, expected_buf);
@@ -69,7 +69,7 @@ fn message_pong_from_bytes() {
         16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0, 6, 12, 0, 0, 0, 0,
         0, 6, 0, 12, 0, 4, 0, 6, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0,
     ]
-    .to_vec();
+        .to_vec();
     let expected_msg = types::Message {
         kind: types::Command::Pong { nonce: 7 },
         magic: 0,
@@ -100,7 +100,7 @@ fn message_get_peers_to_bytes() {
         16, 0, 0, 0, 0, 0, 10, 0, 12, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0, 3, 8, 0, 0, 0, 4,
         0, 4, 0, 4, 0, 0, 0,
     ]
-    .to_vec();
+        .to_vec();
     let result: Vec<u8> = msg.into();
 
     assert_eq!(result, expected_buf);
@@ -112,7 +112,7 @@ fn message_get_peers_from_bytes() {
         16, 0, 0, 0, 0, 0, 10, 0, 12, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0, 3, 8, 0, 0, 0, 4,
         0, 4, 0, 4, 0, 0, 0,
     ]
-    .to_vec();
+        .to_vec();
     let expected_msg = types::Message {
         kind: types::Command::GetPeers,
         magic: 0,
@@ -151,7 +151,7 @@ fn message_get_peer_to_bytes() {
         0, 10, 0, 0, 0, 0, 1, 64, 31, 12, 0, 0, 0, 0, 0, 6, 0, 8, 0, 4, 0, 6, 0, 0, 0, 1, 1, 168,
         192,
     ]
-    .to_vec();
+        .to_vec();
     let result: Vec<u8> = msg.into();
 
     assert_eq!(result, expected_buf);
@@ -165,7 +165,7 @@ fn message_peer_from_bytes() {
         0, 10, 0, 0, 0, 0, 1, 64, 31, 12, 0, 0, 0, 0, 0, 6, 0, 8, 0, 4, 0, 6, 0, 0, 0, 1, 1, 168,
         192,
     ]
-    .to_vec();
+        .to_vec();
     let address: types::Address = types::Address {
         ip: types::IpAddress::Ipv4 { ip: 3232235777 },
         port: 8000,
@@ -222,7 +222,7 @@ fn message_verack_to_bytes() {
         16, 0, 0, 0, 0, 0, 10, 0, 12, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0, 2, 8, 0, 0, 0, 4,
         0, 4, 0, 4, 0, 0, 0,
     ]
-    .to_vec();
+        .to_vec();
     let result: Vec<u8> = msg.into();
 
     assert_eq!(result, expected_buf);
@@ -234,7 +234,7 @@ fn message_verack_from_bytes() {
         16, 0, 0, 0, 0, 0, 10, 0, 12, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0, 2, 8, 0, 0, 0, 4,
         0, 4, 0, 4, 0, 0, 0,
     ]
-    .to_vec();
+        .to_vec();
     let expected_msg = types::Message {
         kind: types::Command::Verack,
         magic: 0,
@@ -288,7 +288,7 @@ fn message_version_to_bytes() {
         6, 0, 10, 0, 4, 0, 6, 0, 0, 0, 2, 1, 168, 192, 0, 0, 10, 0, 14, 0, 5, 0, 8, 0, 6, 0, 10, 0,
         0, 0, 0, 1, 64, 31, 12, 0, 0, 0, 0, 0, 6, 0, 8, 0, 4, 0, 6, 0, 0, 0, 1, 1, 168, 192,
     ]
-    .to_vec();
+        .to_vec();
     let result: Vec<u8> = msg.into();
 
     assert_eq!(result, expected_buf);
@@ -327,7 +327,7 @@ fn message_version_from_bytes() {
         6, 0, 10, 0, 4, 0, 6, 0, 0, 0, 2, 1, 168, 192, 0, 0, 10, 0, 14, 0, 5, 0, 8, 0, 6, 0, 10, 0,
         0, 0, 0, 1, 64, 31, 12, 0, 0, 0, 0, 0, 6, 0, 8, 0, 4, 0, 6, 0, 0, 0, 1, 1, 168, 192,
     ]
-    .to_vec();
+        .to_vec();
 
     assert_eq!(types::Message::try_from(buf).unwrap(), expected_msg);
 }

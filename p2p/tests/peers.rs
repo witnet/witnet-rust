@@ -24,11 +24,12 @@ fn p2p_peers_add() {
     assert_eq!(peers.get_all().unwrap(), vec![address]);
 
     // Add 100 addresses more
-    let many_peers = (0..100).map(|i| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 1, i)), 8080)).collect();
+    let many_peers = (0..100)
+        .map(|i| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 1, i)), 8080))
+        .collect();
     peers.add(many_peers).unwrap();
 
     assert_eq!(peers.get_all().unwrap().len(), 1 + 100);
-
 }
 
 #[test]
@@ -91,9 +92,10 @@ fn p2p_peers_get_all() {
     let mut peers = Peers::default();
 
     // Add 100 addresses
-    let mut many_peers: Vec<_> = (0..100).map(|i| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, i)), 8080)).collect();
+    let mut many_peers: Vec<_> = (0..100)
+        .map(|i| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, i)), 8080))
+        .collect();
     peers.add(many_peers.clone()).unwrap();
-
 
     // There are 100 peers in total
     assert_eq!(peers.get_all().unwrap().len(), 100);
@@ -102,12 +104,9 @@ fn p2p_peers_get_all() {
 
     // Check that all peers were added
     // We need to sort the vectors first
-    let sort_by_ip_then_port = |a: &SocketAddr, b: &SocketAddr| {
-        (a.ip(), a.port()).cmp(&(b.ip(), b.port()))
-    };
+    let sort_by_ip_then_port =
+        |a: &SocketAddr, b: &SocketAddr| (a.ip(), a.port()).cmp(&(b.ip(), b.port()));
     many_peers.sort_by(sort_by_ip_then_port);
     added_peers.sort_by(sort_by_ip_then_port);
     assert_eq!(many_peers, added_peers);
-
-
 }
