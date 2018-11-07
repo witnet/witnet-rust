@@ -36,8 +36,16 @@ pub fn build_get_peers() -> Message {
 }
 
 /// Function to build Peers messages
-pub fn build_peers(peers: Vec<Address>) -> Message {
-    build_message(Command::Peers { peers })
+pub fn build_peers(peers: &[SocketAddr]) -> Message {
+    // Cast all peers to witnet's address struct
+    let mut casted_peers = Vec::new();
+    peers.iter().for_each(|peer| {
+        casted_peers.push(to_address(*peer));
+    });
+
+    build_message(Command::Peers {
+        peers: casted_peers,
+    })
 }
 
 /// Function to build Ping messages
