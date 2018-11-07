@@ -74,27 +74,23 @@ fn p2p_sessions_is_outbound_address_eligible() {
 
     // Register an outbound session and check if result is Ok(())
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Outbound,
-                outbound_address,
-                "reference1".to_string()
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_address,
+            "reference1".to_string()
+        )
+        .is_ok());
 
     // Register an inbound session and check if result is Ok(())
     let inbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Inbound,
-                inbound_address,
-                "reference1".to_string()
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Inbound,
+            inbound_address,
+            "reference1".to_string()
+        )
+        .is_ok());
 
     // Check invalid addresses
     assert!(!sessions.is_outbound_address_eligible(server_address));
@@ -121,33 +117,27 @@ fn p2p_sessions_get_num_outbound_sessions() {
 
     // Register an outbound unconsolidated session and check if result is Ok(())
     let outbound_uncons_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Outbound,
-                outbound_uncons_address,
-                "reference1".to_string()
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_uncons_address,
+            "reference1".to_string()
+        )
+        .is_ok());
 
     // Register an outbound unconsolidated session, check if result is Ok(()) and consolidate it
     // afterwards
     let outbound_cons_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Outbound,
-                outbound_cons_address,
-                "reference1".to_string()
-            )
-            .is_ok()
-    );
-    assert!(
-        sessions
-            .consolidate_session(SessionType::Outbound, outbound_cons_address)
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_cons_address,
+            "reference1".to_string()
+        )
+        .is_ok());
+    assert!(sessions
+        .consolidate_session(SessionType::Outbound, outbound_cons_address)
+        .is_ok());
 
     // Check that the function to be tested returns the total number of outbound sessions
     assert_eq!(sessions.get_num_outbound_sessions(), 2);
@@ -225,38 +215,32 @@ fn p2p_sessions_register() {
 
     // Register an outbound session and check if result is Ok(())
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Outbound,
-                outbound_address,
-                "reference1".to_string()
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_address,
+            "reference1".to_string()
+        )
+        .is_ok());
 
     // Check if outbound session was registered successfully into the unconsolidated sessions
-    assert!(
-        sessions
-            .outbound_unconsolidated
-            .collection
-            .contains_key(&outbound_address)
-    );
+    assert!(sessions
+        .outbound_unconsolidated
+        .collection
+        .contains_key(&outbound_address));
 
     // Check if no sessions was registered into the consolidated sessions
     assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
 
     // Register an inbound session and check if result is Ok(())
     let inbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Inbound,
-                inbound_address,
-                "reference2".to_string()
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Inbound,
+            inbound_address,
+            "reference2".to_string()
+        )
+        .is_ok());
 
     // Check if inbound session was registered successfully
     assert!(sessions.inbound.collection.contains_key(&inbound_address));
@@ -270,45 +254,37 @@ fn p2p_sessions_unregister() {
 
     // Register sessions and check if result is Ok(())
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Outbound,
-                outbound_address,
-                "reference1".to_string()
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_address,
+            "reference1".to_string()
+        )
+        .is_ok());
     let inbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Inbound,
-                inbound_address,
-                "reference2".to_string()
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Inbound,
+            inbound_address,
+            "reference2".to_string()
+        )
+        .is_ok());
 
     // Unregister sessions
-    assert!(
-        sessions
-            .unregister_session(
-                SessionType::Outbound,
-                SessionStatus::Unconsolidated,
-                outbound_address
-            )
-            .is_ok()
-    );
-    assert!(
-        sessions
-            .unregister_session(
-                SessionType::Inbound,
-                SessionStatus::Unconsolidated,
-                inbound_address
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .unregister_session(
+            SessionType::Outbound,
+            SessionStatus::Unconsolidated,
+            outbound_address
+        )
+        .is_ok());
+    assert!(sessions
+        .unregister_session(
+            SessionType::Inbound,
+            SessionStatus::Unconsolidated,
+            inbound_address
+        )
+        .is_ok());
 
     // Check that both sessions are removed from collections
     assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
@@ -323,57 +299,45 @@ fn p2p_sessions_consolidate() {
 
     // Register sessions and check if result is Ok(())
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Outbound,
-                outbound_address,
-                "reference1".to_string()
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_address,
+            "reference1".to_string()
+        )
+        .is_ok());
     let inbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
-    assert!(
-        sessions
-            .register_session(
-                SessionType::Inbound,
-                inbound_address,
-                "reference2".to_string()
-            )
-            .is_ok()
-    );
+    assert!(sessions
+        .register_session(
+            SessionType::Inbound,
+            inbound_address,
+            "reference2".to_string()
+        )
+        .is_ok());
 
     // Check status of registered sessions was set to Unconsolidated
-    assert!(
-        sessions
-            .outbound_unconsolidated
-            .collection
-            .get(&outbound_address)
-            .is_some()
-    );
+    assert!(sessions
+        .outbound_unconsolidated
+        .collection
+        .get(&outbound_address)
+        .is_some());
     assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
     assert!(sessions.inbound.collection.get(&inbound_address).is_some());
 
     // Consolidate session
-    assert!(
-        sessions
-            .consolidate_session(SessionType::Outbound, outbound_address)
-            .is_ok()
-    );
-    assert!(
-        sessions
-            .consolidate_session(SessionType::Inbound, inbound_address)
-            .is_ok()
-    );
+    assert!(sessions
+        .consolidate_session(SessionType::Outbound, outbound_address)
+        .is_ok());
+    assert!(sessions
+        .consolidate_session(SessionType::Inbound, inbound_address)
+        .is_ok());
 
     // Check if sessions were consolidated
-    assert!(
-        sessions
-            .outbound_consolidated
-            .collection
-            .get(&outbound_address)
-            .is_some()
-    );
+    assert!(sessions
+        .outbound_consolidated
+        .collection
+        .get(&outbound_address)
+        .is_some());
     assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
     assert!(sessions.inbound.collection.get(&inbound_address).is_some());
 }
