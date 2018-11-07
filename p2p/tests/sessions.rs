@@ -1,3 +1,5 @@
+#![feature(bind_by_move_pattern_guards)]
+
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use witnet_p2p::sessions::*;
