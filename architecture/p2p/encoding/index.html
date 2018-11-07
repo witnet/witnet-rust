@@ -11,7 +11,7 @@
       <meta http-equiv="x-ua-compatible" content="ie=edge">
       
       
-        <link rel="canonical" href="https://docs.witnet.io/protocol/data-requests/radon/wrapping/">
+        <link rel="canonical" href="https://docs.witnet.io/architecture/p2p/encoding/">
       
       
       
@@ -33,18 +33,18 @@
       
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
-      <link rel="shortcut icon" href="../../../../assets/images/favicon.ico">
+      <link rel="shortcut icon" href="../../../assets/images/favicon.ico">
       <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
     
     
       
-        <title>Implicit `Result<V>` wrapping - Witnet-rust Documentation</title>
+        <title>Encoding - Witnet-rust Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/application.451f80e5.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/application.451f80e5.css">
       
-        <link rel="stylesheet" href="../../../../assets/stylesheets/application-palette.22915126.css">
+        <link rel="stylesheet" href="../../../assets/stylesheets/application-palette.22915126.css">
       
       
         
@@ -53,7 +53,7 @@
       
     
     
-      <script src="../../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../../assets/javascripts/modernizr.1aa3b519.js"></script>
     
     
       
@@ -62,7 +62,7 @@
         <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
       
     
-    <link rel="stylesheet" href="../../../../assets/fonts/material-icons.css">
+    <link rel="stylesheet" href="../../../assets/fonts/material-icons.css">
     
     
   </head>
@@ -100,7 +100,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="../../../../#implicit-resultv-wrapping" tabindex="1" class="md-skip">
+      <a href="../../../#encoding" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -111,7 +111,7 @@
       <div class="md-flex__cell md-flex__cell--shrink">
         <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-header-nav__button md-logo">
           
-            <img src="../../../../assets/images/logo.svg" alt="Witnet Logo" width="24" height="24">
+            <img src="../../../assets/images/logo.svg" alt="Witnet Logo" width="24" height="24">
           
         </a>
       </div>
@@ -126,7 +126,7 @@
                 Witnet-rust Documentation
               </span>
               <span class="md-header-nav__topic">
-                Implicit `Result<V>` wrapping
+                Encoding
               </span>
             
           
@@ -207,7 +207,7 @@
   <label class="md-nav__title md-nav__title--site" for="__drawer">
     <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-nav__button md-logo">
       
-        <img src="../../../../assets/images/logo.svg" alt="Witnet Logo" width="48" height="48">
+        <img src="../../../assets/images/logo.svg" alt="Witnet Logo" width="48" height="48">
       
     </a>
     Witnet-rust Documentation
@@ -243,7 +243,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../.." title="Home" class="md-nav__link">
+    <a href="../../.." title="Home" class="md-nav__link">
       Home
     </a>
   </li>
@@ -274,7 +274,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../get-started/what-is-witnet/" title="What is Witnet" class="md-nav__link">
+    <a href="../../../get-started/what-is-witnet/" title="What is Witnet" class="md-nav__link">
       What is Witnet
     </a>
   </li>
@@ -286,7 +286,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../get-started/why-rust/" title="Why Rust?" class="md-nav__link">
+    <a href="../../../get-started/why-rust/" title="Why Rust?" class="md-nav__link">
       Why Rust?
     </a>
   </li>
@@ -298,7 +298,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../get-started/design-overview.md" title="Design Overview" class="md-nav__link">
+    <a href="../../../get-started/design-overview.md" title="Design Overview" class="md-nav__link">
       Design Overview
     </a>
   </li>
@@ -310,7 +310,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../get-started/install.md" title="Install" class="md-nav__link">
+    <a href="../../../get-started/install.md" title="Install" class="md-nav__link">
       Install
     </a>
   </li>
@@ -325,12 +325,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
     
     <label class="md-nav__link" for="nav-3">
       Protocol
@@ -348,7 +346,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../network/" title="Network messages" class="md-nav__link">
+    <a href="../../../protocol/network/" title="Network messages" class="md-nav__link">
       Network messages
     </a>
   </li>
@@ -358,12 +356,10 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
     
     <label class="md-nav__link" for="nav-3-2">
       Data requests
@@ -381,7 +377,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../overview/" title="Overview" class="md-nav__link">
+    <a href="../../../protocol/data-requests/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -391,12 +387,10 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2" type="checkbox" id="nav-3-2-2" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2" type="checkbox" id="nav-3-2-2">
     
     <label class="md-nav__link" for="nav-3-2-2">
       RADON
@@ -414,7 +408,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../encoding/" title="Encoding" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/encoding/" title="Encoding" class="md-nav__link">
       Encoding
     </a>
   </li>
@@ -445,7 +439,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/overview/" title="Overview" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -457,7 +451,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/array/" title="Array<V>" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/array/" title="Array<V>" class="md-nav__link">
       Array<V>
     </a>
   </li>
@@ -469,7 +463,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/boolean/" title="Boolean" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/boolean/" title="Boolean" class="md-nav__link">
       Boolean
     </a>
   </li>
@@ -481,7 +475,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/int/" title="Int" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/int/" title="Int" class="md-nav__link">
       Int
     </a>
   </li>
@@ -493,7 +487,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/float/" title="Float" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/float/" title="Float" class="md-nav__link">
       Float
     </a>
   </li>
@@ -505,7 +499,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/map/" title="Map<V>" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/map/" title="Map<V>" class="md-nav__link">
       Map<V>
     </a>
   </li>
@@ -517,7 +511,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/mixed/" title="Mixed" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/mixed/" title="Mixed" class="md-nav__link">
       Mixed
     </a>
   </li>
@@ -529,7 +523,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/null/" title="Null" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/null/" title="Null" class="md-nav__link">
       Null
     </a>
   </li>
@@ -541,7 +535,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/result/" title="Result<V>" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/result/" title="Result<V>" class="md-nav__link">
       Result<V>
     </a>
   </li>
@@ -553,7 +547,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/string/" title="String" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/types/string/" title="String" class="md-nav__link">
       String
     </a>
   </li>
@@ -568,20 +562,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-    
-      
-    
-    
-    <a href="./" title="Implicit `Result<V>` wrapping" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../../../protocol/data-requests/radon/wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
       Implicit `Result<V>` wrapping
     </a>
-    
   </li>
 
         
@@ -591,7 +576,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../exceptions/" title="Exception handling" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/exceptions/" title="Exception handling" class="md-nav__link">
       Exception handling
     </a>
   </li>
@@ -603,7 +588,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../functions/" title="Predefined functions" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/functions/" title="Predefined functions" class="md-nav__link">
       Predefined functions
     </a>
   </li>
@@ -615,7 +600,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../subscripts/" title="Subscripts" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/subscripts/" title="Subscripts" class="md-nav__link">
       Subscripts
     </a>
   </li>
@@ -627,7 +612,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../examples/" title="Examples" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/examples/" title="Examples" class="md-nav__link">
       Examples
     </a>
   </li>
@@ -639,7 +624,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../constants/" title="Constants" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radon/constants/" title="Constants" class="md-nav__link">
       Constants
     </a>
   </li>
@@ -656,7 +641,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../radlang.md" title="RADlang" class="md-nav__link">
+    <a href="../../../protocol/data-requests/radlang.md" title="RADlang" class="md-nav__link">
       RADlang
     </a>
   </li>
@@ -692,7 +677,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../transactions.md" title="Introduction" class="md-nav__link">
+    <a href="../../../protocol/transactions.md" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -704,7 +689,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../witscript.md" title="WitScript" class="md-nav__link">
+    <a href="../../../protocol/witscript.md" title="WitScript" class="md-nav__link">
       WitScript
     </a>
   </li>
@@ -721,7 +706,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../blocks.md" title="Blocks" class="md-nav__link">
+    <a href="../../../protocol/blocks.md" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -733,7 +718,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../reputation.md" title="Reputation" class="md-nav__link">
+    <a href="../../../protocol/reputation.md" title="Reputation" class="md-nav__link">
       Reputation
     </a>
   </li>
@@ -745,7 +730,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../mining.md" title="Mining" class="md-nav__link">
+    <a href="../../../protocol/mining.md" title="Mining" class="md-nav__link">
       Mining
     </a>
   </li>
@@ -757,7 +742,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../task-assignment.md" title="Task assignment" class="md-nav__link">
+    <a href="../../../protocol/task-assignment.md" title="Task assignment" class="md-nav__link">
       Task assignment
     </a>
   </li>
@@ -772,10 +757,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4" checked>
     
     <label class="md-nav__link" for="nav-4">
       Architecture
@@ -793,7 +780,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/overview.md" title="Overview" class="md-nav__link">
+    <a href="../../overview.md" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -803,10 +790,12 @@
           
           
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2" checked>
     
     <label class="md-nav__link" for="nav-4-2">
       Peer-To-Peer
@@ -824,7 +813,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/p2p/connections.md" title="Connections" class="md-nav__link">
+    <a href="../connections.md" title="Connections" class="md-nav__link">
       Connections
     </a>
   </li>
@@ -836,7 +825,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/p2p/gossip.md" title="Gossiping" class="md-nav__link">
+    <a href="../gossip.md" title="Gossiping" class="md-nav__link">
       Gossiping
     </a>
   </li>
@@ -846,11 +835,20 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../../../../architecture/p2p/encoding/" title="Encoding" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+    <a href="./" title="Encoding" class="md-nav__link md-nav__link--active">
       Encoding
     </a>
+    
   </li>
 
         
@@ -865,7 +863,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/storage/" title="Persistent Storage" class="md-nav__link">
+    <a href="../../storage/" title="Persistent Storage" class="md-nav__link">
       Persistent Storage
     </a>
   </li>
@@ -896,7 +894,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/managers/" title="Introduction" class="md-nav__link">
+    <a href="../../managers/managers/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -908,7 +906,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
+    <a href="../../managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
       Sessions Manager
     </a>
   </li>
@@ -920,7 +918,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
+    <a href="../../managers/connections-manager/" title="Connections Manager" class="md-nav__link">
       Connections Manager
     </a>
   </li>
@@ -932,7 +930,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/storage-manager/" title="Storage Manager" class="md-nav__link">
+    <a href="../../managers/storage-manager/" title="Storage Manager" class="md-nav__link">
       Storage Manager
     </a>
   </li>
@@ -944,7 +942,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/peers-manager/" title="Peers Manager" class="md-nav__link">
+    <a href="../../managers/peers-manager/" title="Peers Manager" class="md-nav__link">
       Peers Manager
     </a>
   </li>
@@ -961,7 +959,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/mempool-mgmt.md" title="Mempool Management" class="md-nav__link">
+    <a href="../../mempool-mgmt.md" title="Mempool Management" class="md-nav__link">
       Mempool Management
     </a>
   </li>
@@ -973,7 +971,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/block-mgmt.md" title="Block Management" class="md-nav__link">
+    <a href="../../block-mgmt.md" title="Block Management" class="md-nav__link">
       Block Management
     </a>
   </li>
@@ -985,7 +983,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/utxo-mgmt.md" title="UTXO Management" class="md-nav__link">
+    <a href="../../utxo-mgmt.md" title="UTXO Management" class="md-nav__link">
       UTXO Management
     </a>
   </li>
@@ -1016,7 +1014,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/rad/overview.md" title="Overview" class="md-nav__link">
+    <a href="../../rad/overview.md" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -1033,7 +1031,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/witscript.md" title="Witscript Parser" class="md-nav__link">
+    <a href="../../witscript.md" title="Witscript Parser" class="md-nav__link">
       Witscript Parser
     </a>
   </li>
@@ -1069,7 +1067,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../advanced/constants.md" title="Network constants" class="md-nav__link">
+    <a href="../../../advanced/constants.md" title="Network constants" class="md-nav__link">
       Network constants
     </a>
   </li>
@@ -1081,7 +1079,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../advanced/whitepaper-differences.md" title="Differences with the whitepaper" class="md-nav__link">
+    <a href="../../../advanced/whitepaper-differences.md" title="Differences with the whitepaper" class="md-nav__link">
       Differences with the whitepaper
     </a>
   </li>
@@ -1098,7 +1096,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../roadmap/" title="Roadmap" class="md-nav__link">
+    <a href="../../../roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
     </a>
   </li>
@@ -1110,7 +1108,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../contributing/" title="Contributing" class="md-nav__link">
+    <a href="../../../contributing/" title="Contributing" class="md-nav__link">
       Contributing
     </a>
   </li>
@@ -1122,7 +1120,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../development/" title="Development" class="md-nav__link">
+    <a href="../../../development/" title="Development" class="md-nav__link">
       Development
     </a>
   </li>
@@ -1134,7 +1132,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../glossary/" title="Glossary" class="md-nav__link">
+    <a href="../../../glossary/" title="Glossary" class="md-nav__link">
       Glossary
     </a>
   </li>
@@ -1167,13 +1165,33 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/protocol/data-requests/radon/wrapping.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/p2p/encoding.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="implicit-resultv-wrapping">Implicit <code class="codehilite">Result&lt;V&gt;</code> wrapping<a class="headerlink" href="#implicit-resultv-wrapping" title="Permanent link">&para;</a></h1>
-<p>When the last call in a RADON script is successfully executed, its result does not progress directly to the next phase
-in the data request life cycle. Instead, it is first wrapped in a <code class="codehilite">Result&lt;T&gt;</code> with value <code class="codehilite">Ok&lt;T&gt;</code>, where <code class="codehilite">T</code> is the
-return data type of the last call in the script.</p>
+                <h1 id="encoding">Encoding<a class="headerlink" href="#encoding" title="Permanent link">&para;</a></h1>
+<p>The codec for client -&gt; server transport is a wrapper around the <a href="../../../protocol/network">Witnet network protocol</a> which includes an
+extra <code class="codehilite">u16</code> to indicate the message length. This limits the size of a message to 64KiB.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th align="center">Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>length</td>
+<td align="center">u16</td>
+<td>message length</td>
+</tr>
+<tr>
+<td>data</td>
+<td align="center">[u8; length]</td>
+<td>message data</td>
+</tr>
+</tbody>
+</table>
                 
                   
                 
@@ -1194,7 +1212,7 @@ return data type of the last call in the script.</p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../types/string/" title="String" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../../../protocol/data-requests/radon/constants/" title="Constants" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1203,19 +1221,19 @@ return data type of the last call in the script.</p>
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                String
+                Constants
               </span>
             </div>
           </a>
         
         
-          <a href="../exceptions/" title="Exception handling" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../../storage/" title="Persistent Storage" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Exception handling
+                Persistent Storage
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
@@ -1243,7 +1261,7 @@ return data type of the last call in the script.</p>
       
         
   <div class="md-footer-social">
-    <link rel="stylesheet" href="../../../../assets/fonts/font-awesome.css">
+    <link rel="stylesheet" href="../../../assets/fonts/font-awesome.css">
     
       <a href="https://github.com/witnet" class="md-footer-social__link fa fa-github"></a>
     
@@ -1260,9 +1278,9 @@ return data type of the last call in the script.</p>
       
     </div>
     
-      <script src="../../../../assets/javascripts/application.583bbe55.js"></script>
+      <script src="../../../assets/javascripts/application.583bbe55.js"></script>
       
-      <script>app.initialize({version:"1.0.4",url:{base:"../../../.."}})</script>
+      <script>app.initialize({version:"1.0.4",url:{base:"../../.."}})</script>
       
     
     

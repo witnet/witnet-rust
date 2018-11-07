@@ -833,8 +833,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../architecture/p2p/encoding.md" title="Encoding (FlatBuffers)" class="md-nav__link">
-      Encoding (FlatBuffers)
+    <a href="../architecture/p2p/encoding/" title="Encoding" class="md-nav__link">
+      Encoding
     </a>
   </li>
 
@@ -874,6 +874,42 @@
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../architecture/managers/managers/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
+      Sessions Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
+      Connections Manager
+    </a>
+  </li>
+
         
           
           
@@ -1128,8 +1164,8 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#server" title="Server" class="md-nav__link">
-    Server
+  <a href="#node" title="Node" class="md-nav__link">
+    Node
   </a>
   
 </li>
@@ -1225,8 +1261,8 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#server" title="Server" class="md-nav__link">
-    Server
+  <a href="#node" title="Node" class="md-nav__link">
+    Node
   </a>
   
 </li>
@@ -1292,26 +1328,24 @@ $ <span class="nb">cd</span> witnet-rust
   <div class="codehilite"><pre><span></span>$ just install-setup
 </pre></div></li>
 <li>Run a witnet component. Find a list of components and how to run them at <a href="#cli">CLI</a>.
-  <div class="codehilite"><pre><span></span>$ <span class="nv">RUST_LOG</span><span class="o">=</span><span class="nv">witnet</span><span class="o">=</span>trace cargo run server
+  <div class="codehilite"><pre><span></span>$ <span class="nv">RUST_LOG</span><span class="o">=</span><span class="nv">witnet</span><span class="o">=</span>trace cargo run node
   or
-$ just server
+$ just node
 </pre></div></li>
 </ol>
 <h2 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
 <h3 id="synopsis">Synopsis<a class="headerlink" href="#synopsis" title="Permanent link">&para;</a></h3>
 <div class="codehilite"><pre><span></span>RUST_LOG=witnet=[error | info | debug | main | trace] cargo run
-[server [ --address address] [--peer peer-address] [--background]]
+[node [ --address address] [--config config_filename]]
 </pre></div>
 
 
 <h3 id="components">Components<a class="headerlink" href="#components" title="Permanent link">&para;</a></h3>
-<h4 id="server">Server<a class="headerlink" href="#server" title="Permanent link">&para;</a></h4>
-<p>--address <em>&lt;address&gt;</em></p>
+<h4 id="node">Node<a class="headerlink" href="#node" title="Permanent link">&para;</a></h4>
+<p>--address (-d) <em>&lt;address&gt;</em></p>
 <p>Read server address from <em>&lt;address&gt;</em> argument.</p>
-<p>--peer <em>&lt;peer-address&gt;</em></p>
-<p>Read address to peer from <em>&lt;peer-address&gt;</em> argument.</p>
-<p>--background</p>
-<p>Not implemented.</p>
+<p>--config (-c) <em>&lt;config_filename&gt;</em></p>
+<p>Read config filename from <em>&lt;config_filename&gt;</em> argument.</p>
 <h2 id="development-scripts">Development Scripts<a class="headerlink" href="#development-scripts" title="Permanent link">&para;</a></h2>
 <p>There are some useful scripts to run with <code class="codehilite">just</code>:</p>
 <ul>

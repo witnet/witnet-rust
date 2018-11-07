@@ -835,8 +835,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../p2p/encoding.md" title="Encoding (FlatBuffers)" class="md-nav__link">
-      Encoding (FlatBuffers)
+    <a href="../../p2p/encoding/" title="Encoding" class="md-nav__link">
+      Encoding
     </a>
   </li>
 
@@ -878,6 +878,42 @@
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../managers/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../sessions-manager/" title="Sessions Manager" class="md-nav__link">
+      Sessions Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../connections-manager/" title="Connections Manager" class="md-nav__link">
+      Connections Manager
+    </a>
+  </li>
+
         
           
           
@@ -953,9 +989,22 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#wip-outgoing-storage-manager-others" title="[WIP] Outgoing: Storage manager -&gt; Others" class="md-nav__link">
-    [WIP] Outgoing: Storage manager -&gt; Others
+  <a href="#outgoing-messages-peers-manager-others" title="Outgoing messages: Peers Manager -&gt; Others" class="md-nav__link">
+    Outgoing messages: Peers Manager -&gt; Others
   </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getconfig" title="GetConfig" class="md-nav__link">
+    GetConfig
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1222,9 +1271,22 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#wip-outgoing-storage-manager-others" title="[WIP] Outgoing: Storage manager -&gt; Others" class="md-nav__link">
-    [WIP] Outgoing: Storage manager -&gt; Others
+  <a href="#outgoing-messages-peers-manager-others" title="Outgoing messages: Peers Manager -&gt; Others" class="md-nav__link">
+    Outgoing messages: Peers Manager -&gt; Others
   </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getconfig" title="GetConfig" class="md-nav__link">
+    GetConfig
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1263,11 +1325,8 @@
 <p>The <strong>peers manager</strong> is the actor that encapsulates the logic of the <strong>peers</strong> library, defined
 under the subcrate <code class="codehilite">witnet_p2p</code>. The library allows to manage a list of peers known to the Witnet
 node.</p>
-<p>There can only be one peers manager actor per system, and it must be registered into the system
-registry. This way, any other actor can get the address of the peers manager and send messages to it.</p>
 <h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
-<p>The state of the actor is an instance of the <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs"><code class="codehilite">Peers</code></a> library, which contains a list of 
-peers known to the Witnet node.</p>
+<p>The state of the actor is an instance of the <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs"><code class="codehilite">Peers</code></a> library, which contains a list of peers known to the Witnet node.</p>
 <div class="codehilite"><pre><span></span><span class="cp">#[derive(Default)]</span><span class="w"></span>
 <span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">PeersManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">    </span><span class="sd">/// Known peers</span>
@@ -1275,22 +1334,16 @@ peers known to the Witnet node.</p>
 <span class="p">}</span><span class="w"></span>
 </pre></div>
 
-<p>The <code class="codehilite">PeersManager</code> actor requires the implementation of the <code class="codehilite">Default</code> trait (as well as <code class="codehilite">Supervised</code>
-and <code class="codehilite">SystemService</code> traits) to become a service that can be registered in the system registry.</p>
 <h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
-<p>The creation of the peers manager actor is performed directly by the <code class="codehilite">main</code> process:</p>
+<p>The creation of the peers manager actor and its registration into the system registry are
+performed directly by the <code class="codehilite">main</code> process:</p>
 <div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">peers_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PeersManager</span>::<span class="n">default</span><span class="p">().</span><span class="n">start</span><span class="p">();</span><span class="w"></span>
-</pre></div>
-
-<p>The <code class="codehilite">default()</code> method initializes the peers manager and its underlying peers data structure.</p>
-<p>Once the peers manager actor is started, the <code class="codehilite">main</code> process registers the actor into the system
-registry:</p>
-<div class="codehilite"><pre><span></span><span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">storage_manager_addr</span><span class="p">);</span><span class="w"></span>
+<span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">peers_manager_addr</span><span class="p">);</span><span class="w"></span>
 </pre></div>
 
 <h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
 <h3 id="incoming-others-peers-manager">Incoming: Others -&gt; Peers Manager<a class="headerlink" href="#incoming-others-peers-manager" title="Permanent link">&para;</a></h3>
-<p>These are the messages supported by the storage manager handlers:</p>
+<p>These are the messages supported by the peers manager handlers:</p>
 <table>
 <thead>
 <tr>
@@ -1302,36 +1355,42 @@ registry:</p>
 </thead>
 <tbody>
 <tr>
-<td>GetPeer</td>
+<td>AddPeers</td>
+<td><code class="codehilite"><span class="n">address</span><span class="o">:</span> <span class="n">SocketAddr</span></code></td>
+<td><code class="codehilite">PeersResult&lt;Vec&lt;SocketAddr&gt;&gt;</code></td>
+<td>Add peers to list</td>
+</tr>
+<tr>
+<td>RemovePeers</td>
+<td><code class="codehilite"><span class="n">address</span><span class="o">:</span> <span class="n">SocketAddr</span></code></td>
+<td><code class="codehilite">PeersResult&lt;Vec&lt;SocketAddr&gt;&gt;</code></td>
+<td>Remove peers from list</td>
+</tr>
+<tr>
+<td>GetRandomPeer</td>
 <td><code class="codehilite">()</code></td>
 <td><code class="codehilite">PeersResult&lt;Option&lt;SocketAddr&gt;&gt;</code></td>
 <td>Get random peer</td>
 </tr>
 <tr>
-<td>AddPeer</td>
-<td><code class="codehilite"><span class="n">address</span><span class="o">:</span> <span class="n">SocketAddr</span></code></td>
-<td><code class="codehilite">PeersResult&lt;Option&lt;SocketAddr&gt;&gt;</code></td>
-<td>Add peer to list</td>
-</tr>
-<tr>
-<td>RemovePeer</td>
-<td><code class="codehilite"><span class="n">address</span><span class="o">:</span> <span class="n">SocketAddr</span></code></td>
-<td><code class="codehilite">PeersResult&lt;Option&lt;SocketAddr&gt;&gt;</code></td>
-<td>Remove peer from list</td>
+<td>GetPeers</td>
+<td><code class="codehilite">()</code></td>
+<td><code class="codehilite">PeersResult&lt;Vec&lt;SocketAddr&gt;&gt;</code></td>
+<td>Get all peers</td>
 </tr>
 </tbody>
 </table>
-<p>The handling of these messages is basically just calling the corresponding methods from the <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs"><code class="codehilite">Peers</code></a>
-library that is implemented by <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs"><code class="codehilite">peers.rs</code></a>. For example, the handler of the <code class="codehilite">AddPeer</code> message
-would be implemented as:</p>
-<div class="codehilite"><pre><span></span><span class="sd">/// Handler for Add peer message.</span>
-<span class="k">impl</span><span class="w"> </span><span class="n">Handler</span><span class="o">&lt;</span><span class="n">AddPeer</span><span class="o">&gt;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">PeersManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="k">type</span> <span class="nb">Result</span> <span class="o">=</span><span class="w"> </span><span class="n">PeersResult</span><span class="o">&lt;</span><span class="nb">Option</span><span class="o">&lt;</span><span class="n">SocketAddr</span><span class="o">&gt;&gt;</span><span class="p">;</span><span class="w"></span>
+<p>The handling of these messages is basically just calling the corresponding methods from the
+<a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs"><code class="codehilite">Peers</code></a> library that is implemented by <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs"><code class="codehilite">peers.rs</code></a>.
+For example, the handler of the <code class="codehilite">AddPeers</code> message would be implemented as:</p>
+<div class="codehilite"><pre><span></span><span class="sd">/// Handler for AddPeers message</span>
+<span class="k">impl</span><span class="w"> </span><span class="n">Handler</span><span class="o">&lt;</span><span class="n">AddPeers</span><span class="o">&gt;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">PeersManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">type</span> <span class="nb">Result</span> <span class="o">=</span><span class="w"> </span><span class="n">PeersSocketAddrsResult</span><span class="p">;</span><span class="w"></span>
 
-<span class="w">    </span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span>: <span class="nc">AddPeer</span><span class="p">,</span><span class="w"> </span><span class="n">_</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Context</span><span class="o">&lt;</span><span class="n">Self</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">Self</span>::<span class="nb">Result</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span>: <span class="nc">AddPeers</span><span class="p">,</span><span class="w"> </span><span class="n">_</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Context</span><span class="o">&lt;</span><span class="n">Self</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">Self</span>::<span class="nb">Result</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">        </span><span class="c1">// Insert address</span>
-<span class="w">        </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Add peer handle for address {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">address</span><span class="p">);</span><span class="w"></span>
-<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">peers</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">msg</span><span class="p">.</span><span class="n">address</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Add peer handle for addresses: {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">addresses</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">peers</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">msg</span><span class="p">.</span><span class="n">addresses</span><span class="p">)</span><span class="w"></span>
 <span class="w">    </span><span class="p">}</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </pre></div>
@@ -1348,17 +1407,16 @@ logic and thus, returning a <code class="codehilite">PeersResult</code> library 
 
 </li>
 <li>
-<p>Use any of the sending methods provided by the address (<code class="codehilite">do_send()</code>, <code class="codehilite">try_send()</code>, <code class="codehilite">send()</code>) to
-send a message to the actor:</p>
+<p>Use any of the sending methods provided by the address (<code class="codehilite">do_send()</code>, <code class="codehilite">try_send()</code>, <code class="codehilite">send()</code>) to send a message to the actor:</p>
 <div class="codehilite"><pre><span></span><span class="c1">// Example</span>
 <span class="n">peers_manager_addr</span><span class="w"></span>
-<span class="w">    </span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">AddPeer</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">address</span><span class="w"> </span><span class="p">})</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">AddPeers</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">addresses</span><span class="w"> </span><span class="p">})</span><span class="w"></span>
 <span class="w">    </span><span class="p">.</span><span class="n">into_actor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="w"></span>
 <span class="w">    </span><span class="p">.</span><span class="n">then</span><span class="p">(</span><span class="o">|</span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="n">_act</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">        </span><span class="k">match</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">                </span><span class="c1">// Process PeersResult</span>
-<span class="w">                </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Add peer {:?} returned {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">address</span><span class="p">,</span><span class="w"> </span><span class="n">res</span><span class="p">)</span><span class="w"></span>
+<span class="w">                </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Add peer {:?} returned {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">addresses</span><span class="p">,</span><span class="w"> </span><span class="n">res</span><span class="p">)</span><span class="w"></span>
 <span class="w">            </span><span class="p">},</span><span class="w"></span>
 <span class="w">            </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Something went really wrong in the actors message passing&quot;</span><span class="p">)</span><span class="w"></span>
 <span class="w">        </span><span class="p">};</span><span class="w"></span>
@@ -1369,11 +1427,32 @@ send a message to the actor:</p>
 
 </li>
 </ol>
-<h3 id="wip-outgoing-storage-manager-others">[WIP] Outgoing: Storage manager -&gt; Others<a class="headerlink" href="#wip-outgoing-storage-manager-others" title="Permanent link">&para;</a></h3>
-<p>Currently, the peers manager is quite a simple wrapper over the <code class="codehilite">peers</code> library and it does not need to
-start a communication with other actors in order to perform its functions.</p>
-<p>However, it is foreseen that in the future, the peers manager will call the <code class="codehilite">Storage Manager</code> in order to store a list of known peers.
-This list might be used for initialization purposes of a future execution of the Witnet node.</p>
+<h3 id="outgoing-messages-peers-manager-others">Outgoing messages: Peers Manager -&gt; Others<a class="headerlink" href="#outgoing-messages-peers-manager-others" title="Permanent link">&para;</a></h3>
+<p>These are the messages sent by the peers manager:</p>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Destination</th>
+<th>Input type</th>
+<th>Output type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GetConfig</td>
+<td>ConfigManager</td>
+<td><code class="codehilite">()</code></td>
+<td><code class="codehilite">Result&lt;Config, io::Error&gt;</code></td>
+<td>Request the configuration</td>
+</tr>
+</tbody>
+</table>
+<p>It is foreseen that in the future, the peers manager will call the <code class="codehilite">Storage Manager</code> to store a list of known peers.</p>
+<h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the [<code class="codehilite">ConfigManager</code>][config_manager] actor when the peers manager actor is started.</p>
+<p>The return value is used to initialize the list of known peers. For further information, see  [<code class="codehilite">ConfigManager</code>][config_manager].</p>
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
 <p>The full source code of the <code class="codehilite">PeersManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager.rs"><code class="codehilite">peers_manager.rs</code></a>.</p>
                 
