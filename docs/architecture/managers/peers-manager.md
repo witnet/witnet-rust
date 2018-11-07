@@ -92,11 +92,10 @@ The way other actors will communicate with the storage manager is:
 
 These are the messages sent by the peers manager:
 
-| Message   | Destination   | Input type | Output type                 | Description               |
-| --------- | ------------- | ---------- | --------------------------- | ------------------------- |
-| GetConfig | ConfigManager | `()`       | `Result<Config, io::Error>` | Request the configuration |
-
-It is foreseen that in the future, the peers manager will call the `Storage Manager` to store a list of known peers.
+| Message     | Destination       | Input type                                | Output type                 | Description                               |
+| ----------- | ----------------- | ----------------------------------------- | --------------------------- | ----------------------------------------- |
+| `GetConfig` | `ConfigManager`   | `()`                                      | `Result<Config, io::Error>` | Request the configuration                 |
+| `Put`       | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                | `StorageResult<()>`         | Wrapper to RocksStorage `put()` method    |
 
 #### GetConfig
 
@@ -104,9 +103,18 @@ This message is sent to the [`ConfigManager`][config_manager] actor when the pee
 
 The return value is used to initialize the list of known peers. For further information, see  [`ConfigManager`][config_manager].
 
+#### Put
+
+This message is sent to the [`StorageManager`][storage_manager] actor periodically using a period 
+obtained from [`ConfigManager`][config_manager]
+
+The return value is used to check if the storage process has been successful.
+
 ## Further information
 
 The full source code of the `PeersManager` can be found at [`peers_manager.rs`][peers_manager].
 
 [peers]: https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs
 [peers_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager.rs
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs
+[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager.rs

@@ -21,3 +21,6 @@ pub mod config_manager;
 
 /// Connections manager actor module
 pub mod connections_manager;
+
+/// Storage keys constants
+pub mod storage_keys;

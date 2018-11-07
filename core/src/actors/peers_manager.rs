@@ -1,9 +1,15 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
-use actix::{Actor, Context, Handler, Message, Supervised, SystemService};
+use actix::{
+    Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, Message, Supervised,
+    System, SystemService, WrapFuture,
+};
 use log::{debug, error};
 
 use crate::actors::config_manager::send_get_config_request;
+use crate::actors::storage_keys::PEERS_KEY;
+use crate::actors::storage_manager::{Put, StorageManager};
 
 use witnet_p2p::peers::{error::PeersResult, Peers};
 
@@ -20,6 +26,37 @@ pub struct PeersManager {
     peers: Peers,
 }
 
+impl PeersManager {
+    /// Method to periodically persist peers into storage
+    fn persist_peers(&self, ctx: &mut Context<Self>, storage_peers_period: Duration) {
+        // Schedule the discovery_peers with a given period
+        ctx.run_later(storage_peers_period, move |act, ctx| {
+            // Get storage manager address
+            let storage_manager_addr = System::current().registry().get::<StorageManager>();
+
+            // Persist peers into storage. `AsyncContext::wait` registers
+            // future within context, but context waits until this future resolves
+            // before processing any other events.
+            storage_manager_addr
+                .send(Put::from_value(PEERS_KEY, &act.peers).unwrap())
+                .into_actor(act)
+                .then(|res, _act, _ctx| {
+                    match res {
+                        Ok(Ok(_)) => debug!("PeersManager successfully persist peers to storage"),
+                        _ => {
+                            debug!("Peers manager persist peers to storage failed");
+                            // FIXME(#72): handle errors
+                        }
+                    }
+                    actix::fut::ok(())
+                })
+                .wait(ctx);
+
+            act.persist_peers(ctx, storage_peers_period);
+        });
+    }
+}
+
 /// Make actor from `PeersManager`
 impl Actor for PeersManager {
     /// Every actor has to provide execution `Context` in which it can run.
@@ -29,15 +66,21 @@ impl Actor for PeersManager {
         debug!("Peers Manager actor has been started!");
 
         // Send message to config manager and process response
-        send_get_config_request(self, ctx, |s, _ctx, config| {
+        send_get_config_request(self, ctx, |act, ctx, config| {
             // Get known peers
-            let known_peers = config.connections.known_peers.iter().cloned().collect();
+            let known_peers: Vec<_> = config.connections.known_peers.iter().cloned().collect();
+
+            // Get storage peers period
+            let storage_peers_period = config.connections.storage_peers_period;
 
             // Add all peers
-            match s.peers.add(known_peers) {
+            match act.peers.add(known_peers.clone()) {
                 Ok(peers) => debug!("Added the following peer addresses: {:?}", peers),
                 Err(e) => error!("Error when adding peer addresses: {}", e),
             }
+
+            // Start the storage peers process on sessions manager start
+            act.persist_peers(ctx, storage_peers_period);
         });
     }
 }

@@ -43,6 +43,7 @@ use crate::defaults::{Defaults, Testnet1};
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// Module containing the partial configuration struct that is
 /// returned by the loaders.
@@ -83,6 +84,12 @@ pub struct Connections {
     /// used as a bootstrap mechanism to gain access to the P2P
     /// network
     pub known_peers: HashSet<SocketAddr>,
+
+    /// Period of the bootstrap peers task
+    pub bootstrap_peers_period: Duration,
+
+    /// Period of the persist peers task
+    pub storage_peers_period: Duration,
 }
 
 /// Storage-specific configuration
@@ -146,6 +153,14 @@ impl Connections {
                 .union(&defaults.connections_known_peers())
                 .cloned()
                 .collect(),
+            bootstrap_peers_period: config
+                .bootstrap_peers_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_bootstrap_peers_period()),
+            storage_peers_period: config
+                .storage_peers_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_storage_peers_period()),
         }
     }
 }
@@ -195,6 +210,14 @@ mod tests {
         assert_eq!(config.inbound_limit, Testnet1.connections_inbound_limit());
         assert_eq!(config.outbound_limit, Testnet1.connections_outbound_limit());
         assert_eq!(config.known_peers, Testnet1.connections_known_peers());
+        assert_eq!(
+            config.bootstrap_peers_period,
+            Testnet1.connections_bootstrap_peers_period()
+        );
+        assert_eq!(
+            config.storage_peers_period,
+            Testnet1.connections_storage_peers_period()
+        );
     }
 
     #[test]
@@ -206,6 +229,8 @@ mod tests {
             inbound_limit: Some(3),
             outbound_limit: Some(4),
             known_peers: [addr].iter().cloned().collect(),
+            bootstrap_peers_period: Some(Duration::from_secs(10)),
+            storage_peers_period: Some(Duration::from_secs(60)),
         };
         let config = Connections::from_partial(&partial_config, &*defaults);
 
@@ -213,6 +238,8 @@ mod tests {
         assert_eq!(config.inbound_limit, 3);
         assert_eq!(config.outbound_limit, 4);
         assert!(config.known_peers.contains(&addr));
+        assert_eq!(config.bootstrap_peers_period, Duration::from_secs(10));
+        assert_eq!(config.storage_peers_period, Duration::from_secs(60));
     }
 
     #[test]
@@ -235,6 +262,14 @@ mod tests {
         assert_eq!(
             config.connections.known_peers,
             Testnet1.connections_known_peers()
+        );
+        assert_eq!(
+            config.connections.bootstrap_peers_period,
+            Testnet1.connections_bootstrap_peers_period()
+        );
+        assert_eq!(
+            config.connections.storage_peers_period,
+            Testnet1.connections_storage_peers_period()
         );
     }
 }

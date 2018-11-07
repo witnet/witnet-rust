@@ -13,6 +13,7 @@ use std::collections::HashSet;
 use std::default::Default;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// The partial configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
@@ -53,6 +54,12 @@ pub struct Connections {
     /// network
     #[serde(default)]
     pub known_peers: HashSet<SocketAddr>,
+
+    /// Period of the bootstrap peers task
+    pub bootstrap_peers_period: Option<Duration>,
+
+    /// Period of the persist peers task
+    pub storage_peers_period: Option<Duration>,
 }
 
 /// Storage-specific configuration

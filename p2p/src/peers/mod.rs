@@ -1,5 +1,7 @@
 //! Library for managing a list of available peers
 
+use serde_derive::{Deserialize, Serialize};
+
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
@@ -12,13 +14,14 @@ use crate::peers::error::PeersResult;
 pub mod error;
 
 /// Peer information being used while listing available Witnet peers
+#[derive(Serialize, Deserialize)]
 struct PeerInfo {
     address: SocketAddr,
     _timestamp: i64,
 }
 
 /// Peers TBD
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Peers {
     /// Server sessions
     peers: HashMap<SocketAddr, PeerInfo>,

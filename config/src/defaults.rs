@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// Trait defining all the configuration params that have a suitable
 /// default value depending on the environment (mainnet, testnet,
@@ -30,6 +31,16 @@ pub trait Defaults {
 
     /// Default path for the database
     fn storage_db_path(&self) -> PathBuf;
+
+    /// Default period for bootstrap peers
+    fn connections_bootstrap_peers_period(&self) -> Duration {
+        Duration::from_secs(5)
+    }
+
+    /// Default period for persist peers into storage
+    fn connections_storage_peers_period(&self) -> Duration {
+        Duration::from_secs(30)
+    }
 }
 
 /// Struct that will implement all the mainnet defaults
