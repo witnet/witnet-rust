@@ -3,8 +3,8 @@ use std::net::SocketAddr;
 
 use actix::io::{FramedWrite, WriteHandler};
 use actix::{
-    Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Running,
-    StreamHandler, System, WrapFuture,
+    Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler,
+    Message, Running, StreamHandler, System, WrapFuture,
 };
 use log::debug;
 use tokio::io::WriteHalf;
@@ -13,7 +13,12 @@ use tokio::net::TcpStream;
 use crate::actors::codec::{P2PCodec, Request};
 use crate::actors::sessions_manager::{Register, SessionsManager, Unregister};
 
+use witnet_data_structures::types::Message as ProtocolMessage;
 use witnet_p2p::sessions::{SessionStatus, SessionType};
+
+////////////////////////////////////////////////////////////////////////////////////////
+// ACTOR BASIC STRUCTURE
+////////////////////////////////////////////////////////////////////////////////////////
 
 /// Session representing a TCP connection
 pub struct Session {
@@ -99,6 +104,25 @@ impl Actor for Session {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////
+// ACTOR MESSAGES
+////////////////////////////////////////////////////////////////////////////////////////
+/// Message result of unit
+pub type SessionSendMessageResult = ();
+
+/// Message to indicate that the session needs to send a message through the network
+pub struct SendMessage {
+    /// Protocol message to be sent through the network
+    pub message: ProtocolMessage,
+}
+
+impl Message for SendMessage {
+    type Result = SessionSendMessageResult;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////
+// ACTOR MESSAGE HANDLERS
+////////////////////////////////////////////////////////////////////////////////////////
 /// Implement `WriteHandler` for Session
 impl WriteHandler<Error> for Session {}
 
@@ -112,5 +136,14 @@ impl StreamHandler<Request, Error> for Session {
                 debug!("Session {} received message: {:?}", self.address, message);
             }
         }
+    }
+}
+
+/// Handler for SendMessage message.
+impl Handler<SendMessage> for Session {
+    type Result = SessionSendMessageResult;
+
+    fn handle(&mut self, msg: SendMessage, _: &mut Context<Self>) -> Self::Result {
+        debug!("Received message to send: {:?}", msg.message);
     }
 }
