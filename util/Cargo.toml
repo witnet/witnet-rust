@@ -6,4 +6,5 @@ edition = "2018"
 workspace = ".."
 
 [dependencies]
+chrono = "0.4.6"
 failure = "0.1.2"
