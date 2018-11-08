@@ -83,6 +83,7 @@ nav:
   - Configuration:
     - Custom toml file: configuration/toml-file.md
     - Command Line Interface (CLI): configuration/cli.md
+    - Environment defaults: configuration/environment.md
   - Glossary: glossary.md
 
 theme:

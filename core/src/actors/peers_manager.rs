@@ -31,10 +31,10 @@ impl Actor for PeersManager {
         // Send message to config manager and process response
         send_get_config_request(self, ctx, |s, _ctx, config| {
             // Get known peers
-            let known_peers = &config.connections.known_peers;
+            let known_peers = config.connections.known_peers.iter().cloned().collect();
 
             // Add all peers
-            match s.peers.add(known_peers.clone()) {
+            match s.peers.add(known_peers) {
                 Ok(peers) => debug!("Added the following peer addresses: {:?}", peers),
                 Err(e) => error!("Error when adding peer addresses: {}", e),
             }

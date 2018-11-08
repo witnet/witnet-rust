@@ -5,6 +5,8 @@ A custom `witnet.toml` file can be used to configure parameters of the node. In 
 ## TOML file example
 
 ``` toml
+environment = "testnet-1" # or "mainnet"
+
 [connections] # section for connections-related params
 server_addr = "127.0.0.1:1234"
 inbound_limit = 30
@@ -19,6 +21,7 @@ db_path = ".wit"
 
 | Section     | Param          | Default Value       | Description                                                       |
 | ---------   | ----------     | --------------      | -----------------------------------                               |
+|             | environment    | `"testnet-1"`       | Environment in which the Witnet protocol will run                 |
 | connections | server_addr    | `"127.0.0.1:21337"` | Server socket address to which it should bind to                  |
 | connections | inbound_limit  | `128`               | Maximum number of concurrent connections the server should accept |
 | connections | outbound_limit | `8`                 | Maximum number of opened connections to other peers this node has |

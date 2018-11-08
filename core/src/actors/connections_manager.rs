@@ -18,7 +18,7 @@ use tokio::{
 use crate::actors::config_manager::send_get_config_request;
 use crate::actors::{codec::P2PCodec, session::Session};
 
-use witnet_config::Config;
+use witnet_config::config::Config;
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 ////////////////////////////////////////////////////////////////////////////////////////

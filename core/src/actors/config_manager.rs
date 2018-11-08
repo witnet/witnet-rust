@@ -5,8 +5,8 @@ use actix::{
 use log::{debug, info};
 use std::io;
 use std::path::PathBuf;
+use witnet_config::config::Config;
 use witnet_config::loaders::toml;
-use witnet_config::Config;
 
 /// Default configuration filename
 pub const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
@@ -44,7 +44,7 @@ impl Actor for ConfigManager {
             "Reading configuration from file: {}",
             self.config_file.to_string_lossy()
         );
-        self.config = toml::from_file(&self.config_file).unwrap()
+        self.config = Config::from_partial(&toml::from_file(&self.config_file).unwrap())
     }
 }
 
