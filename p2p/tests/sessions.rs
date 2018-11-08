@@ -1,5 +1,3 @@
-#![feature(bind_by_move_pattern_guards)]
-
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use witnet_p2p::sessions::*;
@@ -219,10 +217,13 @@ fn p2p_sessions_get_random_anycast_session() {
     assert_eq!(sessions.get_random_anycast_session(), None);
 
     // Register an outbound session and check if result is Ok(())
-    let reference1 = "reference1".to_string();
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
     assert!(sessions
-        .register_session(SessionType::Outbound, outbound_address, reference1.clone())
+        .register_session(
+            SessionType::Outbound,
+            outbound_address,
+            "reference1".to_string()
+        )
         .is_ok());
 
     // Check that the function returns None when there are no consolidated sessions in the
@@ -241,10 +242,13 @@ fn p2p_sessions_get_random_anycast_session() {
     );
 
     // Register and consolidate an outbound session and check if result is Ok(())
-    let reference2 = "reference2".to_string();
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
     assert!(sessions
-        .register_session(SessionType::Outbound, outbound_address, reference2.clone())
+        .register_session(
+            SessionType::Outbound,
+            outbound_address,
+            "reference2".to_string()
+        )
         .is_ok());
     assert!(sessions
         .consolidate_session(SessionType::Outbound, outbound_address)
@@ -254,9 +258,9 @@ fn p2p_sessions_get_random_anycast_session() {
     let mut diff: i16 = 0;
     for _ in 0..100000 {
         // Get a random anycast sessions (there are only 2)
-        match sessions.get_random_anycast_session() {
-            Some(reference) if reference == reference1.clone() => diff = diff + 1,
-            Some(reference) if reference == reference2.clone() => diff = diff - 1,
+        match &sessions.get_random_anycast_session() {
+            Some(reference) if reference == "reference1" => diff = diff + 1,
+            Some(reference) if reference == "reference2" => diff = diff - 1,
             _ => assert!(
                 false,
                 "Get random function should retrieve a random session"

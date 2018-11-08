@@ -1,5 +1,3 @@
-extern crate rand;
-
 use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -30,71 +28,73 @@ pub const GENESIS: u64 = 0x0123_4567_89AB_CDEF;
 ////////////////////////////////////////////////////////////////////////////////////////
 // BUILDER PUBLIC FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////////////
-/// Function to build GetPeers messages
-pub fn build_get_peers() -> Message {
-    build_message(Command::GetPeers)
-}
+impl Message {
+    /// Function to build GetPeers messages
+    pub fn build_get_peers() -> Message {
+        Message::build_message(Command::GetPeers)
+    }
 
-/// Function to build Peers messages
-pub fn build_peers(peers: &[SocketAddr]) -> Message {
-    // Cast all peers to witnet's address struct
-    let mut casted_peers = Vec::new();
-    peers.iter().for_each(|peer| {
-        casted_peers.push(to_address(*peer));
-    });
+    /// Function to build Peers messages
+    pub fn build_peers(peers: &[SocketAddr]) -> Message {
+        // Cast all peers to witnet's address struct
+        let mut casted_peers = Vec::new();
+        peers.iter().for_each(|peer| {
+            casted_peers.push(to_address(*peer));
+        });
 
-    build_message(Command::Peers {
-        peers: casted_peers,
-    })
-}
+        Message::build_message(Command::Peers {
+            peers: casted_peers,
+        })
+    }
 
-/// Function to build Ping messages
-pub fn build_ping() -> Message {
-    build_message(Command::Ping {
-        nonce: random_nonce(),
-    })
-}
+    /// Function to build Ping messages
+    pub fn build_ping() -> Message {
+        Message::build_message(Command::Ping {
+            nonce: random_nonce(),
+        })
+    }
 
-/// Function to build Pong messages
-pub fn build_pong(nonce: u64) -> Message {
-    build_message(Command::Pong { nonce })
-}
+    /// Function to build Pong messages
+    pub fn build_pong(nonce: u64) -> Message {
+        Message::build_message(Command::Pong { nonce })
+    }
 
-/// Function to build Version messages
-pub fn build_version(
-    sender_addr: SocketAddr,
-    receiver_addr: SocketAddr,
-    last_epoch: u32,
-) -> Message {
-    build_message(Command::Version {
-        version: VERSION,
-        timestamp: current_timestamp(),
-        capabilities: CAPABILITIES,
-        sender_address: to_address(sender_addr),
-        receiver_address: to_address(receiver_addr),
-        user_agent: USER_AGENT.to_string(),
-        last_epoch,
-        genesis: GENESIS,
-        nonce: random_nonce(),
-    })
-}
+    /// Function to build Version messages
+    pub fn build_version(
+        sender_addr: SocketAddr,
+        receiver_addr: SocketAddr,
+        last_epoch: u32,
+    ) -> Message {
+        Message::build_message(Command::Version {
+            version: VERSION,
+            timestamp: current_timestamp(),
+            capabilities: CAPABILITIES,
+            sender_address: to_address(sender_addr),
+            receiver_address: to_address(receiver_addr),
+            user_agent: USER_AGENT.to_string(),
+            last_epoch,
+            genesis: GENESIS,
+            nonce: random_nonce(),
+        })
+    }
 
-/// Function to build Verack messages
-pub fn build_verack() -> Message {
-    build_message(Command::Verack)
+    /// Function to build Verack messages
+    pub fn build_verack() -> Message {
+        Message::build_message(Command::Verack)
+    }
+
+    /// Function to build a message from a command
+    fn build_message(command: Command) -> Message {
+        Message {
+            kind: command,
+            magic: MAGIC,
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // AUX FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////////////
-/// Function to build a message from a command
-fn build_message(command: Command) -> Message {
-    Message {
-        kind: command,
-        magic: MAGIC,
-    }
-}
-
 /// Function to get a random nonce
 fn random_nonce() -> u64 {
     thread_rng().gen()
@@ -103,7 +103,9 @@ fn random_nonce() -> u64 {
 /// Function to get current timestamp (ms since Unix epoch)
 fn current_timestamp() -> u64 {
     let now = SystemTime::now();
-    let now_duration = now.duration_since(UNIX_EPOCH).unwrap();
+    let now_duration = now
+        .duration_since(UNIX_EPOCH)
+        .expect("Error retrieving system time");
     now_duration.as_secs() * 1000 + u64::from(now_duration.subsec_nanos()) / 1_000_000
 }
 

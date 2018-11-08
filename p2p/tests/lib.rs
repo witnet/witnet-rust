@@ -1,5 +1,3 @@
-#![feature(bind_by_move_pattern_guards)]
-
 // Peers library tests
 pub mod peers;
 
