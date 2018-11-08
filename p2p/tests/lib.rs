@@ -1,8 +1,8 @@
-// Peers library tests
+/// Peers library tests
 pub mod peers;
 
-// Bounded Sessions library tests
+/// Bounded Sessions library tests
 pub mod bounded_sessions;
 
-// Sesssions library tests
+/// Sesssions library tests
 pub mod sessions;

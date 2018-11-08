@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::u32::MAX as U32_MAX;
 
@@ -115,10 +114,10 @@ fn to_address(socket_addr: SocketAddr) -> Address {
             ip: {
                 let ip = u128::from(addr.ip().to_owned());
                 IpAddress::Ipv6 {
-                    ip0: u32::try_from((ip >> 96) & u128::from(U32_MAX)).unwrap_or(0),
-                    ip1: u32::try_from((ip >> 64) & u128::from(U32_MAX)).unwrap_or(0),
-                    ip2: u32::try_from((ip >> 32) & u128::from(U32_MAX)).unwrap_or(0),
-                    ip3: u32::try_from(ip & u128::from(U32_MAX)).unwrap_or(0),
+                    ip0: ((ip >> 96) & u128::from(U32_MAX)) as u32,
+                    ip1: ((ip >> 64) & u128::from(U32_MAX)) as u32,
+                    ip2: ((ip >> 32) & u128::from(U32_MAX)) as u32,
+                    ip3: (ip & u128::from(U32_MAX)) as u32,
                 }
             },
             port: addr.port(),
