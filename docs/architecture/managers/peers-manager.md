@@ -95,13 +95,20 @@ These are the messages sent by the peers manager:
 | Message     | Destination       | Input type                                | Output type                 | Description                               |
 | ----------- | ----------------- | ----------------------------------------- | --------------------------- | ----------------------------------------- |
 | `GetConfig` | `ConfigManager`   | `()`                                      | `Result<Config, io::Error>` | Request the configuration                 |
-| `Put`       | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                | `StorageResult<()>`         | Wrapper to RocksStorage `put()` method    |
+| `Get`       | `StorageManager`  | `&'static [u8]`                           | `StorageResult<Option<T>>`  | Wrapper to Storage `get()` method         |
+| `Put`       | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                | `StorageResult<()>`         | Wrapper to Storage `put()` method         |
 
 #### GetConfig
 
 This message is sent to the [`ConfigManager`][config_manager] actor when the peers manager actor is started.
 
 The return value is used to initialize the list of known peers. For further information, see  [`ConfigManager`][config_manager].
+
+#### Get
+
+This message is sent to the [`StorageManager`][storage_manager] actor when the peers manager actor is started.
+
+The return value is a list of peers from the storage which are added to the list of known peers.
 
 #### Put
 
