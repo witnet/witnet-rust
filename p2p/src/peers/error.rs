@@ -25,10 +25,7 @@ impl PeersError {
 
 /// Peers Errors while operating on database
 #[derive(Debug)]
-pub enum PeersErrorKind {
-    /// Errors when retrieving timestamp
-    Time,
-}
+pub enum PeersErrorKind {}
 
 impl fmt::Display for PeersErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

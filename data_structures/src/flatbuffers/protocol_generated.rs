@@ -680,8 +680,8 @@ impl<'a> Version<'a> {
     self._tab.get::<u32>(Version::VT_VERSION, Some(0)).unwrap()
   }
   #[inline]
-  pub fn timestamp(&'a self) -> u64 {
-    self._tab.get::<u64>(Version::VT_TIMESTAMP, Some(0)).unwrap()
+  pub fn timestamp(&'a self) -> i64 {
+    self._tab.get::<i64>(Version::VT_TIMESTAMP, Some(0)).unwrap()
   }
   #[inline]
   pub fn capabilities(&'a self) -> u64 {
@@ -715,7 +715,7 @@ impl<'a> Version<'a> {
 
 pub struct VersionArgs<'a> {
     pub version: u32,
-    pub timestamp: u64,
+    pub timestamp: i64,
     pub capabilities: u64,
     pub sender_address: Option<flatbuffers::WIPOffset<Address<'a >>>,
     pub receiver_address: Option<flatbuffers::WIPOffset<Address<'a >>>,
@@ -750,8 +750,8 @@ impl<'a: 'b, 'b> VersionBuilder<'a, 'b> {
     self.fbb_.push_slot::<u32>(Version::VT_VERSION, version, 0);
   }
   #[inline]
-  pub fn add_timestamp(&mut self, timestamp: u64) {
-    self.fbb_.push_slot::<u64>(Version::VT_TIMESTAMP, timestamp, 0);
+  pub fn add_timestamp(&mut self, timestamp: i64) {
+    self.fbb_.push_slot::<i64>(Version::VT_TIMESTAMP, timestamp, 0);
   }
   #[inline]
   pub fn add_capabilities(&mut self, capabilities: u64) {

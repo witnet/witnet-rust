@@ -5,18 +5,16 @@ use std::net::SocketAddr;
 
 use rand::{thread_rng, Rng};
 
-use witnet_util::error::WitnetError;
 use witnet_util::timestamp::get_timestamp;
 
-use crate::peers::error::{PeersError, PeersErrorKind, PeersResult};
+use crate::peers::error::PeersResult;
 
 pub mod error;
 
 /// Peer information being used while listing available Witnet peers
 struct PeerInfo {
     address: SocketAddr,
-    #[allow(dead_code)]
-    timestamp: u64,
+    _timestamp: i64,
 }
 
 /// Peers TBD
@@ -31,32 +29,22 @@ impl Peers {
     /// If an address did already exist, it gets overwritten
     /// Returns all the overwritten addresses
     pub fn add(&mut self, addrs: Vec<SocketAddr>) -> PeersResult<Vec<SocketAddr>> {
-        // Get timestamp
-        match get_timestamp() {
-            Ok(timestamp) => {
-                // Insert address
-                // Note: if the peer address exists, the peer info will be overwritten
-                Ok(addrs
-                    .into_iter()
-                    .filter_map(|address| {
-                        self.peers
-                            .insert(
-                                address,
-                                PeerInfo {
-                                    address,
-                                    timestamp, //msg.timestamp,
-                                },
-                            )
-                            .map(|v| v.address)
-                    })
-                    .collect())
-            }
-            Err(e) => Err(WitnetError::from(PeersError::new(
-                PeersErrorKind::Time,
-                format!("{:?}", addrs),
-                e.to_string(),
-            ))),
-        }
+        // Insert address
+        // Note: if the peer address exists, the peer info will be overwritten
+        Ok(addrs
+            .into_iter()
+            .filter_map(|address| {
+                self.peers
+                    .insert(
+                        address,
+                        PeerInfo {
+                            address,
+                            _timestamp: get_timestamp(), //msg.timestamp,
+                        },
+                    )
+                    .map(|v| v.address)
+            })
+            .collect())
     }
 
     /// Remove a peer given an address

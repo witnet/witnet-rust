@@ -13,7 +13,7 @@ pub enum Command {
     Verack,
     Version {
         version: u32,
-        timestamp: u64,
+        timestamp: i64,
         capabilities: u64,
         sender_address: Address,
         receiver_address: Address,

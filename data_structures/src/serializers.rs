@@ -85,7 +85,7 @@ struct VersionFlatbufferArgs<'a> {
     nonce: u64,
     receiver_address: &'a Address,
     sender_address: &'a Address,
-    timestamp: u64,
+    timestamp: i64,
     user_agent: &'a str,
     version: u32,
 }
@@ -99,7 +99,7 @@ struct VersionWitnetArgs {
     nonce: u64,
     receiver_address: Address,
     sender_address: Address,
-    timestamp: u64,
+    timestamp: i64,
     user_agent: String,
     version: u32,
 }

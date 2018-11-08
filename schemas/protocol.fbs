@@ -32,7 +32,7 @@ table Address {
 
 table Version {
     version: uint32;
-    timestamp: uint64;
+    timestamp: int64;
     capabilities: uint64;
     sender_address: Address;
     receiver_address: Address;

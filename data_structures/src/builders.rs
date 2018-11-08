@@ -1,11 +1,12 @@
 use std::convert::TryFrom;
 use std::net::SocketAddr;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
 use crate::types::{Address, Command, IpAddress, Message};
+
+use witnet_util::timestamp::get_timestamp;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // PROTOCOL MESSAGES CONSTANTS
@@ -67,7 +68,7 @@ impl Message {
     ) -> Message {
         Message::build_message(Command::Version {
             version: VERSION,
-            timestamp: current_timestamp(),
+            timestamp: get_timestamp(),
             capabilities: CAPABILITIES,
             sender_address: to_address(sender_addr),
             receiver_address: to_address(receiver_addr),
@@ -98,15 +99,6 @@ impl Message {
 /// Function to get a random nonce
 fn random_nonce() -> u64 {
     thread_rng().gen()
-}
-
-/// Function to get current timestamp (ms since Unix epoch)
-fn current_timestamp() -> u64 {
-    let now = SystemTime::now();
-    let now_duration = now
-        .duration_since(UNIX_EPOCH)
-        .expect("Error retrieving system time");
-    now_duration.as_secs() * 1000 + u64::from(now_duration.subsec_nanos()) / 1_000_000
 }
 
 /// Function to build address witnet type from socket addr

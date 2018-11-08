@@ -121,7 +121,7 @@ The `version` message contains the following information:
 | Field  | Type | Description |
 |--------|:----:|-------------|
 | version| u32  | the Witnet p2p protocol version that the client is using |
-| timestamp | u64 | the current time in UTC format |
+| timestamp | i64 | current UTC Unix timestamp (seconds since Unix epoch) |
 | capabilities | u64 | list of flags of supported services, by default NODE_NETWORK is used |
 | sender_address | addr | the IP address and port of the handshake initiator peer |
 | receiver_address | addr | the IP address and port of the remote peer |
