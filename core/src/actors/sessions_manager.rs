@@ -1,3 +1,4 @@
+use std::marker::Send;
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -11,11 +12,10 @@ use log::debug;
 
 use crate::actors::config_manager::send_get_config_request;
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
-use crate::actors::session::{SendMessage, Session, SessionSendMessageResult};
+use crate::actors::session::Session;
 
 use crate::actors::peers_manager::{GetRandomPeer, PeersManager, PeersSocketAddrResult};
 
-use witnet_data_structures::types::Message as ProtocolMessage;
 use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};
 
 /// Period of the bootstrap peers task (in seconds)
@@ -116,14 +116,18 @@ impl SessionsManager {
     }
 
     /// Method to process session SendMessage response
-    fn process_send_message_response(
+    fn process_command_response<T>(
         &mut self,
-        response: Result<SessionSendMessageResult, MailboxError>,
-    ) -> FutureResult<(), (), Self> {
-        response
-            // Convert Ok(()) to FutureResult<(), (), Self>
-            .map(actix::fut::ok)
-            .unwrap_or_else(|_| actix::fut::err(()))
+        response: &Result<T::Result, MailboxError>,
+    ) -> FutureResult<(), (), Self>
+    where
+        T: Message,
+        Session: Handler<T>,
+    {
+        match response {
+            Ok(_) => actix::fut::ok(()),
+            Err(_) => actix::fut::err(()),
+        }
     }
 }
 
@@ -154,6 +158,7 @@ impl Actor for SessionsManager {
 
 /// Required traits for being able to retrieve sessions manager address from registry
 impl actix::Supervised for SessionsManager {}
+
 impl SystemService for SessionsManager {}
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -208,13 +213,18 @@ impl Message for Consolidate {
 }
 
 /// Message to indicate that a message is to be forwarded to a random consolidated outbound session
-pub struct Anycast {
-    /// Message to be sent to the session
-    pub message: ProtocolMessage,
+pub struct Anycast<T> {
+    /// Command to be sent to the session
+    pub command: T,
 }
 
-impl Message for Anycast {
-    type Result = SessionSendMessageResult;
+impl<T> Message for Anycast<T>
+where
+    T: Message + Send,
+    T::Result: Send,
+    Session: Handler<T>,
+{
+    type Result = ();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -297,14 +307,16 @@ impl Handler<Consolidate> for SessionsManager {
 }
 
 /// Handler for Anycast message
-impl Handler<Anycast> for SessionsManager {
-    type Result = SessionSendMessageResult;
+impl<T: 'static> Handler<Anycast<T>> for SessionsManager
+where
+    T: Message + Send,
+    T::Result: Send,
+    Session: Handler<T>,
+{
+    type Result = ();
 
-    fn handle(&mut self, msg: Anycast, ctx: &mut Context<Self>) -> Self::Result {
-        debug!(
-            "Received a message to send to a random session {:?}",
-            msg.message
-        );
+    fn handle(&mut self, msg: Anycast<T>, ctx: &mut Context<Self>) {
+        debug!("Received a message to send to a random session");
 
         // Request a random consolidated outbound session
         self.sessions
@@ -314,16 +326,14 @@ impl Handler<Anycast> for SessionsManager {
                 session_addr
                     // Send SendMessage message to session actor
                     // This returns a Request Future, representing an asynchronous message sending process
-                    .send(SendMessage {
-                        message: msg.message,
-                    })
+                    .send(msg.command)
                     // Convert a normal future into an ActorFuture
                     .into_actor(self)
                     // Process the response from the session
                     // This returns a FutureResult containing the socket address if present
                     .then(|res, act, _ctx| {
                         // Process the response from session
-                        act.process_send_message_response(res)
+                        act.process_command_response(&res)
                     })
                     .wait(ctx);
             })

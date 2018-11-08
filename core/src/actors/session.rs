@@ -13,7 +13,6 @@ use tokio::net::TcpStream;
 use crate::actors::codec::{P2PCodec, Request};
 use crate::actors::sessions_manager::{Register, SessionsManager, Unregister};
 
-use witnet_data_structures::types::Message as ProtocolMessage;
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -108,16 +107,13 @@ impl Actor for Session {
 // ACTOR MESSAGES
 ////////////////////////////////////////////////////////////////////////////////////////
 /// Message result of unit
-pub type SessionSendMessageResult = ();
+pub type SessionGetPeersResult = ();
 
-/// Message to indicate that the session needs to send a message through the network
-pub struct SendMessage {
-    /// Protocol message to be sent through the network
-    pub message: ProtocolMessage,
-}
+/// Message to indicate that the session needs to send a GetPeers message through the network
+pub struct GetPeers;
 
-impl Message for SendMessage {
-    type Result = SessionSendMessageResult;
+impl Message for GetPeers {
+    type Result = SessionGetPeersResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -139,11 +135,11 @@ impl StreamHandler<Request, Error> for Session {
     }
 }
 
-/// Handler for SendMessage message.
-impl Handler<SendMessage> for Session {
-    type Result = SessionSendMessageResult;
+/// Handler for GetPeers message.
+impl Handler<GetPeers> for Session {
+    type Result = SessionGetPeersResult;
 
-    fn handle(&mut self, msg: SendMessage, _: &mut Context<Self>) -> Self::Result {
-        debug!("Received message to send: {:?}", msg.message);
+    fn handle(&mut self, _msg: GetPeers, _: &mut Context<Self>) {
+        debug!("GetPeers message should be sent through the network");
     }
 }
