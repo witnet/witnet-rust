@@ -34,7 +34,12 @@ pub(crate) enum Command {
         // peer: String,
 
         // Config file path
-        #[structopt(name = "config", short = "c")]
+        #[structopt(
+            name = "config",
+            long = "config",
+            short = "c",
+            help = "Path to the configuration file"
+        )]
         #[structopt(parse(from_os_str))]
         config: Option<PathBuf>,
         // Run the server in the background
