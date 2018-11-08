@@ -12,7 +12,19 @@ nav:
     - Design Overview: get-started/design-overview.md
     - Install: get-started/install.md
   - Protocol:
-    - Network messages: protocol/network.md
+    - Network:
+      - Overview: protocol/network/overview.md
+      - Data Structures:
+        - Block: protocol/network/data-structures/block.md
+        - IP Address: protocol/network/data-structures/ip-address.md
+        - Transaction: protocol/network/data-structures/transaction.md
+      - Messages:
+        - Overview: protocol/network/messages/overview.md
+        - Handshake: protocol/network/messages/handshake.md
+        - Peer Discovery: protocol/network/messages/peer-discovery.md
+        - Heartbeat: protocol/network/messages/heartbeat.md
+        - Inventory exchange: protocol/network/messages/inventory.md
+      - Constants: protocol/network/constants.md
     - Data requests:
       - Overview: protocol/data-requests/overview.md
       - RADON:
