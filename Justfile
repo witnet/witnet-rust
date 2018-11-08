@@ -13,6 +13,12 @@ install-setup:
     just install-clippy
     just install-rustfmt
 
+# print tool versions
+versions:
+    rustc --version
+    cargo fmt -- --version
+    cargo clippy -- --version
+
 # run clippy
 clippy:
     cargo clippy --all-targets --all-features -- -D warnings
@@ -40,6 +46,7 @@ docs-deploy:
 # run travis
 travis:
     just install-setup
+    just versions
     cargo fmt --all -- --check
     just clippy
     cargo test --all --verbose
