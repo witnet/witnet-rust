@@ -21,6 +21,7 @@ extern crate failure;
 use std::default::Default;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 
 pub mod loaders;
 
@@ -59,6 +60,10 @@ pub struct ConnectionsConfig {
     /// used as a bootstrap mechanism to gain access to the P2P
     /// network
     pub known_peers: Vec<SocketAddr>,
+
+    #[serde(default = "ConnectionsConfig::default_bootstrap_peers_period")]
+    /// Period of the bootstrap peers task (in seconds)
+    pub bootstrap_peers_period: Duration,
 }
 
 /// Storage-specific configuration
@@ -110,6 +115,11 @@ impl ConnectionsConfig {
     pub fn default_known_peers() -> Vec<SocketAddr> {
         Vec::default()
     }
+
+    /// Default `bootstrap_peers_period` value (`5`)
+    fn default_bootstrap_peers_period() -> Duration {
+        Duration::from_secs(5)
+    }
 }
 
 impl Default for ConnectionsConfig {
@@ -119,6 +129,7 @@ impl Default for ConnectionsConfig {
             inbound_limit: Self::default_inbound_limit(),
             outbound_limit: Self::default_outbound_limit(),
             known_peers: Self::default_known_peers(),
+            bootstrap_peers_period: Self::default_bootstrap_peers_period(),
         }
     }
 }

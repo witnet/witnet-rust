@@ -18,9 +18,6 @@ use crate::actors::peers_manager::{GetRandomPeer, PeersManager, PeersSocketAddrR
 
 use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};
 
-/// Period of the bootstrap peers task (in seconds)
-const BOOTSTRAP_PEERS_PERIOD: u64 = 5;
-
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -34,9 +31,9 @@ pub struct SessionsManager {
 
 impl SessionsManager {
     /// Method to periodically bootstrap outbound sessions
-    fn bootstrap_peers(&self, ctx: &mut Context<Self>) {
+    fn bootstrap_peers(&self, ctx: &mut Context<Self>, bootstrap_peers_period: Duration) {
         // Schedule the bootstrap with a given period
-        ctx.run_later(Duration::from_secs(BOOTSTRAP_PEERS_PERIOD), |act, ctx| {
+        ctx.run_later(bootstrap_peers_period, move |act, ctx| {
             debug!(
                 "Number of outbound sessions {}",
                 act.sessions.get_num_outbound_sessions()
@@ -76,7 +73,7 @@ impl SessionsManager {
             }
 
             // Reschedule the bootstrap peers task
-            act.bootstrap_peers(ctx);
+            act.bootstrap_peers(ctx, bootstrap_peers_period);
         });
     }
 
@@ -141,18 +138,19 @@ impl Actor for SessionsManager {
         debug!("Sessions Manager actor has been started!");
 
         // Send message to config manager and process its response
-        send_get_config_request(self, ctx, |s, _ctx, config| {
+        send_get_config_request(self, ctx, |act, ctx, config| {
+            let bootstrap_peers_period = config.connections.bootstrap_peers_period;
             // Set server address and connections limits
-            s.sessions
+            act.sessions
                 .set_server_address(config.connections.server_addr);
-            s.sessions.set_limits(
+            act.sessions.set_limits(
                 config.connections.inbound_limit,
                 config.connections.outbound_limit,
             );
-        });
 
-        // Start the bootstrap peers process on sessions manager start
-        self.bootstrap_peers(ctx);
+            // We'll start the bootstrap peers process on sessions manager start
+            act.bootstrap_peers(ctx, bootstrap_peers_period);
+        });
     }
 }
 
