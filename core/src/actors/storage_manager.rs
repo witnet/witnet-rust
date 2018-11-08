@@ -45,8 +45,12 @@ pub struct Put {
 }
 
 impl Put {
+    /// Create a `Put` message from raw bytes
+    pub fn new(key: &'static [u8], value: Vec<u8>) -> Self {
+        Put { key, value }
+    }
     /// Create a `Put` message by converting the value into bytes
-    pub fn new<T: Storable>(key: &'static [u8], value: &T) -> StorageResult<Self> {
+    pub fn from_value<T: Storable>(key: &'static [u8], value: &T) -> StorageResult<Self> {
         let value = value.to_bytes()?;
         Ok(Put { key, value })
     }
