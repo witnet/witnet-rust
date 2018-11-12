@@ -28,10 +28,8 @@ pub trait Defaults {
         HashSet::new()
     }
 
-    /// Default path for the database: `.wit`
-    fn storage_db_path(&self) -> PathBuf {
-        PathBuf::from(".wit")
-    }
+    /// Default path for the database
+    fn storage_db_path(&self) -> PathBuf;
 }
 
 /// Struct that will implement all the mainnet defaults
@@ -44,10 +42,18 @@ impl Defaults for Mainnet {
     fn connections_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11337)
     }
+
+    fn storage_db_path(&self) -> PathBuf {
+        PathBuf::from(".witnet-rust-mainnet")
+    }
 }
 
 impl Defaults for Testnet1 {
     fn connections_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21337)
+    }
+
+    fn storage_db_path(&self) -> PathBuf {
+        PathBuf::from(".witnet-rust-testnet-1")
     }
 }
