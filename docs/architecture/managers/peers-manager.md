@@ -105,7 +105,7 @@ The return value is used to initialize the list of known peers. For further info
 
 #### Put
 
-This message is sent to the [`StorageManager`][storage_manager] actor periodically using a period 
+This message is sent to the [`StorageManager`][storage_manager] actor periodically using a period
 obtained from [`ConfigManager`][config_manager]
 
 The return value is used to check if the storage process has been successful.

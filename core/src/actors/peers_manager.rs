@@ -9,7 +9,7 @@ use log::{debug, error};
 
 use crate::actors::config_manager::send_get_config_request;
 use crate::actors::storage_keys::PEERS_KEY;
-use crate::actors::storage_manager::{Put, StorageManager};
+use crate::actors::storage_manager::{Get, Put, StorageManager};
 
 use witnet_p2p::peers::{error::PeersResult, Peers};
 
@@ -75,9 +75,57 @@ impl Actor for PeersManager {
 
             // Add all peers
             match act.peers.add(known_peers.clone()) {
-                Ok(peers) => debug!("Added the following peer addresses: {:?}", peers),
-                Err(e) => error!("Error when adding peer addresses: {}", e),
+                Ok(peers) => debug!(
+                    "Added the following peer addresses from config: {:?}",
+                    peers
+                ),
+                Err(e) => error!("Error when adding peer addresses from config: {}", e),
             }
+
+            // Add peers from storage:
+            // Get storage manager actor address
+            let storage_manager_addr = System::current().registry().get::<StorageManager>();
+            storage_manager_addr
+                // Send a message to read the peers from the storage
+                .send(Get::<Peers>::new(PEERS_KEY))
+                .into_actor(act)
+                // Process the response
+                .then(|res, _act, _ctx| match res {
+                    Err(e) => {
+                        // Error when sending message
+                        debug!("Unsuccessful communication with config manager: {}", e);
+                        actix::fut::err(())
+                    }
+                    Ok(res) => match res {
+                        Err(e) => {
+                            // Storage error
+                            error!("Error while getting peers from storage: {}", e);
+                            actix::fut::err(())
+                        }
+                        Ok(res) => actix::fut::ok(res),
+                    },
+                })
+                .and_then(|peers_from_storage, act, _ctx| {
+                    // peers_from_storage can be None if the storage does not contain that key
+                    if let Some(peers_from_storage) = peers_from_storage {
+                        // Add all the peers from storage
+                        // The add method handles duplicates by overwriting the old values
+                        match act.peers.add(peers_from_storage.get_all().unwrap()) {
+                            Ok(peers) => {
+                                debug!(
+                                    "Added the following peer addresses from storage: {:?}",
+                                    peers
+                                );
+                            }
+                            Err(e) => {
+                                error!("Error when adding peer addresses from storage: {}", e);
+                            }
+                        }
+                    }
+
+                    actix::fut::ok(())
+                })
+                .wait(ctx);
 
             // Start the storage peers process on sessions manager start
             act.persist_peers(ctx, storage_peers_period);
