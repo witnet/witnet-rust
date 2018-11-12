@@ -36,10 +36,10 @@
 //! Config::from_partial(&partial::Config::default());
 //!
 //! // Default config for mainnet
-//! Config::from_partial(&partial::Config::default_mainnet());
+//! // Config::from_partial(&partial::Config::default_mainnet());
 //! ```
 
-use crate::defaults::{Defaults, Mainnet, Testnet1};
+use crate::defaults::{Defaults, Testnet1};
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -106,7 +106,9 @@ pub enum Environment {
 impl Config {
     pub fn from_partial(config: &partial::Config) -> Self {
         let defaults: Box<Defaults> = match config.environment {
-            Environment::Mainnet => Box::new(Mainnet),
+            Environment::Mainnet => {
+                panic!("Config with mainnet environment is currently not allowed");
+            }
             Environment::Testnet1 => Box::new(Testnet1),
         };
 
