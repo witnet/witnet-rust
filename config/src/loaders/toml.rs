@@ -147,4 +147,27 @@ db_path = 'dbfiles'
         assert_eq!(empty_config.storage, Storage::default());
         assert_eq!(config.storage.db_path, Some(PathBuf::from("dbfiles")));
     }
+
+    #[test]
+    fn test_load_duration() {
+        use std::time::Duration;
+
+        let empty_config = super::from_str("[storage]").unwrap();
+        let config = super::from_str(
+            r"
+[connections]
+bootstrap_peers_period_seconds = 10
+",
+        )
+        .unwrap();
+
+        assert_eq!(
+            empty_config.connections.bootstrap_peers_period,
+            Connections::default().bootstrap_peers_period
+        );
+        assert_eq!(
+            config.connections.bootstrap_peers_period,
+            Some(Duration::from_secs(10))
+        );
+    }
 }

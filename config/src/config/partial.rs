@@ -56,9 +56,15 @@ pub struct Connections {
     pub known_peers: HashSet<SocketAddr>,
 
     /// Period of the bootstrap peers task
+    #[serde(default)]
+    #[serde(deserialize_with = "from_secs")]
+    #[serde(rename = "bootstrap_peers_period_seconds")]
     pub bootstrap_peers_period: Option<Duration>,
 
     /// Period of the persist peers task
+    #[serde(default)]
+    #[serde(deserialize_with = "from_secs")]
+    #[serde(rename = "bootstrap_peers_period_seconds")]
     pub storage_peers_period: Option<Duration>,
 }
 
@@ -82,4 +88,17 @@ impl Config {
         default.environment = Environment::Mainnet;
         default
     }
+}
+
+use serde::{Deserialize, Deserializer};
+
+// Create a duration type from a u64 representing seconds
+fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(match u64::deserialize(deserializer) {
+        Ok(secs) => Some(Duration::from_secs(secs)),
+        Err(_) => None,
+    })
 }
