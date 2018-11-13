@@ -4,17 +4,19 @@ use std::time::Duration;
 
 use actix::fut::FutureResult;
 use actix::{
-    Actor, ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner, Handler, MailboxError,
-    Message, System, SystemService, WrapFuture,
+    io::FramedWrite, Actor, ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner,
+    Handler, MailboxError, Message, StreamHandler, System, SystemService, WrapFuture,
 };
 
 use log::debug;
 
+use tokio::{codec::FramedRead, io::AsyncRead, net::TcpStream};
+
+use crate::actors::codec::P2PCodec;
 use crate::actors::config_manager::send_get_config_request;
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
-use crate::actors::session::{GetPeers, Session};
-
 use crate::actors::peers_manager::{GetRandomPeer, PeersManager, PeersSocketAddrResult};
+use crate::actors::session::{GetPeers, Session};
 
 use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};
 
@@ -183,7 +185,20 @@ impl SystemService for SessionsManager {}
 /// Message result of unit
 pub type SessionsUnitResult = SessionsResult<()>;
 
-/// Message to indicate that a new session is created
+/// Message to indicate that a new session needs to be created
+pub struct CreateSession {
+    /// TCP stream
+    pub stream: TcpStream,
+
+    /// Session type
+    pub session_type: SessionType,
+}
+
+impl Message for CreateSession {
+    type Result = ();
+}
+
+/// Message to indicate that a new session needs to be registered
 pub struct Register {
     /// Socket address to identify the peer
     pub address: SocketAddr,
@@ -199,7 +214,7 @@ impl Message for Register {
     type Result = SessionsUnitResult;
 }
 
-/// Message to indicate that a session is disconnected
+/// Message to indicate that a session needs to be unregistered
 pub struct Unregister {
     /// Socket address to identify the peer
     pub address: SocketAddr,
@@ -246,6 +261,36 @@ where
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
 ////////////////////////////////////////////////////////////////////////////////////////
+
+/// Handler for CreateSession message.
+impl Handler<CreateSession> for SessionsManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: CreateSession, _ctx: &mut Context<Self>) {
+        // Create a session actor
+        Session::create(move |ctx| {
+            // Get local peer address
+            let local_addr = msg.stream.local_addr().unwrap();
+
+            // Get remote peer address
+            let remote_addr = msg.stream.peer_addr().unwrap();
+
+            // Split TCP stream into read and write parts
+            let (r, w) = msg.stream.split();
+
+            // Add stream in session actor from the read part of the tcp stream
+            Session::add_stream(FramedRead::new(r, P2PCodec), ctx);
+
+            // Create the session actor and store in its state the write part of the tcp stream
+            Session::new(
+                local_addr,
+                remote_addr,
+                msg.session_type,
+                FramedWrite::new(w, P2PCodec, ctx),
+            )
+        });
+    }
+}
 
 /// Handler for Register message.
 impl Handler<Register> for SessionsManager {
