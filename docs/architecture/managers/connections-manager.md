@@ -3,7 +3,7 @@
 The __connections manager__ is the actor in charge of providing:
 
 - A **TCP server** bound to the address indicated by the configuration file 
-- As many **TCP clients** as requested, connected to the addresses returned by the
+- As many **TCP clients** as requested, connected to the addresses requested by the
 [`Sessions Manager`][sessions_manager]
 
 ## State
@@ -35,7 +35,7 @@ These are the messages supported by the connections manager handlers:
 | Message               | Input type    | Output type   | Description                                                       |
 |-----------------------|---------------|---------------|-------------------------------------------------------------------|
 | InboundTcpConnect     | `TcpStream`   | `()`          | Request to create a session from an incoming TCP connection       |
-| OutboundTcpConnect    | `SocketAddr`  | `()`          | Request to create a start a TCP connection and session to a peer  |
+| OutboundTcpConnect    | `SocketAddr`  | `()`          | Request to create a start a TCP connection to a peer              |
 
 The way other actors will communicate with the connections manager is:
 
@@ -80,14 +80,14 @@ ctx.add_message_stream(
 );
 ```
 
-When an `InboundTcpConnect` message arrives at the connections manager actor, a new session is 
-created of `Inbound` type:
+When an `InboundTcpConnect` message arrives at the connections manager actor, the creation of a new
+`Inbound` session is requested to the `SessionsManager`:
 
 ```rust
 /// Method to handle the InboundTcpConnect message
 fn handle(&mut self, msg: InboundTcpConnect, _ctx: &mut Self::Context) {
-    // Create a session actor from connection
-    ConnectionsManager::create_session(msg.stream, SessionType::Inbound);
+    // Request the creation of a new session actor from connection
+    ConnectionsManager::request_session_creation(msg.stream, SessionType::Inbound);
 }
 ```
 
@@ -102,7 +102,7 @@ performed:
 address
 - Handle the result:
     - If error, do nothing but log it
-    - If success, create a session of `Outbound` type
+    - If success, request the creation of an `Outbound` session to the `SessionsManager`
     
 ```rust
 /// Method to handle the OutboundTcpConnect message
@@ -120,18 +120,20 @@ fn handle(&mut self, msg: OutboundTcpConnect, ctx: &mut Self::Context) {
 
 These are the messages sent by the connections manager:
 
-| Message           | Destination   | Input type    | Output type                        | Description                          |
-|-------------------|---------------|---------------|------------------------------------|--------------------------------------|
-| GetServerAddress  | ConfigManager | `()`          | `Option<SocketAddr>`               | Request the config server address    |
-| ConnectAddr       | Resolver      | `SocketAddr`  | `Result<TcpStream, ResolverError>` | Request a TCP conn to an address     | 
+| Message           | Destination       | Input type                | Output type                           | Description                           |
+|-------------------|-------------------|---------------------------|---------------------------------------|---------------------------------------|
+| GetConfig         | ConfigManager     | `()`                      | `Result<Config, io::Error>`           | Request the configuration             |
+| ConnectAddr       | Resolver          | `SocketAddr`              | `Result<TcpStream, ResolverError>`    | Request a TCP conn to an address      | 
+| Create            | SessionsManager   | `TcpStream, SessionType`  | `()`                                  | Request the creation of a session     | 
 
-#### GetServerAddress
+#### GetConfig 
 
 This message is sent to the [`ConfigManager`][config_manager] actor when the connections manager actor
 is started.
 
-The return value is used to launch the TCP server of the Witnet node. For further information, see 
-[`ConfigManager`][config_manager].
+The return value is used to get the TCP server address of the Witnet node and launch it.
+
+For further information, see [`ConfigManager`][config_manager].
 
 #### ConnectAddr 
 
@@ -141,6 +143,14 @@ Upon reception of this message, the `Resolver` tries to open a TCP connection to
 in the message.
 
 For further information, see [`Resolver`][resolver].
+
+#### Create
+
+This message is sent to the [`SessionsManager`][sessions_manager] actor when a TCP connection is
+established to request the creation of a session.
+
+For further information, see [`SessionsManager`][sessions_manager].
+
 
 ## Further information
 The full source code of the `ConnectionsManager` can be found at [`connections_manager.rs`][connections_manager].

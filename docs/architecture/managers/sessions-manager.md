@@ -3,6 +3,7 @@
 The __sessions manager__ is the actor that handles incoming (inbound) and outgoing (outbound) sessions. These are some of
 its responsibilities:
 
+- Create new sessions
 - Register / unregister new sessions
 - Keep track of the status of the sessions
 - Periodically check the number of outgoing connections. If less than the configured number of
@@ -47,12 +48,13 @@ System::current().registry().set(sessions_manager_addr);
 
 These are the messages supported by the sessions manager handlers:
 
-| Message         | Input type                                | Output type           | Description                                    |
-|-----------------|-------------------------------------------|-----------------------|------------------------------------------------|
-| `Register`      | `SocketAddr, Addr<Session>, SessionType`  | `SessionsResult<()>`  | Request to register a new session              |
-| `Unregister`    | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to unregister a session                |
-| `Update`        | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to update the status of a session      |
-| `Anycast<T>`    | `T`                                       | `()`                  | Request to send a T message to a random Session|
+| Message       | Input type                                | Output type           | Description                                       |
+|---------------|-------------------------------------------|-----------------------|---------------------------------------------------|
+| Create        | `TcpStream, SessionType`                  | `()`                  | Request to create a new session                   |
+| Register      | `SocketAddr, Addr<Session>, SessionType`  | `SessionsResult<()>`  | Request to register a new session                 |
+| Unregister    | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to unregister a session                   |
+| Consolidate   | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to consolidate a session                  |
+| `Anycast<T>`  | `T`                                       | `()`                  | Request to send a T message to a random Session   |
 
 The handling of these messages is basically just calling the corresponding methods from the
 [`Sessions`][sessions] library. For example, the handler of the `Register` message would be
@@ -127,36 +129,28 @@ The return value of the delegated call is processed by `act.process_command_resp
     }
 ```
 
-### Outgoing messages: Connections Manager -> Others
+### Outgoing messages: Sessions Manager -> Others
 
 These are the messages sent by the sessions manager:
 
-| Message                 | Destination             | Input type    | Output type                       | Description                                                             |
-|-------------------------|-------------------------|---------------|-----------------------------------|-------------------------------------------------------------------------|
-| `GetServerAddress`      | `ConfigManager`         | `()`          | `Option<SocketAddr>`              | Request the config server address                                       |
-| `GetConnLimits`         | `ConfigManager`         | `()`          | `Option<(u16, u16)>`              | Request the config connections limits                                   |
-| `GetRandomPeer`         | `PeersManager`          | `()`          | `PeersResult<Option<SocketAddr>>` | Request a random peer address                                           |
-| `OutboundTcpConnect`    | `ConnectionsManager`    | `SocketAddr`  | `()`                              | Request a TCP conn to an address                                        | 
-| `Anycast<GetPeers>`     | `SessionsManager`       | `()`          | `()`                              | Request to forward a GetPeers message to one randomly selected `Session`|
+| Message               | Destination           | Input type    | Output type                       | Description                                                               |
+|-----------------------|-----------------------|---------------|-----------------------------------|---------------------------------------------------------------------------|
+| GetConfig             | ConfigManager         | `()`          | `Result<Config, io::Error>`       | Request the configuration                                                 |
+| GetRandomPeer         | PeersManager          | `()`          | `PeersResult<Option<SocketAddr>>` | Request the address of a peer                                             |
+| OutboundTcpConnect    | ConnectionsManager    | `SocketAddr`  | `()`                              | Request a TCP conn to an address                                          | 
+| `Anycast<GetPeers>`   | `SessionsManager`     | `()`          | `()`                              | Request to forward a GetPeers message to one randomly selected `Session`  |
 
-#### GetServerAddress
+#### GetConfig
 
 This message is sent to the [`ConfigManager`][config_manager] actor when the sessions manager actor
 is started.
 
-The return value is stored at the [`Sessions`][sessions] state and used at the Witnet node to avoid
-connections to itself.
+The returned configuration is used to store some parameters at the [`Sessions`][sessions] state:
 
-For further information, see [`ConfigManager`][config_manager].
-
-#### GetConnLimits
- 
-This message is sent to the [`ConfigManager`][config_manager] actor when the sessions manager actor
-is started.
-
-The return value is stored at the [`Sessions`][sessions] state and used to reject incoming
-connections and to not request new outgoing connections once the configured limits have been
-reached.
+ - Server address: used at the Witnet node to avoid connections to itself.
+ - Inbound limit: used to reject incoming connections once the limit has been reached.
+ - Outbound limit: used to stop requesting new outgoing connections once the limit has been reached.
+ - Handshake timeout: sent to the session upon creation to set a time limit to the handshake process.
 
 For further information, see [`ConfigManager`][config_manager].
 

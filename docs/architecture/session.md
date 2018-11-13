@@ -6,31 +6,41 @@ __Session__ is the actor that encapsulates the entire business logic of the Witn
 
 ## Actor creation and registration
 
-The creation of the session actor and its addition to the system registry are
-performed by the `connection_manager` process:
+The creation of the session actor is performed by the [`SessionsManager`][sessions_manager] actor
+upon reception of a `Create` message:
 
 ```rust
+// Create a session actor
 Session::create(move |ctx| {
-    // Get peer address
-    let address = stream.peer_addr().unwrap();
+    // Get local peer address
+    let local_addr = msg.stream.local_addr().unwrap();
+
+    // Get remote peer address
+    let remote_addr = msg.stream.peer_addr().unwrap();
 
     // Split TCP stream into read and write parts
-    let (r, w) = stream.split();
+    let (r, w) = msg.stream.split();
 
     // Add stream in session actor from the read part of the tcp stream
     Session::add_stream(FramedRead::new(r, P2PCodec), ctx);
 
-    // Create the session actor and store in its state the write part of the TCP stream
-    Session::new(address, session_type, FramedWrite::new(w, P2PCodec, ctx))
+    // Create the session actor and store in its state the write part of the tcp stream
+    Session::new(
+        local_addr,
+        remote_addr,
+        msg.session_type,
+        FramedWrite::new(w, P2PCodec, ctx),
+        handshake_timeout,
+    )
 });
 ```
 
 
 ## API
 
-### Incoming: Others -> Peers Manager
+### Incoming: Others -> Session 
 
-These are the messages supported by the peers manager handlers:
+These are the messages supported by the session handlers:
 
 | Message          | Input type            | Output type                       | Description            |
 | ---------------- | --------------------- | --------------------------------- | ---------------------- |
@@ -41,14 +51,15 @@ The handler of `GetPeers` message is currently empty.
 
 // TODO Update documentation when `GetPeers` gets any actual functionality.
 
-### Outgoing messages: Sessions Manager -> Others
 
-These are the messages sent by the connections manager:
+### Outgoing messages: Session -> Others
 
-| Message                 | Destination               | Input type                                        | Output type                       | Description                           |
-|-------------------------|---------------------------|---------------------------------------------------|-----------------------------------|---------------------------------------|
-| `Register`              | `SessionsManager`         | `SocketAddr, Addr<Session>, SessionType`          | `SessionsResult<()>`              | Request to register a new session     |
-| `Unregister`            | `SessionsManager`         | `SocketAddr, SessionType`                         | `SessionsResult<()>`              | Request to unregister a session       |
+These are the messages sent by the session:
+
+| Message                 | Destination               | Input type                                        | Output type                         | Description                           |
+|-------------------------|---------------------------|---------------------------------------------------|-------------------------------------|---------------------------------------|
+| `Register`              | `SessionsManager`         | `SocketAddr, Addr<Session>, SessionType`          | `SessionsResult<()>`                | Request to register a new session     |
+| `Unregister`            | `SessionsManager`         | `SocketAddr, SessionType, SessionStatus`          | `SessionsResult<()>`                | Request to unregister a session       |
 
 
 #### Register
