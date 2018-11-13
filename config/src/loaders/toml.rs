@@ -149,25 +149,46 @@ db_path = 'dbfiles'
     }
 
     #[test]
-    fn test_load_duration() {
+    fn test_load_durations() {
         use std::time::Duration;
 
         let empty_config = super::from_str("[storage]").unwrap();
         let config = super::from_str(
             r"
 [connections]
-bootstrap_peers_period_seconds = 10
+bootstrap_peers_period_seconds = 11
+storage_peers_period_seconds = 7
+handshake_timeout_seconds = 21
 ",
         )
         .unwrap();
 
+        // Check default values in empty config
         assert_eq!(
             empty_config.connections.bootstrap_peers_period,
             Connections::default().bootstrap_peers_period
         );
         assert_eq!(
+            empty_config.connections.storage_peers_period,
+            Connections::default().storage_peers_period
+        );
+        assert_eq!(
+            empty_config.connections.handshake_timeout,
+            Connections::default().handshake_timeout
+        );
+
+        // Check values in initialized config
+        assert_eq!(
             config.connections.bootstrap_peers_period,
-            Some(Duration::from_secs(10))
+            Some(Duration::from_secs(11))
+        );
+        assert_eq!(
+            config.connections.storage_peers_period,
+            Some(Duration::from_secs(7))
+        );
+        assert_eq!(
+            config.connections.handshake_timeout,
+            Some(Duration::from_secs(21))
         );
     }
 }

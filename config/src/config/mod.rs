@@ -235,6 +235,10 @@ mod tests {
             config.discovery_peers_period,
             Testnet1.connections_discovery_peers_period()
         );
+        assert_eq!(
+            config.handshake_timeout,
+            Testnet1.connections_handshake_timeout()
+        );
     }
 
     #[test]
@@ -249,6 +253,7 @@ mod tests {
             bootstrap_peers_period: Some(Duration::from_secs(10)),
             storage_peers_period: Some(Duration::from_secs(60)),
             discovery_peers_period: Some(Duration::from_secs(100)),
+            handshake_timeout: Some(Duration::from_secs(3)),
         };
         let config = Connections::from_partial(&partial_config, &*defaults);
 
@@ -259,6 +264,7 @@ mod tests {
         assert_eq!(config.bootstrap_peers_period, Duration::from_secs(10));
         assert_eq!(config.storage_peers_period, Duration::from_secs(60));
         assert_eq!(config.discovery_peers_period, Duration::from_secs(100));
+        assert_eq!(config.handshake_timeout, Duration::from_secs(3));
     }
 
     #[test]
@@ -266,6 +272,7 @@ mod tests {
         let partial_config = partial::Config::default();
         let config = Config::from_partial(&partial_config);
 
+        assert_eq!(config.environment, Environment::Testnet1);
         assert_eq!(
             config.connections.server_addr,
             Testnet1.connections_server_addr()
@@ -294,5 +301,10 @@ mod tests {
             config.connections.discovery_peers_period,
             Testnet1.connections_discovery_peers_period()
         );
+        assert_eq!(
+            config.connections.handshake_timeout,
+            Testnet1.connections_handshake_timeout()
+        );
+        assert_eq!(config.storage.db_path, Testnet1.storage_db_path());
     }
 }
