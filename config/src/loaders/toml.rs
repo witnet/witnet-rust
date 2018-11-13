@@ -3,8 +3,7 @@
 use crate::config::partial::Config;
 use failure::Fail;
 use std::fmt;
-use std::fs::File;
-use std::io::{self, Read};
+use std::io;
 use std::path::Path;
 use toml;
 use witnet_util::error::{WitnetError, WitnetResult};
@@ -45,6 +44,9 @@ pub fn from_file(file: &Path) -> Result<Config> {
 
 #[cfg(not(test))]
 fn read_file_contents(file: &Path, contents: &mut String) -> io::Result<usize> {
+    use std::fs::File;
+    use std::io::Read;
+
     let mut file = File::open(file)?;
     file.read_to_string(contents)
 }

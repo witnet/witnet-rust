@@ -15,6 +15,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use serde_derive::Deserialize;
+
 /// The partial configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
 #[derive(Deserialize, Default, Debug, PartialEq)]

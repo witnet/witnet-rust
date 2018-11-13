@@ -45,6 +45,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use serde_derive::Deserialize;
+
 /// Module containing the partial configuration struct that is
 /// returned by the loaders.
 pub mod partial;
@@ -134,7 +136,7 @@ impl Default for Config {
 }
 
 impl Connections {
-    pub fn from_partial(config: &partial::Connections, defaults: &Defaults) -> Self {
+    pub fn from_partial(config: &partial::Connections, defaults: &dyn Defaults) -> Self {
         Connections {
             server_addr: config
                 .server_addr
@@ -166,7 +168,7 @@ impl Connections {
 }
 
 impl Storage {
-    pub fn from_partial(config: &partial::Storage, defaults: &Defaults) -> Self {
+    pub fn from_partial(config: &partial::Storage, defaults: &dyn Defaults) -> Self {
         Storage {
             db_path: config
                 .db_path
@@ -182,29 +184,26 @@ mod tests {
 
     #[test]
     fn test_storage_default_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
         let partial_config = partial::Storage::default();
-        let config = Storage::from_partial(&partial_config, &*defaults);
+        let config = Storage::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.db_path.to_str(), Testnet1.storage_db_path().to_str());
     }
 
     #[test]
     fn test_storage_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
         let partial_config = partial::Storage {
             db_path: Some(PathBuf::from("other")),
         };
-        let config = Storage::from_partial(&partial_config, &*defaults);
+        let config = Storage::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.db_path.to_str(), Some("other"));
     }
 
     #[test]
     fn test_connections_default_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
         let partial_config = partial::Connections::default();
-        let config = Connections::from_partial(&partial_config, &*defaults);
+        let config = Connections::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.server_addr, Testnet1.connections_server_addr());
         assert_eq!(config.inbound_limit, Testnet1.connections_inbound_limit());
@@ -222,7 +221,6 @@ mod tests {
 
     #[test]
     fn test_connections_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
         let addr: SocketAddr = "127.0.0.1:3000".parse().unwrap();
         let partial_config = partial::Connections {
             server_addr: Some(addr),
@@ -232,7 +230,7 @@ mod tests {
             bootstrap_peers_period: Some(Duration::from_secs(10)),
             storage_peers_period: Some(Duration::from_secs(60)),
         };
-        let config = Connections::from_partial(&partial_config, &*defaults);
+        let config = Connections::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.server_addr, addr);
         assert_eq!(config.inbound_limit, 3);
