@@ -46,6 +46,11 @@ pub trait Defaults {
     fn connections_discovery_peers_period(&self) -> Duration {
         Duration::from_secs(30)
     }
+
+    /// Default handshake timeout
+    fn connections_handshake_timeout(&self) -> Duration {
+        Duration::from_secs(5)
+    }
 }
 
 /// Struct that will implement all the mainnet defaults

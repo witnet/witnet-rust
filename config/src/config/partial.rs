@@ -64,11 +64,20 @@ pub struct Connections {
     /// Period of the persist peers task
     #[serde(default)]
     #[serde(deserialize_with = "from_secs")]
-    #[serde(rename = "bootstrap_peers_period_seconds")]
+    #[serde(rename = "storage_peers_period_seconds")]
     pub storage_peers_period: Option<Duration>,
 
     /// Period of the peers discovery task
+    #[serde(default)]
+    #[serde(deserialize_with = "from_secs")]
+    #[serde(rename = "discovery_peers_period_seconds")]
     pub discovery_peers_period: Option<Duration>,
+
+    /// Handshake timeout
+    #[serde(default)]
+    #[serde(deserialize_with = "from_secs")]
+    #[serde(rename = "handshake_timeout_seconds")]
+    pub handshake_timeout: Option<Duration>,
 }
 
 /// Storage-specific configuration

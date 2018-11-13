@@ -93,6 +93,9 @@ pub struct Connections {
 
     /// Period of the peers discovery task
     pub discovery_peers_period: Duration,
+
+    /// Handshake timeout
+    pub handshake_timeout: Duration,
 }
 
 /// Storage-specific configuration
@@ -168,6 +171,9 @@ impl Connections {
                 .discovery_peers_period
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_discovery_peers_period()),
+            handshake_timeout: config
+                .handshake_timeout
+                .unwrap_or_else(|| defaults.connections_handshake_timeout()),
         }
     }
 }
