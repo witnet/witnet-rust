@@ -12,7 +12,7 @@ use log::debug;
 
 use crate::actors::config_manager::send_get_config_request;
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
-use crate::actors::session::Session;
+use crate::actors::session::{GetPeers, Session};
 
 use crate::actors::peers_manager::{GetRandomPeer, PeersManager, PeersSocketAddrResult};
 
@@ -74,6 +74,18 @@ impl SessionsManager {
 
             // Reschedule the bootstrap peers task
             act.bootstrap_peers(ctx, bootstrap_peers_period);
+        });
+    }
+
+    /// Method to periodically discover peers
+    fn discovery_peers(&self, ctx: &mut Context<Self>, discovery_peers_period: Duration) {
+        // Schedule the discovery_peers with a given period
+        ctx.run_later(discovery_peers_period, move |act, ctx| {
+            // Send Anycast(GetPeers) message
+            ctx.notify(Anycast {
+                command: GetPeers {},
+            });
+            act.discovery_peers(ctx, discovery_peers_period);
         });
     }
 
@@ -139,7 +151,10 @@ impl Actor for SessionsManager {
 
         // Send message to config manager and process its response
         send_get_config_request(self, ctx, |act, ctx, config| {
+            // Get periods for peers bootstrapping and discovery tasks
             let bootstrap_peers_period = config.connections.bootstrap_peers_period;
+            let discovery_peers_period = config.connections.discovery_peers_period;
+
             // Set server address and connections limits
             act.sessions
                 .set_server_address(config.connections.server_addr);
@@ -148,8 +163,11 @@ impl Actor for SessionsManager {
                 config.connections.outbound_limit,
             );
 
-            // We'll start the bootstrap peers process on sessions manager start
+            // We'll start the peers bootstrapping process upon SessionsManager's start
             act.bootstrap_peers(ctx, bootstrap_peers_period);
+
+            // We'll start the peers discovery process upon SessionsManager's start
+            act.discovery_peers(ctx, discovery_peers_period);
         });
     }
 }

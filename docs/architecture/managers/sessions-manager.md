@@ -47,11 +47,12 @@ System::current().registry().set(sessions_manager_addr);
 
 These are the messages supported by the sessions manager handlers:
 
-| Message       | Input type                                | Output type           | Description                               |
-|---------------|-------------------------------------------|-----------------------|-------------------------------------------|
-| Register      | `SocketAddr, Addr<Session>, SessionType`  | `SessionsResult<()>`  | Request to register a new session         |
-| Unregister    | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to unregister a session           |
-| Update        | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to update the status of a session |
+| Message         | Input type                                | Output type           | Description                                    |
+|-----------------|-------------------------------------------|-----------------------|------------------------------------------------|
+| `Register`      | `SocketAddr, Addr<Session>, SessionType`  | `SessionsResult<()>`  | Request to register a new session              |
+| `Unregister`    | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to unregister a session                |
+| `Update`        | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to update the status of a session      |
+| `Anycast<T>`    | `T`                                       | `()`                  | Request to send a T message to a random Session|
 
 The handling of these messages is basically just calling the corresponding methods from the
 [`Sessions`][sessions] library. For example, the handler of the `Register` message would be
@@ -103,17 +104,40 @@ session_manager_addr
     })
     .wait(ctx);
 ```
+#### Anycast<T>
+The handler for `Anycast<T>` messages is basically just calling the method `get_random_anycast_session` from the
+[`Sessions`][sessions] library to obtain a random `Session` and forward the `T` message to it.
+
+The return value of the delegated call is processed by `act.process_command_response(&res)`
+
+```rust
+   /// Method to process session SendMessage response
+    fn process_command_response<T>(
+        &mut self,
+        response: &Result<T::Result, MailboxError>,
+    ) -> FutureResult<(), (), Self>
+    where
+        T: Message,
+        Session: Handler<T>,
+    {
+        match response {
+            Ok(_) => actix::fut::ok(()),
+            Err(_) => actix::fut::err(()),
+        }
+    }
+```
 
 ### Outgoing messages: Connections Manager -> Others
 
-These are the messages sent by the connections manager:
+These are the messages sent by the sessions manager:
 
-| Message               | Destination           | Input type    | Output type                       | Description                           |
-|-----------------------|-----------------------|---------------|-----------------------------------|---------------------------------------|
-| GetServerAddress      | ConfigManager         | `()`          | `Option<SocketAddr>`              | Request the config server address     |
-| GetConnLimits         | ConfigManager         | `()`          | `Option<(u16, u16)>`              | Request the config connections limits |
-| GetRandomPeer         | PeersManager          | `()`          | `PeersResult<Option<SocketAddr>>` | Request the address of a peer         |
-| OutboundTcpConnect    | ConnectionsManager    | `SocketAddr`  | `()`                              | Request a TCP conn to an address      | 
+| Message                 | Destination             | Input type    | Output type                       | Description                                                             |
+|-------------------------|-------------------------|---------------|-----------------------------------|-------------------------------------------------------------------------|
+| `GetServerAddress`      | `ConfigManager`         | `()`          | `Option<SocketAddr>`              | Request the config server address                                       |
+| `GetConnLimits`         | `ConfigManager`         | `()`          | `Option<(u16, u16)>`              | Request the config connections limits                                   |
+| `GetRandomPeer`         | `PeersManager`          | `()`          | `PeersResult<Option<SocketAddr>>` | Request a random peer address                                           |
+| `OutboundTcpConnect`    | `ConnectionsManager`    | `SocketAddr`  | `()`                              | Request a TCP conn to an address                                        | 
+| `Anycast<GetPeers>`     | `SessionsManager`       | `()`          | `()`                              | Request to forward a GetPeers message to one randomly selected `Session`|
 
 #### GetServerAddress
 
@@ -169,6 +193,14 @@ connections and try to create a new one.
 
 For further information, see [`ConnectionsManager`][connections_manager].
 
+#### Anycast<GetPeers>
+Due to [`SessionsManager`][sessions_manager] has an `Anycast<T>` handler to forward a `T` message
+to one randomly selected `Session`, this message is periodically sent it to itself.
+
+It is a best effort message, its return value is not processed and the [`SessionsManager`][sessions_manager] 
+actor does not even wait for its response after sending it.
+
+This message causes `SessionManager` to forward a `GetPeers` message to one randomly selected `Session` actor. 
 ## Further information
 The full source code of the `SessionsManager` can be found at [`sessions_manager.rs`][sessions_manager].
 

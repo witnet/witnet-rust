@@ -41,6 +41,11 @@ pub trait Defaults {
     fn connections_storage_peers_period(&self) -> Duration {
         Duration::from_secs(30)
     }
+
+    /// Default period for discovering peers
+    fn connections_discovery_peers_period(&self) -> Duration {
+        Duration::from_secs(30)
+    }
 }
 
 /// Struct that will implement all the mainnet defaults

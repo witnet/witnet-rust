@@ -66,6 +66,9 @@ pub struct Connections {
     #[serde(deserialize_with = "from_secs")]
     #[serde(rename = "bootstrap_peers_period_seconds")]
     pub storage_peers_period: Option<Duration>,
+
+    /// Period of the peers discovery task
+    pub discovery_peers_period: Option<Duration>,
 }
 
 /// Storage-specific configuration

@@ -90,6 +90,9 @@ pub struct Connections {
 
     /// Period of the persist peers task
     pub storage_peers_period: Duration,
+
+    /// Period of the peers discovery task
+    pub discovery_peers_period: Duration,
 }
 
 /// Storage-specific configuration
@@ -161,6 +164,10 @@ impl Connections {
                 .storage_peers_period
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_storage_peers_period()),
+            discovery_peers_period: config
+                .discovery_peers_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_discovery_peers_period()),
         }
     }
 }
@@ -218,6 +225,10 @@ mod tests {
             config.storage_peers_period,
             Testnet1.connections_storage_peers_period()
         );
+        assert_eq!(
+            config.discovery_peers_period,
+            Testnet1.connections_discovery_peers_period()
+        );
     }
 
     #[test]
@@ -231,6 +242,7 @@ mod tests {
             known_peers: [addr].iter().cloned().collect(),
             bootstrap_peers_period: Some(Duration::from_secs(10)),
             storage_peers_period: Some(Duration::from_secs(60)),
+            discovery_peers_period: Some(Duration::from_secs(100)),
         };
         let config = Connections::from_partial(&partial_config, &*defaults);
 
@@ -240,6 +252,7 @@ mod tests {
         assert!(config.known_peers.contains(&addr));
         assert_eq!(config.bootstrap_peers_period, Duration::from_secs(10));
         assert_eq!(config.storage_peers_period, Duration::from_secs(60));
+        assert_eq!(config.discovery_peers_period, Duration::from_secs(100));
     }
 
     #[test]
@@ -270,6 +283,10 @@ mod tests {
         assert_eq!(
             config.connections.storage_peers_period,
             Testnet1.connections_storage_peers_period()
+        );
+        assert_eq!(
+            config.connections.discovery_peers_period,
+            Testnet1.connections_discovery_peers_period()
         );
     }
 }

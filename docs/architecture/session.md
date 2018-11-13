@@ -28,6 +28,19 @@ Session::create(move |ctx| {
 
 ## API
 
+### Incoming: Others -> Peers Manager
+
+These are the messages supported by the peers manager handlers:
+
+| Message          | Input type            | Output type                       | Description            |
+| ---------------- | --------------------- | --------------------------------- | ---------------------- |
+| `GetPeers`       | `()`                  | `()`                              | Empty                  |
+
+#### GetPeers
+The handler of `GetPeers` message is currently empty.
+
+// TODO Update documentation when `GetPeers` gets any actual functionality.
+
 ### Outgoing messages: Sessions Manager -> Others
 
 These are the messages sent by the connections manager:
