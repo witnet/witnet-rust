@@ -10,6 +10,11 @@ environment = "testnet-1" # or "mainnet"
 [connections] # section for connections-related params
 server_addr = "127.0.0.1:1234"
 inbound_limit = 30
+outbound_limit = 27
+known_peers = ["127.0.0.1:20000", "127.0.0.1:20001"]
+bootstrap_peers_period_seconds = 3
+storage_peers_period_seconds = 60
+handshake_timeout_seconds = 10
 
 [storage] # section for storage-related params
 db_path = ".wit"
@@ -19,12 +24,14 @@ db_path = ".wit"
 
 ## Configuration params
 
-| Section     | Param          | Default Value       | Description                                                       |
-| ---------   | ----------     | --------------      | -----------------------------------                               |
-|             | environment    | `"testnet-1"`       | Environment in which the Witnet protocol will run                 |
-| connections | server_addr    | `"127.0.0.1:21337"` | Server socket address to which it should bind to                  |
-| connections | inbound_limit  | `128`               | Maximum number of concurrent connections the server should accept |
-| connections | outbound_limit | `8`                 | Maximum number of opened connections to other peers this node has |
-| connections | known_peers    | `[]`                | Other peer addresses this node knows about at start               |
-| storage     | db_path        | `".wit"`            | Directory containing the dabase files                             |
-
+| Section     | Param                           | Default Value in testnet-1  | Description                                                         |
+|-------------|---------------------------------|-----------------------------|---------------------------------------------------------------------|
+|             | environment                     | `"testnet-1"`               | Environment in which the Witnet protocol will run                   |
+| connections | server_addr                     | `"127.0.0.1:21337"`         | Server socket address to which it should bind to                    |
+| connections | inbound_limit                   | `128`                       | Maximum number of concurrent connections the server should accept   |
+| connections | outbound_limit                  | `8`                         | Maximum number of opened connections to other peers this node has   |
+| connections | known_peers                     | `[]`                        | Other peer addresses this node knows about at start                 |
+| connections | bootstrap_peers_period_seconds  | `5`                         | Period of the outbound peer bootstrapping process (in seconds)      |
+| connections | storage_peers_period_seconds    | `30`                        | Period of the known peers backup into storage process (in seconds)  |
+| connections | handshake_timeout_seconds       | `5`                         | Timeout for the handshake process (in seconds)                      |
+| storage     | db_path                         | `".witnet-rust-testnet-1"`  | Directory containing the database files                             |
