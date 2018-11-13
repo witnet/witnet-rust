@@ -21,8 +21,11 @@ use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 /// Session representing a TCP connection
 pub struct Session {
-    /// Session socket address
-    address: SocketAddr,
+    /// Local socket address
+    _local_addr: SocketAddr,
+
+    /// Remote socket address
+    remote_addr: SocketAddr,
 
     /// Session type
     session_type: SessionType,
@@ -38,15 +41,16 @@ pub struct Session {
 impl Session {
     /// Method to create a new session
     pub fn new(
-        address: SocketAddr,
+        _local_addr: SocketAddr,
+        remote_addr: SocketAddr,
         session_type: SessionType,
-        status: SessionStatus,
         _framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
     ) -> Session {
         Session {
-            address,
+            _local_addr,
+            remote_addr,
             session_type,
-            status,
+            status: SessionStatus::Unconsolidated,
             _framed,
         }
     }
@@ -59,15 +63,15 @@ impl Actor for Session {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
-        // Get session manager address
-        let session_manager_addr = System::current().registry().get::<SessionsManager>();
+        // Get sessions manager address
+        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
         // Register self in session manager. `AsyncContext::wait` register
         // future within context, but context waits until this future resolves
         // before processing any other events.
-        session_manager_addr
+        sessions_manager_addr
             .send(Register {
-                address: self.address,
+                address: self.remote_addr,
                 actor: ctx.address(),
                 session_type: self.session_type,
             })
@@ -94,7 +98,7 @@ impl Actor for Session {
 
         // Unregister session from session manager
         session_manager_addr.do_send(Unregister {
-            address: self.address,
+            address: self.remote_addr,
             session_type: self.session_type,
             status: self.status,
         });
@@ -129,7 +133,10 @@ impl StreamHandler<Request, Error> for Session {
         // Handler different types of requests
         match msg {
             Request::Message(message) => {
-                debug!("Session {} received message: {:?}", self.address, message);
+                debug!(
+                    "Session against {} received message: {:?}",
+                    self.remote_addr, message
+                );
             }
         }
     }
