@@ -5,21 +5,16 @@ use std::net::SocketAddr;
 use actix::{
     actors::resolver::{ConnectAddr, Resolver, ResolverError},
     fut::FutureResult,
-    io::FramedWrite,
     Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, MailboxError,
-    Message, StreamHandler, SystemService, WrapFuture,
+    Message, System, SystemService, WrapFuture,
 };
-use tokio::{
-    codec::FramedRead,
-    io::AsyncRead,
-    net::{TcpListener, TcpStream},
-};
+use tokio::net::{TcpListener, TcpStream};
 
 use crate::actors::config_manager::send_get_config_request;
-use crate::actors::{codec::P2PCodec, session::Session};
+use crate::actors::sessions_manager::{CreateSession, SessionsManager};
 
 use witnet_config::config::Config;
-use witnet_p2p::sessions::{SessionStatus, SessionType};
+use witnet_p2p::sessions::SessionType;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGES
@@ -87,24 +82,13 @@ impl ConnectionsManager {
 
     /// Method to create a session actor from a TCP stream
     fn create_session(stream: TcpStream, session_type: SessionType) {
-        // Create a session actor
-        Session::create(move |ctx| {
-            // Get peer address
-            let address = stream.peer_addr().unwrap();
+        // Get sessions manager address
+        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
-            // Split TCP stream into read and write parts
-            let (r, w) = stream.split();
-
-            // Add stream in session actor from the read part of the tcp stream
-            Session::add_stream(FramedRead::new(r, P2PCodec), ctx);
-
-            // Create the session actor and store in its state the write part of the tcp stream
-            Session::new(
-                address,
-                session_type,
-                SessionStatus::Unconsolidated,
-                FramedWrite::new(w, P2PCodec, ctx),
-            )
+        // Send a message to the SessionsManager to request the creation of a session
+        sessions_manager_addr.do_send(CreateSession {
+            stream,
+            session_type,
         });
     }
 
