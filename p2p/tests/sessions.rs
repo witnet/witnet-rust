@@ -1,4 +1,5 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::time::Duration;
 
 use witnet_p2p::sessions::*;
 
@@ -60,6 +61,20 @@ fn p2p_sessions_set_limits() {
         limit_outbound_consolidated
     );
     assert!(sessions.outbound_unconsolidated.limit.is_none());
+}
+
+/// Check setting the handshake timeout
+#[test]
+fn p2p_sessions_set_handshake_timeout() {
+    // Create sessions struct
+    let mut sessions = Sessions::<String>::default();
+
+    // Set handshake timeout
+    let handshake_timeout = Duration::from_secs(17);
+    sessions.set_handshake_timeout(handshake_timeout);
+
+    // Check handshake timeout is now set
+    assert_eq!(sessions.handshake_timeout, handshake_timeout);
 }
 
 /// Check if addresses are eligible as outbound addresses
