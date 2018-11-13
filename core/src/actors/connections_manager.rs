@@ -11,7 +11,7 @@ use actix::{
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::actors::config_manager::send_get_config_request;
-use crate::actors::sessions_manager::{CreateSession, SessionsManager};
+use crate::actors::sessions_manager::{Create, SessionsManager};
 
 use witnet_config::config::Config;
 use witnet_p2p::sessions::SessionType;
@@ -80,13 +80,13 @@ impl ConnectionsManager {
         send_get_config_request(self, ctx, ConnectionsManager::process_config);
     }
 
-    /// Method to create a session actor from a TCP stream
-    fn create_session(stream: TcpStream, session_type: SessionType) {
+    /// Method to request the creation of a session actor from a TCP stream
+    fn request_session_creation(stream: TcpStream, session_type: SessionType) {
         // Get sessions manager address
         let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
         // Send a message to the SessionsManager to request the creation of a session
-        sessions_manager_addr.do_send(CreateSession {
+        sessions_manager_addr.do_send(Create {
             stream,
             session_type,
         });
@@ -112,8 +112,8 @@ impl ConnectionsManager {
                     Ok(stream) => {
                         debug!("Connected to peer {:?}", stream.peer_addr());
 
-                        // Create a session actor from connection
-                        ConnectionsManager::create_session(stream, SessionType::Outbound);
+                        // Request the creation of a new session actor from connection
+                        ConnectionsManager::request_session_creation(stream, SessionType::Outbound);
 
                         actix::fut::ok(())
                     }
@@ -153,8 +153,8 @@ impl Handler<InboundTcpConnect> for ConnectionsManager {
 
     /// Method to handle the InboundTcpConnect message
     fn handle(&mut self, msg: InboundTcpConnect, _ctx: &mut Self::Context) {
-        // Create a session actor from connection
-        ConnectionsManager::create_session(msg.stream, SessionType::Inbound);
+        // Request the creation of a new session actor from connection
+        ConnectionsManager::request_session_creation(msg.stream, SessionType::Inbound);
     }
 }
 

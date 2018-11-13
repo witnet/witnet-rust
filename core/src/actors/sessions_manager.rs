@@ -188,7 +188,7 @@ impl SystemService for SessionsManager {}
 pub type SessionsUnitResult = SessionsResult<()>;
 
 /// Message to indicate that a new session needs to be created
-pub struct CreateSession {
+pub struct Create {
     /// TCP stream
     pub stream: TcpStream,
 
@@ -196,7 +196,7 @@ pub struct CreateSession {
     pub session_type: SessionType,
 }
 
-impl Message for CreateSession {
+impl Message for Create {
     type Result = ();
 }
 
@@ -264,11 +264,11 @@ where
 // ACTOR MESSAGE HANDLERS
 ////////////////////////////////////////////////////////////////////////////////////////
 
-/// Handler for CreateSession message.
-impl Handler<CreateSession> for SessionsManager {
+/// Handler for Create message.
+impl Handler<Create> for SessionsManager {
     type Result = ();
 
-    fn handle(&mut self, msg: CreateSession, _ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: Create, _ctx: &mut Context<Self>) {
         // Get handshake timeout
         let handshake_timeout = self.sessions.handshake_timeout;
 
