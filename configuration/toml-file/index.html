@@ -11,7 +11,7 @@
       <meta http-equiv="x-ua-compatible" content="ie=edge">
       
       
-        <link rel="canonical" href="https://docs.witnet.io/protocol/network/">
+        <link rel="canonical" href="https://docs.witnet.io/configuration/toml-file/">
       
       
       
@@ -38,7 +38,7 @@
     
     
       
-        <title>Network messages - Witnet-rust Documentation</title>
+        <title>Custom toml file - Witnet-rust Documentation</title>
       
     
     
@@ -100,7 +100,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="../../#witnet-network-protocol" tabindex="1" class="md-skip">
+      <a href="../../#custom-toml-configuration-file" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -126,7 +126,7 @@
                 Witnet-rust Documentation
               </span>
               <span class="md-header-nav__topic">
-                Network messages
+                Custom toml file
               </span>
             
           
@@ -325,12 +325,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
     
     <label class="md-nav__link" for="nav-3">
       Protocol
@@ -346,185 +344,191 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
+  <li class="md-nav__item md-nav__item--nested">
     
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-1" type="checkbox" id="nav-3-1">
     
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="__toc">
-        Network messages
+    <label class="md-nav__link" for="nav-3-1">
+      Network
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-1">
+        Network
       </label>
-    
-    <a href="./" title="Network messages" class="md-nav__link md-nav__link--active">
-      Network messages
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/overview/" title="Overview" class="md-nav__link">
+      Overview
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
     
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-1-2" type="checkbox" id="nav-3-1-2">
     
-  
-  
-    <label class="md-nav__title" for="__toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#initial-considerations" title="Initial considerations" class="md-nav__link">
-    Initial considerations
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
+    <label class="md-nav__link" for="nav-3-1-2">
+      Data Structures
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="3">
+      <label class="md-nav__title" for="nav-3-1-2">
+        Data Structures
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
         
-          <li class="md-nav__item">
-  <a href="#peer-bootstrapping-methods" title="Peer bootstrapping methods" class="md-nav__link">
-    Peer bootstrapping methods
-  </a>
-  
-</li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#constants-and-defaults" title="Constants and Defaults" class="md-nav__link">
-    Constants and Defaults
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/data-structures/block/" title="Block" class="md-nav__link">
+      Block
+    </a>
+  </li>
+
         
-          <li class="md-nav__item">
-  <a href="#default-values" title="Default Values" class="md-nav__link">
-    Default Values
-  </a>
-  
-</li>
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/data-structures/ip-address/" title="IP Address" class="md-nav__link">
+      IP Address
+    </a>
+  </li>
+
         
-          <li class="md-nav__item">
-  <a href="#witnet-versions" title="Witnet versions" class="md-nav__link">
-    Witnet versions
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#magic-numbers" title="Magic numbers" class="md-nav__link">
-    Magic numbers
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#node-capabilities" title="Node capabilities" class="md-nav__link">
-    Node capabilities
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#user-agents" title="User agents" class="md-nav__link">
-    User agents
-  </a>
-  
-</li>
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/data-structures/transaction/" title="Transaction" class="md-nav__link">
+      Transaction
+    </a>
+  </li>
+
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#common-structures" title="Common Structures" class="md-nav__link">
-    Common Structures
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
+  </li>
+
         
-          <li class="md-nav__item">
-  <a href="#address-format" title="Address Format" class="md-nav__link">
-    Address Format
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#messages" title="Messages" class="md-nav__link">
-    Messages
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#message-header" title="Message Header" class="md-nav__link">
-    Message Header
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#handshake-version-verack" title="Handshake (VERSION, VERACK)" class="md-nav__link">
-    Handshake (VERSION, VERACK)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#peer-discovery-get_peers-peers" title="Peer discovery (GET_PEERS, PEERS)" class="md-nav__link">
-    Peer discovery (GET_PEERS, PEERS)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#heartbeat-ping-pong" title="Heartbeat (PING, PONG)" class="md-nav__link">
-    Heartbeat (PING, PONG)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#error-messages" title="Error messages" class="md-nav__link">
-    Error messages
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#references" title="References" class="md-nav__link">
-    References
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
-</nav>
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
     
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-1-3" type="checkbox" id="nav-3-1-3">
+    
+    <label class="md-nav__link" for="nav-3-1-3">
+      Messages
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="3">
+      <label class="md-nav__title" for="nav-3-1-3">
+        Messages
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/messages/overview/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/messages/handshake/" title="Handshake" class="md-nav__link">
+      Handshake
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/messages/peer-discovery/" title="Peer Discovery" class="md-nav__link">
+      Peer Discovery
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/messages/heartbeat/" title="Heartbeat" class="md-nav__link">
+      Heartbeat
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/messages/inventory/" title="Inventory exchange" class="md-nav__link">
+      Inventory exchange
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../protocol/network/constants/" title="Constants" class="md-nav__link">
+      Constants
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -553,7 +557,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/overview/" title="Overview" class="md-nav__link">
+    <a href="../../protocol/data-requests/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -584,7 +588,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/encoding/" title="Encoding" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/encoding/" title="Encoding" class="md-nav__link">
       Encoding
     </a>
   </li>
@@ -615,7 +619,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/overview/" title="Overview" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -627,7 +631,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/array/" title="Array<V>" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/array/" title="Array<V>" class="md-nav__link">
       Array<V>
     </a>
   </li>
@@ -639,7 +643,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/boolean/" title="Boolean" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/boolean/" title="Boolean" class="md-nav__link">
       Boolean
     </a>
   </li>
@@ -651,7 +655,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/int/" title="Int" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/int/" title="Int" class="md-nav__link">
       Int
     </a>
   </li>
@@ -663,7 +667,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/float/" title="Float" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/float/" title="Float" class="md-nav__link">
       Float
     </a>
   </li>
@@ -675,7 +679,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/map/" title="Map<V>" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/map/" title="Map<V>" class="md-nav__link">
       Map<V>
     </a>
   </li>
@@ -687,7 +691,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/mixed/" title="Mixed" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/mixed/" title="Mixed" class="md-nav__link">
       Mixed
     </a>
   </li>
@@ -699,7 +703,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/null/" title="Null" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/null/" title="Null" class="md-nav__link">
       Null
     </a>
   </li>
@@ -711,7 +715,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/result/" title="Result<V>" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/result/" title="Result<V>" class="md-nav__link">
       Result<V>
     </a>
   </li>
@@ -723,7 +727,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/types/string/" title="String" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/string/" title="String" class="md-nav__link">
       String
     </a>
   </li>
@@ -740,7 +744,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
       Implicit `Result<V>` wrapping
     </a>
   </li>
@@ -752,7 +756,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/exceptions/" title="Exception handling" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/exceptions/" title="Exception handling" class="md-nav__link">
       Exception handling
     </a>
   </li>
@@ -764,7 +768,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/functions/" title="Predefined functions" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/functions/" title="Predefined functions" class="md-nav__link">
       Predefined functions
     </a>
   </li>
@@ -776,7 +780,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/subscripts/" title="Subscripts" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/subscripts/" title="Subscripts" class="md-nav__link">
       Subscripts
     </a>
   </li>
@@ -788,7 +792,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/examples/" title="Examples" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/examples/" title="Examples" class="md-nav__link">
       Examples
     </a>
   </li>
@@ -800,7 +804,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radon/constants/" title="Constants" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/constants/" title="Constants" class="md-nav__link">
       Constants
     </a>
   </li>
@@ -817,7 +821,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../data-requests/radlang.md" title="RADlang" class="md-nav__link">
+    <a href="../../protocol/data-requests/radlang.md" title="RADlang" class="md-nav__link">
       RADlang
     </a>
   </li>
@@ -853,7 +857,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../transactions.md" title="Introduction" class="md-nav__link">
+    <a href="../../protocol/transactions.md" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -865,7 +869,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../witscript.md" title="WitScript" class="md-nav__link">
+    <a href="../../protocol/witscript.md" title="WitScript" class="md-nav__link">
       WitScript
     </a>
   </li>
@@ -882,7 +886,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../blocks.md" title="Blocks" class="md-nav__link">
+    <a href="../../protocol/blocks.md" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -894,7 +898,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../reputation.md" title="Reputation" class="md-nav__link">
+    <a href="../../protocol/reputation.md" title="Reputation" class="md-nav__link">
       Reputation
     </a>
   </li>
@@ -906,7 +910,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../mining.md" title="Mining" class="md-nav__link">
+    <a href="../../protocol/mining.md" title="Mining" class="md-nav__link">
       Mining
     </a>
   </li>
@@ -918,7 +922,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../task-assignment.md" title="Task assignment" class="md-nav__link">
+    <a href="../../protocol/task-assignment.md" title="Task assignment" class="md-nav__link">
       Task assignment
     </a>
   </li>
@@ -1083,6 +1087,18 @@
   <li class="md-nav__item">
     <a href="../../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
       Connections Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/managers/config-manager/" title="Config Manager" class="md-nav__link">
+      Config Manager
     </a>
   </li>
 
@@ -1293,6 +1309,113 @@
       
       
 
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9" type="checkbox" id="nav-9" checked>
+    
+    <label class="md-nav__link" for="nav-9">
+      Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-9">
+        Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Custom toml file
+      </label>
+    
+    <a href="./" title="Custom toml file" class="md-nav__link md-nav__link--active">
+      Custom toml file
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#toml-file-example" title="TOML file example" class="md-nav__link">
+    TOML file example
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-params" title="Configuration params" class="md-nav__link">
+    Configuration params
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../cli/" title="Command Line Interface (CLI)" class="md-nav__link">
+      Command Line Interface (CLI)
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../environment/" title="Environment defaults" class="md-nav__link">
+      Environment defaults
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
 
   <li class="md-nav__item">
     <a href="../../glossary/" title="Glossary" class="md-nav__link">
@@ -1322,144 +1445,15 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#initial-considerations" title="Initial considerations" class="md-nav__link">
-    Initial considerations
+  <a href="#toml-file-example" title="TOML file example" class="md-nav__link">
+    TOML file example
   </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#peer-bootstrapping-methods" title="Peer bootstrapping methods" class="md-nav__link">
-    Peer bootstrapping methods
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#constants-and-defaults" title="Constants and Defaults" class="md-nav__link">
-    Constants and Defaults
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#default-values" title="Default Values" class="md-nav__link">
-    Default Values
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#witnet-versions" title="Witnet versions" class="md-nav__link">
-    Witnet versions
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#magic-numbers" title="Magic numbers" class="md-nav__link">
-    Magic numbers
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#node-capabilities" title="Node capabilities" class="md-nav__link">
-    Node capabilities
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#user-agents" title="User agents" class="md-nav__link">
-    User agents
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#common-structures" title="Common Structures" class="md-nav__link">
-    Common Structures
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#address-format" title="Address Format" class="md-nav__link">
-    Address Format
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#messages" title="Messages" class="md-nav__link">
-    Messages
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#message-header" title="Message Header" class="md-nav__link">
-    Message Header
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#handshake-version-verack" title="Handshake (VERSION, VERACK)" class="md-nav__link">
-    Handshake (VERSION, VERACK)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#peer-discovery-get_peers-peers" title="Peer discovery (GET_PEERS, PEERS)" class="md-nav__link">
-    Peer discovery (GET_PEERS, PEERS)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#heartbeat-ping-pong" title="Heartbeat (PING, PONG)" class="md-nav__link">
-    Heartbeat (PING, PONG)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#error-messages" title="Error messages" class="md-nav__link">
-    Error messages
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#references" title="References" class="md-nav__link">
-    References
+  <a href="#configuration-params" title="Configuration params" class="md-nav__link">
+    Configuration params
   </a>
   
 </li>
@@ -1480,365 +1474,73 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/protocol/network.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/configuration/toml-file.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="witnet-network-protocol">Witnet Network Protocol<a class="headerlink" href="#witnet-network-protocol" title="Permanent link">&para;</a></h1>
-<p>Witnet network protocol is inspired in other blockchain network protocols such as Bitcoin, Ethereum and Rchain. Additionally, other blockchains such as Grin and Exonum have been taken into consideration as their reference implementations are coded in Rust.</p>
-<h2 id="initial-considerations">Initial considerations<a class="headerlink" href="#initial-considerations" title="Permanent link">&para;</a></h2>
-<p>In order to start the network discovery process, at least one existing node on the network is required. However, in order to avoid unnecessary risks or potential attack vectors, it is always recommended to know several existing nodes extracted from different sources.</p>
-<h3 id="peer-bootstrapping-methods">Peer bootstrapping methods<a class="headerlink" href="#peer-bootstrapping-methods" title="Permanent link">&para;</a></h3>
-<p>The strategy for selecting the first node to connect should be random, thus it should not depend on geographical position or any other network parameter.</p>
-<p>The client discovers the IP addresses and ports of other nodes in a decentralized way, i.e. there should not be a central point of trust or failure to bootstrap the network.</p>
-<p>For example, some of the considered approaches for bootstrapping a new peer into the network could one or more of the following methods:</p>
-<ul>
-<li>Hard coded addresses</li>
-<li>Addresses provided as command line arguments</li>
-<li>Addresses provided from user provided text file on startup</li>
-<li>Store addresses in database and read them on startup</li>
-<li>Exchange addresses with other nodes</li>
-<li>DNS requests to receive IP addresses</li>
-<li>IRC channel where peers are advertised</li>
-</ul>
-<h2 id="constants-and-defaults">Constants and Defaults<a class="headerlink" href="#constants-and-defaults" title="Permanent link">&para;</a></h2>
-<p>Witnet constants and default values used in the network protocol.</p>
-<h3 id="default-values">Default Values<a class="headerlink" href="#default-values" title="Permanent link">&para;</a></h3>
+                <h1 id="custom-toml-configuration-file">Custom TOML configuration file<a class="headerlink" href="#custom-toml-configuration-file" title="Permanent link">&para;</a></h1>
+<p>A custom <code class="codehilite">witnet.toml</code> file can be used to configure parameters of the node. In order for the node to be able to read this file, it should exist in the current working directory where the node is run. Another way is to just tell the node where the config file resides using a command line option. See the CLI reference for more info.</p>
+<h2 id="toml-file-example">TOML file example<a class="headerlink" href="#toml-file-example" title="Permanent link">&para;</a></h2>
+<div class="codehilite"><pre><span></span>environment = &quot;testnet-1&quot; # or &quot;mainnet&quot;
+
+[connections] # section for connections-related params
+server_addr = &quot;127.0.0.1:1234&quot;
+inbound_limit = 30
+
+[storage] # section for storage-related params
+db_path = &quot;.wit&quot;
+
+# ... more options
+</pre></div>
+
+<h2 id="configuration-params">Configuration params<a class="headerlink" href="#configuration-params" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Network</th>
-<th align="center">Default Port</th>
+<th>Section</th>
+<th>Param</th>
+<th>Default Value</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>mainnet</td>
-<td align="center">11337</td>
-</tr>
-<tr>
-<td>testnet</td>
-<td align="center">21337</td>
-</tr>
-</tbody>
-</table>
-<h3 id="witnet-versions">Witnet versions<a class="headerlink" href="#witnet-versions" title="Permanent link">&para;</a></h3>
-<p>Below the existing versions of the Witnet P2P network protocol are listed:</p>
-<table>
-<thead>
-<tr>
-<th>Version</th>
-<th>Initial Release</th>
-<th>Major Changes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>010</td>
-<td>to be determined</td>
 <td></td>
+<td>environment</td>
+<td><code class="codehilite">&quot;testnet-1&quot;</code></td>
+<td>Environment in which the Witnet protocol will run</td>
+</tr>
+<tr>
+<td>connections</td>
+<td>server_addr</td>
+<td><code class="codehilite">&quot;127.0.0.1:21337&quot;</code></td>
+<td>Server socket address to which it should bind to</td>
+</tr>
+<tr>
+<td>connections</td>
+<td>inbound_limit</td>
+<td><code class="codehilite">128</code></td>
+<td>Maximum number of concurrent connections the server should accept</td>
+</tr>
+<tr>
+<td>connections</td>
+<td>outbound_limit</td>
+<td><code class="codehilite">8</code></td>
+<td>Maximum number of opened connections to other peers this node has</td>
+</tr>
+<tr>
+<td>connections</td>
+<td>known_peers</td>
+<td><code class="codehilite">[]</code></td>
+<td>Other peer addresses this node knows about at start</td>
+</tr>
+<tr>
+<td>storage</td>
+<td>db_path</td>
+<td><code class="codehilite">&quot;.wit&quot;</code></td>
+<td>Directory containing the dabase files</td>
 </tr>
 </tbody>
 </table>
-<h3 id="magic-numbers">Magic numbers<a class="headerlink" href="#magic-numbers" title="Permanent link">&para;</a></h3>
-<p>These constant values indicate the originating network in the message headers:</p>
-<table>
-<thead>
-<tr>
-<th>Network</th>
-<th align="center">Magic number</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>mainnet</td>
-<td align="center">0x00</td>
-</tr>
-<tr>
-<td>testnet</td>
-<td align="center">0xF0</td>
-</tr>
-</tbody>
-</table>
-<h3 id="node-capabilities">Node capabilities<a class="headerlink" href="#node-capabilities" title="Permanent link">&para;</a></h3>
-<p>Currently, only one node capabilities is being offered by Witnet:</p>
-<table>
-<thead>
-<tr>
-<th>Flag</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0x0000000000000001</td>
-<td>NODE_NETWORK, Witnet full node which is the default operation mode</td>
-</tr>
-</tbody>
-</table>
-<h3 id="user-agents">User agents<a class="headerlink" href="#user-agents" title="Permanent link">&para;</a></h3>
-<p>Currently, only one user agent is being developed:</p>
-<table>
-<thead>
-<tr>
-<th>User Agent</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>/Witnet-rust:0.1.0</td>
-<td>Witnet node implemented in Rust and version 0.1.0</td>
-</tr>
-</tbody>
-</table>
-<h2 id="common-structures">Common Structures<a class="headerlink" href="#common-structures" title="Permanent link">&para;</a></h2>
-<p>Common structures used along different Witnet network messages.</p>
-<h3 id="address-format">Address Format<a class="headerlink" href="#address-format" title="Permanent link">&para;</a></h3>
-<p>Witnet peer addresses are defined as follows:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>ipv4</td>
-<td align="center">u32</td>
-<td>IPv4 address of the peer</td>
-</tr>
-<tr>
-<td>port</td>
-<td align="center">u16</td>
-<td>port number in which the peer is listening</td>
-</tr>
-</tbody>
-</table>
-<p>Alternatively, IP addresses may be IPv6:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>ipv6</td>
-<td align="center">[u32; 4]</td>
-<td>IPv6 address of the peer</td>
-</tr>
-<tr>
-<td>port</td>
-<td align="center">u16</td>
-<td>port number in which the peer is listening</td>
-</tr>
-</tbody>
-</table>
-<h2 id="messages">Messages<a class="headerlink" href="#messages" title="Permanent link">&para;</a></h2>
-<p>The current network protocol includes the description and definition of the following messages:</p>
-<ul>
-<li>VERSION</li>
-<li>VERACK</li>
-<li>GET_PEERS</li>
-<li>PEERS</li>
-<li>PING</li>
-<li>PONG</li>
-</ul>
-<p>All of these messages include a message header identifying which message type is being sent.</p>
-<h3 id="message-header">Message Header<a class="headerlink" href="#message-header" title="Permanent link">&para;</a></h3>
-<p>Inspired in other blockchains, the message header format is composed of the following fields:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>magic</td>
-<td align="center">u16</td>
-<td>magic value indicating message origin network</td>
-</tr>
-<tr>
-<td>command</td>
-<td align="center">string</td>
-<td>message being sent from a predefined list of available commands</td>
-</tr>
-<tr>
-<td>payload</td>
-<td align="center">?</td>
-<td>message data</td>
-</tr>
-</tbody>
-</table>
-<h3 id="handshake-version-verack">Handshake (VERSION, VERACK)<a class="headerlink" href="#handshake-version-verack" title="Permanent link">&para;</a></h3>
-<p>The protocol to connect from a local peer (initiator) to a known remote peer, also known as "handshake", starts with a TCP connection to a given IP address and port.</p>
-<p>The handshake initiator, the local peer, sends a <code class="codehilite">version</code> message to the remote peer.
-The remote peer will analyze the information in order to evaluate if the submitting peer is compatible regarding their supported versions and capabilities. If so, the remote peer will acknowledge the <code class="codehilite">version</code> message and establish a connection by sending a <code class="codehilite">verack</code> message.</p>
-<p>The <code class="codehilite">version</code> message contains the following information:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>version</td>
-<td align="center">u32</td>
-<td>the Witnet p2p protocol version that the client is using</td>
-</tr>
-<tr>
-<td>timestamp</td>
-<td align="center">u64</td>
-<td>the current time in UTC format</td>
-</tr>
-<tr>
-<td>capabilities</td>
-<td align="center">u64</td>
-<td>list of flags of supported services, by default NODE_NETWORK is used</td>
-</tr>
-<tr>
-<td>sender_address</td>
-<td align="center">addr</td>
-<td>the IP address and port of the handshake initiator peer</td>
-</tr>
-<tr>
-<td>receiver_address</td>
-<td align="center">addr</td>
-<td>the IP address and port of the remote peer</td>
-</tr>
-<tr>
-<td>user_agent</td>
-<td align="center">string</td>
-<td>a version showing which software is running the local peer</td>
-</tr>
-<tr>
-<td>last_epoch</td>
-<td align="center">u32</td>
-<td>last epoch in the local peer blockchain</td>
-</tr>
-<tr>
-<td>genesis</td>
-<td align="center">[u32; 8]</td>
-<td>hash of the genesis block</td>
-</tr>
-<tr>
-<td>nonce</td>
-<td align="center">u64</td>
-<td>Node random nonce, randomly generated every time a version packet is sent (used to detect connections to self)</td>
-</tr>
-</tbody>
-</table>
-<p>The <code class="codehilite">verack</code> message is sent as reply to the version and it only consists of a message header with the command <code class="codehilite">VERACK</code>.</p>
-<p>Subsequently, the handshake initiator will expect a <code class="codehilite">version</code> message from the remote peer. The local peer will also acknowledge by replying with a <code class="codehilite">verack</code> message.</p>
-<p>Connection cannot be considered as establish until both <code class="codehilite">verack</code> messages have been received by both peers.</p>
-<p>After sending a <code class="codehilite">version</code> message the peers will define a timeout to wait for a response. If no response is received during this timeout (usually set to 10 seconds), the peer will be discarded from the known peers list.</p>
-<h3 id="peer-discovery-get_peers-peers">Peer discovery (GET_PEERS, PEERS)<a class="headerlink" href="#peer-discovery-get_peers-peers" title="Permanent link">&para;</a></h3>
-<p>In Witnet, a node must always establish different paths into the network by connecting to different peers, ideally randomly selected. As connections may disappear, network peers should assist others when they bootstrap.</p>
-<p>After establishing a connection with remote peers (throughout a handshake mechanism), a node may request to their remote peer to receive a list of their known "recent" peers. This request is initiated by sending a <code class="codehilite">get_peers</code> message to a remote peer. The receiving node will reply with a <code class="codehilite">peers</code> message with a list of peer addresses that have been seen recently active in the network. The typical assumption is that a node is likely to be active if it has sent any message during the last 90 minutes. The transmitting node will then update those IP addresses and ports into its database of available nodes.</p>
-<p>The <code class="codehilite">get_peers</code> message only consists of the message header with the command <code class="codehilite">GET_PEERS</code>.</p>
-<p>The <code class="codehilite">peers</code> message consists of the message header with the command <code class="codehilite">PEERS</code> and as payload it contains a list of known peers as:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>peers</td>
-<td align="center">addr[]</td>
-<td>list of addresses of active known peers</td>
-</tr>
-</tbody>
-</table>
-<h3 id="heartbeat-ping-pong">Heartbeat (PING, PONG)<a class="headerlink" href="#heartbeat-ping-pong" title="Permanent link">&para;</a></h3>
-<p>As in Bitcoin, the heartbeat protocol is defined with <code class="codehilite">ping</code> and <code class="codehilite">pong</code> messages and it is defined as follows:</p>
-<ul>
-<li>If during the last 30 minutes a peer has no transmitted any message, it will send a heartbeat as <code class="codehilite">ping</code> message.</li>
-<li>If in the last 90 minutes no message has been received by a remote peer, the local node will assume that the connection has been closed.</li>
-</ul>
-<p>The <code class="codehilite">ping</code> message confirms that the connection is still valid. The <code class="codehilite">pong</code> message is sent in response to a <code class="codehilite">ping</code> message. Both contain only one field:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>nonce</td>
-<td align="center">u64</td>
-<td>a random number</td>
-</tr>
-</tbody>
-</table>
-<h3 id="error-messages">Error messages<a class="headerlink" href="#error-messages" title="Permanent link">&para;</a></h3>
-<p>The <code class="codehilite">error</code> messages are structured as follow:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>code</td>
-<td align="center">u32</td>
-<td>predefined error code</td>
-</tr>
-<tr>
-<td>message</td>
-<td align="center">string</td>
-<td>user friendly message</td>
-</tr>
-</tbody>
-</table>
-<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
-<p>Bitcoin:</p>
-<ul>
-<li><a href="https://bitcoin.org/en/developer-reference">Developer Reference - Bitcoin</a></li>
-<li><a href="https://en.bitcoin.it/wiki/">Wiki</a></li>
-<li><a href="https://github.com/bitcoin/bitcoin/">GitHub - bitcoin/bitcoin: Bitcoin Core integration/staging tree</a></li>
-<li><a href="https://github.com/paritytech/parity-bitcoin/">GitHub - paritytech/parity-bitcoin: The Parity Bitcoin client</a></li>
-</ul>
-<p>Ethereum:</p>
-<ul>
-<li><a href="https://github.com/ethereum/wiki/wiki">Wiki · GitHub</a></li>
-<li><a href="https://github.com/ethereum/go-ethereum">GitHub - ethereum/go-ethereum: Official Go implementation of the Ethereum protocol</a></li>
-<li><a href="https://github.com/paritytech/parity-ethereum/">GitHub - paritytech/parity-ethereum: The fast, light, and robust EVM and WASM client.</a></li>
-</ul>
-<p>RChain:</p>
-<ul>
-<li><a href="https://developer.rchain.coop/documentation">Documentation</a></li>
-<li><a href="https://github.com/rchain/rchain">GitHub - rchain/rchain</a></li>
-</ul>
-<p>Mimblewimble Grin:</p>
-<ul>
-<li><a href="https://grin-tech.org/">Grin, the Tech | Simple, privacy-focused, scalable MimbleWimble chain implementation.</a></li>
-<li><a href="https://github.com/mimblewimble/docs/wiki">Wiki · GitHub</a></li>
-<li><a href="https://github.com/mimblewimble/grin">GitHub - mimblewimble/grin: Minimal implementation of the MimbleWimble protocol.</a></li>
-</ul>
-<p>Exonum:</p>
-<ul>
-<li><a href="https://exonum.com/doc/">Exonum Documentation</a></li>
-<li><a href="https://github.com/exonum/exonum">GitHub - exonum/exonum: An extensible open-source framework for creating private/permissioned blockchain applications</a></li>
-</ul>
                 
                   
                 
@@ -1859,7 +1561,7 @@ The remote peer will analyze the information in order to evaluate if the submitt
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../../get-started/why-rust/" title="Why Rust?" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../../development/" title="Development" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1868,19 +1570,19 @@ The remote peer will analyze the information in order to evaluate if the submitt
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Why Rust?
+                Development
               </span>
             </div>
           </a>
         
         
-          <a href="../data-requests/overview/" title="Overview" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../cli/" title="Command Line Interface (CLI)" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Overview
+                Command Line Interface (CLI)
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">

@@ -1,0 +1,1918 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+        <link rel="canonical" href="https://docs.witnet.io/protocol/network/messages/inventory/">
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../../../assets/images/favicon.ico">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
+    
+    
+      
+        <title>Inventory exchange - Witnet-rust Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/application.451f80e5.css">
+      
+        <link rel="stylesheet" href="../../../../assets/stylesheets/application-palette.22915126.css">
+      
+      
+        
+        
+        <meta name="theme-color" content="#795548">
+      
+    
+    
+      <script src="../../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../../../../assets/fonts/material-icons.css">
+    
+    
+  </head>
+  
+    
+    
+    <body dir="ltr" data-md-color-primary="brown" data-md-color-accent="deep-orange">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
+    viewBox="0 0 416 448" id="__github">
+  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
+        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
+        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
+        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
+        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
+        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
+        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
+        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
+        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
+        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
+        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
+        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
+        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
+        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
+        99.5z" />
+</svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="../../../../#inventory-exchange" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-header-nav__button md-logo">
+          
+            <img src="../../../../assets/images/logo.svg" alt="Witnet Logo" width="24" height="24">
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                Witnet-rust Documentation
+              </span>
+              <span class="md-header-nav__topic">
+                Inventory exchange
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/witnet/witnet-rust/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#__github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      witnet/witnet-rust
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-nav__button md-logo">
+      
+        <img src="../../../../assets/images/logo.svg" alt="Witnet Logo" width="48" height="48">
+      
+    </a>
+    Witnet-rust Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/witnet/witnet-rust/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#__github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      witnet/witnet-rust
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../.." title="Home" class="md-nav__link">
+      Home
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Get started
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Get started
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/what-is-witnet/" title="What is Witnet" class="md-nav__link">
+      What is Witnet
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/why-rust/" title="Why Rust?" class="md-nav__link">
+      Why Rust?
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/design-overview.md" title="Design Overview" class="md-nav__link">
+      Design Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/install.md" title="Install" class="md-nav__link">
+      Install
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
+    
+    <label class="md-nav__link" for="nav-3">
+      Protocol
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        Protocol
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-1" type="checkbox" id="nav-3-1" checked>
+    
+    <label class="md-nav__link" for="nav-3-1">
+      Network
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-1">
+        Network
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../overview/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-1-2" type="checkbox" id="nav-3-1-2">
+    
+    <label class="md-nav__link" for="nav-3-1-2">
+      Data Structures
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="3">
+      <label class="md-nav__title" for="nav-3-1-2">
+        Data Structures
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../data-structures/block/" title="Block" class="md-nav__link">
+      Block
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../data-structures/ip-address/" title="IP Address" class="md-nav__link">
+      IP Address
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../data-structures/transaction/" title="Transaction" class="md-nav__link">
+      Transaction
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-1-3" type="checkbox" id="nav-3-1-3" checked>
+    
+    <label class="md-nav__link" for="nav-3-1-3">
+      Messages
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="3">
+      <label class="md-nav__title" for="nav-3-1-3">
+        Messages
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../overview/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../handshake/" title="Handshake" class="md-nav__link">
+      Handshake
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../peer-discovery/" title="Peer Discovery" class="md-nav__link">
+      Peer Discovery
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../heartbeat/" title="Heartbeat" class="md-nav__link">
+      Heartbeat
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Inventory exchange
+      </label>
+    
+    <a href="./" title="Inventory exchange" class="md-nav__link md-nav__link--active">
+      Inventory exchange
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#block-download" title="Block Download" class="md-nav__link">
+    Block Download
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inventory-broadcasting" title="Inventory Broadcasting" class="md-nav__link">
+    Inventory Broadcasting
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-blocks-message" title="Get blocks message" class="md-nav__link">
+    Get blocks message
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inv-message" title="Inv message" class="md-nav__link">
+    Inv message
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-data-messages" title="Get data messages" class="md-nav__link">
+    Get data messages
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#block-message" title="Block message" class="md-nav__link">
+    Block message
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tx-message" title="Tx message" class="md-nav__link">
+    Tx message
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../constants/" title="Constants" class="md-nav__link">
+      Constants
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+    
+    <label class="md-nav__link" for="nav-3-2">
+      Data requests
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-2">
+        Data requests
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/overview/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2" type="checkbox" id="nav-3-2-2">
+    
+    <label class="md-nav__link" for="nav-3-2-2">
+      RADON
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="3">
+      <label class="md-nav__title" for="nav-3-2-2">
+        RADON
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/encoding/" title="Encoding" class="md-nav__link">
+      Encoding
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2-2" type="checkbox" id="nav-3-2-2-2">
+    
+    <label class="md-nav__link" for="nav-3-2-2-2">
+      Data types
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="4">
+      <label class="md-nav__title" for="nav-3-2-2-2">
+        Data types
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/overview/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/array/" title="Array<V>" class="md-nav__link">
+      Array<V>
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/boolean/" title="Boolean" class="md-nav__link">
+      Boolean
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/int/" title="Int" class="md-nav__link">
+      Int
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/float/" title="Float" class="md-nav__link">
+      Float
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/map/" title="Map<V>" class="md-nav__link">
+      Map<V>
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/mixed/" title="Mixed" class="md-nav__link">
+      Mixed
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/null/" title="Null" class="md-nav__link">
+      Null
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/result/" title="Result<V>" class="md-nav__link">
+      Result<V>
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/types/string/" title="String" class="md-nav__link">
+      String
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
+      Implicit `Result<V>` wrapping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/exceptions/" title="Exception handling" class="md-nav__link">
+      Exception handling
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/functions/" title="Predefined functions" class="md-nav__link">
+      Predefined functions
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/subscripts/" title="Subscripts" class="md-nav__link">
+      Subscripts
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/examples/" title="Examples" class="md-nav__link">
+      Examples
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radon/constants/" title="Constants" class="md-nav__link">
+      Constants
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../data-requests/radlang.md" title="RADlang" class="md-nav__link">
+      RADlang
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-3" type="checkbox" id="nav-3-3">
+    
+    <label class="md-nav__link" for="nav-3-3">
+      Transactions
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-3">
+        Transactions
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../transactions.md" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../witscript.md" title="WitScript" class="md-nav__link">
+      WitScript
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../blocks.md" title="Blocks" class="md-nav__link">
+      Blocks
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../reputation.md" title="Reputation" class="md-nav__link">
+      Reputation
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../mining.md" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../task-assignment.md" title="Task assignment" class="md-nav__link">
+      Task assignment
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/overview.md" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-2" type="checkbox" id="nav-4-2">
+    
+    <label class="md-nav__link" for="nav-4-2">
+      Peer-To-Peer
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-2">
+        Peer-To-Peer
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/p2p/connections.md" title="Connections" class="md-nav__link">
+      Connections
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/p2p/gossip.md" title="Gossiping" class="md-nav__link">
+      Gossiping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/p2p/encoding/" title="Encoding" class="md-nav__link">
+      Encoding
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/storage/" title="Persistent Storage" class="md-nav__link">
+      Persistent Storage
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4">
+    
+    <label class="md-nav__link" for="nav-4-4">
+      Managers
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-4">
+        Managers
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/managers/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
+      Sessions Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
+      Connections Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/config-manager/" title="Config Manager" class="md-nav__link">
+      Config Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/storage-manager/" title="Storage Manager" class="md-nav__link">
+      Storage Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/peers-manager/" title="Peers Manager" class="md-nav__link">
+      Peers Manager
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/mempool-mgmt.md" title="Mempool Management" class="md-nav__link">
+      Mempool Management
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/block-mgmt.md" title="Block Management" class="md-nav__link">
+      Block Management
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/utxo-mgmt.md" title="UTXO Management" class="md-nav__link">
+      UTXO Management
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-8" type="checkbox" id="nav-4-8">
+    
+    <label class="md-nav__link" for="nav-4-8">
+      Data Requests
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-8">
+        Data Requests
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/rad/overview.md" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/witscript.md" title="Witscript Parser" class="md-nav__link">
+      Witscript Parser
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      Advanced
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        Advanced
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../advanced/constants.md" title="Network constants" class="md-nav__link">
+      Network constants
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../advanced/whitepaper-differences.md" title="Differences with the whitepaper" class="md-nav__link">
+      Differences with the whitepaper
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../../roadmap/" title="Roadmap" class="md-nav__link">
+      Roadmap
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../../contributing/" title="Contributing" class="md-nav__link">
+      Contributing
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../../development/" title="Development" class="md-nav__link">
+      Development
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9" type="checkbox" id="nav-9">
+    
+    <label class="md-nav__link" for="nav-9">
+      Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-9">
+        Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../configuration/toml-file/" title="Custom toml file" class="md-nav__link">
+      Custom toml file
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../configuration/cli/" title="Command Line Interface (CLI)" class="md-nav__link">
+      Command Line Interface (CLI)
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../configuration/environment/" title="Environment defaults" class="md-nav__link">
+      Environment defaults
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../../glossary/" title="Glossary" class="md-nav__link">
+      Glossary
+    </a>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#block-download" title="Block Download" class="md-nav__link">
+    Block Download
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inventory-broadcasting" title="Inventory Broadcasting" class="md-nav__link">
+    Inventory Broadcasting
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-blocks-message" title="Get blocks message" class="md-nav__link">
+    Get blocks message
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inv-message" title="Inv message" class="md-nav__link">
+    Inv message
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-data-messages" title="Get data messages" class="md-nav__link">
+    Get data messages
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#block-message" title="Block message" class="md-nav__link">
+    Block message
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tx-message" title="Tx message" class="md-nav__link">
+    Tx message
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/protocol/network/messages/inventory.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="inventory-exchange">Inventory Exchange<a class="headerlink" href="#inventory-exchange" title="Permanent link">&para;</a></h1>
+<p>The inventory exchange protocol describes the interaction between nodes in order to synchronize themselves with the network and reestablish the full blockchain (in terms of blocks and transactions).</p>
+<p>Inventory exchanges envision 2 main scenarios:</p>
+<ol>
+<li>
+<p><strong>Block Download</strong>, for nodes in need of synchronizing their blockchains by requesting and downloading blocks.</p>
+</li>
+<li>
+<p><strong>Inventory Broadcasting</strong>, for nodes willing to broadcast transactional information, such as blocks and transactions.</p>
+</li>
+</ol>
+<h2 id="block-download">Block Download<a class="headerlink" href="#block-download" title="Permanent link">&para;</a></h2>
+<p><strong>Block Download</strong> is performed by nodes that need to catch up with other nodes by downloading missing blocks in order to reconstruct their blockchains. For example, this is the case of nodes connecting to the blockchain for the first time or after a significant amount of downtime.</p>
+<p>Starting from the block #0 (the hardcoded genesis block), the nodes need to validate all blocks up to the current tip of the blockchain. Therefore, in case of missing blocks, a local node will initiate the following process of synchronization with its outbound peers:</p>
+<ol>
+<li>
+<p>The local node will have already exchanged <code class="codehilite">version</code> messages with its remote outbound peers. Those <code class="codehilite">version</code> messages contain the last epoch known to others peers, i.e. the local peer can already compare how many blocks they each have and identify how many are missing.</p>
+</li>
+<li>
+<p>The local node will send a <code class="codehilite">get_blocks</code> message to all its outbound nodes (after successful handshake protocol). These messages contain the hash of the top block of the local blockchain.</p>
+</li>
+<li>
+<p>Remote peers will reply by sending another <code class="codehilite">get_blocks</code> message containing the hash of their top block of their respective blockchains.</p>
+</li>
+<li>
+<p>The peer with the longest blockchain will identify which blocks are required by the other peer in order to allow it to synchronize to its blockchain. The peer will select up to the first consecutive 500 blocks and it will transmit their hashes using an <code class="codehilite">inv</code> (inventory) message.</p>
+</li>
+<li>
+<p>After identifying which blocks are missing (it may already have some of them), the node may request them by using a <code class="codehilite">get_data</code> message, containing the hashes of the needed blocks. This message will help the node to catch up with the current full blockchain.</p>
+</li>
+<li>
+<p>After receiving the <code class="codehilite">get_data</code> message, the peer sends the requested blocks individually by using <code class="codehilite">block</code> messages.</p>
+</li>
+</ol>
+<p>The following diagram depicts the previously described process under the assumption that the peer with the longest blockchain is <code class="codehilite">NodeB</code> (step 4).</p>
+<div class="codehilite"><pre><span></span>         NodeA                            NodeB
+           +                                +
+           |           GET_BLOCKS           |
+           +-------------------------------&gt;+
+           |           GET_BLOCKS           |
+           +&lt;-------------------------------+
+           |              INV               |
+           +&lt;-------------------------------+
+           |                                |
+           |                                |
+           |            GET_DATA            |
+           +-------------------------------&gt;+
+           |             BLOCK              |
+           +&lt;-------------------------------+
+           |             BLOCK              |
+           +&lt;-------------------------------+
+           |             BLOCK              |
+           +&lt;-------------------------------+
+           |                                |
+           +                                +
+</pre></div>
+
+<h2 id="inventory-broadcasting">Inventory Broadcasting<a class="headerlink" href="#inventory-broadcasting" title="Permanent link">&para;</a></h2>
+<p>Similarly to the previously described process of synchronization, any node may contribute to the synchronization of their outbound peers by advertising inventory objects such as blocks and transactions. Inventory broadcasting is also used in case a node creates transactions or mine blocks.</p>
+<p>The inventory broadcasting can be described as the following sequence of steps:</p>
+<ol>
+<li>
+<p>A remote node broadcasts its inventory by sending an <code class="codehilite">inv</code> message, containing all the hashes of the advertised inventory objects.</p>
+</li>
+<li>
+<p>After receiving an <code class="codehilite">inv</code> message and filtering the inventory objects that may be missing in the local blockchain, the local node sends a <code class="codehilite">get_data</code> message with the hashes of the needed objects.</p>
+</li>
+<li>
+<p>The remote note receives the <code class="codehilite">get_data</code> message and sends a <code class="codehilite">block</code> or <code class="codehilite">tx</code> message per requested inventory object (identified by a hash).</p>
+</li>
+</ol>
+<p>The following diagram depicts the previous step under the assumption that the local node (<code class="codehilite">NodeA</code>) sends a <code class="codehilite">get_data</code> message requesting 3 blocks and 2 transactions.</p>
+<div class="codehilite"><pre><span></span>         NodeA                            NodeB
+           +                                +
+           |              INV               |
+           +&lt;-------------------------------+
+           |                                |
+           |           GET_DATA             |
+           +-------------------------------&gt;+
+           |                                |
+           |             BLOCK              |
+           +&lt;-------------------------------+
+           |             BLOCK              |
+           +&lt;-------------------------------+
+           |             BLOCK              |
+           +&lt;-------------------------------+
+           |              TX                |
+           +&lt;-------------------------------+
+           |              TX                |
+           +&lt;-------------------------------+
+           |                                |
+           +                                +
+</pre></div>
+
+<h2 id="get-blocks-message">Get blocks message<a class="headerlink" href="#get-blocks-message" title="Permanent link">&para;</a></h2>
+<p>The <code class="codehilite">get_blocks</code> messages are used in order to notify the hash of the highest known block by the peer. After exchanging <code class="codehilite">get_blocks</code> messages between peers, the one with the longest blockchain in terms of blocks will send an <code class="codehilite">inv</code> message to the other peer. This message will include the list of block hashes starting right after the last known block hash provided by the other peer.</p>
+<p>The <code class="codehilite">get_blocks</code> message consists of a message header with the <code class="codehilite">GET_BLOCKS</code> command and a payload containing the tip of the chain (the hash of the latest block) as known to the local peer:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th align="center">Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">last_block</code></td>
+<td align="center"><code class="codehilite">[u32; 8]</code></td>
+<td>Hash of the last known block to the local node</td>
+</tr>
+</tbody>
+</table>
+<h2 id="inv-message">Inv message<a class="headerlink" href="#inv-message" title="Permanent link">&para;</a></h2>
+<p>The <code class="codehilite">inv</code> message is used to advertise the knowledge of one or more objects (e.g. blocks, transactions, ...). The inventory message can be received unsolicited or in reply to a <code class="codehilite">get_blocks</code> message.</p>
+<p>The <code class="codehilite">inv</code> message consists of a message header with the <code class="codehilite">INV</code> command and a payload containing one or more inventory entries:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th align="center">Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">count</code></td>
+<td align="center"><code class="codehilite">u16</code></td>
+<td>Number of inventory entries</td>
+</tr>
+<tr>
+<td><code class="codehilite">inventory</code></td>
+<td align="center"><code class="codehilite">inv_vect[]</code></td>
+<td>Inventory vectors</td>
+</tr>
+</tbody>
+</table>
+<p>The <code class="codehilite">inv_vect</code> (inventory vector) data structure has the following schema:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th align="center">Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">type</code></td>
+<td align="center"><code class="codehilite">u8</code></td>
+<td>Type of object linked to the inventory entry</td>
+</tr>
+<tr>
+<td><code class="codehilite">count</code></td>
+<td align="center"><code class="codehilite">[u32; 8]</code></td>
+<td>Hash of the object</td>
+</tr>
+</tbody>
+</table>
+<p>The possible values for the <code class="codehilite">type</code> field are:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">0</code></td>
+<td><code class="codehilite">ERROR</code></td>
+<td>Data with this number may be ignored</td>
+</tr>
+<tr>
+<td><code class="codehilite">1</code></td>
+<td><code class="codehilite">TX</code></td>
+<td>Hash is related to a transaction</td>
+</tr>
+<tr>
+<td><code class="codehilite">2</code></td>
+<td><code class="codehilite">BLOCK</code></td>
+<td>Hash is related to a block</td>
+</tr>
+<tr>
+<td><code class="codehilite">3</code></td>
+<td><code class="codehilite">DATA_REQUEST</code></td>
+<td>Hash is related to a data request</td>
+</tr>
+<tr>
+<td><code class="codehilite">4</code></td>
+<td><code class="codehilite">DATA_RESULT</code></td>
+<td>Hash is related to the result of a data request</td>
+</tr>
+</tbody>
+</table>
+<p>In the future, the type values may be extended in order to consider additional features.</p>
+<h2 id="get-data-messages">Get data messages<a class="headerlink" href="#get-data-messages" title="Permanent link">&para;</a></h2>
+<p>The <code class="codehilite">get_data</code> messages are used in order to request specific objects from other nodes. Usually, <code class="codehilite">get_data</code> messages are sent after receiving a <code class="codehilite">inv</code> (inventory) message and filtering the already known objects. The response to a <code class="codehilite">get_data</code> message is often a message carrying the requested object (e.g.: <code class="codehilite">block</code>, <code class="codehilite">tx</code>, etc.).</p>
+<p>The <code class="codehilite">get_data</code> message consists of a message header with the <code class="codehilite">GET_DATA</code> command and a payload following this format:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th align="center">Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">count</code></td>
+<td align="center"><code class="codehilite">u16</code></td>
+<td>Number of inventory entries</td>
+</tr>
+<tr>
+<td><code class="codehilite">inventory</code></td>
+<td align="center"><code class="codehilite">inv_vect[]</code></td>
+<td>Inventory vectors</td>
+</tr>
+</tbody>
+</table>
+<h2 id="block-message">Block message<a class="headerlink" href="#block-message" title="Permanent link">&para;</a></h2>
+<p>The <code class="codehilite">block</code> message is used to transmit a single serialized block as a response to a <code class="codehilite">get_data</code> message.</p>
+<p>The <code class="codehilite">block</code> message consists of a message header with the <code class="codehilite">BLOCK</code> command and a payload formatted as follows:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th align="center">Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">header</code></td>
+<td align="center"><code class="codehilite">block_header</code></td>
+<td>Block header, as described in the <a href="/protocol/network/data-structures/block/">Block</a> section</td>
+</tr>
+<tr>
+<td><code class="codehilite">txn_count</code></td>
+<td align="center"><code class="codehilite">u32</code></td>
+<td>Total number of transactions in the block</td>
+</tr>
+<tr>
+<td><code class="codehilite">txns</code></td>
+<td align="center"><code class="codehilite">tx[]</code></td>
+<td>Block transactions as described in the transaction section</td>
+</tr>
+</tbody>
+</table>
+<h2 id="tx-message">Tx message<a class="headerlink" href="#tx-message" title="Permanent link">&para;</a></h2>
+<p>Analogously, the <code class="codehilite">tx</code> message is used to transmit a single serialized transaction as a response to a <code class="codehilite">get_data</code> message.</p>
+<p>The <code class="codehilite">tx</code> message consists of a message header with the <code class="codehilite">TX</code> command and a payload containing information for a transaction following the format defined in the transaction section:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th align="center">Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">tx</code></td>
+<td align="center"><code class="codehilite">tx</code></td>
+<td>Transaction, as described in the <a href="/protocol/network/data-structures/transaction/">Transaction</a> section</td>
+</tr>
+</tbody>
+</table>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../heartbeat/" title="Heartbeat" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Heartbeat
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../../constants/" title="Constants" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Constants
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+          <div class="md-footer-copyright__highlight">
+            © 2018 Witnet Foundation. Available under <a href="https://www.gnu.org/licenses/fdl-1.3.en.html" rel="license">GNU Free Documentation License v1.3</a>
+          </div>
+        
+        powered by
+        <a href="https://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+  <div class="md-footer-social">
+    <link rel="stylesheet" href="../../../../assets/fonts/font-awesome.css">
+    
+      <a href="https://github.com/witnet" class="md-footer-social__link fa fa-github"></a>
+    
+      <a href="https://reddit.com/r/witnet" class="md-footer-social__link fa fa-reddit"></a>
+    
+      <a href="https://twitter.com/witnet_io" class="md-footer-social__link fa fa-twitter"></a>
+    
+  </div>
+
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../../../assets/javascripts/application.583bbe55.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:"../../../.."}})</script>
+      
+    
+    
+      
+    
+  </body>
+</html>
