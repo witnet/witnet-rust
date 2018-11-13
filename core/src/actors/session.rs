@@ -1,5 +1,6 @@
 use std::io::Error;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use actix::io::{FramedWrite, WriteHandler};
 use actix::{
@@ -35,6 +36,9 @@ pub struct Session {
 
     /// Framed wrapper to send messages through the TCP connection
     _framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
+
+    /// Handshake timeout
+    _handshake_timeout: Duration,
 }
 
 /// Session helper methods
@@ -45,6 +49,7 @@ impl Session {
         remote_addr: SocketAddr,
         session_type: SessionType,
         _framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
+        _handshake_timeout: Duration,
     ) -> Session {
         Session {
             _local_addr,
@@ -52,6 +57,7 @@ impl Session {
             session_type,
             status: SessionStatus::Unconsolidated,
             _framed,
+            _handshake_timeout,
         }
     }
 }

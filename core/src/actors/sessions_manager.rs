@@ -157,13 +157,15 @@ impl Actor for SessionsManager {
             let bootstrap_peers_period = config.connections.bootstrap_peers_period;
             let discovery_peers_period = config.connections.discovery_peers_period;
 
-            // Set server address and connections limits
+            // Set server address, connections limits and handshake timeout
             act.sessions
                 .set_server_address(config.connections.server_addr);
             act.sessions.set_limits(
                 config.connections.inbound_limit,
                 config.connections.outbound_limit,
             );
+            act.sessions
+                .set_handshake_timeout(config.connections.handshake_timeout);
 
             // We'll start the peers bootstrapping process upon SessionsManager's start
             act.bootstrap_peers(ctx, bootstrap_peers_period);
@@ -267,6 +269,9 @@ impl Handler<CreateSession> for SessionsManager {
     type Result = ();
 
     fn handle(&mut self, msg: CreateSession, _ctx: &mut Context<Self>) {
+        // Get handshake timeout
+        let handshake_timeout = self.sessions.handshake_timeout;
+
         // Create a session actor
         Session::create(move |ctx| {
             // Get local peer address
@@ -287,6 +292,7 @@ impl Handler<CreateSession> for SessionsManager {
                 remote_addr,
                 msg.session_type,
                 FramedWrite::new(w, P2PCodec, ctx),
+                handshake_timeout,
             )
         });
     }
