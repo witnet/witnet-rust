@@ -7,6 +7,7 @@ pub mod error;
 pub mod bounded_sessions;
 
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use rand::{thread_rng, Rng};
 
@@ -50,6 +51,8 @@ where
     /// Outbound unconsolidated sessions: __known__ peer sessions that the node is connected to
     /// (in unconsolidated status)
     pub outbound_unconsolidated: BoundedSessions<T>,
+    /// Handshake timeout
+    pub handshake_timeout: Duration,
 }
 
 /// Default trait implementation
@@ -63,6 +66,7 @@ where
             inbound: BoundedSessions::default(),
             outbound_consolidated: BoundedSessions::default(),
             outbound_unconsolidated: BoundedSessions::default(),
+            handshake_timeout: Duration::default(),
         }
     }
 }
@@ -94,6 +98,10 @@ where
         self.inbound.set_limit(inbound_limit);
         self.outbound_consolidated
             .set_limit(outbound_consolidated_limit);
+    }
+    /// Method to set the handshake timeout
+    pub fn set_handshake_timeout(&mut self, handshake_timeout: Duration) {
+        self.handshake_timeout = handshake_timeout;
     }
     /// Method to check if a socket address is eligible as outbound peer
     pub fn is_outbound_address_eligible(&self, candidate_addr: SocketAddr) -> bool {
