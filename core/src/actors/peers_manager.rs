@@ -74,11 +74,12 @@ impl Actor for PeersManager {
             let storage_peers_period = config.connections.storage_peers_period;
 
             // Add all peers
-            match act.peers.add(known_peers.clone()) {
-                Ok(peers) => debug!(
-                    "Added the following peer addresses from config: {:?}",
-                    peers
-                ),
+            debug!(
+                "Adding the following peer addresses from config: {:?}",
+                known_peers
+            );
+            match act.peers.add(known_peers) {
+                Ok(_duplicated_peers) => {}
                 Err(e) => error!("Error when adding peer addresses from config: {}", e),
             }
 
@@ -110,13 +111,13 @@ impl Actor for PeersManager {
                     if let Some(peers_from_storage) = peers_from_storage {
                         // Add all the peers from storage
                         // The add method handles duplicates by overwriting the old values
-                        match act.peers.add(peers_from_storage.get_all().unwrap()) {
-                            Ok(peers) => {
-                                debug!(
-                                    "Added the following peer addresses from storage: {:?}",
-                                    peers
-                                );
-                            }
+                        let peers = peers_from_storage.get_all().unwrap();
+                        debug!(
+                            "Adding the following peer addresses from storage: {:?}",
+                            peers
+                        );
+                        match act.peers.add(peers) {
+                            Ok(_duplicated_peers) => {}
                             Err(e) => {
                                 error!("Error when adding peer addresses from storage: {}", e);
                             }
