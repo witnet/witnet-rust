@@ -8,6 +8,7 @@ use log::info;
 
 use crate::actors::config_manager::ConfigManager;
 use crate::actors::connections_manager::ConnectionsManager;
+use crate::actors::epoch_manager::EpochManager;
 use crate::actors::peers_manager::PeersManager;
 use crate::actors::sessions_manager::SessionsManager;
 use crate::actors::storage_manager::StorageManager;
@@ -39,6 +40,10 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Start session manager actor
     let sessions_manager_addr = SessionsManager::default().start();
     System::current().registry().set(sessions_manager_addr);
+
+    // Start epoch manager actor
+    let epoch_manager_addr = EpochManager::default().start();
+    System::current().registry().set(epoch_manager_addr);
 
     // Run system
     system.run();

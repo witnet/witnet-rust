@@ -7,6 +7,10 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::time::Duration;
 
+// When changing the defaults, remember to update the documentation!
+// https://github.com/witnet/witnet-rust/blob/master/docs/configuration/toml-file.md
+// https://github.com/witnet/witnet-rust/blob/master/docs/configuration/environment.md
+
 /// Trait defining all the configuration params that have a suitable
 /// default value depending on the environment (mainnet, testnet,
 /// etc).
@@ -51,6 +55,14 @@ pub trait Defaults {
     fn connections_handshake_timeout(&self) -> Duration {
         Duration::from_secs(5)
     }
+
+    /// Timestamp at the start of epoch 0
+    fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64;
+
+    /// Default period between epochs
+    fn consensus_constants_checkpoints_period(&self) -> u16 {
+        90
+    }
 }
 
 /// Struct that will implement all the mainnet defaults
@@ -67,6 +79,10 @@ impl Defaults for Mainnet {
     fn storage_db_path(&self) -> PathBuf {
         PathBuf::from(".witnet-rust-mainnet")
     }
+    fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
+        // A point far in the future, so the `EpochManager` will return an error `EpochZeroInTheFuture`
+        19_999_999_999_999
+    }
 }
 
 impl Defaults for Testnet1 {
@@ -76,5 +92,10 @@ impl Defaults for Testnet1 {
 
     fn storage_db_path(&self) -> PathBuf {
         PathBuf::from(".witnet-rust-testnet-1")
+    }
+
+    fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
+        // A point far in the future, so the `EpochManager` will return an error `EpochZeroInTheFuture`
+        9_999_999_999_999
     }
 }

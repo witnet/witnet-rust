@@ -66,6 +66,7 @@ nav:
       - Sessions Manager: architecture/managers/sessions-manager.md
       - Connections Manager: architecture/managers/connections-manager.md
       - Config Manager: architecture/managers/config-manager.md
+      - Epoch Manager: architecture/managers/epoch-manager.md
       - Storage Manager: architecture/managers/storage-manager.md
       - Peers Manager: architecture/managers/peers-manager.md
     - Session: architecture/session.md 

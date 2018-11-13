@@ -31,9 +31,13 @@ pub struct Config {
     /// Storage-related configuration
     #[serde(default)]
     pub storage: Storage,
+
+    /// Consensus-critical configuration
+    #[serde(default)]
+    pub consensus_constants: ConsensusConstants,
 }
 
-/// Connections-specific partial configuration.
+/// Connection-specific partial configuration.
 #[derive(Deserialize, Default, Debug, Clone, PartialEq)]
 pub struct Connections {
     /// Server address, that is, the socket address (interface ip and
@@ -86,6 +90,18 @@ pub struct Storage {
     #[serde(default)]
     /// Path to the directory that will contain the database files
     pub db_path: Option<PathBuf>,
+}
+
+/// Consensus-critical configuration
+#[derive(Deserialize, Default, Debug, Clone, PartialEq)]
+pub struct ConsensusConstants {
+    /// Timestamp at checkpoint 0 (the start of epoch 0)
+    #[serde(default)]
+    pub checkpoint_zero_timestamp: Option<i64>,
+    /// Seconds between the start of an epoch and the start of the next one
+    #[serde(default)]
+    #[serde(rename = "checkpoint_period_seconds")]
+    pub checkpoint_period: Option<u16>,
 }
 
 impl Default for Environment {

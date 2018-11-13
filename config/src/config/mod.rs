@@ -40,6 +40,7 @@
 //! ```
 
 use crate::defaults::{Defaults, Testnet1};
+use log::warn;
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -62,9 +63,12 @@ pub struct Config {
 
     /// Storage-related configuration
     pub storage: Storage,
+
+    /// Consensus-critical configuration
+    pub consensus_constants: ConsensusConstants,
 }
 
-/// Connections-specific configuration.
+/// Connection-specific configuration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Connections {
     /// Server address, that is, the socket address (interface ip and
@@ -105,6 +109,16 @@ pub struct Storage {
     pub db_path: PathBuf,
 }
 
+/// Consensus-critical configuration
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConsensusConstants {
+    /// Timestamp at checkpoint 0 (the start of epoch 0)
+    pub checkpoint_zero_timestamp: i64,
+
+    /// Seconds between the start of an epoch and the start of the next one
+    pub checkpoints_period: u16,
+}
+
 /// Possible values for the "environment" configuration param.
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub enum Environment {
@@ -125,10 +139,29 @@ impl Config {
             Environment::Testnet1 => Box::new(Testnet1),
         };
 
+        let consensus_constants = match config.environment {
+            // When in mainnet, ignore the [consensus_constants] section of the configuration
+            Environment::Mainnet => {
+                let consensus_constants_no_changes = partial::ConsensusConstants::default();
+                // Warn the user if the config file contains a non-empty [consensus_constant] section
+                if config.consensus_constants != consensus_constants_no_changes {
+                    warn!(
+                        "Consensus constants in the configuration are ignored when running mainnet"
+                    );
+                }
+                ConsensusConstants::from_partial(&consensus_constants_no_changes, &*defaults)
+            }
+            // In testnet, allow to override the consensus constants
+            Environment::Testnet1 => {
+                ConsensusConstants::from_partial(&config.consensus_constants, &*defaults)
+            }
+        };
+
         Config {
             environment: config.environment.clone(),
             connections: Connections::from_partial(&config.connections, &*defaults),
             storage: Storage::from_partial(&config.storage, &*defaults),
+            consensus_constants,
         }
     }
 }
@@ -185,6 +218,21 @@ impl Storage {
                 .db_path
                 .to_owned()
                 .unwrap_or_else(|| defaults.storage_db_path()),
+        }
+    }
+}
+
+impl ConsensusConstants {
+    pub fn from_partial(config: &partial::ConsensusConstants, defaults: &dyn Defaults) -> Self {
+        ConsensusConstants {
+            checkpoint_zero_timestamp: config
+                .checkpoint_zero_timestamp
+                .to_owned()
+                .unwrap_or_else(|| defaults.consensus_constants_checkpoint_zero_timestamp()),
+            checkpoints_period: config
+                .checkpoint_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.consensus_constants_checkpoints_period()),
         }
     }
 }

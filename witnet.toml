@@ -4,6 +4,9 @@ server_addr = "0.0.0.0:21337"
 [storage]
 db_path = ".wit"
 
+[consensus_constants]
+checkpoint_zero_timestamp = 1542203073
+
 #########################################
 ### LOGGING CONFIGURATION             ###
 #########################################
