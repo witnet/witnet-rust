@@ -22,8 +22,8 @@ use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 /// Session representing a TCP connection
 pub struct Session {
-    /// Local socket address
-    _local_addr: SocketAddr,
+    /// Server socket address
+    _server_addr: SocketAddr,
 
     /// Remote socket address
     remote_addr: SocketAddr,
@@ -45,14 +45,14 @@ pub struct Session {
 impl Session {
     /// Method to create a new session
     pub fn new(
-        _local_addr: SocketAddr,
+        _server_addr: SocketAddr,
         remote_addr: SocketAddr,
         session_type: SessionType,
         _framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
         _handshake_timeout: Duration,
     ) -> Session {
         Session {
-            _local_addr,
+            _server_addr,
             remote_addr,
             session_type,
             status: SessionStatus::Unconsolidated,

@@ -272,10 +272,13 @@ impl Handler<Create> for SessionsManager {
         // Get handshake timeout
         let handshake_timeout = self.sessions.handshake_timeout;
 
+        // Get server address
+        let server_addr = self.sessions.server_address;
+
         // Create a session actor
         Session::create(move |ctx| {
-            // Get local peer address
-            let local_addr = msg.stream.local_addr().unwrap();
+            // Get server address (if not present, send local address instead)
+            let server_addr = server_addr.unwrap_or_else(|| msg.stream.local_addr().unwrap());
 
             // Get remote peer address
             let remote_addr = msg.stream.peer_addr().unwrap();
@@ -288,7 +291,7 @@ impl Handler<Create> for SessionsManager {
 
             // Create the session actor and store in its state the write part of the tcp stream
             Session::new(
-                local_addr,
+                server_addr,
                 remote_addr,
                 msg.session_type,
                 FramedWrite::new(w, P2PCodec, ctx),
