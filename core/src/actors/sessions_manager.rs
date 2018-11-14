@@ -15,7 +15,7 @@ use tokio::{codec::FramedRead, io::AsyncRead, net::TcpStream};
 use crate::actors::codec::P2PCodec;
 use crate::actors::config_manager::send_get_config_request;
 use crate::actors::connections_manager::{ConnectionsManager, OutboundTcpConnect};
-use crate::actors::peers_manager::{GetRandomPeer, PeersManager, PeersSocketAddrResult};
+use crate::actors::peers_manager::{AddPeers, GetRandomPeer, PeersManager, PeersSocketAddrResult};
 use crate::actors::session::{GetPeers, Session};
 
 use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};
@@ -237,6 +237,11 @@ pub struct Consolidate {
     /// Socket address to identify the peer
     pub address: SocketAddr,
 
+    /// Potential peer to be added
+    /// In their `Version` messages the nodes communicate the address of their server and that
+    /// is a potential peer that should try to be added
+    pub potential_new_peer: SocketAddr,
+
     /// Session type
     pub session_type: SessionType,
 }
@@ -360,6 +365,17 @@ impl Handler<Consolidate> for SessionsManager {
         let result = self
             .sessions
             .consolidate_session(msg.session_type, msg.address);
+
+        // Get peers manager address
+        let peers_manager_addr = System::current().registry().get::<PeersManager>();
+
+        // Send AddPeers message to the peers manager
+        // If the session is outbound, this won't give any new information (except the timestamp
+        // being updated)
+        // If the session is inbound, this might be a valid information to get a new potential peer
+        peers_manager_addr.do_send(AddPeers {
+            addresses: vec![msg.potential_new_peer],
+        });
 
         match &result {
             Ok(_) => debug!(
