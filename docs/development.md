@@ -4,14 +4,32 @@ Witnet-rust is build using [The Rust Programming language](https://rust-lang-nur
 ## Installing
 
 1. Install dependencies
-    - Rust 1.31 (currently on the `nightly` release channel)
-    - `flatc` FlatBuffers compiler (optional, only if recompiling schemas) 
+    - Rust 1.31 (currently on the `beta` release channel)
+    ```
+    $ curl https://sh.rustup.rs -sSf | sh
+    $ rustup default beta
+    $ rustc --version
+    ```
+    - `clang` Clang compiler
+    ```
+    $ apt-get install clang
+    ```
+    - `flatc` FlatBuffers compiler (optional, only if recompiling schemas)
+    ```
+    $ pip install FoLiA-Linguistic-Annotation-Tool
+    ```
     - `mkdocs`, `pymdown-extensions`, `mkdocs-material` python packages (optional, only if generating documentation)
+    ```
+    $ pip install mkdocs
+    $ pip install pymdown-extensions
+    $ pip install mkdocs-material
+    ```
 
-2. Clone the source code from github:
+2. Clone and build the source code from github:
   ```
   $ git clone https://github.com/witnet/witnet-rust.git
   $ cd witnet-rust
+  $ cargo build
   ```
 3. Use cargo to install ```just``` .
   ```
