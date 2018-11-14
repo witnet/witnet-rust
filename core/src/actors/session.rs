@@ -136,7 +136,7 @@ impl WriteHandler<Error> for Session {}
 impl StreamHandler<Request, Error> for Session {
     /// This is main event loop for client requests
     fn handle(&mut self, msg: Request, _ctx: &mut Self::Context) {
-        // Handler different types of requests
+        // Handle different types of requests
         match msg {
             Request::Message(message) => {
                 debug!(

@@ -85,7 +85,7 @@ impl ConnectionsManager {
         // Get sessions manager address
         let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
-        // Send a message to the SessionsManager to request the creation of a session
+        // Send a message to SessionsManager to request the creation of a session
         sessions_manager_addr.do_send(Create {
             stream,
             session_type,

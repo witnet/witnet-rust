@@ -167,10 +167,10 @@ impl Actor for SessionsManager {
             act.sessions
                 .set_handshake_timeout(config.connections.handshake_timeout);
 
-            // We'll start the peers bootstrapping process upon SessionsManager's start
+            // The peers bootstrapping process begins upon SessionsManager's start
             act.bootstrap_peers(ctx, bootstrap_peers_period);
 
-            // We'll start the peers discovery process upon SessionsManager's start
+            // The peers discovery process begins upon SessionsManager's start
             act.discovery_peers(ctx, discovery_peers_period);
         });
     }
@@ -187,7 +187,7 @@ impl SystemService for SessionsManager {}
 /// Message result of unit
 pub type SessionsUnitResult = SessionsResult<()>;
 
-/// Message to indicate that a new session needs to be created
+/// Message indicating a new session needs to be created
 pub struct Create {
     /// TCP stream
     pub stream: TcpStream,
@@ -200,9 +200,9 @@ impl Message for Create {
     type Result = ();
 }
 
-/// Message to indicate that a new session needs to be registered
+/// Message indicating a new session needs to be registered
 pub struct Register {
-    /// Socket address to identify the peer
+    /// Socket address which identifies the peer
     pub address: SocketAddr,
 
     /// Address of the session actor that is to be connected
@@ -216,9 +216,9 @@ impl Message for Register {
     type Result = SessionsUnitResult;
 }
 
-/// Message to indicate that a session needs to be unregistered
+/// Message indicating a session needs to be unregistered
 pub struct Unregister {
-    /// Socket address to identify the peer
+    /// Socket address identifying the peer
     pub address: SocketAddr,
 
     /// Session type
@@ -232,9 +232,9 @@ impl Message for Unregister {
     type Result = SessionsUnitResult;
 }
 
-/// Message to indicate that a session needs to be consolidated
+/// Message indicating a session needs to be consolidated
 pub struct Consolidate {
-    /// Socket address to identify the peer
+    /// Socket address which identifies the peer
     pub address: SocketAddr,
 
     /// Potential peer to be added
@@ -250,7 +250,7 @@ impl Message for Consolidate {
     type Result = SessionsUnitResult;
 }
 
-/// Message to indicate that a message is to be forwarded to a random consolidated outbound session
+/// Message indicating a message is to be forwarded to a random consolidated outbound session
 pub struct Anycast<T> {
     /// Command to be sent to the session
     pub command: T,

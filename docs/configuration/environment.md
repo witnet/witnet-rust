@@ -8,27 +8,27 @@ At the moment, the available environments are: `testnet-1` and `mainnet`.
 
 ## Defaults for Testnet-1
 
-| Section     | Param                           | Default Value                 | Description                                                           |
-|-------------|---------------------------------|-------------------------------|-----------------------------------------------------------------------|
-| connections | server_addr                     | `"127.0.0.1:21337"`           | Server socket address to which it should bind to                      |
-| connections | inbound_limit                   | `128`                         | Maximum number of concurrent connections the server should accept     |
-| connections | outbound_limit                  | `8`                           | Maximum number of opened connections to other peers this node has     |
-| connections | known_peers                     | `[]`                          | Other peer addresses this node knows about at start                   |
-| connections | bootstrap_peers_period_seconds  | `5`                           | Period of the outbound peer bootstrapping process (in seconds)        |
-| connections | storage_peers_period_seconds    | `30`                          | Period of the known peers backup into storage process (in seconds)    |
-| connections | handshake_timeout_seconds       | `5`                           | Timeout for the handshake process (in seconds)                        |
-| storage     | db_path                         | `".witnet-rust-testnet-1"`    | Directory containing the database files                               |
+| Section       | Param                           | Default Value                 | Description                                                           |
+|---------------|---------------------------------|-------------------------------|-----------------------------------------------------------------------|
+| `connections` | `server_addr`                   | `"127.0.0.1:21337"`           | Server socket address to which it should bind to                      |
+| `connections` | `inbound_limit`                 | `128`                         | Maximum number of concurrent connections the server should accept     |
+| `connections` | `outbound_limit`                | `8`                           | Maximum number of opened connections to other peers this node has     |
+| `connections` | `known_peers`                   | `[]`                          | Other peer addresses this node knows about at start                   |
+| `connections` | `bootstrap_peers_period_seconds`| `5`                           | Period of the outbound peer bootstrapping process (in seconds)        |
+| `connections` | `storage_peers_period_seconds`  | `30`                          | Period of the known peers backup into storage process (in seconds)    |
+| `connections` | `handshake_timeout_seconds`     | `5`                           | Timeout for the handshake process (in seconds)                        |
+| `storage`     | `db_path`                       | `".witnet-rust-testnet-1"`    | Directory containing the database files                               |
 
 
 ## Defaults for Mainnet
 
-| Section     | Param                           | Default Value                 | Description                                                           |
-|-------------|---------------------------------|-------------------------------|-----------------------------------------------------------------------|
-| connections | server_addr                     | `"127.0.0.1:11337"`           | Server socket address to which it should bind to                      |
-| connections | inbound_limit                   | `128`                         | Maximum number of concurrent connections the server should accept     |
-| connections | outbound_limit                  | `8`                           | Maximum number of opened connections to other peers this node has     |
-| connections | known_peers                     | `[]`                          | Other peer addresses this node knows about at start                   |
-| connections | bootstrap_peers_period_seconds  | `5`                           | Period of the outbound peer bootstrapping process (in seconds)        |
-| connections | storage_peers_period_seconds    | `30`                          | Period of the known peers backup into storage process (in seconds)    |
-| connections | handshake_timeout_seconds       | `5`                           | Timeout for the handshake process (in seconds)                        |
-| storage     | db_path                         | `".witnet-rust-mainnet"`      | Directory containing the database files                               |
+| Section       | Param                           | Default Value                 | Description                                                           |
+|---------------|---------------------------------|-------------------------------|-----------------------------------------------------------------------|
+| `connections` | `server_addr`                   | `"127.0.0.1:11337"`           | Server socket address to which it should bind to                      |
+| `connections` | `inbound_limit`                 | `128`                         | Maximum number of concurrent connections the server should accept     |
+| `connections` | `outbound_limit`                | `8`                           | Maximum number of opened connections to other peers this node has     |
+| `connections` | `known_peers`                   | `[]`                          | Other peer addresses this node knows about at start                   |
+| `connections` | `bootstrap_peers_period_seconds`| `5`                           | Period of the outbound peer bootstrapping process (in seconds)        |
+| `connections` | `storage_peers_period_seconds`  | `30`                          | Period of the known peers backup into storage process (in seconds)    |
+| `connections` | `handshake_timeout_seconds`     | `5`                           | Timeout for the handshake process (in seconds)                        |
+| `storage`     | `db_path`                       | `".witnet-rust-mainnet"`      | Directory containing the database files                               |

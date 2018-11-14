@@ -1,7 +1,7 @@
 # Sessions Manager
 
-The __sessions manager__ is the actor that handles incoming (inbound) and outgoing (outbound) sessions. These are some of
-its responsibilities:
+The __sessions manager__ is the actor that handles incoming (inbound) and outgoing (outbound) sessions.
+ Its responsibilities include:
 
 - Create new sessions
 - Register / unregister new sessions
@@ -50,10 +50,10 @@ These are the messages supported by the sessions manager handlers:
 
 | Message       | Input type                                | Output type           | Description                                       |
 |---------------|-------------------------------------------|-----------------------|---------------------------------------------------|
-| Create        | `TcpStream, SessionType`                  | `()`                  | Request to create a new session                   |
-| Register      | `SocketAddr, Addr<Session>, SessionType`  | `SessionsResult<()>`  | Request to register a new session                 |
-| Unregister    | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to unregister a session                   |
-| Consolidate   | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to consolidate a session                  |
+| `Create`      | `TcpStream, SessionType`                  | `()`                  | Request to create a new session                   |
+| `Register`    | `SocketAddr, Addr<Session>, SessionType`  | `SessionsResult<()>`  | Request to register a new session                 |
+| `Unregister`  | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to unregister a session                   |
+| `Consolidate` | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to consolidate a session                  |
 | `Anycast<T>`  | `T`                                       | `()`                  | Request to send a T message to a random Session   |
 
 The handling of these messages is basically just calling the corresponding methods from the
@@ -135,9 +135,9 @@ These are the messages sent by the sessions manager:
 
 | Message               | Destination           | Input type    | Output type                       | Description                                                               |
 |-----------------------|-----------------------|---------------|-----------------------------------|---------------------------------------------------------------------------|
-| GetConfig             | ConfigManager         | `()`          | `Result<Config, io::Error>`       | Request the configuration                                                 |
-| GetRandomPeer         | PeersManager          | `()`          | `PeersResult<Option<SocketAddr>>` | Request the address of a peer                                             |
-| OutboundTcpConnect    | ConnectionsManager    | `SocketAddr`  | `()`                              | Request a TCP conn to an address                                          | 
+| `GetConfig`           | `ConfigManager`       | `()`          | `Result<Config, io::Error>`       | Request the configuration                                                 |
+| `GetRandomPeer`       | `PeersManager`        | `()`          | `PeersResult<Option<SocketAddr>>` | Request the address of a peer                                             |
+| `OutboundTcpConnect`  | `ConnectionsManager`  | `SocketAddr`  | `()`                              | Request a TCP conn to an address                                          | 
 | `Anycast<GetPeers>`   | `SessionsManager`     | `()`          | `()`                              | Request to forward a GetPeers message to one randomly selected `Session`  |
 
 #### GetConfig

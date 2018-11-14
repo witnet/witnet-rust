@@ -34,8 +34,8 @@ These are the messages supported by the connections manager handlers:
 
 | Message               | Input type    | Output type   | Description                                                       |
 |-----------------------|---------------|---------------|-------------------------------------------------------------------|
-| InboundTcpConnect     | `TcpStream`   | `()`          | Request to create a session from an incoming TCP connection       |
-| OutboundTcpConnect    | `SocketAddr`  | `()`          | Request to create a start a TCP connection to a peer              |
+| `InboundTcpConnect`   | `TcpStream`   | `()`          | Request to create a session from an incoming TCP connection       |
+| `OutboundTcpConnect`  | `SocketAddr`  | `()`          | Request to create a start a TCP connection to a peer              |
 
 The way other actors will communicate with the connections manager is:
 
@@ -101,8 +101,8 @@ performed:
 - Send a `ConnectAddr` message to the [`Resolver`][resolver] actor to connect to the requested peer
 address
 - Handle the result:
-    - If error, do nothing but log it
-    - If success, request the creation of an `Outbound` session to the `SessionsManager`
+    - If an error is returned, do nothing but log it
+    - If successful, request the creation of an `Outbound` session to the `SessionsManager`
     
 ```rust
 /// Method to handle the OutboundTcpConnect message
@@ -122,9 +122,9 @@ These are the messages sent by the connections manager:
 
 | Message           | Destination       | Input type                | Output type                           | Description                           |
 |-------------------|-------------------|---------------------------|---------------------------------------|---------------------------------------|
-| GetConfig         | ConfigManager     | `()`                      | `Result<Config, io::Error>`           | Request the configuration             |
-| ConnectAddr       | Resolver          | `SocketAddr`              | `Result<TcpStream, ResolverError>`    | Request a TCP conn to an address      | 
-| Create            | SessionsManager   | `TcpStream, SessionType`  | `()`                                  | Request the creation of a session     | 
+| `GetConfig`       | `ConfigManager`   | `()`                      | `Result<Config, io::Error>`           | Request the configuration             |
+| `ConnectAddr`     | `Resolver`        | `SocketAddr`              | `Result<TcpStream, ResolverError>`    | Request a TCP conn to an address      | 
+| `Create`          | `SessionsManager` | `TcpStream, SessionType`  | `()`                                  | Request the creation of a session     | 
 
 #### GetConfig 
 
