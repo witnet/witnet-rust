@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
@@ -122,5 +122,87 @@ fn to_address(socket_addr: SocketAddr) -> Address {
             },
             port: addr.port(),
         },
+    }
+}
+
+/// Function to build a [SocketAddr](std::net::SocketAddr) from a
+/// Witnet [Address](types::Address)
+pub fn from_address(addr: &Address) -> SocketAddr {
+    let ip: IpAddr = addr.ip.into();
+    SocketAddr::from((ip, addr.port))
+}
+
+impl From<IpAddress> for IpAddr {
+    fn from(addr: IpAddress) -> Self {
+        match addr {
+            IpAddress::Ipv4 { ip } => IpAddr::V4(Ipv4Addr::from(ip)),
+            IpAddress::Ipv6 { ip0, ip1, ip2, ip3 } => {
+                let ip = u128::from(ip0) << 96
+                    | u128::from(ip1) << 64
+                    | u128::from(ip2) << 32
+                    | u128::from(ip3);
+                IpAddr::V6(Ipv6Addr::from(ip))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_address_ipv4() {
+        let socket_addr: SocketAddr = "127.0.0.1:3000".parse().unwrap();
+        let witnet_addr: Address = to_address(socket_addr);
+
+        assert_eq!(witnet_addr.ip, IpAddress::Ipv4 { ip: 2130706433 });
+        assert_eq!(witnet_addr.port, 3000);
+    }
+
+    #[test]
+    fn test_to_address_ipv6() {
+        let socket_addr: SocketAddr = "[::1]:3000".parse().unwrap();
+        let witnet_addr: Address = to_address(socket_addr);
+
+        assert_eq!(
+            witnet_addr.ip,
+            IpAddress::Ipv6 {
+                ip0: 0,
+                ip1: 0,
+                ip2: 0,
+                ip3: 1
+            }
+        );
+        assert_eq!(witnet_addr.port, 3000);
+    }
+
+    #[test]
+    fn test_from_address_ipv4() {
+        let witnet_addr: Address = Address {
+            ip: IpAddress::Ipv4 { ip: 2130706433 },
+            port: 3000,
+        };
+        let socket_addr: SocketAddr = from_address(&witnet_addr);
+        let expected = "127.0.0.1:3000".parse().unwrap();
+
+        assert_eq!(socket_addr, expected);
+    }
+
+    #[test]
+    fn test_from_address_ipv6() {
+        let witnet_addr: Address = Address {
+            ip: IpAddress::Ipv6 {
+                ip0: 0,
+                ip1: 0,
+                ip2: 0,
+                ip3: 1,
+            },
+            port: 3000,
+        };
+        let socket_addr: SocketAddr = from_address(&witnet_addr);
+        let expected = "[::1]:3000".parse().unwrap();
+
+        assert_eq!(socket_addr, expected);
     }
 }
