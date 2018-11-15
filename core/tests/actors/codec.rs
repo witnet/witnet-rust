@@ -1,6 +1,5 @@
-use bytes::BytesMut;
 use tokio::codec::{Decoder, Encoder};
-use witnet_core::actors::codec::{P2PCodec, Request, Response};
+use witnet_core::actors::codec::{BytesMut, P2PCodec};
 
 #[test]
 fn core_actors_codec_p2p_decoder() {
@@ -20,7 +19,7 @@ fn core_actors_codec_p2p_decoder() {
     );
 
     assert_eq!(
-        Request::Message(msg),
+        msg,
         P2PCodec::decode(&mut P2PCodec {}, &mut buf)
             .unwrap()
             .unwrap()
@@ -46,6 +45,6 @@ fn core_actors_codec_p2p_encoder() {
     );
 
     let mut dst = BytesMut::with_capacity(1024);
-    P2PCodec::encode(&mut P2PCodec {}, Response::Message(decoded), &mut dst).unwrap();
+    P2PCodec::encode(&mut P2PCodec {}, decoded, &mut dst).unwrap();
     assert_eq!(dst, encoded);
 }

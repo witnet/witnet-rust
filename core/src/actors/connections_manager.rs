@@ -124,12 +124,9 @@ impl ConnectionsManager {
 
     /// Method to process the configuration received from the config manager
     fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
-        // Get server address from config
-        let server_address = config.connections.server_addr;
-
         // Bind TCP listener to this address
         // FIXME(#72): decide what to do with actor when server cannot be started
-        let listener = TcpListener::bind(&server_address).unwrap();
+        let listener = TcpListener::bind(&config.connections.server_addr).unwrap();
 
         // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
         ctx.add_message_stream(
@@ -139,7 +136,10 @@ impl ConnectionsManager {
                 .map(InboundTcpConnect::new),
         );
 
-        info!("P2P server has been started at {:?}", server_address);
+        info!(
+            "P2P server has been started at {:?}",
+            &config.connections.server_addr
+        );
     }
 }
 

@@ -4,25 +4,22 @@ use std::io::Cursor;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use actix::Message;
-use bytes::BytesMut;
-use log::info;
+use bytes;
+use log::debug;
 use tokio::codec::{Decoder, Encoder};
 
 const HEADER_SIZE: usize = 2; // bytes
 
-/// Message coming from the network
-#[derive(Debug, Message, Eq, PartialEq, Clone)]
-pub enum Request {
-    /// Request message
-    Message(BytesMut),
-}
+/// Type alias for BytesMut
+pub type BytesMut = bytes::BytesMut;
 
-/// Message going to the network
-#[derive(Debug, Message, Eq, PartialEq, Clone)]
-pub enum Response {
-    /// Response message
-    Message(BytesMut),
-}
+// /// Message coming from the network
+// #[derive(Debug, Message, Eq, PartialEq, Clone)]
+// pub struct Request(pub BytesMut);
+
+// /// Message going to the network
+// #[derive(Debug, Message, Eq, PartialEq, Clone)]
+// pub struct Response(pub BytesMut);
 
 /// Codec for client -> server transport
 ///
@@ -40,7 +37,7 @@ pub struct P2PCodec;
 
 /// Implement decoder trait for P2P codec
 impl Decoder for P2PCodec {
-    type Item = Request;
+    type Item = BytesMut;
     type Error = io::Error;
 
     /// Method to decode bytes to a request
@@ -52,7 +49,7 @@ impl Decoder for P2PCodec {
             let msg_size = header_vec.read_u16::<BigEndian>().unwrap() as usize;
             if msg_len >= msg_size + HEADER_SIZE {
                 src.split_to(HEADER_SIZE);
-                ftb = Some(Request::Message(src.split_to(msg_size)));
+                ftb = Some(src.split_to(msg_size));
             }
         }
         // If the message is incomplete, return without consuming anything.
@@ -64,14 +61,14 @@ impl Decoder for P2PCodec {
 
 /// Implement encoder trait for P2P codec
 impl Encoder for P2PCodec {
-    type Item = Response;
+    type Item = BytesMut;
     type Error = io::Error;
 
     /// Method to encode a response into bytes
-    fn encode(&mut self, msg: Response, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        info!("Encoding {:?}", msg);
+    fn encode(&mut self, bytes: BytesMut, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        debug!("Encoding {:?}", bytes);
 
-        let Response::Message(bytes) = msg;
+        // let Response(bytes) = resp;
 
         let mut encoded_msg = vec![];
 
