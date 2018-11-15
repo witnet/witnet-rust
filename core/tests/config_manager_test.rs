@@ -12,7 +12,7 @@ fn test_config_manager_load_config() {
     use std::path::PathBuf;
     let sys = System::new("test");
     let addr = ConfigManager::new(Some(PathBuf::from("tests/fixtures/config.toml"))).start();
-    let res = addr.send(GetConfig);
+    let res = addr.send(messages::GetConfig);
 
     Arbiter::spawn(res.then(|fut| {
         let config = fut.unwrap().unwrap();

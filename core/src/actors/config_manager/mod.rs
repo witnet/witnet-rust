@@ -1,12 +1,19 @@
 use actix::{
-    fut::FutureResult, Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler,
-    MailboxError, Message, Supervised, System, SystemService, WrapFuture,
+    fut::FutureResult, Actor, ActorFuture, AsyncContext, ContextFutureSpawner, MailboxError,
+    Supervised, System, SystemService, WrapFuture,
 };
-use log::{debug, info};
-use std::io;
+use log::debug;
 use std::path::PathBuf;
 use witnet_config::config::Config;
-use witnet_config::loaders::toml;
+
+// Internal Actor implementation for ConfigManager
+mod actor;
+
+/// Handlers to manage ConfigManager messages
+mod handlers;
+
+/// Messages for ConfigManager
+pub mod messages;
 
 /// Default configuration filename
 pub const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
@@ -35,19 +42,6 @@ impl Default for ConfigManager {
     }
 }
 
-impl Actor for ConfigManager {
-    type Context = Context<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        debug!("Config Manager actor has been started!");
-        info!(
-            "Reading configuration from file: {}",
-            self.config_file.to_string_lossy()
-        );
-        self.config = Config::from_partial(&toml::from_file(&self.config_file).unwrap())
-    }
-}
-
 impl ConfigManager {
     /// Create a new ConfigManager instance that will try to read the
     /// given configuration file name.
@@ -68,25 +62,6 @@ impl Supervised for ConfigManager {}
 
 impl SystemService for ConfigManager {}
 
-/// Message to obtain the configuration managed by the `ConfigManager`
-/// actor.
-pub struct GetConfig;
-
-/// Result of the GetConfig message handling
-pub type ConfigResult = Result<Config, io::Error>;
-
-impl Message for GetConfig {
-    type Result = ConfigResult;
-}
-
-impl Handler<GetConfig> for ConfigManager {
-    type Result = ConfigResult;
-
-    fn handle(&mut self, _msg: GetConfig, _ctx: &mut Context<Self>) -> Self::Result {
-        Ok(self.config.clone())
-    }
-}
-
 /// Method to send a GetConfig message to the ConfigManager
 pub fn send_get_config_request<T, U: 'static>(act: &mut T, ctx: &mut T::Context, process_config: U)
 where
@@ -101,7 +76,7 @@ where
     config_manager_addr
         // Send GetConfig message to config manager actor
         // This returns a Request Future, representing an asynchronous message sending process
-        .send(GetConfig)
+        .send(messages::GetConfig)
         // Convert a normal future into an ActorFuture
         .into_actor(act)
         // Process the response from the config manager
@@ -123,7 +98,7 @@ where
 
 /// Method to process ConfigManager GetConfig response
 pub fn process_get_config_response<T>(
-    response: Result<ConfigResult, MailboxError>,
+    response: Result<messages::ConfigResult, MailboxError>,
 ) -> FutureResult<Config, (), T> {
     // Process the Result<ConfigResult, MailboxError>
     match response {
