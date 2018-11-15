@@ -15,7 +15,10 @@ use tokio::{codec::FramedRead, io::AsyncRead, net::TcpStream};
 use crate::actors::codec::P2PCodec;
 use crate::actors::config_manager::send_get_config_request;
 use crate::actors::connections_manager::{messages::OutboundTcpConnect, ConnectionsManager};
-use crate::actors::peers_manager::{AddPeers, GetRandomPeer, PeersManager, PeersSocketAddrResult};
+use crate::actors::peers_manager::{
+    messages::{AddPeers, GetRandomPeer, PeersSocketAddrResult},
+    PeersManager,
+};
 use crate::actors::session::{GetPeers, Session};
 
 use witnet_p2p::sessions::{error::SessionsResult, SessionStatus, SessionType, Sessions};

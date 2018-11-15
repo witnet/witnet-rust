@@ -379,7 +379,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
     peers_manager_addr
         // Send GetPeer message to PeersManager actor
         // This returns a Request Future, representing an asynchronous message sending process
-        .send(peers_manager::GetPeers)
+        .send(peers_manager::messages::GetPeers)
         // Convert a normal future into an ActorFuture
         .into_actor(session)
         // Process the response from PeersManager
