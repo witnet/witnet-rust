@@ -1,0 +1,15 @@
+use actix::Message;
+
+use super::{Epoch, EpochManagerError};
+////////////////////////////////////////////////////////////////////////////////////////
+// ACTOR MESSAGES
+////////////////////////////////////////////////////////////////////////////////////////
+/// Returns the current epoch
+pub struct GetEpoch;
+
+/// Epoch result
+pub type EpochResult<T> = Result<T, EpochManagerError>;
+
+impl Message for GetEpoch {
+    type Result = EpochResult<Epoch>;
+}

@@ -1,12 +1,12 @@
+use actix::{Actor, SystemService};
 use log::{debug, warn};
 
-use actix::{Actor, Context, Handler, Message, SystemService};
-
-use crate::actors::config_manager::send_get_config_request;
-
 use witnet_config::config::Config;
-
 use witnet_util::timestamp::get_timestamp;
+
+mod actor;
+mod handlers;
+mod messages;
 
 /// Epoch id (starting from 0)
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -28,49 +28,20 @@ pub enum EpochManagerError {
     Overflow,
 }
 
-////////////////////////////////////////////////////////////////////////////////////////
-// ACTOR MESSAGES
-////////////////////////////////////////////////////////////////////////////////////////
-/// Returns the current epoch
-pub struct GetEpoch;
-
-/// Epoch result
-pub type EpochResult<T> = Result<T, EpochManagerError>;
-
-impl Message for GetEpoch {
-    type Result = EpochResult<Epoch>;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////
-// ACTOR BASIC STRUCTURE
-////////////////////////////////////////////////////////////////////////////////////////
-/// Epoch manager actor
+/// EpochManager actor
 #[derive(Debug, Default)]
 pub struct EpochManager {
     checkpoint_zero_timestamp: Option<i64>,
     checkpoints_period: Option<u16>,
 }
 
-/// Make actor from `EpochManager`
-impl Actor for EpochManager {
-    /// Every actor has to provide execution `Context` in which it can run.
-    type Context = Context<Self>;
-
-    /// Method to be executed when the actor is started
-    fn started(&mut self, ctx: &mut Self::Context) {
-        debug!("Epoch Manager actor has been started!");
-
-        send_get_config_request(self, ctx, Self::process_config)
-    }
-}
-
-/// Required trait for being able to retrieve `EpochManager` address from system registry
+/// Required trait for being able to retrieve EpochManager address from system registry
 impl actix::Supervised for EpochManager {}
 
-/// Required trait for being able to retrieve `EpochManager` address from system registry
+/// Required trait for being able to retrieve EpochManager address from system registry
 impl SystemService for EpochManager {}
 
-/// Auxiliary methods for `EpochManager` actor
+/// Auxiliary methods for EpochManager actor
 impl EpochManager {
     /// Set the timestamp for the start of the epoch zero
     pub fn set_checkpoint_zero(&mut self, timestamp: i64) {
@@ -85,7 +56,7 @@ impl EpochManager {
         self.checkpoints_period = Some(period);
     }
     /// Calculate the last checkpoint (current epoch) at the supplied timestamp
-    pub fn epoch_at(&self, timestamp: i64) -> EpochResult<Epoch> {
+    pub fn epoch_at(&self, timestamp: i64) -> messages::EpochResult<Epoch> {
         match (self.checkpoint_zero_timestamp, self.checkpoints_period) {
             (Some(zero), Some(period)) => {
                 let elapsed = timestamp - zero;
@@ -101,12 +72,12 @@ impl EpochManager {
         }
     }
     /// Calculate the last checkpoint (current epoch)
-    pub fn current_epoch(&self) -> EpochResult<Epoch> {
+    pub fn current_epoch(&self) -> messages::EpochResult<Epoch> {
         let now = get_timestamp();
         self.epoch_at(now)
     }
     /// Calculate the timestamp for a checkpoint (the start of an epoch)
-    pub fn epoch_timestamp(&self, epoch: Epoch) -> EpochResult<i64> {
+    pub fn epoch_timestamp(&self, epoch: Epoch) -> messages::EpochResult<i64> {
         match (self.checkpoint_zero_timestamp, self.checkpoints_period) {
             // Calculate (period * epoch + zero) with overflow checks
             (Some(zero), Some(period)) => u64::from(period)
@@ -127,19 +98,5 @@ impl EpochManager {
             "Checkpoint zero timestamp: {}",
             self.checkpoint_zero_timestamp.unwrap()
         );
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////
-// ACTOR MESSAGE HANDLERS
-////////////////////////////////////////////////////////////////////////////////////////
-impl Handler<GetEpoch> for EpochManager {
-    type Result = EpochResult<Epoch>;
-
-    /// Method to get the last checkpoint (current epoch)
-    fn handle(&mut self, _msg: GetEpoch, _ctx: &mut Self::Context) -> EpochResult<Epoch> {
-        let r = self.current_epoch();
-        debug!("Current epoch: {:?}", r);
-        r
     }
 }
