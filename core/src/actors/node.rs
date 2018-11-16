@@ -12,6 +12,7 @@ use crate::actors::epoch_manager::EpochManager;
 use crate::actors::peers_manager::PeersManager;
 use crate::actors::sessions_manager::SessionsManager;
 use crate::actors::storage_manager::StorageManager;
+use crate::actors::blocks_manager::BlocksManager;
 
 /// Function to run the main system
 pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
@@ -44,6 +45,10 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Start epoch manager actor
     let epoch_manager_addr = EpochManager::default().start();
     System::current().registry().set(epoch_manager_addr);
+
+    // Start blocks manager actor
+    let blocks_manager_addr = BlocksManager::default().start();
+    System::current().registry().set(blocks_manager_addr);
 
     // Run system
     system.run();
