@@ -128,6 +128,10 @@ where
     pub fn get_num_outbound_sessions(&self) -> usize {
         self.outbound_consolidated.collection.len() + self.outbound_unconsolidated.collection.len()
     }
+    /// Method to get number of inbound peers
+    pub fn get_num_inbound_sessions(&self) -> usize {
+        self.inbound.collection.len()
+    }
     /// Method to check if outbound bootstrap is needed
     pub fn is_outbound_bootstrap_needed(&self) -> bool {
         let num_outbound_sessions = self.get_num_outbound_sessions();

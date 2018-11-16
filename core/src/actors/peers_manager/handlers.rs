@@ -1,5 +1,5 @@
 use actix::{Context, Handler};
-use log::debug;
+use log::{debug, info};
 
 use super::messages::{
     AddPeers, GetPeers, GetRandomPeer, PeersSocketAddrResult, PeersSocketAddrsResult, RemovePeers,
@@ -13,7 +13,7 @@ impl Handler<AddPeers> for PeersManager {
 
     fn handle(&mut self, msg: AddPeers, _: &mut Context<Self>) -> Self::Result {
         // Insert address
-        debug!("Add peer handle for addresses: {:?}", msg.addresses);
+        info!("Add peer handle for addresses: {:?}", msg.addresses);
         self.peers.add(msg.addresses)
     }
 }
@@ -24,7 +24,7 @@ impl Handler<RemovePeers> for PeersManager {
 
     fn handle(&mut self, msg: RemovePeers, _: &mut Context<Self>) -> Self::Result {
         // // Find index of element with address
-        debug!("Remove peer handle for addresses: {:?}", msg.addresses);
+        info!("Remove peer handle for addresses: {:?}", msg.addresses);
         self.peers.remove(&msg.addresses)
     }
 }

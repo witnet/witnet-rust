@@ -2,7 +2,7 @@ use actix::{
     Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Running, System,
     WrapFuture,
 };
-use log::{debug, info};
+use log::{debug, error, info};
 
 use crate::actors::sessions_manager::{
     messages::{Register, Unregister},
@@ -55,7 +55,7 @@ impl Actor for Session {
                         actix::fut::ok(())
                     }
                     _ => {
-                        debug!("Session register into Session Manager failed");
+                        error!("Session register into Session Manager failed");
                         // FIXME(#72): a full stop of the session is not correct (unregister should
                         // be skipped)
                         ctx.stop();

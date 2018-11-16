@@ -5,7 +5,8 @@ use actix::{
     ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler, StreamHandler, System,
     WrapFuture,
 };
-use log::{debug, warn};
+
+use log::{debug, error, info, warn};
 
 use crate::actors::{
     codec::BytesMut,
@@ -34,10 +35,10 @@ impl StreamHandler<BytesMut, Error> for Session {
     fn handle(&mut self, bytes: BytesMut, ctx: &mut Self::Context) {
         let result = WitnetMessage::try_from(bytes.to_vec());
         match result {
-            Err(err) => warn!("Error decoding message: {:?}", err),
+            Err(err) => error!("Error decoding message: {:?}", err),
             Ok(msg) => {
-                debug!(
-                    "<----- Session ({}) received message: {:?}",
+                info!(
+                    "<----- Session ({}) received message: {}",
                     self.remote_addr, msg.kind
                 );
                 match (self.status, msg.kind) {
@@ -68,7 +69,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                     // NOT IMPLEMENTED //
                     /////////////////////
                     (SessionStatus::Consolidated, _) => {
-                        debug!("Not implemented message command received!");
+                        warn!("Not implemented message command received!");
                     }
                     (_, kind) => {
                         warn!(
@@ -129,7 +130,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                     actix::fut::ok(())
                 }
                 _ => {
-                    debug!("Session consolidate in Session Manager failed");
+                    warn!("Session consolidate in Session Manager failed");
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();
@@ -160,7 +161,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
         .then(|res, act, ctx| {
             match res {
                 Ok(Ok(addresses)) => {
-                    debug!(
+                    info!(
                         "Received ({:?}) peer addresses from PeersManager",
                         addresses.len()
                     );
@@ -168,7 +169,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
                     act.send_message(peers_msg);
                 }
                 _ => {
-                    debug!("Failed to receive peers from PeersManager");
+                    warn!("Failed to receive peers from PeersManager");
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();

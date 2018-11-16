@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, error, info, warn};
 use std::{net::SocketAddr, time::Duration};
 
 use actix::{
@@ -34,9 +34,13 @@ impl SessionsManager {
     fn bootstrap_peers(&self, ctx: &mut Context<Self>, bootstrap_peers_period: Duration) {
         // Schedule the bootstrap with a given period
         ctx.run_later(bootstrap_peers_period, move |act, ctx| {
-            debug!(
+            info!(
                 "Number of outbound sessions {}",
                 act.sessions.get_num_outbound_sessions()
+            );
+            info!(
+                "Number of inbound sessions {}",
+                act.sessions.get_num_inbound_sessions()
             );
 
             // Check if bootstrap is needed
@@ -97,17 +101,17 @@ impl SessionsManager {
         response
             // Unwrap the Result<PeersSocketAddrResult, MailboxError>
             .unwrap_or_else(|_| {
-                debug!("Unsuccessful communication with peers manager");
+                error!("Unsuccessful communication with peers manager");
                 Ok(None)
             })
             // Unwrap the PeersSocketAddrResult
             .unwrap_or_else(|_| {
-                debug!("An error happened in peers manager when getting a peer");
+                error!("An error happened in peers manager when getting a peer");
                 None
             })
             // Check if PeersSocketAddrResult returned `None`
             .or_else(|| {
-                debug!("No peer obtained from peers manager");
+                warn!("No peer obtained from peers manager");
                 None
             })
             // Filter the result checking if outbound address is eligible as new peer
@@ -116,7 +120,7 @@ impl SessionsManager {
             })
             // Check if there is a peer after filter
             .or_else(|| {
-                debug!("No eligible peer obtained from peers manager");
+                warn!("No eligible peer obtained from peers manager");
                 None
             })
             // Convert Some(SocketAddr) or None to FutureResult<SocketAddr, (), Self>

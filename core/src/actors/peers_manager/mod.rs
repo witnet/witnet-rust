@@ -8,7 +8,7 @@ use crate::actors::{
     storage_keys::PEERS_KEY,
     storage_manager::{messages::Put, StorageManager},
 };
-use log::debug;
+use log::{error, info};
 
 use witnet_p2p::peers::Peers;
 
@@ -58,9 +58,9 @@ impl PeersManager {
                 .into_actor(act)
                 .then(|res, _act, _ctx| {
                     match res {
-                        Ok(Ok(_)) => debug!("PeersManager successfully persist peers to storage"),
+                        Ok(Ok(_)) => info!("PeersManager successfully persist peers to storage"),
                         _ => {
-                            debug!("Peers manager persist peers to storage failed");
+                            error!("Peers manager persist peers to storage failed");
                             // FIXME(#72): handle errors
                         }
                     }

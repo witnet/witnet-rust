@@ -1,6 +1,6 @@
 use actix::{fut::FutureResult, Actor, AsyncContext, MailboxError, System, SystemService};
 use futures::Stream;
-use log::{debug, info};
+use log::{debug, error, info, warn};
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::actors::{
@@ -55,18 +55,18 @@ impl ConnectionsManager {
         // Process the Result<ResolverResult, MailboxError>
         match response {
             Err(e) => {
-                debug!("Unsuccessful communication with resolver: {}", e);
+                error!("Unsuccessful communication with resolver: {}", e);
                 actix::fut::err(())
             }
             Ok(res) => {
                 // Process the ResolverResult
                 match res {
                     Err(e) => {
-                        debug!("Error while trying to connect to the peer: {}", e);
+                        warn!("Error while trying to connect to the peer: {}", e);
                         actix::fut::err(())
                     }
                     Ok(stream) => {
-                        debug!("Connected to peer {:?}", stream.peer_addr());
+                        info!("Connected to peer {:?}", stream.peer_addr());
 
                         // Request the creation of a new session actor from connection
                         ConnectionsManager::request_session_creation(stream, SessionType::Outbound);

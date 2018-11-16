@@ -4,7 +4,7 @@ use actix::{
     io::FramedWrite, Actor, ActorFuture, Context, ContextFutureSpawner, Handler, Message,
     StreamHandler, System, WrapFuture,
 };
-use log::debug;
+use log::{debug, info, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use crate::actors::{
@@ -66,11 +66,11 @@ impl Handler<Register> for SessionsManager {
             .register_session(msg.session_type, msg.address, msg.actor);
 
         match &result {
-            Ok(_) => debug!(
+            Ok(_) => info!(
                 "Session (type {:?}) registered for peer {}",
                 msg.session_type, msg.address
             ),
-            Err(error) => debug!(
+            Err(error) => warn!(
                 "Error while registering peer {} (session type {:?}): {}",
                 msg.address, msg.session_type, error
             ),
@@ -91,11 +91,11 @@ impl Handler<Unregister> for SessionsManager {
             .unregister_session(msg.session_type, msg.status, msg.address);
 
         match &result {
-            Ok(_) => debug!(
+            Ok(_) => info!(
                 "Session (type {:?}) unregistered for peer {}",
                 msg.session_type, msg.address
             ),
-            Err(error) => debug!(
+            Err(error) => warn!(
                 "Error while unregistering peer {} (session type {:?}): {}",
                 msg.address, msg.session_type, error
             ),
@@ -127,11 +127,11 @@ impl Handler<Consolidate> for SessionsManager {
         });
 
         match &result {
-            Ok(_) => debug!(
+            Ok(_) => info!(
                 "Session (type {:?}) status consolidated for peer {}",
                 msg.session_type, msg.address
             ),
-            Err(error) => debug!(
+            Err(error) => warn!(
                 "Error while consolidating peer {} (session type {:?}): {}",
                 msg.address, msg.session_type, error
             ),
@@ -173,7 +173,7 @@ where
                     .wait(ctx);
             })
             .unwrap_or_else(|| {
-                debug!("No consolidated outbound session was found");
+                warn!("No consolidated outbound session was found");
             });
     }
 }

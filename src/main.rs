@@ -7,7 +7,7 @@
 use std::process::exit;
 use std::result::Result;
 
-use env_logger;
+use env_logger::Builder;
 use failure;
 use log::error;
 use structopt::StructOpt;
@@ -18,7 +18,11 @@ mod cli;
 
 fn main() {
     // Init app logger
-    env_logger::init();
+    Builder::from_default_env()
+        // Remove comments to sprint demo
+        //.default_format_timestamp(false)
+        //.default_format_module_path(false)
+        .init();
 
     if let Err(e) = run() {
         error!("Error: {}", e);

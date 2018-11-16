@@ -1,5 +1,5 @@
 use actix::{Actor, ActorFuture, Context, ContextFutureSpawner, System, WrapFuture};
-use log::{debug, error};
+use log::{debug, error, info};
 
 use crate::actors::{
     config_manager::send_get_config_request,
@@ -28,7 +28,7 @@ impl Actor for PeersManager {
             let storage_peers_period = config.connections.storage_peers_period;
 
             // Add all peers
-            debug!(
+            info!(
                 "Adding the following peer addresses from config: {:?}",
                 known_peers
             );
@@ -48,7 +48,7 @@ impl Actor for PeersManager {
                 .then(|res, _act, _ctx| match res {
                     Err(e) => {
                         // Error when sending message
-                        debug!("Unsuccessful communication with config manager: {}", e);
+                        error!("Unsuccessful communication with config manager: {}", e);
                         actix::fut::err(())
                     }
                     Ok(res) => match res {
@@ -66,7 +66,7 @@ impl Actor for PeersManager {
                         // Add all the peers from storage
                         // The add method handles duplicates by overwriting the old values
                         let peers = peers_from_storage.get_all().unwrap();
-                        debug!(
+                        info!(
                             "Adding the following peer addresses from storage: {:?}",
                             peers
                         );

@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Command {
     GetPeers,
@@ -22,6 +24,23 @@ pub enum Command {
         genesis: u64,
         nonce: u64,
     },
+}
+
+impl fmt::Display for Command {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Command::GetPeers => "GET_PEERS",
+                Command::Peers { .. } => "PEERS",
+                Command::Ping { .. } => "PING",
+                Command::Pong { .. } => "PONG",
+                Command::Verack => "VERACK",
+                Command::Version { .. } => "VERSION",
+            }
+        )
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]

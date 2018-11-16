@@ -1,5 +1,5 @@
 use actix::{Actor, SystemService};
-use log::{debug, warn};
+use log::{info, warn};
 
 use witnet_config::config::Config;
 use witnet_util::timestamp::get_timestamp;
@@ -94,7 +94,7 @@ impl EpochManager {
     fn process_config(&mut self, _ctx: &mut <Self as Actor>::Context, config: &Config) {
         self.set_checkpoint_zero(config.consensus_constants.checkpoint_zero_timestamp);
         self.set_period(config.consensus_constants.checkpoints_period);
-        debug!(
+        info!(
             "Checkpoint zero timestamp: {}",
             self.checkpoint_zero_timestamp.unwrap()
         );

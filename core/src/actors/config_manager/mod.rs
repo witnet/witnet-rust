@@ -2,7 +2,8 @@ use actix::{
     fut::FutureResult, Actor, ActorFuture, AsyncContext, ContextFutureSpawner, MailboxError,
     Supervised, System, SystemService, WrapFuture,
 };
-use log::debug;
+
+use log::error;
 use std::path::PathBuf;
 use witnet_config::config::Config;
 
@@ -103,14 +104,14 @@ pub fn process_get_config_response<T>(
     // Process the Result<ConfigResult, MailboxError>
     match response {
         Err(e) => {
-            debug!("Unsuccessful communication with config manager: {}", e);
+            error!("Unsuccessful communication with config manager: {}", e);
             actix::fut::err(())
         }
         Ok(res) => {
             // Process the ConfigResult
             match res {
                 Err(e) => {
-                    debug!("Error while getting config: {}", e);
+                    error!("Error while getting config: {}", e);
                     actix::fut::err(())
                 }
                 Ok(res) => actix::fut::ok(res),

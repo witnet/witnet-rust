@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use actix::io::FramedWrite;
 
-use log::debug;
+use log::info;
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
 
@@ -88,7 +88,7 @@ impl Session {
     }
     /// Method to send a Witnet message to the remote peer
     fn send_message(&mut self, msg: WitnetMessage) {
-        debug!(
+        info!(
             "-----> Session ({:?}) sending message: {:?}",
             self.remote_addr, msg
         );
