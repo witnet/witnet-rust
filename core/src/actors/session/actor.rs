@@ -4,7 +4,10 @@ use actix::{
 };
 use log::{debug, info};
 
-use crate::actors::sessions_manager::{Register, SessionsManager, Unregister};
+use crate::actors::sessions_manager::{
+    messages::{Register, Unregister},
+    SessionsManager,
+};
 
 use witnet_data_structures::types::Message as WitnetMessage;
 use witnet_p2p::sessions::{SessionStatus, SessionType};

@@ -5,7 +5,7 @@ use tokio::net::{TcpListener, TcpStream};
 
 use crate::actors::{
     config_manager::send_get_config_request,
-    sessions_manager::{Create, SessionsManager},
+    sessions_manager::{messages::Create, SessionsManager},
 };
 
 use witnet_config::config::Config;

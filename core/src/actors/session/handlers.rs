@@ -10,7 +10,7 @@ use log::{debug, warn};
 use crate::actors::{
     codec::BytesMut,
     peers_manager,
-    sessions_manager::{Consolidate, SessionsManager},
+    sessions_manager::{messages::Consolidate, SessionsManager},
 };
 
 use witnet_data_structures::{

@@ -14,7 +14,7 @@ use witnet_p2p::sessions::{SessionStatus, SessionType};
 mod actor;
 
 mod handlers;
-
+/// Messages for session
 pub mod messages;
 
 /// HandshakeFlags
