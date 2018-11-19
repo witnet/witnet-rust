@@ -1,15 +1,23 @@
-use actix::{Actor, SystemService};
-use log::{info, warn};
+use actix::{Actor, AsyncContext, Context, Recipient, SystemService};
+
+use log::{debug, error, warn};
+
+use std::collections::BTreeMap;
+use std::time::Duration;
 
 use witnet_config::config::Config;
 use witnet_util::timestamp::get_timestamp;
 
+use crate::actors::epoch_manager::messages::{EpochNotification, EpochResult};
+
 mod actor;
 mod handlers;
-mod messages;
+
+/// Messages that are handled by `EpochManager`
+pub mod messages;
 
 /// Epoch id (starting from 0)
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Epoch(pub u64);
 
 /// Possible errors when getting the current epoch
@@ -28,17 +36,32 @@ pub enum EpochManagerError {
     Overflow,
 }
 
-/// EpochManager actor
-#[derive(Debug, Default)]
+////////////////////////////////////////////////////////////////////////////////////////
+// ACTOR BASIC STRUCTURE
+////////////////////////////////////////////////////////////////////////////////////////
+/// Epoch manager actor
+#[derive(Default)]
 pub struct EpochManager {
+    /// Checkpoint corresponding to the start of epoch #0
     checkpoint_zero_timestamp: Option<i64>,
+
+    /// Period between checkpoints
     checkpoints_period: Option<u16>,
+
+    /// Subscriptions to a particular epoch
+    subscriptions_epoch: BTreeMap<Epoch, Vec<Box<dyn NotificationSender>>>,
+
+    /// Subscriptions to all epochs
+    subscriptions_all: Vec<Box<dyn NotificationSender>>,
+
+    /// Last epoch that was checked by the epoch monitor process
+    last_checked_epoch: Option<Epoch>,
 }
 
-/// Required trait for being able to retrieve EpochManager address from system registry
+/// Required trait for being able to retrieve `EpochManager` address from system registry
 impl actix::Supervised for EpochManager {}
 
-/// Required trait for being able to retrieve EpochManager address from system registry
+/// Required trait for being able to retrieve `EpochManager` address from system registry
 impl SystemService for EpochManager {}
 
 /// Auxiliary methods for EpochManager actor
@@ -91,12 +114,169 @@ impl EpochManager {
         }
     }
     /// Method to process the configuration received from the config manager
-    fn process_config(&mut self, _ctx: &mut <Self as Actor>::Context, config: &Config) {
+    fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
         self.set_checkpoint_zero(config.consensus_constants.checkpoint_zero_timestamp);
         self.set_period(config.consensus_constants.checkpoints_period);
-        info!(
-            "Checkpoint zero timestamp: {}",
-            self.checkpoint_zero_timestamp.unwrap()
+        debug!(
+            "Checkpoint zero timestamp: {}, checkpoints period: {}",
+            self.checkpoint_zero_timestamp.unwrap(),
+            self.checkpoints_period.unwrap()
         );
+
+        // Start checkpoint monitoring process
+        self.checkpoint_monitor(ctx);
+    }
+    /// Method to compute time remaining to next checkpoint
+    fn time_to_next_checkpoint(&self) -> EpochResult<Duration> {
+        // FIXME(#145): Improve time precision, use nanoseconds
+        // Get current timestamp and epoch
+        let now = get_timestamp();
+        let current_epoch = self.epoch_at(now)?;
+
+        // Get timestamp for the start of next checkpoint
+        let next_checkpoint = self.epoch_timestamp(Epoch(
+            current_epoch
+                .0
+                .checked_add(1)
+                .ok_or(EpochManagerError::Overflow)?,
+        ))?;
+
+        // Get number of seconds remaining to the next checkpoint
+        let secs = next_checkpoint - now;
+
+        // Check if number of seconds to next checkpoint is valid
+        // This number should never be negative with current implementation
+        if secs < 0 {
+            Err(EpochManagerError::Overflow)
+        } else {
+            Ok(Duration::from_secs(secs as u64))
+        }
+    }
+    /// Method to monitor checkpoints and execute some actions on each
+    fn checkpoint_monitor(&self, ctx: &mut Context<Self>) {
+        // Wait until next checkpoint to execute the periodic function
+        ctx.run_later(
+            self.time_to_next_checkpoint().unwrap_or_else(|_| {
+                Duration::from_secs(u64::from(self.checkpoints_period.unwrap()))
+            }),
+            move |act, ctx| {
+                // Get current epoch
+                let current_epoch = match act.current_epoch() {
+                    Ok(epoch) => epoch,
+                    Err(_) => return,
+                };
+
+                // Send message to actors which subscribed to all epochs
+                for subscription in &mut act.subscriptions_all {
+                    subscription.send_notification(current_epoch);
+                }
+
+                // Get all the checkpoints that had some subscription but were skipped for some
+                // reason (process sent to background, checkpoint monitor process had no
+                // resources to execute in time...)
+                let epoch_checkpoints: Vec<_> = act
+                    .subscriptions_epoch
+                    .range(act.last_checked_epoch.unwrap_or(Epoch(0))..=current_epoch)
+                    .map(|(k, _v)| *k)
+                    .collect();
+
+                // Send notifications for skipped checkpoints for subscriptions to a particular
+                // epoch
+                // Notifications for skipped checkpoints are not sent for subscriptions to all
+                // epochs
+                for checkpoint in epoch_checkpoints {
+                    // Get the subscriptions to the skipped checkpoint
+                    if let Some(subscriptions) = act.subscriptions_epoch.remove(&checkpoint) {
+                        // Send notifications to subscribers for skipped checkpoints
+                        for mut subscription in subscriptions {
+                            // TODO: should send messages or just drop?
+                            // TODO: send notifications also for subscriptions to all epochs?
+                            subscription.send_notification(checkpoint);
+                        }
+                    }
+                }
+
+                // Update last checked epoch
+                act.last_checked_epoch = Some(current_epoch);
+
+                debug!("Current epoch: {:?}", current_epoch);
+
+                // Reschedule checkpoint monitor process
+                act.checkpoint_monitor(ctx);
+            },
+        );
+    }
+}
+
+/// Trait that must follow all notifications that will be sent back to subscriber actors
+pub trait NotificationSender: Send {
+    /// Send notification back to the subscriber
+    fn send_notification(&mut self, current_epoch: Epoch);
+}
+
+/// Notification for a particular epoch: built by each actor that subscribes to a particular
+/// epoch. Stored in the SubscribeEpoch struct and in the EpochManager as Notifiable
+pub struct NotificationEpoch<T: Send> {
+    /// Actor recipient, required to send a message back to the subscriber actor
+    recipient: Recipient<EpochNotification<T>>,
+
+    /// Payload to be sent back to the subscriber actor
+    payload: Option<T>,
+}
+
+/// Implementation of the Notifiable trait for the NotificationEpoch
+impl<T: Send> NotificationSender for NotificationEpoch<T> {
+    /// Function to send notification back to the subscriber
+    fn send_notification(&mut self, current_epoch: Epoch) {
+        // Get the payload from the notification
+        if let Some(payload) = self.payload.take() {
+            // Build an EpochNotification message to send back to the subscriber
+            let msg = EpochNotification {
+                checkpoint: current_epoch,
+                payload,
+            };
+
+            // Send EpochNotification message back to the subscriber
+            // TODO: ignore failure?
+            match self.recipient.do_send(msg) {
+                Ok(()) => {}
+                Err(_e) => {}
+            }
+        } else {
+            error!("No payload to be sent back to the subscriber");
+        }
+    }
+}
+
+/// Notification for all epochs: built by each actor that subscribes to all epochs. Stored in the
+/// SubscribeAll struct and in the EpochManager as Notifiable. Requires T to be cloned as this
+/// notification is to be sent many times
+pub struct NotificationAll<T: Clone + Send> {
+    /// Actor recipient, required to send a message back to the subscriber actor
+    recipient: Recipient<EpochNotification<T>>,
+
+    /// Payload to be sent back to the subscriber actor
+    payload: T,
+}
+
+/// Implementation of the Notifiable trait for the NotificationAll
+impl<T: Clone + Send> NotificationSender for NotificationAll<T> {
+    /// Function to send notification back to the subscriber
+    fn send_notification(&mut self, current_epoch: Epoch) {
+        // Clone the payload to be sent to the subscriber
+        let payload = self.payload.clone();
+
+        // Build an EpochNotification message to send back to the subscriber
+        let msg = EpochNotification {
+            checkpoint: current_epoch,
+            payload,
+        };
+
+        // Send EpochNotification message back to the subscriber
+        // TODO: ignore failure?
+        match self.recipient.do_send(msg) {
+            Ok(()) => {}
+            Err(_e) => {}
+        }
     }
 }
