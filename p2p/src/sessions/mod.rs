@@ -161,6 +161,13 @@ where
             .nth(index)
             .map(|info| info.reference.clone())
     }
+    /// Method to get all the consolidated outbound sessions
+    pub fn get_all_consolidated_outbound_sessions<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+        self.outbound_consolidated
+            .collection
+            .values()
+            .map(|info| &info.reference)
+    }
     /// Method to insert a new session
     pub fn register_session(
         &mut self,

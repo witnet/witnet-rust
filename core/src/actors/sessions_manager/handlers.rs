@@ -14,7 +14,7 @@ use crate::actors::{
 };
 
 use super::{
-    messages::{Anycast, Consolidate, Create, Register, SessionsUnitResult, Unregister},
+    messages::{Anycast, Broadcast, Consolidate, Create, Register, SessionsUnitResult, Unregister},
     SessionsManager,
 };
 
@@ -174,6 +174,27 @@ where
             })
             .unwrap_or_else(|| {
                 warn!("No consolidated outbound session was found");
+            });
+    }
+}
+
+/// Handler for Broadcast message
+impl<T: 'static> Handler<Broadcast<T>> for SessionsManager
+where
+    T: Clone + Message + Send,
+    T::Result: Send,
+    Session: Handler<T>,
+{
+    type Result = ();
+
+    fn handle(&mut self, msg: Broadcast<T>, _ctx: &mut Context<Self>) {
+        debug!("Received a message to send to all the sessions");
+
+        self.sessions
+            .get_all_consolidated_outbound_sessions()
+            .for_each(|session_addr| {
+                // Send message to session and ignore errors
+                session_addr.do_send(msg.command.clone());
             });
     }
 }

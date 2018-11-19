@@ -55,6 +55,7 @@ These are the messages supported by the sessions manager handlers:
 | `Unregister`  | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to unregister a session                   |
 | `Consolidate` | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to consolidate a session                  |
 | `Anycast<T>`  | `T`                                       | `()`                  | Request to send a T message to a random Session   |
+| `Broadcast<T>`| `T`                                       | `()`                  | Request to send a T message to all the consolidated outbound sesions |
 
 The handling of these messages is basically just calling the corresponding methods from the
 [`Sessions`][sessions] library. For example, the handler of the `Register` message would be
@@ -106,7 +107,9 @@ session_manager_addr
     })
     .wait(ctx);
 ```
+
 #### Anycast<T>
+
 The handler for `Anycast<T>` messages is basically just calling the method `get_random_anycast_session` from the
 [`Sessions`][sessions] library to obtain a random `Session` and forward the `T` message to it.
 
@@ -128,6 +131,15 @@ The return value of the delegated call is processed by `act.process_command_resp
         }
     }
 ```
+
+#### Broadcast<T>
+
+Similarly to the `Anycast<T>` handler, the handler for `Broadcast<T>` is just calling
+the method `get_all_consolidated_outbound_sessions` from [`Sessions`][sessions] library
+and forwards the message `T` to all the received addresses.
+
+This message does not do any error handling, the messages are all assumed to be
+successfully sent.
 
 ### Outgoing messages: Sessions Manager -> Others
 

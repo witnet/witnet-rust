@@ -87,3 +87,18 @@ where
 {
     type Result = ();
 }
+
+/// Message indicating a message is to be forwarded to all the consolidated outbound sessions
+pub struct Broadcast<T> {
+    /// Command to be sent to all the sessions
+    pub command: T,
+}
+
+impl<T> Message for Broadcast<T>
+where
+    T: Clone + Message + Send,
+    T::Result: Send,
+    Session: Handler<T>,
+{
+    type Result = ();
+}
