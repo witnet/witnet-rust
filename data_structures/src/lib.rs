@@ -1,6 +1,11 @@
 // To enable `#[allow(clippy::all)]`
 //#![feature(tool_lints)]
 
+#![cfg_attr(test, allow(dead_code, unused_macros, unused_imports))]
+
+#[macro_use]
+extern crate serde_derive;
+
 /// Module containing functions to generate witnet's protocol messages
 pub mod builders;
 
@@ -12,3 +17,6 @@ pub mod serializers;
 
 /// Module containing witnet's protocol messages types
 pub mod types;
+
+/// Module containing ChainInfo data structure
+pub mod chain;

@@ -46,6 +46,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use witnet_data_structures::chain::{ConsensusConstants, Environment};
+
 /// Module containing the partial configuration struct that is
 /// returned by the loaders.
 pub mod partial;
@@ -109,26 +111,6 @@ pub struct Storage {
     pub db_path: PathBuf,
 }
 
-/// Consensus-critical configuration
-#[derive(Debug, Clone, PartialEq)]
-pub struct ConsensusConstants {
-    /// Timestamp at checkpoint 0 (the start of epoch 0)
-    pub checkpoint_zero_timestamp: i64,
-
-    /// Seconds between the start of an epoch and the start of the next one
-    pub checkpoints_period: u16,
-}
-
-/// Possible values for the "environment" configuration param.
-#[derive(Deserialize, Clone, Debug, PartialEq)]
-pub enum Environment {
-    /// "mainnet" environment
-    #[serde(rename = "mainnet")]
-    Mainnet,
-    /// "testnet" environment
-    #[serde(rename = "testnet-1")]
-    Testnet1,
-}
 
 impl Config {
     pub fn from_partial(config: &partial::Config) -> Self {
@@ -149,11 +131,11 @@ impl Config {
                         "Consensus constants in the configuration are ignored when running mainnet"
                     );
                 }
-                ConsensusConstants::from_partial(&consensus_constants_no_changes, &*defaults)
+                consensus_constants_from_partial(&consensus_constants_no_changes, &*defaults)
             }
             // In testnet, allow to override the consensus constants
             Environment::Testnet1 => {
-                ConsensusConstants::from_partial(&config.consensus_constants, &*defaults)
+                consensus_constants_from_partial(&config.consensus_constants, &*defaults)
             }
         };
 
@@ -163,6 +145,31 @@ impl Config {
             storage: Storage::from_partial(&config.storage, &*defaults),
             consensus_constants,
         }
+    }
+}
+
+pub fn consensus_constants_from_partial(config: &partial::ConsensusConstants, defaults: &dyn Defaults) -> ConsensusConstants {
+    ConsensusConstants {
+        checkpoint_zero_timestamp: config
+            .checkpoint_zero_timestamp
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_checkpoint_zero_timestamp()),
+        checkpoints_period: config
+            .checkpoints_period
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_checkpoints_period()),
+        genesis_hash: config
+            .genesis_hash
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_genesis_hash()),
+        reputation_demurrage: config
+            .reputation_demurrage
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_reputation_demurrage()),
+        reputation_punishment: config
+            .reputation_punishment
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_reputation_punishment()),
     }
 }
 
@@ -218,21 +225,6 @@ impl Storage {
                 .db_path
                 .to_owned()
                 .unwrap_or_else(|| defaults.storage_db_path()),
-        }
-    }
-}
-
-impl ConsensusConstants {
-    pub fn from_partial(config: &partial::ConsensusConstants, defaults: &dyn Defaults) -> Self {
-        ConsensusConstants {
-            checkpoint_zero_timestamp: config
-                .checkpoint_zero_timestamp
-                .to_owned()
-                .unwrap_or_else(|| defaults.consensus_constants_checkpoint_zero_timestamp()),
-            checkpoints_period: config
-                .checkpoint_period
-                .to_owned()
-                .unwrap_or_else(|| defaults.consensus_constants_checkpoints_period()),
         }
     }
 }

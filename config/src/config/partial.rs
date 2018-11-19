@@ -8,12 +8,13 @@
 //! later, the `config` module will use this partial config object and
 //! the environment-specific defaults (see the `environment` module)
 //! to produce a __total__ (no `Option` fields) configuration object.
-use crate::config::Environment;
+use witnet_data_structures::chain::Environment;
 use std::collections::HashSet;
 use std::default::Default;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
+
 
 /// The partial configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
@@ -100,14 +101,15 @@ pub struct ConsensusConstants {
     pub checkpoint_zero_timestamp: Option<i64>,
     /// Seconds between the start of an epoch and the start of the next one
     #[serde(default)]
-    #[serde(rename = "checkpoint_period_seconds")]
-    pub checkpoint_period: Option<u16>,
-}
+    #[serde(rename = "checkpoints_period_seconds")]
+    pub checkpoints_period: Option<u16>,
 
-impl Default for Environment {
-    fn default() -> Environment {
-        Environment::Testnet1
-    }
+    #[serde(default)]
+    pub genesis_hash: Option<Vec<u8>>,
+    #[serde(default)]
+    pub reputation_demurrage: Option<f64>,
+    #[serde(default)]
+    pub reputation_punishment: Option<f64>,
 }
 
 impl Config {

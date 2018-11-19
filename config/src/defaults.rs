@@ -63,6 +63,10 @@ pub trait Defaults {
     fn consensus_constants_checkpoints_period(&self) -> u16 {
         90
     }
+
+    fn consensus_constants_genesis_hash(&self) -> Vec<u8> { Vec::new() }
+    fn consensus_constants_reputation_demurrage(&self) -> f64 { 0.0 }
+    fn consensus_constants_reputation_punishment(&self) -> f64 { 0.0 }
 }
 
 /// Struct that will implement all the mainnet defaults
