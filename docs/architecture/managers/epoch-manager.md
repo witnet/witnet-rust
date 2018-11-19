@@ -2,7 +2,8 @@
 
 The __epoch manager__ is the actor that handles the logic related to epochs:
 it knows the current epoch based on the current time and the timestamp of
-checkpoint zero (the start of epoch zero).
+checkpoint zero (the start of epoch zero) and allows other actors to
+subscribe to specific checkpoints.
 
 The current epoch can be calculated as:
 
@@ -13,13 +14,24 @@ The current epoch can be calculated as:
 ## State
 
 The state of the actor contains the values needed to determine the current
-epoch.
+epoch, as well as a list of subscriptions.
 
 ```rust
-/// Epoch manager actor
 pub struct EpochManager {
+    /// Checkpoint corresponding to the start of epoch #0
     checkpoint_zero_timestamp: Option<i64>,
+
+    /// Period between checkpoints
     checkpoints_period: Option<u16>,
+
+    /// Subscriptions to a particular epoch
+    subscriptions_epoch: BTreeMap<Epoch, Vec<Box<dyn NotificationSender>>>,
+
+    /// Subscriptions to all epochs
+    subscriptions_all: Vec<Box<dyn NotificationSender>>,
+
+    /// Last epoch that was checked by the epoch monitor process
+    last_checked_epoch: Option<Epoch>,
 }
 ```
 
@@ -39,12 +51,15 @@ System::current().registry().set(epoch_manager_addr);
 
 These are the messages supported by the epoch manager handlers:
 
-| Message        | Input type            | Output type                       | Description                    |
-| -------------- | --------------------- | --------------------------------- | ------------------------------ |
-| `GetEpoch`     | `()`                  | `EpochResult<Epoch>`              | Returns the current epoch id (last checkpoint) |
+| Message          | Input type                           | Output type          | Description                                               |
+|------------------|--------------------------------------|----------------------|-----------------------------------------------------------|
+| `GetEpoch`       | `()`                                 | `EpochResult<Epoch>` | Returns the current epoch id (last checkpoint)            |
+| `SubscribeEpoch` | `Epoch, Box<dyn NotificationSender>` | `()`                 | Subscribe to a specific checkpoint (the start that epoch) |
+| `SubscribeAll`   | `Box<dyn NotificationSender>`        | `()`                 | Subscribe to all future checkpoints                       |
 
-These messages are simple wrappers to methods in `EpochManager`, for example the `GetEpoch`
-message wraps the `current_epoch()` method:
+`SubscribeEpoch` and `SubscribeAll` are created using a helper function
+as detailed in the section [subscribe](#subscribe-to-a-specific-checkpoint).
+The `GetEpoch` message wraps the `current_epoch()` method:
 
 ```rust
 fn handle(&mut self, _msg: GetEpoch, _ctx: &mut Self::Context) -> EpochResult<Epoch> {
@@ -105,13 +120,92 @@ epoch_manager_addr
     .wait(ctx);
 ```
 
+#### Subscribe to a specific checkpoint
+
+In order to subscribe to a specific epoch, the actors need the `epoch_manager_addr` and
+the current epoch. For example to subscribe to the next checkpoint:
+
+```rust
+// The payload we send with `EpochNotification`
+struct EpochMessage;
+
+// Get the current epoch from `EpochManager`
+// let epoch = ...
+
+// Get the address of the current actor
+let self_addr = ctx.address();
+
+// Subscribe to the next epoch with an Update
+epoch_manager_addr
+    .do_send(Subscribe::to_epoch(
+        Epoch(epoch.0 + 1),
+        self_addr,
+        EpochMessage,
+    ));
+```
+
+The logic is implemented as an `EpochNotification<T>` handler, where
+`T` is one specific payload.
+
+```rust
+/// Handler for EpochNotification<EpochMessage>
+impl Handler<EpochNotification<EpochMessage>> for BlockManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: EpochNotification<EpochMessage>, _ctx: &mut Context<Self>) {
+        debug!("Epoch notification received {:?}", msg.checkpoint);
+    }
+}
+```
+
+It is assumed that subscribing cannot fail. However, if the `EpochManager`
+skips some checkpoints, all the missed notifications will be sent at the next
+checkpoint but with the old requested checkpoint in the message.
+
+The notifications are sent according to their checkpoint id: the oldest
+checkpoints first.
+
+#### Subscribe to all new checkpoints
+
+In order to receive a notification on each checkpoint, the actors need
+to subscribe with a cloneable payload. If an actor doesn't need a payload,
+a type like `()` or an empty struct can be used.
+
+```rust
+#[derive(Clone)]
+struct PeriodicMessage;
+// Subscribe to all epochs with a cloneable payload
+epoch_manager_addr
+    .do_send(Subscribe::to_all(
+        self_addr,
+        PeriodicMessage,
+    ));
+```
+
+The logic is implemented as an `EpochNotification<T>` handler, where
+`T` is one specific payload.
+
+```rust
+/// Handler for EpochNotification<PeriodicMessage>
+impl Handler<EpochNotification<PeriodicMessage>> for BlockManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: EpochNotification<PeriodicMessage>, _ctx: &mut Context<Self>) {
+        debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+    }
+}
+```
+
+In case of skipped epochs, the notifications are lost.
+
 ### Outgoing messages: Epoch Manager -> Others
 
 These are the messages sent by the epoch manager:
 
-| Message     | Destination       | Input type                                | Output type                 | Description                               |
-| ----------- | ----------------- | ----------------------------------------- | --------------------------- | ----------------------------------------- |
-| `GetConfig` | `ConfigManager`   | `()`                                      | `Result<Config, io::Error>` | Request the configuration                 |
+| Message                | Destination     | Input type | Output type                 | Description                                             |
+|------------------------|-----------------|------------|-----------------------------|---------------------------------------------------------|
+| `GetConfig`            | `ConfigManager` | `()`       | `Result<Config, io::Error>` | Request the configuration                               |
+| `EpochNotification<T>` | *               | `Epoch, T` | `()`                        | A notification sent at the start of the requested epoch |
 
 #### GetConfig
 
@@ -120,6 +214,34 @@ This message is sent to the [`ConfigManager`][config_manager] actor when the epo
 The return value is used to initialize the protocol constants (checkpoint period and
 epoch zero timestamp).
 For further information, see [`ConfigManager`][config_manager].
+
+#### EpochNotification<T>
+
+This message is sent to all the actors which are subscribed to the epoch that just started.
+There are two types of subscriptions:
+
+* `SubscriptionEpoch` only sends the `EpochNotification` once.
+* `SubscriptionAll` sends an `EpochNotification` at every checkpoint.
+
+The `EpochNotification` is defined as:
+
+```rust
+#[derive(Message)]
+pub struct EpochNotification<T: Send> {
+    /// Epoch that has just started
+    pub checkpoint: Epoch,
+
+    /// Payload for the epoch notification
+    pub payload: T,
+}
+```
+
+Therefore it can be accessed in the message handler as:
+
+```rust
+let epoch = msg.checkpoint;
+let payload = msg.payload;
+```
 
 ## Further information
 
