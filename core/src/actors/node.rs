@@ -6,6 +6,7 @@ use std::result::Result;
 use actix::{Actor, System};
 use log::info;
 
+use crate::actors::blocks_manager::BlocksManager;
 use crate::actors::config_manager::ConfigManager;
 use crate::actors::connections_manager::ConnectionsManager;
 use crate::actors::epoch_manager::EpochManager;
@@ -44,6 +45,10 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Start epoch manager actor
     let epoch_manager_addr = EpochManager::default().start();
     System::current().registry().set(epoch_manager_addr);
+
+    // Start blocks manager actor
+    let blocks_manager_addr = BlocksManager::default().start();
+    System::current().registry().set(blocks_manager_addr);
 
     // Run system
     system.run();
