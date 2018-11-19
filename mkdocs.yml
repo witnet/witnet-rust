@@ -70,7 +70,8 @@ nav:
       - Epoch Manager: architecture/managers/epoch-manager.md
       - Storage Manager: architecture/managers/storage-manager.md
       - Peers Manager: architecture/managers/peers-manager.md
-    - Session: architecture/session.md 
+      - Blocks Manager: architecture/managers/blocks-manager.md
+    - Session: architecture/session.md
     - Mempool Management: architecture/mempool-mgmt.md
     - Block Management: architecture/block-mgmt.md
     - UTXO Management: architecture/utxo-mgmt.md
