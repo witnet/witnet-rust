@@ -68,8 +68,8 @@ pub fn from_str(contents: &str) -> Result<Config> {
 #[cfg(test)]
 mod tests {
     use crate::config::partial::*;
-    use crate::config::Environment;
     use std::path::{Path, PathBuf};
+    use witnet_data_structures::chain::Environment;
 
     #[test]
     fn test_load_empty_config() {

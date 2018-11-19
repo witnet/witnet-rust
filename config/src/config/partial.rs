@@ -8,12 +8,12 @@
 //! later, the `config` module will use this partial config object and
 //! the environment-specific defaults (see the `environment` module)
 //! to produce a __total__ (no `Option` fields) configuration object.
-use crate::config::Environment;
 use std::collections::HashSet;
 use std::default::Default;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
+use witnet_data_structures::chain::Environment;
 
 /// The partial configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
@@ -102,10 +102,23 @@ pub struct ConsensusConstants {
     /// Timestamp at checkpoint 0 (the start of epoch 0)
     #[serde(default)]
     pub checkpoint_zero_timestamp: Option<i64>,
+
     /// Seconds between the start of an epoch and the start of the next one
     #[serde(default)]
-    #[serde(rename = "checkpoint_period_seconds")]
-    pub checkpoint_period: Option<u16>,
+    #[serde(rename = "checkpoints_period_seconds")]
+    pub checkpoints_period: Option<u16>,
+
+    /// Genesis block hash value
+    #[serde(default)]
+    pub genesis_hash: Option<Vec<u8>>,
+
+    /// Decay value for reputation demurrage function
+    #[serde(default)]
+    pub reputation_demurrage: Option<f64>,
+
+    /// Punishment value for dishonestly use
+    #[serde(default)]
+    pub reputation_punishment: Option<f64>,
 }
 
 /// JSON-RPC API configuration
@@ -114,12 +127,6 @@ pub struct JsonRPC {
     /// JSON-RPC server address, that is, the socket address (interface ip and
     /// port) for the JSON-RPC server
     pub server_address: Option<SocketAddr>,
-}
-
-impl Default for Environment {
-    fn default() -> Environment {
-        Environment::Testnet1
-    }
 }
 
 impl Config {

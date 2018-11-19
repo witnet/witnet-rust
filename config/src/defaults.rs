@@ -64,6 +64,24 @@ pub trait Defaults {
         90
     }
 
+    /// Default Hash value for the genesis block
+    fn consensus_constants_genesis_hash(&self) -> Vec<u8> {
+        Vec::new()
+    }
+    // TODO Decide an appropriate default value
+
+    /// Default demurrage value for reputation algorithm
+    fn consensus_constants_reputation_demurrage(&self) -> f64 {
+        0.0
+    }
+    // TODO Decide an appropriate default value
+
+    /// Default punishment value for reputation algorithm
+    fn consensus_constants_reputation_punishment(&self) -> f64 {
+        0.0
+    }
+    // TODO Decide an appropriate default value
+
     /// Default JSON-RPC server addr
     fn jsonrpc_server_address(&self) -> SocketAddr;
 }
