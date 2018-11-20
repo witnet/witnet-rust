@@ -23,6 +23,9 @@ db_path = ".wit"
 checkpoint_zero_timestamp = 1542203073
 checkpoints_period_seconds = 90
 
+[jsonrpc] # section for params related to JSON-RPC API
+server_address = "127.0.0.1:4321"
+
 # ... more options
 ```
 
@@ -40,6 +43,7 @@ checkpoints_period_seconds = 90
 | `storage`             | `db_path`                        | `".witnet-rust-testnet-1"` | Directory containing the database files                             |
 | `consensus_constants` | `checkpoint_zero_timestamp`      | `9_999_999_999_999`        | Timestamp at checkpoint 0 (the start of epoch 0)                    |
 | `consensus_constants` | `checkpoints_period_seconds`     | `90`                       | Seconds between the start of an epoch and the start of the next one |
+| `jsonrpc`             | `server_address`                 | `"127.0.0.1:21338"`        | JSON-RPC server socket address                                      |                
 
 These are the defaults for `testnet-1`.
 See [environment][environment] for the specific values for all the environments.
