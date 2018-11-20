@@ -17,6 +17,7 @@ nav:
       - Data Structures:
         - Block: protocol/network/data-structures/block.md
         - IP Address: protocol/network/data-structures/ip-address.md
+        - Signature: protocol/network/data-structures/signature.md
         - Transaction: protocol/network/data-structures/transaction.md
       - Messages:
         - Overview: protocol/network/messages/overview.md
