@@ -7,6 +7,6 @@ description = "data structures component"
 edition = "2018"
 
 [dependencies]
-flatbuffers = "0.4.0"
+flatbuffers = "0.5.0"
 rand = "0.5.5"
 witnet_util = { path = "../util" }

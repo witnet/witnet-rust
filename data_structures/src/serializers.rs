@@ -161,7 +161,7 @@ impl TryFrom<Vec<u8>> for Message {
                             sender_address: sender_address.unwrap(),
                             receiver_address: receiver_address.unwrap(),
                             // FIXME(#65): user_agent field should be required as specified in ftb schema
-                            user_agent: command.user_agent().unwrap_or("").to_string(),
+                            user_agent: command.user_agent().to_string(),
                             last_epoch: command.last_epoch(),
                             genesis: command.genesis(),
                             nonce: command.nonce(),
