@@ -1,6 +1,6 @@
 # Blocks Manager
 
-The __blocks manager__ is the actor in charge of managing the blocks of the Witnet blockchain. Among its responsabilities lie the following:
+The __blocks manager__ is the actor in charge of managing the blocks of the Witnet blockchain. Among its responsabilities are the following:
 
 * Initializing the chain info upon running the node for the first time and persisting it into storage (see **Storage Manager**).
 * Recovering the chain info from storage and keeping it in its state.
@@ -8,14 +8,14 @@ The __blocks manager__ is the actor in charge of managing the blocks of the Witn
 * Consolidating multiple block candidates for the same checkpoint into a single valid block.
 * Putting valid blocks into storage by sending them to the storage manager actor.
 * Having a method for letting other components to get blocks by *hash* or *checkpoint*.
-* Having a method for letting other components to get the epoch of the current tip of the blockchain (e.g. last epoch field required for the handshake in the Witnet network protocol)
+* Having a method for letting other components get the epoch of the current tip of the blockchain (e.g. last epoch field required for the handshake in the Witnet network protocol).
 
 ## State
 
 The blocks manager has no state for the time being.
 
 ```rust
-/// Blocks manager actor
+/// BlocksManager actor
 pub struct BlocksManager {}
 ```
 
@@ -31,22 +31,22 @@ System::current().registry().set(blocks_manager_addr);
 
 ## API
 
-### Outgoing messages: Blocks Manager -> Others
+### Outgoing messages: BlocksManager -> Others
 
 These are the messages sent by the blocks manager:
 
 | Message           | Destination       | Input type                                    | Output type   | Description                       |
 |-------------------|-------------------|-----------------------------------------------|---------------|-----------------------------------| 
-| `SubscribeEpoch`  | `EpochManager`    | `Epoch`, `Addr<BlocksManager>, EpochMessage`  | `()`          | Subscribe to a particular epoch   |  
-| `SubscribeAll`    | `EpochManager`    | `Addr<BlocksManager>, PeriodicMessage`        | `()`          | Subscribe to all epochs           |
+| `SubscribeEpoch`  | `EpochManager`    | `Epoch`, `Addr<BlocksManager>, EpochPayload`  | `()`          | Subscribe to a particular epoch   |  
+| `SubscribeAll`    | `EpochManager`    | `Addr<BlocksManager>, EveryEpochPayload`      | `()`          | Subscribe to all epochs           |
 
 #### SubscribeEpoch
 
-This message is sent to the [`EpochManager`][epoch_manager] actor when the blocks manager actor is
+This message is sent to the [`EpochManager`][epoch_manager] actor when the `BlocksManager` actor is
 started, in order to subscribe to the next epoch (test functionality).
 
 Subscribing to the next epoch means that the [`EpochManager`][epoch_manager] will send an
-`EpochNotification<EpochMessage>` back to the `BlocksManager` when the epoch is reached.
+`EpochNotification<EpochPayload>` back to the `BlocksManager` when the epoch is reached.
 
 For further information, see [`EpochManager`][epoch_manager].
 
@@ -56,24 +56,24 @@ This message is sent to the [`EpochManager`][epoch_manager] actor when the block
 started, in order to subscribe to the all epochs (test functionality).
 
 Subscribing to all epochs means that the [`EpochManager`][epoch_manager] will send an
-`EpochNotification<PeriodicMessage>` back to the `BlocksManager` when every epoch is reached.
+`EpochNotification<EveryEpochPayload>` back to the `BlocksManager` when every epoch is reached.
 
 For further information, see [`EpochManager`][epoch_manager].
 
-### Incoming: Others -> Blocks Manager
+### Incoming: Others -> BlocksManager
 
-These are the messages supported by the blocks manager handlers:
+These are the messages supported by the `BlocksManager` handlers:
 
-| Message                               | Input type                    | Output type   | Description                           |
-|---------------------------------------|-------------------------------|---------------| --------------------------------------|
-| `EpochNotification<EpochMessage>`     | `Epoch`, `EpochMessage`       | `()`          | The requested epoch has been reached  | 
-| `EpochNotification<PeriodicMessage>`  | `Epoch`, `PeriodicMessage`    | `()`          | A new epoch has been reached          |
+| Message                                   | Input type                    | Output type   | Description                           |
+|-------------------------------------------|-------------------------------|---------------| --------------------------------------|
+| `EpochNotification<EpochPayload>`         | `Epoch`, `EpochPayload`       | `()`          | The requested epoch has been reached  | 
+| `EpochNotification<EveryEpochPayload>`    | `Epoch`, `EveryEpochPayload`  | `()`          | A new epoch has been reached          |
 
 For the time being, the handlers for those message just print a debug message with the notified
 checkpoint. 
 
 ```rust
-fn handle(&mut self, msg: EpochNotification<EpochMessage>, _ctx: &mut Context<Self>) {
+fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
     debug!("Epoch notification received {:?}", msg.checkpoint);
 }
 ```

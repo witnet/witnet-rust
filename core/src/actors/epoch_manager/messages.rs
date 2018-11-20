@@ -1,7 +1,9 @@
 use actix::dev::ToEnvelope;
 use actix::{Actor, Addr, Handler, Message};
 
-use super::{Epoch, EpochManagerError, NotificationAll, NotificationEpoch, NotificationSender};
+use super::{
+    AllEpochSubscription, Epoch, EpochManagerError, SendableNotification, SingleEpochSubscription,
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGES
@@ -26,18 +28,18 @@ pub struct SubscribeEpoch {
     pub checkpoint: Epoch,
 
     /// Notification to be sent when the checkpoint is reached
-    pub notification: Box<dyn NotificationSender>,
+    pub notification: Box<dyn SendableNotification>,
 }
 
 /// Subscribe to all new checkpoints
 #[derive(Message)]
 pub struct SubscribeAll {
     /// Notification
-    pub notification: Box<dyn NotificationSender>,
+    pub notification: Box<dyn SendableNotification>,
 }
 
 impl Subscribe {
-    /// Subscribe to a specific checkpoint to get an `EpochNotification`
+    /// Subscribe to a specific checkpoint to get an EpochNotification
     // TODO: rename to to_checkpoint?
     // TODO: add helper Subscribe::to_next_epoch?
     // TODO: helper to subscribe to nth epoch in the future
@@ -52,25 +54,24 @@ impl Subscribe {
     {
         SubscribeEpoch {
             checkpoint,
-            notification: Box::new(NotificationEpoch {
+            notification: Box::new(SingleEpochSubscription {
                 recipient: addr.recipient(),
                 payload: Some(payload),
             }),
         }
     }
-    /// Subscribe to all checkpoints to get an `EpochNotification` on every new epoch
+    /// Subscribe to all checkpoints to get an EpochNotification on every new epoch
     #[allow(clippy::wrong_self_convention)]
     pub fn to_all<T, U>(addr: Addr<U>, payload: T) -> SubscribeAll
     where
         T: 'static,
-        T: Send,
-        T: Clone,
+        T: Send + Clone,
         U: Actor,
         U: Handler<EpochNotification<T>>,
         U::Context: ToEnvelope<U, EpochNotification<T>>,
     {
         SubscribeAll {
-            notification: Box::new(NotificationAll {
+            notification: Box::new(AllEpochSubscription {
                 recipient: addr.recipient(),
                 payload,
             }),

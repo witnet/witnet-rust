@@ -1,6 +1,6 @@
 use actix::Handler;
 
-use log::{debug, info};
+use log::debug;
 
 use super::{
     messages::{EpochResult, GetEpoch, SubscribeAll, SubscribeEpoch},
@@ -27,7 +27,7 @@ impl Handler<SubscribeEpoch> for EpochManager {
 
     /// Method to handle SubscribeEpoch messages
     fn handle(&mut self, msg: SubscribeEpoch, _ctx: &mut Self::Context) {
-        info!("Subscription received to checkpoint {:?}", msg.checkpoint);
+        debug!("New subscription to checkpoint {:?}", msg.checkpoint);
 
         // Store subscription to target checkpoint
         self.subscriptions_epoch
@@ -42,7 +42,7 @@ impl Handler<SubscribeAll> for EpochManager {
 
     /// Method to handle SubscribeAll messages
     fn handle(&mut self, msg: SubscribeAll, _ctx: &mut Self::Context) {
-        info!("Subscription received to all checkpoints");
+        debug!("New subscription to every checkpoint");
 
         // Store subscription to all checkpoints
         self.subscriptions_all.push(msg.notification);

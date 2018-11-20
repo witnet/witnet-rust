@@ -25,8 +25,8 @@ pub mod connections_manager;
 /// Storage keys constants
 pub mod storage_keys;
 
-/// Epoch manager actor module
+/// EpochManager actor module
 pub mod epoch_manager;
 
-/// Blocks manager actor module
+/// BlocksManager actor module
 pub mod blocks_manager;

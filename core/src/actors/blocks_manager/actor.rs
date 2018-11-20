@@ -6,13 +6,13 @@ use crate::actors::epoch_manager::{
 };
 
 use crate::actors::blocks_manager::{
-    handlers::{EpochMessage, PeriodicMessage},
+    handlers::{EpochPayload, EveryEpochPayload},
     BlocksManager,
 };
 
 use log::{debug, error};
 
-/// Make actor from `BlocksManager`
+/// Implement Actor trait for `BlocksManager`
 impl Actor for BlocksManager {
     /// Every actor has to provide execution `Context` in which it can run
     type Context = Context<Self>;
@@ -21,36 +21,36 @@ impl Actor for BlocksManager {
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("Blocks Manager actor has been started!");
 
-        // TODO begin remove this once blocks manager real functionality is implemented
+        // TODO begin remove this once BlocksManager real functionality is implemented
         // Get EpochManager address from registry
         let epoch_manager_addr = System::current().registry().get::<EpochManager>();
 
         // Start chain of actions
         epoch_manager_addr
             // Send GetEpoch message to epoch manager actor
-            // This returns a Request Future, representing an asynchronous message sending process
+            // This returns a RequestFuture, representing an asynchronous message sending process
             .send(GetEpoch)
             // Convert a normal future into an ActorFuture
             .into_actor(self)
-            // Process the response from the epoch manager
+            // Process the response from the EpochManager
             // This returns a FutureResult containing the socket address if present
             .then(move |res, _act, ctx| {
-                // Get blocks manager address
+                // Get BlocksManager address
                 let blocks_manager_addr = ctx.address();
 
                 // Check GetEpoch result
                 match res {
                     Ok(Ok(epoch)) => {
-                        // Subscribe to the next epoch with a EpochMessage
+                        // Subscribe to the next epoch with an EpochPayload
                         epoch_manager_addr.do_send(Subscribe::to_epoch(
                             Epoch(epoch.0 + 1),
                             blocks_manager_addr.clone(),
-                            EpochMessage,
+                            EpochPayload,
                         ));
 
-                        // Subscribe to all epochs with a PeriodicMessage
+                        // Subscribe to all epochs with an EveryEpochPayload
                         epoch_manager_addr
-                            .do_send(Subscribe::to_all(blocks_manager_addr, PeriodicMessage));
+                            .do_send(Subscribe::to_all(blocks_manager_addr, EveryEpochPayload));
                     }
                     _ => {
                         error!("Current epoch could not be retrieved from EpochManager");

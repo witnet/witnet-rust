@@ -13,7 +13,7 @@ use crate::actors::epoch_manager::messages::{EpochNotification, EpochResult};
 mod actor;
 mod handlers;
 
-/// Messages that are handled by `EpochManager`
+/// Messages that are handled by the EpochManager
 pub mod messages;
 
 /// Epoch id (starting from 0)
@@ -39,29 +39,29 @@ pub enum EpochManagerError {
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
-/// Epoch manager actor
+/// EpochManager actor
 #[derive(Default)]
 pub struct EpochManager {
-    /// Checkpoint corresponding to the start of epoch #0
+    /// Timestamp of checkpoint #0 (the second in which epoch #0 started)
     checkpoint_zero_timestamp: Option<i64>,
 
-    /// Period between checkpoints
+    /// Period between checkpoints, in seconds
     checkpoints_period: Option<u16>,
 
     /// Subscriptions to a particular epoch
-    subscriptions_epoch: BTreeMap<Epoch, Vec<Box<dyn NotificationSender>>>,
+    subscriptions_epoch: BTreeMap<Epoch, Vec<Box<dyn SendableNotification>>>,
 
     /// Subscriptions to all epochs
-    subscriptions_all: Vec<Box<dyn NotificationSender>>,
+    subscriptions_all: Vec<Box<dyn SendableNotification>>,
 
     /// Last epoch that was checked by the epoch monitor process
     last_checked_epoch: Option<Epoch>,
 }
 
-/// Required trait for being able to retrieve `EpochManager` address from system registry
+/// Required trait for being able to retrieve EpochManager address from system registry
 impl actix::Supervised for EpochManager {}
 
-/// Required trait for being able to retrieve `EpochManager` address from system registry
+/// Required trait for being able to retrieve EpochManager address from system registry
 impl SystemService for EpochManager {}
 
 /// Auxiliary methods for EpochManager actor
@@ -209,14 +209,14 @@ impl EpochManager {
 }
 
 /// Trait that must follow all notifications that will be sent back to subscriber actors
-pub trait NotificationSender: Send {
+pub trait SendableNotification: Send {
     /// Send notification back to the subscriber
     fn send_notification(&mut self, current_epoch: Epoch);
 }
 
-/// Notification for a particular epoch: built by each actor that subscribes to a particular
-/// epoch. Stored in the SubscribeEpoch struct and in the EpochManager as Notifiable
-pub struct NotificationEpoch<T: Send> {
+/// Notification for a particular epoch: instantiated by each actor that subscribes to a particular
+/// epoch. Stored in the SubscribeEpoch struct and in the EpochManager as SendableNotification
+pub struct SingleEpochSubscription<T: Send> {
     /// Actor recipient, required to send a message back to the subscriber actor
     recipient: Recipient<EpochNotification<T>>,
 
@@ -224,15 +224,15 @@ pub struct NotificationEpoch<T: Send> {
     payload: Option<T>,
 }
 
-/// Implementation of the Notifiable trait for the NotificationEpoch
-impl<T: Send> NotificationSender for NotificationEpoch<T> {
+/// Implementation of the SendableNotification trait for the SingleEpochSubscription
+impl<T: Send> SendableNotification for SingleEpochSubscription<T> {
     /// Function to send notification back to the subscriber
-    fn send_notification(&mut self, current_epoch: Epoch) {
+    fn send_notification(&mut self, epoch: Epoch) {
         // Get the payload from the notification
         if let Some(payload) = self.payload.take() {
             // Build an EpochNotification message to send back to the subscriber
             let msg = EpochNotification {
-                checkpoint: current_epoch,
+                checkpoint: epoch,
                 payload,
             };
 
@@ -241,17 +241,20 @@ impl<T: Send> NotificationSender for NotificationEpoch<T> {
             match self.recipient.do_send(msg) {
                 Ok(()) => {}
                 Err(_e) => {}
-            }
+            };
         } else {
-            error!("No payload to be sent back to the subscriber");
+            error!(
+                "No payload to be sent back to the subscribed actor for epoch {:?}",
+                epoch
+            );
         }
     }
 }
 
-/// Notification for all epochs: built by each actor that subscribes to all epochs. Stored in the
-/// SubscribeAll struct and in the EpochManager as Notifiable. Requires T to be cloned as this
-/// notification is to be sent many times
-pub struct NotificationAll<T: Clone + Send> {
+/// Notification for all epochs: instantiated by each actor that subscribes to all epochs. Stored in
+/// the SubscribeAll struct and in the EpochManager as SendableNotification. Requires T to be
+/// cloned as this notification is to be sent many times
+pub struct AllEpochSubscription<T: Clone + Send> {
     /// Actor recipient, required to send a message back to the subscriber actor
     recipient: Recipient<EpochNotification<T>>,
 
@@ -259,16 +262,16 @@ pub struct NotificationAll<T: Clone + Send> {
     payload: T,
 }
 
-/// Implementation of the Notifiable trait for the NotificationAll
-impl<T: Clone + Send> NotificationSender for NotificationAll<T> {
+/// Implementation of the SendableNotification trait for the AllEpochSubscription
+impl<T: Clone + Send> SendableNotification for AllEpochSubscription<T> {
     /// Function to send notification back to the subscriber
-    fn send_notification(&mut self, current_epoch: Epoch) {
+    fn send_notification(&mut self, epoch: Epoch) {
         // Clone the payload to be sent to the subscriber
         let payload = self.payload.clone();
 
         // Build an EpochNotification message to send back to the subscriber
         let msg = EpochNotification {
-            checkpoint: current_epoch,
+            checkpoint: epoch,
             payload,
         };
 
@@ -277,6 +280,6 @@ impl<T: Clone + Send> NotificationSender for NotificationAll<T> {
         match self.recipient.do_send(msg) {
             Ok(()) => {}
             Err(_e) => {}
-        }
+        };
     }
 }

@@ -25,10 +25,10 @@ pub struct EpochManager {
     checkpoints_period: Option<u16>,
 
     /// Subscriptions to a particular epoch
-    subscriptions_epoch: BTreeMap<Epoch, Vec<Box<dyn NotificationSender>>>,
+    subscriptions_epoch: BTreeMap<Epoch, Vec<Box<dyn SendableNotification>>>,
 
     /// Subscriptions to all epochs
-    subscriptions_all: Vec<Box<dyn NotificationSender>>,
+    subscriptions_all: Vec<Box<dyn SendableNotification>>,
 
     /// Last epoch that was checked by the epoch monitor process
     last_checked_epoch: Option<Epoch>,
@@ -47,15 +47,15 @@ System::current().registry().set(epoch_manager_addr);
 
 ## API
 
-### Incoming: Others -> Epoch Manager
+### Incoming: Others -> EpochManager
 
-These are the messages supported by the epoch manager handlers:
+These are the messages supported by the EpochManager handlers:
 
-| Message          | Input type                           | Output type          | Description                                               |
-|------------------|--------------------------------------|----------------------|-----------------------------------------------------------|
-| `GetEpoch`       | `()`                                 | `EpochResult<Epoch>` | Returns the current epoch id (last checkpoint)            |
-| `SubscribeEpoch` | `Epoch, Box<dyn NotificationSender>` | `()`                 | Subscribe to a specific checkpoint (the start that epoch) |
-| `SubscribeAll`   | `Box<dyn NotificationSender>`        | `()`                 | Subscribe to all future checkpoints                       |
+| Message          | Input type                             | Output type          | Description                                               |
+|------------------|----------------------------------------|----------------------|-----------------------------------------------------------|
+| `GetEpoch`       | `()`                                   | `EpochResult<Epoch>` | Returns the current epoch id (last checkpoint)            |
+| `SubscribeEpoch` | `Epoch, Box<dyn SendableNotification>` | `()`                 | Subscribe to a specific checkpoint (the start that epoch) |
+| `SubscribeAll`   | `Box<dyn SendableNotification>`        | `()`                 | Subscribe to all future checkpoints                       |
 
 `SubscribeEpoch` and `SubscribeAll` are created using a helper function
 as detailed in the section [subscribe](#subscribe-to-a-specific-checkpoint).
@@ -127,7 +127,7 @@ the current epoch. For example to subscribe to the next checkpoint:
 
 ```rust
 // The payload we send with `EpochNotification`
-struct EpochMessage;
+struct EpochPayload;
 
 // Get the current epoch from `EpochManager`
 // let epoch = ...
@@ -140,7 +140,7 @@ epoch_manager_addr
     .do_send(Subscribe::to_epoch(
         Epoch(epoch.0 + 1),
         self_addr,
-        EpochMessage,
+        EpochPayload,
     ));
 ```
 
@@ -148,11 +148,11 @@ The logic is implemented as an `EpochNotification<T>` handler, where
 `T` is one specific payload.
 
 ```rust
-/// Handler for EpochNotification<EpochMessage>
-impl Handler<EpochNotification<EpochMessage>> for BlockManager {
+/// Handler for EpochNotification<EpochPayload>
+impl Handler<EpochNotification<EpochPayload>> for BlockManager {
     type Result = ();
 
-    fn handle(&mut self, msg: EpochNotification<EpochMessage>, _ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
         debug!("Epoch notification received {:?}", msg.checkpoint);
     }
 }
@@ -173,12 +173,12 @@ a type like `()` or an empty struct can be used.
 
 ```rust
 #[derive(Clone)]
-struct PeriodicMessage;
+struct EveryEpochPayload;
 // Subscribe to all epochs with a cloneable payload
 epoch_manager_addr
     .do_send(Subscribe::to_all(
         self_addr,
-        PeriodicMessage,
+        EveryEpochPayload,
     ));
 ```
 
@@ -186,11 +186,11 @@ The logic is implemented as an `EpochNotification<T>` handler, where
 `T` is one specific payload.
 
 ```rust
-/// Handler for EpochNotification<PeriodicMessage>
-impl Handler<EpochNotification<PeriodicMessage>> for BlockManager {
+/// Handler for EpochNotification<EveryEpochPayload>
+impl Handler<EpochNotification<EveryEpochPayload>> for BlockManager {
     type Result = ();
 
-    fn handle(&mut self, msg: EpochNotification<PeriodicMessage>, _ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, _ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
     }
 }
@@ -198,9 +198,9 @@ impl Handler<EpochNotification<PeriodicMessage>> for BlockManager {
 
 In case of skipped epochs, the notifications are lost.
 
-### Outgoing messages: Epoch Manager -> Others
+### Outgoing messages: EpochManager -> Others
 
-These are the messages sent by the epoch manager:
+These are the messages sent by the EpochManager:
 
 | Message                | Destination     | Input type | Output type                 | Description                                             |
 |------------------------|-----------------|------------|-----------------------------|---------------------------------------------------------|
