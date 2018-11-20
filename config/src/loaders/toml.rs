@@ -191,4 +191,22 @@ handshake_timeout_seconds = 21
             Some(Duration::from_secs(21))
         );
     }
+
+    #[test]
+    fn test_configure_jsonrpc() {
+        let empty_config = super::from_str("[jsonrpc]").unwrap();
+        let config = super::from_str(
+            r"
+[jsonrpc]
+server_address = '127.0.0.1:1234'
+",
+        )
+        .unwrap();
+
+        assert_eq!(empty_config.jsonrpc, JsonRPC::default());
+        assert_eq!(
+            config.jsonrpc.server_address,
+            Some("127.0.0.1:1234".parse().unwrap())
+        );
+    }
 }

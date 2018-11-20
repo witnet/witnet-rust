@@ -339,6 +339,27 @@ mod tests {
     }
 
     #[test]
+    fn test_jsonrpc_default_from_partial() {
+        let defaults: Box<Defaults> = Box::new(Testnet1);
+        let partial_config = partial::JsonRPC::default();
+        let config = JsonRPC::from_partial(&partial_config, &*defaults);
+
+        assert_eq!(config.server_address, Testnet1.jsonrpc_server_address());
+    }
+
+    #[test]
+    fn test_jsonrpc_from_partial() {
+        let defaults: Box<Defaults> = Box::new(Testnet1);
+        let addr: SocketAddr = "127.0.0.1:4000".parse().unwrap();
+        let partial_config = partial::JsonRPC {
+            server_address: Some(addr),
+        };
+        let config = JsonRPC::from_partial(&partial_config, &*defaults);
+
+        assert_eq!(config.server_address, addr);
+    }
+
+    #[test]
     fn test_config_default_from_partial() {
         let partial_config = partial::Config::default();
         let config = Config::from_partial(&partial_config);
@@ -377,5 +398,9 @@ mod tests {
             Testnet1.connections_handshake_timeout()
         );
         assert_eq!(config.storage.db_path, Testnet1.storage_db_path());
+        assert_eq!(
+            config.jsonrpc.server_address,
+            Testnet1.jsonrpc_server_address()
+        );
     }
 }
