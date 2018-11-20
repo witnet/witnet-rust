@@ -12,11 +12,15 @@ The __blocks manager__ is the actor in charge of managing the blocks of the Witn
 
 ## State
 
-The blocks manager has no state for the time being.
+The state of the actor is an instance of the [`ChainInfo`][chain] data structures.
 
 ```rust
 /// BlocksManager actor
-pub struct BlocksManager {}
+#[derive(Default)]
+pub struct BlocksManager {
+    /// Blockchain information data structure
+    chain_info: Option<ChainInfo>,
+}
 ```
 
 ## Actor creation and registration
@@ -78,6 +82,34 @@ fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Se
 }
 ```
 
+### Outgoing messages: Peers Manager -> Others
+
+These are the messages sent by the peers manager:
+
+| Message     | Destination       | Input type                                | Output type                 | Description                               |
+| ----------- | ----------------- | ----------------------------------------- | --------------------------- | ----------------------------------------- |
+| `GetConfig` | `ConfigManager`   | `()`                                      | `Result<Config, io::Error>` | Request the configuration                 |
+| `Get`       | `StorageManager`  | `&'static [u8]`                           | `StorageResult<Option<T>>`  | Wrapper to Storage `get()` method         |
+| `Put`       | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                | `StorageResult<()>`         | Wrapper to Storage `put()` method         |
+
+#### GetConfig
+
+This message is sent to the [`ConfigManager`][config_manager] actor when the peers manager actor is started.
+
+The return value is used to initialize the list of known peers. For further information, see  [`ConfigManager`][config_manager].
+
+#### Get
+
+This message is sent to the [`StorageManager`][storage_manager] actor when the blocks manager actor is started.
+
+The return value is a `ChainInfo` structure from the storage which are added to the state of the actor.
+
+#### Put
+
+This message is sent to the [`StorageManager`][storage_manager] actor to persist the `ChainInfo` structure
+
+The return value is used to check if the storage process has been successful.
+
 ## Further information
 
 The full source code of the `BlocksManager` can be found at [`blocks_manager.rs`][blocks_manager].
@@ -85,3 +117,4 @@ The full source code of the `BlocksManager` can be found at [`blocks_manager.rs`
 [blocks_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/blocks_manager.rs
 [epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs
 [noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
+[chain]: https://github.com/witnet/witnet-rust/tree/master/data_structures/src/chain.rs
