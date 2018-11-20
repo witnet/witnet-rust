@@ -96,7 +96,7 @@ The `get_blocks` message consists of a message header with the `GET_BLOCKS` comm
 
 | Field        | Type       | Description                                    |
 | ------------ | :--------: | ---------------------------------------------- |
-| `last_block` | `[u8; 32]` | Hash of the last known block to the local node |
+| `last_block` | `[u8; 32]` | Hash of the last block known to the local node |
 
 ## Inv message
 
