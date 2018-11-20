@@ -66,6 +66,9 @@ pub struct Config {
 
     /// Consensus-critical configuration
     pub consensus_constants: ConsensusConstants,
+
+    /// JSON-RPC API configuration
+    pub jsonrpc: JsonRPC,
 }
 
 /// Connection-specific configuration.
@@ -119,6 +122,14 @@ pub struct ConsensusConstants {
     pub checkpoints_period: u16,
 }
 
+/// JsonRPC API configuration
+#[derive(Debug, Clone, PartialEq)]
+pub struct JsonRPC {
+    /// JSON-RPC server address, that is, the socket address (interface ip and
+    /// port) for the JSON-RPC server
+    pub server_address: SocketAddr,
+}
+
 /// Possible values for the "environment" configuration param.
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub enum Environment {
@@ -162,6 +173,7 @@ impl Config {
             connections: Connections::from_partial(&config.connections, &*defaults),
             storage: Storage::from_partial(&config.storage, &*defaults),
             consensus_constants,
+            jsonrpc: JsonRPC::from_partial(&config.jsonrpc, &*defaults),
         }
     }
 }
@@ -233,6 +245,17 @@ impl ConsensusConstants {
                 .checkpoint_period
                 .to_owned()
                 .unwrap_or_else(|| defaults.consensus_constants_checkpoints_period()),
+        }
+    }
+}
+
+impl JsonRPC {
+    pub fn from_partial(config: &partial::JsonRPC, defaults: &dyn Defaults) -> Self {
+        JsonRPC {
+            server_address: config
+                .server_address
+                .to_owned()
+                .unwrap_or_else(|| defaults.jsonrpc_server_address()),
         }
     }
 }

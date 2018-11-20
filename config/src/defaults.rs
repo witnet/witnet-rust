@@ -63,6 +63,9 @@ pub trait Defaults {
     fn consensus_constants_checkpoints_period(&self) -> u16 {
         90
     }
+
+    /// Default JSON-RPC server addr
+    fn jsonrpc_server_address(&self) -> SocketAddr;
 }
 
 /// Struct that will implement all the mainnet defaults
@@ -76,9 +79,14 @@ impl Defaults for Mainnet {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11337)
     }
 
+    fn jsonrpc_server_address(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11338)
+    }
+
     fn storage_db_path(&self) -> PathBuf {
         PathBuf::from(".witnet-rust-mainnet")
     }
+
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
         // A point far in the future, so the `EpochManager` will return an error `EpochZeroInTheFuture`
         19_999_999_999_999
@@ -88,6 +96,10 @@ impl Defaults for Mainnet {
 impl Defaults for Testnet1 {
     fn connections_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21337)
+    }
+
+    fn jsonrpc_server_address(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21338)
     }
 
     fn storage_db_path(&self) -> PathBuf {

@@ -35,6 +35,10 @@ pub struct Config {
     /// Consensus-critical configuration
     #[serde(default)]
     pub consensus_constants: ConsensusConstants,
+
+    /// JSON-RPC API configuration
+    #[serde(default)]
+    pub jsonrpc: JsonRPC,
 }
 
 /// Connection-specific partial configuration.
@@ -102,6 +106,14 @@ pub struct ConsensusConstants {
     #[serde(default)]
     #[serde(rename = "checkpoint_period_seconds")]
     pub checkpoint_period: Option<u16>,
+}
+
+/// JSON-RPC API configuration
+#[derive(Deserialize, Default, Debug, Clone, PartialEq)]
+pub struct JsonRPC {
+    /// JSON-RPC server address, that is, the socket address (interface ip and
+    /// port) for the JSON-RPC server
+    pub server_address: Option<SocketAddr>,
 }
 
 impl Default for Environment {
