@@ -36,3 +36,6 @@ pub mod mempool_manager;
 
 /// UtxoManager actor module
 pub mod utxo_manager;
+
+/// JSON RPC server
+pub mod json_rpc;

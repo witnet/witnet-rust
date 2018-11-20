@@ -10,6 +10,7 @@ use crate::actors::blocks_manager::BlocksManager;
 use crate::actors::config_manager::ConfigManager;
 use crate::actors::connections_manager::ConnectionsManager;
 use crate::actors::epoch_manager::EpochManager;
+use crate::actors::json_rpc::JsonRpcServer;
 use crate::actors::mempool_manager::MempoolManager;
 use crate::actors::peers_manager::PeersManager;
 use crate::actors::sessions_manager::SessionsManager;
@@ -59,6 +60,9 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Start UTXO manager actor
     let utxo_manager_addr = UtxoManager::start_default();
     System::current().registry().set(utxo_manager_addr);
+
+    // Start JSON RPC server (this doesn't need to be in the registry)
+    let _json_rpc_server_addr = JsonRpcServer::default().start();
 
     // Run system
     system.run();
