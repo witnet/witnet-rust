@@ -10,7 +10,15 @@ use crate::actors::blocks_manager::{
     BlocksManager,
 };
 
-use log::{debug, error};
+use crate::actors::{
+    config_manager::send_get_config_request,
+    storage_keys::CHAIN_KEY,
+    storage_manager::{messages::Get, StorageManager},
+};
+
+use witnet_data_structures::chain::{ChainInfo, Checkpoint};
+
+use log::{debug, error, info};
 
 /// Implement Actor trait for `BlocksManager`
 impl Actor for BlocksManager {
@@ -61,5 +69,75 @@ impl Actor for BlocksManager {
             })
             .wait(ctx);
         // TODO end remove this once blocks manager real functionality is implemented
+
+        // Send message to config manager and process response
+        send_get_config_request(self, ctx, |act, ctx, config| {
+            // Get environment and consensus_constants parameters from config
+            let environment = (&config.environment).clone();
+            let consensus_constants = (&config.consensus_constants).clone();
+
+            // Get storage manager actor address
+            let storage_manager_addr = System::current().registry().get::<StorageManager>();
+            storage_manager_addr
+                // Send a message to read the chain_info from the storage
+                .send(Get::<ChainInfo>::new(CHAIN_KEY))
+                .into_actor(act)
+                // Process the response
+                .then(|res, _act, _ctx| match res {
+                    Err(e) => {
+                        // Error when sending message
+                        error!("Unsuccessful communication with storage manager: {}", e);
+                        actix::fut::err(())
+                    }
+                    Ok(res) => match res {
+                        Err(e) => {
+                            // Storage error
+                            error!("Error while getting chain info from storage: {}", e);
+                            actix::fut::err(())
+                        }
+                        Ok(res) => actix::fut::ok(res),
+                    },
+                })
+                .and_then(move |chain_info_from_storage, act, _ctx| {
+                    // chain_info_from_storage can be None if the storage does not contain that key
+                    if let Some(chain_info_from_storage) = chain_info_from_storage {
+                        if (environment == chain_info_from_storage.environment)
+                            & (consensus_constants == chain_info_from_storage.consensus_constants)
+                        {
+                            // Update Chain Info from storage
+                            let chain_info = ChainInfo {
+                                environment,
+                                consensus_constants,
+                                highest_block_checkpoint: chain_info_from_storage
+                                    .highest_block_checkpoint,
+                            };
+                            act.chain_info = Some(chain_info);
+                            info!("ChainInfo successfully obtained from storage");
+                        } else {
+                            // There are differences in protocol constants and/or environment
+                            // between storage and config
+                            panic!("Error protocol constants and/or environment are different");
+                        }
+                    } else {
+                        debug!("Not ChainInfo in storage, proceeding to create it");
+                        // Create a new ChainInfo
+                        let genesis_hash = (consensus_constants.genesis_hash).clone();
+                        let chain_info = ChainInfo {
+                            environment,
+                            consensus_constants,
+                            highest_block_checkpoint: Checkpoint {
+                                number: 0,
+                                hash: genesis_hash,
+                            },
+                        };
+                        act.chain_info = Some(chain_info);
+                    }
+                    actix::fut::ok(())
+                })
+                .wait(ctx);
+
+            // Persist chain_info into storage
+            act.persist_chain_info(ctx);
+        });
     }
 }
