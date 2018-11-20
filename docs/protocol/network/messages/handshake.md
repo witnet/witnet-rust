@@ -41,7 +41,7 @@ The `version` message contains the following information:
 | `receiver_address` | `addr`     | The IP address and port of the remote peer                                                                     |
 | `user_agent`       | `string`   | A version showing which software is running the local peer                                                     |
 | `last_epoch`       | `u32`      | Last epoch in the local peer blockchain                                                                        |
-| `genesis`          | `[u32; 8]` | Hash of the genesis block                                                                                      |
+| `genesis`          | `[u8; 32]` | Hash of the genesis block                                                                                      |
 | `nonce`            | `u64`      | Node random nonce, randomly generated every time a version packet is sent (used to detect connections to self) |
 
 ## Verack message

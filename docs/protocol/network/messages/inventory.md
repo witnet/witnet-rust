@@ -96,7 +96,7 @@ The `get_blocks` message consists of a message header with the `GET_BLOCKS` comm
 
 | Field        | Type       | Description                                    |
 | ------------ | :--------: | ---------------------------------------------- |
-| `last_block` | `[u32; 8]` | Hash of the last known block to the local node |
+| `last_block` | `[u8; 32]` | Hash of the last known block to the local node |
 
 ## Inv message
 
@@ -111,10 +111,10 @@ The `inv` message consists of a message header with the `INV` command and a payl
 
 The `inv_vect` (inventory vector) data structure has the following schema:
 
-| Field   | Type       | Description                                  |
-| ------- | :--------: | -------------------------------------------- |
-| `type`  | `u8`       | Type of object linked to the inventory entry |
-| `count` | `[u32; 8]` | Hash of the object                           |
+| Field  | Type       | Description                                  |
+| ------ | :--------: | -------------------------------------------- |
+| `type` | `u8`       | Type of object linked to the inventory entry |
+| `hash` | `[u8; 32]` | Hash of the object                           |
 
 The possible values for the `type` field are:
 
@@ -143,23 +143,13 @@ The `get_data` message consists of a message header with the `GET_DATA` command 
 
 The `block` message is used to transmit a single serialized block as a response to a `get_data` message.
 
-The `block` message consists of a message header with the `BLOCK` command and a payload formatted as follows:
-
-| Field       | Type           | Description                                                |
-| ----------- | :------------: | ---------------------------------------------------------- |
-| `header`    | `block_header` | Block header, as described in the [Block] section          |
-| `txn_count` | `u32`          | Total number of transactions in the block                  |
-| `txns`      | `tx[]`         | Block transactions as described in the transaction section |
+The `block` message consists of a message header with the `BLOCK` command and a payload containing information for a transaction following the format defined in the [Block] section.
 
 ## Tx message
 
 Analogously, the `tx` message is used to transmit a single serialized transaction as a response to a `get_data` message.
 
-The `tx` message consists of a message header with the `TX` command and a payload containing information for a transaction following the format defined in the transaction section:
-
-| Field | Type  | Description                                            |
-| ----- | :---: | ------------------------------------------------------ |
-| `tx`  | `tx`  | Transaction, as described in the [Transaction] section |
+The `tx` message consists of a message header with the `TX` command and a payload containing information for a transaction following the format defined in the [Transaction] section.
 
 [Block]: /protocol/network/data-structures/block/
 [Transaction]: /protocol/network/data-structures/transaction/
