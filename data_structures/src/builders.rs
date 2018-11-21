@@ -3,7 +3,10 @@ use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
-use crate::types::{Address, Command, IpAddress, Message};
+// use crate::chain::{Block, BlockHeader, CheckpointBeacon, Hash};
+use crate::types::{
+    Address, Command, GetPeers, IpAddress, Message, Peers, Ping, Pong, Verack, Version,
+};
 
 use witnet_util::timestamp::get_timestamp;
 
@@ -31,7 +34,7 @@ pub const GENESIS: u64 = 0x0123_4567_89AB_CDEF;
 impl Message {
     /// Function to build GetPeers messages
     pub fn build_get_peers() -> Message {
-        Message::build_message(Command::GetPeers)
+        Message::build_message(Command::GetPeers(GetPeers))
     }
 
     /// Function to build Peers messages
@@ -42,21 +45,21 @@ impl Message {
             casted_peers.push(to_address(*peer));
         });
 
-        Message::build_message(Command::Peers {
+        Message::build_message(Command::Peers(Peers {
             peers: casted_peers,
-        })
+        }))
     }
 
     /// Function to build Ping messages
     pub fn build_ping() -> Message {
-        Message::build_message(Command::Ping {
+        Message::build_message(Command::Ping(Ping {
             nonce: random_nonce(),
-        })
+        }))
     }
 
     /// Function to build Pong messages
     pub fn build_pong(nonce: u64) -> Message {
-        Message::build_message(Command::Pong { nonce })
+        Message::build_message(Command::Pong(Pong { nonce }))
     }
 
     /// Function to build Version messages
@@ -65,7 +68,7 @@ impl Message {
         receiver_addr: SocketAddr,
         last_epoch: u32,
     ) -> Message {
-        Message::build_message(Command::Version {
+        Message::build_message(Command::Version(Version {
             version: VERSION,
             timestamp: get_timestamp(),
             capabilities: CAPABILITIES,
@@ -75,12 +78,12 @@ impl Message {
             last_epoch,
             genesis: GENESIS,
             nonce: random_nonce(),
-        })
+        }))
     }
 
     /// Function to build Verack messages
     pub fn build_verack() -> Message {
-        Message::build_message(Command::Verack)
+        Message::build_message(Command::Verack(Verack))
     }
 
     /// Function to build a message from a command

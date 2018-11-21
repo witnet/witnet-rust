@@ -17,7 +17,7 @@ use crate::actors::{
 use witnet_data_structures::{
     builders::from_address,
     serializers::TryFrom,
-    types::{Address, Command, Message as WitnetMessage},
+    types::{Address, Command, Message as WitnetMessage, Peers, Version},
 };
 use witnet_p2p::sessions::SessionStatus;
 
@@ -45,24 +45,27 @@ impl StreamHandler<BytesMut, Error> for Session {
                     ////////////////////
                     //   HANDSHAKE    //
                     ////////////////////
-                    (SessionStatus::Unconsolidated, Command::Version { sender_address, .. }) => {
+                    (
+                        SessionStatus::Unconsolidated,
+                        Command::Version(Version { sender_address, .. }),
+                    ) => {
                         let msgs = handshake_version(self, &sender_address);
                         for msg in msgs {
                             self.send_message(msg);
                         }
                         try_consolidate_session(self, ctx);
                     }
-                    (SessionStatus::Unconsolidated, Command::Verack) => {
+                    (SessionStatus::Unconsolidated, Command::Verack(_)) => {
                         handshake_verack(self);
                         try_consolidate_session(self, ctx);
                     }
                     ////////////////////
                     // PEER DISCOVERY //
                     ////////////////////
-                    (SessionStatus::Consolidated, Command::GetPeers) => {
+                    (SessionStatus::Consolidated, Command::GetPeers(_)) => {
                         peer_discovery_get_peers(self, ctx);
                     }
-                    (SessionStatus::Consolidated, Command::Peers { peers }) => {
+                    (SessionStatus::Consolidated, Command::Peers(Peers { peers })) => {
                         peer_discovery_peers(&peers);
                     }
                     /////////////////////

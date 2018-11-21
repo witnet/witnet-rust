@@ -2,28 +2,46 @@ use std::fmt;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Command {
-    GetPeers,
-    Peers {
-        peers: Vec<Address>,
-    },
-    Ping {
-        nonce: u64,
-    },
-    Pong {
-        nonce: u64,
-    },
-    Verack,
-    Version {
-        version: u32,
-        timestamp: i64,
-        capabilities: u64,
-        sender_address: Address,
-        receiver_address: Address,
-        user_agent: String,
-        last_epoch: u32,
-        genesis: u64,
-        nonce: u64,
-    },
+    GetPeers(GetPeers),
+    Peers(Peers),
+    Ping(Ping),
+    Pong(Pong),
+    Verack(Verack),
+    Version(Version),
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct GetPeers;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Peers {
+    pub peers: Vec<Address>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Ping {
+    pub nonce: u64,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Pong {
+    pub nonce: u64,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Verack;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Version {
+    pub version: u32,
+    pub timestamp: i64,
+    pub capabilities: u64,
+    pub sender_address: Address,
+    pub receiver_address: Address,
+    pub user_agent: String,
+    pub last_epoch: u32,
+    pub genesis: u64,
+    pub nonce: u64,
 }
 
 impl fmt::Display for Command {
@@ -32,12 +50,12 @@ impl fmt::Display for Command {
             f,
             "{}",
             match self {
-                Command::GetPeers => "GET_PEERS",
-                Command::Peers { .. } => "PEERS",
-                Command::Ping { .. } => "PING",
-                Command::Pong { .. } => "PONG",
-                Command::Verack => "VERACK",
-                Command::Version { .. } => "VERSION",
+                Command::GetPeers(_) => "GET_PEERS",
+                Command::Peers(_) => "PEERS",
+                Command::Ping(_) => "PING",
+                Command::Pong(_) => "PONG",
+                Command::Verack(_) => "VERACK",
+                Command::Version(_) => "VERSION",
             }
         )
     }

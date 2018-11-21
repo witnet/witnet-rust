@@ -1,5 +1,6 @@
-use std::convert::Into;
 extern crate flatbuffers;
+
+use std::convert::Into;
 
 use crate::flatbuffers::protocol_generated::protocol::{
     get_root_as_message, Address as FlatBufferAddress, AddressArgs, Command as FlatBuffersCommand,
@@ -11,9 +12,9 @@ use crate::flatbuffers::protocol_generated::protocol::{
     Version as FlatBuffersVersion, VersionArgs,
 };
 use crate::types::{
-    Address, Command,
+    Address, Command, GetPeers,
     IpAddress::{Ipv4 as WitnetIpv4, Ipv6 as WitnetIpv6},
-    Message,
+    Message, Peers, Ping, Pong, Verack, Version,
 };
 
 use flatbuffers::FlatBufferBuilder;
@@ -182,35 +183,35 @@ impl Into<Vec<u8>> for Message {
         let mut builder = flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
         // Create flatbuffer to encode a witnet message
         match &self.kind {
-            Command::GetPeers => create_get_peers_flatbuffer(
+            Command::GetPeers(GetPeers) => create_get_peers_flatbuffer(
                 &mut builder,
                 GetPeersFlatbufferArgs { magic: self.magic },
             ),
-            Command::Peers { peers } => create_peers_flatbuffer(
+            Command::Peers(Peers { peers }) => create_peers_flatbuffer(
                 &mut builder,
                 PeersFlatbufferArgs {
                     magic: self.magic,
                     peers,
                 },
             ),
-            Command::Ping { nonce } => create_ping_flatbuffer(
+            Command::Ping(Ping { nonce }) => create_ping_flatbuffer(
                 &mut builder,
                 PingFlatbufferArgs {
                     magic: self.magic,
                     nonce: *nonce,
                 },
             ),
-            Command::Pong { nonce } => create_pong_flatbuffer(
+            Command::Pong(Pong { nonce }) => create_pong_flatbuffer(
                 &mut builder,
                 PongFlatbufferArgs {
                     magic: self.magic,
                     nonce: *nonce,
                 },
             ),
-            Command::Verack => {
+            Command::Verack(Verack) => {
                 create_verack_flatbuffer(&mut builder, VerackFlatbufferArgs { magic: self.magic })
             }
-            Command::Version {
+            Command::Version(Version {
                 version,
                 timestamp,
                 capabilities,
@@ -220,7 +221,7 @@ impl Into<Vec<u8>> for Message {
                 last_epoch,
                 genesis,
                 nonce,
-            } => create_version_flatbuffer(
+            }) => create_version_flatbuffer(
                 &mut builder,
                 VersionFlatbufferArgs {
                     magic: self.magic,
@@ -289,7 +290,7 @@ fn create_get_peers_flatbuffer(
 // Create a witnet's get peers message to decode a flatbuffers' get peers message
 fn create_get_peers_message(get_peers_args: GetPeersWitnetArgs) -> Message {
     Message {
-        kind: Command::GetPeers,
+        kind: Command::GetPeers(GetPeers),
         magic: get_peers_args.magic,
     }
 }
@@ -377,9 +378,9 @@ fn create_peers_message(peers_args: PeersWitnetArgs) -> Option<Message> {
             counter += 1;
         }
         Message {
-            kind: Command::Peers {
+            kind: Command::Peers(Peers {
                 peers: vec_addresses,
-            },
+            }),
             magic: peers_args.magic,
         }
     })
@@ -411,9 +412,9 @@ fn create_ping_flatbuffer(
 // Create a witnet's ping message to decode a flatbuffers' ping message
 fn create_ping_message(ping_args: PingWitnetArgs) -> Message {
     Message {
-        kind: Command::Ping {
+        kind: Command::Ping(Ping {
             nonce: ping_args.nonce,
-        },
+        }),
         magic: ping_args.magic,
     }
 }
@@ -444,9 +445,9 @@ fn create_pong_flatbuffer(
 // Create a witnet's pong message to decode a flatbuffers' pong message
 fn create_pong_message(pong_args: PongWitnetArgs) -> Message {
     Message {
-        kind: Command::Pong {
+        kind: Command::Pong(Pong {
             nonce: pong_args.nonce,
-        },
+        }),
         magic: pong_args.magic,
     }
 }
@@ -472,7 +473,7 @@ fn create_verack_flatbuffer(
 // Create a witnet's verack message to decode a flatbuffers' verack message
 fn create_verack_message(verack_args: VerackWitnetArgs) -> Message {
     Message {
-        kind: Command::Verack,
+        kind: Command::Verack(Verack),
         magic: verack_args.magic,
     }
 }
@@ -565,7 +566,7 @@ fn create_version_flatbuffer(
 // Create a witnet's version message to decode a flatbuffers' version message
 fn create_version_message(version_args: VersionWitnetArgs) -> Message {
     Message {
-        kind: Command::Version {
+        kind: Command::Version(Version {
             version: version_args.version,
             timestamp: version_args.timestamp,
             capabilities: version_args.capabilities,
@@ -575,7 +576,7 @@ fn create_version_message(version_args: VersionWitnetArgs) -> Message {
             last_epoch: version_args.last_epoch,
             genesis: version_args.genesis,
             nonce: version_args.nonce,
-        },
+        }),
         magic: version_args.magic,
     }
 }
