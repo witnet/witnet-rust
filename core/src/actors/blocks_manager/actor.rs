@@ -70,7 +70,7 @@ impl Actor for BlocksManager {
             .wait(ctx);
         // TODO end remove this once blocks manager real functionality is implemented
 
-        // Send message to config manager and process response
+        // Query ConfigManager for initial configuration and process response
         send_get_config_request(self, ctx, |act, ctx, config| {
             // Get environment and consensus_constants parameters from config
             let environment = (&config.environment).clone();

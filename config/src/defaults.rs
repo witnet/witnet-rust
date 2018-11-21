@@ -65,22 +65,22 @@ pub trait Defaults {
     }
 
     /// Default Hash value for the genesis block
-    fn consensus_constants_genesis_hash(&self) -> Vec<u8> {
-        Vec::new()
-    }
     // TODO Decide an appropriate default value
+    fn consensus_constants_genesis_hash(&self) -> Vec<u8> {
+        vec![0; 32]
+    }
 
     /// Default demurrage value for reputation algorithm
+    // TODO Decide an appropriate default value
     fn consensus_constants_reputation_demurrage(&self) -> f64 {
         0.0
     }
-    // TODO Decide an appropriate default value
 
     /// Default punishment value for reputation algorithm
+    // TODO Decide an appropriate default value
     fn consensus_constants_reputation_punishment(&self) -> f64 {
         0.0
     }
-    // TODO Decide an appropriate default value
 
     /// Default JSON-RPC server addr
     fn jsonrpc_server_address(&self) -> SocketAddr;
@@ -106,7 +106,8 @@ impl Defaults for Mainnet {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // A point far in the future, so the `EpochManager` will return an error `EpochZeroInTheFuture`
+        // A point far in the future, so the `EpochManager` will return an error
+        // `EpochZeroInTheFuture`
         19_999_999_999_999
     }
 }
@@ -125,7 +126,8 @@ impl Defaults for Testnet1 {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // A point far in the future, so the `EpochManager` will return an error `EpochZeroInTheFuture`
+        // A point far in the future, so the `EpochManager` will return an error
+        // `EpochZeroInTheFuture`
         9_999_999_999_999
     }
 }

@@ -116,7 +116,7 @@ pub struct ConsensusConstants {
     #[serde(default)]
     pub reputation_demurrage: Option<f64>,
 
-    /// Punishment value for dishonestly use
+    /// Punishment value for claims out of the consensus bounds
     #[serde(default)]
     pub reputation_punishment: Option<f64>,
 }

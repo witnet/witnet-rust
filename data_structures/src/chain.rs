@@ -37,14 +37,16 @@ pub struct ConsensusConstants {
     pub checkpoints_period: u16,
 
     /// Genesis block hash value
+    // TODO Change to a specific fixed-length hash function's output's digest type once Issue #164
+    // is solved
     pub genesis_hash: Vec<u8>,
 
     /// Decay value for reputation demurrage function
-    //TODO Use fixed point arithmetic
+    // TODO Use fixed point arithmetic (see Issue #172)
     pub reputation_demurrage: f64,
 
-    /// Punishment value for dishonestly use
-    //TODO Use fixed point arithmetic
+    /// Punishment value for claims out of the consensus bounds
+    // TODO Use fixed point arithmetic (see Issue #172)
     pub reputation_punishment: f64,
 }
 
