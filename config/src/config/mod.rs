@@ -117,6 +117,8 @@ pub struct Storage {
 /// JsonRPC API configuration
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsonRPC {
+    /// Enable JSON-RPC server?
+    pub enabled: bool,
     /// JSON-RPC server address, that is, the socket address (interface ip and
     /// port) for the JSON-RPC server
     pub server_address: SocketAddr,
@@ -246,6 +248,10 @@ impl Storage {
 impl JsonRPC {
     pub fn from_partial(config: &partial::JsonRPC, defaults: &dyn Defaults) -> Self {
         JsonRPC {
+            enabled: config
+                .enabled
+                .to_owned()
+                .unwrap_or_else(|| defaults.jsonrpc_enabled()),
             server_address: config
                 .server_address
                 .to_owned()
@@ -346,6 +352,7 @@ mod tests {
         let defaults: Box<Defaults> = Box::new(Testnet1);
         let addr: SocketAddr = "127.0.0.1:4000".parse().unwrap();
         let partial_config = partial::JsonRPC {
+            enabled: None,
             server_address: Some(addr),
         };
         let config = JsonRPC::from_partial(&partial_config, &*defaults);

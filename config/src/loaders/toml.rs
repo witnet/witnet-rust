@@ -208,11 +208,19 @@ server_address = '127.0.0.1:1234'
 ",
         )
         .unwrap();
+        let config_disabled = super::from_str(
+            r"
+[jsonrpc]
+enabled = false
+",
+        )
+        .unwrap();
 
         assert_eq!(empty_config.jsonrpc, JsonRPC::default());
         assert_eq!(
             config.jsonrpc.server_address,
             Some("127.0.0.1:1234".parse().unwrap())
         );
+        assert_eq!(config_disabled.jsonrpc.enabled, Some(false),);
     }
 }

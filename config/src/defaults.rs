@@ -84,6 +84,11 @@ pub trait Defaults {
         0.0
     }
 
+    /// JSON-RPC server enabled by default
+    fn jsonrpc_enabled(&self) -> bool {
+        true
+    }
+
     /// Default JSON-RPC server addr
     fn jsonrpc_server_address(&self) -> SocketAddr;
 }
