@@ -69,9 +69,11 @@ impl BlocksManager {
             .into_actor(self)
             .then(|res, _act, _ctx| {
                 match res {
-                    Ok(Ok(_)) => info!("Blocks manager successfully persist chain_info to storage"),
+                    Ok(Ok(_)) => {
+                        info!("BlocksManager successfully persisted chain_info into storage")
+                    }
                     _ => {
-                        error!("Blocks manager persist chain_info to storage failed");
+                        error!("BlocksManager failed to persist chain_info into storage");
                         // FIXME(#72): handle errors
                     }
                 }

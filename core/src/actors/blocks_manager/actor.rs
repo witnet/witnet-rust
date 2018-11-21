@@ -27,7 +27,7 @@ impl Actor for BlocksManager {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
-        debug!("Blocks Manager actor has been started!");
+        debug!("BlocksManager actor has been started!");
 
         // TODO begin remove this once BlocksManager real functionality is implemented
         // Get EpochManager address from registry
@@ -92,7 +92,7 @@ impl Actor for BlocksManager {
                     Ok(res) => match res {
                         Err(e) => {
                             // Storage error
-                            error!("Error while getting chain info from storage: {}", e);
+                            error!("Error while getting ChainInfo from storage: {}", e);
                             actix::fut::err(())
                         }
                         Ok(res) => actix::fut::ok(res),
@@ -101,25 +101,41 @@ impl Actor for BlocksManager {
                 .and_then(move |chain_info_from_storage, act, _ctx| {
                     // chain_info_from_storage can be None if the storage does not contain that key
                     if let Some(chain_info_from_storage) = chain_info_from_storage {
-                        if (environment == chain_info_from_storage.environment)
-                            & (consensus_constants == chain_info_from_storage.consensus_constants)
-                        {
-                            // Update Chain Info from storage
-                            let chain_info = ChainInfo {
-                                environment,
-                                consensus_constants,
-                                highest_block_checkpoint: chain_info_from_storage
-                                    .highest_block_checkpoint,
-                            };
-                            act.chain_info = Some(chain_info);
-                            info!("ChainInfo successfully obtained from storage");
+                        if environment == chain_info_from_storage.environment {
+                            if consensus_constants == chain_info_from_storage.consensus_constants {
+                                // Update Chain Info from storage
+                                let chain_info = ChainInfo {
+                                    environment,
+                                    consensus_constants,
+                                    highest_block_checkpoint: chain_info_from_storage
+                                        .highest_block_checkpoint,
+                                };
+                                act.chain_info = Some(chain_info);
+                                info!("ChainInfo successfully obtained from storage");
+                            } else {
+                                // Mismatching environment names between config and storage
+                                panic!(
+                                    "Mismatching environments: tried to run a node on environment 
+                                \"{:?}\" with a chain that was initialized with environment
+                                \"{:?}\".",
+                                    environment, chain_info_from_storage.environment
+                                );
+                            }
                         } else {
-                            // There are differences in protocol constants and/or environment
-                            // between storage and config
-                            panic!("Error protocol constants and/or environment are different");
+                            // Mismatching consensus constants between config and storage
+                            panic!(
+                                "Mismatching consensus constants: tried to run a node using
+                                different consensus constants than the ones that were used when
+                                the local chain was initialized.\nNode constants: {:#?}\nChain
+                                constants: {:#?}",
+                                consensus_constants, chain_info_from_storage.consensus_constants
+                            );
                         }
                     } else {
-                        debug!("Not ChainInfo in storage, proceeding to create it");
+                        debug!(
+                            "Uninitialized local chain (no ChainInfo in storage). Proceeding to
+                        initialize and store a new chain."
+                        );
                         // Create a new ChainInfo
                         let genesis_hash = (consensus_constants.genesis_hash).clone();
                         let chain_info = ChainInfo {
