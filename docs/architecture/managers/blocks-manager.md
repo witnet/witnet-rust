@@ -35,14 +35,68 @@ System::current().registry().set(blocks_manager_addr);
 
 ## API
 
+### Incoming: Others -> BlocksManager
+
+These are the messages supported by the `BlocksManager` handlers:
+
+| Message                                   | Input type                    | Output type              | Description                                    |
+|-------------------------------------------|-------------------------------|--------------------------| -----------------------------------------------|
+| `EpochNotification<EpochPayload>`         | `Epoch`, `EpochPayload`       | `()`                     | The requested epoch has been reached           |
+| `EpochNotification<EveryEpochPayload>`    | `Epoch`, `EveryEpochPayload`  | `()`                     | A new epoch has been reached                   |
+| `GetHighestBlockCheckpoint`               | `()`                          | `ChainInfoResult`        | Request a copy of the highest block checkpoint |
+
+Where `ChainInfoResult` is just:
+
+``` rust
+/// Result type for the ChainInfo in BlocksManager module.
+pub type ChainInfoResult<T> = WitnetResult<T, ChainInfoError>;
+```
+
+The way other actors will communicate with the BlocksManager is:
+
+1. Get the address of the BlocksManager actor from the registry:
+
+    ```rust
+    // Get BlocksManager address
+    let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
+    ```
+
+2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to send a message to the actor:
+
+    ```rust
+    config_manager_addr
+        .send(GetHighestBlockCheckpoint)
+        .into_actor(self)
+        .then(|res, _act, _ctx| {
+            // Process the response from BlocksManager
+            process_get_config_response(res)
+        })
+        .and_then(|checkpoint, _act, ctx| {
+            // Do something with the checkpoint
+            actix::fut::ok(())
+        })
+        .wait(ctx);
+    ```
+
+For the time being, the handlers for Epoch messages just print a debug message with the notified
+checkpoint. 
+
+```rust
+fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
+    debug!("Epoch notification received {:?}", msg.checkpoint);
+}
+```
 ### Outgoing messages: BlocksManager -> Others
 
 These are the messages sent by the blocks manager:
 
-| Message           | Destination       | Input type                                    | Output type   | Description                       |
-|-------------------|-------------------|-----------------------------------------------|---------------|-----------------------------------| 
-| `SubscribeEpoch`  | `EpochManager`    | `Epoch`, `Addr<BlocksManager>, EpochPayload`  | `()`          | Subscribe to a particular epoch   |  
-| `SubscribeAll`    | `EpochManager`    | `Addr<BlocksManager>, EveryEpochPayload`      | `()`          | Subscribe to all epochs           |
+| Message           | Destination       | Input type                                    | Output type                 | Description                       |
+|-------------------|-------------------|-----------------------------------------------|-----------------------------|-----------------------------------|
+| `SubscribeEpoch`  | `EpochManager`    | `Epoch`, `Addr<BlocksManager>, EpochPayload`  | `()`                        | Subscribe to a particular epoch   |
+| `SubscribeAll`    | `EpochManager`    | `Addr<BlocksManager>, EveryEpochPayload`      | `()`                        | Subscribe to all epochs           |
+| `GetConfig`       | `ConfigManager`   | `()`                                          | `Result<Config, io::Error>` | Request the configuration         |
+| `Get`             | `StorageManager`  | `&'static [u8]`                               | `StorageResult<Option<T>>`  | Wrapper to Storage `get()` method |
+| `Put`             | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                    | `StorageResult<()>`         | Wrapper to Storage `put()` method |
 
 #### SubscribeEpoch
 
@@ -64,34 +118,6 @@ Subscribing to all epochs means that the [`EpochManager`][epoch_manager] will se
 
 For further information, see [`EpochManager`][epoch_manager].
 
-### Incoming: Others -> BlocksManager
-
-These are the messages supported by the `BlocksManager` handlers:
-
-| Message                                   | Input type                    | Output type   | Description                           |
-|-------------------------------------------|-------------------------------|---------------| --------------------------------------|
-| `EpochNotification<EpochPayload>`         | `Epoch`, `EpochPayload`       | `()`          | The requested epoch has been reached  | 
-| `EpochNotification<EveryEpochPayload>`    | `Epoch`, `EveryEpochPayload`  | `()`          | A new epoch has been reached          |
-
-For the time being, the handlers for those message just print a debug message with the notified
-checkpoint. 
-
-```rust
-fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
-    debug!("Epoch notification received {:?}", msg.checkpoint);
-}
-```
-
-### Outgoing messages: Peers Manager -> Others
-
-These are the messages sent by the peers manager:
-
-| Message     | Destination       | Input type                                | Output type                 | Description                               |
-| ----------- | ----------------- | ----------------------------------------- | --------------------------- | ----------------------------------------- |
-| `GetConfig` | `ConfigManager`   | `()`                                      | `Result<Config, io::Error>` | Request the configuration                 |
-| `Get`       | `StorageManager`  | `&'static [u8]`                           | `StorageResult<Option<T>>`  | Wrapper to Storage `get()` method         |
-| `Put`       | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                | `StorageResult<()>`         | Wrapper to Storage `put()` method         |
-
 #### GetConfig
 
 This message is sent to the [`ConfigManager`][config_manager] actor when the peers manager actor is started.
@@ -109,7 +135,6 @@ The return value is a `ChainInfo` structure from the storage which are added to 
 This message is sent to the [`StorageManager`][storage_manager] actor to persist the `ChainInfo` structure
 
 The return value is used to check if the storage process has been successful.
-
 ## Further information
 
 The full source code of the `BlocksManager` can be found at [`blocks_manager.rs`][blocks_manager].
