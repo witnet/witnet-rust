@@ -80,6 +80,9 @@ nav:
     - Data Requests:
       - Overview: architecture/rad/overview.md
     - Witscript Parser: architecture/witscript.md
+    - JSON-RPC Server: architecture/json-rpc-server.md
+  - Interface:
+    - JSON-RPC: interface/json-rpc.md
   - Advanced:
     - Network constants: advanced/constants.md
     - Differences with the whitepaper: advanced/whitepaper-differences.md
