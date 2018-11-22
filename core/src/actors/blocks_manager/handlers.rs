@@ -3,7 +3,16 @@ use actix::{Context, Handler};
 use crate::actors::blocks_manager::BlocksManager;
 use crate::actors::epoch_manager::messages::EpochNotification;
 
-use log::debug;
+use witnet_data_structures::{
+    chain::Epoch,
+    error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
+};
+
+use witnet_util::error::WitnetError;
+
+use log::{debug, error};
+
+use super::messages::GetHighestBlockCheckpoint;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -31,5 +40,26 @@ impl Handler<EpochNotification<EveryEpochPayload>> for BlocksManager {
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, _ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+    }
+}
+
+/// Handler for GetHighestBlockCheckpoint message
+impl Handler<GetHighestBlockCheckpoint> for BlocksManager {
+    type Result = ChainInfoResult<Epoch>;
+
+    fn handle(
+        &mut self,
+        _msg: GetHighestBlockCheckpoint,
+        _ctx: &mut Context<Self>,
+    ) -> Self::Result {
+        if let Some(chain_info) = &self.chain_info {
+            Ok(chain_info.highest_block_checkpoint.checkpoint)
+        } else {
+            error!("No ChainInfo loaded in BlocksManager");
+            Err(WitnetError::from(ChainInfoError::new(
+                ChainInfoErrorKind::ChainInfoNotFound,
+                "No ChainInfo loaded in BlocksManager".to_string(),
+            )))
+        }
     }
 }

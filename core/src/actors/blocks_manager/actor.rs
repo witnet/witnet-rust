@@ -2,7 +2,7 @@ use actix::{Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Sys
 
 use crate::actors::epoch_manager::{
     messages::{GetEpoch, Subscribe},
-    Epoch, EpochManager,
+    EpochManager,
 };
 
 use crate::actors::blocks_manager::{
@@ -16,7 +16,7 @@ use crate::actors::{
     storage_manager::{messages::Get, StorageManager},
 };
 
-use witnet_data_structures::chain::{ChainInfo, Checkpoint};
+use witnet_data_structures::chain::{ChainInfo, CheckpointBeacon, Epoch};
 
 use log::{debug, error, info};
 
@@ -141,9 +141,9 @@ impl Actor for BlocksManager {
                         let chain_info = ChainInfo {
                             environment,
                             consensus_constants,
-                            highest_block_checkpoint: Checkpoint {
-                                number: 0,
-                                hash: genesis_hash,
+                            highest_block_checkpoint: CheckpointBeacon {
+                                checkpoint: Epoch(0),
+                                hash_prev_block: genesis_hash,
                             },
                         };
                         act.chain_info = Some(chain_info);

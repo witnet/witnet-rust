@@ -63,7 +63,7 @@ impl Default for CheckpointBeacon {
     fn default() -> CheckpointBeacon {
         CheckpointBeacon {
             checkpoint: Epoch(0),
-            hash_prev_block: Vec::new(),
+            hash_prev_block: vec![0; 32],
         }
     }
 }

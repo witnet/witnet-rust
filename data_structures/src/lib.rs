@@ -20,3 +20,6 @@ pub mod types;
 
 /// Module containing ChainInfo data structure
 pub mod chain;
+
+/// Module containing Data Structure's error definitions
+pub mod error;
