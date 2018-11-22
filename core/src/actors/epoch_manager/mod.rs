@@ -10,15 +10,13 @@ use witnet_util::timestamp::get_timestamp;
 
 use crate::actors::epoch_manager::messages::{EpochNotification, EpochResult};
 
+use witnet_data_structures::chain::Epoch;
+
 mod actor;
 mod handlers;
 
 /// Messages that are handled by the EpochManager
 pub mod messages;
-
-/// Epoch id (starting from 0)
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub struct Epoch(pub u64);
 
 /// Possible errors when getting the current epoch
 #[derive(Copy, Clone, Debug, PartialEq)]

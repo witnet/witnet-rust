@@ -4,8 +4,10 @@ use log::debug;
 
 use super::{
     messages::{EpochResult, GetEpoch, SubscribeAll, SubscribeEpoch},
-    Epoch, EpochManager,
+    EpochManager,
 };
+
+use witnet_data_structures::chain::Epoch;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS

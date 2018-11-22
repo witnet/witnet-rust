@@ -2,8 +2,10 @@ use actix::dev::ToEnvelope;
 use actix::{Actor, Addr, Handler, Message};
 
 use super::{
-    AllEpochSubscription, Epoch, EpochManagerError, SendableNotification, SingleEpochSubscription,
+    AllEpochSubscription, EpochManagerError, SendableNotification, SingleEpochSubscription,
 };
+
+use witnet_data_structures::chain::Epoch;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGES

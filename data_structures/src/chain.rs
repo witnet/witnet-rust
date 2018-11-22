@@ -7,7 +7,7 @@ pub struct ChainInfo {
     pub consensus_constants: ConsensusConstants,
 
     /// Checkpoint of the last block in the blockchain
-    pub highest_block_checkpoint: Checkpoint,
+    pub highest_block_checkpoint: CheckpointBeacon,
 }
 
 /// Possible values for the "environment" configuration param.
@@ -50,17 +50,24 @@ pub struct ConsensusConstants {
     pub reputation_punishment: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub struct Checkpoint {
-    pub number: u32,
-    pub hash: Vec<u8>,
+/// Checkpoint beacon structure
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct CheckpointBeacon {
+    /// The serial number for an epoch
+    pub checkpoint: Epoch,
+    /// The 256-bit hash of the previous block header
+    pub hash_prev_block: Vec<u8>,
 }
 
-impl Default for Checkpoint {
-    fn default() -> Checkpoint {
-        Checkpoint {
-            number: 0,
-            hash: Vec::new(),
+impl Default for CheckpointBeacon {
+    fn default() -> CheckpointBeacon {
+        CheckpointBeacon {
+            checkpoint: Epoch(0),
+            hash_prev_block: Vec::new(),
         }
     }
 }
+
+/// Epoch id (starting from 0)
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Ord, Eq, Serialize, Deserialize)]
+pub struct Epoch(pub u64);
