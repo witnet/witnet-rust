@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System, SystemService,
-    WrapFuture,
-};
 use crate::actors::{
     storage_keys::PEERS_KEY,
     storage_manager::{messages::Put, StorageManager},
+};
+use actix::{
+    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System, SystemService,
+    WrapFuture,
 };
 use log::{error, info};
 
