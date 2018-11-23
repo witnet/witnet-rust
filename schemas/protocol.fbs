@@ -4,7 +4,7 @@
 namespace Protocol;
 
 // List of available commands
-union Command (required) { Version, Verack, GetPeers, Peers, Ping, Pong }
+union Command (required) { Version, Verack, GetPeers, Peers, Ping, Pong, Block }
 
 // Message Format with header
 table Message {
@@ -58,6 +58,48 @@ table Ping {
 
 table Pong {
     nonce: uint64;
+}
+
+enum HashType: ubyte { 
+    SHA256,
+}
+
+table Hash {
+    type: HashType;
+    bytes: [ubyte] (required);
+}
+
+table Secp256k1Signature {
+    r: [ubyte] (required);
+    s: [ubyte] (required);
+}
+
+union Signature { Secp256k1Signature }
+
+table LeadershipProof {
+    block_sig: Signature;
+    influence: uint64;
+}
+
+table CheckpointBeacon {
+    checkpoint: uint32;
+    hash_prev_block: Hash (required);
+}
+
+table BlockHeader {
+    version: uint32;
+    beacon: CheckpointBeacon (required);
+    hash_merkle_root: Hash (required);
+    proof: LeadershipProof (required);
+}
+
+// FIXME(#99): define Transaction as defined in issue
+table Transaction {}
+
+table Block {
+    header: BlockHeader (required);
+    txn_count: uint32;
+    txns: [Transaction] (required);
 }
 
 root_type Message;

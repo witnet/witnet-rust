@@ -22,11 +22,12 @@ pub enum Command {
   Peers = 4,
   Ping = 5,
   Pong = 6,
+  Block = 7,
 
 }
 
 const ENUM_MIN_COMMAND: u8 = 0;
-const ENUM_MAX_COMMAND: u8 = 6;
+const ENUM_MAX_COMMAND: u8 = 7;
 
 impl<'a> flatbuffers::Follow<'a> for Command {
   type Inner = Self;
@@ -60,25 +61,27 @@ impl flatbuffers::Push for Command {
 }
 
 #[allow(non_camel_case_types)]
-const ENUM_VALUES_COMMAND:[Command; 7] = [
+const ENUM_VALUES_COMMAND:[Command; 8] = [
   Command::NONE,
   Command::Version,
   Command::Verack,
   Command::GetPeers,
   Command::Peers,
   Command::Ping,
-  Command::Pong
+  Command::Pong,
+  Command::Block
 ];
 
 #[allow(non_camel_case_types)]
-const ENUM_NAMES_COMMAND:[&'static str; 7] = [
+const ENUM_NAMES_COMMAND:[&'static str; 8] = [
     "NONE",
     "Version",
     "Verack",
     "GetPeers",
     "Peers",
     "Ping",
-    "Pong"
+    "Pong",
+    "Block"
 ];
 
 pub fn enum_name_command(e: Command) -> &'static str {
@@ -151,6 +154,124 @@ pub fn enum_name_ip_address(e: IpAddress) -> &'static str {
 }
 
 pub struct IpAddressUnionTableOffset {}
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum HashType {
+  SHA256 = 0,
+
+}
+
+const ENUM_MIN_HASH_TYPE: u8 = 0;
+const ENUM_MAX_HASH_TYPE: u8 = 0;
+
+impl<'a> flatbuffers::Follow<'a> for HashType {
+  type Inner = Self;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::read_scalar_at::<Self>(buf, loc)
+  }
+}
+
+impl flatbuffers::EndianScalar for HashType {
+  #[inline]
+  fn to_little_endian(self) -> Self {
+    let n = u8::to_le(self as u8);
+    let p = &n as *const u8 as *const HashType;
+    unsafe { *p }
+  }
+  #[inline]
+  fn from_little_endian(self) -> Self {
+    let n = u8::from_le(self as u8);
+    let p = &n as *const u8 as *const HashType;
+    unsafe { *p }
+  }
+}
+
+impl flatbuffers::Push for HashType {
+    type Output = HashType;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        flatbuffers::emplace_scalar::<HashType>(dst, *self);
+    }
+}
+
+#[allow(non_camel_case_types)]
+const ENUM_VALUES_HASH_TYPE:[HashType; 1] = [
+  HashType::SHA256
+];
+
+#[allow(non_camel_case_types)]
+const ENUM_NAMES_HASH_TYPE:[&'static str; 1] = [
+    "SHA256"
+];
+
+pub fn enum_name_hash_type(e: HashType) -> &'static str {
+  let index: usize = e as usize;
+  ENUM_NAMES_HASH_TYPE[index]
+}
+
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Signature {
+  NONE = 0,
+  Secp256k1Signature = 1,
+
+}
+
+const ENUM_MIN_SIGNATURE: u8 = 0;
+const ENUM_MAX_SIGNATURE: u8 = 1;
+
+impl<'a> flatbuffers::Follow<'a> for Signature {
+  type Inner = Self;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::read_scalar_at::<Self>(buf, loc)
+  }
+}
+
+impl flatbuffers::EndianScalar for Signature {
+  #[inline]
+  fn to_little_endian(self) -> Self {
+    let n = u8::to_le(self as u8);
+    let p = &n as *const u8 as *const Signature;
+    unsafe { *p }
+  }
+  #[inline]
+  fn from_little_endian(self) -> Self {
+    let n = u8::from_le(self as u8);
+    let p = &n as *const u8 as *const Signature;
+    unsafe { *p }
+  }
+}
+
+impl flatbuffers::Push for Signature {
+    type Output = Signature;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        flatbuffers::emplace_scalar::<Signature>(dst, *self);
+    }
+}
+
+#[allow(non_camel_case_types)]
+const ENUM_VALUES_SIGNATURE:[Signature; 2] = [
+  Signature::NONE,
+  Signature::Secp256k1Signature
+];
+
+#[allow(non_camel_case_types)]
+const ENUM_NAMES_SIGNATURE:[&'static str; 2] = [
+    "NONE",
+    "Secp256k1Signature"
+];
+
+pub fn enum_name_signature(e: Signature) -> &'static str {
+  let index: usize = e as usize;
+  ENUM_NAMES_SIGNATURE[index]
+}
+
+pub struct SignatureUnionTableOffset {}
 pub enum MessageOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -257,6 +378,16 @@ impl<'a> Message<'a> {
   pub fn command_as_pong(&'a self) -> Option<Pong> {
     if self.command_type() == Command::Pong {
       Some(Pong::init_from_table(self.command()))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn command_as_block(&'a self) -> Option<Block> {
+    if self.command_type() == Command::Block {
+      Some(Block::init_from_table(self.command()))
     } else {
       None
     }
@@ -1143,6 +1274,664 @@ impl<'a: 'b, 'b> PongBuilder<'a, 'b> {
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<Pong<'a>> {
     let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum HashOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Hash<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Hash<'a> {
+    type Inner = Hash<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Hash<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Hash {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args HashArgs<'args>) -> flatbuffers::WIPOffset<Hash<'bldr>> {
+      let mut builder = HashBuilder::new(_fbb);
+      if let Some(x) = args.bytes { builder.add_bytes(x); }
+      builder.add_type_(args.type_);
+      builder.finish()
+    }
+
+    pub const VT_TYPE_: flatbuffers::VOffsetT = 4;
+    pub const VT_BYTES: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn type_(&self) -> HashType {
+    self._tab.get::<HashType>(Hash::VT_TYPE_, Some(HashType::SHA256)).unwrap()
+  }
+  #[inline]
+  pub fn bytes(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(Hash::VT_BYTES, None).map(|v| v.safe_slice()).unwrap()
+  }
+}
+
+pub struct HashArgs<'a> {
+    pub type_: HashType,
+    pub bytes: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+}
+impl<'a> Default for HashArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        HashArgs {
+            type_: HashType::SHA256,
+            bytes: None, // required field
+        }
+    }
+}
+pub struct HashBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> HashBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_type_(&mut self, type_: HashType) {
+    self.fbb_.push_slot::<HashType>(Hash::VT_TYPE_, type_, HashType::SHA256);
+  }
+  #[inline]
+  pub fn add_bytes(&mut self, bytes: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Hash::VT_BYTES, bytes);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> HashBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    HashBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Hash<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, Hash::VT_BYTES,"bytes");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum Secp256k1SignatureOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Secp256k1Signature<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Secp256k1Signature<'a> {
+    type Inner = Secp256k1Signature<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Secp256k1Signature<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Secp256k1Signature {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args Secp256k1SignatureArgs<'args>) -> flatbuffers::WIPOffset<Secp256k1Signature<'bldr>> {
+      let mut builder = Secp256k1SignatureBuilder::new(_fbb);
+      if let Some(x) = args.s { builder.add_s(x); }
+      if let Some(x) = args.r { builder.add_r(x); }
+      builder.finish()
+    }
+
+    pub const VT_R: flatbuffers::VOffsetT = 4;
+    pub const VT_S: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn r(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(Secp256k1Signature::VT_R, None).map(|v| v.safe_slice()).unwrap()
+  }
+  #[inline]
+  pub fn s(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(Secp256k1Signature::VT_S, None).map(|v| v.safe_slice()).unwrap()
+  }
+}
+
+pub struct Secp256k1SignatureArgs<'a> {
+    pub r: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+    pub s: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+}
+impl<'a> Default for Secp256k1SignatureArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        Secp256k1SignatureArgs {
+            r: None, // required field
+            s: None, // required field
+        }
+    }
+}
+pub struct Secp256k1SignatureBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> Secp256k1SignatureBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_r(&mut self, r: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Secp256k1Signature::VT_R, r);
+  }
+  #[inline]
+  pub fn add_s(&mut self, s: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Secp256k1Signature::VT_S, s);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> Secp256k1SignatureBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    Secp256k1SignatureBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Secp256k1Signature<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, Secp256k1Signature::VT_R,"r");
+    self.fbb_.required(o, Secp256k1Signature::VT_S,"s");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum LeadershipProofOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct LeadershipProof<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for LeadershipProof<'a> {
+    type Inner = LeadershipProof<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> LeadershipProof<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        LeadershipProof {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args LeadershipProofArgs) -> flatbuffers::WIPOffset<LeadershipProof<'bldr>> {
+      let mut builder = LeadershipProofBuilder::new(_fbb);
+      builder.add_influence(args.influence);
+      if let Some(x) = args.block_sig { builder.add_block_sig(x); }
+      builder.add_block_sig_type(args.block_sig_type);
+      builder.finish()
+    }
+
+    pub const VT_BLOCK_SIG_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_BLOCK_SIG: flatbuffers::VOffsetT = 6;
+    pub const VT_INFLUENCE: flatbuffers::VOffsetT = 8;
+
+  #[inline]
+  pub fn block_sig_type(&self) -> Signature {
+    self._tab.get::<Signature>(LeadershipProof::VT_BLOCK_SIG_TYPE, Some(Signature::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn block_sig(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(LeadershipProof::VT_BLOCK_SIG, None)
+  }
+  #[inline]
+  pub fn influence(&self) -> u64 {
+    self._tab.get::<u64>(LeadershipProof::VT_INFLUENCE, Some(0)).unwrap()
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn block_sig_as_secp_256k_1signature(&'a self) -> Option<Secp256k1Signature> {
+    if self.block_sig_type() == Signature::Secp256k1Signature {
+      self.block_sig().map(|u| Secp256k1Signature::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct LeadershipProofArgs {
+    pub block_sig_type: Signature,
+    pub block_sig: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+    pub influence: u64,
+}
+impl<'a> Default for LeadershipProofArgs {
+    #[inline]
+    fn default() -> Self {
+        LeadershipProofArgs {
+            block_sig_type: Signature::NONE,
+            block_sig: None,
+            influence: 0,
+        }
+    }
+}
+pub struct LeadershipProofBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> LeadershipProofBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_block_sig_type(&mut self, block_sig_type: Signature) {
+    self.fbb_.push_slot::<Signature>(LeadershipProof::VT_BLOCK_SIG_TYPE, block_sig_type, Signature::NONE);
+  }
+  #[inline]
+  pub fn add_block_sig(&mut self, block_sig: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(LeadershipProof::VT_BLOCK_SIG, block_sig);
+  }
+  #[inline]
+  pub fn add_influence(&mut self, influence: u64) {
+    self.fbb_.push_slot::<u64>(LeadershipProof::VT_INFLUENCE, influence, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> LeadershipProofBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    LeadershipProofBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<LeadershipProof<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum CheckpointBeaconOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct CheckpointBeacon<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for CheckpointBeacon<'a> {
+    type Inner = CheckpointBeacon<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> CheckpointBeacon<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        CheckpointBeacon {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args CheckpointBeaconArgs<'args>) -> flatbuffers::WIPOffset<CheckpointBeacon<'bldr>> {
+      let mut builder = CheckpointBeaconBuilder::new(_fbb);
+      if let Some(x) = args.hash_prev_block { builder.add_hash_prev_block(x); }
+      builder.add_checkpoint(args.checkpoint);
+      builder.finish()
+    }
+
+    pub const VT_CHECKPOINT: flatbuffers::VOffsetT = 4;
+    pub const VT_HASH_PREV_BLOCK: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn checkpoint(&self) -> u32 {
+    self._tab.get::<u32>(CheckpointBeacon::VT_CHECKPOINT, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn hash_prev_block(&self) -> Hash<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(CheckpointBeacon::VT_HASH_PREV_BLOCK, None).unwrap()
+  }
+}
+
+pub struct CheckpointBeaconArgs<'a> {
+    pub checkpoint: u32,
+    pub hash_prev_block: Option<flatbuffers::WIPOffset<Hash<'a >>>,
+}
+impl<'a> Default for CheckpointBeaconArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        CheckpointBeaconArgs {
+            checkpoint: 0,
+            hash_prev_block: None, // required field
+        }
+    }
+}
+pub struct CheckpointBeaconBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> CheckpointBeaconBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_checkpoint(&mut self, checkpoint: u32) {
+    self.fbb_.push_slot::<u32>(CheckpointBeacon::VT_CHECKPOINT, checkpoint, 0);
+  }
+  #[inline]
+  pub fn add_hash_prev_block(&mut self, hash_prev_block: flatbuffers::WIPOffset<Hash<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(CheckpointBeacon::VT_HASH_PREV_BLOCK, hash_prev_block);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> CheckpointBeaconBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    CheckpointBeaconBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<CheckpointBeacon<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, CheckpointBeacon::VT_HASH_PREV_BLOCK,"hash_prev_block");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum BlockHeaderOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct BlockHeader<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for BlockHeader<'a> {
+    type Inner = BlockHeader<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> BlockHeader<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        BlockHeader {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args BlockHeaderArgs<'args>) -> flatbuffers::WIPOffset<BlockHeader<'bldr>> {
+      let mut builder = BlockHeaderBuilder::new(_fbb);
+      if let Some(x) = args.proof { builder.add_proof(x); }
+      if let Some(x) = args.hash_merkle_root { builder.add_hash_merkle_root(x); }
+      if let Some(x) = args.beacon { builder.add_beacon(x); }
+      builder.add_version(args.version);
+      builder.finish()
+    }
+
+    pub const VT_VERSION: flatbuffers::VOffsetT = 4;
+    pub const VT_BEACON: flatbuffers::VOffsetT = 6;
+    pub const VT_HASH_MERKLE_ROOT: flatbuffers::VOffsetT = 8;
+    pub const VT_PROOF: flatbuffers::VOffsetT = 10;
+
+  #[inline]
+  pub fn version(&self) -> u32 {
+    self._tab.get::<u32>(BlockHeader::VT_VERSION, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn beacon(&self) -> CheckpointBeacon<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<CheckpointBeacon<'a>>>(BlockHeader::VT_BEACON, None).unwrap()
+  }
+  #[inline]
+  pub fn hash_merkle_root(&self) -> Hash<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(BlockHeader::VT_HASH_MERKLE_ROOT, None).unwrap()
+  }
+  #[inline]
+  pub fn proof(&self) -> LeadershipProof<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<LeadershipProof<'a>>>(BlockHeader::VT_PROOF, None).unwrap()
+  }
+}
+
+pub struct BlockHeaderArgs<'a> {
+    pub version: u32,
+    pub beacon: Option<flatbuffers::WIPOffset<CheckpointBeacon<'a >>>,
+    pub hash_merkle_root: Option<flatbuffers::WIPOffset<Hash<'a >>>,
+    pub proof: Option<flatbuffers::WIPOffset<LeadershipProof<'a >>>,
+}
+impl<'a> Default for BlockHeaderArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        BlockHeaderArgs {
+            version: 0,
+            beacon: None, // required field
+            hash_merkle_root: None, // required field
+            proof: None, // required field
+        }
+    }
+}
+pub struct BlockHeaderBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> BlockHeaderBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_version(&mut self, version: u32) {
+    self.fbb_.push_slot::<u32>(BlockHeader::VT_VERSION, version, 0);
+  }
+  #[inline]
+  pub fn add_beacon(&mut self, beacon: flatbuffers::WIPOffset<CheckpointBeacon<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<CheckpointBeacon>>(BlockHeader::VT_BEACON, beacon);
+  }
+  #[inline]
+  pub fn add_hash_merkle_root(&mut self, hash_merkle_root: flatbuffers::WIPOffset<Hash<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(BlockHeader::VT_HASH_MERKLE_ROOT, hash_merkle_root);
+  }
+  #[inline]
+  pub fn add_proof(&mut self, proof: flatbuffers::WIPOffset<LeadershipProof<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<LeadershipProof>>(BlockHeader::VT_PROOF, proof);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> BlockHeaderBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    BlockHeaderBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<BlockHeader<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, BlockHeader::VT_BEACON,"beacon");
+    self.fbb_.required(o, BlockHeader::VT_HASH_MERKLE_ROOT,"hash_merkle_root");
+    self.fbb_.required(o, BlockHeader::VT_PROOF,"proof");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum TransactionOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Transaction<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Transaction<'a> {
+    type Inner = Transaction<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Transaction<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Transaction {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        _args: &'args TransactionArgs) -> flatbuffers::WIPOffset<Transaction<'bldr>> {
+      let mut builder = TransactionBuilder::new(_fbb);
+      builder.finish()
+    }
+
+}
+
+pub struct TransactionArgs {
+}
+impl<'a> Default for TransactionArgs {
+    #[inline]
+    fn default() -> Self {
+        TransactionArgs {
+        }
+    }
+}
+pub struct TransactionBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> TransactionBuilder<'a, 'b> {
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> TransactionBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    TransactionBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Transaction<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum BlockOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Block<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Block<'a> {
+    type Inner = Block<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Block<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Block {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args BlockArgs<'args>) -> flatbuffers::WIPOffset<Block<'bldr>> {
+      let mut builder = BlockBuilder::new(_fbb);
+      if let Some(x) = args.txns { builder.add_txns(x); }
+      builder.add_txn_count(args.txn_count);
+      if let Some(x) = args.header { builder.add_header(x); }
+      builder.finish()
+    }
+
+    pub const VT_HEADER: flatbuffers::VOffsetT = 4;
+    pub const VT_TXN_COUNT: flatbuffers::VOffsetT = 6;
+    pub const VT_TXNS: flatbuffers::VOffsetT = 8;
+
+  #[inline]
+  pub fn header(&self) -> BlockHeader<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<BlockHeader<'a>>>(Block::VT_HEADER, None).unwrap()
+  }
+  #[inline]
+  pub fn txn_count(&self) -> u32 {
+    self._tab.get::<u32>(Block::VT_TXN_COUNT, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn txns(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<Transaction<'a>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Transaction<'a>>>>>(Block::VT_TXNS, None).unwrap()
+  }
+}
+
+pub struct BlockArgs<'a> {
+    pub header: Option<flatbuffers::WIPOffset<BlockHeader<'a >>>,
+    pub txn_count: u32,
+    pub txns: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Transaction<'a >>>>>,
+}
+impl<'a> Default for BlockArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        BlockArgs {
+            header: None, // required field
+            txn_count: 0,
+            txns: None, // required field
+        }
+    }
+}
+pub struct BlockBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> BlockBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_header(&mut self, header: flatbuffers::WIPOffset<BlockHeader<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<BlockHeader>>(Block::VT_HEADER, header);
+  }
+  #[inline]
+  pub fn add_txn_count(&mut self, txn_count: u32) {
+    self.fbb_.push_slot::<u32>(Block::VT_TXN_COUNT, txn_count, 0);
+  }
+  #[inline]
+  pub fn add_txns(&mut self, txns: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Transaction<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Block::VT_TXNS, txns);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> BlockBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    BlockBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Block<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, Block::VT_HEADER,"header");
+    self.fbb_.required(o, Block::VT_TXNS,"txns");
     flatbuffers::WIPOffset::new(o.value())
   }
 }
