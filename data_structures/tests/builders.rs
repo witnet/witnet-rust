@@ -1,7 +1,49 @@
 use std::net::SocketAddr;
 
 use witnet_data_structures::builders::*;
+use witnet_data_structures::chain::*;
 use witnet_data_structures::types::*;
+
+#[test]
+fn builders_build_block() {
+    // Prepare block header
+    let header = BlockHeader {
+        version: 0x0000_0001,
+        beacon: CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: Hash::SHA256([0; 32]),
+        },
+        hash_merkle_root: Hash::SHA256([0; 32]),
+    };
+    let signature = Signature::Secp256k1(Secp256k1Signature {
+        r: [0; 32],
+        s: [0; 32],
+        v: 0,
+    });
+    let header_with_proof = BlockHeaderWithProof {
+        version: header.version,
+        beacon: header.beacon,
+        hash_merkle_root: header.hash_merkle_root,
+        proof: LeadershipProof {
+            block_sig: Some(signature),
+            influence: 0,
+        },
+    };
+    let txns: Vec<Transaction> = vec![Transaction];
+
+    // Expected message
+    let msg = Message {
+        kind: Command::Block(Block {
+            header: header_with_proof.clone(),
+            txn_count: txns.len() as u32,
+            txns: txns.clone(),
+        }),
+        magic: MAGIC,
+    };
+
+    // Check that the build_block function builds the expected message
+    assert_eq!(msg, Message::build_block(header_with_proof, txns));
+}
 
 #[test]
 fn builders_build_get_peers() {
