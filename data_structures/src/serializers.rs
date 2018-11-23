@@ -2,14 +2,25 @@ extern crate flatbuffers;
 
 use std::convert::Into;
 
+use crate::chain::{
+    Block, BlockHeaderWithProof, CheckpointBeacon, Hash, LeadershipProof, Secp256k1Signature,
+    Signature, Transaction, SHA256,
+};
 use crate::flatbuffers::protocol_generated::protocol::{
-    get_root_as_message, Address as FlatBufferAddress, AddressArgs, Command as FlatBuffersCommand,
-    GetPeers as FlatBuffersGetPeers, GetPeersArgs, IpAddress as FlatBuffersIpAddress,
-    Ipv4 as FlatBuffersIpv4, Ipv4Args as FlatBuffersIpv4Args, Ipv6 as FlatBuffersIpv6,
-    Ipv6Args as FlatBuffersIpv6Args, Message as FlatBuffersMessage, MessageArgs,
-    Peers as FlatBuffersPeers, PeersArgs, Ping as FlatBuffersPing, PingArgs,
-    Pong as FlatBuffersPong, PongArgs, Verack as FlatBuffersVerack, VerackArgs,
-    Version as FlatBuffersVersion, VersionArgs,
+    get_root_as_message, Address as FlatBufferAddress, AddressArgs, Block as FlatBuffersBlock,
+    BlockArgs, BlockHeader as FlatBuffersBlockHeader, BlockHeaderArgs,
+    CheckpointBeacon as FlatBuffersCheckpointBeacon,
+    CheckpointBeaconArgs as FlatBuffersCheckpointBeaconArgs, Command as FlatBuffersCommand,
+    GetPeers as FlatBuffersGetPeers, GetPeersArgs, Hash as FlatBuffersHash,
+    HashArgs as FlatBuffersHashArgs, HashType as FlatBuffersHashType,
+    IpAddress as FlatBuffersIpAddress, Ipv4 as FlatBuffersIpv4, Ipv4Args as FlatBuffersIpv4Args,
+    Ipv6 as FlatBuffersIpv6, Ipv6Args as FlatBuffersIpv6Args,
+    LeadershipProof as FlatBuffersLeadershipProof, LeadershipProofArgs,
+    Message as FlatBuffersMessage, MessageArgs, Peers as FlatBuffersPeers, PeersArgs,
+    Ping as FlatBuffersPing, PingArgs, Pong as FlatBuffersPong, PongArgs,
+    Secp256k1Signature as FlatBuffersSecp256k1Signature, Secp256k1SignatureArgs,
+    Signature as FlatBuffersSignature, Transaction as FlatBuffersTransaction, TransactionArgs,
+    Verack as FlatBuffersVerack, VerackArgs, Version as FlatBuffersVersion, VersionArgs,
 };
 use crate::types::{
     Address, Command, GetPeers,
@@ -63,8 +74,8 @@ struct PongFlatbufferArgs {
 
 #[derive(Debug, Clone, Copy)]
 struct PongWitnetArgs {
-    nonce: u64,
     magic: u16,
+    nonce: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -79,16 +90,24 @@ struct VerackWitnetArgs {
 
 #[derive(Debug, Clone, Copy)]
 struct VersionFlatbufferArgs<'a> {
+    magic: u16,
     capabilities: u64,
     genesis: u64,
     last_epoch: u32,
-    magic: u16,
     nonce: u64,
     receiver_address: &'a Address,
     sender_address: &'a Address,
     timestamp: i64,
     user_agent: &'a str,
     version: u32,
+}
+
+#[derive(Debug, Clone)]
+struct BlockFlatbufferArgs<'a> {
+    magic: u16,
+    header: BlockHeaderWithProof,
+    txn_count: u32,
+    txns: &'a [Transaction],
 }
 
 #[derive(Debug, Clone)]
@@ -173,6 +192,88 @@ impl TryFrom<Vec<u8>> for Message {
                     }
                 })
                 .ok_or(""),
+            FlatBuffersCommand::Block => message
+                .command_as_block()
+                .map(|block| {
+                    // Get Header
+                    let header_ftb = block.header();
+                    let version = header_ftb.version();
+                    // Get CheckpointBeacon
+                    let hash: Hash = match header_ftb.beacon().hash_prev_block().type_() {
+                        FlatBuffersHashType::SHA256 => {
+                            let mut sha256: SHA256 = [0; 32];
+                            let sha256_bytes = header_ftb.beacon().hash_prev_block().bytes();
+                            sha256.copy_from_slice(sha256_bytes);
+
+                            Hash::SHA256(sha256)
+                        }
+                    };
+                    let beacon = CheckpointBeacon {
+                        checkpoint: header_ftb.beacon().checkpoint(),
+                        hash_prev_block: hash,
+                    };
+                    // Get hash merkle root
+                    let hash_merkle_root: Hash = match header_ftb.hash_merkle_root().type_() {
+                        FlatBuffersHashType::SHA256 => {
+                            let mut sha256: SHA256 = [0; 32];
+                            let sha256_bytes = header_ftb.hash_merkle_root().bytes();
+                            sha256.copy_from_slice(sha256_bytes);
+
+                            Hash::SHA256(sha256)
+                        }
+                    };
+                    // Get proof of leadership
+                    let signature = header_ftb
+                        .proof()
+                        .block_sig_as_secp_256k_1signature()
+                        .and_then(|signature_ftb| {
+                            let mut signature = Secp256k1Signature {
+                                r: [0; 32],
+                                s: [0; 32],
+                                v: 0,
+                            };
+                            signature.r.copy_from_slice(&signature_ftb.r()[0..32]);
+                            signature.s.copy_from_slice(&signature_ftb.s()[0..32]);
+                            signature.v = signature_ftb.s()[32];
+
+                            Some(signature)
+                        });
+                    let influence = header_ftb.proof().influence();
+                    let proof = LeadershipProof {
+                        block_sig: Some(Signature::Secp256k1(signature.unwrap())),
+                        influence,
+                    };
+                    // Create BlockHeaderWithProof
+                    let header = BlockHeaderWithProof {
+                        version,
+                        beacon,
+                        hash_merkle_root,
+                        proof,
+                    };
+                    // Get transaction count
+                    let txn_count = block.txn_count();
+                    // Get transactions
+                    let len = block.txns().len();
+                    let mut counter = 0;
+                    let mut _tx_ftb;
+                    let mut txns = Vec::new();
+                    while counter < len {
+                        _tx_ftb = block.txns().get(counter);
+                        // Call create_transaction(ftb_tx) in order to get native Transaction
+                        txns.push(Transaction);
+                        counter += 1;
+                    }
+                    // Create Message with command
+                    Message {
+                        kind: Command::Block(Block {
+                            header,
+                            txn_count,
+                            txns,
+                        }),
+                        magic,
+                    }
+                })
+                .ok_or(""),
             FlatBuffersCommand::NONE => Err(""),
         }
     }
@@ -182,7 +283,7 @@ impl Into<Vec<u8>> for Message {
     fn into(self) -> Vec<u8> {
         let mut builder = flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
         // Create flatbuffer to encode a witnet message
-        match &self.kind {
+        match self.kind {
             Command::GetPeers(GetPeers) => create_get_peers_flatbuffer(
                 &mut builder,
                 GetPeersFlatbufferArgs { magic: self.magic },
@@ -191,21 +292,21 @@ impl Into<Vec<u8>> for Message {
                 &mut builder,
                 PeersFlatbufferArgs {
                     magic: self.magic,
-                    peers,
+                    peers: &peers,
                 },
             ),
             Command::Ping(Ping { nonce }) => create_ping_flatbuffer(
                 &mut builder,
                 PingFlatbufferArgs {
                     magic: self.magic,
-                    nonce: *nonce,
+                    nonce,
                 },
             ),
             Command::Pong(Pong { nonce }) => create_pong_flatbuffer(
                 &mut builder,
                 PongFlatbufferArgs {
                     magic: self.magic,
-                    nonce: *nonce,
+                    nonce,
                 },
             ),
             Command::Verack(Verack) => {
@@ -225,15 +326,28 @@ impl Into<Vec<u8>> for Message {
                 &mut builder,
                 VersionFlatbufferArgs {
                     magic: self.magic,
-                    version: *version,
-                    timestamp: *timestamp,
-                    capabilities: *capabilities,
-                    sender_address,
-                    receiver_address,
-                    user_agent,
-                    last_epoch: *last_epoch,
-                    genesis: *genesis,
-                    nonce: *nonce,
+                    version,
+                    timestamp,
+                    capabilities,
+                    sender_address: &sender_address,
+                    receiver_address: &receiver_address,
+                    user_agent: &user_agent,
+                    last_epoch,
+                    genesis,
+                    nonce,
+                },
+            ),
+            Command::Block(Block {
+                header,
+                txn_count,
+                txns,
+            }) => create_block_flatbuffer(
+                &mut builder,
+                BlockFlatbufferArgs {
+                    magic: self.magic,
+                    header,
+                    txn_count,
+                    txns: &txns,
                 },
             ),
         }
@@ -579,4 +693,107 @@ fn create_version_message(version_args: VersionWitnetArgs) -> Message {
         }),
         magic: version_args.magic,
     }
+}
+
+// Create a block flatbuffer to encode a witnet's version message
+fn create_block_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    block_args: BlockFlatbufferArgs,
+) -> Vec<u8> {
+    // Create checkpoint beacon flatbuffer
+    let hash_prev_block_args = match block_args.header.beacon.hash_prev_block {
+        Hash::SHA256(hash) => FlatBuffersHashArgs {
+            type_: FlatBuffersHashType::SHA256,
+            bytes: Some(builder.create_vector(&hash)),
+        },
+    };
+    let hash_prev_block = Some(FlatBuffersHash::create(builder, &hash_prev_block_args));
+    let beacon = Some(FlatBuffersCheckpointBeacon::create(
+        builder,
+        &FlatBuffersCheckpointBeaconArgs {
+            checkpoint: block_args.header.beacon.checkpoint,
+            hash_prev_block,
+        },
+    ));
+    // Create hash merkle root flatbuffer
+    let hash_merkle_root_args = match block_args.header.hash_merkle_root {
+        Hash::SHA256(hash) => FlatBuffersHashArgs {
+            type_: FlatBuffersHashType::SHA256,
+            bytes: Some(builder.create_vector(&hash)),
+        },
+    };
+    let hash_merkle_root = Some(FlatBuffersHash::create(builder, &hash_merkle_root_args));
+    // Create proof of leadership flatbuffer
+    let block_sig_type =
+        block_args
+            .header
+            .proof
+            .block_sig
+            .clone()
+            .map(|signature| match signature {
+                Signature::Secp256k1(_) => FlatBuffersSignature::Secp256k1Signature,
+            });
+    let block_sig = block_args
+        .header
+        .proof
+        .block_sig
+        .map(|signature| match signature {
+            Signature::Secp256k1(secp256k1) => {
+                let mut s = secp256k1.s.to_vec();
+                s.push(secp256k1.v);
+                let r_ftb = Some(builder.create_vector(&secp256k1.r));
+                let s_ftb = Some(builder.create_vector(&s));
+
+                FlatBuffersSecp256k1Signature::create(
+                    builder,
+                    &Secp256k1SignatureArgs { r: r_ftb, s: s_ftb },
+                )
+                .as_union_value()
+            }
+        });
+    let proof = Some(FlatBuffersLeadershipProof::create(
+        builder,
+        &LeadershipProofArgs {
+            block_sig_type: block_sig_type.unwrap_or(FlatBuffersSignature::NONE),
+            block_sig,
+            influence: block_args.header.proof.influence,
+        },
+    ));
+    // Create block header flatbuffer
+    let header = Some(FlatBuffersBlockHeader::create(
+        builder,
+        &BlockHeaderArgs {
+            version: block_args.header.version,
+            beacon,
+            hash_merkle_root,
+            proof,
+        },
+    ));
+    // Create transaction array flatbuffer
+    let txns: Vec<flatbuffers::WIPOffset<FlatBuffersTransaction>> = block_args
+        .txns
+        .iter()
+        .map(|_tx: &Transaction| FlatBuffersTransaction::create(builder, &TransactionArgs {}))
+        .collect();
+    let txns_ftb = Some(builder.create_vector(&txns));
+    // Create block command flatbuffer
+    let block_command = FlatBuffersBlock::create(
+        builder,
+        &BlockArgs {
+            header,
+            txn_count: block_args.txn_count,
+            txns: txns_ftb,
+        },
+    );
+    // Create message flatbuffer
+    let message = FlatBuffersMessage::create(
+        builder,
+        &MessageArgs {
+            magic: block_args.magic,
+            command_type: FlatBuffersCommand::Block,
+            command: Some(block_command.as_union_value()),
+        },
+    );
+
+    build_flatbuffer(builder, message)
 }
