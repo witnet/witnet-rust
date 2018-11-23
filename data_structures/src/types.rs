@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::chain::Block;
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Command {
     GetPeers(GetPeers),
@@ -8,6 +10,7 @@ pub enum Command {
     Pong(Pong),
     Verack(Verack),
     Version(Version),
+    Block(Block),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -56,6 +59,7 @@ impl fmt::Display for Command {
                 Command::Pong(_) => "PONG",
                 Command::Verack(_) => "VERACK",
                 Command::Version(_) => "VERSION",
+                Command::Block(_) => "VERSION",
             }
         )
     }

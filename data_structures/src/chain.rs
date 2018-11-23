@@ -56,18 +56,93 @@ pub struct CheckpointBeacon {
     /// The serial number for an epoch
     pub checkpoint: Epoch,
     /// The 256-bit hash of the previous block header
-    pub hash_prev_block: Vec<u8>,
+    pub hash_prev_block: Hash,
 }
 
 impl Default for CheckpointBeacon {
     fn default() -> CheckpointBeacon {
         CheckpointBeacon {
-            checkpoint: Epoch(0),
+            checkpoint: 0,
             hash_prev_block: vec![0; 32],
         }
     }
 }
 
 /// Epoch id (starting from 0)
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Ord, Eq, Serialize, Deserialize)]
-pub struct Epoch(pub u64);
+pub type Epoch = u64;
+
+/// Block data structure
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Block {
+    /// The header of the block
+    pub header: BlockHeaderWithProof,
+    /// The total number of transactions of the block
+    pub txn_count: u32,
+    /// A non-empty list of transactions
+    pub txns: Vec<Transaction>,
+}
+
+/// Block header structure
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct BlockHeader {
+    /// The block version number indicating the block validation rules
+    pub version: u32,
+    /// A checkpoint beacon for the epoch that this block is closing
+    pub beacon: CheckpointBeacon,
+    /// A 256-bit hash based on all of the transactions committed to this block
+    pub hash_merkle_root: Hash,
+}
+
+/// Block header structure with proof of existence
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct BlockHeaderWithProof {
+    /// The block version number indicating the block validation rules
+    pub version: u32,
+    /// A checkpoint beacon for the epoch that this block is closing
+    pub beacon: CheckpointBeacon,
+    /// A 256-bit hash based on all of the transactions committed to this block
+    pub hash_merkle_root: Hash,
+    /// A miner-provided proof of leadership
+    pub proof: LeadershipProof,
+}
+
+/// Proof of leadership structure
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct LeadershipProof {
+    /// An enveloped signature of the block header except the `proof` part
+    pub block_sig: Option<Signature>,
+    /// The miner influence as of last checkpoint
+    pub influence: u64,
+}
+
+/// Digital signatures structure (based on supported cryptosystems)
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum Signature {
+    /// ECDSA over secp256k1
+    Secp256k1(Secp256k1Signature),
+}
+
+/// ECDSA (over secp256k1) signature
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Secp256k1Signature {
+    /// The signature value R
+    pub r: [u8; 32],
+    /// The signature value S
+    pub s: [u8; 32],
+    /// 1 byte prefix of value S
+    pub v: u8,
+}
+
+/// Hash
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum Hash {
+    /// SHA-256 Hash
+    SHA256(SHA256),
+}
+
+/// SHA-256 Hash
+pub type SHA256 = [u8; 32];
+
+// FIXME(#99): define Transaction as defined in issue
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Transaction;
