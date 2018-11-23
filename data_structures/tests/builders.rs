@@ -7,7 +7,7 @@ use witnet_data_structures::types::*;
 fn builders_build_get_peers() {
     // Expected message
     let msg = Message {
-        kind: Command::GetPeers,
+        kind: Command::GetPeers(GetPeers),
         magic: MAGIC,
     };
 
@@ -25,7 +25,7 @@ fn builders_build_peers() {
     };
     addresses.push(address);
     let msg = Message {
-        kind: Command::Peers { peers: addresses },
+        kind: Command::Peers(Peers { peers: addresses }),
         magic: MAGIC,
     };
 
@@ -40,7 +40,7 @@ fn builders_build_peers() {
 fn builders_build_ping() {
     // Expected message (except nonce which is random)
     let msg = Message {
-        kind: Command::Ping { nonce: 1234 },
+        kind: Command::Ping(Ping { nonce: 1234 }),
         magic: MAGIC,
     };
 
@@ -50,7 +50,7 @@ fn builders_build_ping() {
     // Check that the build_ping function builds the expected message
     assert_eq!(built_msg.magic, msg.magic);
     match built_msg.kind {
-        Command::Ping { nonce: _ } => assert!(true),
+        Command::Ping(Ping { nonce: _ }) => assert!(true),
         _ => assert!(false, "Expected ping, found another type"),
     };
 }
@@ -60,7 +60,7 @@ fn builders_build_pong() {
     // Expected message
     let nonce = 1234;
     let msg = Message {
-        kind: Command::Pong { nonce },
+        kind: Command::Pong(Pong { nonce }),
         magic: MAGIC,
     };
 
@@ -80,8 +80,8 @@ fn builders_build_version() {
         ip: IpAddress::Ipv4 { ip: 3232235778 },
         port: 8001,
     };
-    let version_cmd = Command::Version {
-        version: VERSION,
+    let version_cmd = Command::Version(Version {
+        version: PROTOCOL_VERSION,
         timestamp: 1234,
         capabilities: CAPABILITIES,
         sender_address: sender_addr,
@@ -90,7 +90,7 @@ fn builders_build_version() {
         last_epoch: hardcoded_last_epoch,
         genesis: GENESIS,
         nonce: 1234,
-    };
+    });
     let msg = Message {
         kind: version_cmd,
         magic: MAGIC,
@@ -105,7 +105,7 @@ fn builders_build_version() {
     // Check that the build_version function builds the expected message
     assert_eq!(built_msg.magic, msg.magic);
     match &built_msg.kind {
-        Command::Version {
+        Command::Version(Version {
             version,
             timestamp: _,
             capabilities,
@@ -115,7 +115,7 @@ fn builders_build_version() {
             last_epoch,
             genesis,
             nonce: _,
-        } if *version == VERSION
+        }) if *version == PROTOCOL_VERSION
             && *capabilities == CAPABILITIES
             && *sender_address == sender_addr
             && *receiver_address == receiver_addr
@@ -133,7 +133,7 @@ fn builders_build_version() {
 fn builders_build_verack() {
     // Expected message
     let msg = Message {
-        kind: Command::Verack,
+        kind: Command::Verack(Verack),
         magic: MAGIC,
     };
 

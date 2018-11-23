@@ -1,11 +1,13 @@
-use witnet_data_structures::types;
+use witnet_data_structures::types::{
+    Address, Command, GetPeers, IpAddress, Message, Peers, Ping, Pong, Verack, Version,
+};
 
 use witnet_data_structures::serializers::TryFrom;
 
 #[test]
 fn message_ping_to_bytes() {
-    let msg = types::Message {
-        kind: types::Command::Ping { nonce: 7 },
+    let msg = Message {
+        kind: Command::Ping(Ping { nonce: 7 }),
         magic: 0,
     };
     let expected_buf: Vec<u8> = [
@@ -25,30 +27,30 @@ fn message_ping_from_bytes() {
         0, 6, 0, 12, 0, 4, 0, 6, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0,
     ]
     .to_vec();
-    let expected_msg = types::Message {
-        kind: types::Command::Ping { nonce: 7 },
+    let expected_msg = Message {
+        kind: Command::Ping(Ping { nonce: 7 }),
         magic: 0,
     };
 
-    assert_eq!(types::Message::try_from(buff).unwrap(), expected_msg);
+    assert_eq!(Message::try_from(buff).unwrap(), expected_msg);
 }
 
 #[test]
 fn message_ping_encode_decode() {
-    let msg = types::Message {
-        kind: types::Command::Ping { nonce: 5 },
+    let msg = Message {
+        kind: Command::Ping(Ping { nonce: 5 }),
         magic: 1,
     };
     let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.into();
 
-    assert_eq!(cloned_msg, types::Message::try_from(result).unwrap());
+    assert_eq!(cloned_msg, Message::try_from(result).unwrap());
 }
 
 #[test]
 fn message_pong_to_bytes() {
-    let msg = types::Message {
-        kind: types::Command::Pong { nonce: 7 },
+    let msg = Message {
+        kind: Command::Pong(Pong { nonce: 7 }),
         magic: 0,
     };
     let expected_buf: Vec<u8> = [
@@ -57,7 +59,6 @@ fn message_pong_to_bytes() {
     ]
     .to_vec();
     let result: Vec<u8> = msg.into();
-
     assert_eq!(result, expected_buf);
 }
 
@@ -68,30 +69,30 @@ fn message_pong_from_bytes() {
         0, 6, 0, 12, 0, 4, 0, 6, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0,
     ]
     .to_vec();
-    let expected_msg = types::Message {
-        kind: types::Command::Pong { nonce: 7 },
+    let expected_msg = Message {
+        kind: Command::Pong(Pong { nonce: 7 }),
         magic: 0,
     };
 
-    assert_eq!(types::Message::try_from(buff).unwrap(), expected_msg);
+    assert_eq!(Message::try_from(buff).unwrap(), expected_msg);
 }
 
 #[test]
 fn message_pong_encode_decode() {
-    let msg = types::Message {
-        kind: types::Command::Pong { nonce: 5 },
+    let msg = Message {
+        kind: Command::Pong(Pong { nonce: 5 }),
         magic: 1,
     };
     let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.into();
 
-    assert_eq!(cloned_msg, types::Message::try_from(result).unwrap());
+    assert_eq!(cloned_msg, Message::try_from(result).unwrap());
 }
 
 #[test]
 fn message_get_peers_to_bytes() {
-    let msg = types::Message {
-        kind: types::Command::GetPeers,
+    let msg = Message {
+        kind: Command::GetPeers(GetPeers),
         magic: 0,
     };
     let expected_buf: Vec<u8> = [
@@ -111,36 +112,36 @@ fn message_get_peers_from_bytes() {
         0, 4, 0, 4, 0, 0, 0,
     ]
     .to_vec();
-    let expected_msg = types::Message {
-        kind: types::Command::GetPeers,
+    let expected_msg = Message {
+        kind: Command::GetPeers(GetPeers),
         magic: 0,
     };
 
-    assert_eq!(types::Message::try_from(buf).unwrap(), expected_msg);
+    assert_eq!(Message::try_from(buf).unwrap(), expected_msg);
 }
 
 #[test]
 fn message_get_peers_encode_decode() {
-    let msg = types::Message {
-        kind: types::Command::GetPeers,
+    let msg = Message {
+        kind: Command::GetPeers(GetPeers),
         magic: 0,
     };
     let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.into();
 
-    assert_eq!(cloned_msg, types::Message::try_from(result).unwrap());
+    assert_eq!(cloned_msg, Message::try_from(result).unwrap());
 }
 
 #[test]
 fn message_get_peer_to_bytes() {
     let mut addresses = Vec::new();
-    let address: types::Address = types::Address {
-        ip: types::IpAddress::Ipv4 { ip: 3232235777 },
+    let address: Address = Address {
+        ip: IpAddress::Ipv4 { ip: 3232235777 },
         port: 8000,
     };
     addresses.push(address);
-    let msg = types::Message {
-        kind: types::Command::Peers { peers: addresses },
+    let msg = Message {
+        kind: Command::Peers(Peers { peers: addresses }),
         magic: 0,
     };
     let expected_buf: Vec<u8> = [
@@ -164,31 +165,31 @@ fn message_peer_from_bytes() {
         192,
     ]
     .to_vec();
-    let address: types::Address = types::Address {
-        ip: types::IpAddress::Ipv4 { ip: 3232235777 },
+    let address: Address = Address {
+        ip: IpAddress::Ipv4 { ip: 3232235777 },
         port: 8000,
     };
     let mut addresses = Vec::new();
 
     addresses.push(address);
 
-    let expected_msg = types::Message {
-        kind: types::Command::Peers { peers: addresses },
+    let expected_msg = Message {
+        kind: Command::Peers(Peers { peers: addresses }),
         magic: 0,
     };
 
-    assert_eq!(types::Message::try_from(buf).unwrap(), expected_msg);
+    assert_eq!(Message::try_from(buf).unwrap(), expected_msg);
 }
 
 #[test]
 fn message_get_peer_encode_decode() {
     let mut addresses = Vec::new();
-    let address_ipv4: types::Address = types::Address {
-        ip: types::IpAddress::Ipv4 { ip: 3232235777 },
+    let address_ipv4: Address = Address {
+        ip: IpAddress::Ipv4 { ip: 3232235777 },
         port: 8000,
     };
-    let address_ipv6: types::Address = types::Address {
-        ip: types::IpAddress::Ipv6 {
+    let address_ipv6: Address = Address {
+        ip: IpAddress::Ipv6 {
             ip0: 3232235777,
             ip1: 3232235776,
             ip2: 3232235778,
@@ -200,20 +201,20 @@ fn message_get_peer_encode_decode() {
     addresses.push(address_ipv4);
     addresses.push(address_ipv6);
 
-    let msg = types::Message {
-        kind: types::Command::Peers { peers: addresses },
+    let msg = Message {
+        kind: Command::Peers(Peers { peers: addresses }),
         magic: 0,
     };
     let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.into();
 
-    assert_eq!(cloned_msg, types::Message::try_from(result).unwrap());
+    assert_eq!(cloned_msg, Message::try_from(result).unwrap());
 }
 
 #[test]
 fn message_verack_to_bytes() {
-    let msg = types::Message {
-        kind: types::Command::Verack,
+    let msg = Message {
+        kind: Command::Verack(Verack),
         magic: 0,
     };
     let expected_buf: Vec<u8> = [
@@ -233,38 +234,38 @@ fn message_verack_from_bytes() {
         0, 4, 0, 4, 0, 0, 0,
     ]
     .to_vec();
-    let expected_msg = types::Message {
-        kind: types::Command::Verack,
+    let expected_msg = Message {
+        kind: Command::Verack(Verack),
         magic: 0,
     };
 
-    assert_eq!(types::Message::try_from(buf).unwrap(), expected_msg);
+    assert_eq!(Message::try_from(buf).unwrap(), expected_msg);
 }
 
 #[test]
 fn message_verack_encode_decode() {
-    let msg = types::Message {
-        kind: types::Command::Verack,
+    let msg = Message {
+        kind: Command::Verack(Verack),
         magic: 0,
     };
     let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.into();
 
-    assert_eq!(cloned_msg, types::Message::try_from(result).unwrap());
+    assert_eq!(cloned_msg, Message::try_from(result).unwrap());
 }
 
 #[test]
 fn message_version_to_bytes() {
-    let sender_address = types::Address {
-        ip: types::IpAddress::Ipv4 { ip: 3232235777 },
+    let sender_address = Address {
+        ip: IpAddress::Ipv4 { ip: 3232235777 },
         port: 8000,
     };
-    let receiver_address = types::Address {
-        ip: types::IpAddress::Ipv4 { ip: 3232235778 },
+    let receiver_address = Address {
+        ip: IpAddress::Ipv4 { ip: 3232235778 },
         port: 8001,
     };
-    let msg = types::Message {
-        kind: types::Command::Version {
+    let msg = Message {
+        kind: Command::Version(Version {
             version: 2,
             timestamp: 123,
             capabilities: 4,
@@ -274,7 +275,7 @@ fn message_version_to_bytes() {
             last_epoch: 8,
             genesis: 2,
             nonce: 1,
-        },
+        }),
         magic: 1,
     };
     let expected_buf: Vec<u8> = [
@@ -294,16 +295,16 @@ fn message_version_to_bytes() {
 
 #[test]
 fn message_version_from_bytes() {
-    let sender_address = types::Address {
-        ip: types::IpAddress::Ipv4 { ip: 3232235777 },
+    let sender_address = Address {
+        ip: IpAddress::Ipv4 { ip: 3232235777 },
         port: 8000,
     };
-    let receiver_address = types::Address {
-        ip: types::IpAddress::Ipv4 { ip: 3232235778 },
+    let receiver_address = Address {
+        ip: IpAddress::Ipv4 { ip: 3232235778 },
         port: 8001,
     };
-    let expected_msg = types::Message {
-        kind: types::Command::Version {
+    let expected_msg = Message {
+        kind: Command::Version(Version {
             version: 2,
             timestamp: 123,
             capabilities: 4,
@@ -313,7 +314,7 @@ fn message_version_from_bytes() {
             last_epoch: 8,
             genesis: 2,
             nonce: 1,
-        },
+        }),
         magic: 1,
     };
     let buf: Vec<u8> = [
@@ -327,21 +328,21 @@ fn message_version_from_bytes() {
     ]
     .to_vec();
 
-    assert_eq!(types::Message::try_from(buf).unwrap(), expected_msg);
+    assert_eq!(Message::try_from(buf).unwrap(), expected_msg);
 }
 
 #[test]
 fn message_version_encode_decode() {
-    let sender_address = types::Address {
-        ip: types::IpAddress::Ipv4 { ip: 3232235777 },
+    let sender_address = Address {
+        ip: IpAddress::Ipv4 { ip: 3232235777 },
         port: 8000,
     };
-    let receiver_address = types::Address {
-        ip: types::IpAddress::Ipv4 { ip: 3232235778 },
+    let receiver_address = Address {
+        ip: IpAddress::Ipv4 { ip: 3232235778 },
         port: 8001,
     };
-    let msg = types::Message {
-        kind: types::Command::Version {
+    let msg = Message {
+        kind: Command::Version(Version {
             version: 2,
             timestamp: 123,
             capabilities: 4,
@@ -351,11 +352,11 @@ fn message_version_encode_decode() {
             last_epoch: 8,
             genesis: 2,
             nonce: 1,
-        },
+        }),
         magic: 1,
     };
     let cloned_msg = msg.clone();
     let result: Vec<u8> = msg.into();
 
-    assert_eq!(cloned_msg, types::Message::try_from(result).unwrap());
+    assert_eq!(cloned_msg, Message::try_from(result).unwrap());
 }
