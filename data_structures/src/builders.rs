@@ -3,7 +3,7 @@ use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
-// use crate::chain::{Block, BlockHeader, CheckpointBeacon, Hash};
+use crate::chain::{Block, BlockHeaderWithProof, Transaction};
 use crate::types::{
     Address, Command, GetPeers, IpAddress, Message, Peers, Ping, Pong, Verack, Version,
 };
@@ -16,8 +16,8 @@ use witnet_util::timestamp::get_timestamp;
 /// Magic number
 pub const MAGIC: u16 = 0xABCD;
 
-/// Version
-pub const VERSION: u32 = 0x0000_0001;
+/// Protocol version (used in handshake)
+pub const PROTOCOL_VERSION: u32 = 0x0000_0001;
 
 /// Capabilities
 pub const CAPABILITIES: u64 = 0x0000_0000_0000_0001;
@@ -32,6 +32,15 @@ pub const GENESIS: u64 = 0x0123_4567_89AB_CDEF;
 // BUILDER PUBLIC FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////////////
 impl Message {
+    /// Function to build Block message
+    pub fn build_block(header: BlockHeaderWithProof, txns: Vec<Transaction>) -> Message {
+        Message::build_message(Command::Block(Block {
+            header,
+            txn_count: txns.len() as u32,
+            txns,
+        }))
+    }
+
     /// Function to build GetPeers messages
     pub fn build_get_peers() -> Message {
         Message::build_message(Command::GetPeers(GetPeers))
@@ -69,7 +78,7 @@ impl Message {
         last_epoch: u32,
     ) -> Message {
         Message::build_message(Command::Version(Version {
-            version: VERSION,
+            version: PROTOCOL_VERSION,
             timestamp: get_timestamp(),
             capabilities: CAPABILITIES,
             sender_address: to_address(sender_addr),
