@@ -20,6 +20,7 @@ At the moment, the available environments are: `testnet-1` and `mainnet`.
 | `storage`             | `db_path`                        | `".witnet-rust-testnet-1"` | Directory containing the database files                             |
 | `consensus_constants` | `checkpoint_zero_timestamp`      | `9_999_999_999_999`        | Timestamp at checkpoint 0 (the start of epoch 0)                    |
 | `consensus_constants` | `checkpoints_period_seconds`     | `90`                       | Seconds between the start of an epoch and the start of the next one |
+| `jsonrpc`             | `enabled`                        | `true`                     | Enable JSON-RPC server                                              |
 | `jsonrpc`             | `server_address`                 | `"127.0.0.1:21338"`        | JSON-RPC server socket address                                      |
 
 ## Defaults for Mainnet
@@ -36,4 +37,5 @@ At the moment, the available environments are: `testnet-1` and `mainnet`.
 | `storage`             | `db_path`                        | `".witnet-rust-mainnet"`   | Directory containing the database files                             |
 | `consensus_constants` | `checkpoint_zero_timestamp`      | `19_999_999_999_999`       | Timestamp at checkpoint 0 (the start of epoch 0)                    |
 | `consensus_constants` | `checkpoints_period_seconds`     | `90`                       | Seconds between the start of an epoch and the start of the next one |
+| `jsonrpc`             | `enabled`                        | `true`                     | Enable JSON-RPC server                                              |
 | `jsonrpc`             | `server_address`                 | `"127.0.0.1:11338"`        | JSON-RPC server socket address                                      |
