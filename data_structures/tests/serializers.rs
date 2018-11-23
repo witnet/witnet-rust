@@ -1,3 +1,4 @@
+use witnet_data_structures::chain::*;
 use witnet_data_structures::types::{
     Address, Command, GetPeers, IpAddress, Message, Peers, Ping, Pong, Verack, Version,
 };
@@ -352,6 +353,152 @@ fn message_version_encode_decode() {
             last_epoch: 8,
             genesis: 2,
             nonce: 1,
+        }),
+        magic: 1,
+    };
+    let cloned_msg = msg.clone();
+    let result: Vec<u8> = msg.into();
+
+    assert_eq!(cloned_msg, Message::try_from(result).unwrap());
+}
+
+#[test]
+fn message_block_to_bytes() {
+    let header = BlockHeader {
+        version: 0,
+        beacon: CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: Hash::SHA256([0; 32]),
+        },
+        hash_merkle_root: Hash::SHA256([0; 32]),
+    };
+    let signature = Signature::Secp256k1(Secp256k1Signature {
+        r: [0; 32],
+        s: [0; 32],
+        v: 0,
+    });
+    let header_with_proof = BlockHeaderWithProof {
+        version: header.version,
+        beacon: header.beacon,
+        hash_merkle_root: header.hash_merkle_root,
+        proof: LeadershipProof {
+            block_sig: Some(signature),
+            influence: 0,
+        },
+    };
+    let txns: Vec<Transaction> = vec![Transaction];
+    let msg = Message {
+        kind: Command::Block(Block {
+            header: header_with_proof.clone(),
+            txn_count: txns.len() as u32,
+            txns: txns.clone(),
+        }),
+        magic: 1,
+    };
+
+    let expected_buf: Vec<u8> = [
+        16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 6, 0, 5, 0, 8, 0, 10, 0, 0, 0, 0, 7, 1, 0, 16, 0, 0, 0, 0,
+        0, 10, 0, 16, 0, 4, 0, 8, 0, 12, 0, 10, 0, 0, 0, 40, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 1, 0,
+        0, 0, 8, 0, 0, 0, 4, 0, 4, 0, 4, 0, 0, 0, 12, 0, 16, 0, 0, 0, 4, 0, 8, 0, 12, 0, 12, 0, 0,
+        0, 172, 0, 0, 0, 124, 0, 0, 0, 12, 0, 0, 0, 8, 0, 12, 0, 7, 0, 8, 0, 8, 0, 0, 0, 0, 0, 0,
+        1, 12, 0, 0, 0, 8, 0, 12, 0, 4, 0, 8, 0, 8, 0, 0, 0, 48, 0, 0, 0, 4, 0, 0, 0, 33, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 204, 255, 255, 255, 4, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 248,
+        255, 255, 255, 12, 0, 0, 0, 8, 0, 8, 0, 0, 0, 4, 0, 8, 0, 0, 0, 4, 0, 0, 0, 32, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0,
+    ]
+    .to_vec();
+    let result: Vec<u8> = msg.into();
+
+    assert_eq!(result, expected_buf);
+}
+
+#[test]
+fn message_block_from_bytes() {
+    let buf: Vec<u8> = [
+        16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 6, 0, 5, 0, 8, 0, 10, 0, 0, 0, 0, 7, 1, 0, 16, 0, 0, 0, 0,
+        0, 10, 0, 16, 0, 4, 0, 8, 0, 12, 0, 10, 0, 0, 0, 40, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 1, 0,
+        0, 0, 8, 0, 0, 0, 4, 0, 4, 0, 4, 0, 0, 0, 12, 0, 16, 0, 0, 0, 4, 0, 8, 0, 12, 0, 12, 0, 0,
+        0, 172, 0, 0, 0, 124, 0, 0, 0, 12, 0, 0, 0, 8, 0, 12, 0, 7, 0, 8, 0, 8, 0, 0, 0, 0, 0, 0,
+        1, 12, 0, 0, 0, 8, 0, 12, 0, 4, 0, 8, 0, 8, 0, 0, 0, 48, 0, 0, 0, 4, 0, 0, 0, 33, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 204, 255, 255, 255, 4, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 248,
+        255, 255, 255, 12, 0, 0, 0, 8, 0, 8, 0, 0, 0, 4, 0, 8, 0, 0, 0, 4, 0, 0, 0, 32, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0,
+    ]
+    .to_vec();
+
+    let header = BlockHeader {
+        version: 0,
+        beacon: CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: Hash::SHA256([0; 32]),
+        },
+        hash_merkle_root: Hash::SHA256([0; 32]),
+    };
+    let signature = Signature::Secp256k1(Secp256k1Signature {
+        r: [0; 32],
+        s: [0; 32],
+        v: 0,
+    });
+    let header_with_proof = BlockHeaderWithProof {
+        version: header.version,
+        beacon: header.beacon,
+        hash_merkle_root: header.hash_merkle_root,
+        proof: LeadershipProof {
+            block_sig: Some(signature),
+            influence: 0,
+        },
+    };
+    let txns: Vec<Transaction> = vec![Transaction];
+    let expected_msg = Message {
+        kind: Command::Block(Block {
+            header: header_with_proof.clone(),
+            txn_count: txns.len() as u32,
+            txns: txns.clone(),
+        }),
+        magic: 1,
+    };
+
+    assert_eq!(Message::try_from(buf).unwrap(), expected_msg);
+}
+
+#[test]
+fn message_block_encode_decode() {
+    let header = BlockHeader {
+        version: 0,
+        beacon: CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: Hash::SHA256([0; 32]),
+        },
+        hash_merkle_root: Hash::SHA256([0; 32]),
+    };
+    let signature = Signature::Secp256k1(Secp256k1Signature {
+        r: [0; 32],
+        s: [0; 32],
+        v: 0,
+    });
+    let header_with_proof = BlockHeaderWithProof {
+        version: header.version,
+        beacon: header.beacon,
+        hash_merkle_root: header.hash_merkle_root,
+        proof: LeadershipProof {
+            block_sig: Some(signature),
+            influence: 0,
+        },
+    };
+    let txns: Vec<Transaction> = vec![Transaction];
+    let msg = Message {
+        kind: Command::Block(Block {
+            header: header_with_proof.clone(),
+            txn_count: txns.len() as u32,
+            txns: txns.clone(),
         }),
         magic: 1,
     };
