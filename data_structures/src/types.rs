@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::chain::Block;
+use crate::chain::{Block, InvElem};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Command {
@@ -11,6 +11,7 @@ pub enum Command {
     Verack(Verack),
     Version(Version),
     Block(Block),
+    Inv(Inv),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -47,6 +48,11 @@ pub struct Version {
     pub nonce: u64,
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct Inv {
+    pub inventory: Vec<InvElem>,
+}
+
 impl fmt::Display for Command {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -59,7 +65,8 @@ impl fmt::Display for Command {
                 Command::Pong(_) => "PONG",
                 Command::Verack(_) => "VERACK",
                 Command::Version(_) => "VERSION",
-                Command::Block(_) => "VERSION",
+                Command::Block(_) => "BLOCK",
+                Command::Inv(_) => "INV",
             }
         )
     }

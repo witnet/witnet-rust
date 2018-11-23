@@ -142,3 +142,12 @@ pub type SHA256 = [u8; 32];
 // FIXME(#99): define Transaction as defined in issue
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Transaction;
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum InvElem {
+    Error(Hash),
+    Tx(Hash),
+    Block(Hash),
+    DataRequest(Hash),
+    DataResult(Hash),
+}
