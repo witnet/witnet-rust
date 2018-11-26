@@ -6,7 +6,8 @@ use rand::{thread_rng, Rng};
 use crate::chain::{Block, BlockHeaderWithProof, InvVector, Transaction};
 
 use crate::types::{
-    Address, Command, GetPeers, Inv, IpAddress, Message, Peers, Ping, Pong, Verack, Version,
+    Address, Command, GetData, GetPeers, Inv, IpAddress, Message, Peers, Ping, Pong, Verack,
+    Version,
 };
 
 use witnet_util::timestamp::get_timestamp;
@@ -100,6 +101,13 @@ impl Message {
     pub fn build_inv(inv_vectors: Vec<InvVector>) -> Message {
         Message::build_message(Command::Inv(Inv {
             inventory: inv_vectors,
+        }))
+    }
+
+    /// Function to build GetData messages
+    pub fn build_get_data(inv_elems: Vec<InvElem>) -> Message {
+        Message::build_message(Command::GetData(GetData {
+            inventory: inv_elems,
         }))
     }
 
