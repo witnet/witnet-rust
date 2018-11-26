@@ -6,7 +6,7 @@ namespace Protocol;
 // MAIN TYPES
 /////////////////////////////////////////////////////////
 // List of available commands
-union Command (required) { Version, Verack, GetPeers, Peers, Ping, Pong, Block, Inv }
+union Command (required) { Version, Verack, GetPeers, Peers, Ping, Pong, Block, Inv, GetData }
 
 // Message format with header
 table Message {
@@ -127,4 +127,7 @@ table Inv {
     inventory: [InvVector] (required);
 }
 
+table GetData {
+    inventory: [InvElem] (required);
+}
 root_type Message;

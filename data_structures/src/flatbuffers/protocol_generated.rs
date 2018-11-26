@@ -26,11 +26,11 @@ pub enum Command {
   Pong = 6,
   Block = 7,
   Inv = 8,
-
+  GetData = 9,
 }
 
 const ENUM_MIN_COMMAND: u8 = 0;
-const ENUM_MAX_COMMAND: u8 = 8;
+const ENUM_MAX_COMMAND: u8 = 9;
 
 impl<'a> flatbuffers::Follow<'a> for Command {
   type Inner = Self;
@@ -64,7 +64,7 @@ impl flatbuffers::Push for Command {
 }
 
 #[allow(non_camel_case_types)]
-const ENUM_VALUES_COMMAND:[Command; 9] = [
+const ENUM_VALUES_COMMAND:[Command; 10] = [
   Command::NONE,
   Command::Version,
   Command::Verack,
@@ -73,11 +73,12 @@ const ENUM_VALUES_COMMAND:[Command; 9] = [
   Command::Ping,
   Command::Pong,
   Command::Block,
-  Command::Inv
+  Command::Inv,
+  Command::GetData
 ];
 
 #[allow(non_camel_case_types)]
-const ENUM_NAMES_COMMAND:[&'static str; 9] = [
+const ENUM_NAMES_COMMAND:[&'static str; 10] = [
     "NONE",
     "Version",
     "Verack",
@@ -86,7 +87,8 @@ const ENUM_NAMES_COMMAND:[&'static str; 9] = [
     "Ping",
     "Pong",
     "Block",
-    "Inv"
+    "Inv",
+    "GetData"
 ];
 
 pub fn enum_name_command(e: Command) -> &'static str {
@@ -479,6 +481,15 @@ impl<'a> Message<'a> {
     }
   }
 
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn command_as_get_data(&'a self) -> Option<GetData> {
+    if self.command_type() == Command::GetData {
+      Some(GetData::init_from_table(self.command()))
+    } else {
+      None
+    }
+  }
 }
 
 pub struct MessageArgs {
@@ -2188,6 +2199,83 @@ impl<'a: 'b, 'b> InvBuilder<'a, 'b> {
     self.fbb_.required(o, Inv::VT_INVENTORY,"inventory");
     flatbuffers::WIPOffset::new(o.value())
   }
+}
+
+pub enum GetDataOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct GetData<'a> {
+    pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for GetData<'a> {
+    type Inner = GetData<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> GetData<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        GetData {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args GetDataArgs<'args>) -> flatbuffers::WIPOffset<Inv<'bldr>> {
+        let mut builder = GetDataBuilder::new(_fbb);
+        if let Some(x) = args.inventory { builder.add_inventory(x); }
+        builder.finish()
+    }
+
+    pub const VT_INVENTORY: flatbuffers::VOffsetT = 4;
+
+    #[inline]
+    pub fn inventory(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvElem<'a>>> {
+        self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvElem<'a>>>>>(GetData::VT_INVENTORY, None).unwrap()
+    }
+}
+
+pub struct GetDataArgs<'a> {
+    pub inventory: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<InvElem<'a >>>>>,
+}
+impl<'a> Default for GetDataArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        GetDataArgs {
+            inventory: None, // required field
+        }
+    }
+}
+pub struct GetDataBuilder<'a: 'b, 'b> {
+    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GetDataBuilder<'a, 'b> {
+    #[inline]
+    pub fn add_inventory(&mut self, inventory: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<InvElem<'b >>>>) {
+        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GetData::VT_INVENTORY, inventory);
+    }
+    #[inline]
+    pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GetDataBuilder<'a, 'b> {
+        let start = _fbb.start_table();
+        GetDataBuilder {
+            fbb_: _fbb,
+            start_: start,
+        }
+    }
+    #[inline]
+    pub fn finish(self) -> flatbuffers::WIPOffset<Inv<'a>> {
+        let o = self.fbb_.end_table(self.start_);
+        self.fbb_.required(o, GetData::VT_INVENTORY,"inventory");
+        flatbuffers::WIPOffset::new(o.value())
+    }
 }
 
 #[inline]
