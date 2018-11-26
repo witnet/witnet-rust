@@ -10,6 +10,7 @@ use crate::actors::blocks_manager::BlocksManager;
 use crate::actors::config_manager::ConfigManager;
 use crate::actors::connections_manager::ConnectionsManager;
 use crate::actors::epoch_manager::EpochManager;
+use crate::actors::mempool_manager::MempoolManager;
 use crate::actors::peers_manager::PeersManager;
 use crate::actors::sessions_manager::SessionsManager;
 use crate::actors::storage_manager::StorageManager;
@@ -49,6 +50,10 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Start blocks manager actor
     let blocks_manager_addr = BlocksManager::default().start();
     System::current().registry().set(blocks_manager_addr);
+
+    // Start mempool manager actor
+    let mempool_manager_addr = MempoolManager::start_default();
+    System::current().registry().set(mempool_manager_addr);
 
     // Run system
     system.run();

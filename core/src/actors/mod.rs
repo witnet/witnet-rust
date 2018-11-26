@@ -30,3 +30,6 @@ pub mod epoch_manager;
 
 /// BlocksManager actor module
 pub mod blocks_manager;
+
+/// MempoolManager actor module
+pub mod mempool_manager;
