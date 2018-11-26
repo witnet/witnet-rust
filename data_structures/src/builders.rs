@@ -3,9 +3,10 @@ use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
-use crate::chain::{Block, BlockHeaderWithProof, Transaction};
+use crate::chain::{Block, BlockHeaderWithProof, InvElem, Transaction};
+
 use crate::types::{
-    Address, Command, GetPeers, IpAddress, Message, Peers, Ping, Pong, Verack, Version,
+    Address, Command, GetPeers, Inv, IpAddress, Message, Peers, Ping, Pong, Verack, Version,
 };
 
 use witnet_util::timestamp::get_timestamp;
@@ -93,6 +94,13 @@ impl Message {
     /// Function to build Verack messages
     pub fn build_verack() -> Message {
         Message::build_message(Command::Verack(Verack))
+    }
+
+    /// Function to build Inv messages
+    pub fn build_inv(inv_elems: Vec<InvElem>) -> Message {
+        Message::build_message(Command::Inv(Inv {
+            inventory: inv_elems,
+        }))
     }
 
     /// Function to build a message from a command
