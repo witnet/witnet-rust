@@ -184,3 +184,25 @@ fn builders_build_verack() {
     // Check that the build_verack function builds the expected message
     assert_eq!(msg, Message::build_verack());
 }
+
+#[test]
+fn builders_build_inv() {
+    // Inventory elements
+    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
+    let inventory = vec![inv_elem_1, inv_elem_2];
+
+    // Inventory command
+    let inv_cmd = Command::Inv(Inv {
+        inventory: inventory.clone(),
+    });
+
+    // Inventory message
+    let msg = Message {
+        kind: inv_cmd,
+        magic: MAGIC,
+    };
+
+    // Check that the build_inv function builds the expected message
+    assert_eq!(msg, Message::build_inv(inventory));
+}
