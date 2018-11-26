@@ -21,9 +21,11 @@ fn builders_build_block() {
         v: 0,
     });
     let header_with_proof = BlockHeaderWithProof {
-        version: header.version,
-        beacon: header.beacon,
-        hash_merkle_root: header.hash_merkle_root,
+        block_header: BlockHeader {
+            version: header.version,
+            beacon: header.beacon,
+            hash_merkle_root: header.hash_merkle_root,
+        },
         proof: LeadershipProof {
             block_sig: Some(signature),
             influence: 0,

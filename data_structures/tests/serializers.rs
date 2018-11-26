@@ -378,9 +378,11 @@ fn message_block_to_bytes() {
         v: 0,
     });
     let header_with_proof = BlockHeaderWithProof {
-        version: header.version,
-        beacon: header.beacon,
-        hash_merkle_root: header.hash_merkle_root,
+        block_header: BlockHeader {
+            version: header.version,
+            beacon: header.beacon,
+            hash_merkle_root: header.hash_merkle_root,
+        },
         proof: LeadershipProof {
             block_sig: Some(signature),
             influence: 0,
@@ -448,9 +450,11 @@ fn message_block_from_bytes() {
         v: 0,
     });
     let header_with_proof = BlockHeaderWithProof {
-        version: header.version,
-        beacon: header.beacon,
-        hash_merkle_root: header.hash_merkle_root,
+        block_header: BlockHeader {
+            version: header.version,
+            beacon: header.beacon,
+            hash_merkle_root: header.hash_merkle_root,
+        },
         proof: LeadershipProof {
             block_sig: Some(signature),
             influence: 0,
@@ -485,9 +489,11 @@ fn message_block_encode_decode() {
         v: 0,
     });
     let header_with_proof = BlockHeaderWithProof {
-        version: header.version,
-        beacon: header.beacon,
-        hash_merkle_root: header.hash_merkle_root,
+        block_header: BlockHeader {
+            version: header.version,
+            beacon: header.beacon,
+            hash_merkle_root: header.hash_merkle_root,
+        },
         proof: LeadershipProof {
             block_sig: Some(signature),
             influence: 0,

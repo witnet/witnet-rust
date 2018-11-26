@@ -3,8 +3,8 @@ extern crate flatbuffers;
 use std::convert::Into;
 
 use crate::chain::{
-    Block, BlockHeaderWithProof, CheckpointBeacon, Hash, LeadershipProof, Secp256k1Signature,
-    Signature, Transaction, SHA256,
+    Block, BlockHeader, BlockHeaderWithProof, CheckpointBeacon, Hash, LeadershipProof,
+    Secp256k1Signature, Signature, Transaction, SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol::{
     get_root_as_message, Address as FlatBufferAddress, AddressArgs, Block as FlatBuffersBlock,
@@ -245,9 +245,11 @@ impl TryFrom<Vec<u8>> for Message {
                     };
                     // Create BlockHeaderWithProof
                     let header = BlockHeaderWithProof {
-                        version,
-                        beacon,
-                        hash_merkle_root,
+                        block_header: BlockHeader {
+                            version,
+                            beacon,
+                            hash_merkle_root,
+                        },
                         proof,
                     };
                     // Get transaction count
@@ -701,7 +703,7 @@ fn create_block_flatbuffer(
     block_args: BlockFlatbufferArgs,
 ) -> Vec<u8> {
     // Create checkpoint beacon flatbuffer
-    let hash_prev_block_args = match block_args.header.beacon.hash_prev_block {
+    let hash_prev_block_args = match block_args.header.block_header.beacon.hash_prev_block {
         Hash::SHA256(hash) => FlatBuffersHashArgs {
             type_: FlatBuffersHashType::SHA256,
             bytes: Some(builder.create_vector(&hash)),
@@ -711,12 +713,12 @@ fn create_block_flatbuffer(
     let beacon = Some(FlatBuffersCheckpointBeacon::create(
         builder,
         &FlatBuffersCheckpointBeaconArgs {
-            checkpoint: block_args.header.beacon.checkpoint,
+            checkpoint: block_args.header.block_header.beacon.checkpoint,
             hash_prev_block,
         },
     ));
     // Create hash merkle root flatbuffer
-    let hash_merkle_root_args = match block_args.header.hash_merkle_root {
+    let hash_merkle_root_args = match block_args.header.block_header.hash_merkle_root {
         Hash::SHA256(hash) => FlatBuffersHashArgs {
             type_: FlatBuffersHashType::SHA256,
             bytes: Some(builder.create_vector(&hash)),
@@ -763,7 +765,7 @@ fn create_block_flatbuffer(
     let header = Some(FlatBuffersBlockHeader::create(
         builder,
         &BlockHeaderArgs {
-            version: block_args.header.version,
+            version: block_args.header.block_header.version,
             beacon,
             hash_merkle_root,
             proof,

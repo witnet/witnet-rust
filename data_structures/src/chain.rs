@@ -93,15 +93,11 @@ pub struct BlockHeader {
     pub hash_merkle_root: Hash,
 }
 
-/// Block header structure with proof of existence
+/// Block header structure with proof of leadership
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct BlockHeaderWithProof {
-    /// The block version number indicating the block validation rules
-    pub version: u32,
-    /// A checkpoint beacon for the epoch that this block is closing
-    pub beacon: CheckpointBeacon,
-    /// A 256-bit hash based on all of the transactions committed to this block
-    pub hash_merkle_root: Hash,
+    /// The block header
+    pub block_header: BlockHeader,
     /// A miner-provided proof of leadership
     pub proof: LeadershipProof,
 }
@@ -111,7 +107,7 @@ pub struct BlockHeaderWithProof {
 pub struct LeadershipProof {
     /// An enveloped signature of the block header except the `proof` part
     pub block_sig: Option<Signature>,
-    /// The miner influence as of last checkpoint
+    /// The alleged miner influence as of last checkpoint
     pub influence: u64,
 }
 
