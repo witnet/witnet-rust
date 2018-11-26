@@ -16,7 +16,7 @@ use crate::actors::{
     storage_manager::{messages::Get, StorageManager},
 };
 
-use witnet_data_structures::chain::{ChainInfo, CheckpointBeacon, Epoch};
+use witnet_data_structures::chain::{ChainInfo, CheckpointBeacon};
 
 use log::{debug, error, info};
 
@@ -51,7 +51,7 @@ impl Actor for BlocksManager {
                     Ok(Ok(epoch)) => {
                         // Subscribe to the next epoch with an EpochPayload
                         epoch_manager_addr.do_send(Subscribe::to_epoch(
-                            Epoch(epoch.0 + 1),
+                            epoch + 1,
                             blocks_manager_addr.clone(),
                             EpochPayload,
                         ));
@@ -142,7 +142,7 @@ impl Actor for BlocksManager {
                             environment,
                             consensus_constants,
                             highest_block_checkpoint: CheckpointBeacon {
-                                checkpoint: Epoch(0),
+                                checkpoint: 0,
                                 hash_prev_block: genesis_hash,
                             },
                         };

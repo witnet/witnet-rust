@@ -84,8 +84,8 @@ impl EpochManager {
                 if elapsed < 0 {
                     Err(EpochManagerError::CheckpointZeroInTheFuture)
                 } else {
-                    let epoch = elapsed as u64 / u64::from(period);
-                    Ok(Epoch(epoch))
+                    let epoch = elapsed as Epoch / Epoch::from(period);
+                    Ok(epoch)
                 }
             }
             (None, _) => Err(EpochManagerError::UnknownEpochZero),
@@ -101,10 +101,10 @@ impl EpochManager {
     pub fn epoch_timestamp(&self, epoch: Epoch) -> messages::EpochResult<i64> {
         match (self.checkpoint_zero_timestamp, self.checkpoints_period) {
             // Calculate (period * epoch + zero) with overflow checks
-            (Some(zero), Some(period)) => u64::from(period)
-                .checked_mul(epoch.0)
-                .filter(|&x| x <= i64::max_value() as u64)
-                .map(|x| x as i64)
+            (Some(zero), Some(period)) => Epoch::from(period)
+                .checked_mul(epoch)
+                .filter(|&x| x <= Epoch::max_value() as Epoch)
+                .map(i64::from)
                 .and_then(|x| x.checked_add(zero))
                 .ok_or(EpochManagerError::Overflow),
             (None, _) => Err(EpochManagerError::UnknownEpochZero),
@@ -132,12 +132,11 @@ impl EpochManager {
         let current_epoch = self.epoch_at(now)?;
 
         // Get timestamp for the start of next checkpoint
-        let next_checkpoint = self.epoch_timestamp(Epoch(
+        let next_checkpoint = self.epoch_timestamp(
             current_epoch
-                .0
                 .checked_add(1)
                 .ok_or(EpochManagerError::Overflow)?,
-        ))?;
+        )?;
 
         // Get number of seconds remaining to the next checkpoint
         let secs = next_checkpoint - now;
@@ -174,7 +173,7 @@ impl EpochManager {
                 // resources to execute in time...)
                 let epoch_checkpoints: Vec<_> = act
                     .subscriptions_epoch
-                    .range(act.last_checked_epoch.unwrap_or(Epoch(0))..=current_epoch)
+                    .range(act.last_checked_epoch.unwrap_or(0)..=current_epoch)
                     .map(|(k, _v)| *k)
                     .collect();
 

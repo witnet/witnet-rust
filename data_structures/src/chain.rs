@@ -39,7 +39,7 @@ pub struct ConsensusConstants {
     /// Genesis block hash value
     // TODO Change to a specific fixed-length hash function's output's digest type once Issue #164
     // is solved
-    pub genesis_hash: Vec<u8>,
+    pub genesis_hash: Hash,
 
     /// Decay value for reputation demurrage function
     // TODO Use fixed point arithmetic (see Issue #172)
@@ -63,13 +63,13 @@ impl Default for CheckpointBeacon {
     fn default() -> CheckpointBeacon {
         CheckpointBeacon {
             checkpoint: 0,
-            hash_prev_block: vec![0; 32],
+            hash_prev_block: Hash::SHA256([0; 32]),
         }
     }
 }
 
 /// Epoch id (starting from 0)
-pub type Epoch = u64;
+pub type Epoch = u32;
 
 /// Block data structure
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -134,7 +134,7 @@ pub struct Secp256k1Signature {
 }
 
 /// Hash
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),

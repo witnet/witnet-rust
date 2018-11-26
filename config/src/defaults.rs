@@ -7,6 +7,8 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::time::Duration;
 
+use witnet_data_structures::chain::Hash;
+
 // When changing the defaults, remember to update the documentation!
 // https://github.com/witnet/witnet-rust/blob/master/docs/configuration/toml-file.md
 // https://github.com/witnet/witnet-rust/blob/master/docs/configuration/environment.md
@@ -66,8 +68,8 @@ pub trait Defaults {
 
     /// Default Hash value for the genesis block
     // TODO Decide an appropriate default value
-    fn consensus_constants_genesis_hash(&self) -> Vec<u8> {
-        vec![0; 32]
+    fn consensus_constants_genesis_hash(&self) -> Hash {
+        Hash::SHA256([0; 32])
     }
 
     /// Default demurrage value for reputation algorithm

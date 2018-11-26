@@ -1,5 +1,4 @@
 use witnet_core::actors::epoch_manager::{EpochManager, EpochManagerError};
-use witnet_data_structures::chain::Epoch;
 
 #[test]
 fn epoch_zero_range() {
@@ -11,17 +10,17 @@ fn epoch_zero_range() {
 
     // [1000, 1089] are in epoch 0
     for now in zero..zero + period {
-        assert_eq!(em.epoch_at(now), Ok(Epoch(0)), "Error at {}", now);
+        assert_eq!(em.epoch_at(now), Ok(0), "Error at {}", now);
     }
 
     // 1090 is the start of epoch 1
     let now = zero + period;
-    assert_eq!(em.epoch_at(now), Ok(Epoch(1)), "Error at {}", now);
+    assert_eq!(em.epoch_at(now), Ok(1), "Error at {}", now);
 
     // Epoch 0: t = 1000
-    assert_eq!(em.epoch_timestamp(Epoch(0)), Ok(zero));
+    assert_eq!(em.epoch_timestamp(0), Ok(zero));
     // Epoch 1: t = 1090
-    assert_eq!(em.epoch_timestamp(Epoch(1)), Ok(now));
+    assert_eq!(em.epoch_timestamp(1), Ok(now));
 }
 
 #[test]

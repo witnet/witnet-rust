@@ -13,7 +13,7 @@ use std::default::Default;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
-use witnet_data_structures::chain::Environment;
+use witnet_data_structures::chain::{Environment, Hash};
 
 /// The partial configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
@@ -110,7 +110,7 @@ pub struct ConsensusConstants {
 
     /// Genesis block hash value
     #[serde(default)]
-    pub genesis_hash: Option<Vec<u8>>,
+    pub genesis_hash: Option<Hash>,
 
     /// Decay value for reputation demurrage function
     #[serde(default)]
