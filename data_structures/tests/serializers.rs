@@ -590,3 +590,83 @@ fn message_inv_encode_decode() {
 
     assert_eq!(cloned_msg, Message::try_from(result).unwrap());
 }
+
+#[test]
+fn message_get_data_to_bytes() {
+    // Inventory elements
+    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
+
+    // Inventory message
+    let msg = Message {
+        kind: Command::GetData(GetData {
+            inventory: vec![inv_elem_1, inv_elem_2],
+        }),
+        magic: 1,
+    };
+
+    // Expected bytes
+    let expected_buf: Vec<u8> = [
+        16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 6, 0, 5, 0, 8, 0, 10, 0, 0, 0, 0, 9, 1, 0, 12, 0, 0, 0, 0,
+        0, 6, 0, 8, 0, 4, 0, 6, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 72, 0, 0, 0, 4, 0, 0, 0, 200, 255,
+        255, 255, 0, 0, 0, 2, 4, 0, 0, 0, 192, 255, 255, 255, 4, 0, 0, 0, 32, 0, 0, 0, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 8, 0,
+        12, 0, 7, 0, 8, 0, 8, 0, 0, 0, 0, 0, 0, 1, 12, 0, 0, 0, 8, 0, 8, 0, 0, 0, 4, 0, 8, 0, 0, 0,
+        4, 0, 0, 0, 32, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    ]
+    .to_vec();
+
+    // Serialize message to bytes
+    let result: Vec<u8> = msg.into();
+
+    // Test check
+    assert_eq!(result, expected_buf);
+}
+
+#[test]
+fn message_get_data_from_bytes() {
+    // Inventory elements
+    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
+
+    // Inventory message
+    let expected_msg = Message {
+        kind: Command::GetData(GetData {
+            inventory: vec![inv_elem_1, inv_elem_2],
+        }),
+        magic: 1,
+    };
+    let buf: Vec<u8> = [
+        16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 6, 0, 5, 0, 8, 0, 10, 0, 0, 0, 0, 9, 1, 0, 12, 0, 0, 0, 0,
+        0, 6, 0, 8, 0, 4, 0, 6, 0, 0, 0, 4, 0, 0, 0, 2, 0, 0, 0, 72, 0, 0, 0, 4, 0, 0, 0, 200, 255,
+        255, 255, 0, 0, 0, 2, 4, 0, 0, 0, 192, 255, 255, 255, 4, 0, 0, 0, 32, 0, 0, 0, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 8, 0,
+        12, 0, 7, 0, 8, 0, 8, 0, 0, 0, 0, 0, 0, 1, 12, 0, 0, 0, 8, 0, 8, 0, 0, 0, 4, 0, 8, 0, 0, 0,
+        4, 0, 0, 0, 32, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    ]
+    .to_vec();
+
+    assert_eq!(Message::try_from(buf).unwrap(), expected_msg);
+}
+
+#[test]
+fn message_get_data_encode_decode() {
+    // Inventory elements
+    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
+
+    // Inventory message
+    let msg = Message {
+        kind: Command::GetData(GetData {
+            inventory: vec![inv_elem_1, inv_elem_2],
+        }),
+        magic: 1,
+    };
+
+    let cloned_msg = msg.clone();
+    let result: Vec<u8> = msg.into();
+
+    assert_eq!(cloned_msg, Message::try_from(result).unwrap());
+}

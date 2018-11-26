@@ -206,3 +206,25 @@ fn builders_build_inv() {
     // Check that the build_inv function builds the expected message
     assert_eq!(msg, Message::build_inv(inventory));
 }
+
+#[test]
+fn builders_build_get_data() {
+    // Inventory elements
+    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
+    let inventory = vec![inv_elem_1, inv_elem_2];
+
+    // Inventory command
+    let get_data_cmd = Command::GetData(GetData {
+        inventory: inventory.clone(),
+    });
+
+    // Inventory message
+    let msg = Message {
+        kind: get_data_cmd,
+        magic: MAGIC,
+    };
+
+    // Check that the build_inv function builds the expected message
+    assert_eq!(msg, Message::build_get_data(inventory));
+}
