@@ -19,7 +19,7 @@ use witnet_data_structures::{
     serializers::TryFrom,
     types::{Address, Command, Message as WitnetMessage, Peers, Version},
 };
-use witnet_p2p::sessions::SessionStatus;
+use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use super::{
     messages::{GetPeers, SessionUnitResult},
@@ -41,11 +41,13 @@ impl StreamHandler<BytesMut, Error> for Session {
                     "<----- Session ({}) received message: {}",
                     self.remote_addr, msg.kind
                 );
-                match (self.status, msg.kind) {
+                match (self.session_type, self.status, msg.kind) {
                     ////////////////////
                     //   HANDSHAKE    //
                     ////////////////////
+                    // Handle Version message
                     (
+                        _,
                         SessionStatus::Unconsolidated,
                         Command::Version(Version { sender_address, .. }),
                     ) => {
@@ -55,29 +57,34 @@ impl StreamHandler<BytesMut, Error> for Session {
                         }
                         try_consolidate_session(self, ctx);
                     }
-                    (SessionStatus::Unconsolidated, Command::Verack(_)) => {
+                    // Handler Verack message
+                    (_, SessionStatus::Unconsolidated, Command::Verack(_)) => {
                         handshake_verack(self);
                         try_consolidate_session(self, ctx);
                     }
                     ////////////////////
                     // PEER DISCOVERY //
                     ////////////////////
-                    (SessionStatus::Consolidated, Command::GetPeers(_)) => {
+                    // Handle GetPeers message
+                    (_, SessionStatus::Consolidated, Command::GetPeers(_)) => {
                         peer_discovery_get_peers(self, ctx);
                     }
-                    (SessionStatus::Consolidated, Command::Peers(Peers { peers })) => {
+                    // Handle Peers message
+                    (
+                        SessionType::Outbound,
+                        SessionStatus::Consolidated,
+                        Command::Peers(Peers { peers }),
+                    ) => {
                         peer_discovery_peers(&peers);
                     }
                     /////////////////////
-                    // NOT IMPLEMENTED //
+                    // NOT SUPPORTED   //
                     /////////////////////
-                    (SessionStatus::Consolidated, _) => {
-                        warn!("Not implemented message command received!");
-                    }
-                    (_, kind) => {
+                    (session_type, session_status, msg_type) => {
                         warn!(
-                            "Received a message of kind \"{:?}\", which is not implemented yet",
-                            kind
+                            "Received a message of type \"{:?}\" for a session with {:?} type and\
+                             in {:?} status, which is not implemented yet",
+                            msg_type, session_type, session_status
                         );
                     }
                 };
