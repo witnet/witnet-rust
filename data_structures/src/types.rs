@@ -12,6 +12,7 @@ pub enum Command {
     Version(Version),
     Block(Block),
     Inv(Inv),
+    GetData(GetData),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -53,6 +54,11 @@ pub struct Inv {
     pub inventory: Vec<InvVector>,
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct GetData {
+    pub inventory: Vec<InvElem>,
+}
+
 impl fmt::Display for Command {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -67,6 +73,7 @@ impl fmt::Display for Command {
                 Command::Version(_) => "VERSION",
                 Command::Block(_) => "BLOCK",
                 Command::Inv(_) => "INV",
+                Command::GetData(_) => "GET_DATA",
             }
         )
     }
