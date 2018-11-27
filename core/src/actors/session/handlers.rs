@@ -27,7 +27,7 @@ use witnet_data_structures::{
     builders::from_address,
     chain::{Block, Hash, InvVector},
     serializers::TryFrom,
-    types::{Address, Command, GetData, Message as WitnetMessage, Peers, Version},
+    types::{Address, Command, GetData, Inv, Message as WitnetMessage, Peers, Version},
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
@@ -104,6 +104,13 @@ impl StreamHandler<BytesMut, Error> for Session {
                     // Handle Block
                     (_, SessionStatus::Consolidated, Command::Block(block)) => {
                         inventory_process_block(self, ctx, block);
+                    }
+                    ////////////////////
+                    // INVENTORY      //
+                    ////////////////////
+                    // Handle Inv message
+                    (_, SessionStatus::Consolidated, Command::Inv(inv)) => {
+                        inventory_process_inv(self, ctx, &inv);
                     }
                     /////////////////////
                     // NOT SUPPORTED   //
@@ -294,6 +301,24 @@ fn inventory_process_block(_session: &mut Session, _ctx: &mut Context<Session>, 
 
     // Send a message to the BlocksManager to try to add a new block
     blocks_manager_addr.do_send(AddNewBlock { block });
+}
+
+/// Function to process an Inv message
+fn inventory_process_inv(session: &mut Session, _ctx: &mut Context<Session>, inv: &Inv) {
+    // Check how many of the received inventory vectors need to be requested
+    let inv_vectors = &inv.inventory;
+
+    // TODO missing check of how many of these items really need to be requested
+    let missing_inv_vectors = inv_vectors;
+
+    // Check if there are any vectors to be requested
+    if !missing_inv_vectors.is_empty() {
+        // Create GetData message with requested inventory vectors
+        let get_data_msg = WitnetMessage::build_get_data(missing_inv_vectors.to_vec());
+
+        // Write GetData message in session
+        session.send_message(get_data_msg);
+    }
 }
 
 /// Function called when Verack message is received
