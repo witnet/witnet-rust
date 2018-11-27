@@ -1,3 +1,5 @@
+# You can read more about all the configuration params in
+# https://docs.witnet.io/configuration/toml-file/
 [connections]
 server_addr = "0.0.0.0:21337"
 
