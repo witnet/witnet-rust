@@ -1,3 +1,4 @@
+/// Data structure holding critical information about the chain state and protocol constants
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct ChainInfo {
     /// Blockchain valid environment
