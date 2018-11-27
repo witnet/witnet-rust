@@ -82,8 +82,8 @@ impl StreamHandler<BytesMut, Error> for Session {
                     /////////////////////
                     (session_type, session_status, msg_type) => {
                         warn!(
-                            "Received a message of type \"{:?}\" for a session with {:?} type and\
-                             in {:?} status, which is not implemented yet",
+                            "Message of type \"{:?}\" for session (type: {:?}, status: {:?}) is \
+                             not supported",
                             msg_type, session_type, session_status
                         );
                     }
