@@ -6,7 +6,7 @@ namespace Protocol;
 // MAIN TYPES
 /////////////////////////////////////////////////////////
 // List of available commands
-union Command (required) { Version, Verack, GetPeers, Peers, Ping, Pong, Block, Inv, GetData }
+union Command (required) { Version, Verack, GetPeers, Peers, Ping, Pong, Block, Inv, GetData, GetBlocks }
 
 // Message format with header
 table Message {
@@ -72,6 +72,10 @@ table LeadershipProof {
 table CheckpointBeacon {
     checkpoint: uint32;
     hash_prev_block: Hash (required);
+}
+
+table GetBlocks {
+    highest_block_checkpoint: CheckpointBeacon (required);
 }
 
 table BlockHeader {

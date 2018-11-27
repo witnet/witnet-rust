@@ -51,7 +51,7 @@ pub struct ConsensusConstants {
 }
 
 /// Checkpoint beacon structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct CheckpointBeacon {
     /// The serial number for an epoch
     pub checkpoint: Epoch,
@@ -130,7 +130,7 @@ pub struct Secp256k1Signature {
 }
 
 /// Hash
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),

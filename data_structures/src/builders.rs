@@ -3,11 +3,10 @@ use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
-use crate::chain::{Block, BlockHeaderWithProof, InvVector, Transaction};
-
+use crate::chain::{Block, BlockHeaderWithProof, CheckpointBeacon, InvVector, Transaction};
 use crate::types::{
-    Address, Command, GetData, GetPeers, Inv, IpAddress, Message, Peers, Ping, Pong, Verack,
-    Version,
+    Address, Command, GetBlocks, GetData, GetPeers, Inv, IpAddress, Message, Peers, Ping, Pong,
+    Verack, Version,
 };
 
 use witnet_util::timestamp::get_timestamp;
@@ -40,6 +39,12 @@ impl Message {
             header,
             txn_count: txns.len() as u32,
             txns,
+        }))
+    }
+    /// Function to build GetBlocks messages
+    pub fn build_get_blocks(highest_block_checkpoint: CheckpointBeacon) -> Message {
+        Message::build_message(Command::GetBlocks(GetBlocks {
+            highest_block_checkpoint,
         }))
     }
 

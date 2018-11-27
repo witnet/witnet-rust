@@ -1,8 +1,8 @@
 use std::net::SocketAddr;
 
 use witnet_data_structures::builders::*;
-use witnet_data_structures::chain::*;
-use witnet_data_structures::types::*;
+
+use witnet_data_structures::{chain::*, types::*};
 
 #[test]
 fn builders_build_block() {

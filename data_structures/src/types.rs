@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::chain::{Block, InvVector};
+use crate::chain::{Block, CheckpointBeacon, InvVector};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Command {
@@ -13,6 +13,7 @@ pub enum Command {
     Block(Block),
     Inv(Inv),
     GetData(GetData),
+    GetBlocks(GetBlocks),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -26,6 +27,11 @@ pub struct Peers {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Ping {
     pub nonce: u64,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct GetBlocks {
+    pub highest_block_checkpoint: CheckpointBeacon,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -65,6 +71,7 @@ impl fmt::Display for Command {
             f,
             "{}",
             match self {
+                Command::GetBlocks(_) => "GET_BLOCKS",
                 Command::GetPeers(_) => "GET_PEERS",
                 Command::Peers(_) => "PEERS",
                 Command::Ping(_) => "PING",

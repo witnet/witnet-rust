@@ -27,11 +27,12 @@ pub enum Command {
   Block = 7,
   Inv = 8,
   GetData = 9,
+  GetBlocks = 10,
 
 }
 
 const ENUM_MIN_COMMAND: u8 = 0;
-const ENUM_MAX_COMMAND: u8 = 9;
+const ENUM_MAX_COMMAND: u8 = 10;
 
 impl<'a> flatbuffers::Follow<'a> for Command {
   type Inner = Self;
@@ -65,7 +66,7 @@ impl flatbuffers::Push for Command {
 }
 
 #[allow(non_camel_case_types)]
-const ENUM_VALUES_COMMAND:[Command; 10] = [
+const ENUM_VALUES_COMMAND:[Command; 11] = [
   Command::NONE,
   Command::Version,
   Command::Verack,
@@ -75,11 +76,12 @@ const ENUM_VALUES_COMMAND:[Command; 10] = [
   Command::Pong,
   Command::Block,
   Command::Inv,
-  Command::GetData
+  Command::GetData,
+  Command::GetBlocks
 ];
 
 #[allow(non_camel_case_types)]
-const ENUM_NAMES_COMMAND:[&'static str; 10] = [
+const ENUM_NAMES_COMMAND:[&'static str; 11] = [
     "NONE",
     "Version",
     "Verack",
@@ -89,7 +91,8 @@ const ENUM_NAMES_COMMAND:[&'static str; 10] = [
     "Pong",
     "Block",
     "Inv",
-    "GetData"
+    "GetData",
+    "GetBlocks"
 ];
 
 pub fn enum_name_command(e: Command) -> &'static str {
@@ -487,6 +490,16 @@ impl<'a> Message<'a> {
   pub fn command_as_get_data(&'a self) -> Option<GetData> {
     if self.command_type() == Command::GetData {
       Some(GetData::init_from_table(self.command()))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn command_as_get_blocks(&'a self) -> Option<GetBlocks> {
+    if self.command_type() == Command::GetBlocks {
+      Some(GetBlocks::init_from_table(self.command()))
     } else {
       None
     }
@@ -1313,6 +1326,83 @@ impl<'a: 'b, 'b> CheckpointBeaconBuilder<'a, 'b> {
   pub fn finish(self) -> flatbuffers::WIPOffset<CheckpointBeacon<'a>> {
     let o = self.fbb_.end_table(self.start_);
     self.fbb_.required(o, CheckpointBeacon::VT_HASH_PREV_BLOCK,"hash_prev_block");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum GetBlocksOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct GetBlocks<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for GetBlocks<'a> {
+    type Inner = GetBlocks<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> GetBlocks<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        GetBlocks {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args GetBlocksArgs<'args>) -> flatbuffers::WIPOffset<GetBlocks<'bldr>> {
+      let mut builder = GetBlocksBuilder::new(_fbb);
+      if let Some(x) = args.highest_block_checkpoint { builder.add_highest_block_checkpoint(x); }
+      builder.finish()
+    }
+
+    pub const VT_HIGHEST_BLOCK_CHECKPOINT: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn highest_block_checkpoint(&self) -> CheckpointBeacon<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<CheckpointBeacon<'a>>>(GetBlocks::VT_HIGHEST_BLOCK_CHECKPOINT, None).unwrap()
+  }
+}
+
+pub struct GetBlocksArgs<'a> {
+    pub highest_block_checkpoint: Option<flatbuffers::WIPOffset<CheckpointBeacon<'a >>>,
+}
+impl<'a> Default for GetBlocksArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        GetBlocksArgs {
+            highest_block_checkpoint: None, // required field
+        }
+    }
+}
+pub struct GetBlocksBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GetBlocksBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_highest_block_checkpoint(&mut self, highest_block_checkpoint: flatbuffers::WIPOffset<CheckpointBeacon<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<CheckpointBeacon>>(GetBlocks::VT_HIGHEST_BLOCK_CHECKPOINT, highest_block_checkpoint);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GetBlocksBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GetBlocksBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<GetBlocks<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, GetBlocks::VT_HIGHEST_BLOCK_CHECKPOINT,"highest_block_checkpoint");
     flatbuffers::WIPOffset::new(o.value())
   }
 }

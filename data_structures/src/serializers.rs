@@ -7,24 +7,59 @@ use crate::chain::{
     Secp256k1Signature, Signature, Transaction, SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol::{
-    get_root_as_message, Address as FlatBufferAddress, AddressArgs, Block as FlatBuffersBlock,
-    BlockArgs, BlockHeader as FlatBuffersBlockHeader, BlockHeaderArgs,
+    Address as FlatBufferAddress,
+    AddressArgs,
+    Block as FlatBuffersBlock,
+    BlockArgs,
+    BlockHeader as FlatBuffersBlockHeader,
+    BlockHeaderArgs,
     CheckpointBeacon as FlatBuffersCheckpointBeacon,
-    CheckpointBeaconArgs as FlatBuffersCheckpointBeaconArgs, Command as FlatBuffersCommand,
-    GetData as FlatBuffersGetData, GetDataArgs, GetPeers as FlatBuffersGetPeers, GetPeersArgs,
-    Hash as FlatBuffersHash, HashArgs, HashType as FlatBuffersHashType, Inv as FlatBuffersInv,
-    InvArgs, InvVector as FlatBuffersInvVector, InvVectorArgs,
-    InvVectorType as FlatBuffersInvVectorType, IpAddress as FlatBuffersIpAddress,
-    Ipv4 as FlatBuffersIpv4, Ipv4Args as FlatBuffersIpv4Args, Ipv6 as FlatBuffersIpv6,
-    Ipv6Args as FlatBuffersIpv6Args, LeadershipProof as FlatBuffersLeadershipProof,
-    LeadershipProofArgs, Message as FlatBuffersMessage, MessageArgs, Peers as FlatBuffersPeers,
-    PeersArgs, Ping as FlatBuffersPing, PingArgs, Pong as FlatBuffersPong, PongArgs,
-    Secp256k1Signature as FlatBuffersSecp256k1Signature, Secp256k1SignatureArgs,
-    Signature as FlatBuffersSignature, Transaction as FlatBuffersTransaction, TransactionArgs,
-    Verack as FlatBuffersVerack, VerackArgs, Version as FlatBuffersVersion, VersionArgs,
+    CheckpointBeaconArgs as FlatBuffersCheckpointBeaconArgs,
+    Command as FlatBuffersCommand,
+    get_root_as_message,
+    GetBlocks as FlatBuffersGetBlocks,
+    GetBlocksArgs,
+    GetData as FlatBuffersGetData,
+    GetDataArgs,
+    GetPeers as FlatBuffersGetPeers,
+    GetPeersArgs,
+    Hash as FlatBuffersHash,
+    HashArgs as FlatBuffersHashArgs,
+    HashArgs,
+    HashType as FlatBuffersHashType,
+    Inv as FlatBuffersInv,
+    InvArgs,
+    InvVector as FlatBuffersInvVector,
+    InvVectorArgs,
+    InvVectorType as FlatBuffersInvVectorType,
+    IpAddress as FlatBuffersIpAddress,
+    Ipv4 as FlatBuffersIpv4,
+    Ipv4Args as FlatBuffersIpv4Args,
+    Ipv6 as FlatBuffersIpv6,
+    Ipv6Args as FlatBuffersIpv6Args,
+    LeadershipProof as FlatBuffersLeadershipProof,
+    LeadershipProofArgs,
+    Message as FlatBuffersMessage,
+    MessageArgs,
+    Peers as FlatBuffersPeers,
+    PeersArgs,
+    Ping as FlatBuffersPing,
+    PingArgs,
+    Pong as FlatBuffersPong,
+    PongArgs,
+    Secp256k1Signature as FlatBuffersSecp256k1Signature,
+    Secp256k1SignatureArgs,
+    Signature as FlatBuffersSignature,
+    Transaction as FlatBuffersTransaction,
+    TransactionArgs,
+    Verack as FlatBuffersVerack,
+    VerackArgs,
+    Version as FlatBuffersVersion,
+    VersionArgs,
 };
+
 use crate::types::{
-    Address, Command, GetData, GetPeers, Inv,
+    Address, Command, GetBlocks, GetData, GetPeers, Inv,
     IpAddress::{Ipv4 as WitnetIpv4, Ipv6 as WitnetIpv6},
     Message, Peers, Ping, Pong, Verack, Version,
 };
@@ -32,6 +67,18 @@ use crate::types::{
 use flatbuffers::FlatBufferBuilder;
 
 const FTB_SIZE: usize = 1024;
+
+#[derive(Debug, Clone, Copy)]
+struct GetBlocksFlatbufferArgs {
+    highest_block_checkpoint: CheckpointBeacon,
+    magic: u16,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct GetBlocksWitnetArgs {
+    highest_block_checkpoint: CheckpointBeacon,
+    magic: u16,
+}
 
 #[derive(Debug, Clone, Copy)]
 struct GetPeersFlatbufferArgs {
@@ -184,6 +231,34 @@ impl TryFrom<Vec<u8>> for Message {
                     })
                 })
                 .ok_or(""),
+            FlatBuffersCommand::GetBlocks => message
+                .command_as_get_blocks()
+                .map(|get_blocks| {
+                    let hash_prev_block = match get_blocks
+                        .highest_block_checkpoint()
+                        .hash_prev_block()
+                        .type_()
+                    {
+                        FlatBuffersHashType::SHA256 => {
+                            let mut sha256: SHA256 = [0; 32];
+                            let sha256_bytes = get_blocks
+                                .highest_block_checkpoint()
+                                .hash_prev_block()
+                                .bytes();
+                            sha256.copy_from_slice(sha256_bytes);
+                            Hash::SHA256(sha256)
+                        }
+                    };
+                    let highest_block_checkpoint = CheckpointBeacon {
+                        checkpoint: get_blocks.highest_block_checkpoint().checkpoint(),
+                        hash_prev_block,
+                    };
+                    create_get_blocks_message(GetBlocksWitnetArgs {
+                        highest_block_checkpoint,
+                        magic,
+                    })
+                })
+                .ok_or(""),
             FlatBuffersCommand::GetPeers => {
                 Ok(create_get_peers_message(GetPeersWitnetArgs { magic }))
             }
@@ -329,8 +404,17 @@ impl Into<Vec<u8>> for Message {
     fn into(self) -> Vec<u8> {
         let mut builder = flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
 
-        // Create flatbuffer to encode a witnet message
+        // Create Flatbuffer to encode a Witnet message
         match self.kind {
+            Command::GetBlocks(GetBlocks {
+                highest_block_checkpoint,
+            }) => create_get_blocks_flatbuffer(
+                &mut builder,
+                GetBlocksFlatbufferArgs {
+                    magic: self.magic,
+                    highest_block_checkpoint,
+                },
+            ),
             Command::GetPeers(GetPeers) => create_get_peers_flatbuffer(
                 &mut builder,
                 GetPeersFlatbufferArgs { magic: self.magic },
@@ -444,7 +528,60 @@ fn create_address(address: FlatBufferAddress) -> Option<Address> {
     }
 }
 
-// Create a get peers flatbuffer to encode a witnet's get peers message
+// Create a ping Flatbuffer to encode a Witnet ping message
+fn create_get_blocks_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    get_blocks_args: GetBlocksFlatbufferArgs,
+) -> Vec<u8> {
+    let Hash::SHA256(hash) = get_blocks_args.highest_block_checkpoint.hash_prev_block;
+    let ftb_hash = builder.create_vector(&hash);
+    let hash_command = FlatBuffersHash::create(
+        builder,
+        &FlatBuffersHashArgs {
+            type_: FlatBuffersHashType::SHA256,
+            bytes: Some(ftb_hash),
+        },
+    );
+
+    let beacon = FlatBuffersCheckpointBeacon::create(
+        builder,
+        &FlatBuffersCheckpointBeaconArgs {
+            checkpoint: get_blocks_args.highest_block_checkpoint.checkpoint,
+            hash_prev_block: Some(hash_command),
+        },
+    );
+
+    let get_blocks_command = FlatBuffersGetBlocks::create(
+        builder,
+        &GetBlocksArgs {
+            highest_block_checkpoint: Some(beacon),
+        },
+    );
+    let message = FlatBuffersMessage::create(
+        builder,
+        &MessageArgs {
+            magic: get_blocks_args.magic,
+            command_type: FlatBuffersCommand::GetBlocks,
+            command: Some(get_blocks_command.as_union_value()),
+        },
+    );
+    build_flatbuffer(builder, message)
+}
+
+// Create a Witnet ping message to decode Flatbuffers' ping message
+fn create_get_blocks_message(get_blocks_args: GetBlocksWitnetArgs) -> Message {
+    Message {
+        kind: Command::GetBlocks(GetBlocks {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: get_blocks_args.highest_block_checkpoint.checkpoint,
+                hash_prev_block: get_blocks_args.highest_block_checkpoint.hash_prev_block,
+            },
+        }),
+        magic: get_blocks_args.magic,
+    }
+}
+
+// Create a get peers Flatbuffer to encode Witnet's get peers message
 fn create_get_peers_flatbuffer(
     builder: &mut FlatBufferBuilder,
     get_peers_args: GetPeersFlatbufferArgs,
@@ -462,7 +599,7 @@ fn create_get_peers_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a witnet's get peers message to decode a flatbuffers' get peers message
+// Create a Witnet get peers message to decode a Flatbuffers' get peers message
 fn create_get_peers_message(get_peers_args: GetPeersWitnetArgs) -> Message {
     Message {
         kind: Command::GetPeers(GetPeers),
@@ -584,7 +721,7 @@ fn create_ping_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a witnet's ping message to decode a flatbuffers' ping message
+// Create a Witnet ping message to decode a Flatbuffers' ping message
 fn create_ping_message(ping_args: PingWitnetArgs) -> Message {
     Message {
         kind: Command::Ping(Ping {
@@ -617,7 +754,7 @@ fn create_pong_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a witnet's pong message to decode a flatbuffers' pong message
+// Create a witnet pong message to decode a Flatbuffers' pong message
 fn create_pong_message(pong_args: PongWitnetArgs) -> Message {
     Message {
         kind: Command::Pong(Pong {
@@ -645,7 +782,7 @@ fn create_verack_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a witnet's verack message to decode a flatbuffers' verack message
+// Create a Witnet verack message to decode a Flatbuffers' verack message
 fn create_verack_message(verack_args: VerackWitnetArgs) -> Message {
     Message {
         kind: Command::Verack(Verack),
@@ -738,7 +875,7 @@ fn create_version_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a witnet's version message to decode a flatbuffers' version message
+// Create a Witnet version message to decode a Flatbuffers' version message
 fn create_version_message(version_args: VersionWitnetArgs) -> Message {
     Message {
         kind: Command::Version(Version {
