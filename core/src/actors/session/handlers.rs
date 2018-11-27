@@ -22,7 +22,7 @@ use witnet_data_structures::{
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use super::{
-    messages::{GetPeers, SessionUnitResult},
+    messages::{AnnounceItems, GetPeers, SessionUnitResult},
     Session,
 };
 
@@ -103,6 +103,22 @@ impl Handler<GetPeers> for Session {
         let get_peers_msg = WitnetMessage::build_get_peers();
         // Write get peers message in session
         self.send_message(get_peers_msg);
+    }
+}
+
+/// Handler for AnnounceItems message (sent by other actors)
+impl Handler<AnnounceItems> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, msg: AnnounceItems, _: &mut Context<Self>) {
+        debug!(
+            "Sending AnnounceItems message to peer at {:?}",
+            self.remote_addr
+        );
+        // Create AnnounceItems message
+        let announce_items_msg = WitnetMessage::build_inv(msg.items);
+        // Write message in session
+        self.send_message(announce_items_msg);
     }
 }
 

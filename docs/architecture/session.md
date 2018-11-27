@@ -42,15 +42,18 @@ Session::create(move |ctx| {
 
 These are the messages supported by the session handlers:
 
-| Message          | Input type            | Output type                       | Description            |
-| ---------------- | --------------------- | --------------------------------- | ---------------------- |
-| `GetPeers`       | `()`                  | `()`                              | Empty                  |
+| Message          | Input type            | Output type                       | Description                            |
+| ---------------- | --------------------- | --------------------------------- | -------------------------------------- |
+| `GetPeers`       | `()`                  | `()`                              | Request peers from a session           |
+| `AnnounceItems`  | `Vec<InvVector>`      | `()`                              | Announce new inventory items           |
 
 #### GetPeers
-The handler of `GetPeers` message is currently empty.
 
-// TODO Update documentation when `GetPeers` gets any actual functionality.
+Ask the peer on the other side of the connection for their own list of peer addresses.
 
+#### AnnounceItems
+
+Announce new inventory items.
 
 ### Outgoing messages: Session -> Others
 
