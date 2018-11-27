@@ -128,6 +128,6 @@ table Inv {
 }
 
 table GetData {
-    inventory: [InvElem] (required);
+    inventory: [InvVector] (required);
 }
 root_type Message;

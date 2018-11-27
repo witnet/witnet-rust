@@ -56,7 +56,7 @@ pub struct Inv {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct GetData {
-    pub inventory: Vec<InvElem>,
+    pub inventory: Vec<InvVector>,
 }
 
 impl fmt::Display for Command {

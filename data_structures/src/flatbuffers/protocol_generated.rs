@@ -27,6 +27,7 @@ pub enum Command {
   Block = 7,
   Inv = 8,
   GetData = 9,
+
 }
 
 const ENUM_MIN_COMMAND: u8 = 0;
@@ -490,6 +491,7 @@ impl<'a> Message<'a> {
       None
     }
   }
+
 }
 
 pub struct MessageArgs {
@@ -2205,7 +2207,7 @@ pub enum GetDataOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
 pub struct GetData<'a> {
-    pub _tab: flatbuffers::Table<'a>,
+  pub _tab: flatbuffers::Table<'a>,
 }
 
 impl<'a> flatbuffers::Follow<'a> for GetData<'a> {
@@ -2228,22 +2230,22 @@ impl<'a> GetData<'a> {
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GetDataArgs<'args>) -> flatbuffers::WIPOffset<Inv<'bldr>> {
-        let mut builder = GetDataBuilder::new(_fbb);
-        if let Some(x) = args.inventory { builder.add_inventory(x); }
-        builder.finish()
+        args: &'args GetDataArgs<'args>) -> flatbuffers::WIPOffset<GetData<'bldr>> {
+      let mut builder = GetDataBuilder::new(_fbb);
+      if let Some(x) = args.inventory { builder.add_inventory(x); }
+      builder.finish()
     }
 
     pub const VT_INVENTORY: flatbuffers::VOffsetT = 4;
 
-    #[inline]
-    pub fn inventory(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvElem<'a>>> {
-        self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvElem<'a>>>>>(GetData::VT_INVENTORY, None).unwrap()
-    }
+  #[inline]
+  pub fn inventory(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvVector<'a>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvVector<'a>>>>>(GetData::VT_INVENTORY, None).unwrap()
+  }
 }
 
 pub struct GetDataArgs<'a> {
-    pub inventory: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<InvElem<'a >>>>>,
+    pub inventory: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<InvVector<'a >>>>>,
 }
 impl<'a> Default for GetDataArgs<'a> {
     #[inline]
@@ -2254,28 +2256,28 @@ impl<'a> Default for GetDataArgs<'a> {
     }
 }
 pub struct GetDataBuilder<'a: 'b, 'b> {
-    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
 impl<'a: 'b, 'b> GetDataBuilder<'a, 'b> {
-    #[inline]
-    pub fn add_inventory(&mut self, inventory: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<InvElem<'b >>>>) {
-        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GetData::VT_INVENTORY, inventory);
+  #[inline]
+  pub fn add_inventory(&mut self, inventory: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<InvVector<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GetData::VT_INVENTORY, inventory);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GetDataBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GetDataBuilder {
+      fbb_: _fbb,
+      start_: start,
     }
-    #[inline]
-    pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GetDataBuilder<'a, 'b> {
-        let start = _fbb.start_table();
-        GetDataBuilder {
-            fbb_: _fbb,
-            start_: start,
-        }
-    }
-    #[inline]
-    pub fn finish(self) -> flatbuffers::WIPOffset<Inv<'a>> {
-        let o = self.fbb_.end_table(self.start_);
-        self.fbb_.required(o, GetData::VT_INVENTORY,"inventory");
-        flatbuffers::WIPOffset::new(o.value())
-    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<GetData<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, GetData::VT_INVENTORY,"inventory");
+    flatbuffers::WIPOffset::new(o.value())
+  }
 }
 
 #[inline]

@@ -210,8 +210,8 @@ fn builders_build_inv() {
 #[test]
 fn builders_build_get_data() {
     // Inventory elements
-    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
-    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
+    let inv_elem_1 = InvVector::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InvVector::Block(Hash::SHA256([2; 32]));
     let inventory = vec![inv_elem_1, inv_elem_2];
 
     // Inventory command

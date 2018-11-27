@@ -105,9 +105,9 @@ impl Message {
     }
 
     /// Function to build GetData messages
-    pub fn build_get_data(inv_elems: Vec<InvElem>) -> Message {
+    pub fn build_get_data(inv_vectors: Vec<InvVector>) -> Message {
         Message::build_message(Command::GetData(GetData {
-            inventory: inv_elems,
+            inventory: inv_vectors,
         }))
     }
 

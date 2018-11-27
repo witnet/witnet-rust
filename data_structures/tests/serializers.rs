@@ -594,8 +594,8 @@ fn message_inv_encode_decode() {
 #[test]
 fn message_get_data_to_bytes() {
     // Inventory elements
-    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
-    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
+    let inv_elem_1 = InvVector::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InvVector::Block(Hash::SHA256([2; 32]));
 
     // Inventory message
     let msg = Message {
@@ -627,8 +627,8 @@ fn message_get_data_to_bytes() {
 #[test]
 fn message_get_data_from_bytes() {
     // Inventory elements
-    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
-    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
+    let inv_elem_1 = InvVector::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InvVector::Block(Hash::SHA256([2; 32]));
 
     // Inventory message
     let expected_msg = Message {
@@ -654,8 +654,8 @@ fn message_get_data_from_bytes() {
 #[test]
 fn message_get_data_encode_decode() {
     // Inventory elements
-    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
-    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
+    let inv_elem_1 = InvVector::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InvVector::Block(Hash::SHA256([2; 32]));
 
     // Inventory message
     let msg = Message {
