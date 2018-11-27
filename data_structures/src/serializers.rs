@@ -3,7 +3,7 @@ extern crate flatbuffers;
 use std::convert::Into;
 
 use crate::chain::{
-    Block, BlockHeader, BlockHeaderWithProof, CheckpointBeacon, Hash, InvElem, LeadershipProof,
+    Block, BlockHeader, BlockHeaderWithProof, CheckpointBeacon, Hash, InvVector, LeadershipProof,
     Secp256k1Signature, Signature, Transaction, SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol::{
@@ -12,12 +12,13 @@ use crate::flatbuffers::protocol_generated::protocol::{
     CheckpointBeacon as FlatBuffersCheckpointBeacon,
     CheckpointBeaconArgs as FlatBuffersCheckpointBeaconArgs, Command as FlatBuffersCommand,
     GetPeers as FlatBuffersGetPeers, GetPeersArgs, Hash as FlatBuffersHash, HashArgs,
-    HashType as FlatBuffersHashType, Inv as FlatBuffersInv, InvArgs, InvElem as FlatBuffersInvElem,
-    InvElemArgs, InvElemType as FlatBuffersInvElemType, IpAddress as FlatBuffersIpAddress,
-    Ipv4 as FlatBuffersIpv4, Ipv4Args as FlatBuffersIpv4Args, Ipv6 as FlatBuffersIpv6,
-    Ipv6Args as FlatBuffersIpv6Args, LeadershipProof as FlatBuffersLeadershipProof,
-    LeadershipProofArgs, Message as FlatBuffersMessage, MessageArgs, Peers as FlatBuffersPeers,
-    PeersArgs, Ping as FlatBuffersPing, PingArgs, Pong as FlatBuffersPong, PongArgs,
+    HashType as FlatBuffersHashType, Inv as FlatBuffersInv, InvArgs,
+    InvVector as FlatBuffersInvVector, InvVectorArgs, InvVectorType as FlatBuffersInvVectorType,
+    IpAddress as FlatBuffersIpAddress, Ipv4 as FlatBuffersIpv4, Ipv4Args as FlatBuffersIpv4Args,
+    Ipv6 as FlatBuffersIpv6, Ipv6Args as FlatBuffersIpv6Args,
+    LeadershipProof as FlatBuffersLeadershipProof, LeadershipProofArgs,
+    Message as FlatBuffersMessage, MessageArgs, Peers as FlatBuffersPeers, PeersArgs,
+    Ping as FlatBuffersPing, PingArgs, Pong as FlatBuffersPong, PongArgs,
     Secp256k1Signature as FlatBuffersSecp256k1Signature, Secp256k1SignatureArgs,
     Signature as FlatBuffersSignature, Transaction as FlatBuffersTransaction, TransactionArgs,
     Verack as FlatBuffersVerack, VerackArgs, Version as FlatBuffersVersion, VersionArgs,
@@ -127,7 +128,7 @@ struct VersionWitnetArgs {
 #[derive(Debug, Clone, Copy)]
 struct InvFlatbufferArgs<'a> {
     magic: u16,
-    inventory: &'a [InvElem],
+    inventory: &'a [InvVector],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -833,18 +834,18 @@ fn create_block_flatbuffer(
 
 // Create an inv flatbuffer to encode a witnet's inv message
 fn create_inv_flatbuffer(builder: &mut FlatBufferBuilder, inv_args: InvFlatbufferArgs) -> Vec<u8> {
-    // Create vector of flatbuffers' inv elements
-    let ftb_inv_elems: Vec<flatbuffers::WIPOffset<FlatBuffersInvElem>> = inv_args
+    // Create vector of flatbuffers' inv vectors
+    let ftb_inv_vectors: Vec<flatbuffers::WIPOffset<FlatBuffersInvVector>> = inv_args
         .inventory
         .iter()
-        .map(|inv_elem: &InvElem| {
+        .map(|inv_vector: &InvVector| {
             // Create flatbuffers' hash bytes
-            let hash = match inv_elem {
-                InvElem::Error(hash) => hash,
-                InvElem::Tx(hash) => hash,
-                InvElem::Block(hash) => hash,
-                InvElem::DataRequest(hash) => hash,
-                InvElem::DataResult(hash) => hash,
+            let hash = match inv_vector {
+                InvVector::Error(hash) => hash,
+                InvVector::Tx(hash) => hash,
+                InvVector::Block(hash) => hash,
+                InvVector::DataRequest(hash) => hash,
+                InvVector::DataResult(hash) => hash,
             };
 
             // Get hash bytes
@@ -863,19 +864,19 @@ fn create_inv_flatbuffer(builder: &mut FlatBufferBuilder, inv_args: InvFlatbuffe
                 ),
             };
 
-            // Create flatbuffers inv elem type
-            let ftb_type = match inv_elem {
-                InvElem::Error(_) => FlatBuffersInvElemType::Error,
-                InvElem::Tx(_) => FlatBuffersInvElemType::Tx,
-                InvElem::Block(_) => FlatBuffersInvElemType::Block,
-                InvElem::DataRequest(_) => FlatBuffersInvElemType::DataRequest,
-                InvElem::DataResult(_) => FlatBuffersInvElemType::DataResult,
+            // Create flatbuffers inv vector type
+            let ftb_type = match inv_vector {
+                InvVector::Error(_) => FlatBuffersInvVectorType::Error,
+                InvVector::Tx(_) => FlatBuffersInvVectorType::Tx,
+                InvVector::Block(_) => FlatBuffersInvVectorType::Block,
+                InvVector::DataRequest(_) => FlatBuffersInvVectorType::DataRequest,
+                InvVector::DataResult(_) => FlatBuffersInvVectorType::DataResult,
             };
 
-            // Create flatbuffers inv elem
-            FlatBuffersInvElem::create(
+            // Create flatbuffers inv vector
+            FlatBuffersInvVector::create(
                 builder,
-                &InvElemArgs {
+                &InvVectorArgs {
                     type_: ftb_type,
                     hash: Some(ftb_hash),
                 },
@@ -883,14 +884,14 @@ fn create_inv_flatbuffer(builder: &mut FlatBufferBuilder, inv_args: InvFlatbuffe
         })
         .collect();
 
-    // Create flatbuffers' vector of flatbuffers' inv elements
-    let ftb_inv_elems = Some(builder.create_vector(&ftb_inv_elems));
+    // Create flatbuffers' vector of flatbuffers' inv vectors
+    let ftb_inv_vectors = Some(builder.create_vector(&ftb_inv_vectors));
 
     // Create inv flatbuffers command
     let inv_command = FlatBuffersInv::create(
         builder,
         &InvArgs {
-            inventory: ftb_inv_elems,
+            inventory: ftb_inv_vectors,
         },
     );
 
@@ -910,40 +911,40 @@ fn create_inv_flatbuffer(builder: &mut FlatBufferBuilder, inv_args: InvFlatbuffe
 
 // Create a witnet's inv message to decode a flatbuffers' inv message
 fn create_inv_message(inv_args: InvWitnetArgs) -> Message {
-    // Get inventory elements (flatbuffers' types)
-    let ftb_inv_elems = inv_args.inventory.inventory();
-    let len = ftb_inv_elems.len();
+    // Get inventory vectors (flatbuffers' types)
+    let ftb_inv_vectors = inv_args.inventory.inventory();
+    let len = ftb_inv_vectors.len();
 
-    // Create empty vector of inventory elements
-    let mut inv_elems = Vec::new();
+    // Create empty vector of inventory vectors
+    let mut inv_vectors = Vec::new();
 
-    // Create all inventory elements (witnet's types) and add them to a vector
+    // Create all inventory vectors (witnet's types) and add them to a vector
     for i in 0..len {
-        let inv_elem = create_inv_elem(ftb_inv_elems.get(i));
-        inv_elems.push(inv_elem);
+        let inv_vector = create_inv_vector(ftb_inv_vectors.get(i));
+        inv_vectors.push(inv_vector);
     }
 
     // Create message
     Message {
         magic: inv_args.magic,
         kind: Command::Inv(Inv {
-            inventory: inv_elems,
+            inventory: inv_vectors,
         }),
     }
 }
 
-// Create a witnet's inv element from a flatbuffers' inv element
-fn create_inv_elem(inv_elem: FlatBuffersInvElem) -> InvElem {
-    // Create inventory element hash
-    let hash = create_hash(inv_elem.hash());
+// Create a witnet's inv vector from a flatbuffers' inv vector
+fn create_inv_vector(inv_vector: FlatBuffersInvVector) -> InvVector {
+    // Create inventory vector hash
+    let hash = create_hash(inv_vector.hash());
 
-    // Create inventory element
-    match inv_elem.type_() {
-        FlatBuffersInvElemType::Error => InvElem::Error(hash),
-        FlatBuffersInvElemType::Tx => InvElem::Tx(hash),
-        FlatBuffersInvElemType::Block => InvElem::Block(hash),
-        FlatBuffersInvElemType::DataRequest => InvElem::DataRequest(hash),
-        FlatBuffersInvElemType::DataResult => InvElem::DataResult(hash),
+    // Create inventory vector
+    match inv_vector.type_() {
+        FlatBuffersInvVectorType::Error => InvVector::Error(hash),
+        FlatBuffersInvVectorType::Tx => InvVector::Tx(hash),
+        FlatBuffersInvVectorType::Block => InvVector::Block(hash),
+        FlatBuffersInvVectorType::DataRequest => InvVector::DataRequest(hash),
+        FlatBuffersInvVectorType::DataResult => InvVector::DataResult(hash),
     }
 }
 

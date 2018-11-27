@@ -144,7 +144,7 @@ pub type SHA256 = [u8; 32];
 pub struct Transaction;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum InvElem {
+pub enum InvVector {
     Error(Hash),
     Tx(Hash),
     Block(Hash),

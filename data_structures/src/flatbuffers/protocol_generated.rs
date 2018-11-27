@@ -221,7 +221,7 @@ pub fn enum_name_hash_type(e: HashType) -> &'static str {
 #[allow(non_camel_case_types)]
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum InvElemType {
+pub enum InvVectorType {
   Error = 0,
   Tx = 1,
   Block = 2,
@@ -230,10 +230,10 @@ pub enum InvElemType {
 
 }
 
-const ENUM_MIN_INV_ELEM_TYPE: u8 = 0;
-const ENUM_MAX_INV_ELEM_TYPE: u8 = 4;
+const ENUM_MIN_INV_VECTOR_TYPE: u8 = 0;
+const ENUM_MAX_INV_VECTOR_TYPE: u8 = 4;
 
-impl<'a> flatbuffers::Follow<'a> for InvElemType {
+impl<'a> flatbuffers::Follow<'a> for InvVectorType {
   type Inner = Self;
   #[inline]
   fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
@@ -241,40 +241,40 @@ impl<'a> flatbuffers::Follow<'a> for InvElemType {
   }
 }
 
-impl flatbuffers::EndianScalar for InvElemType {
+impl flatbuffers::EndianScalar for InvVectorType {
   #[inline]
   fn to_little_endian(self) -> Self {
     let n = u8::to_le(self as u8);
-    let p = &n as *const u8 as *const InvElemType;
+    let p = &n as *const u8 as *const InvVectorType;
     unsafe { *p }
   }
   #[inline]
   fn from_little_endian(self) -> Self {
     let n = u8::from_le(self as u8);
-    let p = &n as *const u8 as *const InvElemType;
+    let p = &n as *const u8 as *const InvVectorType;
     unsafe { *p }
   }
 }
 
-impl flatbuffers::Push for InvElemType {
-    type Output = InvElemType;
+impl flatbuffers::Push for InvVectorType {
+    type Output = InvVectorType;
     #[inline]
     fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        flatbuffers::emplace_scalar::<InvElemType>(dst, *self);
+        flatbuffers::emplace_scalar::<InvVectorType>(dst, *self);
     }
 }
 
 #[allow(non_camel_case_types)]
-const ENUM_VALUES_INV_ELEM_TYPE:[InvElemType; 5] = [
-  InvElemType::Error,
-  InvElemType::Tx,
-  InvElemType::Block,
-  InvElemType::DataRequest,
-  InvElemType::DataResult
+const ENUM_VALUES_INV_VECTOR_TYPE:[InvVectorType; 5] = [
+  InvVectorType::Error,
+  InvVectorType::Tx,
+  InvVectorType::Block,
+  InvVectorType::DataRequest,
+  InvVectorType::DataResult
 ];
 
 #[allow(non_camel_case_types)]
-const ENUM_NAMES_INV_ELEM_TYPE:[&'static str; 5] = [
+const ENUM_NAMES_INV_VECTOR_TYPE:[&'static str; 5] = [
     "Error",
     "Tx",
     "Block",
@@ -282,9 +282,9 @@ const ENUM_NAMES_INV_ELEM_TYPE:[&'static str; 5] = [
     "DataResult"
 ];
 
-pub fn enum_name_inv_elem_type(e: InvElemType) -> &'static str {
+pub fn enum_name_inv_vector_type(e: InvVectorType) -> &'static str {
   let index: usize = e as usize;
-  ENUM_NAMES_INV_ELEM_TYPE[index]
+  ENUM_NAMES_INV_VECTOR_TYPE[index]
 }
 
 #[allow(non_camel_case_types)]
@@ -926,15 +926,15 @@ impl<'a: 'b, 'b> HashBuilder<'a, 'b> {
   }
 }
 
-pub enum InvElemOffset {}
+pub enum InvVectorOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct InvElem<'a> {
+pub struct InvVector<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for InvElem<'a> {
-    type Inner = InvElem<'a>;
+impl<'a> flatbuffers::Follow<'a> for InvVector<'a> {
+    type Inner = InvVector<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -943,18 +943,18 @@ impl<'a> flatbuffers::Follow<'a> for InvElem<'a> {
     }
 }
 
-impl<'a> InvElem<'a> {
+impl<'a> InvVector<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        InvElem {
+        InvVector {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args InvElemArgs<'args>) -> flatbuffers::WIPOffset<InvElem<'bldr>> {
-      let mut builder = InvElemBuilder::new(_fbb);
+        args: &'args InvVectorArgs<'args>) -> flatbuffers::WIPOffset<InvVector<'bldr>> {
+      let mut builder = InvVectorBuilder::new(_fbb);
       if let Some(x) = args.hash { builder.add_hash(x); }
       builder.add_type_(args.type_);
       builder.finish()
@@ -964,53 +964,53 @@ impl<'a> InvElem<'a> {
     pub const VT_HASH: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn type_(&self) -> InvElemType {
-    self._tab.get::<InvElemType>(InvElem::VT_TYPE_, Some(InvElemType::Error)).unwrap()
+  pub fn type_(&self) -> InvVectorType {
+    self._tab.get::<InvVectorType>(InvVector::VT_TYPE_, Some(InvVectorType::Error)).unwrap()
   }
   #[inline]
   pub fn hash(&self) -> Hash<'a> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(InvElem::VT_HASH, None).unwrap()
+    self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(InvVector::VT_HASH, None).unwrap()
   }
 }
 
-pub struct InvElemArgs<'a> {
-    pub type_: InvElemType,
+pub struct InvVectorArgs<'a> {
+    pub type_: InvVectorType,
     pub hash: Option<flatbuffers::WIPOffset<Hash<'a >>>,
 }
-impl<'a> Default for InvElemArgs<'a> {
+impl<'a> Default for InvVectorArgs<'a> {
     #[inline]
     fn default() -> Self {
-        InvElemArgs {
-            type_: InvElemType::Error,
+        InvVectorArgs {
+            type_: InvVectorType::Error,
             hash: None, // required field
         }
     }
 }
-pub struct InvElemBuilder<'a: 'b, 'b> {
+pub struct InvVectorBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> InvElemBuilder<'a, 'b> {
+impl<'a: 'b, 'b> InvVectorBuilder<'a, 'b> {
   #[inline]
-  pub fn add_type_(&mut self, type_: InvElemType) {
-    self.fbb_.push_slot::<InvElemType>(InvElem::VT_TYPE_, type_, InvElemType::Error);
+  pub fn add_type_(&mut self, type_: InvVectorType) {
+    self.fbb_.push_slot::<InvVectorType>(InvVector::VT_TYPE_, type_, InvVectorType::Error);
   }
   #[inline]
   pub fn add_hash(&mut self, hash: flatbuffers::WIPOffset<Hash<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(InvElem::VT_HASH, hash);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(InvVector::VT_HASH, hash);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> InvElemBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> InvVectorBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    InvElemBuilder {
+    InvVectorBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<InvElem<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<InvVector<'a>> {
     let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, InvElem::VT_HASH,"hash");
+    self.fbb_.required(o, InvVector::VT_HASH,"hash");
     flatbuffers::WIPOffset::new(o.value())
   }
 }
@@ -2149,13 +2149,13 @@ impl<'a> Inv<'a> {
     pub const VT_INVENTORY: flatbuffers::VOffsetT = 4;
 
   #[inline]
-  pub fn inventory(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvElem<'a>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvElem<'a>>>>>(Inv::VT_INVENTORY, None).unwrap()
+  pub fn inventory(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvVector<'a>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvVector<'a>>>>>(Inv::VT_INVENTORY, None).unwrap()
   }
 }
 
 pub struct InvArgs<'a> {
-    pub inventory: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<InvElem<'a >>>>>,
+    pub inventory: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<InvVector<'a >>>>>,
 }
 impl<'a> Default for InvArgs<'a> {
     #[inline]
@@ -2171,7 +2171,7 @@ pub struct InvBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> InvBuilder<'a, 'b> {
   #[inline]
-  pub fn add_inventory(&mut self, inventory: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<InvElem<'b >>>>) {
+  pub fn add_inventory(&mut self, inventory: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<InvVector<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Inv::VT_INVENTORY, inventory);
   }
   #[inline]

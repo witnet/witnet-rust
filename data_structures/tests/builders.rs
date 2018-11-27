@@ -188,9 +188,9 @@ fn builders_build_verack() {
 #[test]
 fn builders_build_inv() {
     // Inventory elements
-    let inv_elem_1 = InvElem::Tx(Hash::SHA256([1; 32]));
-    let inv_elem_2 = InvElem::Block(Hash::SHA256([2; 32]));
-    let inventory = vec![inv_elem_1, inv_elem_2];
+    let inv_vector_1 = InvVector::Tx(Hash::SHA256([1; 32]));
+    let inv_vector_2 = InvVector::Block(Hash::SHA256([2; 32]));
+    let inventory = vec![inv_vector_1, inv_vector_2];
 
     // Inventory command
     let inv_cmd = Command::Inv(Inv {

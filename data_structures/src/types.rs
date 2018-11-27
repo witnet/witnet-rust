@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::chain::{Block, InvElem};
+use crate::chain::{Block, InvVector};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Command {
@@ -50,7 +50,7 @@ pub struct Version {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Inv {
-    pub inventory: Vec<InvElem>,
+    pub inventory: Vec<InvVector>,
 }
 
 impl fmt::Display for Command {

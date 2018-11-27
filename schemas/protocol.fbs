@@ -44,7 +44,7 @@ table Hash {
     bytes: [ubyte] (required);
 }
 
-enum InvElemType: uint8 {
+enum InvVectorType: uint8 {
     Error = 0,
     Tx,
     Block,
@@ -52,8 +52,8 @@ enum InvElemType: uint8 {
     DataResult
 }
 
-table InvElem {
-    type: InvElemType;
+table InvVector {
+    type: InvVectorType;
     hash: Hash (required);
 }
 
@@ -124,7 +124,7 @@ table Block {
 }
 
 table Inv {
-    inventory: [InvElem] (required);
+    inventory: [InvVector] (required);
 }
 
 root_type Message;

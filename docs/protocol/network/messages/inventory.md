@@ -106,9 +106,9 @@ The `inv` message consists of a message header with the `INV` command and a payl
 
 | Field       | Type         | Description                  |
 | ----------- | :----------: | -----------------------------|
-| `inventory` | `inv_elem[]` | Vector of inventory elements |
+| `inventory` | `inv_vect[]` | Vector of inventory vectors  |
 
-The `inv_elem` (inventory element) data structure has the following schema:
+The `inv_vect` (inventory vector) data structure has the following schema:
 
 | Field  | Type             | Description                                  |
 |--------|------------------| -------------------------------------------- |

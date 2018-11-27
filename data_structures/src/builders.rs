@@ -3,7 +3,7 @@ use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
-use crate::chain::{Block, BlockHeaderWithProof, InvElem, Transaction};
+use crate::chain::{Block, BlockHeaderWithProof, InvVector, Transaction};
 
 use crate::types::{
     Address, Command, GetPeers, Inv, IpAddress, Message, Peers, Ping, Pong, Verack, Version,
@@ -97,9 +97,9 @@ impl Message {
     }
 
     /// Function to build Inv messages
-    pub fn build_inv(inv_elems: Vec<InvElem>) -> Message {
+    pub fn build_inv(inv_vectors: Vec<InvVector>) -> Message {
         Message::build_message(Command::Inv(Inv {
-            inventory: inv_elems,
+            inventory: inv_vectors,
         }))
     }
 
