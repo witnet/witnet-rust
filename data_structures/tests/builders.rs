@@ -1,8 +1,22 @@
 use std::net::SocketAddr;
 
 use witnet_data_structures::builders::*;
-
 use witnet_data_structures::{chain::*, types::*};
+
+#[test]
+fn builders_build_get_blocks() {
+    let highest_block_checkpoint = CheckpointBeacon {
+        checkpoint: 0,
+        hash_prev_block: Hash::SHA256([0; 32]),
+    };
+    let msg = Message {
+        kind: Command::GetBlocks(GetBlocks {
+            highest_block_checkpoint,
+        }),
+        magic: MAGIC,
+    };
+    assert_eq!(msg, Message::build_get_blocks(highest_block_checkpoint));
+}
 
 #[test]
 fn builders_build_block() {

@@ -137,7 +137,7 @@ impl Actor for BlocksManager {
                         initialize and store a new chain."
                         );
                         // Create a new ChainInfo
-                        let genesis_hash = (consensus_constants.genesis_hash).clone();
+                        let genesis_hash = consensus_constants.genesis_hash;
                         let chain_info = ChainInfo {
                             environment,
                             consensus_constants,
