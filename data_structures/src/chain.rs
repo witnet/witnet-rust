@@ -73,7 +73,7 @@ impl Default for CheckpointBeacon {
 pub type Epoch = u32;
 
 /// Block data structure
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Block {
     /// The header of the block
     pub header: BlockHeaderWithProof,
@@ -84,7 +84,7 @@ pub struct Block {
 }
 
 /// Block header structure
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BlockHeader {
     /// The block version number indicating the block validation rules
     pub version: u32,
@@ -95,7 +95,7 @@ pub struct BlockHeader {
 }
 
 /// Block header structure with proof of leadership
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BlockHeaderWithProof {
     /// The block header
     pub block_header: BlockHeader,
@@ -104,7 +104,7 @@ pub struct BlockHeaderWithProof {
 }
 
 /// Proof of leadership structure
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct LeadershipProof {
     /// An enveloped signature of the block header except the `proof` part
     pub block_sig: Option<Signature>,
@@ -113,14 +113,14 @@ pub struct LeadershipProof {
 }
 
 /// Digital signatures structure (based on supported cryptosystems)
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Signature {
     /// ECDSA over secp256k1
     Secp256k1(Secp256k1Signature),
 }
 
 /// ECDSA (over secp256k1) signature
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Secp256k1Signature {
     /// The signature value R
     pub r: [u8; 32],
@@ -141,7 +141,7 @@ pub enum Hash {
 pub type SHA256 = [u8; 32];
 
 // FIXME(#99): define Transaction as defined in issue
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Transaction;
 
 #[derive(Debug, Eq, PartialEq, Clone)]

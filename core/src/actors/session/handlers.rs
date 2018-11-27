@@ -12,12 +12,14 @@ use crate::actors::{
     codec::BytesMut,
     peers_manager,
     sessions_manager::{messages::Consolidate, SessionsManager},
+    storage_manager::{messages::Get, StorageManager},
 };
 
 use witnet_data_structures::{
     builders::from_address,
+    chain::{Block, Hash, InvVector},
     serializers::TryFrom,
-    types::{Address, Command, Message as WitnetMessage, Peers, Version},
+    types::{Address, Command, GetData, Message as WitnetMessage, Peers, Version},
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
@@ -76,6 +78,22 @@ impl StreamHandler<BytesMut, Error> for Session {
                         Command::Peers(Peers { peers }),
                     ) => {
                         peer_discovery_peers(&peers);
+                    }
+                    //////////////
+                    // GET DATA //
+                    //////////////
+                    (_, SessionStatus::Consolidated, Command::GetData(GetData { inventory })) => {
+                        for elem in inventory {
+                            match elem {
+                                InvVector::Block(hash)
+                                | InvVector::Tx(hash)
+                                | InvVector::DataRequest(hash)
+                                | InvVector::DataResult(hash) => {
+                                    send_block_msg(self, ctx, &hash);
+                                }
+                                InvVector::Error(_) => warn!("Error InvElem received"),
+                            }
+                        }
                     }
                     /////////////////////
                     // NOT SUPPORTED   //
@@ -262,4 +280,47 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
     }
 
     responses
+}
+/// Function called when GetData message is received
+fn send_block_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash) {
+    let Hash::SHA256(block_key) = *hash;
+
+    // TODO Use Inventory Manager
+    // Add block from storage:
+    // Get storage manager actor address
+    let storage_manager_addr = System::current().registry().get::<StorageManager>();
+    storage_manager_addr
+        // Send a message to read the block from the storage
+        .send(Get::<Block>::new(block_key.to_vec()))
+        .into_actor(session)
+        // Process the response
+        .then(|res, _act, _ctx| match res {
+            Err(e) => {
+                // Error when sending message
+                error!("Unsuccessful communication with storage manager: {}", e);
+                actix::fut::err(())
+            }
+            Ok(res) => match res {
+                Err(e) => {
+                    // Storage error
+                    error!("Error while getting block from storage: {}", e);
+                    actix::fut::err(())
+                }
+                Ok(res) => actix::fut::ok(res),
+            },
+        })
+        .and_then(|block_from_storage, _act, _ctx| {
+            // block_from_storage can be None if the storage does not contain that key
+            if let Some(block_from_storage) = block_from_storage {
+                let header = block_from_storage.header;
+                let txns = block_from_storage.txns;
+
+                let _block_msg = WitnetMessage::build_block(header, txns);
+            } else {
+                warn!("Inventory element not found in Storage");
+            }
+
+            actix::fut::ok(())
+        })
+        .wait(ctx);
 }
