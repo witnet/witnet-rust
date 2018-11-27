@@ -9,6 +9,9 @@ use std::path::Path;
 use toml;
 use witnet_util::error::{WitnetError, WitnetResult};
 
+#[cfg(test)]
+use std::cell::Cell;
+
 /// `toml::de::Error`, but loading that configuration from a file
 /// might also fail with a `std::io::Error`.
 #[derive(Debug, Fail)]
@@ -50,14 +53,15 @@ fn read_file_contents(file: &Path, contents: &mut String) -> io::Result<usize> {
 }
 
 #[cfg(test)]
-static mut FILE_CONTENTS: &str = "";
+thread_local!(static FILE_CONTENTS: Cell<&'static str> = Cell::new(""));
 
 #[cfg(test)]
 fn read_file_contents(_filename: &Path, contents: &mut String) -> io::Result<usize> {
-    unsafe {
-        contents.insert_str(0, FILE_CONTENTS);
-        Ok(FILE_CONTENTS.len())
-    }
+    FILE_CONTENTS.with(|cell| {
+        let value = cell.get();
+        contents.insert_str(0, value);
+        Ok(value.len())
+    })
 }
 
 /// Load configuration from a string written in Toml format.
@@ -80,7 +84,7 @@ mod tests {
 
     #[test]
     fn test_load_empty_config_from_file() {
-        unsafe { super::FILE_CONTENTS = "" }
+        super::FILE_CONTENTS.with(|cell| cell.set(""));
         let filename = Path::new("config.toml");
         let config = super::from_file(&filename).unwrap();
 
@@ -89,13 +93,15 @@ mod tests {
 
     #[test]
     fn test_load_config_from_file() {
-        unsafe {
-            super::FILE_CONTENTS = r"
+        super::FILE_CONTENTS.with(|cell| {
+            cell.set(
+                r"
 environment = 'testnet-1'
 [connections]
 inbound_limit = 999
-"
-        }
+",
+            )
+        });
         let filename = Path::new("config.toml");
         let config = super::from_file(&filename).unwrap();
 
