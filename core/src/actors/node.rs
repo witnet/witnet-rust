@@ -14,6 +14,7 @@ use crate::actors::mempool_manager::MempoolManager;
 use crate::actors::peers_manager::PeersManager;
 use crate::actors::sessions_manager::SessionsManager;
 use crate::actors::storage_manager::StorageManager;
+use crate::actors::utxo_manager::UtxoManager;
 
 /// Function to run the main system
 pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
@@ -54,6 +55,10 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Start mempool manager actor
     let mempool_manager_addr = MempoolManager::start_default();
     System::current().registry().set(mempool_manager_addr);
+
+    // Start UTXO manager actor
+    let utxo_manager_addr = UtxoManager::start_default();
+    System::current().registry().set(utxo_manager_addr);
 
     // Run system
     system.run();

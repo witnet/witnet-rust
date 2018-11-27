@@ -33,3 +33,7 @@ pub mod blocks_manager;
 
 /// MempoolManager actor module
 pub mod mempool_manager;
+
+/// UtxoManager actor module
+pub mod utxo_manager;
+

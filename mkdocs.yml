@@ -72,6 +72,7 @@ nav:
       - Peers Manager: architecture/managers/peers-manager.md
       - Sessions Manager: architecture/managers/sessions-manager.md
       - Storage Manager: architecture/managers/storage-manager.md
+      - UTXO Manager: architecture/managers/utxo-manager.md
     - Session: architecture/session.md
     - Mempool Management: architecture/mempool-mgmt.md
     - Block Management: architecture/block-mgmt.md
