@@ -16,8 +16,12 @@ use crate::actors::{
 
 use witnet_data_structures::{
     builders::from_address,
+    chain::{
+        BlockHeader, BlockHeaderWithProof, CheckpointBeacon, Hash, InvElem, LeadershipProof,
+        Secp256k1Signature, Signature, Transaction,
+    },
     serializers::TryFrom,
-    types::{Address, Command, Message as WitnetMessage, Peers, Version},
+    types::{Address, Command, GetData, Message as WitnetMessage, Peers, Version},
 };
 use witnet_p2p::sessions::SessionStatus;
 
@@ -71,6 +75,19 @@ impl StreamHandler<BytesMut, Error> for Session {
                     /////////////////////
                     // NOT IMPLEMENTED //
                     /////////////////////
+                    (SessionStatus::Consolidated, Command::GetData(GetData { inventory })) => {
+                        for elem in inventory {
+                            match elem {
+                                InvElem::Block(hash)
+                                | InvElem::Tx(hash)
+                                | InvElem::DataRequest(hash)
+                                | InvElem::DataResult(hash) => {
+                                    self.send_message(create_block_msg(hash));
+                                }
+                                InvElem::Error(_) => warn!("Error InvElem received"),
+                            }
+                        }
+                    }
                     (SessionStatus::Consolidated, _) => {
                         warn!("Not implemented message command received!");
                     }
@@ -239,4 +256,32 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
     }
 
     responses
+}
+/// Function called when GetData message is received
+fn create_block_msg(hash: Hash) -> WitnetMessage {
+    // TODO Extract Block info from storage
+    // Create a default block with required hash
+    let header = BlockHeader {
+        version: 0x0000_0001,
+        beacon: CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: Hash::SHA256([0; 32]),
+        },
+        hash_merkle_root: hash,
+    };
+    let signature = Signature::Secp256k1(Secp256k1Signature {
+        r: [0; 32],
+        s: [0; 32],
+        v: 0,
+    });
+    let header_with_proof = BlockHeaderWithProof {
+        block_header: header,
+        proof: LeadershipProof {
+            block_sig: Some(signature),
+            influence: 0,
+        },
+    };
+    let txns: Vec<Transaction> = vec![Transaction];
+
+    WitnetMessage::build_block(header_with_proof, txns)
 }
