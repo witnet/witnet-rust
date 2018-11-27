@@ -104,17 +104,16 @@ The `inv` message is used to advertise the knowledge of one or more objects (e.g
 
 The `inv` message consists of a message header with the `INV` command and a payload containing one or more inventory entries:
 
-| Field       | Type         | Description                 |
-| ----------- | :----------: | --------------------------- |
-| `count`     | `u16`        | Number of inventory entries |
-| `inventory` | `inv_vect[]` | Inventory vectors           |
+| Field       | Type         | Description                  |
+| ----------- | :----------: | -----------------------------|
+| `inventory` | `inv_elem[]` | Vector of inventory elements |
 
-The `inv_vect` (inventory vector) data structure has the following schema:
+The `inv_elem` (inventory element) data structure has the following schema:
 
-| Field  | Type       | Description                                  |
-| ------ | :--------: | -------------------------------------------- |
-| `type` | `u8`       | Type of object linked to the inventory entry |
-| `hash` | `[u8; 32]` | Hash of the object                           |
+| Field  | Type             | Description                                  |
+|--------|------------------| -------------------------------------------- |
+| `type` | `enum(ubyte)`    | Type of object linked to the inventory entry |
+| `hash` | `Hash`           | Hash of the object                           |
 
 The possible values for the `type` field are:
 
@@ -127,6 +126,21 @@ The possible values for the `type` field are:
 | `4`   | `DATA_RESULT`  | Hash is related to the result of a data request |
 
 In the future, the type values may be extended in order to consider additional features.
+
+The `hash` (`Hash`) data structure has the following schema:
+
+| Field     | Type              | Description                                  |
+|-----------|-------------------|----------------------------------------------|
+| `type`    | `enum(ubyte)`     | Hash type                                    |
+| `bytes`   | `[ubyte]`         | Hash bytes                                   |
+
+The possible values for the `type` field are:
+
+| Value | Name           | Description                                      |
+|-------|----------------|--------------------------------------------------|
+| `0`   | `SHA256`       | SHA256 hash type                                 |
+
+In the future, the type values may be extended in order to consider additional hash types.
 
 ## Get data messages
 
