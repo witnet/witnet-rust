@@ -1,6 +1,7 @@
 use super::ConfigManager;
 use actix::{Actor, Context};
 use log::{debug, info};
+use std::sync::Arc;
 use witnet_config::config::Config;
 use witnet_config::loaders::toml;
 
@@ -13,6 +14,8 @@ impl Actor for ConfigManager {
             "Reading configuration from file: {}",
             self.config_file.to_string_lossy()
         );
-        self.config = Config::from_partial(&toml::from_file(&self.config_file).unwrap())
+        self.config = Arc::new(Config::from_partial(
+            &toml::from_file(&self.config_file).unwrap(),
+        ))
     }
 }

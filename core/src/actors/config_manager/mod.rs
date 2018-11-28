@@ -5,6 +5,7 @@ use actix::{
 
 use log::error;
 use std::path::PathBuf;
+use std::sync::Arc;
 use witnet_config::config::Config;
 
 // Internal Actor implementation for ConfigManager
@@ -27,7 +28,7 @@ pub const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
 #[derive(Debug)]
 pub struct ConfigManager {
     /// Loaded configuration
-    config: Config,
+    config: Arc<Config>,
 
     /// Configuration file from which to read the configuration when
     /// the actor starts
@@ -37,7 +38,7 @@ pub struct ConfigManager {
 impl Default for ConfigManager {
     fn default() -> Self {
         Self {
-            config: Config::default(),
+            config: Arc::new(Config::default()),
             config_file: PathBuf::from(CONFIG_DEFAULT_FILENAME),
         }
     }
@@ -48,7 +49,7 @@ impl ConfigManager {
     /// given configuration file name.
     pub fn new(config_file: Option<PathBuf>) -> Self {
         Self {
-            config: Config::default(),
+            config: Arc::new(Config::default()),
             config_file: match config_file {
                 Some(path) => path,
                 None => PathBuf::from(CONFIG_DEFAULT_FILENAME),
@@ -100,7 +101,7 @@ where
 /// Method to process ConfigManager GetConfig response
 pub fn process_get_config_response<T>(
     response: Result<messages::ConfigResult, MailboxError>,
-) -> FutureResult<Config, (), T> {
+) -> FutureResult<Arc<Config>, (), T> {
     // Process the Result<ConfigResult, MailboxError>
     match response {
         Err(e) => {
