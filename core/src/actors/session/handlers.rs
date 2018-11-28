@@ -9,13 +9,20 @@ use actix::{
 use log::{debug, error, info, warn};
 
 use crate::actors::{
-    blocks_manager::{messages::GetHighestCheckpointBeacon, BlocksManager},
+    blocks_manager::{
+        messages::{AddNewBlock, GetHighestCheckpointBeacon},
+        BlocksManager,
+    },
     codec::BytesMut,
     peers_manager,
     sessions_manager::{messages::Consolidate, SessionsManager},
     storage_manager::{messages::Get, StorageManager},
 };
 
+use super::{
+    messages::{AnnounceItems, GetPeers, SessionUnitResult},
+    Session,
+};
 use witnet_data_structures::{
     builders::from_address,
     chain::{Block, Hash, InvVector},
@@ -23,11 +30,6 @@ use witnet_data_structures::{
     types::{Address, Command, GetData, Message as WitnetMessage, Peers, Version},
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
-
-use super::{
-    messages::{AnnounceItems, GetPeers, SessionUnitResult},
-    Session,
-};
 
 /// Implement WriteHandler for Session
 impl WriteHandler<Error> for Session {}
@@ -95,6 +97,13 @@ impl StreamHandler<BytesMut, Error> for Session {
                                 InvVector::Error(_) => warn!("Error InvElem received"),
                             }
                         }
+                    }
+                    ////////////////////
+                    // BLOCK RECEIVED //
+                    ////////////////////
+                    // Handle Block
+                    (_, SessionStatus::Consolidated, Command::Block(block)) => {
+                        inventory_process_block(self, ctx, block);
                     }
                     /////////////////////
                     // NOT SUPPORTED   //
@@ -276,6 +285,15 @@ fn peer_discovery_peers(peers: &[Address]) {
         // TODO: convert Vec<Address> to Vec<SocketAddr>
         addresses,
     });
+}
+
+/// Function called when Block message is received
+fn inventory_process_block(_session: &mut Session, _ctx: &mut Context<Session>, block: Block) {
+    // Get BlocksManager address
+    let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
+
+    // Send a message to the BlocksManager to try to add a new block
+    blocks_manager_addr.do_send(AddNewBlock { block });
 }
 
 /// Function called when Verack message is received
