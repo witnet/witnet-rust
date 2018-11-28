@@ -29,9 +29,10 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{Block, Epoch, Hash};
 
-use witnet_storage::storage::Storable;
+use witnet_storage::{error::StorageError, storage::Storable};
 
 use witnet_crypto::hash::calculate_sha256;
+use witnet_util::error::WitnetError;
 
 mod actor;
 mod handlers;
@@ -40,10 +41,18 @@ mod handlers;
 pub mod messages;
 
 /// Possible errors when getting the current epoch
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub enum BlocksManagerError {
     /// The new block is not new anymore
     BlockAlreadyExists,
+    /// StorageError
+    StorageError(WitnetError<StorageError>),
+}
+
+impl From<WitnetError<StorageError>> for BlocksManagerError {
+    fn from(x: WitnetError<StorageError>) -> Self {
+        BlocksManagerError::StorageError(x)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +115,7 @@ impl BlocksManager {
 
     fn process_new_block(&mut self, block: Block) -> Result<Hash, BlocksManagerError> {
         // Calculate the hash of the block
-        let hash = calculate_sha256(&block.to_bytes().unwrap());
+        let hash = calculate_sha256(&block.to_bytes()?);
 
         // Check if we already have a block with that hash
         if let Some(_block) = self.blocks.get(&hash) {

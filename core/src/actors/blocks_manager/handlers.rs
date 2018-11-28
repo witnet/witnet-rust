@@ -89,6 +89,9 @@ impl Handler<AddNewBlock> for BlocksManager {
             Err(BlocksManagerError::BlockAlreadyExists) => {
                 debug!("Block already exists");
             }
+            Err(BlocksManagerError::StorageError(_)) => {
+                debug!("Error when serializing block");
+            }
         };
 
         res
