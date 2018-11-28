@@ -9,6 +9,7 @@ use actix::{
 use log::{debug, error, info, warn};
 
 use crate::actors::{
+    blocks_manager::{messages::GetHighestCheckpointBeacon, BlocksManager},
     codec::BytesMut,
     peers_manager,
     sessions_manager::{messages::Consolidate, SessionsManager},
@@ -146,7 +147,43 @@ fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
     if session.handshake_flags.all_true() && session.remote_sender_addr.is_some() {
         // Update session to consolidate status
         update_consolidate(session, ctx);
+
+        // If session type is Outbound, start initial block synchronization
+        if let SessionType::Outbound = session.session_type {
+            inventory_get_blocks(session, ctx);
+        }
     }
+}
+
+/// Function to retrieve highest CheckpointBeacon and send GetBlocks message in Session
+fn inventory_get_blocks(session: &Session, ctx: &mut Context<Session>) {
+    // Get BlocksManager address from registry
+    let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
+    // Send get highest checkpoint beacon message to BlocksManager
+    blocks_manager_addr
+        .send(GetHighestCheckpointBeacon)
+        .into_actor(session)
+        .then(|res, act, ctx| {
+            match res {
+                Ok(Ok(beacon)) => {
+                    // Create get blocks message
+                    let get_blocks_msg = WitnetMessage::build_get_blocks(beacon);
+                    // Write get blocks message in session
+                    act.send_message(get_blocks_msg);
+
+                    actix::fut::ok(())
+                }
+                _ => {
+                    warn!("Get highest checkpoint beacon in Blocks Manager failed");
+                    // FIXME(#72): a full stop of the session is not correct (unregister should
+                    // be skipped)
+                    ctx.stop();
+
+                    actix::fut::err(())
+                }
+            }
+        })
+        .wait(ctx);
 }
 
 // Function to notify the SessionsManager that the session has been consolidated
