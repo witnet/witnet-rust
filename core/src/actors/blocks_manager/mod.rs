@@ -24,7 +24,12 @@ use crate::actors::{
     storage_manager::{messages::Put, StorageManager},
 };
 
-use log::{error, info};
+use log::{debug, error, info};
+use std::collections::HashMap;
+use std::collections::HashSet;
+use witnet_data_structures::chain::{Block, Epoch, Hash};
+
+use witnet_storage::storage::Storable;
 
 use witnet_crypto::hash::calculate_sha256;
 
@@ -34,6 +39,13 @@ mod handlers;
 /// Messages for BlocksManager
 pub mod messages;
 
+/// Possible errors when getting the current epoch
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum BlocksManagerError {
+    /// The new block is not new anymore
+    BlockAlreadyExists,
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -42,6 +54,11 @@ pub mod messages;
 pub struct BlocksManager {
     /// Blockchain information data structure
     chain_info: Option<ChainInfo>,
+    /// Map that relates an epoch with the hashes of the blocks for that epoch
+    // One epoch can have more than one block
+    epoch_to_block_hash: HashMap<Epoch, HashSet<Hash>>,
+    /// Map that stores blocks by hash
+    blocks: HashMap<Hash, Block>,
 }
 
 /// Required trait for being able to retrieve BlocksManager address from registry
@@ -85,5 +102,162 @@ impl BlocksManager {
                 actix::fut::ok(())
             })
             .wait(ctx);
+    }
+
+    fn process_new_block(&mut self, block: Block) -> Result<Hash, BlocksManagerError> {
+        // Calculate the hash of the block
+        let hash = calculate_sha256(&block.to_bytes().unwrap());
+
+        // Check if we already have a block with that hash
+        if let Some(_block) = self.blocks.get(&hash) {
+            return Err(BlocksManagerError::BlockAlreadyExists);
+        }
+
+        // This is a new block, insert it into the internal maps
+        {
+            // Insert the new block into the map that relates epochs to block hashes
+            let beacon = &block.header.block_header.beacon;
+            let hash_set = &mut self
+                .epoch_to_block_hash
+                .entry(beacon.checkpoint)
+                .or_insert_with(HashSet::new);
+            hash_set.insert(hash);
+
+            debug!(
+                "Checkpoint {} has {} blocks",
+                beacon.checkpoint,
+                hash_set.len()
+            );
+        }
+
+        // Insert the new block into the map of known blocks
+        self.blocks.insert(hash, block);
+
+        Ok(hash)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_block() {
+        let mut bm = BlocksManager::default();
+
+        use witnet_data_structures::chain::*;
+        let checkpoint = 2;
+        let block_a = Block {
+            header: BlockHeaderWithProof {
+                block_header: BlockHeader {
+                    version: 1,
+                    beacon: CheckpointBeacon {
+                        checkpoint,
+                        hash_prev_block: Hash::SHA256([4; 32]),
+                    },
+                    hash_merkle_root: Hash::SHA256([3; 32]),
+                },
+                proof: LeadershipProof {
+                    block_sig: None,
+                    influence: 99999,
+                },
+            },
+            txn_count: 1,
+            txns: vec![Transaction],
+        };
+
+        let hash_a = bm.process_new_block(block_a.clone()).unwrap();
+
+        // Check the block is added into the blocks map
+        assert_eq!(bm.blocks.len(), 1);
+        assert_eq!(bm.blocks.get(&hash_a).unwrap(), &block_a);
+
+        // Check the block is added into the epoch-to-hash map
+        assert_eq!(bm.epoch_to_block_hash.get(&checkpoint).unwrap().len(), 1);
+        assert_eq!(
+            bm.epoch_to_block_hash
+                .get(&checkpoint)
+                .unwrap()
+                .iter()
+                .next()
+                .unwrap(),
+            &hash_a
+        );
+    }
+
+    #[test]
+    fn add_same_block_twice() {
+        let mut bm = BlocksManager::default();
+
+        use witnet_data_structures::chain::*;
+        let block = Block {
+            header: BlockHeaderWithProof {
+                block_header: BlockHeader {
+                    version: 1,
+                    beacon: CheckpointBeacon {
+                        checkpoint: 2,
+                        hash_prev_block: Hash::SHA256([4; 32]),
+                    },
+                    hash_merkle_root: Hash::SHA256([3; 32]),
+                },
+                proof: LeadershipProof {
+                    block_sig: None,
+                    influence: 99999,
+                },
+            },
+            txn_count: 1,
+            txns: vec![Transaction],
+        };
+
+        // Only the first block will be inserted
+        assert!(bm.process_new_block(block.clone()).is_ok());
+        assert!(bm.process_new_block(block).is_err());
+        assert_eq!(bm.blocks.len(), 1);
+    }
+
+    #[test]
+    fn add_blocks_same_epoch() {
+        let mut bm = BlocksManager::default();
+
+        use witnet_data_structures::chain::*;
+        let checkpoint = 2;
+        let block_a = Block {
+            header: BlockHeaderWithProof {
+                block_header: BlockHeader {
+                    version: 1,
+                    beacon: CheckpointBeacon {
+                        checkpoint: 2,
+                        hash_prev_block: Hash::SHA256([4; 32]),
+                    },
+                    hash_merkle_root: Hash::SHA256([3; 32]),
+                },
+                proof: LeadershipProof {
+                    block_sig: None,
+                    influence: 99999,
+                },
+            },
+            txn_count: 1,
+            txns: vec![Transaction],
+        };
+
+        let mut block_b = block_a.clone();
+        // Change a value to change the block_b hash
+        block_b.header.proof.influence = 12345;
+
+        let hash_a = bm.process_new_block(block_a).unwrap();
+        let hash_b = bm.process_new_block(block_b).unwrap();
+
+        // Check that both blocks are stored in the same epoch
+        assert_eq!(bm.epoch_to_block_hash.get(&checkpoint).unwrap().len(), 2);
+        assert!(bm
+            .epoch_to_block_hash
+            .get(&checkpoint)
+            .unwrap()
+            .contains(&hash_a));
+        assert!(bm
+            .epoch_to_block_hash
+            .get(&checkpoint)
+            .unwrap()
+            .contains(&hash_b));
     }
 }

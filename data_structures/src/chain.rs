@@ -131,7 +131,7 @@ pub struct Secp256k1Signature {
 }
 
 /// Hash
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),
@@ -144,7 +144,7 @@ pub type SHA256 = [u8; 32];
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Transaction;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum InvVector {
     Error(Hash),
     Tx(Hash),
