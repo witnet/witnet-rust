@@ -20,7 +20,7 @@ impl<T: Storable + 'static> Handler<Get<T>> for StorageManager {
                 String::from_utf8(msg.key.to_vec()).unwrap(),
                 "Storage was not properly initialised".to_string(),
             ))),
-            |storage| storage.get_t(msg.key),
+            |storage| storage.get_t(&msg.key),
         )
     }
 }
@@ -36,7 +36,7 @@ impl Handler<Put> for StorageManager {
                 String::from_utf8(msg.key.to_vec()).unwrap(),
                 "Storage was not properly initialised".to_string(),
             ))),
-            |storage| storage.put(msg.key, msg.value),
+            |storage| storage.put(&msg.key, msg.value),
         )
     }
 }
@@ -52,7 +52,7 @@ impl Handler<Delete> for StorageManager {
                 String::from_utf8(msg.key.to_vec()).unwrap(),
                 "Storage was not properly initialised".to_string(),
             ))),
-            |storage| storage.delete(msg.key),
+            |storage| storage.delete(&msg.key),
         )
     }
 }
