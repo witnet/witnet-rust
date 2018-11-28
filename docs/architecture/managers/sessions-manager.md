@@ -1,20 +1,16 @@
 # Sessions Manager
 
-The __sessions manager__ is the actor that handles incoming (inbound) and outgoing (outbound) sessions.
- Its responsibilities include:
+The __sessions manager__ is the actor that handles incoming (inbound) and outgoing (outbound) sessions. Its responsibilities include:
 
-- Create new sessions
+- Create new sessions (i.e. starting a [session] actor)
 - Register / unregister new sessions
 - Keep track of the status of the sessions
-- Periodically check the number of outgoing connections. If less than the configured number of
-outgoing peers, the sessions manager will:
-    - Request a new peer address from the [`PeersManager`][peers_manager].
-    - Send a message to the [`ConnectionsManager`][connections_manager] to request a new TCP
+- Periodically check the number of outgoing connections. If less than the configured number of outgoing peers, the sessions manager will:
+  - Request a new peer address from the [`PeersManager`][peers_manager].
+  - Send a message to the [`ConnectionsManager`][connections_manager] to request a new TCP
     connection to that peer.
 
-The __sessions manager__ is the actor that encapsulates the logic of the __sessions__ library,
-defined under the subcrate `witnet_p2p`. The library allows to manage the sessions collection
-present at the Witnet node.
+The __sessions manager__ is the actor that encapsulates the logic of the __sessions__ library, defined under the subcrate `witnet_p2p`. The library allows to manage the sessions collection present at the Witnet node.
 
 ## State
 
@@ -83,30 +79,31 @@ to do.
 The way other actors will communicate with the sessions manager is:
 
 1. Get the address of the sessions manager from the registry:
-```rust
-// Get sessions manager address
-let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
-```
 
-2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to
-send a message to the actor:
-```rust
-session_manager_addr
-    .send(Register {
-        address: self.address,
-        actor: ctx.address(),
-        session_type: self.session_type,
-    })
-    .into_actor(self)
-    .then(|res, _act, ctx| {
-        match res {
-            Ok(Ok(_)) => debug!("Session successfully registered into the Session Manager"),
-            _ => debug!("Session register into Session Manager failed")
-        }
-        actix::fut::ok(())
-    })
-    .wait(ctx);
-```
+    ```rust
+    // Get sessions manager address
+    let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+    ```
+
+2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to send a message to the actor:
+
+    ```rust
+    session_manager_addr
+        .send(Register {
+            address: self.address,
+            actor: ctx.address(),
+            session_type: self.session_type,
+        })
+        .into_actor(self)
+        .then(|res, _act, ctx| {
+            match res {
+                Ok(Ok(_)) => debug!("Session successfully registered into the Session Manager"),
+                _ => debug!("Session register into Session Manager failed")
+            }
+            actix::fut::ok(())
+        })
+        .wait(ctx);
+    ```
 
 #### Anycast<T>
 
@@ -159,10 +156,10 @@ is started.
 
 The returned configuration is used to store some parameters at the [`Sessions`][sessions] state:
 
- - Server address: used at the Witnet node to avoid connections to itself.
- - Inbound limit: used to reject incoming connections once the limit has been reached.
- - Outbound limit: used to stop requesting new outgoing connections once the limit has been reached.
- - Handshake timeout: sent to the session upon creation to set a time limit to the handshake process.
+- Server address: used at the Witnet node to avoid connections to itself.
+- Inbound limit: used to reject incoming connections once the limit has been reached.
+- Outbound limit: used to stop requesting new outgoing connections once the limit has been reached.
+- Handshake timeout: sent to the session upon creation to set a time limit to the handshake process.
 
 For further information, see [`ConfigManager`][config_manager].
 
@@ -183,8 +180,8 @@ In this context, a __valid__ address means that:
 - The address is not one of the already existing outbound connections  
 
 For further information, see [`PeersManager`][peers_manager].
- 
-#### OutboundTcpConnect 
+
+#### OutboundTcpConnect
 
 This message is sent to the [`ConnectionsManager`][connections_manager] actor when the sessions
 manager receives a valid peer address from the `PeersManager`.
@@ -200,18 +197,22 @@ connections and try to create a new one.
 For further information, see [`ConnectionsManager`][connections_manager].
 
 #### Anycast<GetPeers>
+
 Due to [`SessionsManager`][sessions_manager] has an `Anycast<T>` handler to forward a `T` message
 to one randomly selected `Session`, this message is periodically sent it to itself.
 
 It is a best effort message, its return value is not processed and the [`SessionsManager`][sessions_manager] 
 actor does not even wait for its response after sending it.
 
-This message causes `SessionManager` to forward a `GetPeers` message to one randomly selected `Session` actor. 
+This message causes `SessionManager` to forward a `GetPeers` message to one randomly selected `Session` actor.
+
 ## Further information
+
 The full source code of the `SessionsManager` can be found at [`sessions_manager.rs`][sessions_manager].
 
-[connections_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager.rs
-[peers_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager.rs
-[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager.rs
-[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs
-[sessions]: https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions/mod.rs
+[connections_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager
+[peers_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager
+[session]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/session
+[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager
+[sessions]: https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions

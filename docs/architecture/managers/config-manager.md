@@ -90,5 +90,5 @@ The config manager is a simple wrapper over the config library and it does not n
 
 The full source code of the `Config` can be found at [`config_manager.rs`][config_manager].
 
-[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager
 [config]: https://github.com/witnet/witnet-rust/blob/master/config/

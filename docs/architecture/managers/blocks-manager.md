@@ -65,7 +65,7 @@ The way other actors will communicate with the BlocksManager is:
 2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to send a message to the actor:
 
     ```rust
-    config_manager_addr
+    blocks_manager_addr
         .send(GetHighestBlockCheckpoint)
         .into_actor(self)
         .then(|res, _act, _ctx| {
@@ -147,9 +147,10 @@ broadcast a `AnnounceItems` message to the open outbound sessions.
 
 The full source code of the `BlocksManager` can be found at [`blocks_manager.rs`][blocks_manager].
 
-[blocks_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/blocks_manager/mod.rs
-[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager/mod.rs
-[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager/mod.rs
-[epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager/mod.rs
+[blocks_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/blocks_manager
+[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager
+[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager
+[epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager
+
 [noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
 [chain]: https://github.com/witnet/witnet-rust/tree/master/data_structures/src/chain.rs

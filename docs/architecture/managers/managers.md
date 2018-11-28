@@ -107,20 +107,21 @@ impl Handler<ManagerMessage> for Manager {
 The way the manager will communicate with other actors is:
 
 1. Get the address of the other manager from the registry:
-```rust
-// Get other manager address
-let other_manager_addr = System::current().registry().get::<OtherManager>();
-```
 
-2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to
-send a message to the actor:
-```rust
-// Example 
-other_manager_addr
-    .send(OtherManagerMessage{other_param})
-    .into_actor(self)
-    .then(|res, _act, _ctx| {
-        actix::fut::ok(())
-    })
-    .wait(ctx);
-```
+    ```rust
+    // Get other manager address
+    let other_manager_addr = System::current().registry().get::<OtherManager>();
+    ```
+
+2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to send a message to the actor:
+
+    ```rust
+    // Example
+    other_manager_addr
+        .send(OtherManagerMessage{other_param})
+        .into_actor(self)
+        .then(|res, _act, _ctx| {
+            actix::fut::ok(())
+        })
+        .wait(ctx);
+    ```

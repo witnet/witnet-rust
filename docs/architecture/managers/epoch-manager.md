@@ -247,6 +247,6 @@ let payload = msg.payload;
 
 The full source code of the `EpochManager` can be found at [`epoch_manager.rs`][epoch_manager].
 
-[epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs
-[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs
+[epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager
 [noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
