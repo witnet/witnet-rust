@@ -36,4 +36,3 @@ pub mod mempool_manager;
 
 /// UtxoManager actor module
 pub mod utxo_manager;
-
