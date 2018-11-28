@@ -1,10 +1,10 @@
-use actix::{Context, Handler};
+use actix::{Context, Handler, System};
 
-use crate::actors::blocks_manager::BlocksManager;
+use crate::actors::blocks_manager::{BlocksManager, BlocksManagerError};
 use crate::actors::epoch_manager::messages::EpochNotification;
 
 use witnet_data_structures::{
-    chain::Epoch,
+    chain::{Epoch, Hash, InvVector},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
@@ -12,7 +12,9 @@ use witnet_util::error::WitnetError;
 
 use log::{debug, error};
 
-use super::messages::GetHighestBlockCheckpoint;
+use super::messages::{AddNewBlock, GetHighestBlockCheckpoint};
+use crate::actors::session::messages::AnnounceItems;
+use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -61,5 +63,34 @@ impl Handler<GetHighestBlockCheckpoint> for BlocksManager {
                 "No ChainInfo loaded in BlocksManager".to_string(),
             )))
         }
+    }
+}
+
+impl Handler<AddNewBlock> for BlocksManager {
+    type Result = Result<Hash, BlocksManagerError>;
+
+    fn handle(
+        &mut self,
+        msg: AddNewBlock,
+        _ctx: &mut Context<Self>,
+    ) -> Result<Hash, BlocksManagerError> {
+        let res = self.process_new_block(msg.block);
+        match res {
+            Ok(hash) => {
+                // Get sessions manager address
+                let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+
+                // Send a broadcast message to the SessionsManager to announce the new block
+                let items = vec![InvVector::Block(hash)];
+                sessions_manager_addr.do_send(Broadcast {
+                    command: AnnounceItems { items },
+                });
+            }
+            Err(BlocksManagerError::BlockAlreadyExists) => {
+                debug!("Block already exists");
+            }
+        };
+
+        res
     }
 }
