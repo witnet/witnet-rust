@@ -420,6 +420,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../protocol/network/data-structures/signature/" title="Signature" class="md-nav__link">
+      Signature
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../protocol/network/data-structures/transaction/" title="Transaction" class="md-nav__link">
       Transaction
     </a>
@@ -1073,20 +1085,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
-      Sessions Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
-      Connections Manager
+    <a href="../../architecture/managers/blocks-manager/" title="Blocks Manager" class="md-nav__link">
+      Blocks Manager
     </a>
   </li>
 
@@ -1109,8 +1109,32 @@
 
 
   <li class="md-nav__item">
-    <a href="../../architecture/managers/storage-manager/" title="Storage Manager" class="md-nav__link">
-      Storage Manager
+    <a href="../../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
+      Connections Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/managers/epoch-manager/" title="Epoch Manager" class="md-nav__link">
+      Epoch Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/managers/mempool-manager/" title="Mempool Manager" class="md-nav__link">
+      Mempool Manager
     </a>
   </li>
 
@@ -1127,8 +1151,56 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
+      Sessions Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/managers/storage-manager/" title="Storage Manager" class="md-nav__link">
+      Storage Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/managers/utxo-manager/" title="UTXO Manager" class="md-nav__link">
+      UTXO Manager
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../architecture/session/" title="Session" class="md-nav__link">
+      Session
+    </a>
   </li>
 
         
@@ -1175,13 +1247,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-8" type="checkbox" id="nav-4-8">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-9" type="checkbox" id="nav-4-9">
     
-    <label class="md-nav__link" for="nav-4-8">
+    <label class="md-nav__link" for="nav-4-9">
       Data Requests
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
-      <label class="md-nav__title" for="nav-4-8">
+      <label class="md-nav__title" for="nav-4-9">
         Data Requests
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1484,10 +1556,22 @@
 
 [connections] # section for connections-related params
 server_addr = &quot;127.0.0.1:1234&quot;
-inbound_limit = 30
+inbound_limit = 128
+outbound_limit = 8
+known_peers = [&quot;127.0.0.1:20000&quot;, &quot;127.0.0.1:20001&quot;]
+bootstrap_peers_period_seconds = 3
+storage_peers_period_seconds = 60
+handshake_timeout_seconds = 10
 
 [storage] # section for storage-related params
 db_path = &quot;.wit&quot;
+
+[consensus_constants] # consensus-critical constants
+checkpoint_zero_timestamp = 1542203073
+checkpoints_period_seconds = 90
+
+[jsonrpc] # section for params related to JSON-RPC API
+server_address = &quot;127.0.0.1:4321&quot;
 
 # ... more options
 </pre></div>
@@ -1498,49 +1582,83 @@ db_path = &quot;.wit&quot;
 <tr>
 <th>Section</th>
 <th>Param</th>
-<th>Default Value</th>
+<th>Default Value in testnet-1</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td></td>
-<td>environment</td>
-<td><code class="codehilite">&quot;testnet-1&quot;</code></td>
-<td>Environment in which the Witnet protocol will run</td>
-</tr>
-<tr>
-<td>connections</td>
-<td>server_addr</td>
+<td><code class="codehilite">connections</code></td>
+<td><code class="codehilite">server_addr</code></td>
 <td><code class="codehilite">&quot;127.0.0.1:21337&quot;</code></td>
 <td>Server socket address to which it should bind to</td>
 </tr>
 <tr>
-<td>connections</td>
-<td>inbound_limit</td>
+<td><code class="codehilite">connections</code></td>
+<td><code class="codehilite">inbound_limit</code></td>
 <td><code class="codehilite">128</code></td>
 <td>Maximum number of concurrent connections the server should accept</td>
 </tr>
 <tr>
-<td>connections</td>
-<td>outbound_limit</td>
+<td><code class="codehilite">connections</code></td>
+<td><code class="codehilite">outbound_limit</code></td>
 <td><code class="codehilite">8</code></td>
 <td>Maximum number of opened connections to other peers this node has</td>
 </tr>
 <tr>
-<td>connections</td>
-<td>known_peers</td>
+<td><code class="codehilite">connections</code></td>
+<td><code class="codehilite">known_peers</code></td>
 <td><code class="codehilite">[]</code></td>
 <td>Other peer addresses this node knows about at start</td>
 </tr>
 <tr>
-<td>storage</td>
-<td>db_path</td>
-<td><code class="codehilite">&quot;.wit&quot;</code></td>
-<td>Directory containing the dabase files</td>
+<td><code class="codehilite">connections</code></td>
+<td><code class="codehilite">bootstrap_peers_period_seconds</code></td>
+<td><code class="codehilite">5</code></td>
+<td>Period of the outbound peer bootstrapping process (in seconds)</td>
+</tr>
+<tr>
+<td><code class="codehilite">connections</code></td>
+<td><code class="codehilite">storage_peers_period_seconds</code></td>
+<td><code class="codehilite">30</code></td>
+<td>Period of the known peers backup into storage process (in seconds)</td>
+</tr>
+<tr>
+<td><code class="codehilite">connections</code></td>
+<td><code class="codehilite">handshake_timeout_seconds</code></td>
+<td><code class="codehilite">5</code></td>
+<td>Timeout for the handshake process (in seconds)</td>
+</tr>
+<tr>
+<td><code class="codehilite">storage</code></td>
+<td><code class="codehilite">db_path</code></td>
+<td><code class="codehilite">&quot;.witnet-rust-testnet-1&quot;</code></td>
+<td>Directory containing the database files</td>
+</tr>
+<tr>
+<td><code class="codehilite">consensus_constants</code></td>
+<td><code class="codehilite">checkpoint_zero_timestamp</code></td>
+<td><code class="codehilite">9_999_999_999_999</code></td>
+<td>Timestamp at checkpoint 0 (the start of epoch 0)</td>
+</tr>
+<tr>
+<td><code class="codehilite">consensus_constants</code></td>
+<td><code class="codehilite">checkpoints_period_seconds</code></td>
+<td><code class="codehilite">90</code></td>
+<td>Seconds between the start of an epoch and the start of the next one</td>
+</tr>
+<tr>
+<td><code class="codehilite">jsonrpc</code></td>
+<td><code class="codehilite">server_address</code></td>
+<td><code class="codehilite">&quot;127.0.0.1:21338&quot;</code></td>
+<td>JSON-RPC server socket address</td>
 </tr>
 </tbody>
 </table>
+<p>These are the defaults for <code class="codehilite">testnet-1</code>.
+See <a href="../environment/">environment</a> for the specific values for all the environments.</p>
+<p>The parameters in the <code class="codehilite">[consensus_constants]</code> section are ignored when the
+environment is set to <code class="codehilite">mainnet</code>.</p>
                 
                   
                 

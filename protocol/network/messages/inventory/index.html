@@ -424,6 +424,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../data-structures/signature/" title="Signature" class="md-nav__link">
+      Signature
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../data-structures/transaction/" title="Transaction" class="md-nav__link">
       Transaction
     </a>
@@ -1159,20 +1171,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
-      Sessions Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
-      Connections Manager
+    <a href="../../../../architecture/managers/blocks-manager/" title="Blocks Manager" class="md-nav__link">
+      Blocks Manager
     </a>
   </li>
 
@@ -1195,8 +1195,32 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/storage-manager/" title="Storage Manager" class="md-nav__link">
-      Storage Manager
+    <a href="../../../../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
+      Connections Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/epoch-manager/" title="Epoch Manager" class="md-nav__link">
+      Epoch Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/mempool-manager/" title="Mempool Manager" class="md-nav__link">
+      Mempool Manager
     </a>
   </li>
 
@@ -1213,8 +1237,56 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
+      Sessions Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/storage-manager/" title="Storage Manager" class="md-nav__link">
+      Storage Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/utxo-manager/" title="UTXO Manager" class="md-nav__link">
+      UTXO Manager
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/session/" title="Session" class="md-nav__link">
+      Session
+    </a>
   </li>
 
         
@@ -1261,13 +1333,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-8" type="checkbox" id="nav-4-8">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-9" type="checkbox" id="nav-4-9">
     
-    <label class="md-nav__link" for="nav-4-8">
+    <label class="md-nav__link" for="nav-4-9">
       Data Requests
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
-      <label class="md-nav__title" for="nav-4-8">
+      <label class="md-nav__title" for="nav-4-9">
         Data Requests
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1659,8 +1731,8 @@
 <tbody>
 <tr>
 <td><code class="codehilite">last_block</code></td>
-<td align="center"><code class="codehilite">[u32; 8]</code></td>
-<td>Hash of the last known block to the local node</td>
+<td align="center"><code class="codehilite">[u8; 32]</code></td>
+<td>Hash of the last block known to the local node</td>
 </tr>
 </tbody>
 </table>
@@ -1677,14 +1749,9 @@
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">count</code></td>
-<td align="center"><code class="codehilite">u16</code></td>
-<td>Number of inventory entries</td>
-</tr>
-<tr>
 <td><code class="codehilite">inventory</code></td>
 <td align="center"><code class="codehilite">inv_vect[]</code></td>
-<td>Inventory vectors</td>
+<td>Vector of inventory vectors</td>
 </tr>
 </tbody>
 </table>
@@ -1693,19 +1760,19 @@
 <thead>
 <tr>
 <th>Field</th>
-<th align="center">Type</th>
+<th>Type</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code class="codehilite">type</code></td>
-<td align="center"><code class="codehilite">u8</code></td>
+<td><code class="codehilite"><span class="k">enum</span>(<span class="n">ubyte</span>)</code></td>
 <td>Type of object linked to the inventory entry</td>
 </tr>
 <tr>
-<td><code class="codehilite">count</code></td>
-<td align="center"><code class="codehilite">[u32; 8]</code></td>
+<td><code class="codehilite">hash</code></td>
+<td><code class="codehilite">Hash</code></td>
 <td>Hash of the object</td>
 </tr>
 </tbody>
@@ -1748,6 +1815,46 @@
 </tbody>
 </table>
 <p>In the future, the type values may be extended in order to consider additional features.</p>
+<p>The <code class="codehilite">hash</code> (<code class="codehilite">Hash</code>) data structure has the following schema:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">type</code></td>
+<td><code class="codehilite"><span class="k">enum</span>(<span class="n">ubyte</span>)</code></td>
+<td>Hash type</td>
+</tr>
+<tr>
+<td><code class="codehilite">bytes</code></td>
+<td><code class="codehilite">[ubyte]</code></td>
+<td>Hash bytes</td>
+</tr>
+</tbody>
+</table>
+<p>The possible values for the <code class="codehilite">type</code> field are:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">0</code></td>
+<td><code class="codehilite">SHA256</code></td>
+<td>SHA256 hash type</td>
+</tr>
+</tbody>
+</table>
+<p>In the future, the type values may be extended in order to consider additional hash types.</p>
 <h2 id="get-data-messages">Get data messages<a class="headerlink" href="#get-data-messages" title="Permanent link">&para;</a></h2>
 <p>The <code class="codehilite">get_data</code> messages are used in order to request specific objects from other nodes. Usually, <code class="codehilite">get_data</code> messages are sent after receiving a <code class="codehilite">inv</code> (inventory) message and filtering the already known objects. The response to a <code class="codehilite">get_data</code> message is often a message carrying the requested object (e.g.: <code class="codehilite">block</code>, <code class="codehilite">tx</code>, etc.).</p>
 <p>The <code class="codehilite">get_data</code> message consists of a message header with the <code class="codehilite">GET_DATA</code> command and a payload following this format:</p>
@@ -1774,52 +1881,10 @@
 </table>
 <h2 id="block-message">Block message<a class="headerlink" href="#block-message" title="Permanent link">&para;</a></h2>
 <p>The <code class="codehilite">block</code> message is used to transmit a single serialized block as a response to a <code class="codehilite">get_data</code> message.</p>
-<p>The <code class="codehilite">block</code> message consists of a message header with the <code class="codehilite">BLOCK</code> command and a payload formatted as follows:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code class="codehilite">header</code></td>
-<td align="center"><code class="codehilite">block_header</code></td>
-<td>Block header, as described in the <a href="/protocol/network/data-structures/block/">Block</a> section</td>
-</tr>
-<tr>
-<td><code class="codehilite">txn_count</code></td>
-<td align="center"><code class="codehilite">u32</code></td>
-<td>Total number of transactions in the block</td>
-</tr>
-<tr>
-<td><code class="codehilite">txns</code></td>
-<td align="center"><code class="codehilite">tx[]</code></td>
-<td>Block transactions as described in the transaction section</td>
-</tr>
-</tbody>
-</table>
+<p>The <code class="codehilite">block</code> message consists of a message header with the <code class="codehilite">BLOCK</code> command and a payload containing information for a transaction following the format defined in the <a href="/protocol/network/data-structures/block/">Block</a> section.</p>
 <h2 id="tx-message">Tx message<a class="headerlink" href="#tx-message" title="Permanent link">&para;</a></h2>
 <p>Analogously, the <code class="codehilite">tx</code> message is used to transmit a single serialized transaction as a response to a <code class="codehilite">get_data</code> message.</p>
-<p>The <code class="codehilite">tx</code> message consists of a message header with the <code class="codehilite">TX</code> command and a payload containing information for a transaction following the format defined in the transaction section:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code class="codehilite">tx</code></td>
-<td align="center"><code class="codehilite">tx</code></td>
-<td>Transaction, as described in the <a href="/protocol/network/data-structures/transaction/">Transaction</a> section</td>
-</tr>
-</tbody>
-</table>
+<p>The <code class="codehilite">tx</code> message consists of a message header with the <code class="codehilite">TX</code> command and a payload containing information for a transaction following the format defined in the <a href="/protocol/network/data-structures/transaction/">Transaction</a> section.</p>
                 
                   
                 

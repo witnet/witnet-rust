@@ -11,7 +11,7 @@
       <meta http-equiv="x-ua-compatible" content="ie=edge">
       
       
-        <link rel="canonical" href="https://docs.witnet.io/architecture/managers/peers-manager/">
+        <link rel="canonical" href="https://docs.witnet.io/architecture/managers/epoch-manager/">
       
       
       
@@ -38,7 +38,7 @@
     
     
       
-        <title>Peers Manager - Witnet-rust Documentation</title>
+        <title>Epoch Manager - Witnet-rust Documentation</title>
       
     
     
@@ -100,7 +100,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="../../../#peers-manager" tabindex="1" class="md-skip">
+      <a href="../../../#epoch-manager" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -126,7 +126,7 @@
                 Witnet-rust Documentation
               </span>
               <span class="md-header-nav__topic">
-                Peers Manager
+                Epoch Manager
               </span>
             
           
@@ -1123,30 +1123,6 @@
           
           
 
-
-  <li class="md-nav__item">
-    <a href="../epoch-manager/" title="Epoch Manager" class="md-nav__link">
-      Epoch Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../mempool-manager/" title="Mempool Manager" class="md-nav__link">
-      Mempool Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
   
 
 
@@ -1158,11 +1134,11 @@
     
     
       <label class="md-nav__link md-nav__link--active" for="__toc">
-        Peers Manager
+        Epoch Manager
       </label>
     
-    <a href="./" title="Peers Manager" class="md-nav__link md-nav__link--active">
-      Peers Manager
+    <a href="./" title="Epoch Manager" class="md-nav__link md-nav__link--active">
+      Epoch Manager
     </a>
     
       
@@ -1198,15 +1174,35 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#incoming-others-peers-manager" title="Incoming: Others -&gt; Peers Manager" class="md-nav__link">
-    Incoming: Others -&gt; Peers Manager
+  <a href="#incoming-others-epochmanager" title="Incoming: Others -&gt; EpochManager" class="md-nav__link">
+    Incoming: Others -&gt; EpochManager
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#subscribe-to-a-specific-checkpoint" title="Subscribe to a specific checkpoint" class="md-nav__link">
+    Subscribe to a specific checkpoint
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#outgoing-messages-peers-manager-others" title="Outgoing messages: Peers Manager -&gt; Others" class="md-nav__link">
-    Outgoing messages: Peers Manager -&gt; Others
+  <a href="#subscribe-to-all-new-checkpoints" title="Subscribe to all new checkpoints" class="md-nav__link">
+    Subscribe to all new checkpoints
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outgoing-messages-epochmanager-others" title="Outgoing messages: EpochManager -&gt; Others" class="md-nav__link">
+    Outgoing messages: EpochManager -&gt; Others
   </a>
   
     <nav class="md-nav">
@@ -1220,15 +1216,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get" title="Get" class="md-nav__link">
-    Get
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#put" title="Put" class="md-nav__link">
-    Put
+  <a href="#epochnotification" title="EpochNotification" class="md-nav__link">
+    EpochNotification
   </a>
   
 </li>
@@ -1258,6 +1247,30 @@
   
 </nav>
     
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../mempool-manager/" title="Mempool Manager" class="md-nav__link">
+      Mempool Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../peers-manager/" title="Peers Manager" class="md-nav__link">
+      Peers Manager
+    </a>
   </li>
 
         
@@ -1602,15 +1615,35 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#incoming-others-peers-manager" title="Incoming: Others -&gt; Peers Manager" class="md-nav__link">
-    Incoming: Others -&gt; Peers Manager
+  <a href="#incoming-others-epochmanager" title="Incoming: Others -&gt; EpochManager" class="md-nav__link">
+    Incoming: Others -&gt; EpochManager
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#subscribe-to-a-specific-checkpoint" title="Subscribe to a specific checkpoint" class="md-nav__link">
+    Subscribe to a specific checkpoint
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#outgoing-messages-peers-manager-others" title="Outgoing messages: Peers Manager -&gt; Others" class="md-nav__link">
-    Outgoing messages: Peers Manager -&gt; Others
+  <a href="#subscribe-to-all-new-checkpoints" title="Subscribe to all new checkpoints" class="md-nav__link">
+    Subscribe to all new checkpoints
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outgoing-messages-epochmanager-others" title="Outgoing messages: EpochManager -&gt; Others" class="md-nav__link">
+    Outgoing messages: EpochManager -&gt; Others
   </a>
   
     <nav class="md-nav">
@@ -1624,15 +1657,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get" title="Get" class="md-nav__link">
-    Get
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#put" title="Put" class="md-nav__link">
-    Put
+  <a href="#epochnotification" title="EpochNotification" class="md-nav__link">
+    EpochNotification
   </a>
   
 </li>
@@ -1670,32 +1696,49 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/managers/peers-manager.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/managers/epoch-manager.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="peers-manager">Peers Manager<a class="headerlink" href="#peers-manager" title="Permanent link">&para;</a></h1>
-<p>The <strong>peers manager</strong> is the actor that encapsulates the logic of the <strong>peers</strong> library, defined
-under the subcrate <code class="codehilite">witnet_p2p</code>. The library allows to manage a list of peers known to the Witnet
-node.</p>
+                <h1 id="epoch-manager">Epoch Manager<a class="headerlink" href="#epoch-manager" title="Permanent link">&para;</a></h1>
+<p>The <strong>epoch manager</strong> is the actor that handles the logic related to epochs:
+it knows the current epoch based on the current time and the timestamp of
+checkpoint zero (the start of epoch zero) and allows other actors to
+subscribe to specific checkpoints.</p>
+<p>The current epoch can be calculated as:</p>
+<div class="codehilite"><pre><span></span>(current_timestamp - checkpoint_zero_timestamp) / checkpoint_period
+</pre></div>
+
 <h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
-<p>The state of the actor is an instance of the <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs"><code class="codehilite">Peers</code></a> library, which contains a list of peers known to the Witnet node.</p>
-<div class="codehilite"><pre><span></span><span class="cp">#[derive(Default)]</span><span class="w"></span>
-<span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">PeersManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="sd">/// Known peers</span>
-<span class="w">    </span><span class="n">peers</span>: <span class="nc">Peers</span><span class="p">,</span><span class="w"></span>
+<p>The state of the actor contains the values needed to determine the current
+epoch, as well as a list of subscriptions.</p>
+<div class="codehilite"><pre><span></span><span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">EpochManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Checkpoint corresponding to the start of epoch #0</span>
+<span class="w">    </span><span class="n">checkpoint_zero_timestamp</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="kt">i64</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+
+<span class="w">    </span><span class="sd">/// Period between checkpoints</span>
+<span class="w">    </span><span class="n">checkpoints_period</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="kt">u16</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+
+<span class="w">    </span><span class="sd">/// Subscriptions to a particular epoch</span>
+<span class="w">    </span><span class="n">subscriptions_epoch</span>: <span class="nc">BTreeMap</span><span class="o">&lt;</span><span class="n">Epoch</span><span class="p">,</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="nb">Box</span><span class="o">&lt;</span><span class="n">dyn</span><span class="w"> </span><span class="n">SendableNotification</span><span class="o">&gt;&gt;&gt;</span><span class="p">,</span><span class="w"></span>
+
+<span class="w">    </span><span class="sd">/// Subscriptions to all epochs</span>
+<span class="w">    </span><span class="n">subscriptions_all</span>: <span class="nb">Vec</span><span class="o">&lt;</span><span class="nb">Box</span><span class="o">&lt;</span><span class="n">dyn</span><span class="w"> </span><span class="n">SendableNotification</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="w"></span>
+
+<span class="w">    </span><span class="sd">/// Last epoch that was checked by the epoch monitor process</span>
+<span class="w">    </span><span class="n">last_checked_epoch</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">Epoch</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </pre></div>
 
 <h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
-<p>The creation of the peers manager actor and its registration into the system registry are
-performed directly by the <code class="codehilite">main</code> process:</p>
-<div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">peers_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PeersManager</span>::<span class="n">default</span><span class="p">().</span><span class="n">start</span><span class="p">();</span><span class="w"></span>
-<span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">peers_manager_addr</span><span class="p">);</span><span class="w"></span>
+<p>The creation of the epoch manager actor and its registration into the system registry are
+performed directly by the main process <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs"><code class="codehilite">node.rs</code></a>:</p>
+<div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">epoch_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EpochManager</span>::<span class="n">default</span><span class="p">().</span><span class="n">start</span><span class="p">();</span><span class="w"></span>
+<span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">epoch_manager_addr</span><span class="p">);</span><span class="w"></span>
 </pre></div>
 
 <h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
-<h3 id="incoming-others-peers-manager">Incoming: Others -&gt; Peers Manager<a class="headerlink" href="#incoming-others-peers-manager" title="Permanent link">&para;</a></h3>
-<p>These are the messages supported by the peers manager handlers:</p>
+<h3 id="incoming-others-epochmanager">Incoming: Others -&gt; EpochManager<a class="headerlink" href="#incoming-others-epochmanager" title="Permanent link">&para;</a></h3>
+<p>These are the messages supported by the EpochManager handlers:</p>
 <table>
 <thead>
 <tr>
@@ -1707,68 +1750,73 @@ performed directly by the <code class="codehilite">main</code> process:</p>
 </thead>
 <tbody>
 <tr>
-<td>AddPeers</td>
-<td><code class="codehilite"><span class="n">address</span><span class="o">:</span> <span class="n">SocketAddr</span></code></td>
-<td><code class="codehilite">PeersResult&lt;Vec&lt;SocketAddr&gt;&gt;</code></td>
-<td>Add peers to list</td>
-</tr>
-<tr>
-<td>RemovePeers</td>
-<td><code class="codehilite"><span class="n">address</span><span class="o">:</span> <span class="n">SocketAddr</span></code></td>
-<td><code class="codehilite">PeersResult&lt;Vec&lt;SocketAddr&gt;&gt;</code></td>
-<td>Remove peers from list</td>
-</tr>
-<tr>
-<td>GetRandomPeer</td>
+<td><code class="codehilite">GetEpoch</code></td>
 <td><code class="codehilite">()</code></td>
-<td><code class="codehilite">PeersResult&lt;Option&lt;SocketAddr&gt;&gt;</code></td>
-<td>Get random peer</td>
+<td><code class="codehilite">EpochResult&lt;Epoch&gt;</code></td>
+<td>Returns the current epoch id (last checkpoint)</td>
 </tr>
 <tr>
-<td>GetPeers</td>
+<td><code class="codehilite">SubscribeEpoch</code></td>
+<td><code class="codehilite">Epoch, Box&lt;dyn SendableNotification&gt;</code></td>
 <td><code class="codehilite">()</code></td>
-<td><code class="codehilite">PeersResult&lt;Vec&lt;SocketAddr&gt;&gt;</code></td>
-<td>Get all peers</td>
+<td>Subscribe to a specific checkpoint (the start that epoch)</td>
+</tr>
+<tr>
+<td><code class="codehilite">SubscribeAll</code></td>
+<td><code class="codehilite">Box&lt;dyn SendableNotification&gt;</code></td>
+<td><code class="codehilite">()</code></td>
+<td>Subscribe to all future checkpoints</td>
 </tr>
 </tbody>
 </table>
-<p>The handling of these messages is basically just calling the corresponding methods from the
-<a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs"><code class="codehilite">Peers</code></a> library that is implemented by <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers.rs"><code class="codehilite">peers.rs</code></a>.
-For example, the handler of the <code class="codehilite">AddPeers</code> message would be implemented as:</p>
-<div class="codehilite"><pre><span></span><span class="sd">/// Handler for AddPeers message</span>
-<span class="k">impl</span><span class="w"> </span><span class="n">Handler</span><span class="o">&lt;</span><span class="n">AddPeers</span><span class="o">&gt;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">PeersManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="k">type</span> <span class="nb">Result</span> <span class="o">=</span><span class="w"> </span><span class="n">PeersSocketAddrsResult</span><span class="p">;</span><span class="w"></span>
-
-<span class="w">    </span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span>: <span class="nc">AddPeers</span><span class="p">,</span><span class="w"> </span><span class="n">_</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Context</span><span class="o">&lt;</span><span class="n">Self</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">Self</span>::<span class="nb">Result</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">        </span><span class="c1">// Insert address</span>
-<span class="w">        </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Add peer handle for addresses: {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">addresses</span><span class="p">);</span><span class="w"></span>
-<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">peers</span><span class="p">.</span><span class="n">add</span><span class="p">(</span><span class="n">msg</span><span class="p">.</span><span class="n">addresses</span><span class="p">)</span><span class="w"></span>
-<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<p><code class="codehilite">SubscribeEpoch</code> and <code class="codehilite">SubscribeAll</code> are created using a helper function
+as detailed in the section <a href="#subscribe-to-a-specific-checkpoint">subscribe</a>.
+The <code class="codehilite">GetEpoch</code> message wraps the <code class="codehilite">current_epoch()</code> method:</p>
+<div class="codehilite"><pre><span></span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">_msg</span>: <span class="nc">GetEpoch</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Self</span>::<span class="n">Context</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">EpochResult</span><span class="o">&lt;</span><span class="n">Epoch</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">current_epoch</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Current epoch: {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">r</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </pre></div>
 
-<p>Being the <code class="codehilite">PeersManager</code> such a simple actor, there are no errors that can arise due to its own
-logic and thus, returning a <code class="codehilite">PeersResult</code> library generic error may be the right thing to do.</p>
-<p>The way other actors will communicate with the storage manager is:</p>
-<ol>
-<li>
-<p>Get the address of the manager from the registry:</p>
-<div class="codehilite"><pre><span></span><span class="c1">// Get peers manager address</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">peers_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">get</span>::<span class="o">&lt;</span><span class="n">PeersManager</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+<p>The <code class="codehilite">EpochResult</code> type is just a wrapper around a result with an
+<code class="codehilite">EpochManagerError</code>.</p>
+<div class="codehilite"><pre><span></span><span class="k">pub</span><span class="w"> </span><span class="k">type</span> <span class="nc">EpochResult</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">EpochManagerError</span><span class="o">&gt;</span><span class="p">;</span><span class="w"></span>
 </pre></div>
 
-</li>
-<li>
-<p>Use any of the sending methods provided by the address (<code class="codehilite">do_send()</code>, <code class="codehilite">try_send()</code>, <code class="codehilite">send()</code>) to send a message to the actor:</p>
+<p>The <code class="codehilite">EpochManagerError</code> is defined as:</p>
+<div class="codehilite"><pre><span></span><span class="k">pub</span><span class="w"> </span><span class="k">enum</span> <span class="nc">EpochManagerError</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Epoch zero time is unknown</span>
+<span class="w">    </span><span class="n">UnknownEpochZero</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Checkpoint period is unknown</span>
+<span class="w">    </span><span class="n">UnknownCheckpointPeriod</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Checkpoint zero is in the future</span>
+<span class="w">    </span><span class="n">CheckpointZeroInTheFuture</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Overflow when calculating the epoch timestamp</span>
+<span class="w">    </span><span class="n">Overflow</span><span class="p">,</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+
+<p>The way other actors will communicate with the epoch manager is:</p>
+<ol>
+<li>Get the address of the manager from the registry:</li>
+</ol>
+<div class="codehilite"><pre><span></span><span class="c1">// Get epoch manager address</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">epoch_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">get</span>::<span class="o">&lt;</span><span class="n">EpochManager</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+
+<ol>
+<li>Use any of the sending methods provided by the address (<code class="codehilite">do_send()</code>, <code class="codehilite">try_send()</code>, <code class="codehilite">send()</code>) to send a message to the actor:</li>
+</ol>
 <div class="codehilite"><pre><span></span><span class="c1">// Example</span>
-<span class="n">peers_manager_addr</span><span class="w"></span>
-<span class="w">    </span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">AddPeers</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">addresses</span><span class="w"> </span><span class="p">})</span><span class="w"></span>
+<span class="n">epoch_manager_addr</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">GetEpoch</span><span class="p">)</span><span class="w"></span>
 <span class="w">    </span><span class="p">.</span><span class="n">into_actor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="w"></span>
 <span class="w">    </span><span class="p">.</span><span class="n">then</span><span class="p">(</span><span class="o">|</span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="n">_act</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">        </span><span class="k">match</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">                </span><span class="c1">// Process PeersResult</span>
-<span class="w">                </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Add peer {:?} returned {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">addresses</span><span class="p">,</span><span class="w"> </span><span class="n">res</span><span class="p">)</span><span class="w"></span>
+<span class="w">                </span><span class="c1">// Process EpochResult</span>
+<span class="w">                </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;GetEpoch returned {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">res</span><span class="p">)</span><span class="w"></span>
 <span class="w">            </span><span class="p">},</span><span class="w"></span>
 <span class="w">            </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Something went really wrong in the actors message passing&quot;</span><span class="p">)</span><span class="w"></span>
 <span class="w">        </span><span class="p">};</span><span class="w"></span>
@@ -1777,10 +1825,73 @@ logic and thus, returning a <code class="codehilite">PeersResult</code> library 
 <span class="w">    </span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">ctx</span><span class="p">);</span><span class="w"></span>
 </pre></div>
 
-</li>
-</ol>
-<h3 id="outgoing-messages-peers-manager-others">Outgoing messages: Peers Manager -&gt; Others<a class="headerlink" href="#outgoing-messages-peers-manager-others" title="Permanent link">&para;</a></h3>
-<p>These are the messages sent by the peers manager:</p>
+<h4 id="subscribe-to-a-specific-checkpoint">Subscribe to a specific checkpoint<a class="headerlink" href="#subscribe-to-a-specific-checkpoint" title="Permanent link">&para;</a></h4>
+<p>In order to subscribe to a specific epoch, the actors need the <code class="codehilite">epoch_manager_addr</code> and
+the current epoch. For example to subscribe to the next checkpoint:</p>
+<div class="codehilite"><pre><span></span><span class="c1">// The payload we send with `EpochNotification`</span>
+<span class="k">struct</span> <span class="nc">EpochPayload</span><span class="p">;</span><span class="w"></span>
+
+<span class="c1">// Get the current epoch from `EpochManager`</span>
+<span class="c1">// let epoch = ...</span>
+
+<span class="c1">// Get the address of the current actor</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">self_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">address</span><span class="p">();</span><span class="w"></span>
+
+<span class="c1">// Subscribe to the next epoch with an Update</span>
+<span class="n">epoch_manager_addr</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">do_send</span><span class="p">(</span><span class="n">Subscribe</span>::<span class="n">to_epoch</span><span class="p">(</span><span class="w"></span>
+<span class="w">        </span><span class="n">Epoch</span><span class="p">(</span><span class="n">epoch</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">),</span><span class="w"></span>
+<span class="w">        </span><span class="n">self_addr</span><span class="p">,</span><span class="w"></span>
+<span class="w">        </span><span class="n">EpochPayload</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="p">));</span><span class="w"></span>
+</pre></div>
+
+<p>The logic is implemented as an <code class="codehilite">EpochNotification&lt;T&gt;</code> handler, where
+<code class="codehilite">T</code> is one specific payload.</p>
+<div class="codehilite"><pre><span></span><span class="sd">/// Handler for EpochNotification&lt;EpochPayload&gt;</span>
+<span class="k">impl</span><span class="w"> </span><span class="n">Handler</span><span class="o">&lt;</span><span class="n">EpochNotification</span><span class="o">&lt;</span><span class="n">EpochPayload</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">BlockManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">type</span> <span class="nb">Result</span> <span class="o">=</span><span class="w"> </span><span class="p">();</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span>: <span class="nc">EpochNotification</span><span class="o">&lt;</span><span class="n">EpochPayload</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Context</span><span class="o">&lt;</span><span class="n">Self</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Epoch notification received {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">checkpoint</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+
+<p>It is assumed that subscribing cannot fail. However, if the <code class="codehilite">EpochManager</code>
+skips some checkpoints, all the missed notifications will be sent at the next
+checkpoint but with the old requested checkpoint in the message.</p>
+<p>The notifications are sent according to their checkpoint id: the oldest
+checkpoints first.</p>
+<h4 id="subscribe-to-all-new-checkpoints">Subscribe to all new checkpoints<a class="headerlink" href="#subscribe-to-all-new-checkpoints" title="Permanent link">&para;</a></h4>
+<p>In order to receive a notification on each checkpoint, the actors need
+to subscribe with a cloneable payload. If an actor doesn't need a payload,
+a type like <code class="codehilite">()</code> or an empty struct can be used.</p>
+<div class="codehilite"><pre><span></span><span class="cp">#[derive(Clone)]</span><span class="w"></span>
+<span class="k">struct</span> <span class="nc">EveryEpochPayload</span><span class="p">;</span><span class="w"></span>
+<span class="c1">// Subscribe to all epochs with a cloneable payload</span>
+<span class="n">epoch_manager_addr</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">do_send</span><span class="p">(</span><span class="n">Subscribe</span>::<span class="n">to_all</span><span class="p">(</span><span class="w"></span>
+<span class="w">        </span><span class="n">self_addr</span><span class="p">,</span><span class="w"></span>
+<span class="w">        </span><span class="n">EveryEpochPayload</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="p">));</span><span class="w"></span>
+</pre></div>
+
+<p>The logic is implemented as an <code class="codehilite">EpochNotification&lt;T&gt;</code> handler, where
+<code class="codehilite">T</code> is one specific payload.</p>
+<div class="codehilite"><pre><span></span><span class="sd">/// Handler for EpochNotification&lt;EveryEpochPayload&gt;</span>
+<span class="k">impl</span><span class="w"> </span><span class="n">Handler</span><span class="o">&lt;</span><span class="n">EpochNotification</span><span class="o">&lt;</span><span class="n">EveryEpochPayload</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">BlockManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">type</span> <span class="nb">Result</span> <span class="o">=</span><span class="w"> </span><span class="p">();</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span>: <span class="nc">EpochNotification</span><span class="o">&lt;</span><span class="n">EveryEpochPayload</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Context</span><span class="o">&lt;</span><span class="n">Self</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Periodic epoch notification received {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">checkpoint</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+
+<p>In case of skipped epochs, the notifications are lost.</p>
+<h3 id="outgoing-messages-epochmanager-others">Outgoing messages: EpochManager -&gt; Others<a class="headerlink" href="#outgoing-messages-epochmanager-others" title="Permanent link">&para;</a></h3>
+<p>These are the messages sent by the EpochManager:</p>
 <table>
 <thead>
 <tr>
@@ -1800,33 +1911,44 @@ logic and thus, returning a <code class="codehilite">PeersResult</code> library 
 <td>Request the configuration</td>
 </tr>
 <tr>
-<td><code class="codehilite">Get</code></td>
-<td><code class="codehilite">StorageManager</code></td>
-<td><code class="codehilite">&amp;&#39;static [u8]</code></td>
-<td><code class="codehilite">StorageResult&lt;Option&lt;T&gt;&gt;</code></td>
-<td>Wrapper to Storage <code class="codehilite">get()</code> method</td>
-</tr>
-<tr>
-<td><code class="codehilite">Put</code></td>
-<td><code class="codehilite">StorageManager</code></td>
-<td><code class="codehilite">&amp;&#39;static [u8]</code>, <code class="codehilite">Vec&lt;u8&gt;</code></td>
-<td><code class="codehilite">StorageResult&lt;()&gt;</code></td>
-<td>Wrapper to Storage <code class="codehilite">put()</code> method</td>
+<td><code class="codehilite">EpochNotification&lt;T&gt;</code></td>
+<td>*</td>
+<td><code class="codehilite">Epoch, T</code></td>
+<td><code class="codehilite">()</code></td>
+<td>A notification sent at the start of the requested epoch</td>
 </tr>
 </tbody>
 </table>
 <h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a> actor when the peers manager actor is started.</p>
-<p>The return value is used to initialize the list of known peers. For further information, see  <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a>.</p>
-<h4 id="get">Get<a class="headerlink" href="#get" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager.rs"><code class="codehilite">StorageManager</code></a> actor when the peers manager actor is started.</p>
-<p>The return value is a list of peers from the storage which are added to the list of known peers.</p>
-<h4 id="put">Put<a class="headerlink" href="#put" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager.rs"><code class="codehilite">StorageManager</code></a> actor periodically using a period
-obtained from <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a></p>
-<p>The return value is used to check if the storage process has been successful.</p>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a> actor when the epoch manager actor is started.</p>
+<p>The return value is used to initialize the protocol constants (checkpoint period and
+epoch zero timestamp).
+For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a>.</p>
+<h4 id="epochnotification">EpochNotification<T><a class="headerlink" href="#epochnotification" title="Permanent link">&para;</a></h4>
+<p>This message is sent to all the actors which are subscribed to the epoch that just started.
+There are two types of subscriptions:</p>
+<ul>
+<li><code class="codehilite">SubscriptionEpoch</code> only sends the <code class="codehilite">EpochNotification</code> once.</li>
+<li><code class="codehilite">SubscriptionAll</code> sends an <code class="codehilite">EpochNotification</code> at every checkpoint.</li>
+</ul>
+<p>The <code class="codehilite">EpochNotification</code> is defined as:</p>
+<div class="codehilite"><pre><span></span><span class="cp">#[derive(Message)]</span><span class="w"></span>
+<span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">EpochNotification</span><span class="o">&lt;</span><span class="n">T</span>: <span class="nb">Send</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Epoch that has just started</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">checkpoint</span>: <span class="nc">Epoch</span><span class="p">,</span><span class="w"></span>
+
+<span class="w">    </span><span class="sd">/// Payload for the epoch notification</span>
+<span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">payload</span>: <span class="nc">T</span><span class="p">,</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+
+<p>Therefore it can be accessed in the message handler as:</p>
+<div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">epoch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">checkpoint</span><span class="p">;</span><span class="w"></span>
+<span class="kd">let</span><span class="w"> </span><span class="n">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">payload</span><span class="p">;</span><span class="w"></span>
+</pre></div>
+
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">PeersManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager.rs"><code class="codehilite">peers_manager.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">EpochManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs"><code class="codehilite">epoch_manager.rs</code></a>.</p>
                 
                   
                 
@@ -1847,7 +1969,7 @@ obtained from <a href="https://github.com/witnet/witnet-rust/blob/master/core/sr
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../mempool-manager/" title="Mempool Manager" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../connections-manager/" title="Connections Manager" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1856,19 +1978,19 @@ obtained from <a href="https://github.com/witnet/witnet-rust/blob/master/core/sr
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Mempool Manager
+                Connections Manager
               </span>
             </div>
           </a>
         
         
-          <a href="../sessions-manager/" title="Sessions Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../mempool-manager/" title="Mempool Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Sessions Manager
+                Mempool Manager
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
