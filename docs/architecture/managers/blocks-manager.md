@@ -44,6 +44,7 @@ These are the messages supported by the `BlocksManager` handlers:
 | `EpochNotification<EpochPayload>`         | `Epoch`, `EpochPayload`       | `()`                     | The requested epoch has been reached           |
 | `EpochNotification<EveryEpochPayload>`    | `Epoch`, `EveryEpochPayload`  | `()`                     | A new epoch has been reached                   |
 | `GetHighestBlockCheckpoint`               | `()`                          | `ChainInfoResult`        | Request a copy of the highest block checkpoint |
+| `AddNewBlock`                             | `Block`                       | `Result<Hash, BlocksManagerError>` | Add a new block and announce it to other sessions |
 
 Where `ChainInfoResult` is just:
 
@@ -97,6 +98,7 @@ These are the messages sent by the blocks manager:
 | `GetConfig`       | `ConfigManager`   | `()`                                          | `Result<Config, io::Error>` | Request the configuration         |
 | `Get`             | `StorageManager`  | `&'static [u8]`                               | `StorageResult<Option<T>>`  | Wrapper to Storage `get()` method |
 | `Put`             | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                    | `StorageResult<()>`         | Wrapper to Storage `put()` method |
+| `Broadcast<AnnounceItems>` | `SessionsManager` | `Vec<InvItems>`                      | `()`                        | Announce a new block to the sessions |
 
 #### SubscribeEpoch
 
@@ -135,11 +137,19 @@ The return value is a `ChainInfo` structure from the storage which are added to 
 This message is sent to the [`StorageManager`][storage_manager] actor to persist the `ChainInfo` structure
 
 The return value is used to check if the storage process has been successful.
+
+#### Broadcast<AnnounceItems>
+
+This message is sent to the [`SessionsManager`][sessions_manager] actor which will
+broadcast a `AnnounceItems` message to the open outbound sessions.
+
 ## Further information
 
 The full source code of the `BlocksManager` can be found at [`blocks_manager.rs`][blocks_manager].
 
-[blocks_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/blocks_manager.rs
-[epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs
+[blocks_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/blocks_manager/mod.rs
+[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager/mod.rs
+[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager/mod.rs
+[epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager/mod.rs
 [noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
 [chain]: https://github.com/witnet/witnet-rust/tree/master/data_structures/src/chain.rs
