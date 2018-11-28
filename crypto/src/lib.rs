@@ -7,8 +7,5 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-/// crypto greeting
-pub fn greetings() -> String {
-    println!("Hello from crypto!");
-    String::from("Hello from crypto!")
-}
+/// Hash functions
+pub mod hash;

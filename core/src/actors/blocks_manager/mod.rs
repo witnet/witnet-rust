@@ -26,6 +26,8 @@ use crate::actors::{
 
 use log::{error, info};
 
+use witnet_crypto::hash::calculate_sha256;
+
 mod actor;
 mod handlers;
 
