@@ -44,14 +44,14 @@ System::current().registry().set(sessions_manager_addr);
 
 These are the messages supported by the sessions manager handlers:
 
-| Message       | Input type                                | Output type           | Description                                       |
-|---------------|-------------------------------------------|-----------------------|---------------------------------------------------|
-| `Create`      | `TcpStream, SessionType`                  | `()`                  | Request to create a new session                   |
-| `Register`    | `SocketAddr, Addr<Session>, SessionType`  | `SessionsResult<()>`  | Request to register a new session                 |
-| `Unregister`  | `SocketAddr, SessionType, SessionStatus`  | `SessionsResult<()>`  | Request to unregister a session                   |
-| `Consolidate` | `SocketAddr, SessionType`                 | `SessionsResult<()>`  | Request to consolidate a session                  |
-| `Anycast<T>`  | `T`                                       | `()`                  | Request to send a T message to a random Session   |
-| `Broadcast<T>`| `T`                                       | `()`                  | Request to send a T message to all the consolidated outbound sesions |
+| Message        | Input type                               | Output type          | Description                                                          |
+| -------------- | ---------------------------------------- | -------------------- | -------------------------------------------------------------------- |
+| `Create`       | `TcpStream, SessionType`                 | `()`                 | Request to create a new session                                      |
+| `Register`     | `SocketAddr, Addr<Session>, SessionType` | `SessionsResult<()>` | Request to register a new session                                    |
+| `Unregister`   | `SocketAddr, SessionType, SessionStatus` | `SessionsResult<()>` | Request to unregister a session                                      |
+| `Consolidate`  | `SocketAddr, SessionType`                | `SessionsResult<()>` | Request to consolidate a session                                     |
+| `Anycast<T>`   | `T`                                      | `()`                 | Request to send a T message to a random Session                      |
+| `Broadcast<T>` | `T`                                      | `()`                 | Request to send a T message to all the consolidated outbound sesions |
 
 The handling of these messages is basically just calling the corresponding methods from the
 [`Sessions`][sessions] library. For example, the handler of the `Register` message would be
@@ -142,12 +142,12 @@ successfully sent.
 
 These are the messages sent by the sessions manager:
 
-| Message               | Destination           | Input type    | Output type                       | Description                                                               |
-|-----------------------|-----------------------|---------------|-----------------------------------|---------------------------------------------------------------------------|
-| `GetConfig`           | `ConfigManager`       | `()`          | `Result<Config, io::Error>`       | Request the configuration                                                 |
-| `GetRandomPeer`       | `PeersManager`        | `()`          | `PeersResult<Option<SocketAddr>>` | Request the address of a peer                                             |
-| `OutboundTcpConnect`  | `ConnectionsManager`  | `SocketAddr`  | `()`                              | Request a TCP conn to an address                                          | 
-| `Anycast<GetPeers>`   | `SessionsManager`     | `()`          | `()`                              | Request to forward a GetPeers message to one randomly selected `Session`  |
+| Message              | Destination          | Input type   | Output type                       | Description                                                              |
+| -------------------- | -------------------- | ------------ | --------------------------------- | ------------------------------------------------------------------------ |
+| `GetConfig`          | `ConfigManager`      | `()`         | `Result<Config, io::Error>`       | Request the configuration                                                |
+| `GetRandomPeer`      | `PeersManager`       | `()`         | `PeersResult<Option<SocketAddr>>` | Request the address of a peer                                            |
+| `OutboundTcpConnect` | `ConnectionsManager` | `SocketAddr` | `()`                              | Request a TCP conn to an address                                         |
+| `Anycast<GetPeers>`  | `SessionsManager`    | `()`         | `()`                              | Request to forward a GetPeers message to one randomly selected `Session` |
 
 #### GetConfig
 
@@ -156,7 +156,7 @@ is started.
 
 The returned configuration is used to store some parameters at the [`Sessions`][sessions] state:
 
-- Server address: used at the Witnet node to avoid connections to itself.
+- Server address: used in the Witnet node to avoid connections with itself.
 - Inbound limit: used to reject incoming connections once the limit has been reached.
 - Outbound limit: used to stop requesting new outgoing connections once the limit has been reached.
 - Handshake timeout: sent to the session upon creation to set a time limit to the handshake process.
@@ -198,10 +198,10 @@ For further information, see [`ConnectionsManager`][connections_manager].
 
 #### Anycast<GetPeers>
 
-Due to [`SessionsManager`][sessions_manager] has an `Anycast<T>` handler to forward a `T` message
-to one randomly selected `Session`, this message is periodically sent it to itself.
+Due to the [`SessionsManager`][sessions_manager] having an `Anycast<T>` handler to forward a `T` message
+to one randomly selected `Session`, this message is periodically sent to itself.
 
-It is a best effort message, its return value is not processed and the [`SessionsManager`][sessions_manager] 
+It is a best effort message, its return value is not processed and the [`SessionsManager`][sessions_manager]
 actor does not even wait for its response after sending it.
 
 This message causes `SessionManager` to forward a `GetPeers` message to one randomly selected `Session` actor.

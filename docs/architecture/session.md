@@ -1,8 +1,10 @@
 # Session
 
-__Session__ is the actor that encapsulates the entire business logic of the Witnet network protocol.
+__Session__ is the actor that encapsulates the entire business logic of the Witnet [network protocol]. Its responsibilities include:
 
-
+- Session consolidation by following the [Handshake] protocol
+- Blockchain synchronization (after consolidation) by triggering the [Block Download] process
+- Real-time inventory management by supporting [Inventory Broadcasting]
 
 ## Actor creation and registration
 
@@ -35,17 +37,16 @@ Session::create(move |ctx| {
 });
 ```
 
-
 ## API
 
-### Incoming: Others -> Session 
+### Incoming: Others -> Session
 
-These are the messages supported by the session handlers:
+These are the messages supported by the Session handlers:
 
-| Message          | Input type            | Output type                       | Description                            |
-| ---------------- | --------------------- | --------------------------------- | -------------------------------------- |
-| `GetPeers`       | `()`                  | `()`                              | Request peers from a session           |
-| `AnnounceItems`  | `Vec<InvVector>`      | `()`                              | Announce new inventory items           |
+| Message         | Input type       | Output type | Description                  |
+| --------------- | ---------------- | ----------- | ---------------------------- |
+| `GetPeers`      | `()`             | `()`        | Request peers from a session |
+| `AnnounceItems` | `Vec<InvVector>` | `()`        | Announce new inventory items |
 
 #### GetPeers
 
@@ -57,13 +58,12 @@ Announce new inventory items.
 
 ### Outgoing messages: Session -> Others
 
-These are the messages sent by the session:
+These are the messages sent by the Session:
 
-| Message                 | Destination               | Input type                                        | Output type                         | Description                           |
-|-------------------------|---------------------------|---------------------------------------------------|-------------------------------------|---------------------------------------|
-| `Register`              | `SessionsManager`         | `SocketAddr, Addr<Session>, SessionType`          | `SessionsResult<()>`                | Request to register a new session     |
-| `Unregister`            | `SessionsManager`         | `SocketAddr, SessionType, SessionStatus`          | `SessionsResult<()>`                | Request to unregister a session       |
-
+| Message      | Destination       | Input type                               | Output type          | Description                       |
+| ------------ | ----------------- | ---------------------------------------- | -------------------- | --------------------------------- |
+| `Register`   | `SessionsManager` | `SocketAddr, Addr<Session>, SessionType` | `SessionsResult<()>` | Request to register a new session |
+| `Unregister` | `SessionsManager` | `SocketAddr, SessionType, SessionStatus` | `SessionsResult<()>` | Request to unregister a session   |
 
 #### Register
 
@@ -75,7 +75,7 @@ The returned value is a `Result` for easy verification of the success of the ope
 For further information, see [`SessionsManager`][sessions_manager].
 
 #### Unregister
- 
+
 This message is sent to the [`SessionsManager`][sessions_manager] actor when the session
 actor is stopped to unregister this session.
 
@@ -84,7 +84,13 @@ The returned value is a `Result` for easy verification of the success of the ope
 For further information, see [`SessionsManager`][sessions_manager].
 
 ## Further information
+
 The full source code of the `Session` actor can be found at [`session.rs`][session].
 
-[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager.rs
-[session]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/session.rs
+[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager
+[session]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/session
+
+[network protocol]: /protocol/network/overview/
+[Handshake]: /protocol/network/messages/handshake/
+[Block Download]: /protocol/network/messages/inventory/#block-download
+[Inventory Broadcasting]: /protocol/network/messages/inventory/#inventory-broadcasting
