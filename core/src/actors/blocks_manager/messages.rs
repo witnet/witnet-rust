@@ -2,16 +2,16 @@ use actix::Message;
 
 use crate::actors::blocks_manager::BlocksManagerError;
 use witnet_data_structures::{
-    chain::{Block, Epoch, Hash},
+    chain::{Block, CheckpointBeacon, Hash},
     error::ChainInfoResult,
 };
 
 /// Message to obtain the highest block checkpoint managed by the `BlocksManager`
 /// actor.
-pub struct GetHighestBlockCheckpoint;
+pub struct GetHighestCheckpointBeacon;
 
-impl Message for GetHighestBlockCheckpoint {
-    type Result = ChainInfoResult<Epoch>;
+impl Message for GetHighestCheckpointBeacon {
+    type Result = ChainInfoResult<CheckpointBeacon>;
 }
 
 /// Add a new block

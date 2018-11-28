@@ -4,7 +4,7 @@ use crate::actors::blocks_manager::{BlocksManager, BlocksManagerError};
 use crate::actors::epoch_manager::messages::EpochNotification;
 
 use witnet_data_structures::{
-    chain::{Epoch, Hash, InvVector},
+    chain::{CheckpointBeacon, Hash, InvVector},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
@@ -12,7 +12,7 @@ use witnet_util::error::WitnetError;
 
 use log::{debug, error};
 
-use super::messages::{AddNewBlock, GetHighestBlockCheckpoint};
+use super::messages::{AddNewBlock, GetHighestCheckpointBeacon};
 use crate::actors::session::messages::AnnounceItems;
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
@@ -46,16 +46,16 @@ impl Handler<EpochNotification<EveryEpochPayload>> for BlocksManager {
 }
 
 /// Handler for GetHighestBlockCheckpoint message
-impl Handler<GetHighestBlockCheckpoint> for BlocksManager {
-    type Result = ChainInfoResult<Epoch>;
+impl Handler<GetHighestCheckpointBeacon> for BlocksManager {
+    type Result = ChainInfoResult<CheckpointBeacon>;
 
     fn handle(
         &mut self,
-        _msg: GetHighestBlockCheckpoint,
+        _msg: GetHighestCheckpointBeacon,
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
         if let Some(chain_info) = &self.chain_info {
-            Ok(chain_info.highest_block_checkpoint.checkpoint)
+            Ok(chain_info.highest_block_checkpoint)
         } else {
             error!("No ChainInfo loaded in BlocksManager");
             Err(WitnetError::from(ChainInfoError::new(
