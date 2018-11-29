@@ -124,7 +124,7 @@ pub struct ConsensusConstants {
 /// JSON-RPC API configuration
 #[derive(Deserialize, Default, Debug, Clone, PartialEq)]
 pub struct JsonRPC {
-    /// Enable JSON-RPC server?
+    /// Binary flag telling whether to enable the JSON-RPC interface or not
     pub enabled: Option<bool>,
     /// JSON-RPC server address, that is, the socket address (interface ip and
     /// port) for the JSON-RPC server
