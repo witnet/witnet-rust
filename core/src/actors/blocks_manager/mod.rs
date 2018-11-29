@@ -156,26 +156,24 @@ impl BlocksManager {
         )
     }
 
-    fn discard_existing_inv_vectors(&mut self, inv_vectors: &[InvVector]) -> InvVectorsResult {
+    fn discard_existing_inv_vectors(&mut self, inv_vectors: Vec<InvVector>) -> InvVectorsResult {
         // Missing inventory vectors
-        let mut missing_inv_vectors = Vec::new();
+        let missing_inv_vectors = inv_vectors
+            .into_iter()
+            .filter(|inv_vector| {
+                // Get hash from inventory vector
+                let hash = match inv_vector {
+                    InvVector::Error(hash)
+                    | InvVector::Block(hash)
+                    | InvVector::Tx(hash)
+                    | InvVector::DataRequest(hash)
+                    | InvVector::DataResult(hash) => hash,
+                };
 
-        // Iterate through all inventory vectors
-        for inv_vector in inv_vectors {
-            // Get hash from inventory vector
-            let hash = match inv_vector {
-                InvVector::Error(hash)
-                | InvVector::Block(hash)
-                | InvVector::Tx(hash)
-                | InvVector::DataRequest(hash)
-                | InvVector::DataResult(hash) => hash,
-            };
-
-            // Add the inventory vector to the missing vectors if it is not found
-            if self.blocks.get(&hash).is_none() {
-                missing_inv_vectors.push(inv_vector.clone());
-            }
-        }
+                // Add the inventory vector to the missing vectors if it is not found
+                self.blocks.get(&hash).is_none()
+            })
+            .collect();
 
         Ok(missing_inv_vectors)
     }
@@ -304,7 +302,7 @@ mod tests {
         inv_vectors.push(InvVector::Block(hash_c));
 
         // Filter inventory vectors
-        let missing_inv_vectors = bm.discard_existing_inv_vectors(&inv_vectors).unwrap();
+        let missing_inv_vectors = bm.discard_existing_inv_vectors(inv_vectors).unwrap();
 
         // Check there is no missing inventory vector
         assert!(missing_inv_vectors.is_empty());
@@ -336,7 +334,7 @@ mod tests {
         inv_vectors.push(missing_inv_vector.clone());
 
         // Filter inventory vectors
-        let missing_inv_vectors = bm.discard_existing_inv_vectors(&inv_vectors).unwrap();
+        let missing_inv_vectors = bm.discard_existing_inv_vectors(inv_vectors).unwrap();
 
         // Check the expected missing inventory vectors
         assert_eq!(missing_inv_vectors, vec![missing_inv_vector]);
@@ -369,7 +367,9 @@ mod tests {
         inv_vectors.push(missing_inv_vector_3);
 
         // Filter inventory vectors
-        let missing_inv_vectors = bm.discard_existing_inv_vectors(&inv_vectors).unwrap();
+        let missing_inv_vectors = bm
+            .discard_existing_inv_vectors(inv_vectors.clone())
+            .unwrap();
 
         // Check there is no missing inventory vector
         assert_eq!(missing_inv_vectors, inv_vectors);

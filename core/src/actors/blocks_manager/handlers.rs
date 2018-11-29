@@ -149,6 +149,6 @@ impl Handler<DiscardExistingInvVectors> for BlocksManager {
         _ctx: &mut Context<Self>,
     ) -> InvVectorsResult {
         // Discard existing inventory vectors
-        self.discard_existing_inv_vectors(&msg.inv_vectors)
+        self.discard_existing_inv_vectors(msg.inv_vectors)
     }
 }
