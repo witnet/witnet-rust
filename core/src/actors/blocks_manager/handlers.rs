@@ -77,10 +77,10 @@ impl Handler<AddNewBlock> for BlocksManager {
         let res = self.process_new_block(msg.block);
         match res {
             Ok(hash) => {
-                // Get sessions manager address
+                // Get SessionsManager's address
                 let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
-                // Send a broadcast message to the SessionsManager to announce the new block
+                // Tell SessionsManager to announce the new block through every consolidated Session
                 let items = vec![InvVector::Block(hash)];
                 sessions_manager_addr.do_send(Broadcast {
                     command: AnnounceItems { items },

@@ -40,10 +40,10 @@ mod handlers;
 /// Messages for BlocksManager
 pub mod messages;
 
-/// Possible errors when getting the current epoch
+/// Possible errors when interacting with BlocksManager
 #[derive(Debug)]
 pub enum BlocksManagerError {
-    /// The new block is not new anymore
+    /// A block being processed was already known to this node
     BlockAlreadyExists,
     /// StorageError
     StorageError(WitnetError<StorageError>),
@@ -66,7 +66,7 @@ pub struct BlocksManager {
     /// Map that relates an epoch with the hashes of the blocks for that epoch
     // One epoch can have more than one block
     epoch_to_block_hash: HashMap<Epoch, HashSet<Hash>>,
-    /// Map that stores blocks by hash
+    /// Map that stores blocks by their hash
     blocks: HashMap<Hash, Block>,
 }
 
@@ -119,30 +119,30 @@ impl BlocksManager {
 
         // Check if we already have a block with that hash
         if let Some(_block) = self.blocks.get(&hash) {
-            return Err(BlocksManagerError::BlockAlreadyExists);
+            Err(BlocksManagerError::BlockAlreadyExists)
+        } else {
+            // This is a new block, insert it into the internal maps
+            {
+                // Insert the new block into the map that relates epochs to block hashes
+                let beacon = &block.header.block_header.beacon;
+                let hash_set = &mut self
+                    .epoch_to_block_hash
+                    .entry(beacon.checkpoint)
+                    .or_insert_with(HashSet::new);
+                hash_set.insert(hash);
+
+                debug!(
+                    "Checkpoint {} has {} blocks",
+                    beacon.checkpoint,
+                    hash_set.len()
+                );
+            }
+
+            // Insert the new block into the map of known blocks
+            self.blocks.insert(hash, block);
+
+            Ok(hash)
         }
-
-        // This is a new block, insert it into the internal maps
-        {
-            // Insert the new block into the map that relates epochs to block hashes
-            let beacon = &block.header.block_header.beacon;
-            let hash_set = &mut self
-                .epoch_to_block_hash
-                .entry(beacon.checkpoint)
-                .or_insert_with(HashSet::new);
-            hash_set.insert(hash);
-
-            debug!(
-                "Checkpoint {} has {} blocks",
-                beacon.checkpoint,
-                hash_set.len()
-            );
-        }
-
-        // Insert the new block into the map of known blocks
-        self.blocks.insert(hash, block);
-
-        Ok(hash)
     }
 }
 
