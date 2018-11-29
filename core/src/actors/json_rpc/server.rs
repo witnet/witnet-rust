@@ -31,18 +31,18 @@ pub struct JsonRpcServer {
 }
 
 impl JsonRpcServer {
-    /// Method to process the configuration received from the ConfigManager
+    /// Method to process the configuration received from ConfigManager
     fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
         let enabled = config.jsonrpc.enabled;
 
         // Do not start the server if enabled = false
         if !enabled {
-            debug!("JSON RPC server actor not started because of config!");
+            debug!("JSON-RPC interface explicitly disabled by configuration.");
             ctx.stop();
             return;
         }
 
-        debug!("JSON RPC server actor has been started!");
+        debug!("Starting JSON-RPC interface.");
         let server_addr = config.jsonrpc.server_address;
         self.server_addr = Some(server_addr);
         // Create and store the JSON-RPC method handler
@@ -70,7 +70,7 @@ impl JsonRpcServer {
                 .map(InboundTcpConnect::new),
         );
 
-        debug!("Started JSON RPC server at {}", server_addr);
+        debug!("JSON-RPC interface is now running at {}", server_addr);
     }
 
     fn add_connection(&mut self, parent: Addr<JsonRpcServer>, stream: TcpStream) {

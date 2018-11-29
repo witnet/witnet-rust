@@ -20,7 +20,7 @@ pub fn jsonrpc_io_handler() -> IoHandler<()> {
 
 /// Inventory element: block, tx, etc
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub enum InventoryElement {
+pub enum InventoryItem {
     /// Error
     #[serde(rename = "error")]
     Error,
@@ -38,20 +38,20 @@ pub enum InventoryElement {
     DataResult,
 }
 
-/// Announce a new block.
+/// Make the node process, validate and potentially broadcast a new inventory item.
 ///
-/// Input: inventory element
+/// Input: the JSON serialization of a well-formed inventory item
 ///
 /// Returns a boolean indicating success.
 /* Test string:
 {"jsonrpc": "2.0", "method": "inventory", "params": {"block":{"header":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":{"SHA256":[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig":null,"influence":99999}},"txn_count":1,"txns":[null]}}, "id": 1}
 */
-pub fn inventory(inv_elem: InventoryElement) -> Result<Value, jsonrpc_core::Error> {
+pub fn inventory(inv_elem: InventoryItem) -> Result<Value, jsonrpc_core::Error> {
     match inv_elem {
-        InventoryElement::Block(block) => {
+        InventoryItem::Block(block) => {
             info!("Got block from JSON-RPC. Sending AnnounceItems message.");
 
-            // Get sessions manager address
+            // Get SessionsManager's address
             let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
             // If this function was called asynchronously, it could wait for the result
             // But it's not so we just assume success
@@ -140,7 +140,7 @@ mod tests {
             txns: vec![Transaction],
         };
 
-        let inv_elem = InventoryElement::Block(block);
+        let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem).unwrap();
         let msg = format!(
             r#"{{"jsonrpc":"2.0","method":"inventory","params":{},"id":1}}"#,
@@ -205,7 +205,7 @@ mod tests {
             txn_count: 1,
             txns: vec![Transaction],
         };
-        let inv_elem = InventoryElement::Block(block);
+        let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem);
         let expected = r#"{"block":{"header":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":{"SHA256":[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig":null,"influence":99999}},"txn_count":1,"txns":[null]}}"#;
         assert_eq!(s.unwrap(), expected);
