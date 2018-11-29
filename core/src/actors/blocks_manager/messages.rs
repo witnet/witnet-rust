@@ -44,3 +44,16 @@ pub struct GetBlocksEpochRange {
 impl Message for GetBlocksEpochRange {
     type Result = Result<Vec<InvVector>, BlocksManagerError>;
 }
+
+/// Discard inventory vectors that exist in the BlocksManager
+pub struct DiscardExistingInvVectors {
+    /// Vector of InvVectors
+    pub inv_vectors: Vec<InvVector>,
+}
+
+/// Result of the DiscardExistingInvVectors message handling
+pub type InvVectorsResult = Result<Vec<InvVector>, BlocksManagerError>;
+
+impl Message for DiscardExistingInvVectors {
+    type Result = InvVectorsResult;
+}

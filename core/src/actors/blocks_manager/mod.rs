@@ -20,6 +20,7 @@ use actix::{
 use witnet_data_structures::chain::ChainInfo;
 
 use crate::actors::{
+    blocks_manager::messages::InvVectorsResult,
     storage_keys::CHAIN_KEY,
     storage_manager::{messages::Put, StorageManager},
 };
@@ -27,7 +28,7 @@ use crate::actors::{
 use log::{debug, error, info};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use witnet_data_structures::chain::{Block, Epoch, Hash};
+use witnet_data_structures::chain::{Block, Epoch, Hash, InvVector};
 
 use witnet_storage::{error::StorageError, storage::Storable};
 
@@ -153,6 +154,30 @@ impl BlocksManager {
             || Err(BlocksManagerError::BlockDoesNotExist),
             |block| Ok(block.clone()),
         )
+    }
+
+    fn discard_existing_inv_vectors(&mut self, inv_vectors: &[InvVector]) -> InvVectorsResult {
+        // Missing inventory vectors
+        let mut missing_inv_vectors = Vec::new();
+
+        // Iterate through all inventory vectors
+        for inv_vector in inv_vectors {
+            // Get hash from inventory vector
+            let hash = match inv_vector {
+                InvVector::Error(hash)
+                | InvVector::Block(hash)
+                | InvVector::Tx(hash)
+                | InvVector::DataRequest(hash)
+                | InvVector::DataResult(hash) => hash,
+            };
+
+            // Add the inventory vector to the missing vectors if it is not found
+            if self.blocks.get(&hash).is_none() {
+                missing_inv_vectors.push(inv_vector.clone());
+            }
+        }
+
+        Ok(missing_inv_vectors)
     }
 }
 

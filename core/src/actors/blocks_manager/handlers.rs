@@ -12,8 +12,10 @@ use witnet_util::error::WitnetError;
 
 use log::{debug, error};
 
-use super::messages::{AddNewBlock, GetBlock, GetBlocksEpochRange, GetHighestCheckpointBeacon};
-
+use super::messages::{
+    AddNewBlock, DiscardExistingInvVectors, GetBlock, GetBlocksEpochRange,
+    GetHighestCheckpointBeacon, InvVectorsResult,
+};
 use crate::actors::session::messages::AnnounceItems;
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
@@ -134,5 +136,19 @@ impl Handler<GetBlocksEpochRange> for BlocksManager {
             .collect();
 
         Ok(hashes)
+    }
+}
+
+/// Handler for DiscardExistingInvVectors message
+impl Handler<DiscardExistingInvVectors> for BlocksManager {
+    type Result = InvVectorsResult;
+
+    fn handle(
+        &mut self,
+        msg: DiscardExistingInvVectors,
+        _ctx: &mut Context<Self>,
+    ) -> InvVectorsResult {
+        // Discard existing inventory vectors
+        self.discard_existing_inv_vectors(&msg.inv_vectors)
     }
 }
