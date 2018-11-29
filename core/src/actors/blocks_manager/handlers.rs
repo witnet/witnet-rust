@@ -12,7 +12,8 @@ use witnet_util::error::WitnetError;
 
 use log::{debug, error};
 
-use super::messages::{AddNewBlock, GetBlock, GetHighestCheckpointBeacon};
+use super::messages::{AddNewBlock, GetBlock, GetBlocksEpochRange, GetHighestCheckpointBeacon};
+
 use crate::actors::session::messages::AnnounceItems;
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
@@ -113,5 +114,25 @@ impl Handler<GetBlock> for BlocksManager {
     ) -> Result<Block, BlocksManagerError> {
         // Try to get block by hash
         self.try_to_get_block(msg.hash)
+    }
+}
+
+/// Handler for GetBlocksEpochRange
+impl Handler<GetBlocksEpochRange> for BlocksManager {
+    type Result = Result<Vec<InvVector>, BlocksManagerError>;
+
+    fn handle(
+        &mut self,
+        GetBlocksEpochRange { range }: GetBlocksEpochRange,
+        _ctx: &mut Context<Self>,
+    ) -> Self::Result {
+        debug!("GetBlocksEpochRange received {:?}", range);
+        let hashes = range
+            .map(|epoch| &self.epoch_to_block_hash[&epoch])
+            .flatten()
+            .map(|hash| InvVector::Block(*hash))
+            .collect();
+
+        Ok(hashes)
     }
 }

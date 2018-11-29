@@ -1,8 +1,9 @@
 use actix::Message;
+use std::ops::RangeInclusive;
 
 use crate::actors::blocks_manager::BlocksManagerError;
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Hash},
+    chain::{Block, CheckpointBeacon, Epoch, Hash, InvVector},
     error::ChainInfoResult,
 };
 
@@ -32,4 +33,14 @@ pub struct GetBlock {
 
 impl Message for GetBlock {
     type Result = Result<Block, BlocksManagerError>;
+}
+
+/// Message to obtain a vector of block hashes using a range of epochs
+pub struct GetBlocksEpochRange {
+    /// Range of Epochs
+    pub range: RangeInclusive<Epoch>,
+}
+
+impl Message for GetBlocksEpochRange {
+    type Result = Result<Vec<InvVector>, BlocksManagerError>;
 }

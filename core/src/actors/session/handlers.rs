@@ -10,7 +10,7 @@ use log::{debug, error, info, warn};
 
 use crate::actors::{
     blocks_manager::{
-        messages::{AddNewBlock, GetHighestCheckpointBeacon},
+        messages::{AddNewBlock, GetBlocksEpochRange, GetHighestCheckpointBeacon},
         BlocksManager,
     },
     codec::BytesMut,
@@ -25,9 +25,9 @@ use super::{
 };
 use witnet_data_structures::{
     builders::from_address,
-    chain::{Block, Hash, InvVector},
+    chain::{Block, CheckpointBeacon, Hash, InvVector},
     serializers::TryFrom,
-    types::{Address, Command, GetData, Inv, Message as WitnetMessage, Peers, Version},
+    types::{Address, Command, GetBlocks, GetData, Inv, Message as WitnetMessage, Peers, Version},
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
@@ -105,6 +105,29 @@ impl StreamHandler<BytesMut, Error> for Session {
                     (_, SessionStatus::Consolidated, Command::Block(block)) => {
                         inventory_process_block(self, ctx, block);
                     }
+
+                    ////////////////
+                    // GET BLOCKS //
+                    ////////////////
+                    (
+                        SessionType::Inbound,
+                        SessionStatus::Consolidated,
+                        Command::GetBlocks(GetBlocks {
+                            highest_block_checkpoint,
+                        }),
+                    ) => {
+                        todo_inbound_session_getblocks(self, ctx, highest_block_checkpoint);
+                    }
+                    (
+                        SessionType::Outbound,
+                        SessionStatus::Consolidated,
+                        Command::GetBlocks(GetBlocks {
+                            highest_block_checkpoint,
+                        }),
+                    ) => {
+                        todo_outbound_session_getblocks(self, ctx, highest_block_checkpoint);
+                    }
+
                     ////////////////////
                     // INVENTORY      //
                     ////////////////////
@@ -175,7 +198,7 @@ fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
 fn inventory_get_blocks(session: &Session, ctx: &mut Context<Session>) {
     // Get BlocksManager address from registry
     let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
-    // Send get highest checkpoint beacon message to BlocksManager
+    // Send GetHighestCheckpointBeacon message to BlocksManager
     blocks_manager_addr
         .send(GetHighestCheckpointBeacon)
         .into_actor(session)
@@ -407,4 +430,75 @@ fn send_block_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash
             actix::fut::ok(())
         })
         .wait(ctx);
+}
+
+fn todo_inbound_session_getblocks(
+    session: &Session,
+    ctx: &mut Context<Session>,
+    CheckpointBeacon {
+        checkpoint: received_checkpoint,
+        ..
+    }: CheckpointBeacon,
+) {
+    // Get BlocksManager address from registry
+    let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
+    // Send GetHighestCheckpointBeacon message to BlocksManager
+    blocks_manager_addr
+        .send(GetHighestCheckpointBeacon)
+        .into_actor(session)
+        .then(move |res, act, ctx| {
+            match res {
+                Ok(Ok(CheckpointBeacon {
+                    checkpoint: highest_checkpoint,
+                    ..
+                })) => {
+                    if highest_checkpoint > received_checkpoint {
+                        let range = (received_checkpoint + 1)..=highest_checkpoint;
+
+                        blocks_manager_addr
+                            .send(GetBlocksEpochRange { range })
+                            .into_actor(act)
+                            .then(|res, act, _ctx| match res {
+                                Ok(Ok(blocks)) => {
+                                    let msg = WitnetMessage::build_inv(blocks);
+                                    act.send_message(msg);
+
+                                    actix::fut::ok(())
+                                }
+                                _ => {
+                                    error!("GetBlocks::EpochRange didn't succeeded");
+
+                                    actix::fut::err(())
+                                }
+                            })
+                            .wait(ctx);
+                    } else {
+                        debug!("Received checkpoint beacon is ahead of ours.");
+                    }
+                    // Create get blocks message
+                    // let get_blocks_msg = WitnetMessage::build_get_blocks(beacon);
+                    // Write get blocks message in session
+                    // act.send_message(get_blocks_msg);
+
+                    actix::fut::ok(())
+                }
+                _ => {
+                    warn!("Get highest checkpoint beacon in Blocks Manager failed");
+                    // FIXME(#72): a full stop of the session is not correct (unregister should
+                    // be skipped)
+                    ctx.stop();
+
+                    actix::fut::err(())
+                }
+            }
+        })
+        .wait(ctx);
+}
+
+fn todo_outbound_session_getblocks(
+    _session: &Session,
+    _ctx: &mut Context<Session>,
+    _checkpoint_beacon: CheckpointBeacon,
+) {
+    unimplemented!();
 }
