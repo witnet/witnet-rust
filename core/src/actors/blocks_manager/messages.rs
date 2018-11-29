@@ -24,7 +24,7 @@ impl Message for AddNewBlock {
     type Result = Result<Hash, BlocksManagerError>;
 }
 
-/// Get a block from its hash
+/// Ask for a block identified by its hash
 pub struct GetBlock {
     /// Block hash
     pub hash: Hash,

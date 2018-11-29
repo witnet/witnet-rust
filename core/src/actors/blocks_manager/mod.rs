@@ -46,7 +46,7 @@ pub enum BlocksManagerError {
     /// A block being processed was already known to this node
     BlockAlreadyExists,
     /// A block does not exist
-    BlockNotExists,
+    BlockDoesNotExist,
     /// StorageError
     StorageError(WitnetError<StorageError>),
 }
@@ -148,12 +148,11 @@ impl BlocksManager {
     }
 
     fn try_to_get_block(&mut self, hash: Hash) -> Result<Block, BlocksManagerError> {
-        // Check if we already have a block with that hash
-        if let Some(block) = self.blocks.get(&hash) {
-            Ok(block.clone())
-        } else {
-            Err(BlocksManagerError::BlockNotExists)
-        }
+        // Check if we have a block with that hash
+        self.blocks.get(&hash).map_or_else(
+            || Err(BlocksManagerError::BlockDoesNotExist),
+            |block| Ok(block.clone()),
+        )
     }
 }
 
