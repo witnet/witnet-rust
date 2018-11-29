@@ -214,24 +214,27 @@ impl TryFrom<Vec<u8>> for Message {
                         }
                     };
                     // Get proof of leadership
-                    let signature = header_ftb
-                        .proof()
-                        .block_sig_as_secp_256k_1signature()
-                        .and_then(|signature_ftb| {
-                            let mut signature = Secp256k1Signature {
-                                r: [0; 32],
-                                s: [0; 32],
-                                v: 0,
-                            };
-                            signature.r.copy_from_slice(&signature_ftb.r()[0..32]);
-                            signature.s.copy_from_slice(&signature_ftb.s()[0..32]);
-                            signature.v = signature_ftb.s()[32];
+                    let block_sig = match header_ftb.proof().block_sig_type() {
+                        protocol::Signature::Secp256k1Signature => header_ftb
+                            .proof()
+                            .block_sig_as_secp_256k_1signature()
+                            .and_then(|signature_ftb| {
+                                let mut signature = Secp256k1Signature {
+                                    r: [0; 32],
+                                    s: [0; 32],
+                                    v: 0,
+                                };
+                                signature.r.copy_from_slice(&signature_ftb.r()[0..32]);
+                                signature.s.copy_from_slice(&signature_ftb.s()[0..32]);
+                                signature.v = signature_ftb.s()[32];
 
-                            Some(signature)
-                        });
+                                Some(Signature::Secp256k1(signature))
+                            }),
+                        _ => None,
+                    };
                     let influence = header_ftb.proof().influence();
                     let proof = LeadershipProof {
-                        block_sig: Some(Signature::Secp256k1(signature.unwrap())),
+                        block_sig,
                         influence,
                     };
                     // Create BlockHeaderWithProof
