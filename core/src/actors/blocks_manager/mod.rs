@@ -189,27 +189,11 @@ mod tests {
     fn add_block() {
         let mut bm = BlocksManager::default();
 
-        use witnet_data_structures::chain::*;
+        // Build hardcoded block
         let checkpoint = 2;
-        let block_a = Block {
-            header: BlockHeaderWithProof {
-                block_header: BlockHeader {
-                    version: 1,
-                    beacon: CheckpointBeacon {
-                        checkpoint,
-                        hash_prev_block: Hash::SHA256([4; 32]),
-                    },
-                    hash_merkle_root: Hash::SHA256([3; 32]),
-                },
-                proof: LeadershipProof {
-                    block_sig: None,
-                    influence: 99999,
-                },
-            },
-            txn_count: 1,
-            txns: vec![Transaction],
-        };
+        let block_a = build_hardcoded_block(checkpoint, 99999);
 
+        // Add block to BlocksManager
         let hash_a = bm.process_new_block(block_a.clone()).unwrap();
 
         // Check the block is added into the blocks map
@@ -233,25 +217,8 @@ mod tests {
     fn add_same_block_twice() {
         let mut bm = BlocksManager::default();
 
-        use witnet_data_structures::chain::*;
-        let block = Block {
-            header: BlockHeaderWithProof {
-                block_header: BlockHeader {
-                    version: 1,
-                    beacon: CheckpointBeacon {
-                        checkpoint: 2,
-                        hash_prev_block: Hash::SHA256([4; 32]),
-                    },
-                    hash_merkle_root: Hash::SHA256([3; 32]),
-                },
-                proof: LeadershipProof {
-                    block_sig: None,
-                    influence: 99999,
-                },
-            },
-            txn_count: 1,
-            txns: vec![Transaction],
-        };
+        // Build hardcoded block
+        let block = build_hardcoded_block(2, 99999);
 
         // Only the first block will be inserted
         assert!(bm.process_new_block(block.clone()).is_ok());
@@ -263,31 +230,12 @@ mod tests {
     fn add_blocks_same_epoch() {
         let mut bm = BlocksManager::default();
 
-        use witnet_data_structures::chain::*;
+        // Build hardcoded blocks
         let checkpoint = 2;
-        let block_a = Block {
-            header: BlockHeaderWithProof {
-                block_header: BlockHeader {
-                    version: 1,
-                    beacon: CheckpointBeacon {
-                        checkpoint: 2,
-                        hash_prev_block: Hash::SHA256([4; 32]),
-                    },
-                    hash_merkle_root: Hash::SHA256([3; 32]),
-                },
-                proof: LeadershipProof {
-                    block_sig: None,
-                    influence: 99999,
-                },
-            },
-            txn_count: 1,
-            txns: vec![Transaction],
-        };
+        let block_a = build_hardcoded_block(checkpoint, 99999);
+        let block_b = build_hardcoded_block(checkpoint, 12345);
 
-        let mut block_b = block_a.clone();
-        // Change a value to change the block_b hash
-        block_b.header.proof.influence = 12345;
-
+        // Add blocks to the BlocksManager
         let hash_a = bm.process_new_block(block_a).unwrap();
         let hash_b = bm.process_new_block(block_b).unwrap();
 
@@ -311,26 +259,7 @@ mod tests {
         let mut bm = BlocksManager::default();
 
         // Create a hardcoded block
-        use witnet_data_structures::chain::*;
-        let checkpoint = 2;
-        let block_a = Block {
-            header: BlockHeaderWithProof {
-                block_header: BlockHeader {
-                    version: 1,
-                    beacon: CheckpointBeacon {
-                        checkpoint,
-                        hash_prev_block: Hash::SHA256([4; 32]),
-                    },
-                    hash_merkle_root: Hash::SHA256([3; 32]),
-                },
-                proof: LeadershipProof {
-                    block_sig: None,
-                    influence: 99999,
-                },
-            },
-            txn_count: 1,
-            txns: vec![Transaction],
-        };
+        let block_a = build_hardcoded_block(2, 99999);
 
         // Add the block to the BlocksManager
         let hash_a = bm.process_new_block(block_a.clone()).unwrap();
@@ -351,5 +280,121 @@ mod tests {
 
         // Check that an error was obtained
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn discard_all() {
+        // Create empty BlocksManager
+        let mut bm = BlocksManager::default();
+
+        // Build blocks
+        let block_a = build_hardcoded_block(2, 99999);
+        let block_b = build_hardcoded_block(1, 10000);
+        let block_c = build_hardcoded_block(3, 72138);
+
+        // Add blocks to the BlocksManager
+        let hash_a = bm.process_new_block(block_a.clone()).unwrap();
+        let hash_b = bm.process_new_block(block_b.clone()).unwrap();
+        let hash_c = bm.process_new_block(block_c.clone()).unwrap();
+
+        // Build vector of inventory vectors from hashes
+        let mut inv_vectors = Vec::new();
+        inv_vectors.push(InvVector::Block(hash_a));
+        inv_vectors.push(InvVector::Block(hash_b));
+        inv_vectors.push(InvVector::Block(hash_c));
+
+        // Filter inventory vectors
+        let missing_inv_vectors = bm.discard_existing_inv_vectors(&inv_vectors).unwrap();
+
+        // Check there is no missing inventory vector
+        assert!(missing_inv_vectors.is_empty());
+    }
+
+    #[test]
+    fn discard_some() {
+        // Create empty BlocksManager
+        let mut bm = BlocksManager::default();
+
+        // Build blocks
+        let block_a = build_hardcoded_block(2, 99999);
+        let block_b = build_hardcoded_block(1, 10000);
+        let block_c = build_hardcoded_block(3, 72138);
+
+        // Add blocks to the BlocksManager
+        let hash_a = bm.process_new_block(block_a.clone()).unwrap();
+        let hash_b = bm.process_new_block(block_b.clone()).unwrap();
+        let hash_c = bm.process_new_block(block_c.clone()).unwrap();
+
+        // Missing inventory vector
+        let missing_inv_vector = InvVector::Block(Hash::SHA256([1; 32]));
+
+        // Build vector of inventory vectors from hashes
+        let mut inv_vectors = Vec::new();
+        inv_vectors.push(InvVector::Block(hash_a));
+        inv_vectors.push(InvVector::Block(hash_b));
+        inv_vectors.push(InvVector::Block(hash_c));
+        inv_vectors.push(missing_inv_vector.clone());
+
+        // Filter inventory vectors
+        let missing_inv_vectors = bm.discard_existing_inv_vectors(&inv_vectors).unwrap();
+
+        // Check the expected missing inventory vectors
+        assert_eq!(missing_inv_vectors, vec![missing_inv_vector]);
+    }
+
+    #[test]
+    fn discard_none() {
+        // Create empty BlocksManager
+        let mut bm = BlocksManager::default();
+
+        // Build blocks
+        let block_a = build_hardcoded_block(2, 99999);
+        let block_b = build_hardcoded_block(1, 10000);
+        let block_c = build_hardcoded_block(3, 72138);
+
+        // Add blocks to the BlocksManager
+        bm.process_new_block(block_a.clone()).unwrap();
+        bm.process_new_block(block_b.clone()).unwrap();
+        bm.process_new_block(block_c.clone()).unwrap();
+
+        // Missing inventory vector
+        let missing_inv_vector_1 = InvVector::Block(Hash::SHA256([1; 32]));
+        let missing_inv_vector_2 = InvVector::Block(Hash::SHA256([2; 32]));
+        let missing_inv_vector_3 = InvVector::Block(Hash::SHA256([3; 32]));
+
+        // Build vector of missing inventory vectors from hashes
+        let mut inv_vectors = Vec::new();
+        inv_vectors.push(missing_inv_vector_1);
+        inv_vectors.push(missing_inv_vector_2);
+        inv_vectors.push(missing_inv_vector_3);
+
+        // Filter inventory vectors
+        let missing_inv_vectors = bm.discard_existing_inv_vectors(&inv_vectors).unwrap();
+
+        // Check there is no missing inventory vector
+        assert_eq!(missing_inv_vectors, inv_vectors);
+    }
+
+    #[cfg(test)]
+    fn build_hardcoded_block(checkpoint: u32, influence: u64) -> Block {
+        use witnet_data_structures::chain::*;
+        Block {
+            header: BlockHeaderWithProof {
+                block_header: BlockHeader {
+                    version: 1,
+                    beacon: CheckpointBeacon {
+                        checkpoint,
+                        hash_prev_block: Hash::SHA256([4; 32]),
+                    },
+                    hash_merkle_root: Hash::SHA256([3; 32]),
+                },
+                proof: LeadershipProof {
+                    block_sig: None,
+                    influence,
+                },
+            },
+            txn_count: 1,
+            txns: vec![Transaction],
+        }
     }
 }
