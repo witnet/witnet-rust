@@ -280,4 +280,52 @@ mod tests {
             .unwrap()
             .contains(&hash_b));
     }
+
+    #[test]
+    fn get_existing_block() {
+        // Create empty BlocksManager
+        let mut bm = BlocksManager::default();
+
+        // Create a hardcoded block
+        use witnet_data_structures::chain::*;
+        let checkpoint = 2;
+        let block_a = Block {
+            header: BlockHeaderWithProof {
+                block_header: BlockHeader {
+                    version: 1,
+                    beacon: CheckpointBeacon {
+                        checkpoint,
+                        hash_prev_block: Hash::SHA256([4; 32]),
+                    },
+                    hash_merkle_root: Hash::SHA256([3; 32]),
+                },
+                proof: LeadershipProof {
+                    block_sig: None,
+                    influence: 99999,
+                },
+            },
+            txn_count: 1,
+            txns: vec![Transaction],
+        };
+
+        // Add the block to the BlocksManager
+        let hash_a = bm.process_new_block(block_a.clone()).unwrap();
+
+        // Try to get the block from the BlocksManager
+        let stored_block = bm.try_to_get_block(hash_a).unwrap();
+
+        assert_eq!(stored_block, block_a);
+    }
+
+    #[test]
+    fn get_non_existent_block() {
+        // Create empty BlocksManager
+        let mut bm = BlocksManager::default();
+
+        // Try to get a block with an invented hash
+        let result = bm.try_to_get_block(Hash::SHA256([1; 32]));
+
+        // Check that an error was obtained
+        assert!(result.is_err());
+    }
 }
