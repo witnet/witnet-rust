@@ -45,6 +45,8 @@ pub mod messages;
 pub enum BlocksManagerError {
     /// A block being processed was already known to this node
     BlockAlreadyExists,
+    /// A block does not exist
+    BlockNotExists,
     /// StorageError
     StorageError(WitnetError<StorageError>),
 }
@@ -142,6 +144,15 @@ impl BlocksManager {
             self.blocks.insert(hash, block);
 
             Ok(hash)
+        }
+    }
+
+    fn try_to_get_block(&mut self, hash: Hash) -> Result<Block, BlocksManagerError> {
+        // Check if we already have a block with that hash
+        if let Some(block) = self.blocks.get(&hash) {
+            Ok(block.clone())
+        } else {
+            Err(BlocksManagerError::BlockNotExists)
         }
     }
 }

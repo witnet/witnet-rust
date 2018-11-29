@@ -4,7 +4,7 @@ use crate::actors::blocks_manager::{BlocksManager, BlocksManagerError};
 use crate::actors::epoch_manager::messages::EpochNotification;
 
 use witnet_data_structures::{
-    chain::{CheckpointBeacon, Hash, InvVector},
+    chain::{Block, CheckpointBeacon, Hash, InvVector},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
@@ -12,7 +12,7 @@ use witnet_util::error::WitnetError;
 
 use log::{debug, error};
 
-use super::messages::{AddNewBlock, GetHighestCheckpointBeacon};
+use super::messages::{AddNewBlock, GetBlock, GetHighestCheckpointBeacon};
 use crate::actors::session::messages::AnnounceItems;
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
@@ -66,6 +66,7 @@ impl Handler<GetHighestCheckpointBeacon> for BlocksManager {
     }
 }
 
+/// Handler for AddNewBlock message
 impl Handler<AddNewBlock> for BlocksManager {
     type Result = Result<Hash, BlocksManagerError>;
 
@@ -92,8 +93,25 @@ impl Handler<AddNewBlock> for BlocksManager {
             Err(BlocksManagerError::StorageError(_)) => {
                 debug!("Error when serializing block");
             }
+            Err(_) => {
+                debug!("Unexpected error");
+            }
         };
 
         res
+    }
+}
+
+/// Handler for GetBlock message
+impl Handler<GetBlock> for BlocksManager {
+    type Result = Result<Block, BlocksManagerError>;
+
+    fn handle(
+        &mut self,
+        msg: GetBlock,
+        _ctx: &mut Context<Self>,
+    ) -> Result<Block, BlocksManagerError> {
+        // Try to get block by hash
+        self.try_to_get_block(msg.hash)
     }
 }

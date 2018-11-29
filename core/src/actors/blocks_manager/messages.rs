@@ -23,3 +23,13 @@ pub struct AddNewBlock {
 impl Message for AddNewBlock {
     type Result = Result<Hash, BlocksManagerError>;
 }
+
+/// Get a block from its hash
+pub struct GetBlock {
+    /// Block hash
+    pub hash: Hash,
+}
+
+impl Message for GetBlock {
+    type Result = Result<Block, BlocksManagerError>;
+}
