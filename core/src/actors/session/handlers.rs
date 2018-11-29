@@ -10,7 +10,9 @@ use log::{debug, error, info, warn};
 
 use crate::actors::{
     blocks_manager::{
-        messages::{AddNewBlock, GetBlocksEpochRange, GetHighestCheckpointBeacon},
+        messages::{
+            AddNewBlock, DiscardExistingInvVectors, GetBlocksEpochRange, GetHighestCheckpointBeacon,
+        },
         BlocksManager,
     },
     codec::BytesMut,
@@ -327,21 +329,55 @@ fn inventory_process_block(_session: &mut Session, _ctx: &mut Context<Session>, 
 }
 
 /// Function to process an Inv message
-fn inventory_process_inv(session: &mut Session, _ctx: &mut Context<Session>, inv: &Inv) {
+fn inventory_process_inv(session: &mut Session, ctx: &mut Context<Session>, inv: &Inv) {
     // Check how many of the received inventory vectors need to be requested
     let inv_vectors = &inv.inventory;
 
-    // TODO missing check of how many of these items really need to be requested
-    let missing_inv_vectors = inv_vectors;
+    // Get BlocksManager address
+    let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
 
-    // Check if there are any vectors to be requested
-    if !missing_inv_vectors.is_empty() {
-        // Create GetData message with requested inventory vectors
-        let get_data_msg = WitnetMessage::build_get_data(missing_inv_vectors.to_vec());
+    // Send a message to the BlocksManager to try to add a new block
+    blocks_manager_addr
+        // Send GetConfig message to config manager actor
+        // This returns a Request Future, representing an asynchronous message sending process
+        .send(DiscardExistingInvVectors {
+            inv_vectors: inv_vectors.to_vec(),
+        })
+        // Convert a normal future into an ActorFuture
+        .into_actor(session)
+        // Process the response from the blocks manager
+        // This returns a FutureResult containing the socket address if present
+        .then(|res, _act, _ctx| {
+            // Process the Result<InvVectorsResult, MailboxError>
+            match res {
+                Err(e) => {
+                    error!("Unsuccessful communication with blocks manager: {}", e);
+                    actix::fut::err(())
+                }
+                Ok(res) => match res {
+                    Err(_) => {
+                        error!("Error while filtering inventory vectors");
+                        actix::fut::err(())
+                    }
+                    Ok(res) => actix::fut::ok(res),
+                },
+            }
+        })
+        // Process the received filtered inv elems
+        // This returns a FutureResult containing a success
+        .and_then(|missing_inv_vectors, act, _ctx| {
+            // Check if there are any vectors to be requested
+            if !missing_inv_vectors.is_empty() {
+                // Create GetData message with requested inventory vectors
+                let get_data_msg = WitnetMessage::build_get_data(missing_inv_vectors.to_vec());
 
-        // Write GetData message in session
-        session.send_message(get_data_msg);
-    }
+                // Write GetData message in session
+                act.send_message(get_data_msg);
+            }
+
+            actix::fut::ok(())
+        })
+        .wait(ctx);
 }
 
 /// Function called when Verack message is received
