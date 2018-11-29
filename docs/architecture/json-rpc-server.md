@@ -1,6 +1,6 @@
 # JsonRpcServer
 
-The [JSON-RPC protocol][json_rpc_docs] is implemented using a `JsonRpcServer` actor
+The [JSON-RPC interface][json_rpc_docs] is implemented using a `JsonRpcServer` actor
 which handles the new incoming connections and spawns a `JsonRpc` actor for each
 new connection.
 
@@ -40,7 +40,7 @@ These are the messages sent by the EpochManager:
 
 #### GetConfig
 
-This message is sent to the [`ConfigManager`][config_manager] actor when the epoch manager actor is started.
+This message is sent to the [`ConfigManager`][config_manager] actor when the `JsonRpcServer` actor is started.
 
 The return value is used to initialize the protocol constants (checkpoint period and
 epoch zero timestamp).

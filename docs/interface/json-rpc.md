@@ -34,9 +34,9 @@ details.
 
 #### inventory
 
-Publish the received item.
+Make the node process, validate and potentially broadcast a new inventory item.
 
-@params: `InventoryElement`
+@params: `InventoryItem`
 
 @returns: boolean indicating success, or parse error
 
