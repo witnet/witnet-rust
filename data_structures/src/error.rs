@@ -36,3 +36,36 @@ impl fmt::Display for ChainInfoErrorKind {
 
 /// Result type for the ChainInfo in BlocksManager module.
 pub type ChainInfoResult<T> = WitnetResult<T, ChainInfoError>;
+
+/// Error in builders functions
+#[derive(Debug, Fail)]
+#[fail(display = "{} :  msg {}", kind, msg)]
+pub struct BuildersError {
+    /// Error kind
+    kind: BuildersErrorKind,
+    /// Error message
+    msg: String,
+}
+
+impl BuildersError {
+    /// Create a BuildersError based on kind and related info
+    pub fn new(kind: BuildersErrorKind, msg: String) -> Self {
+        Self { kind, msg }
+    }
+}
+
+/// Kind of errors while trying to create a data structure with a builder function
+#[derive(Debug)]
+pub enum BuildersErrorKind {
+    /// No inventory vectors available to create a message
+    NoInvVectors,
+}
+
+impl fmt::Display for BuildersErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "BuildersError::{:?}", self)
+    }
+}
+
+/// Result type used as return value for the builder functions in the builders module
+pub type BuildersResult<T> = WitnetResult<T, BuildersError>;
