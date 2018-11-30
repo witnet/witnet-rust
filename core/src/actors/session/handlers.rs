@@ -175,10 +175,11 @@ impl Handler<AnnounceItems> for Session {
             "Sending AnnounceItems message to peer at {:?}",
             self.remote_addr
         );
-        // Create AnnounceItems message
-        let announce_items_msg = WitnetMessage::build_inv(msg.items);
-        // Write message in session
-        self.send_message(announce_items_msg);
+        // Try to create Inv protocol message with items to be announced
+        if let Ok(inv_msg) = WitnetMessage::build_inv(msg.items) {
+            // Send message through the session network connection
+            self.send_message(inv_msg);
+        };
     }
 }
 
@@ -366,12 +367,9 @@ fn inventory_process_inv(session: &mut Session, ctx: &mut Context<Session>, inv:
         // Process the received filtered inv elems
         // This returns a FutureResult containing a success
         .and_then(|missing_inv_vectors, act, _ctx| {
-            // Check if there are any vectors to be requested
-            if !missing_inv_vectors.is_empty() {
-                // Create GetData message with requested inventory vectors
-                let get_data_msg = WitnetMessage::build_get_data(missing_inv_vectors.to_vec());
-
-                // Write GetData message in session
+            // Try to create GetData protocol message to request missing inventory vectors
+            if let Ok(get_data_msg) = WitnetMessage::build_get_data(missing_inv_vectors.to_vec()) {
+                // Send GetData message through the session network connection
                 act.send_message(get_data_msg);
             }
 
@@ -420,6 +418,7 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
 
     responses
 }
+
 /// Function called when GetData message is received
 fn send_block_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash) {
     let Hash::SHA256(block_key) = *hash;
@@ -496,8 +495,12 @@ fn todo_inbound_session_getblocks(
                             .into_actor(act)
                             .then(|res, act, _ctx| match res {
                                 Ok(Ok(blocks)) => {
-                                    let msg = WitnetMessage::build_inv(blocks);
-                                    act.send_message(msg);
+                                    // Try to create an Inv protocol message with the items to
+                                    // be announced
+                                    if let Ok(inv_msg) = WitnetMessage::build_inv(blocks) {
+                                        // Send Inv message through the session network connection
+                                        act.send_message(inv_msg);
+                                    };
 
                                     actix::fut::ok(())
                                 }

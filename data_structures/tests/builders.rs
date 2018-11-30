@@ -200,7 +200,7 @@ fn builders_build_verack() {
 }
 
 #[test]
-fn builders_build_inv() {
+fn builders_build_ok_inv() {
     // Inventory elements
     let inv_vector_1 = InvVector::Tx(Hash::SHA256([1; 32]));
     let inv_vector_2 = InvVector::Block(Hash::SHA256([2; 32]));
@@ -212,17 +212,29 @@ fn builders_build_inv() {
     });
 
     // Inventory message
-    let msg = Message {
+    let expected_msg = Message {
         kind: inv_cmd,
         magic: MAGIC,
     };
 
+    // Build Inv message using the builder function
+    let built_msg = Message::build_inv(inventory).unwrap();
+
     // Check that the build_inv function builds the expected message
-    assert_eq!(msg, Message::build_inv(inventory));
+    assert_eq!(expected_msg, built_msg);
 }
 
 #[test]
-fn builders_build_get_data() {
+fn builders_build_err_inv() {
+    // Try to build an Inv message with no inventory vectors
+    let result = Message::build_inv(Vec::new());
+
+    // Check that the build_inv function could not generate a message
+    assert!(result.is_err());
+}
+
+#[test]
+fn builders_build_ok_get_data() {
     // Inventory elements
     let inv_elem_1 = InvVector::Tx(Hash::SHA256([1; 32]));
     let inv_elem_2 = InvVector::Block(Hash::SHA256([2; 32]));
@@ -234,11 +246,23 @@ fn builders_build_get_data() {
     });
 
     // Inventory message
-    let msg = Message {
+    let expected_msg = Message {
         kind: get_data_cmd,
         magic: MAGIC,
     };
 
-    // Check that the build_inv function builds the expected message
-    assert_eq!(msg, Message::build_get_data(inventory));
+    // Build GetData message using the builder function
+    let built_msg = Message::build_get_data(inventory).unwrap();
+
+    // Check that the build_get_data function builds the expected message
+    assert_eq!(expected_msg, built_msg);
+}
+
+#[test]
+fn builders_build_err_get_data() {
+    // Try to build a GetData message with no inventory vectors
+    let result = Message::build_get_data(Vec::new());
+
+    // Check that the build_get_data function could not generate a message
+    assert!(result.is_err());
 }

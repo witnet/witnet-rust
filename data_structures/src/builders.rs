@@ -4,11 +4,13 @@ use std::u32::MAX as U32_MAX;
 use rand::{thread_rng, Rng};
 
 use crate::chain::{Block, BlockHeaderWithProof, CheckpointBeacon, InvVector, Transaction};
+use crate::error::{BuildersError, BuildersErrorKind, BuildersResult};
 use crate::types::{
     Address, Command, GetBlocks, GetData, GetPeers, Inv, IpAddress, Message, Peers, Ping, Pong,
     Verack, Version,
 };
 
+use witnet_util::error::WitnetError;
 use witnet_util::timestamp::get_timestamp;
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -28,6 +30,15 @@ pub const USER_AGENT: &str = "full-node-desktop-edition";
 
 /// Genesis block
 pub const GENESIS: u64 = 0x0123_4567_89AB_CDEF;
+
+////////////////////////////////////////////////////////////////////////////////////////
+// ERROR MESSAGES
+////////////////////////////////////////////////////////////////////////////////////////
+/// Error message when trying to create an Inv message
+const BUILD_INV_ERR_MSG: &str = "No inventory vectors to be added to Inv";
+
+/// Error message when trying to create a GetData message
+const BUILD_GET_DATA_ERR_MSG: &str = "No inventory vectors to be added to GetData";
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // BUILDER PUBLIC FUNCTIONS
@@ -103,17 +114,35 @@ impl Message {
     }
 
     /// Function to build Inv messages
-    pub fn build_inv(inv_vectors: Vec<InvVector>) -> Message {
-        Message::build_message(Command::Inv(Inv {
+    pub fn build_inv(inv_vectors: Vec<InvVector>) -> BuildersResult<Message> {
+        // Check there are some inventory vectors to be added to the message
+        if inv_vectors.is_empty() {
+            return Err(WitnetError::from(BuildersError::new(
+                BuildersErrorKind::NoInvVectors,
+                BUILD_INV_ERR_MSG.to_string(),
+            )));
+        }
+
+        // Build the message
+        Ok(Message::build_message(Command::Inv(Inv {
             inventory: inv_vectors,
-        }))
+        })))
     }
 
     /// Function to build GetData messages
-    pub fn build_get_data(inv_vectors: Vec<InvVector>) -> Message {
-        Message::build_message(Command::GetData(GetData {
+    pub fn build_get_data(inv_vectors: Vec<InvVector>) -> BuildersResult<Message> {
+        // Check there are some inventory vectors to be added to the message
+        if inv_vectors.is_empty() {
+            return Err(WitnetError::from(BuildersError::new(
+                BuildersErrorKind::NoInvVectors,
+                BUILD_GET_DATA_ERR_MSG.to_string(),
+            )));
+        }
+
+        // Build the message
+        Ok(Message::build_message(Command::GetData(GetData {
             inventory: inv_vectors,
-        }))
+        })))
     }
 
     /// Function to build a message from a command
