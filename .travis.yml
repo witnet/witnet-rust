@@ -3,7 +3,7 @@ cache: cargo
 dist: trusty
 sudo: false
 rust:
-  - beta
+  - stable
 
 addons:
   apt:
