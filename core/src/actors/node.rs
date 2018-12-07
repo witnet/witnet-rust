@@ -1,22 +1,15 @@
-use std::io;
-use std::path::PathBuf;
-use std::process::exit;
-use std::result::Result;
+use std::{io, path::PathBuf, process::exit, result::Result};
 
 use actix::{Actor, System};
 use log::info;
 
-use crate::actors::blocks_manager::BlocksManager;
-use crate::actors::config_manager::ConfigManager;
-use crate::actors::connections_manager::ConnectionsManager;
-use crate::actors::epoch_manager::EpochManager;
-use crate::actors::json_rpc::JsonRpcServer;
-use crate::actors::mempool_manager::MempoolManager;
-use crate::actors::peers_manager::PeersManager;
-use crate::actors::sessions_manager::SessionsManager;
-use crate::actors::storage_manager::StorageManager;
-use crate::actors::utxo_manager::UtxoManager;
-use crate::actors::inventory_manager::InventoryManager;
+use crate::actors::{
+    blocks_manager::BlocksManager, config_manager::ConfigManager,
+    connections_manager::ConnectionsManager, epoch_manager::EpochManager,
+    inventory_manager::InventoryManager, json_rpc::JsonRpcServer, mempool_manager::MempoolManager,
+    peers_manager::PeersManager, sessions_manager::SessionsManager,
+    storage_manager::StorageManager, utxo_manager::UtxoManager,
+};
 
 /// Function to run the main system
 pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
