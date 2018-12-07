@@ -16,6 +16,7 @@ use crate::actors::peers_manager::PeersManager;
 use crate::actors::sessions_manager::SessionsManager;
 use crate::actors::storage_manager::StorageManager;
 use crate::actors::utxo_manager::UtxoManager;
+use crate::actors::inventory_manager::InventoryManager;
 
 /// Function to run the main system
 pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
@@ -60,6 +61,10 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Start UTXO manager actor
     let utxo_manager_addr = UtxoManager::start_default();
     System::current().registry().set(utxo_manager_addr);
+
+    // Start inventory manager actor
+    let inventory_manager_addr = InventoryManager::start_default();
+    System::current().registry().set(inventory_manager_addr);
 
     // Start JSON RPC server (this doesn't need to be in the registry)
     let _json_rpc_server_addr = JsonRpcServer::default().start();

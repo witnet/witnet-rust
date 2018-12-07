@@ -68,6 +68,7 @@ nav:
       - Config Manager: architecture/managers/config-manager.md
       - Connections Manager: architecture/managers/connections-manager.md
       - Epoch Manager: architecture/managers/epoch-manager.md
+      - Inventory Manager: arquitecture/managers/inventory-manager.md
       - Mempool Manager: architecture/managers/mempool-manager.md
       - Peers Manager: architecture/managers/peers-manager.md
       - Sessions Manager: architecture/managers/sessions-manager.md
