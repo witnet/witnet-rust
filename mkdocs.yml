@@ -64,7 +64,7 @@ nav:
     - Persistent Storage: architecture/storage.md
     - Managers:
       - Introduction: architecture/managers/managers.md
-      - Blocks Manager: architecture/managers/blocks-manager.md
+      - Chain Manager: architecture/managers/chain-manager.md
       - Config Manager: architecture/managers/config-manager.md
       - Connections Manager: architecture/managers/connections-manager.md
       - Epoch Manager: architecture/managers/epoch-manager.md
