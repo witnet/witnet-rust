@@ -17,7 +17,7 @@ impl<T: Storable + 'static> Handler<Get<T>> for StorageManager {
         self.storage.as_ref().map_or(
             Err(WitnetError::from(StorageError::new(
                 StorageErrorKind::Get,
-                String::from_utf8(msg.key.to_vec()).unwrap(),
+                format!("{:?}", msg.key),
                 "Storage was not properly initialised".to_string(),
             ))),
             |storage| storage.get_t(&msg.key),
@@ -33,7 +33,7 @@ impl Handler<Put> for StorageManager {
         self.storage.as_mut().map_or(
             Err(WitnetError::from(StorageError::new(
                 StorageErrorKind::Put,
-                String::from_utf8(msg.key.to_vec()).unwrap(),
+                format!("{:?}", msg.key),
                 "Storage was not properly initialised".to_string(),
             ))),
             |storage| storage.put(&msg.key, msg.value),
@@ -49,7 +49,7 @@ impl Handler<Delete> for StorageManager {
         self.storage.as_mut().map_or(
             Err(WitnetError::from(StorageError::new(
                 StorageErrorKind::Delete,
-                String::from_utf8(msg.key.to_vec()).unwrap(),
+                format!("{:?}", msg.key),
                 "Storage was not properly initialised".to_string(),
             ))),
             |storage| storage.delete(&msg.key),

@@ -103,6 +103,12 @@ impl Hashable for Block {
         calculate_sha256(&block_ftb).into()
     }
 }
+// TODO Implement Hashable for Transaction in Issue #224
+impl Hashable for Transaction {
+    fn hash(&self) -> Hash {
+        Hash::SHA256([0; 32])
+    }
+}
 
 /// Block header structure
 #[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
@@ -172,6 +178,15 @@ pub enum InventoryEntry {
     Block(Hash),
     DataRequest(Hash),
     DataResult(Hash),
+}
+
+/// Inventory element: block, txns
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub enum InventoryItem {
+    #[serde(rename = "transaction")]
+    Transaction(Transaction),
+    #[serde(rename = "block")]
+    Block(Block),
 }
 
 #[cfg(test)]
