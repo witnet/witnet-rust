@@ -9,3 +9,6 @@
 
 /// Hash functions
 pub mod hash;
+
+/// Merkle tree implementation
+pub mod merkle;
