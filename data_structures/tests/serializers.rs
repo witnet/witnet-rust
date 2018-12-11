@@ -14,7 +14,7 @@ fn message_get_blocks_from_bytes() {
     .to_vec();
 
     let expected_msg = Message {
-        kind: Command::GetBlocks(GetBlocks {
+        kind: Command::LastBeacon(LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
                 hash_prev_block: Hash::SHA256([0; 32]),
                 checkpoint: 0,
@@ -29,7 +29,7 @@ fn message_get_blocks_from_bytes() {
 #[test]
 fn message_get_blocks_to_bytes() {
     let msg = Message {
-        kind: Command::GetBlocks(GetBlocks {
+        kind: Command::LastBeacon(LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
                 hash_prev_block: Hash::SHA256([0; 32]),
                 checkpoint: 0,
@@ -560,13 +560,13 @@ fn message_block_encode_decode() {
 #[test]
 fn message_inv_to_bytes() {
     // Inventory elements
-    let inv_vector_1 = InvVector::Tx(Hash::SHA256([1; 32]));
-    let inv_vector_2 = InvVector::Block(Hash::SHA256([2; 32]));
+    let inv_item_1 = InventoryEntry::Tx(Hash::SHA256([1; 32]));
+    let inv_item_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
 
     // Inventory message
     let msg = Message {
-        kind: Command::Inv(Inv {
-            inventory: vec![inv_vector_1, inv_vector_2],
+        kind: Command::InventoryAnnouncement(InventoryAnnouncement {
+            inventory: vec![inv_item_1, inv_item_2],
         }),
         magic: 1,
     };
@@ -593,13 +593,13 @@ fn message_inv_to_bytes() {
 #[test]
 fn message_inv_from_bytes() {
     // Inventory elements
-    let inv_vector_1 = InvVector::Tx(Hash::SHA256([1; 32]));
-    let inv_vector_2 = InvVector::Block(Hash::SHA256([2; 32]));
+    let inv_item_1 = InventoryEntry::Tx(Hash::SHA256([1; 32]));
+    let inv_item_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
 
     // Inventory message
     let expected_msg = Message {
-        kind: Command::Inv(Inv {
-            inventory: vec![inv_vector_1, inv_vector_2],
+        kind: Command::InventoryAnnouncement(InventoryAnnouncement {
+            inventory: vec![inv_item_1, inv_item_2],
         }),
         magic: 1,
     };
@@ -620,13 +620,13 @@ fn message_inv_from_bytes() {
 #[test]
 fn message_inv_encode_decode() {
     // Inventory elements
-    let inv_vector_1 = InvVector::Tx(Hash::SHA256([1; 32]));
-    let inv_vector_2 = InvVector::Block(Hash::SHA256([2; 32]));
+    let inv_item_1 = InventoryEntry::Tx(Hash::SHA256([1; 32]));
+    let inv_item_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
 
     // Inventory message
     let msg = Message {
-        kind: Command::Inv(Inv {
-            inventory: vec![inv_vector_1, inv_vector_2],
+        kind: Command::InventoryAnnouncement(InventoryAnnouncement {
+            inventory: vec![inv_item_1, inv_item_2],
         }),
         magic: 1,
     };
@@ -640,12 +640,12 @@ fn message_inv_encode_decode() {
 #[test]
 fn message_get_data_to_bytes() {
     // Inventory elements
-    let inv_elem_1 = InvVector::Tx(Hash::SHA256([1; 32]));
-    let inv_elem_2 = InvVector::Block(Hash::SHA256([2; 32]));
+    let inv_elem_1 = InventoryEntry::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
 
-    // Inventory message
+    // InventoryRequest message
     let msg = Message {
-        kind: Command::GetData(GetData {
+        kind: Command::InventoryRequest(InventoryRequest {
             inventory: vec![inv_elem_1, inv_elem_2],
         }),
         magic: 1,
@@ -673,12 +673,12 @@ fn message_get_data_to_bytes() {
 #[test]
 fn message_get_data_from_bytes() {
     // Inventory elements
-    let inv_elem_1 = InvVector::Tx(Hash::SHA256([1; 32]));
-    let inv_elem_2 = InvVector::Block(Hash::SHA256([2; 32]));
+    let inv_elem_1 = InventoryEntry::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
 
     // Inventory message
     let expected_msg = Message {
-        kind: Command::GetData(GetData {
+        kind: Command::InventoryRequest(InventoryRequest {
             inventory: vec![inv_elem_1, inv_elem_2],
         }),
         magic: 1,
@@ -700,12 +700,12 @@ fn message_get_data_from_bytes() {
 #[test]
 fn message_get_data_encode_decode() {
     // Inventory elements
-    let inv_elem_1 = InvVector::Tx(Hash::SHA256([1; 32]));
-    let inv_elem_2 = InvVector::Block(Hash::SHA256([2; 32]));
+    let inv_elem_1 = InventoryEntry::Tx(Hash::SHA256([1; 32]));
+    let inv_elem_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
 
     // Inventory message
     let msg = Message {
-        kind: Command::GetData(GetData {
+        kind: Command::InventoryRequest(InventoryRequest {
             inventory: vec![inv_elem_1, inv_elem_2],
         }),
         magic: 1,

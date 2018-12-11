@@ -4,18 +4,18 @@ use witnet_data_structures::builders::*;
 use witnet_data_structures::{chain::*, types::*};
 
 #[test]
-fn builders_build_get_blocks() {
+fn builders_build_last_beacon() {
     let highest_block_checkpoint = CheckpointBeacon {
         checkpoint: 0,
         hash_prev_block: Hash::SHA256([0; 32]),
     };
     let msg = Message {
-        kind: Command::GetBlocks(GetBlocks {
+        kind: Command::LastBeacon(LastBeacon {
             highest_block_checkpoint,
         }),
         magic: MAGIC,
     };
-    assert_eq!(msg, Message::build_get_blocks(highest_block_checkpoint));
+    assert_eq!(msg, Message::build_last_beacon(highest_block_checkpoint));
 }
 
 #[test]
@@ -200,69 +200,48 @@ fn builders_build_verack() {
 }
 
 #[test]
-fn builders_build_ok_inv() {
+fn builders_build_inventory_announcement() {
     // Inventory elements
-    let inv_vector_1 = InvVector::Tx(Hash::SHA256([1; 32]));
-    let inv_vector_2 = InvVector::Block(Hash::SHA256([2; 32]));
-    let inventory = vec![inv_vector_1, inv_vector_2];
+    let inv_item_1 = InventoryEntry::Tx(Hash::SHA256([1; 32]));
+    let inv_item_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
+    let inventory = vec![inv_item_1, inv_item_2];
 
-    // Inventory command
-    let inv_cmd = Command::Inv(Inv {
+    // InventoryAnnouncement command
+    let inv_cmd = Command::InventoryAnnouncement(InventoryAnnouncement {
         inventory: inventory.clone(),
     });
 
-    // Inventory message
-    let expected_msg = Message {
+    // InventoryAnnouncement message
+    let msg = Message {
         kind: inv_cmd,
         magic: MAGIC,
     };
 
-    // Build Inv message using the builder function
-    let built_msg = Message::build_inv(inventory).unwrap();
-
-    // Check that the build_inv function builds the expected message
-    assert_eq!(expected_msg, built_msg);
+    // Check that the build_inventory_announcement function builds the expected message
+    assert_eq!(
+        msg,
+        Message::build_inventory_announcement(inventory).unwrap()
+    );
 }
 
 #[test]
-fn builders_build_err_inv() {
-    // Try to build an Inv message with no inventory vectors
-    let result = Message::build_inv(Vec::new());
-
-    // Check that the build_inv function could not generate a message
-    assert!(result.is_err());
-}
-
-#[test]
-fn builders_build_ok_get_data() {
+fn builders_build_inventory_request() {
     // Inventory elements
-    let inv_elem_1 = InvVector::Tx(Hash::SHA256([1; 32]));
-    let inv_elem_2 = InvVector::Block(Hash::SHA256([2; 32]));
-    let inventory = vec![inv_elem_1, inv_elem_2];
+    let inv_item_1 = InventoryEntry::Tx(Hash::SHA256([1; 32]));
+    let inv_item_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
+    let inventory = vec![inv_item_1, inv_item_2];
 
-    // Inventory command
-    let get_data_cmd = Command::GetData(GetData {
+    // InventoryRequest command
+    let inv_req_cmd = Command::InventoryRequest(InventoryRequest {
         inventory: inventory.clone(),
     });
 
     // Inventory message
-    let expected_msg = Message {
-        kind: get_data_cmd,
+    let msg = Message {
+        kind: inv_req_cmd,
         magic: MAGIC,
     };
 
-    // Build GetData message using the builder function
-    let built_msg = Message::build_get_data(inventory).unwrap();
-
-    // Check that the build_get_data function builds the expected message
-    assert_eq!(expected_msg, built_msg);
-}
-
-#[test]
-fn builders_build_err_get_data() {
-    // Try to build a GetData message with no inventory vectors
-    let result = Message::build_get_data(Vec::new());
-
-    // Check that the build_get_data function could not generate a message
-    assert!(result.is_err());
+    // Check that the build_inv function builds the expected message
+    assert_eq!(msg, Message::build_inventory_request(inventory).unwrap());
 }
