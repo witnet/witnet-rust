@@ -12,17 +12,16 @@ Among its responsabilities are the following:
 * Consolidating multiple block candidates for the same checkpoint into a single valid block.
 * Putting valid blocks into storage by sending them to the storage manager actor.
 * Having a method for letting other components to get blocks by *hash* or *checkpoint*.
-* Having a method for letting other components get the epoch of the current tip of the
-blockchain (e.g. last epoch field required for the handshake in the Witnet network protocol).
+* Having a method for letting other components get the epoch of the current tip of the blockchain (e.g. last epoch field required for the handshake in the Witnet network protocol).
 * Validating transactions as they come from any [Session](actors::session::Session). This includes:
-   - Iterating over its inputs, adding the value of the inputs to calculate the value of the transaction.
-   - Running the output scripts, expecting them all to return `TRUE` and leave an empty stack.
-   - Verifying that the sum of all inputs is greater than or equal to the sum of all the outputs.
+  * Iterating over its inputs, adding the value of the inputs to calculate the value of the transaction.
+  * Running the output scripts, expecting them all to return `TRUE` and leave an empty stack.
+  * Verifying that the sum of all inputs is greater than or equal to the sum of all the outputs.
 * Keeping valid transactions into memory. This in-memory transaction pool is what we call the _mempool_. Valid transactions are immediately appended to the mempool.
 * Keeping every unspent transaction output (UTXO) in the block chain in memory. This is called the _UTXO set_.
 * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
-    - Removing the UTXOs that the transaction spends as inputs.
-    - Adding a new UTXO for every output in the transaction.
+  * Removing the UTXOs that the transaction spends as inputs.
+  * Adding a new UTXO for every output in the transaction.
 
 ## State
 
@@ -53,12 +52,12 @@ System::current().registry().set(chain_manager_addr);
 
 These are the messages supported by the `ChainManager` handlers:
 
-| Message                                   | Input type                    | Output type              | Description                                    |
-|-------------------------------------------|-------------------------------|--------------------------| -----------------------------------------------|
-| `EpochNotification<EpochPayload>`         | `Epoch`, `EpochPayload`       | `()`                     | The requested epoch has been reached           |
-| `EpochNotification<EveryEpochPayload>`    | `Epoch`, `EveryEpochPayload`  | `()`                     | A new epoch has been reached                   |
-| `GetHighestBlockCheckpoint`               | `()`                          | `ChainInfoResult`        | Request a copy of the highest block checkpoint |
-| `AddNewBlock`                             | `Block`                       | `Result<Hash, ChainManagerError>` | Add a new block and announce it to other sessions |
+| Message                                | Input type                   | Output type                       | Description                                       |
+| -------------------------------------- | ---------------------------- | --------------------------------- | ------------------------------------------------- |
+| `EpochNotification<EpochPayload>`      | `Epoch`, `EpochPayload`      | `()`                              | The requested epoch has been reached              |
+| `EpochNotification<EveryEpochPayload>` | `Epoch`, `EveryEpochPayload` | `()`                              | A new epoch has been reached                      |
+| `GetHighestBlockCheckpoint`            | `()`                         | `ChainInfoResult`                 | Request a copy of the highest block checkpoint    |
+| `AddNewBlock`                          | `Block`                      | `Result<Hash, ChainManagerError>` | Add a new block and announce it to other sessions |
 
 Where `ChainInfoResult` is just:
 
@@ -94,25 +93,26 @@ The way other actors will communicate with the ChainManager is:
     ```
 
 For the time being, the handlers for Epoch messages just print a debug message with the notified
-checkpoint. 
+checkpoint.
 
 ```rust
 fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
     debug!("Epoch notification received {:?}", msg.checkpoint);
 }
 ```
+
 ### Outgoing messages: ChainManager -> Others
 
 These are the messages sent by the Chain Manager:
 
-| Message           | Destination       | Input type                                    | Output type                 | Description                       |
-|-------------------|-------------------|-----------------------------------------------|-----------------------------|-----------------------------------|
-| `SubscribeEpoch`  | `EpochManager`    | `Epoch`, `Addr<ChainManager>, EpochPayload`  | `()`                        | Subscribe to a particular epoch   |
-| `SubscribeAll`    | `EpochManager`    | `Addr<ChainManager>, EveryEpochPayload`      | `()`                        | Subscribe to all epochs           |
-| `GetConfig`       | `ConfigManager`   | `()`                                          | `Result<Config, io::Error>` | Request the configuration         |
-| `Get`             | `StorageManager`  | `&'static [u8]`                               | `StorageResult<Option<T>>`  | Wrapper to Storage `get()` method |
-| `Put`             | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                    | `StorageResult<()>`         | Wrapper to Storage `put()` method |
-| `Broadcast<AnnounceItems>` | `SessionsManager` | `Vec<InvItems>`                      | `()`                        | Announce a new block to the sessions |
+| Message                    | Destination       | Input type                                  | Output type                 | Description                                   |
+| -------------------------- | ----------------- | ------------------------------------------- | --------------------------- | --------------------------------------------- |
+| `SubscribeEpoch`           | `EpochManager`    | `Epoch`, `Addr<ChainManager>, EpochPayload` | `()`                        | Subscribe to a particular epoch               |
+| `SubscribeAll`             | `EpochManager`    | `Addr<ChainManager>, EveryEpochPayload`     | `()`                        | Subscribe to all epochs                       |
+| `GetConfig`                | `ConfigManager`   | `()`                                        | `Result<Config, io::Error>` | Request the configuration                     |
+| `Get`                      | `StorageManager`  | `&'static [u8]`                             | `StorageResult<Option<T>>`  | Wrapper to Storage `get()` method             |
+| `Put`                      | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                  | `StorageResult<()>`         | Wrapper to Storage `put()` method             |
+| `Broadcast<AnnounceItems>` | `SessionsManager` | `Vec<InventoryEntry>`                       | `()`                        | Announce new invetory entries to the sessions |
 
 #### SubscribeEpoch
 

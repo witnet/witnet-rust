@@ -43,10 +43,10 @@ Session::create(move |ctx| {
 
 These are the messages supported by the Session handlers:
 
-| Message         | Input type       | Output type | Description                  |
-| --------------- | ---------------- | ----------- | ---------------------------- |
-| `GetPeers`      | `()`             | `()`        | Request peers from a session |
-| `AnnounceItems` | `Vec<InvVector>` | `()`        | Announce new inventory items |
+| Message         | Input type              | Output type | Description                    |
+| --------------- | ----------------------- | ----------- | ------------------------------ |
+| `GetPeers`      | `()`                    | `()`        | Request peers from a session   |
+| `AnnounceItems` | `Vec<InventoryEntry>` | `()`        | Announce new inventory entries |
 
 #### GetPeers
 
@@ -54,7 +54,7 @@ Ask the peer on the other side of the connection for their own list of peer addr
 
 #### AnnounceItems
 
-Announce new inventory items.
+Announce new inventory entries.
 
 ### Outgoing messages: Session -> Others
 
