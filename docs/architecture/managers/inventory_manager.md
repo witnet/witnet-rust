@@ -23,8 +23,37 @@ System::current().registry().set(inventory_manager_addr);
 
 These are the messages supported by the inventory manager handlers:
 
-| Message   | Input type                                | Output type                           | Description                               |
-|-----------|-------------------------------------------|---------------------------------------|-------------------------------------------|
+| Message   | Input type                                | Output type                                    | Description                                                    |
+|-----------|-------------------------------------------|------------------------------------------------|----------------------------------------------------------------|
+| `AddItem` | `InventoryItem`                           | `Result<(), InventoryManagerError>`            | Add a valid Inventory Item to storage through InventoryManager |
+| `GetItem` | `Hash`                                    | `Result<InventoryItem, InventoryManagerError>` | Get a Inventory Item from storage through InventoryManager     |
+
+The way other actors will communicate with the InventoryManager is:
+
+1. Get the address of the InventoryManager actor from the registry:
+
+    ```rust
+    // Get InventoryManager address
+    let inventory_manager_addr = System::current().registry().get::<InventoryManager>();
+    ```
+
+2. Use any of the sending methods provided by the address (`do_send()`, `try_send()`, `send()`) to send a message to the actor:
+
+    ```rust
+    inventory_manager_addr
+        .send(GetItem)
+        .into_actor(self)
+        .then(|res, _act, _ctx| {
+            // Process the response from InventoryManager
+            process_get_config_response(res)
+        })
+        .and_then(|item, _act, ctx| {
+            // Do something with the item
+            actix::fut::ok(())
+        })
+        .wait(ctx);
+    ```
+
 
 ### Outgoing messages: inventory manager -> Others
 

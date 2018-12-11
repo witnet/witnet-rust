@@ -19,39 +19,39 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Call cb function (register interrupt handlers)
     callback();
 
-    // Start config manager actor
+    // Start ConfigManager actor
     let config_manager_addr = ConfigManager::new(config).start();
     System::current().registry().set(config_manager_addr);
 
-    // Start storage manager actor
+    // Start StorageManager actor
     let storage_manager_addr = StorageManager::default().start();
     System::current().registry().set(storage_manager_addr);
 
-    // Start peers manager actor
+    // Start PeersManager actor
     let peers_manager_addr = PeersManager::default().start();
     System::current().registry().set(peers_manager_addr);
 
-    // Start connections manager actor
+    // Start ConnectionsManager actor
     let connections_manager_addr = ConnectionsManager::default().start();
     System::current().registry().set(connections_manager_addr);
 
-    // Start session manager actor
+    // Start SessionManager actor
     let sessions_manager_addr = SessionsManager::default().start();
     System::current().registry().set(sessions_manager_addr);
 
-    // Start epoch manager actor
+    // Start EpochManager actor
     let epoch_manager_addr = EpochManager::default().start();
     System::current().registry().set(epoch_manager_addr);
 
-    // Start Chain Manager actor
+    // Start ChainManager actor
     let chain_manager_addr = ChainManager::default().start();
     System::current().registry().set(chain_manager_addr);
 
-    // Start inventory manager actor
-    let inventory_manager_addr = InventoryManager::start_default();
+    // Start InventoryManager actor
+    let inventory_manager_addr = InventoryManager::default().start();
     System::current().registry().set(inventory_manager_addr);
 
-    // Start reputation manager actor
+    // Start ReputationManager actor
     let reputation_manager_addr = ReputationManager::start_default();
     System::current().registry().set(reputation_manager_addr);
 

@@ -377,6 +377,15 @@ pub enum InventoryEntry {
     DataResult(Hash),
 }
 
+/// Inventory element: block, txns
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub enum InventoryItem {
+    #[serde(rename = "transaction")]
+    Transaction(Transaction),
+    #[serde(rename = "block")]
+    Block(Block),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
