@@ -6,13 +6,76 @@ namespace Protocol;
 // MAIN TYPES
 /////////////////////////////////////////////////////////
 // List of available commands
-union Command (required) { Version, Verack, GetPeers, Peers, Ping, Pong, Block, Inv, GetData, GetBlocks }
+union Command (required) { Version, Verack, GetPeers, Peers, Ping, Pong, Block, InventoryAnnouncement, InventoryRequest, LastBeacon }
 
 // Message format with header
 table Message {
     magic: uint16;
     command: Command (required);
 }
+
+/////////////////////////////////////////////////////////
+// HANDSHAKE MESSAGES
+/////////////////////////////////////////////////////////
+table Version {
+    version: uint32;
+    timestamp: int64;
+    capabilities: uint64;
+    sender_address: Address;
+    receiver_address: Address;
+    user_agent: string (required);
+    last_epoch: uint32;
+    genesis: uint64;
+    nonce: uint64;
+}
+
+table Verack {
+}
+
+/////////////////////////////////////////////////////////
+// PEER DISCOVERY MESSAGES
+/////////////////////////////////////////////////////////
+table GetPeers {
+}
+
+table Peers {
+    peers: [Address];
+}
+
+/////////////////////////////////////////////////////////
+// HEARTBEAT MESSAGES
+/////////////////////////////////////////////////////////
+table Ping {
+    nonce: uint64;
+}
+
+table Pong {
+    nonce: uint64;
+}
+
+/////////////////////////////////////////////////////////
+// INVENTORY MESSAGES
+/////////////////////////////////////////////////////////
+table Block {
+    header: BlockHeader (required);
+    txn_count: uint32;
+    txns: [Transaction] (required);
+}
+
+table InventoryAnnouncement {
+    inventory: [InventoryEntry] (required);
+}
+
+table InventoryRequest {
+    inventory: [InventoryEntry] (required);
+}
+
+table LastBeacon {
+    highest_block_checkpoint: CheckpointBeacon (required);
+}
+
+// FIXME(#99): define Transaction as defined in issue
+table Transaction {}
 
 /////////////////////////////////////////////////////////
 // AUXILIARY TYPES
@@ -44,7 +107,7 @@ table Hash {
     bytes: [ubyte] (required);
 }
 
-enum InvVectorType: uint8 {
+enum InventoryItemType: uint8 {
     Error = 0,
     Tx,
     Block,
@@ -52,8 +115,8 @@ enum InvVectorType: uint8 {
     DataResult
 }
 
-table InvVector {
-    type: InvVectorType;
+table InventoryEntry {
+    type: InventoryItemType;
     hash: Hash (required);
 }
 
@@ -74,10 +137,6 @@ table CheckpointBeacon {
     hash_prev_block: Hash (required);
 }
 
-table GetBlocks {
-    highest_block_checkpoint: CheckpointBeacon (required);
-}
-
 table BlockHeader {
     version: uint32;
     beacon: CheckpointBeacon (required);
@@ -85,53 +144,4 @@ table BlockHeader {
     proof: LeadershipProof (required);
 }
 
-/////////////////////////////////////////////////////////
-// PROTOCOL MESSAGES
-/////////////////////////////////////////////////////////
-table Version {
-    version: uint32;
-    timestamp: int64;
-    capabilities: uint64;
-    sender_address: Address;
-    receiver_address: Address;
-    user_agent: string (required);
-    last_epoch: uint32;
-    genesis: uint64;
-    nonce: uint64;
-}
-
-table Verack {
-}
-
-table GetPeers {
-}
-
-table Peers {
-    peers: [Address];
-}
-
-table Ping {
-    nonce: uint64;
-}
-
-table Pong {
-    nonce: uint64;
-}
-
-// FIXME(#99): define Transaction as defined in issue
-table Transaction {}
-
-table Block {
-    header: BlockHeader (required);
-    txn_count: uint32;
-    txns: [Transaction] (required);
-}
-
-table Inv {
-    inventory: [InvVector] (required);
-}
-
-table GetData {
-    inventory: [InvVector] (required);
-}
 root_type Message;
