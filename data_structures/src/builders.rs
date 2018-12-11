@@ -3,11 +3,11 @@ use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
-use crate::chain::{Block, BlockHeaderWithProof, CheckpointBeacon, InvVector, Transaction};
+use crate::chain::{Block, BlockHeaderWithProof, CheckpointBeacon, InventoryEntry, Transaction};
 use crate::error::{BuildersError, BuildersErrorKind, BuildersResult};
 use crate::types::{
-    Address, Command, GetBlocks, GetData, GetPeers, Inv, IpAddress, Message, Peers, Ping, Pong,
-    Verack, Version,
+    Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress, LastBeacon,
+    Message, Peers, Ping, Pong, Verack, Version,
 };
 
 use witnet_util::error::WitnetError;
@@ -44,19 +44,16 @@ const BUILD_GET_DATA_ERR_MSG: &str = "No inventory vectors to be added to GetDat
 // BUILDER PUBLIC FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////////////
 impl Message {
-    /// Function to build Block message
-    pub fn build_block(header: BlockHeaderWithProof, txns: Vec<Transaction>) -> Message {
-        Message::build_message(Command::Block(Block {
-            header,
-            txn_count: txns.len() as u32,
-            txns,
+    /// Function to build Ping messages
+    pub fn build_ping() -> Message {
+        Message::build_message(Command::Ping(Ping {
+            nonce: random_nonce(),
         }))
     }
-    /// Function to build GetBlocks messages
-    pub fn build_get_blocks(highest_block_checkpoint: CheckpointBeacon) -> Message {
-        Message::build_message(Command::GetBlocks(GetBlocks {
-            highest_block_checkpoint,
-        }))
+
+    /// Function to build Pong messages
+    pub fn build_pong(nonce: u64) -> Message {
+        Message::build_message(Command::Pong(Pong { nonce }))
     }
 
     /// Function to build GetPeers messages
@@ -75,18 +72,6 @@ impl Message {
         Message::build_message(Command::Peers(Peers {
             peers: casted_peers,
         }))
-    }
-
-    /// Function to build Ping messages
-    pub fn build_ping() -> Message {
-        Message::build_message(Command::Ping(Ping {
-            nonce: random_nonce(),
-        }))
-    }
-
-    /// Function to build Pong messages
-    pub fn build_pong(nonce: u64) -> Message {
-        Message::build_message(Command::Pong(Pong { nonce }))
     }
 
     /// Function to build Version messages
@@ -113,10 +98,12 @@ impl Message {
         Message::build_message(Command::Verack(Verack))
     }
 
-    /// Function to build Inv messages
-    pub fn build_inv(inv_vectors: Vec<InvVector>) -> BuildersResult<Message> {
+    /// Function to build InventoryAnnouncement messages
+    pub fn build_inventory_announcement(
+        inv_entries: Vec<InventoryEntry>,
+    ) -> BuildersResult<Message> {
         // Check there are some inventory vectors to be added to the message
-        if inv_vectors.is_empty() {
+        if inv_entries.is_empty() {
             return Err(WitnetError::from(BuildersError::new(
                 BuildersErrorKind::NoInvVectors,
                 BUILD_INV_ERR_MSG.to_string(),
@@ -124,15 +111,17 @@ impl Message {
         }
 
         // Build the message
-        Ok(Message::build_message(Command::Inv(Inv {
-            inventory: inv_vectors,
-        })))
+        Ok(Message::build_message(Command::InventoryAnnouncement(
+            InventoryAnnouncement {
+                inventory: inv_entries,
+            },
+        )))
     }
 
     /// Function to build GetData messages
-    pub fn build_get_data(inv_vectors: Vec<InvVector>) -> BuildersResult<Message> {
+    pub fn build_inventory_request(inv_entries: Vec<InventoryEntry>) -> BuildersResult<Message> {
         // Check there are some inventory vectors to be added to the message
-        if inv_vectors.is_empty() {
+        if inv_entries.is_empty() {
             return Err(WitnetError::from(BuildersError::new(
                 BuildersErrorKind::NoInvVectors,
                 BUILD_GET_DATA_ERR_MSG.to_string(),
@@ -140,9 +129,27 @@ impl Message {
         }
 
         // Build the message
-        Ok(Message::build_message(Command::GetData(GetData {
-            inventory: inv_vectors,
-        })))
+        Ok(Message::build_message(Command::InventoryRequest(
+            InventoryRequest {
+                inventory: inv_entries,
+            },
+        )))
+    }
+
+    /// Function to build Block message
+    pub fn build_block(header: BlockHeaderWithProof, txns: Vec<Transaction>) -> Message {
+        Message::build_message(Command::Block(Block {
+            header,
+            txn_count: txns.len() as u32,
+            txns,
+        }))
+    }
+
+    /// Function to build LastBeacon messages
+    pub fn build_last_beacon(highest_block_checkpoint: CheckpointBeacon) -> Message {
+        Message::build_message(Command::LastBeacon(LastBeacon {
+            highest_block_checkpoint,
+        }))
     }
 
     /// Function to build a message from a command

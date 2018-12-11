@@ -1,21 +1,60 @@
 use std::fmt;
 
-use crate::chain::{Block, CheckpointBeacon, InvVector};
+use crate::chain::{Block, CheckpointBeacon, InventoryEntry};
 
+/// Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Command {
-    GetPeers(GetPeers),
-    Peers(Peers),
-    Ping(Ping),
-    Pong(Pong),
-    Verack(Verack),
-    Version(Version),
-    Block(Block),
-    Inv(Inv),
-    GetData(GetData),
-    GetBlocks(GetBlocks),
+pub struct Message {
+    pub kind: Command,
+    pub magic: u16,
 }
 
+/// Commands for the Witnet's protocol messages
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum Command {
+    // Peer discovery messages
+    GetPeers(GetPeers),
+    Peers(Peers),
+
+    // Heartbeat messages
+    Ping(Ping),
+    Pong(Pong),
+
+    // Handshake messages
+    Verack(Verack),
+    Version(Version),
+
+    // Inventory messages
+    Block(Block),
+    InventoryAnnouncement(InventoryAnnouncement),
+    InventoryRequest(InventoryRequest),
+    LastBeacon(LastBeacon),
+}
+
+impl fmt::Display for Command {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Command::GetPeers(_) => "GET_PEERS",
+                Command::Peers(_) => "PEERS",
+                Command::Ping(_) => "PING",
+                Command::Pong(_) => "PONG",
+                Command::Verack(_) => "VERACK",
+                Command::Version(_) => "VERSION",
+                Command::Block(_) => "BLOCK",
+                Command::InventoryAnnouncement(_) => "INVENTORY_ANNOUNCEMENT",
+                Command::InventoryRequest(_) => "INVENTORY_REQUEST",
+                Command::LastBeacon(_) => "LAST_BEACON",
+            }
+        )
+    }
+}
+
+///////////////////////////////////////////////////////////
+// PEER DISCOVERY MESSAGES
+///////////////////////////////////////////////////////////
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct GetPeers;
 
@@ -24,14 +63,12 @@ pub struct Peers {
     pub peers: Vec<Address>,
 }
 
+///////////////////////////////////////////////////////////
+// HEARTBEAT MESSAGES
+///////////////////////////////////////////////////////////
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Ping {
     pub nonce: u64,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct GetBlocks {
-    pub highest_block_checkpoint: CheckpointBeacon,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -39,6 +76,9 @@ pub struct Pong {
     pub nonce: u64,
 }
 
+///////////////////////////////////////////////////////////
+// HANDSHAKE MESSAGES
+///////////////////////////////////////////////////////////
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Verack;
 
@@ -55,37 +95,27 @@ pub struct Version {
     pub nonce: u64,
 }
 
+///////////////////////////////////////////////////////////
+// INVENTORY MESSAGES
+///////////////////////////////////////////////////////////
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct Inv {
-    pub inventory: Vec<InvVector>,
+pub struct InventoryAnnouncement {
+    pub inventory: Vec<InventoryEntry>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct GetData {
-    pub inventory: Vec<InvVector>,
+pub struct InventoryRequest {
+    pub inventory: Vec<InventoryEntry>,
 }
 
-impl fmt::Display for Command {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Command::GetBlocks(_) => "GET_BLOCKS",
-                Command::GetPeers(_) => "GET_PEERS",
-                Command::Peers(_) => "PEERS",
-                Command::Ping(_) => "PING",
-                Command::Pong(_) => "PONG",
-                Command::Verack(_) => "VERACK",
-                Command::Version(_) => "VERSION",
-                Command::Block(_) => "BLOCK",
-                Command::Inv(_) => "INV",
-                Command::GetData(_) => "GET_DATA",
-            }
-        )
-    }
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct LastBeacon {
+    pub highest_block_checkpoint: CheckpointBeacon,
 }
 
+///////////////////////////////////////////////////////////
+// AUX TYPES
+///////////////////////////////////////////////////////////
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum IpAddress {
     Ipv4 {
@@ -103,10 +133,4 @@ pub enum IpAddress {
 pub struct Address {
     pub ip: IpAddress,
     pub port: u16,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct Message {
-    pub kind: Command,
-    pub magic: u16,
 }

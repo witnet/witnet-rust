@@ -25,9 +25,9 @@ pub enum Command {
   Ping = 5,
   Pong = 6,
   Block = 7,
-  Inv = 8,
-  GetData = 9,
-  GetBlocks = 10,
+  InventoryAnnouncement = 8,
+  InventoryRequest = 9,
+  LastBeacon = 10,
 
 }
 
@@ -75,9 +75,9 @@ const ENUM_VALUES_COMMAND:[Command; 11] = [
   Command::Ping,
   Command::Pong,
   Command::Block,
-  Command::Inv,
-  Command::GetData,
-  Command::GetBlocks
+  Command::InventoryAnnouncement,
+  Command::InventoryRequest,
+  Command::LastBeacon
 ];
 
 #[allow(non_camel_case_types)]
@@ -90,9 +90,9 @@ const ENUM_NAMES_COMMAND:[&'static str; 11] = [
     "Ping",
     "Pong",
     "Block",
-    "Inv",
-    "GetData",
-    "GetBlocks"
+    "InventoryAnnouncement",
+    "InventoryRequest",
+    "LastBeacon"
 ];
 
 pub fn enum_name_command(e: Command) -> &'static str {
@@ -227,7 +227,7 @@ pub fn enum_name_hash_type(e: HashType) -> &'static str {
 #[allow(non_camel_case_types)]
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum InvVectorType {
+pub enum InventoryItemType {
   Error = 0,
   Tx = 1,
   Block = 2,
@@ -236,10 +236,10 @@ pub enum InvVectorType {
 
 }
 
-const ENUM_MIN_INV_VECTOR_TYPE: u8 = 0;
-const ENUM_MAX_INV_VECTOR_TYPE: u8 = 4;
+const ENUM_MIN_INVENTORY_ITEM_TYPE: u8 = 0;
+const ENUM_MAX_INVENTORY_ITEM_TYPE: u8 = 4;
 
-impl<'a> flatbuffers::Follow<'a> for InvVectorType {
+impl<'a> flatbuffers::Follow<'a> for InventoryItemType {
   type Inner = Self;
   #[inline]
   fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
@@ -247,40 +247,40 @@ impl<'a> flatbuffers::Follow<'a> for InvVectorType {
   }
 }
 
-impl flatbuffers::EndianScalar for InvVectorType {
+impl flatbuffers::EndianScalar for InventoryItemType {
   #[inline]
   fn to_little_endian(self) -> Self {
     let n = u8::to_le(self as u8);
-    let p = &n as *const u8 as *const InvVectorType;
+    let p = &n as *const u8 as *const InventoryItemType;
     unsafe { *p }
   }
   #[inline]
   fn from_little_endian(self) -> Self {
     let n = u8::from_le(self as u8);
-    let p = &n as *const u8 as *const InvVectorType;
+    let p = &n as *const u8 as *const InventoryItemType;
     unsafe { *p }
   }
 }
 
-impl flatbuffers::Push for InvVectorType {
-    type Output = InvVectorType;
+impl flatbuffers::Push for InventoryItemType {
+    type Output = InventoryItemType;
     #[inline]
     fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        flatbuffers::emplace_scalar::<InvVectorType>(dst, *self);
+        flatbuffers::emplace_scalar::<InventoryItemType>(dst, *self);
     }
 }
 
 #[allow(non_camel_case_types)]
-const ENUM_VALUES_INV_VECTOR_TYPE:[InvVectorType; 5] = [
-  InvVectorType::Error,
-  InvVectorType::Tx,
-  InvVectorType::Block,
-  InvVectorType::DataRequest,
-  InvVectorType::DataResult
+const ENUM_VALUES_INVENTORY_ITEM_TYPE:[InventoryItemType; 5] = [
+  InventoryItemType::Error,
+  InventoryItemType::Tx,
+  InventoryItemType::Block,
+  InventoryItemType::DataRequest,
+  InventoryItemType::DataResult
 ];
 
 #[allow(non_camel_case_types)]
-const ENUM_NAMES_INV_VECTOR_TYPE:[&'static str; 5] = [
+const ENUM_NAMES_INVENTORY_ITEM_TYPE:[&'static str; 5] = [
     "Error",
     "Tx",
     "Block",
@@ -288,9 +288,9 @@ const ENUM_NAMES_INV_VECTOR_TYPE:[&'static str; 5] = [
     "DataResult"
 ];
 
-pub fn enum_name_inv_vector_type(e: InvVectorType) -> &'static str {
+pub fn enum_name_inventory_item_type(e: InventoryItemType) -> &'static str {
   let index: usize = e as usize;
-  ENUM_NAMES_INV_VECTOR_TYPE[index]
+  ENUM_NAMES_INVENTORY_ITEM_TYPE[index]
 }
 
 #[allow(non_camel_case_types)]
@@ -477,9 +477,9 @@ impl<'a> Message<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn command_as_inv(&'a self) -> Option<Inv> {
-    if self.command_type() == Command::Inv {
-      Some(Inv::init_from_table(self.command()))
+  pub fn command_as_inventory_announcement(&'a self) -> Option<InventoryAnnouncement> {
+    if self.command_type() == Command::InventoryAnnouncement {
+      Some(InventoryAnnouncement::init_from_table(self.command()))
     } else {
       None
     }
@@ -487,9 +487,9 @@ impl<'a> Message<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn command_as_get_data(&'a self) -> Option<GetData> {
-    if self.command_type() == Command::GetData {
-      Some(GetData::init_from_table(self.command()))
+  pub fn command_as_inventory_request(&'a self) -> Option<InventoryRequest> {
+    if self.command_type() == Command::InventoryRequest {
+      Some(InventoryRequest::init_from_table(self.command()))
     } else {
       None
     }
@@ -497,9 +497,9 @@ impl<'a> Message<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn command_as_get_blocks(&'a self) -> Option<GetBlocks> {
-    if self.command_type() == Command::GetBlocks {
-      Some(GetBlocks::init_from_table(self.command()))
+  pub fn command_as_last_beacon(&'a self) -> Option<LastBeacon> {
+    if self.command_type() == Command::LastBeacon {
+      Some(LastBeacon::init_from_table(self.command()))
     } else {
       None
     }
@@ -551,6 +551,937 @@ impl<'a: 'b, 'b> MessageBuilder<'a, 'b> {
   pub fn finish(self) -> flatbuffers::WIPOffset<Message<'a>> {
     let o = self.fbb_.end_table(self.start_);
     self.fbb_.required(o, Message::VT_COMMAND,"command");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+pub enum VersionOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Version<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Version<'a> {
+    type Inner = Version<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Version<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Version {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args VersionArgs<'args>) -> flatbuffers::WIPOffset<Version<'bldr>> {
+      let mut builder = VersionBuilder::new(_fbb);
+      builder.add_nonce(args.nonce);
+      builder.add_genesis(args.genesis);
+      builder.add_capabilities(args.capabilities);
+      builder.add_timestamp(args.timestamp);
+      builder.add_last_epoch(args.last_epoch);
+      if let Some(x) = args.user_agent { builder.add_user_agent(x); }
+      if let Some(x) = args.receiver_address { builder.add_receiver_address(x); }
+      if let Some(x) = args.sender_address { builder.add_sender_address(x); }
+      builder.add_version(args.version);
+      builder.finish()
+    }
+
+    pub const VT_VERSION: flatbuffers::VOffsetT = 4;
+    pub const VT_TIMESTAMP: flatbuffers::VOffsetT = 6;
+    pub const VT_CAPABILITIES: flatbuffers::VOffsetT = 8;
+    pub const VT_SENDER_ADDRESS: flatbuffers::VOffsetT = 10;
+    pub const VT_RECEIVER_ADDRESS: flatbuffers::VOffsetT = 12;
+    pub const VT_USER_AGENT: flatbuffers::VOffsetT = 14;
+    pub const VT_LAST_EPOCH: flatbuffers::VOffsetT = 16;
+    pub const VT_GENESIS: flatbuffers::VOffsetT = 18;
+    pub const VT_NONCE: flatbuffers::VOffsetT = 20;
+
+  #[inline]
+  pub fn version(&self) -> u32 {
+    self._tab.get::<u32>(Version::VT_VERSION, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn timestamp(&self) -> i64 {
+    self._tab.get::<i64>(Version::VT_TIMESTAMP, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn capabilities(&self) -> u64 {
+    self._tab.get::<u64>(Version::VT_CAPABILITIES, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn sender_address(&self) -> Option<Address<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Address<'a>>>(Version::VT_SENDER_ADDRESS, None)
+  }
+  #[inline]
+  pub fn receiver_address(&self) -> Option<Address<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Address<'a>>>(Version::VT_RECEIVER_ADDRESS, None)
+  }
+  #[inline]
+  pub fn user_agent(&self) -> &'a str {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Version::VT_USER_AGENT, None).unwrap()
+  }
+  #[inline]
+  pub fn last_epoch(&self) -> u32 {
+    self._tab.get::<u32>(Version::VT_LAST_EPOCH, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn genesis(&self) -> u64 {
+    self._tab.get::<u64>(Version::VT_GENESIS, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn nonce(&self) -> u64 {
+    self._tab.get::<u64>(Version::VT_NONCE, Some(0)).unwrap()
+  }
+}
+
+pub struct VersionArgs<'a> {
+    pub version: u32,
+    pub timestamp: i64,
+    pub capabilities: u64,
+    pub sender_address: Option<flatbuffers::WIPOffset<Address<'a >>>,
+    pub receiver_address: Option<flatbuffers::WIPOffset<Address<'a >>>,
+    pub user_agent: Option<flatbuffers::WIPOffset<&'a  str>>,
+    pub last_epoch: u32,
+    pub genesis: u64,
+    pub nonce: u64,
+}
+impl<'a> Default for VersionArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        VersionArgs {
+            version: 0,
+            timestamp: 0,
+            capabilities: 0,
+            sender_address: None,
+            receiver_address: None,
+            user_agent: None, // required field
+            last_epoch: 0,
+            genesis: 0,
+            nonce: 0,
+        }
+    }
+}
+pub struct VersionBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> VersionBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_version(&mut self, version: u32) {
+    self.fbb_.push_slot::<u32>(Version::VT_VERSION, version, 0);
+  }
+  #[inline]
+  pub fn add_timestamp(&mut self, timestamp: i64) {
+    self.fbb_.push_slot::<i64>(Version::VT_TIMESTAMP, timestamp, 0);
+  }
+  #[inline]
+  pub fn add_capabilities(&mut self, capabilities: u64) {
+    self.fbb_.push_slot::<u64>(Version::VT_CAPABILITIES, capabilities, 0);
+  }
+  #[inline]
+  pub fn add_sender_address(&mut self, sender_address: flatbuffers::WIPOffset<Address<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Address>>(Version::VT_SENDER_ADDRESS, sender_address);
+  }
+  #[inline]
+  pub fn add_receiver_address(&mut self, receiver_address: flatbuffers::WIPOffset<Address<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Address>>(Version::VT_RECEIVER_ADDRESS, receiver_address);
+  }
+  #[inline]
+  pub fn add_user_agent(&mut self, user_agent: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Version::VT_USER_AGENT, user_agent);
+  }
+  #[inline]
+  pub fn add_last_epoch(&mut self, last_epoch: u32) {
+    self.fbb_.push_slot::<u32>(Version::VT_LAST_EPOCH, last_epoch, 0);
+  }
+  #[inline]
+  pub fn add_genesis(&mut self, genesis: u64) {
+    self.fbb_.push_slot::<u64>(Version::VT_GENESIS, genesis, 0);
+  }
+  #[inline]
+  pub fn add_nonce(&mut self, nonce: u64) {
+    self.fbb_.push_slot::<u64>(Version::VT_NONCE, nonce, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> VersionBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    VersionBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Version<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, Version::VT_USER_AGENT,"user_agent");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum VerackOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Verack<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Verack<'a> {
+    type Inner = Verack<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Verack<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Verack {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        _args: &'args VerackArgs) -> flatbuffers::WIPOffset<Verack<'bldr>> {
+      let mut builder = VerackBuilder::new(_fbb);
+      builder.finish()
+    }
+
+}
+
+pub struct VerackArgs {
+}
+impl<'a> Default for VerackArgs {
+    #[inline]
+    fn default() -> Self {
+        VerackArgs {
+        }
+    }
+}
+pub struct VerackBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> VerackBuilder<'a, 'b> {
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> VerackBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    VerackBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Verack<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+pub enum GetPeersOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct GetPeers<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for GetPeers<'a> {
+    type Inner = GetPeers<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> GetPeers<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        GetPeers {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        _args: &'args GetPeersArgs) -> flatbuffers::WIPOffset<GetPeers<'bldr>> {
+      let mut builder = GetPeersBuilder::new(_fbb);
+      builder.finish()
+    }
+
+}
+
+pub struct GetPeersArgs {
+}
+impl<'a> Default for GetPeersArgs {
+    #[inline]
+    fn default() -> Self {
+        GetPeersArgs {
+        }
+    }
+}
+pub struct GetPeersBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GetPeersBuilder<'a, 'b> {
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GetPeersBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GetPeersBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<GetPeers<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum PeersOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Peers<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Peers<'a> {
+    type Inner = Peers<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Peers<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Peers {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args PeersArgs<'args>) -> flatbuffers::WIPOffset<Peers<'bldr>> {
+      let mut builder = PeersBuilder::new(_fbb);
+      if let Some(x) = args.peers { builder.add_peers(x); }
+      builder.finish()
+    }
+
+    pub const VT_PEERS: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn peers(&self) -> Option<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Address<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Address<'a>>>>>(Peers::VT_PEERS, None)
+  }
+}
+
+pub struct PeersArgs<'a> {
+    pub peers: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Address<'a >>>>>,
+}
+impl<'a> Default for PeersArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        PeersArgs {
+            peers: None,
+        }
+    }
+}
+pub struct PeersBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> PeersBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_peers(&mut self, peers: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Address<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Peers::VT_PEERS, peers);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> PeersBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    PeersBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Peers<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+pub enum PingOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Ping<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Ping<'a> {
+    type Inner = Ping<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Ping<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Ping {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args PingArgs) -> flatbuffers::WIPOffset<Ping<'bldr>> {
+      let mut builder = PingBuilder::new(_fbb);
+      builder.add_nonce(args.nonce);
+      builder.finish()
+    }
+
+    pub const VT_NONCE: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn nonce(&self) -> u64 {
+    self._tab.get::<u64>(Ping::VT_NONCE, Some(0)).unwrap()
+  }
+}
+
+pub struct PingArgs {
+    pub nonce: u64,
+}
+impl<'a> Default for PingArgs {
+    #[inline]
+    fn default() -> Self {
+        PingArgs {
+            nonce: 0,
+        }
+    }
+}
+pub struct PingBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> PingBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_nonce(&mut self, nonce: u64) {
+    self.fbb_.push_slot::<u64>(Ping::VT_NONCE, nonce, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> PingBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    PingBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Ping<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum PongOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Pong<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Pong<'a> {
+    type Inner = Pong<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Pong<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Pong {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args PongArgs) -> flatbuffers::WIPOffset<Pong<'bldr>> {
+      let mut builder = PongBuilder::new(_fbb);
+      builder.add_nonce(args.nonce);
+      builder.finish()
+    }
+
+    pub const VT_NONCE: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn nonce(&self) -> u64 {
+    self._tab.get::<u64>(Pong::VT_NONCE, Some(0)).unwrap()
+  }
+}
+
+pub struct PongArgs {
+    pub nonce: u64,
+}
+impl<'a> Default for PongArgs {
+    #[inline]
+    fn default() -> Self {
+        PongArgs {
+            nonce: 0,
+        }
+    }
+}
+pub struct PongBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> PongBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_nonce(&mut self, nonce: u64) {
+    self.fbb_.push_slot::<u64>(Pong::VT_NONCE, nonce, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> PongBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    PongBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Pong<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+pub enum BlockOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Block<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Block<'a> {
+    type Inner = Block<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Block<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Block {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args BlockArgs<'args>) -> flatbuffers::WIPOffset<Block<'bldr>> {
+      let mut builder = BlockBuilder::new(_fbb);
+      if let Some(x) = args.txns { builder.add_txns(x); }
+      builder.add_txn_count(args.txn_count);
+      if let Some(x) = args.header { builder.add_header(x); }
+      builder.finish()
+    }
+
+    pub const VT_HEADER: flatbuffers::VOffsetT = 4;
+    pub const VT_TXN_COUNT: flatbuffers::VOffsetT = 6;
+    pub const VT_TXNS: flatbuffers::VOffsetT = 8;
+
+  #[inline]
+  pub fn header(&self) -> BlockHeader<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<BlockHeader<'a>>>(Block::VT_HEADER, None).unwrap()
+  }
+  #[inline]
+  pub fn txn_count(&self) -> u32 {
+    self._tab.get::<u32>(Block::VT_TXN_COUNT, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn txns(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<Transaction<'a>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Transaction<'a>>>>>(Block::VT_TXNS, None).unwrap()
+  }
+}
+
+pub struct BlockArgs<'a> {
+    pub header: Option<flatbuffers::WIPOffset<BlockHeader<'a >>>,
+    pub txn_count: u32,
+    pub txns: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Transaction<'a >>>>>,
+}
+impl<'a> Default for BlockArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        BlockArgs {
+            header: None, // required field
+            txn_count: 0,
+            txns: None, // required field
+        }
+    }
+}
+pub struct BlockBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> BlockBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_header(&mut self, header: flatbuffers::WIPOffset<BlockHeader<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<BlockHeader>>(Block::VT_HEADER, header);
+  }
+  #[inline]
+  pub fn add_txn_count(&mut self, txn_count: u32) {
+    self.fbb_.push_slot::<u32>(Block::VT_TXN_COUNT, txn_count, 0);
+  }
+  #[inline]
+  pub fn add_txns(&mut self, txns: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Transaction<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Block::VT_TXNS, txns);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> BlockBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    BlockBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Block<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, Block::VT_HEADER,"header");
+    self.fbb_.required(o, Block::VT_TXNS,"txns");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum InventoryAnnouncementOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct InventoryAnnouncement<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for InventoryAnnouncement<'a> {
+    type Inner = InventoryAnnouncement<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> InventoryAnnouncement<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        InventoryAnnouncement {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args InventoryAnnouncementArgs<'args>) -> flatbuffers::WIPOffset<InventoryAnnouncement<'bldr>> {
+      let mut builder = InventoryAnnouncementBuilder::new(_fbb);
+      if let Some(x) = args.inventory { builder.add_inventory(x); }
+      builder.finish()
+    }
+
+    pub const VT_INVENTORY: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn inventory(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<InventoryEntry<'a>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<InventoryEntry<'a>>>>>(InventoryAnnouncement::VT_INVENTORY, None).unwrap()
+  }
+}
+
+pub struct InventoryAnnouncementArgs<'a> {
+    pub inventory: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<InventoryEntry<'a >>>>>,
+}
+impl<'a> Default for InventoryAnnouncementArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        InventoryAnnouncementArgs {
+            inventory: None, // required field
+        }
+    }
+}
+pub struct InventoryAnnouncementBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> InventoryAnnouncementBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_inventory(&mut self, inventory: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<InventoryEntry<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(InventoryAnnouncement::VT_INVENTORY, inventory);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> InventoryAnnouncementBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    InventoryAnnouncementBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<InventoryAnnouncement<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, InventoryAnnouncement::VT_INVENTORY,"inventory");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum InventoryRequestOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct InventoryRequest<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for InventoryRequest<'a> {
+    type Inner = InventoryRequest<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> InventoryRequest<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        InventoryRequest {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args InventoryRequestArgs<'args>) -> flatbuffers::WIPOffset<InventoryRequest<'bldr>> {
+      let mut builder = InventoryRequestBuilder::new(_fbb);
+      if let Some(x) = args.inventory { builder.add_inventory(x); }
+      builder.finish()
+    }
+
+    pub const VT_INVENTORY: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn inventory(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<InventoryEntry<'a>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<InventoryEntry<'a>>>>>(InventoryRequest::VT_INVENTORY, None).unwrap()
+  }
+}
+
+pub struct InventoryRequestArgs<'a> {
+    pub inventory: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<InventoryEntry<'a >>>>>,
+}
+impl<'a> Default for InventoryRequestArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        InventoryRequestArgs {
+            inventory: None, // required field
+        }
+    }
+}
+pub struct InventoryRequestBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> InventoryRequestBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_inventory(&mut self, inventory: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<InventoryEntry<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(InventoryRequest::VT_INVENTORY, inventory);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> InventoryRequestBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    InventoryRequestBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<InventoryRequest<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, InventoryRequest::VT_INVENTORY,"inventory");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum LastBeaconOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct LastBeacon<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for LastBeacon<'a> {
+    type Inner = LastBeacon<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> LastBeacon<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        LastBeacon {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args LastBeaconArgs<'args>) -> flatbuffers::WIPOffset<LastBeacon<'bldr>> {
+      let mut builder = LastBeaconBuilder::new(_fbb);
+      if let Some(x) = args.highest_block_checkpoint { builder.add_highest_block_checkpoint(x); }
+      builder.finish()
+    }
+
+    pub const VT_HIGHEST_BLOCK_CHECKPOINT: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn highest_block_checkpoint(&self) -> CheckpointBeacon<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<CheckpointBeacon<'a>>>(LastBeacon::VT_HIGHEST_BLOCK_CHECKPOINT, None).unwrap()
+  }
+}
+
+pub struct LastBeaconArgs<'a> {
+    pub highest_block_checkpoint: Option<flatbuffers::WIPOffset<CheckpointBeacon<'a >>>,
+}
+impl<'a> Default for LastBeaconArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        LastBeaconArgs {
+            highest_block_checkpoint: None, // required field
+        }
+    }
+}
+pub struct LastBeaconBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> LastBeaconBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_highest_block_checkpoint(&mut self, highest_block_checkpoint: flatbuffers::WIPOffset<CheckpointBeacon<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<CheckpointBeacon>>(LastBeacon::VT_HIGHEST_BLOCK_CHECKPOINT, highest_block_checkpoint);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> LastBeaconBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    LastBeaconBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<LastBeacon<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, LastBeacon::VT_HIGHEST_BLOCK_CHECKPOINT,"highest_block_checkpoint");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum TransactionOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Transaction<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Transaction<'a> {
+    type Inner = Transaction<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Transaction<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Transaction {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        _args: &'args TransactionArgs) -> flatbuffers::WIPOffset<Transaction<'bldr>> {
+      let mut builder = TransactionBuilder::new(_fbb);
+      builder.finish()
+    }
+
+}
+
+pub struct TransactionArgs {
+}
+impl<'a> Default for TransactionArgs {
+    #[inline]
+    fn default() -> Self {
+        TransactionArgs {
+        }
+    }
+}
+pub struct TransactionBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> TransactionBuilder<'a, 'b> {
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> TransactionBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    TransactionBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Transaction<'a>> {
+    let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
 }
@@ -952,15 +1883,15 @@ impl<'a: 'b, 'b> HashBuilder<'a, 'b> {
   }
 }
 
-pub enum InvVectorOffset {}
+pub enum InventoryEntryOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct InvVector<'a> {
+pub struct InventoryEntry<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for InvVector<'a> {
-    type Inner = InvVector<'a>;
+impl<'a> flatbuffers::Follow<'a> for InventoryEntry<'a> {
+    type Inner = InventoryEntry<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -969,18 +1900,18 @@ impl<'a> flatbuffers::Follow<'a> for InvVector<'a> {
     }
 }
 
-impl<'a> InvVector<'a> {
+impl<'a> InventoryEntry<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        InvVector {
+        InventoryEntry {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args InvVectorArgs<'args>) -> flatbuffers::WIPOffset<InvVector<'bldr>> {
-      let mut builder = InvVectorBuilder::new(_fbb);
+        args: &'args InventoryEntryArgs<'args>) -> flatbuffers::WIPOffset<InventoryEntry<'bldr>> {
+      let mut builder = InventoryEntryBuilder::new(_fbb);
       if let Some(x) = args.hash { builder.add_hash(x); }
       builder.add_type_(args.type_);
       builder.finish()
@@ -990,53 +1921,53 @@ impl<'a> InvVector<'a> {
     pub const VT_HASH: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn type_(&self) -> InvVectorType {
-    self._tab.get::<InvVectorType>(InvVector::VT_TYPE_, Some(InvVectorType::Error)).unwrap()
+  pub fn type_(&self) -> InventoryItemType {
+    self._tab.get::<InventoryItemType>(InventoryEntry::VT_TYPE_, Some(InventoryItemType::Error)).unwrap()
   }
   #[inline]
   pub fn hash(&self) -> Hash<'a> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(InvVector::VT_HASH, None).unwrap()
+    self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(InventoryEntry::VT_HASH, None).unwrap()
   }
 }
 
-pub struct InvVectorArgs<'a> {
-    pub type_: InvVectorType,
+pub struct InventoryEntryArgs<'a> {
+    pub type_: InventoryItemType,
     pub hash: Option<flatbuffers::WIPOffset<Hash<'a >>>,
 }
-impl<'a> Default for InvVectorArgs<'a> {
+impl<'a> Default for InventoryEntryArgs<'a> {
     #[inline]
     fn default() -> Self {
-        InvVectorArgs {
-            type_: InvVectorType::Error,
+        InventoryEntryArgs {
+            type_: InventoryItemType::Error,
             hash: None, // required field
         }
     }
 }
-pub struct InvVectorBuilder<'a: 'b, 'b> {
+pub struct InventoryEntryBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> InvVectorBuilder<'a, 'b> {
+impl<'a: 'b, 'b> InventoryEntryBuilder<'a, 'b> {
   #[inline]
-  pub fn add_type_(&mut self, type_: InvVectorType) {
-    self.fbb_.push_slot::<InvVectorType>(InvVector::VT_TYPE_, type_, InvVectorType::Error);
+  pub fn add_type_(&mut self, type_: InventoryItemType) {
+    self.fbb_.push_slot::<InventoryItemType>(InventoryEntry::VT_TYPE_, type_, InventoryItemType::Error);
   }
   #[inline]
   pub fn add_hash(&mut self, hash: flatbuffers::WIPOffset<Hash<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(InvVector::VT_HASH, hash);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(InventoryEntry::VT_HASH, hash);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> InvVectorBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> InventoryEntryBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    InvVectorBuilder {
+    InventoryEntryBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<InvVector<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<InventoryEntry<'a>> {
     let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, InvVector::VT_HASH,"hash");
+    self.fbb_.required(o, InventoryEntry::VT_HASH,"hash");
     flatbuffers::WIPOffset::new(o.value())
   }
 }
@@ -1330,83 +2261,6 @@ impl<'a: 'b, 'b> CheckpointBeaconBuilder<'a, 'b> {
   }
 }
 
-pub enum GetBlocksOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct GetBlocks<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for GetBlocks<'a> {
-    type Inner = GetBlocks<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> GetBlocks<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GetBlocks {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GetBlocksArgs<'args>) -> flatbuffers::WIPOffset<GetBlocks<'bldr>> {
-      let mut builder = GetBlocksBuilder::new(_fbb);
-      if let Some(x) = args.highest_block_checkpoint { builder.add_highest_block_checkpoint(x); }
-      builder.finish()
-    }
-
-    pub const VT_HIGHEST_BLOCK_CHECKPOINT: flatbuffers::VOffsetT = 4;
-
-  #[inline]
-  pub fn highest_block_checkpoint(&self) -> CheckpointBeacon<'a> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<CheckpointBeacon<'a>>>(GetBlocks::VT_HIGHEST_BLOCK_CHECKPOINT, None).unwrap()
-  }
-}
-
-pub struct GetBlocksArgs<'a> {
-    pub highest_block_checkpoint: Option<flatbuffers::WIPOffset<CheckpointBeacon<'a >>>,
-}
-impl<'a> Default for GetBlocksArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        GetBlocksArgs {
-            highest_block_checkpoint: None, // required field
-        }
-    }
-}
-pub struct GetBlocksBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> GetBlocksBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_highest_block_checkpoint(&mut self, highest_block_checkpoint: flatbuffers::WIPOffset<CheckpointBeacon<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<CheckpointBeacon>>(GetBlocks::VT_HIGHEST_BLOCK_CHECKPOINT, highest_block_checkpoint);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GetBlocksBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    GetBlocksBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GetBlocks<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, GetBlocks::VT_HIGHEST_BLOCK_CHECKPOINT,"highest_block_checkpoint");
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
 pub enum BlockHeaderOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -1518,854 +2372,6 @@ impl<'a: 'b, 'b> BlockHeaderBuilder<'a, 'b> {
     self.fbb_.required(o, BlockHeader::VT_BEACON,"beacon");
     self.fbb_.required(o, BlockHeader::VT_HASH_MERKLE_ROOT,"hash_merkle_root");
     self.fbb_.required(o, BlockHeader::VT_PROOF,"proof");
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-/////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////
-pub enum VersionOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Version<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Version<'a> {
-    type Inner = Version<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Version<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Version {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args VersionArgs<'args>) -> flatbuffers::WIPOffset<Version<'bldr>> {
-      let mut builder = VersionBuilder::new(_fbb);
-      builder.add_nonce(args.nonce);
-      builder.add_genesis(args.genesis);
-      builder.add_capabilities(args.capabilities);
-      builder.add_timestamp(args.timestamp);
-      builder.add_last_epoch(args.last_epoch);
-      if let Some(x) = args.user_agent { builder.add_user_agent(x); }
-      if let Some(x) = args.receiver_address { builder.add_receiver_address(x); }
-      if let Some(x) = args.sender_address { builder.add_sender_address(x); }
-      builder.add_version(args.version);
-      builder.finish()
-    }
-
-    pub const VT_VERSION: flatbuffers::VOffsetT = 4;
-    pub const VT_TIMESTAMP: flatbuffers::VOffsetT = 6;
-    pub const VT_CAPABILITIES: flatbuffers::VOffsetT = 8;
-    pub const VT_SENDER_ADDRESS: flatbuffers::VOffsetT = 10;
-    pub const VT_RECEIVER_ADDRESS: flatbuffers::VOffsetT = 12;
-    pub const VT_USER_AGENT: flatbuffers::VOffsetT = 14;
-    pub const VT_LAST_EPOCH: flatbuffers::VOffsetT = 16;
-    pub const VT_GENESIS: flatbuffers::VOffsetT = 18;
-    pub const VT_NONCE: flatbuffers::VOffsetT = 20;
-
-  #[inline]
-  pub fn version(&self) -> u32 {
-    self._tab.get::<u32>(Version::VT_VERSION, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn timestamp(&self) -> i64 {
-    self._tab.get::<i64>(Version::VT_TIMESTAMP, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn capabilities(&self) -> u64 {
-    self._tab.get::<u64>(Version::VT_CAPABILITIES, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn sender_address(&self) -> Option<Address<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Address<'a>>>(Version::VT_SENDER_ADDRESS, None)
-  }
-  #[inline]
-  pub fn receiver_address(&self) -> Option<Address<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Address<'a>>>(Version::VT_RECEIVER_ADDRESS, None)
-  }
-  #[inline]
-  pub fn user_agent(&self) -> &'a str {
-    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Version::VT_USER_AGENT, None).unwrap()
-  }
-  #[inline]
-  pub fn last_epoch(&self) -> u32 {
-    self._tab.get::<u32>(Version::VT_LAST_EPOCH, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn genesis(&self) -> u64 {
-    self._tab.get::<u64>(Version::VT_GENESIS, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn nonce(&self) -> u64 {
-    self._tab.get::<u64>(Version::VT_NONCE, Some(0)).unwrap()
-  }
-}
-
-pub struct VersionArgs<'a> {
-    pub version: u32,
-    pub timestamp: i64,
-    pub capabilities: u64,
-    pub sender_address: Option<flatbuffers::WIPOffset<Address<'a >>>,
-    pub receiver_address: Option<flatbuffers::WIPOffset<Address<'a >>>,
-    pub user_agent: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub last_epoch: u32,
-    pub genesis: u64,
-    pub nonce: u64,
-}
-impl<'a> Default for VersionArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        VersionArgs {
-            version: 0,
-            timestamp: 0,
-            capabilities: 0,
-            sender_address: None,
-            receiver_address: None,
-            user_agent: None, // required field
-            last_epoch: 0,
-            genesis: 0,
-            nonce: 0,
-        }
-    }
-}
-pub struct VersionBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> VersionBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_version(&mut self, version: u32) {
-    self.fbb_.push_slot::<u32>(Version::VT_VERSION, version, 0);
-  }
-  #[inline]
-  pub fn add_timestamp(&mut self, timestamp: i64) {
-    self.fbb_.push_slot::<i64>(Version::VT_TIMESTAMP, timestamp, 0);
-  }
-  #[inline]
-  pub fn add_capabilities(&mut self, capabilities: u64) {
-    self.fbb_.push_slot::<u64>(Version::VT_CAPABILITIES, capabilities, 0);
-  }
-  #[inline]
-  pub fn add_sender_address(&mut self, sender_address: flatbuffers::WIPOffset<Address<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Address>>(Version::VT_SENDER_ADDRESS, sender_address);
-  }
-  #[inline]
-  pub fn add_receiver_address(&mut self, receiver_address: flatbuffers::WIPOffset<Address<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Address>>(Version::VT_RECEIVER_ADDRESS, receiver_address);
-  }
-  #[inline]
-  pub fn add_user_agent(&mut self, user_agent: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Version::VT_USER_AGENT, user_agent);
-  }
-  #[inline]
-  pub fn add_last_epoch(&mut self, last_epoch: u32) {
-    self.fbb_.push_slot::<u32>(Version::VT_LAST_EPOCH, last_epoch, 0);
-  }
-  #[inline]
-  pub fn add_genesis(&mut self, genesis: u64) {
-    self.fbb_.push_slot::<u64>(Version::VT_GENESIS, genesis, 0);
-  }
-  #[inline]
-  pub fn add_nonce(&mut self, nonce: u64) {
-    self.fbb_.push_slot::<u64>(Version::VT_NONCE, nonce, 0);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> VersionBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    VersionBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Version<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, Version::VT_USER_AGENT,"user_agent");
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum VerackOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Verack<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Verack<'a> {
-    type Inner = Verack<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Verack<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Verack {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        _args: &'args VerackArgs) -> flatbuffers::WIPOffset<Verack<'bldr>> {
-      let mut builder = VerackBuilder::new(_fbb);
-      builder.finish()
-    }
-
-}
-
-pub struct VerackArgs {
-}
-impl<'a> Default for VerackArgs {
-    #[inline]
-    fn default() -> Self {
-        VerackArgs {
-        }
-    }
-}
-pub struct VerackBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> VerackBuilder<'a, 'b> {
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> VerackBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    VerackBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Verack<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum GetPeersOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct GetPeers<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for GetPeers<'a> {
-    type Inner = GetPeers<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> GetPeers<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GetPeers {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        _args: &'args GetPeersArgs) -> flatbuffers::WIPOffset<GetPeers<'bldr>> {
-      let mut builder = GetPeersBuilder::new(_fbb);
-      builder.finish()
-    }
-
-}
-
-pub struct GetPeersArgs {
-}
-impl<'a> Default for GetPeersArgs {
-    #[inline]
-    fn default() -> Self {
-        GetPeersArgs {
-        }
-    }
-}
-pub struct GetPeersBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> GetPeersBuilder<'a, 'b> {
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GetPeersBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    GetPeersBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GetPeers<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum PeersOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Peers<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Peers<'a> {
-    type Inner = Peers<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Peers<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Peers {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args PeersArgs<'args>) -> flatbuffers::WIPOffset<Peers<'bldr>> {
-      let mut builder = PeersBuilder::new(_fbb);
-      if let Some(x) = args.peers { builder.add_peers(x); }
-      builder.finish()
-    }
-
-    pub const VT_PEERS: flatbuffers::VOffsetT = 4;
-
-  #[inline]
-  pub fn peers(&self) -> Option<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Address<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Address<'a>>>>>(Peers::VT_PEERS, None)
-  }
-}
-
-pub struct PeersArgs<'a> {
-    pub peers: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Address<'a >>>>>,
-}
-impl<'a> Default for PeersArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        PeersArgs {
-            peers: None,
-        }
-    }
-}
-pub struct PeersBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> PeersBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_peers(&mut self, peers: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Address<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Peers::VT_PEERS, peers);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> PeersBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    PeersBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Peers<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum PingOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Ping<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Ping<'a> {
-    type Inner = Ping<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Ping<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Ping {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args PingArgs) -> flatbuffers::WIPOffset<Ping<'bldr>> {
-      let mut builder = PingBuilder::new(_fbb);
-      builder.add_nonce(args.nonce);
-      builder.finish()
-    }
-
-    pub const VT_NONCE: flatbuffers::VOffsetT = 4;
-
-  #[inline]
-  pub fn nonce(&self) -> u64 {
-    self._tab.get::<u64>(Ping::VT_NONCE, Some(0)).unwrap()
-  }
-}
-
-pub struct PingArgs {
-    pub nonce: u64,
-}
-impl<'a> Default for PingArgs {
-    #[inline]
-    fn default() -> Self {
-        PingArgs {
-            nonce: 0,
-        }
-    }
-}
-pub struct PingBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> PingBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_nonce(&mut self, nonce: u64) {
-    self.fbb_.push_slot::<u64>(Ping::VT_NONCE, nonce, 0);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> PingBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    PingBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Ping<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum PongOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Pong<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Pong<'a> {
-    type Inner = Pong<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Pong<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Pong {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args PongArgs) -> flatbuffers::WIPOffset<Pong<'bldr>> {
-      let mut builder = PongBuilder::new(_fbb);
-      builder.add_nonce(args.nonce);
-      builder.finish()
-    }
-
-    pub const VT_NONCE: flatbuffers::VOffsetT = 4;
-
-  #[inline]
-  pub fn nonce(&self) -> u64 {
-    self._tab.get::<u64>(Pong::VT_NONCE, Some(0)).unwrap()
-  }
-}
-
-pub struct PongArgs {
-    pub nonce: u64,
-}
-impl<'a> Default for PongArgs {
-    #[inline]
-    fn default() -> Self {
-        PongArgs {
-            nonce: 0,
-        }
-    }
-}
-pub struct PongBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> PongBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_nonce(&mut self, nonce: u64) {
-    self.fbb_.push_slot::<u64>(Pong::VT_NONCE, nonce, 0);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> PongBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    PongBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Pong<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum TransactionOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Transaction<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Transaction<'a> {
-    type Inner = Transaction<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Transaction<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Transaction {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        _args: &'args TransactionArgs) -> flatbuffers::WIPOffset<Transaction<'bldr>> {
-      let mut builder = TransactionBuilder::new(_fbb);
-      builder.finish()
-    }
-
-}
-
-pub struct TransactionArgs {
-}
-impl<'a> Default for TransactionArgs {
-    #[inline]
-    fn default() -> Self {
-        TransactionArgs {
-        }
-    }
-}
-pub struct TransactionBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> TransactionBuilder<'a, 'b> {
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> TransactionBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    TransactionBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Transaction<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum BlockOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Block<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Block<'a> {
-    type Inner = Block<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Block<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Block {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args BlockArgs<'args>) -> flatbuffers::WIPOffset<Block<'bldr>> {
-      let mut builder = BlockBuilder::new(_fbb);
-      if let Some(x) = args.txns { builder.add_txns(x); }
-      builder.add_txn_count(args.txn_count);
-      if let Some(x) = args.header { builder.add_header(x); }
-      builder.finish()
-    }
-
-    pub const VT_HEADER: flatbuffers::VOffsetT = 4;
-    pub const VT_TXN_COUNT: flatbuffers::VOffsetT = 6;
-    pub const VT_TXNS: flatbuffers::VOffsetT = 8;
-
-  #[inline]
-  pub fn header(&self) -> BlockHeader<'a> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<BlockHeader<'a>>>(Block::VT_HEADER, None).unwrap()
-  }
-  #[inline]
-  pub fn txn_count(&self) -> u32 {
-    self._tab.get::<u32>(Block::VT_TXN_COUNT, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn txns(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<Transaction<'a>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Transaction<'a>>>>>(Block::VT_TXNS, None).unwrap()
-  }
-}
-
-pub struct BlockArgs<'a> {
-    pub header: Option<flatbuffers::WIPOffset<BlockHeader<'a >>>,
-    pub txn_count: u32,
-    pub txns: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Transaction<'a >>>>>,
-}
-impl<'a> Default for BlockArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        BlockArgs {
-            header: None, // required field
-            txn_count: 0,
-            txns: None, // required field
-        }
-    }
-}
-pub struct BlockBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> BlockBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_header(&mut self, header: flatbuffers::WIPOffset<BlockHeader<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<BlockHeader>>(Block::VT_HEADER, header);
-  }
-  #[inline]
-  pub fn add_txn_count(&mut self, txn_count: u32) {
-    self.fbb_.push_slot::<u32>(Block::VT_TXN_COUNT, txn_count, 0);
-  }
-  #[inline]
-  pub fn add_txns(&mut self, txns: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Transaction<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Block::VT_TXNS, txns);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> BlockBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    BlockBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Block<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, Block::VT_HEADER,"header");
-    self.fbb_.required(o, Block::VT_TXNS,"txns");
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum InvOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Inv<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Inv<'a> {
-    type Inner = Inv<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Inv<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Inv {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args InvArgs<'args>) -> flatbuffers::WIPOffset<Inv<'bldr>> {
-      let mut builder = InvBuilder::new(_fbb);
-      if let Some(x) = args.inventory { builder.add_inventory(x); }
-      builder.finish()
-    }
-
-    pub const VT_INVENTORY: flatbuffers::VOffsetT = 4;
-
-  #[inline]
-  pub fn inventory(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvVector<'a>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvVector<'a>>>>>(Inv::VT_INVENTORY, None).unwrap()
-  }
-}
-
-pub struct InvArgs<'a> {
-    pub inventory: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<InvVector<'a >>>>>,
-}
-impl<'a> Default for InvArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        InvArgs {
-            inventory: None, // required field
-        }
-    }
-}
-pub struct InvBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> InvBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_inventory(&mut self, inventory: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<InvVector<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Inv::VT_INVENTORY, inventory);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> InvBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    InvBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Inv<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, Inv::VT_INVENTORY,"inventory");
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum GetDataOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct GetData<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for GetData<'a> {
-    type Inner = GetData<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> GetData<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GetData {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GetDataArgs<'args>) -> flatbuffers::WIPOffset<GetData<'bldr>> {
-      let mut builder = GetDataBuilder::new(_fbb);
-      if let Some(x) = args.inventory { builder.add_inventory(x); }
-      builder.finish()
-    }
-
-    pub const VT_INVENTORY: flatbuffers::VOffsetT = 4;
-
-  #[inline]
-  pub fn inventory(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvVector<'a>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<InvVector<'a>>>>>(GetData::VT_INVENTORY, None).unwrap()
-  }
-}
-
-pub struct GetDataArgs<'a> {
-    pub inventory: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<InvVector<'a >>>>>,
-}
-impl<'a> Default for GetDataArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        GetDataArgs {
-            inventory: None, // required field
-        }
-    }
-}
-pub struct GetDataBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> GetDataBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_inventory(&mut self, inventory: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<InvVector<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GetData::VT_INVENTORY, inventory);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GetDataBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    GetDataBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GetData<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, GetData::VT_INVENTORY,"inventory");
     flatbuffers::WIPOffset::new(o.value())
   }
 }

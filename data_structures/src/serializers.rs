@@ -3,50 +3,50 @@ extern crate flatbuffers;
 use std::convert::Into;
 
 use crate::chain::{
-    Block, BlockHeader, BlockHeaderWithProof, CheckpointBeacon, Hash, InvVector, LeadershipProof,
-    Secp256k1Signature, Signature, Transaction, SHA256,
+    Block, BlockHeader, BlockHeaderWithProof, CheckpointBeacon, Hash, InventoryEntry,
+    LeadershipProof, Secp256k1Signature, Signature, Transaction, SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol;
 
 use crate::types::{
-    Address, Command, GetBlocks, GetData, GetPeers, Inv,
+    Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest,
     IpAddress::{Ipv4, Ipv6},
-    Message, Peers, Ping, Pong, Verack, Version,
+    LastBeacon, Message, Peers, Ping, Pong, Verack, Version,
 };
 
 use flatbuffers::FlatBufferBuilder;
 
 const FTB_SIZE: usize = 1024;
 
-#[derive(Debug, Clone, Copy)]
-struct GetBlocksCommandArgs {
-    highest_block_checkpoint: CheckpointBeacon,
-    magic: u16,
-}
-
+////////////////////////////////////////////////////////
+// COMMAND ARGS
+////////////////////////////////////////////////////////
 #[derive(Debug, Clone, Copy)]
 struct EmptyCommandArgs {
     magic: u16,
 }
-// Refactor
+
+// Peer discovery
 #[derive(Debug, Clone, Copy)]
 struct PeersFlatbufferArgs<'a> {
     magic: u16,
     peers: &'a [Address],
 }
-// Refactor
+
 #[derive(Debug, Clone, Copy)]
 struct PeersWitnetArgs<'a> {
     magic: u16,
     peers: protocol::Peers<'a>,
 }
 
+// Heartbeat
 #[derive(Debug, Clone, Copy)]
 struct HeartbeatCommandsArgs {
     magic: u16,
     nonce: u64,
 }
 
+// Handshake
 #[derive(Debug, Clone, Copy)]
 struct VersionCommandArgs<'a> {
     magic: u16,
@@ -61,6 +61,13 @@ struct VersionCommandArgs<'a> {
     version: u32,
 }
 
+// Inventory
+#[derive(Debug, Clone, Copy)]
+struct LastBeaconCommandArgs {
+    magic: u16,
+    highest_block_checkpoint: CheckpointBeacon,
+}
+
 #[derive(Debug, Clone)]
 struct BlockCommandArgs<'a> {
     magic: u16,
@@ -70,23 +77,26 @@ struct BlockCommandArgs<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct InvWitnetArgs<'a> {
+struct InventoryAnnouncementWitnetArgs<'a> {
     magic: u16,
-    inventory: protocol::Inv<'a>,
+    inventory: protocol::InventoryAnnouncement<'a>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct InventoryRequestWitnetArgs<'a> {
+    magic: u16,
+    inventory: protocol::InventoryRequest<'a>,
 }
 
 #[derive(Debug, Clone, Copy)]
 struct InventoryArgs<'a> {
     magic: u16,
-    inventory: &'a [InvVector],
+    inventory: &'a [InventoryEntry],
 }
 
-#[derive(Debug, Clone, Copy)]
-struct GetDataWitnetArgs<'a> {
-    magic: u16,
-    inventory: protocol::GetData<'a>,
-}
-
+////////////////////////////////////////////////////////
+// FROM TRAIT (Vec<u8> ---> Message)
+////////////////////////////////////////////////////////
 pub trait TryFrom<T>: Sized {
     type Error;
 
@@ -95,16 +105,17 @@ pub trait TryFrom<T>: Sized {
 
 impl TryFrom<Vec<u8>> for Message {
     type Error = &'static str;
-    // type Error = Err<&'static str>;
+
     fn try_from(bytes: Vec<u8>) -> Result<Self, &'static str> {
-        // Get Flatbuffers Message
+        // Get flatbuffers Message
         let message = protocol::get_root_as_message(&bytes);
 
         // Get magic field from message
         let magic = message.magic();
 
-        // Create witnet's message to decode a flatbuffer message
+        // Create Witnet's message to decode a flatbuffer message
         match message.command_type() {
+            // Heartbeat
             protocol::Command::Ping => message
                 .command_as_ping()
                 .map(|ping| {
@@ -123,46 +134,23 @@ impl TryFrom<Vec<u8>> for Message {
                     })
                 })
                 .ok_or(""),
-            protocol::Command::GetBlocks => message
-                .command_as_get_blocks()
-                .map(|get_blocks| {
-                    let hash_prev_block = match get_blocks
-                        .highest_block_checkpoint()
-                        .hash_prev_block()
-                        .type_()
-                    {
-                        protocol::HashType::SHA256 => {
-                            let mut sha256: SHA256 = [0; 32];
-                            let sha256_bytes = get_blocks
-                                .highest_block_checkpoint()
-                                .hash_prev_block()
-                                .bytes();
-                            sha256.copy_from_slice(sha256_bytes);
-                            Hash::SHA256(sha256)
-                        }
-                    };
-                    let highest_block_checkpoint = CheckpointBeacon {
-                        checkpoint: get_blocks.highest_block_checkpoint().checkpoint(),
-                        hash_prev_block,
-                    };
-                    create_get_blocks_message(GetBlocksCommandArgs {
-                        highest_block_checkpoint,
-                        magic,
-                    })
-                })
-                .ok_or(""),
+
+            // Peer discovery
             protocol::Command::GetPeers => Ok(create_get_peers_message(EmptyCommandArgs { magic })),
             protocol::Command::Peers => message
                 .command_as_peers()
                 .and_then(|peers| create_peers_message(PeersWitnetArgs { magic, peers }))
                 .ok_or(""),
+
+            // Handshake
             protocol::Command::Verack => Ok(create_verack_message(EmptyCommandArgs { magic })),
             protocol::Command::Version => message
                 .command_as_version()
                 .and_then(|command| {
-                    // Get ftb addresses and create witnet addresses
+                    // Get ftb addresses and create Witnet addresses
                     let sender_address = command.sender_address().and_then(create_address);
                     let receiver_address = command.receiver_address().and_then(create_address);
+
                     // Check if sender address and receiver address exist
                     if sender_address.and(receiver_address).is_some() {
                         Some(create_version_message(VersionCommandArgs {
@@ -171,7 +159,6 @@ impl TryFrom<Vec<u8>> for Message {
                             capabilities: command.capabilities(),
                             sender_address: &sender_address?,
                             receiver_address: &receiver_address?,
-                            // FIXME(#65): user_agent field should be required as specified in ftb schema
                             user_agent: &command.user_agent().to_string(),
                             last_epoch: command.last_epoch(),
                             genesis: command.genesis(),
@@ -183,6 +170,8 @@ impl TryFrom<Vec<u8>> for Message {
                     }
                 })
                 .ok_or(""),
+
+            // Inventory
             protocol::Command::Block => message
                 .command_as_block()
                 .map(|block| {
@@ -270,54 +259,68 @@ impl TryFrom<Vec<u8>> for Message {
                     }
                 })
                 .ok_or(""),
-            protocol::Command::Inv => message
-                .command_as_inv()
-                .and_then(|inv| {
-                    Some(create_inv_message(InvWitnetArgs {
-                        magic,
-                        inventory: inv,
-                    }))
+            protocol::Command::InventoryAnnouncement => message
+                .command_as_inventory_announcement()
+                .and_then(|inventory| {
+                    Some(create_inventory_announcement_message(
+                        InventoryAnnouncementWitnetArgs { magic, inventory },
+                    ))
                 })
                 .ok_or(""),
-            protocol::Command::GetData => message
-                .command_as_get_data()
-                .and_then(|get_data| {
-                    Some(create_get_data_message(GetDataWitnetArgs {
-                        magic,
-                        inventory: get_data,
-                    }))
+            protocol::Command::InventoryRequest => message
+                .command_as_inventory_request()
+                .and_then(|inventory| {
+                    Some(create_inventory_request_message(
+                        InventoryRequestWitnetArgs { magic, inventory },
+                    ))
                 })
                 .ok_or(""),
+            protocol::Command::LastBeacon => message
+                .command_as_last_beacon()
+                .map(|last_beacon| {
+                    let hash_prev_block = match last_beacon
+                        .highest_block_checkpoint()
+                        .hash_prev_block()
+                        .type_()
+                    {
+                        protocol::HashType::SHA256 => {
+                            let mut sha256: SHA256 = [0; 32];
+                            let sha256_bytes = last_beacon
+                                .highest_block_checkpoint()
+                                .hash_prev_block()
+                                .bytes();
+                            sha256.copy_from_slice(sha256_bytes);
+                            Hash::SHA256(sha256)
+                        }
+                    };
+                    let highest_block_checkpoint = CheckpointBeacon {
+                        checkpoint: last_beacon.highest_block_checkpoint().checkpoint(),
+                        hash_prev_block,
+                    };
+                    create_last_beacon_message(LastBeaconCommandArgs {
+                        highest_block_checkpoint,
+                        magic,
+                    })
+                })
+                .ok_or(""),
+
+            // No command
             protocol::Command::NONE => Err(""),
         }
     }
 }
 
+////////////////////////////////////////////////////////
+// INTO TRAIT (Message ----> Vec<u8>)
+////////////////////////////////////////////////////////
 impl Into<Vec<u8>> for Message {
     fn into(self) -> Vec<u8> {
+        // Create builder to create flatbuffers to encode Witnet messages
         let mut builder = flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
 
-        // Create Flatbuffer to encode a Witnet message
+        // Create flatbuffer to encode a Witnet message
         match self.kind {
-            Command::GetBlocks(GetBlocks {
-                highest_block_checkpoint,
-            }) => create_get_blocks_flatbuffer(
-                &mut builder,
-                GetBlocksCommandArgs {
-                    magic: self.magic,
-                    highest_block_checkpoint,
-                },
-            ),
-            Command::GetPeers(GetPeers) => {
-                create_get_peers_flatbuffer(&mut builder, EmptyCommandArgs { magic: self.magic })
-            }
-            Command::Peers(Peers { peers }) => create_peers_flatbuffer(
-                &mut builder,
-                PeersFlatbufferArgs {
-                    magic: self.magic,
-                    peers: &peers,
-                },
-            ),
+            // Heartbeat
             Command::Ping(Ping { nonce }) => create_ping_flatbuffer(
                 &mut builder,
                 HeartbeatCommandsArgs {
@@ -332,6 +335,20 @@ impl Into<Vec<u8>> for Message {
                     nonce,
                 },
             ),
+
+            // Peer discovery
+            Command::GetPeers(GetPeers) => {
+                create_get_peers_flatbuffer(&mut builder, EmptyCommandArgs { magic: self.magic })
+            }
+            Command::Peers(Peers { peers }) => create_peers_flatbuffer(
+                &mut builder,
+                PeersFlatbufferArgs {
+                    magic: self.magic,
+                    peers: &peers,
+                },
+            ),
+
+            // Handshake
             Command::Verack(Verack) => {
                 create_verack_flatbuffer(&mut builder, EmptyCommandArgs { magic: self.magic })
             }
@@ -360,6 +377,8 @@ impl Into<Vec<u8>> for Message {
                     nonce,
                 },
             ),
+
+            // Inventory
             Command::Block(Block {
                 header,
                 txn_count,
@@ -373,34 +392,210 @@ impl Into<Vec<u8>> for Message {
                     txns: &txns,
                 },
             ),
-            Command::Inv(Inv { inventory }) => create_inv_flatbuffer(
+            Command::InventoryAnnouncement(InventoryAnnouncement { inventory }) => {
+                create_inventory_announcement_flatbuffer(
+                    &mut builder,
+                    InventoryArgs {
+                        magic: self.magic,
+                        inventory: &inventory,
+                    },
+                )
+            }
+            Command::InventoryRequest(InventoryRequest { inventory }) => {
+                create_inventory_request_flatbuffer(
+                    &mut builder,
+                    InventoryArgs {
+                        magic: self.magic,
+                        inventory: &inventory,
+                    },
+                )
+            }
+            Command::LastBeacon(LastBeacon {
+                highest_block_checkpoint,
+            }) => create_last_beacon_flatbuffer(
                 &mut builder,
-                InventoryArgs {
+                LastBeaconCommandArgs {
                     magic: self.magic,
-                    inventory: &inventory,
-                },
-            ),
-            Command::GetData(GetData { inventory }) => create_get_data_flatbuffer(
-                &mut builder,
-                InventoryArgs {
-                    magic: self.magic,
-                    inventory: &inventory,
+                    highest_block_checkpoint,
                 },
             ),
         }
     }
 }
 
-// Encode a flatbuffer from a flatbuffers message
-fn build_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    message: flatbuffers::WIPOffset<protocol::Message>,
-) -> Vec<u8> {
-    builder.finish(message, None);
-    builder.finished_data().to_vec()
+////////////////////////////////////////////////////////
+// FROM TRAIT AUX FUNCTIONS: to create Witnet's types
+////////////////////////////////////////////////////////
+// Create a Witnet Ping message to decode a flatbuffers' Ping message
+fn create_ping_message(ping_args: HeartbeatCommandsArgs) -> Message {
+    Message {
+        kind: Command::Ping(Ping {
+            nonce: ping_args.nonce,
+        }),
+        magic: ping_args.magic,
+    }
 }
 
-// Create witnet ip address
+// Create a Witnet Pong message to decode a flatbuffers' Pong message
+fn create_pong_message(pong_args: HeartbeatCommandsArgs) -> Message {
+    Message {
+        kind: Command::Pong(Pong {
+            nonce: pong_args.nonce,
+        }),
+        magic: pong_args.magic,
+    }
+}
+
+// Create a Witnet GetPeers message to decode a flatbuffers' GetPeers message
+fn create_get_peers_message(get_peers_args: EmptyCommandArgs) -> Message {
+    Message {
+        kind: Command::GetPeers(GetPeers),
+        magic: get_peers_args.magic,
+    }
+}
+
+// Create a Witnet's Peers message to decode a flatbuffers' Peers message
+fn create_peers_message(peers_args: PeersWitnetArgs) -> Option<Message> {
+    peers_args.peers.peers().map(|ftb_addresses| {
+        // TODO: Refactor as declarative code [24-10-2018]
+        let len = ftb_addresses.len();
+        let mut counter = 0;
+        let mut ftb_address: Option<Address>;
+        let mut peer;
+        let mut vec_addresses = Vec::new();
+        while counter < len {
+            peer = ftb_addresses.get(counter);
+            ftb_address = create_address(peer);
+            if ftb_address.is_some() {
+                vec_addresses.push(ftb_address.unwrap());
+            }
+            counter += 1;
+        }
+        Message {
+            kind: Command::Peers(Peers {
+                peers: vec_addresses,
+            }),
+            magic: peers_args.magic,
+        }
+    })
+}
+
+// Create a Witnet Verack message to decode a flatbuffers' Verack message
+fn create_verack_message(verack_args: EmptyCommandArgs) -> Message {
+    Message {
+        kind: Command::Verack(Verack),
+        magic: verack_args.magic,
+    }
+}
+
+// Create a Witnet Version message to decode a flatbuffers' Version message
+fn create_version_message(version_args: VersionCommandArgs) -> Message {
+    Message {
+        kind: Command::Version(Version {
+            version: version_args.version,
+            timestamp: version_args.timestamp,
+            capabilities: version_args.capabilities,
+            sender_address: *version_args.sender_address,
+            receiver_address: *version_args.receiver_address,
+            user_agent: version_args.user_agent.to_string(),
+            last_epoch: version_args.last_epoch,
+            genesis: version_args.genesis,
+            nonce: version_args.nonce,
+        }),
+        magic: version_args.magic,
+    }
+}
+
+// Create a Witnet's InventoryAnnouncement message to decode a flatbuffers' InventoryAnnouncement
+// message
+fn create_inventory_announcement_message(inv_args: InventoryAnnouncementWitnetArgs) -> Message {
+    // Get inventory entries (flatbuffers' types)
+    let ftb_inv_items = inv_args.inventory.inventory();
+    let len = ftb_inv_items.len();
+
+    // Create empty vector of inventory entries
+    let mut inv_items = Vec::new();
+
+    // Create all inventory entries (Witnet's types) and add them to a vector
+    for i in 0..len {
+        let inv_item = create_inventory_entry(ftb_inv_items.get(i));
+        inv_items.push(inv_item);
+    }
+
+    // Create message
+    Message {
+        magic: inv_args.magic,
+        kind: Command::InventoryAnnouncement(InventoryAnnouncement {
+            inventory: inv_items,
+        }),
+    }
+}
+
+// Create a Witnet's InventoryRequest message to decode a flatbuffers' InventoryRequest message
+fn create_inventory_request_message(get_data_args: InventoryRequestWitnetArgs) -> Message {
+    // Get inventory entries (flatbuffers' types)
+    let ftb_inv_items = get_data_args.inventory.inventory();
+    let len = ftb_inv_items.len();
+
+    // Create empty vector of inventory entries
+    let mut inv_items = Vec::new();
+
+    // Create all inventory entries (Witnet's types) and add them to a vector
+    for i in 0..len {
+        let inv_item = create_inventory_entry(ftb_inv_items.get(i));
+        inv_items.push(inv_item);
+    }
+
+    // Create message
+    Message {
+        magic: get_data_args.magic,
+        kind: Command::InventoryRequest(InventoryRequest {
+            inventory: inv_items,
+        }),
+    }
+}
+
+// Create a Witnet LastBeacon message to decode flatbuffers' LastBeacon message
+fn create_last_beacon_message(last_beacon_args: LastBeaconCommandArgs) -> Message {
+    Message {
+        kind: Command::LastBeacon(LastBeacon {
+            highest_block_checkpoint: CheckpointBeacon {
+                checkpoint: last_beacon_args.highest_block_checkpoint.checkpoint,
+                hash_prev_block: last_beacon_args.highest_block_checkpoint.hash_prev_block,
+            },
+        }),
+        magic: last_beacon_args.magic,
+    }
+}
+
+// Create a Witnet's InventoryEntry from a flatbuffers' InventoryEntry
+fn create_inventory_entry(inv_item: protocol::InventoryEntry) -> InventoryEntry {
+    // Create inventory entry hash
+    let hash = create_hash(inv_item.hash());
+
+    // Create inventory entry
+    match inv_item.type_() {
+        protocol::InventoryItemType::Error => InventoryEntry::Error(hash),
+        protocol::InventoryItemType::Tx => InventoryEntry::Tx(hash),
+        protocol::InventoryItemType::Block => InventoryEntry::Block(hash),
+        protocol::InventoryItemType::DataRequest => InventoryEntry::DataRequest(hash),
+        protocol::InventoryItemType::DataResult => InventoryEntry::DataResult(hash),
+    }
+}
+
+// Create a Witnet's Hash from a flatbuffers' Hash
+fn create_hash(hash: protocol::Hash) -> Hash {
+    // Get hash bytes
+    let mut hash_bytes: SHA256 = [0; 32];
+    hash_bytes.copy_from_slice(hash.bytes());
+
+    // Build hash
+    match hash.type_() {
+        protocol::HashType::SHA256 => Hash::SHA256(hash_bytes),
+    }
+}
+
+// Create Witnet IP address
 fn create_address(address: protocol::Address) -> Option<Address> {
     match address.ip_type() {
         protocol::IpAddress::Ipv4 => address
@@ -420,60 +615,81 @@ fn create_address(address: protocol::Address) -> Option<Address> {
     }
 }
 
-// Create a ping Flatbuffer to encode a Witnet ping message
-fn create_get_blocks_flatbuffer(
+// Create Witnet IPv4 address
+fn create_ipv4_address(ip: u32, port: u16) -> Address {
+    Address {
+        ip: Ipv4 { ip },
+        port,
+    }
+}
+
+// Create Witnet IPv6 address
+fn create_ipv6_address(ip0: u32, ip1: u32, ip2: u32, ip3: u32, port: u16) -> Address {
+    Address {
+        ip: Ipv6 { ip0, ip1, ip2, ip3 },
+        port,
+    }
+}
+
+////////////////////////////////////////////////////////
+// INTO TRAIT AUX FUNCTIONS: to create ftb types
+////////////////////////////////////////////////////////
+// Convert a flatbuffers message into a vector of bytes
+fn build_flatbuffer(
     builder: &mut FlatBufferBuilder,
-    get_blocks_args: GetBlocksCommandArgs,
+    message: flatbuffers::WIPOffset<protocol::Message>,
 ) -> Vec<u8> {
-    let Hash::SHA256(hash) = get_blocks_args.highest_block_checkpoint.hash_prev_block;
-    let ftb_hash = builder.create_vector(&hash);
-    let hash_command = protocol::Hash::create(
-        builder,
-        &protocol::HashArgs {
-            type_: protocol::HashType::SHA256,
-            bytes: Some(ftb_hash),
-        },
-    );
+    builder.finish(message, None);
+    builder.finished_data().to_vec()
+}
 
-    let beacon = protocol::CheckpointBeacon::create(
+// Create a Ping flatbuffer to encode a Witnet's Ping message
+fn create_ping_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    ping_args: HeartbeatCommandsArgs,
+) -> Vec<u8> {
+    let ping_command = protocol::Ping::create(
         builder,
-        &protocol::CheckpointBeaconArgs {
-            checkpoint: get_blocks_args.highest_block_checkpoint.checkpoint,
-            hash_prev_block: Some(hash_command),
-        },
-    );
-
-    let get_blocks_command = protocol::GetBlocks::create(
-        builder,
-        &protocol::GetBlocksArgs {
-            highest_block_checkpoint: Some(beacon),
+        &protocol::PingArgs {
+            nonce: ping_args.nonce.to_owned(),
         },
     );
     let message = protocol::Message::create(
         builder,
         &protocol::MessageArgs {
-            magic: get_blocks_args.magic,
-            command_type: protocol::Command::GetBlocks,
-            command: Some(get_blocks_command.as_union_value()),
+            magic: ping_args.magic,
+            command_type: protocol::Command::Ping,
+            command: Some(ping_command.as_union_value()),
         },
     );
+
     build_flatbuffer(builder, message)
 }
 
-// Create a Witnet ping message to decode Flatbuffers' ping message
-fn create_get_blocks_message(get_blocks_args: GetBlocksCommandArgs) -> Message {
-    Message {
-        kind: Command::GetBlocks(GetBlocks {
-            highest_block_checkpoint: CheckpointBeacon {
-                checkpoint: get_blocks_args.highest_block_checkpoint.checkpoint,
-                hash_prev_block: get_blocks_args.highest_block_checkpoint.hash_prev_block,
-            },
-        }),
-        magic: get_blocks_args.magic,
-    }
+// Create a Pong flatbuffer to encode a Witnet's Pong message
+fn create_pong_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    pong_args: HeartbeatCommandsArgs,
+) -> Vec<u8> {
+    let pong_command = protocol::Pong::create(
+        builder,
+        &protocol::PongArgs {
+            nonce: pong_args.nonce,
+        },
+    );
+    let message = protocol::Message::create(
+        builder,
+        &protocol::MessageArgs {
+            magic: pong_args.magic,
+            command_type: protocol::Command::Pong,
+            command: Some(pong_command.as_union_value()),
+        },
+    );
+
+    build_flatbuffer(builder, message)
 }
 
-// Create a get peers Flatbuffer to encode Witnet's get peers message
+// Create a GetPeers flatbuffer to encode Witnet's GetPeers message
 fn create_get_peers_flatbuffer(
     builder: &mut FlatBufferBuilder,
     get_peers_args: EmptyCommandArgs,
@@ -491,31 +707,7 @@ fn create_get_peers_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a Witnet get peers message to decode a Flatbuffers' get peers message
-fn create_get_peers_message(get_peers_args: EmptyCommandArgs) -> Message {
-    Message {
-        kind: Command::GetPeers(GetPeers),
-        magic: get_peers_args.magic,
-    }
-}
-
-// Create witnet ipv4 address
-fn create_ipv4_address(ip: u32, port: u16) -> Address {
-    Address {
-        ip: Ipv4 { ip },
-        port,
-    }
-}
-
-// Create witnet ipv6 address
-fn create_ipv6_address(ip0: u32, ip1: u32, ip2: u32, ip3: u32, port: u16) -> Address {
-    Address {
-        ip: Ipv6 { ip0, ip1, ip2, ip3 },
-        port,
-    }
-}
-
-// Create a peers flatbuffer to encode a witnet's peers message
+// Create a Peers flatbuffer to encode a Witnet's Peers message
 fn create_peers_flatbuffer(
     builder: &mut FlatBufferBuilder,
     peers_args: PeersFlatbufferArgs,
@@ -564,99 +756,7 @@ fn create_peers_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a witnet's peers message to decode a flatbuffers' peers message
-fn create_peers_message(peers_args: PeersWitnetArgs) -> Option<Message> {
-    peers_args.peers.peers().map(|ftb_addresses| {
-        // TODO: Refactor as declarative code [24-10-2018]
-        let len = ftb_addresses.len();
-        let mut counter = 0;
-        let mut ftb_address: Option<Address>;
-        let mut peer;
-        let mut vec_addresses = Vec::new();
-        while counter < len {
-            peer = ftb_addresses.get(counter);
-            ftb_address = create_address(peer);
-            if ftb_address.is_some() {
-                vec_addresses.push(ftb_address.unwrap());
-            }
-            counter += 1;
-        }
-        Message {
-            kind: Command::Peers(Peers {
-                peers: vec_addresses,
-            }),
-            magic: peers_args.magic,
-        }
-    })
-}
-
-// Create a ping flatbuffer to encode a witnet's ping message
-fn create_ping_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    ping_args: HeartbeatCommandsArgs,
-) -> Vec<u8> {
-    let ping_command = protocol::Ping::create(
-        builder,
-        &protocol::PingArgs {
-            nonce: ping_args.nonce.to_owned(),
-        },
-    );
-    let message = protocol::Message::create(
-        builder,
-        &protocol::MessageArgs {
-            magic: ping_args.magic,
-            command_type: protocol::Command::Ping,
-            command: Some(ping_command.as_union_value()),
-        },
-    );
-
-    build_flatbuffer(builder, message)
-}
-
-// Create a Witnet ping message to decode a Flatbuffers' ping message
-fn create_ping_message(ping_args: HeartbeatCommandsArgs) -> Message {
-    Message {
-        kind: Command::Ping(Ping {
-            nonce: ping_args.nonce,
-        }),
-        magic: ping_args.magic,
-    }
-}
-
-// Create a pong flatbuffer to encode a witnet's pong message
-fn create_pong_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    pong_args: HeartbeatCommandsArgs,
-) -> Vec<u8> {
-    let pong_command = protocol::Pong::create(
-        builder,
-        &protocol::PongArgs {
-            nonce: pong_args.nonce,
-        },
-    );
-    let message = protocol::Message::create(
-        builder,
-        &protocol::MessageArgs {
-            magic: pong_args.magic,
-            command_type: protocol::Command::Pong,
-            command: Some(pong_command.as_union_value()),
-        },
-    );
-
-    build_flatbuffer(builder, message)
-}
-
-// Create a witnet pong message to decode a Flatbuffers' pong message
-fn create_pong_message(pong_args: HeartbeatCommandsArgs) -> Message {
-    Message {
-        kind: Command::Pong(Pong {
-            nonce: pong_args.nonce,
-        }),
-        magic: pong_args.magic,
-    }
-}
-
-// Create a verack flatbuffer to encode a witnet's verack message
+// Create a Verack flatbuffer to encode a Witnet's Verack message
 fn create_verack_flatbuffer(
     builder: &mut FlatBufferBuilder,
     verack_args: EmptyCommandArgs,
@@ -674,15 +774,7 @@ fn create_verack_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a Witnet verack message to decode a Flatbuffers' verack message
-fn create_verack_message(verack_args: EmptyCommandArgs) -> Message {
-    Message {
-        kind: Command::Verack(Verack),
-        magic: verack_args.magic,
-    }
-}
-
-// Create a version flatbuffer to encode a witnet's version message
+// Create a Version flatbuffer to encode a Witnet's Version message
 fn create_version_flatbuffer(
     builder: &mut FlatBufferBuilder,
     version_args: VersionCommandArgs,
@@ -767,25 +859,7 @@ fn create_version_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a Witnet version message to decode a Flatbuffers' version message
-fn create_version_message(version_args: VersionCommandArgs) -> Message {
-    Message {
-        kind: Command::Version(Version {
-            version: version_args.version,
-            timestamp: version_args.timestamp,
-            capabilities: version_args.capabilities,
-            sender_address: *version_args.sender_address,
-            receiver_address: *version_args.receiver_address,
-            user_agent: version_args.user_agent.to_string(),
-            last_epoch: version_args.last_epoch,
-            genesis: version_args.genesis,
-            nonce: version_args.nonce,
-        }),
-        magic: version_args.magic,
-    }
-}
-
-// Create a block flatbuffer to encode a witnet's version message
+// Create a Block flatbuffer to encode a Witnet's Block message
 fn create_block_flatbuffer(
     builder: &mut FlatBufferBuilder,
     block_args: BlockCommandArgs,
@@ -890,20 +964,23 @@ fn create_block_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create an inv flatbuffer to encode a witnet's inv message
-fn create_inv_flatbuffer(builder: &mut FlatBufferBuilder, inv_args: InventoryArgs) -> Vec<u8> {
-    // Create vector of flatbuffers' inv vectors
-    let ftb_inv_vectors: Vec<flatbuffers::WIPOffset<protocol::InvVector>> = inv_args
+// Create an InventoryAnnouncement flatbuffer to encode a Witnet's InventoryAnnouncement message
+fn create_inventory_announcement_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    inv_args: InventoryArgs,
+) -> Vec<u8> {
+    // Create vector of flatbuffers' inv items
+    let ftb_inv_items: Vec<flatbuffers::WIPOffset<protocol::InventoryEntry>> = inv_args
         .inventory
         .iter()
-        .map(|inv_vector: &InvVector| {
+        .map(|inv_item: &InventoryEntry| {
             // Create flatbuffers' hash bytes
-            let hash = match inv_vector {
-                InvVector::Error(hash) => hash,
-                InvVector::Tx(hash) => hash,
-                InvVector::Block(hash) => hash,
-                InvVector::DataRequest(hash) => hash,
-                InvVector::DataResult(hash) => hash,
+            let hash = match inv_item {
+                InventoryEntry::Error(hash)
+                | InventoryEntry::Tx(hash)
+                | InventoryEntry::Block(hash)
+                | InventoryEntry::DataRequest(hash)
+                | InventoryEntry::DataResult(hash) => hash,
             };
 
             // Get hash bytes
@@ -923,18 +1000,18 @@ fn create_inv_flatbuffer(builder: &mut FlatBufferBuilder, inv_args: InventoryArg
             };
 
             // Create flatbuffers inv vector type
-            let ftb_type = match inv_vector {
-                InvVector::Error(_) => protocol::InvVectorType::Error,
-                InvVector::Tx(_) => protocol::InvVectorType::Tx,
-                InvVector::Block(_) => protocol::InvVectorType::Block,
-                InvVector::DataRequest(_) => protocol::InvVectorType::DataRequest,
-                InvVector::DataResult(_) => protocol::InvVectorType::DataResult,
+            let ftb_type = match inv_item {
+                InventoryEntry::Error(_) => protocol::InventoryItemType::Error,
+                InventoryEntry::Tx(_) => protocol::InventoryItemType::Tx,
+                InventoryEntry::Block(_) => protocol::InventoryItemType::Block,
+                InventoryEntry::DataRequest(_) => protocol::InventoryItemType::DataRequest,
+                InventoryEntry::DataResult(_) => protocol::InventoryItemType::DataResult,
             };
 
             // Create flatbuffers inv vector
-            protocol::InvVector::create(
+            protocol::InventoryEntry::create(
                 builder,
-                &protocol::InvVectorArgs {
+                &protocol::InventoryEntryArgs {
                     type_: ftb_type,
                     hash: Some(ftb_hash),
                 },
@@ -942,14 +1019,14 @@ fn create_inv_flatbuffer(builder: &mut FlatBufferBuilder, inv_args: InventoryArg
         })
         .collect();
 
-    // Create flatbuffers' vector of flatbuffers' inv vectors
-    let ftb_inv_vectors = Some(builder.create_vector(&ftb_inv_vectors));
+    // Create flatbuffers' vector of flatbuffers' inv items
+    let ftb_inv_items = Some(builder.create_vector(&ftb_inv_items));
 
     // Create inv flatbuffers command
-    let inv_command = protocol::Inv::create(
+    let inv_command = protocol::InventoryAnnouncement::create(
         builder,
-        &protocol::InvArgs {
-            inventory: ftb_inv_vectors,
+        &protocol::InventoryAnnouncementArgs {
+            inventory: ftb_inv_items,
         },
     );
 
@@ -958,7 +1035,7 @@ fn create_inv_flatbuffer(builder: &mut FlatBufferBuilder, inv_args: InventoryArg
         builder,
         &protocol::MessageArgs {
             magic: inv_args.magic,
-            command_type: protocol::Command::Inv,
+            command_type: protocol::Command::InventoryAnnouncement,
             command: Some(inv_command.as_union_value()),
         },
     );
@@ -967,23 +1044,23 @@ fn create_inv_flatbuffer(builder: &mut FlatBufferBuilder, inv_args: InventoryArg
     build_flatbuffer(builder, message)
 }
 
-// Create an get_data flatbuffer to encode a witnet's get_data message
-fn create_get_data_flatbuffer(
+// Create an InventoryRequest flatbuffer to encode a Witnet's InventoryRequest message
+fn create_inventory_request_flatbuffer(
     builder: &mut FlatBufferBuilder,
     get_data_args: InventoryArgs,
 ) -> Vec<u8> {
-    // Create vector of flatbuffers' inv vectors
-    let ftb_inv_vectors: Vec<flatbuffers::WIPOffset<protocol::InvVector>> = get_data_args
+    // Create vector of flatbuffers' inv items
+    let ftb_inv_items: Vec<flatbuffers::WIPOffset<protocol::InventoryEntry>> = get_data_args
         .inventory
         .iter()
-        .map(|inv_vector: &InvVector| {
+        .map(|inv_item: &InventoryEntry| {
             // Create flatbuffers' hash bytes
-            let hash = match inv_vector {
-                InvVector::Error(hash) => hash,
-                InvVector::Tx(hash) => hash,
-                InvVector::Block(hash) => hash,
-                InvVector::DataRequest(hash) => hash,
-                InvVector::DataResult(hash) => hash,
+            let hash = match inv_item {
+                InventoryEntry::Error(hash)
+                | InventoryEntry::Tx(hash)
+                | InventoryEntry::Block(hash)
+                | InventoryEntry::DataRequest(hash)
+                | InventoryEntry::DataResult(hash) => hash,
             };
 
             // Get hash bytes
@@ -1002,19 +1079,19 @@ fn create_get_data_flatbuffer(
                 ),
             };
 
-            // Create flatbuffers inv vector type
-            let ftb_type = match inv_vector {
-                InvVector::Error(_) => protocol::InvVectorType::Error,
-                InvVector::Tx(_) => protocol::InvVectorType::Tx,
-                InvVector::Block(_) => protocol::InvVectorType::Block,
-                InvVector::DataRequest(_) => protocol::InvVectorType::DataRequest,
-                InvVector::DataResult(_) => protocol::InvVectorType::DataResult,
+            // Create flatbuffers inv item type
+            let ftb_type = match inv_item {
+                InventoryEntry::Error(_) => protocol::InventoryItemType::Error,
+                InventoryEntry::Tx(_) => protocol::InventoryItemType::Tx,
+                InventoryEntry::Block(_) => protocol::InventoryItemType::Block,
+                InventoryEntry::DataRequest(_) => protocol::InventoryItemType::DataRequest,
+                InventoryEntry::DataResult(_) => protocol::InventoryItemType::DataResult,
             };
 
-            // Create flatbuffers inv vector
-            protocol::InvVector::create(
+            // Create flatbuffers inv item
+            protocol::InventoryEntry::create(
                 builder,
-                &protocol::InvVectorArgs {
+                &protocol::InventoryEntryArgs {
                     type_: ftb_type,
                     hash: Some(ftb_hash),
                 },
@@ -1022,14 +1099,14 @@ fn create_get_data_flatbuffer(
         })
         .collect();
 
-    // Create flatbuffers' vector of flatbuffers' inv elements
-    let ftb_inv_vectors = Some(builder.create_vector(&ftb_inv_vectors));
+    // Create flatbuffers' vector of flatbuffers' inv items
+    let ftb_inv_items = Some(builder.create_vector(&ftb_inv_items));
 
     // Create get_data flatbuffers command
-    let get_data_command = protocol::GetData::create(
+    let get_data_command = protocol::InventoryRequest::create(
         builder,
-        &protocol::GetDataArgs {
-            inventory: ftb_inv_vectors,
+        &protocol::InventoryRequestArgs {
+            inventory: ftb_inv_items,
         },
     );
 
@@ -1038,7 +1115,7 @@ fn create_get_data_flatbuffer(
         builder,
         &protocol::MessageArgs {
             magic: get_data_args.magic,
-            command_type: protocol::Command::GetData,
+            command_type: protocol::Command::InventoryRequest,
             command: Some(get_data_command.as_union_value()),
         },
     );
@@ -1047,77 +1124,42 @@ fn create_get_data_flatbuffer(
     build_flatbuffer(builder, message)
 }
 
-// Create a witnet's inv message to decode a flatbuffers' inv message
-fn create_inv_message(inv_args: InvWitnetArgs) -> Message {
-    // Get inventory vectors (flatbuffers' types)
-    let ftb_inv_vectors = inv_args.inventory.inventory();
-    let len = ftb_inv_vectors.len();
+// Create a LastBeacon flatbuffer to encode a Witnet LastBeacon message
+fn create_last_beacon_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    last_beacon_args: LastBeaconCommandArgs,
+) -> Vec<u8> {
+    let Hash::SHA256(hash) = last_beacon_args.highest_block_checkpoint.hash_prev_block;
+    let ftb_hash = builder.create_vector(&hash);
+    let hash_command = protocol::Hash::create(
+        builder,
+        &protocol::HashArgs {
+            type_: protocol::HashType::SHA256,
+            bytes: Some(ftb_hash),
+        },
+    );
 
-    // Create empty vector of inventory vectors
-    let mut inv_vectors = Vec::new();
+    let beacon = protocol::CheckpointBeacon::create(
+        builder,
+        &protocol::CheckpointBeaconArgs {
+            checkpoint: last_beacon_args.highest_block_checkpoint.checkpoint,
+            hash_prev_block: Some(hash_command),
+        },
+    );
 
-    // Create all inventory vectors (witnet's types) and add them to a vector
-    for i in 0..len {
-        let inv_vector = create_inv_vector(ftb_inv_vectors.get(i));
-        inv_vectors.push(inv_vector);
-    }
-
-    // Create message
-    Message {
-        magic: inv_args.magic,
-        kind: Command::Inv(Inv {
-            inventory: inv_vectors,
-        }),
-    }
-}
-
-// Create a witnet's inv vector from a flatbuffers' inv vector
-fn create_inv_vector(inv_vector: protocol::InvVector) -> InvVector {
-    // Create inventory vector hash
-    let hash = create_hash(inv_vector.hash());
-
-    // Create inventory vector
-    match inv_vector.type_() {
-        protocol::InvVectorType::Error => InvVector::Error(hash),
-        protocol::InvVectorType::Tx => InvVector::Tx(hash),
-        protocol::InvVectorType::Block => InvVector::Block(hash),
-        protocol::InvVectorType::DataRequest => InvVector::DataRequest(hash),
-        protocol::InvVectorType::DataResult => InvVector::DataResult(hash),
-    }
-}
-
-// Create a witnet's get_data message to decode a flatbuffers' get_data message
-fn create_get_data_message(get_data_args: GetDataWitnetArgs) -> Message {
-    // Get inventory elements (flatbuffers' types)
-    let ftb_inv_vectors = get_data_args.inventory.inventory();
-    let len = ftb_inv_vectors.len();
-
-    // Create empty vector of inventory elements
-    let mut inv_vectors = Vec::new();
-
-    // Create all inventory elements (witnet's types) and add them to a vector
-    for i in 0..len {
-        let inv_vector = create_inv_vector(ftb_inv_vectors.get(i));
-        inv_vectors.push(inv_vector);
-    }
-
-    // Create message
-    Message {
-        magic: get_data_args.magic,
-        kind: Command::GetData(GetData {
-            inventory: inv_vectors,
-        }),
-    }
-}
-
-// Create a witnet's hash from a flatbuffers' hash
-fn create_hash(hash: protocol::Hash) -> Hash {
-    // Get hash bytes
-    let mut hash_bytes: SHA256 = [0; 32];
-    hash_bytes.copy_from_slice(hash.bytes());
-
-    // Build hash
-    match hash.type_() {
-        protocol::HashType::SHA256 => Hash::SHA256(hash_bytes),
-    }
+    let last_beacon_command = protocol::LastBeacon::create(
+        builder,
+        &protocol::LastBeaconArgs {
+            highest_block_checkpoint: Some(beacon),
+        },
+    );
+    let message = protocol::Message::create(
+        builder,
+        &protocol::MessageArgs {
+            magic: last_beacon_args.magic,
+            command_type: protocol::Command::LastBeacon,
+            command: Some(last_beacon_command.as_union_value()),
+        },
+    );
+    build_flatbuffer(builder, message)
 }
