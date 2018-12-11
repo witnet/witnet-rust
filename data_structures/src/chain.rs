@@ -1,3 +1,9 @@
+use crate::chain::Hash;
+
+pub trait Hashable<T> {
+    fn hash(value: T) -> Hash;
+}
+
 /// Data structure holding critical information about the chain state and protocol constants
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct ChainInfo {
