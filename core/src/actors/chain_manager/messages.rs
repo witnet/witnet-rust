@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 
 use crate::actors::chain_manager::ChainManagerError;
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Epoch, Hash, InvVector},
+    chain::{Block, CheckpointBeacon, Epoch, Hash, InventoryEntry},
     error::ChainInfoResult,
 };
 
@@ -42,18 +42,18 @@ pub struct GetBlocksEpochRange {
 }
 
 impl Message for GetBlocksEpochRange {
-    type Result = Result<Vec<InvVector>, ChainManagerError>;
+    type Result = Result<Vec<InventoryEntry>, ChainManagerError>;
 }
 
-/// Discard inventory vectors that exist in the ChainManager
-pub struct DiscardExistingInvVectors {
-    /// Vector of InvVectors
-    pub inv_vectors: Vec<InvVector>,
+/// Discard inventory entries that exist in the BlocksManager
+pub struct DiscardExistingInventoryEntries {
+    /// Vector of inventory entries
+    pub inv_entries: Vec<InventoryEntry>,
 }
 
-/// Result of the DiscardExistingInvVectors message handling
-pub type InvVectorsResult = Result<Vec<InvVector>, ChainManagerError>;
+/// Result of the DiscardExistingInventoryEntries message handling
+pub type InventoryEntriesResult = Result<Vec<InventoryEntry>, ChainManagerError>;
 
-impl Message for DiscardExistingInvVectors {
-    type Result = InvVectorsResult;
+impl Message for DiscardExistingInventoryEntries {
+    type Result = InventoryEntriesResult;
 }

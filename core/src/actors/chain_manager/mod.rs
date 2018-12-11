@@ -32,7 +32,7 @@ use actix::{
 use witnet_data_structures::chain::ChainInfo;
 
 use crate::actors::{
-    chain_manager::messages::InvVectorsResult,
+    chain_manager::messages::InventoryEntriesResult,
     storage_keys::CHAIN_KEY,
     storage_manager::{messages::Put, StorageManager},
 };
@@ -40,7 +40,7 @@ use crate::actors::{
 use log::{debug, error, info};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use witnet_data_structures::chain::{Block, Epoch, Hash, InvVector};
+use witnet_data_structures::chain::{Block, Epoch, Hash, InventoryEntry};
 
 use witnet_storage::{error::StorageError, storage::Storable};
 
@@ -168,18 +168,21 @@ impl ChainManager {
         )
     }
 
-    fn discard_existing_inv_vectors(&mut self, inv_vectors: Vec<InvVector>) -> InvVectorsResult {
-        // Missing inventory vectors
-        let missing_inv_vectors = inv_vectors
+    fn discard_existing_inventory_entries(
+        &mut self,
+        inv_entries: Vec<InventoryEntry>,
+    ) -> InventoryEntriesResult {
+        // Missing inventory entries
+        let missing_inv_entries = inv_entries
             .into_iter()
-            .filter(|inv_vector| {
+            .filter(|inv_entry| {
                 // Get hash from inventory vector
-                let hash = match inv_vector {
-                    InvVector::Error(hash)
-                    | InvVector::Block(hash)
-                    | InvVector::Tx(hash)
-                    | InvVector::DataRequest(hash)
-                    | InvVector::DataResult(hash) => hash,
+                let hash = match inv_entry {
+                    InventoryEntry::Error(hash)
+                    | InventoryEntry::Block(hash)
+                    | InventoryEntry::Tx(hash)
+                    | InventoryEntry::DataRequest(hash)
+                    | InventoryEntry::DataResult(hash) => hash,
                 };
 
                 // Add the inventory vector to the missing vectors if it is not found
@@ -187,7 +190,7 @@ impl ChainManager {
             })
             .collect();
 
-        Ok(missing_inv_vectors)
+        Ok(missing_inv_entries)
     }
 }
 
@@ -307,17 +310,17 @@ mod tests {
         let hash_b = bm.process_new_block(block_b.clone()).unwrap();
         let hash_c = bm.process_new_block(block_c.clone()).unwrap();
 
-        // Build vector of inventory vectors from hashes
-        let mut inv_vectors = Vec::new();
-        inv_vectors.push(InvVector::Block(hash_a));
-        inv_vectors.push(InvVector::Block(hash_b));
-        inv_vectors.push(InvVector::Block(hash_c));
+        // Build vector of inventory entries from hashes
+        let mut inv_entries = Vec::new();
+        inv_entries.push(InventoryEntry::Block(hash_a));
+        inv_entries.push(InventoryEntry::Block(hash_b));
+        inv_entries.push(InventoryEntry::Block(hash_c));
 
-        // Filter inventory vectors
-        let missing_inv_vectors = bm.discard_existing_inv_vectors(inv_vectors).unwrap();
+        // Filter inventory entries
+        let missing_inv_entries = bm.discard_existing_inventory_entries(inv_entries).unwrap();
 
-        // Check there is no missing inventory vector
-        assert!(missing_inv_vectors.is_empty());
+        // Check there is no missing inventory entry
+        assert!(missing_inv_entries.is_empty());
     }
 
     #[test]
@@ -336,20 +339,21 @@ mod tests {
         let hash_c = bm.process_new_block(block_c.clone()).unwrap();
 
         // Missing inventory vector
-        let missing_inv_vector = InvVector::Block(Hash::SHA256([1; 32]));
+        let missing_inv_entries = InventoryEntry::Block(Hash::SHA256([1; 32]));
 
         // Build vector of inventory vectors from hashes
-        let mut inv_vectors = Vec::new();
-        inv_vectors.push(InvVector::Block(hash_a));
-        inv_vectors.push(InvVector::Block(hash_b));
-        inv_vectors.push(InvVector::Block(hash_c));
-        inv_vectors.push(missing_inv_vector.clone());
+        let mut inv_entries = Vec::new();
+        inv_entries.push(InventoryEntry::Block(hash_a));
+        inv_entries.push(InventoryEntry::Block(hash_b));
+        inv_entries.push(InventoryEntry::Block(hash_c));
+        inv_entries.push(missing_inv_entries.clone());
 
         // Filter inventory vectors
-        let missing_inv_vectors = bm.discard_existing_inv_vectors(inv_vectors).unwrap();
+        let expected_missing_inv_entries =
+            bm.discard_existing_inventory_entries(inv_entries).unwrap();
 
         // Check the expected missing inventory vectors
-        assert_eq!(missing_inv_vectors, vec![missing_inv_vector]);
+        assert_eq!(vec![missing_inv_entries], expected_missing_inv_entries);
     }
 
     #[test]
@@ -368,23 +372,23 @@ mod tests {
         bm.process_new_block(block_c.clone()).unwrap();
 
         // Missing inventory vector
-        let missing_inv_vector_1 = InvVector::Block(Hash::SHA256([1; 32]));
-        let missing_inv_vector_2 = InvVector::Block(Hash::SHA256([2; 32]));
-        let missing_inv_vector_3 = InvVector::Block(Hash::SHA256([3; 32]));
+        let missing_inv_entries_1 = InventoryEntry::Block(Hash::SHA256([1; 32]));
+        let missing_inv_entries_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
+        let missing_inv_entries_3 = InventoryEntry::Block(Hash::SHA256([3; 32]));
 
         // Build vector of missing inventory vectors from hashes
-        let mut inv_vectors = Vec::new();
-        inv_vectors.push(missing_inv_vector_1);
-        inv_vectors.push(missing_inv_vector_2);
-        inv_vectors.push(missing_inv_vector_3);
+        let mut inv_entries = Vec::new();
+        inv_entries.push(missing_inv_entries_1);
+        inv_entries.push(missing_inv_entries_2);
+        inv_entries.push(missing_inv_entries_3);
 
         // Filter inventory vectors
-        let missing_inv_vectors = bm
-            .discard_existing_inv_vectors(inv_vectors.clone())
+        let missing_inv_entries = bm
+            .discard_existing_inventory_entries(inv_entries.clone())
             .unwrap();
 
         // Check there is no missing inventory vector
-        assert_eq!(missing_inv_vectors, inv_vectors);
+        assert_eq!(missing_inv_entries, inv_entries);
     }
 
     #[cfg(test)]

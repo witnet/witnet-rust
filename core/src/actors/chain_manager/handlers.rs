@@ -4,7 +4,7 @@ use crate::actors::chain_manager::{ChainManager, ChainManagerError};
 use crate::actors::epoch_manager::messages::EpochNotification;
 
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Hash, InvVector},
+    chain::{Block, CheckpointBeacon, Hash, InventoryEntry},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
@@ -13,8 +13,8 @@ use witnet_util::error::WitnetError;
 use log::{debug, error};
 
 use super::messages::{
-    AddNewBlock, DiscardExistingInvVectors, GetBlock, GetBlocksEpochRange,
-    GetHighestCheckpointBeacon, InvVectorsResult,
+    AddNewBlock, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
+    GetHighestCheckpointBeacon, InventoryEntriesResult,
 };
 use crate::actors::session::messages::AnnounceItems;
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
@@ -85,7 +85,7 @@ impl Handler<AddNewBlock> for ChainManager {
                 let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
                 // Tell SessionsManager to announce the new block through every consolidated Session
-                let items = vec![InvVector::Block(hash)];
+                let items = vec![InventoryEntry::Block(hash)];
                 sessions_manager_addr.do_send(Broadcast {
                     command: AnnounceItems { items },
                 });
@@ -121,7 +121,7 @@ impl Handler<GetBlock> for ChainManager {
 
 /// Handler for GetBlocksEpochRange
 impl Handler<GetBlocksEpochRange> for ChainManager {
-    type Result = Result<Vec<InvVector>, ChainManagerError>;
+    type Result = Result<Vec<InventoryEntry>, ChainManagerError>;
 
     fn handle(
         &mut self,
@@ -132,7 +132,7 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         let hashes = range
             .map(|epoch| &self.epoch_to_block_hash[&epoch])
             .flatten()
-            .map(|hash| InvVector::Block(*hash))
+            .map(|hash| InventoryEntry::Block(*hash))
             .collect();
 
         Ok(hashes)
@@ -140,15 +140,15 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
 }
 
 /// Handler for DiscardExistingInvVectors message
-impl Handler<DiscardExistingInvVectors> for ChainManager {
-    type Result = InvVectorsResult;
+impl Handler<DiscardExistingInventoryEntries> for ChainManager {
+    type Result = InventoryEntriesResult;
 
     fn handle(
         &mut self,
-        msg: DiscardExistingInvVectors,
+        msg: DiscardExistingInventoryEntries,
         _ctx: &mut Context<Self>,
-    ) -> InvVectorsResult {
+    ) -> InventoryEntriesResult {
         // Discard existing inventory vectors
-        self.discard_existing_inv_vectors(msg.inv_vectors)
+        self.discard_existing_inventory_entries(msg.inv_entries)
     }
 }

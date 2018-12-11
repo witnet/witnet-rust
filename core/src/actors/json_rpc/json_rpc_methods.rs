@@ -38,9 +38,9 @@ pub enum InventoryItem {
     DataResult,
 }
 
-/// Make the node process, validate and potentially broadcast a new inventory item.
+/// Make the node process, validate and potentially broadcast a new inventory entry.
 ///
-/// Input: the JSON serialization of a well-formed inventory item
+/// Input: the JSON serialization of a well-formed inventory entry
 ///
 /// Returns a boolean indicating success.
 /* Test string:

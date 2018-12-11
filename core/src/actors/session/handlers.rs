@@ -11,7 +11,8 @@ use log::{debug, error, info, warn};
 use crate::actors::{
     chain_manager::{
         messages::{
-            AddNewBlock, DiscardExistingInvVectors, GetBlocksEpochRange, GetHighestCheckpointBeacon,
+            AddNewBlock, DiscardExistingInventoryEntries, GetBlocksEpochRange,
+            GetHighestCheckpointBeacon,
         },
         ChainManager,
     },
@@ -27,9 +28,12 @@ use super::{
 };
 use witnet_data_structures::{
     builders::from_address,
-    chain::{Block, CheckpointBeacon, Hash, InvVector},
+    chain::{Block, CheckpointBeacon, Hash, InventoryEntry},
     serializers::TryFrom,
-    types::{Address, Command, GetBlocks, GetData, Inv, Message as WitnetMessage, Peers, Version},
+    types::{
+        Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
+        Message as WitnetMessage, Peers, Version,
+    },
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
@@ -87,16 +91,20 @@ impl StreamHandler<BytesMut, Error> for Session {
                     //////////////
                     // GET DATA //
                     //////////////
-                    (_, SessionStatus::Consolidated, Command::GetData(GetData { inventory })) => {
+                    (
+                        _,
+                        SessionStatus::Consolidated,
+                        Command::InventoryRequest(InventoryRequest { inventory }),
+                    ) => {
                         for elem in inventory {
                             match elem {
-                                InvVector::Block(hash)
-                                | InvVector::Tx(hash)
-                                | InvVector::DataRequest(hash)
-                                | InvVector::DataResult(hash) => {
+                                InventoryEntry::Block(hash)
+                                | InventoryEntry::Tx(hash)
+                                | InventoryEntry::DataRequest(hash)
+                                | InventoryEntry::DataResult(hash) => {
                                     send_block_msg(self, ctx, &hash);
                                 }
-                                InvVector::Error(_) => warn!("Error InvElem received"),
+                                InventoryEntry::Error(_) => warn!("Error InvElem received"),
                             }
                         }
                     }
@@ -114,7 +122,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                     (
                         SessionType::Inbound,
                         SessionStatus::Consolidated,
-                        Command::GetBlocks(GetBlocks {
+                        Command::LastBeacon(LastBeacon {
                             highest_block_checkpoint,
                         }),
                     ) => {
@@ -123,7 +131,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                     (
                         SessionType::Outbound,
                         SessionStatus::Consolidated,
-                        Command::GetBlocks(GetBlocks {
+                        Command::LastBeacon(LastBeacon {
                             highest_block_checkpoint,
                         }),
                     ) => {
@@ -133,8 +141,8 @@ impl StreamHandler<BytesMut, Error> for Session {
                     ////////////////////
                     // INVENTORY      //
                     ////////////////////
-                    // Handle Inv message
-                    (_, SessionStatus::Consolidated, Command::Inv(inv)) => {
+                    // Handle InventoryAnnouncement message
+                    (_, SessionStatus::Consolidated, Command::InventoryAnnouncement(inv)) => {
                         inventory_process_inv(self, ctx, &inv);
                     }
                     /////////////////////
@@ -175,10 +183,10 @@ impl Handler<AnnounceItems> for Session {
             "Sending AnnounceItems message to peer at {:?}",
             self.remote_addr
         );
-        // Try to create Inv protocol message with items to be announced
-        if let Ok(inv_msg) = WitnetMessage::build_inv(msg.items) {
+        // Try to create AnnounceItems message with items to be announced
+        if let Ok(announce_items_msg) = WitnetMessage::build_inventory_announcement(msg.items) {
             // Send message through the session network connection
-            self.send_message(inv_msg);
+            self.send_message(announce_items_msg);
         };
     }
 }
@@ -197,7 +205,7 @@ fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
     }
 }
 
-/// Function to retrieve highest CheckpointBeacon and send GetBlocks message in Session
+/// Function to retrieve highest CheckpointBeacon and send LastBeacon message in Session
 fn inventory_get_blocks(session: &Session, ctx: &mut Context<Session>) {
     // Get ChainManager address from registry
     let chain_manager_addr = System::current().registry().get::<ChainManager>();
@@ -209,7 +217,7 @@ fn inventory_get_blocks(session: &Session, ctx: &mut Context<Session>) {
             match res {
                 Ok(Ok(beacon)) => {
                     // Create get blocks message
-                    let get_blocks_msg = WitnetMessage::build_get_blocks(beacon);
+                    let get_blocks_msg = WitnetMessage::build_last_beacon(beacon);
                     // Write get blocks message in session
                     act.send_message(get_blocks_msg);
 
@@ -329,10 +337,14 @@ fn inventory_process_block(_session: &mut Session, _ctx: &mut Context<Session>, 
     chain_manager_addr.do_send(AddNewBlock { block });
 }
 
-/// Function to process an Inv message
-fn inventory_process_inv(session: &mut Session, ctx: &mut Context<Session>, inv: &Inv) {
+/// Function to process an InventoryAnnouncement message
+fn inventory_process_inv(
+    session: &mut Session,
+    ctx: &mut Context<Session>,
+    inv: &InventoryAnnouncement,
+) {
     // Check how many of the received inventory vectors need to be requested
-    let inv_vectors = &inv.inventory;
+    let inv_entries = &inv.inventory;
 
     // Get ChainManager address
     let chain_manager_addr = System::current().registry().get::<ChainManager>();
@@ -341,15 +353,15 @@ fn inventory_process_inv(session: &mut Session, ctx: &mut Context<Session>, inv:
     chain_manager_addr
         // Send GetConfig message to config manager actor
         // This returns a Request Future, representing an asynchronous message sending process
-        .send(DiscardExistingInvVectors {
-            inv_vectors: inv_vectors.to_vec(),
+        .send(DiscardExistingInventoryEntries {
+            inv_entries: inv_entries.to_vec(),
         })
         // Convert a normal future into an ActorFuture
         .into_actor(session)
         // Process the response from the Chain Manager
         // This returns a FutureResult containing the socket address if present
         .then(|res, _act, _ctx| {
-            // Process the Result<InvVectorsResult, MailboxError>
+            // Process the Result<InventoryEntriesResult, MailboxError>
             match res {
                 Err(e) => {
                     error!("Unsuccessful communication with Chain Manager: {}", e);
@@ -366,11 +378,13 @@ fn inventory_process_inv(session: &mut Session, ctx: &mut Context<Session>, inv:
         })
         // Process the received filtered inv elems
         // This returns a FutureResult containing a success
-        .and_then(|missing_inv_vectors, act, _ctx| {
-            // Try to create GetData protocol message to request missing inventory vectors
-            if let Ok(get_data_msg) = WitnetMessage::build_get_data(missing_inv_vectors.to_vec()) {
-                // Send GetData message through the session network connection
-                act.send_message(get_data_msg);
+        .and_then(|missing_inv_entries, act, _ctx| {
+            // Try to create InventoryRequest protocol message to request missing inventory vectors
+            if let Ok(inv_req_msg) =
+                WitnetMessage::build_inventory_request(missing_inv_entries.to_vec())
+            {
+                // Send InventoryRequest message through the session network connection
+                act.send_message(inv_req_msg);
             }
 
             actix::fut::ok(())
@@ -419,7 +433,7 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
     responses
 }
 
-/// Function called when GetData message is received
+/// Function called when InventoryRequest message is received
 fn send_block_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash) {
     let Hash::SHA256(block_key) = *hash;
 
@@ -497,7 +511,9 @@ fn todo_inbound_session_getblocks(
                                 Ok(Ok(blocks)) => {
                                     // Try to create an Inv protocol message with the items to
                                     // be announced
-                                    if let Ok(inv_msg) = WitnetMessage::build_inv(blocks) {
+                                    if let Ok(inv_msg) =
+                                        WitnetMessage::build_inventory_announcement(blocks)
+                                    {
                                         // Send Inv message through the session network connection
                                         act.send_message(inv_msg);
                                     };
@@ -505,7 +521,7 @@ fn todo_inbound_session_getblocks(
                                     actix::fut::ok(())
                                 }
                                 _ => {
-                                    error!("GetBlocks::EpochRange didn't succeeded");
+                                    error!("LastBeacon::EpochRange didn't succeeded");
 
                                     actix::fut::err(())
                                 }
@@ -515,7 +531,8 @@ fn todo_inbound_session_getblocks(
                         debug!("Received checkpoint beacon is ahead of ours.");
                     }
                     // Create get blocks message
-                    // let get_blocks_msg = WitnetMessage::build_get_blocks(beacon);
+                    // let get_blocks_msg = WitnetMessage::build_last_beacon(beacon);
+
                     // Write get blocks message in session
                     // act.send_message(get_blocks_msg);
 
