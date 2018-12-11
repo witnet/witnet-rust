@@ -1,13 +1,13 @@
 use actix::Message;
 use std::ops::RangeInclusive;
 
-use crate::actors::blocks_manager::BlocksManagerError;
+use crate::actors::chain_manager::ChainManagerError;
 use witnet_data_structures::{
     chain::{Block, CheckpointBeacon, Epoch, Hash, InvVector},
     error::ChainInfoResult,
 };
 
-/// Message to obtain the highest block checkpoint managed by the `BlocksManager`
+/// Message to obtain the highest block checkpoint managed by the `ChainManager`
 /// actor.
 pub struct GetHighestCheckpointBeacon;
 
@@ -22,7 +22,7 @@ pub struct AddNewBlock {
 }
 
 impl Message for AddNewBlock {
-    type Result = Result<Hash, BlocksManagerError>;
+    type Result = Result<Hash, ChainManagerError>;
 }
 
 /// Ask for a block identified by its hash
@@ -32,7 +32,7 @@ pub struct GetBlock {
 }
 
 impl Message for GetBlock {
-    type Result = Result<Block, BlocksManagerError>;
+    type Result = Result<Block, ChainManagerError>;
 }
 
 /// Message to obtain a vector of block hashes using a range of epochs
@@ -42,17 +42,17 @@ pub struct GetBlocksEpochRange {
 }
 
 impl Message for GetBlocksEpochRange {
-    type Result = Result<Vec<InvVector>, BlocksManagerError>;
+    type Result = Result<Vec<InvVector>, ChainManagerError>;
 }
 
-/// Discard inventory vectors that exist in the BlocksManager
+/// Discard inventory vectors that exist in the ChainManager
 pub struct DiscardExistingInvVectors {
     /// Vector of InvVectors
     pub inv_vectors: Vec<InvVector>,
 }
 
 /// Result of the DiscardExistingInvVectors message handling
-pub type InvVectorsResult = Result<Vec<InvVector>, BlocksManagerError>;
+pub type InvVectorsResult = Result<Vec<InvVector>, ChainManagerError>;
 
 impl Message for DiscardExistingInvVectors {
     type Result = InvVectorsResult;

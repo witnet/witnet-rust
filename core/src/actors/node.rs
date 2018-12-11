@@ -4,11 +4,10 @@ use actix::{Actor, System};
 use log::info;
 
 use crate::actors::{
-    blocks_manager::BlocksManager, config_manager::ConfigManager,
+    chain_manager::ChainManager, config_manager::ConfigManager,
     connections_manager::ConnectionsManager, epoch_manager::EpochManager,
-    inventory_manager::InventoryManager, json_rpc::JsonRpcServer, mempool_manager::MempoolManager,
-    peers_manager::PeersManager, sessions_manager::SessionsManager,
-    storage_manager::StorageManager, utxo_manager::UtxoManager,
+    inventory_manager::InventoryManager, json_rpc::JsonRpcServer, peers_manager::PeersManager,
+    sessions_manager::SessionsManager, storage_manager::StorageManager,
 };
 
 /// Function to run the main system
@@ -43,17 +42,9 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     let epoch_manager_addr = EpochManager::default().start();
     System::current().registry().set(epoch_manager_addr);
 
-    // Start blocks manager actor
-    let blocks_manager_addr = BlocksManager::default().start();
-    System::current().registry().set(blocks_manager_addr);
-
-    // Start mempool manager actor
-    let mempool_manager_addr = MempoolManager::start_default();
-    System::current().registry().set(mempool_manager_addr);
-
-    // Start UTXO manager actor
-    let utxo_manager_addr = UtxoManager::start_default();
-    System::current().registry().set(utxo_manager_addr);
+    // Start Chain Manager actor
+    let chain_manager_addr = ChainManager::default().start();
+    System::current().registry().set(chain_manager_addr);
 
     // Start inventory manager actor
     let inventory_manager_addr = InventoryManager::start_default();

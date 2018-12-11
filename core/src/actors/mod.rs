@@ -28,14 +28,8 @@ pub mod storage_keys;
 /// EpochManager actor module
 pub mod epoch_manager;
 
-/// BlocksManager actor module
-pub mod blocks_manager;
-
-/// MempoolManager actor module
-pub mod mempool_manager;
-
-/// UtxoManager actor module
-pub mod utxo_manager;
+/// ChainManager actor module
+pub mod chain_manager;
 
 /// InventoryManager actor module
 pub mod inventory_manager;

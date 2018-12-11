@@ -1,6 +1,6 @@
 use actix::{Context, Handler, System};
 
-use crate::actors::blocks_manager::{BlocksManager, BlocksManagerError};
+use crate::actors::chain_manager::{ChainManager, ChainManagerError};
 use crate::actors::epoch_manager::messages::EpochNotification;
 
 use witnet_data_structures::{
@@ -31,7 +31,7 @@ pub struct EpochPayload;
 pub struct EveryEpochPayload;
 
 /// Handler for EpochNotification<EpochPayload>
-impl Handler<EpochNotification<EpochPayload>> for BlocksManager {
+impl Handler<EpochNotification<EpochPayload>> for ChainManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
@@ -40,7 +40,7 @@ impl Handler<EpochNotification<EpochPayload>> for BlocksManager {
 }
 
 /// Handler for EpochNotification<EveryEpochPayload>
-impl Handler<EpochNotification<EveryEpochPayload>> for BlocksManager {
+impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, _ctx: &mut Context<Self>) {
@@ -49,7 +49,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for BlocksManager {
 }
 
 /// Handler for GetHighestBlockCheckpoint message
-impl Handler<GetHighestCheckpointBeacon> for BlocksManager {
+impl Handler<GetHighestCheckpointBeacon> for ChainManager {
     type Result = ChainInfoResult<CheckpointBeacon>;
 
     fn handle(
@@ -60,24 +60,24 @@ impl Handler<GetHighestCheckpointBeacon> for BlocksManager {
         if let Some(chain_info) = &self.chain_info {
             Ok(chain_info.highest_block_checkpoint)
         } else {
-            error!("No ChainInfo loaded in BlocksManager");
+            error!("No ChainInfo loaded in ChainManager");
             Err(WitnetError::from(ChainInfoError::new(
                 ChainInfoErrorKind::ChainInfoNotFound,
-                "No ChainInfo loaded in BlocksManager".to_string(),
+                "No ChainInfo loaded in ChainManager".to_string(),
             )))
         }
     }
 }
 
 /// Handler for AddNewBlock message
-impl Handler<AddNewBlock> for BlocksManager {
-    type Result = Result<Hash, BlocksManagerError>;
+impl Handler<AddNewBlock> for ChainManager {
+    type Result = Result<Hash, ChainManagerError>;
 
     fn handle(
         &mut self,
         msg: AddNewBlock,
         _ctx: &mut Context<Self>,
-    ) -> Result<Hash, BlocksManagerError> {
+    ) -> Result<Hash, ChainManagerError> {
         let res = self.process_new_block(msg.block);
         match res {
             Ok(hash) => {
@@ -90,10 +90,10 @@ impl Handler<AddNewBlock> for BlocksManager {
                     command: AnnounceItems { items },
                 });
             }
-            Err(BlocksManagerError::BlockAlreadyExists) => {
+            Err(ChainManagerError::BlockAlreadyExists) => {
                 debug!("Block already exists");
             }
-            Err(BlocksManagerError::StorageError(_)) => {
+            Err(ChainManagerError::StorageError(_)) => {
                 debug!("Error when serializing block");
             }
             Err(_) => {
@@ -106,22 +106,22 @@ impl Handler<AddNewBlock> for BlocksManager {
 }
 
 /// Handler for GetBlock message
-impl Handler<GetBlock> for BlocksManager {
-    type Result = Result<Block, BlocksManagerError>;
+impl Handler<GetBlock> for ChainManager {
+    type Result = Result<Block, ChainManagerError>;
 
     fn handle(
         &mut self,
         msg: GetBlock,
         _ctx: &mut Context<Self>,
-    ) -> Result<Block, BlocksManagerError> {
+    ) -> Result<Block, ChainManagerError> {
         // Try to get block by hash
         self.try_to_get_block(msg.hash)
     }
 }
 
 /// Handler for GetBlocksEpochRange
-impl Handler<GetBlocksEpochRange> for BlocksManager {
-    type Result = Result<Vec<InvVector>, BlocksManagerError>;
+impl Handler<GetBlocksEpochRange> for ChainManager {
+    type Result = Result<Vec<InvVector>, ChainManagerError>;
 
     fn handle(
         &mut self,
@@ -140,7 +140,7 @@ impl Handler<GetBlocksEpochRange> for BlocksManager {
 }
 
 /// Handler for DiscardExistingInvVectors message
-impl Handler<DiscardExistingInvVectors> for BlocksManager {
+impl Handler<DiscardExistingInvVectors> for ChainManager {
     type Result = InvVectorsResult;
 
     fn handle(

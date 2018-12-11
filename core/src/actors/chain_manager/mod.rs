@@ -1,18 +1,30 @@
-//! # BlocksManager actor
+//! # ChainManager actor
 //!
-//! This module contains the BlocksManager actor which is in charge
-//! of managing the blocks of the Witnet blockchain received through
-//! the protocol. Among its responsabilities are the following:
+//! This module contains the ChainManager actor which is in charge
+//! of managing the blocks and transactions of the Witnet blockchain
+//! received through the protocol, and also encapsulates the logic of the
+//! _unspent transaction outputs_.
+//!
+//! Among its responsabilities are the following:
 //!
 //! * Initializing the chain info upon running the node for the first time and persisting it into storage [StorageManager](actors::storage_manager::StorageManager)
 //! * Recovering the chain info from storage and keeping it in its state.
 //! * Validating block candidates as they come from a session.
 //! * Consolidating multiple block candidates for the same checkpoint into a single valid block.
-//! * Putting valid blocks into storage by sending them to the storage manager actor.
+//! * Putting valid blocks into storage by sending them to the inventory manager actor.
 //! * Having a method for letting other components get blocks by *hash* or *checkpoint*.
 //! * Having a method for letting other components get the epoch of the current tip of the
 //! blockchain (e.g. the last epoch field required for the handshake in the Witnet network
 //! protocol).
+//! * Validating transactions as they come from any [Session](actors::session::Session). This includes:
+//!     - Iterating over its inputs, adding the value of the inputs to calculate the value of the transaction.
+//!     - Running the output scripts, expecting them all to return `TRUE` and leave an empty stack.
+//!     - Verifying that the sum of all inputs is greater than or equal to the sum of all the outputs.
+//! * Keeping valid transactions into memory. This in-memory transaction pool is what we call the _mempool_. Valid transactions are immediately appended to the mempool.
+//! * Keeping every unspent transaction output (UTXO) in the block chain in memory. This is called the _UTXO set_.
+//! * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
+//!     - Removing the UTXOs that the transaction spends as inputs.
+//!     - Adding a new UTXO for every output in the transaction.
 use actix::{
     ActorFuture, Context, ContextFutureSpawner, Supervised, System, SystemService, WrapFuture,
 };
@@ -20,7 +32,7 @@ use actix::{
 use witnet_data_structures::chain::ChainInfo;
 
 use crate::actors::{
-    blocks_manager::messages::InvVectorsResult,
+    chain_manager::messages::InvVectorsResult,
     storage_keys::CHAIN_KEY,
     storage_manager::{messages::Put, StorageManager},
 };
@@ -38,12 +50,12 @@ use witnet_util::error::WitnetError;
 mod actor;
 mod handlers;
 
-/// Messages for BlocksManager
+/// Messages for ChainManager
 pub mod messages;
 
-/// Possible errors when interacting with BlocksManager
+/// Possible errors when interacting with ChainManager
 #[derive(Debug)]
-pub enum BlocksManagerError {
+pub enum ChainManagerError {
     /// A block being processed was already known to this node
     BlockAlreadyExists,
     /// A block does not exist
@@ -52,18 +64,18 @@ pub enum BlocksManagerError {
     StorageError(WitnetError<StorageError>),
 }
 
-impl From<WitnetError<StorageError>> for BlocksManagerError {
+impl From<WitnetError<StorageError>> for ChainManagerError {
     fn from(x: WitnetError<StorageError>) -> Self {
-        BlocksManagerError::StorageError(x)
+        ChainManagerError::StorageError(x)
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
-/// BlocksManager actor
+/// ChainManager actor
 #[derive(Default)]
-pub struct BlocksManager {
+pub struct ChainManager {
     /// Blockchain information data structure
     chain_info: Option<ChainInfo>,
     /// Map that relates an epoch with the hashes of the blocks for that epoch
@@ -73,14 +85,14 @@ pub struct BlocksManager {
     blocks: HashMap<Hash, Block>,
 }
 
-/// Required trait for being able to retrieve BlocksManager address from registry
-impl Supervised for BlocksManager {}
+/// Required trait for being able to retrieve ChainManager address from registry
+impl Supervised for ChainManager {}
 
-/// Required trait for being able to retrieve BlocksManager address from registry
-impl SystemService for BlocksManager {}
+/// Required trait for being able to retrieve ChainManager address from registry
+impl SystemService for ChainManager {}
 
-/// Auxiliary methods for BlocksManager actor
-impl BlocksManager {
+/// Auxiliary methods for ChainManager actor
+impl ChainManager {
     /// Method to persist chain_info into storage
     fn persist_chain_info(&self, ctx: &mut Context<Self>) {
         // Get StorageManager address
@@ -104,10 +116,10 @@ impl BlocksManager {
             .then(|res, _act, _ctx| {
                 match res {
                     Ok(Ok(_)) => {
-                        info!("BlocksManager successfully persisted chain_info into storage")
+                        info!("ChainManager successfully persisted chain_info into storage")
                     }
                     _ => {
-                        error!("BlocksManager failed to persist chain_info into storage");
+                        error!("ChainManager failed to persist chain_info into storage");
                         // FIXME(#72): handle errors
                     }
                 }
@@ -116,13 +128,13 @@ impl BlocksManager {
             .wait(ctx);
     }
 
-    fn process_new_block(&mut self, block: Block) -> Result<Hash, BlocksManagerError> {
+    fn process_new_block(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
         // Calculate the hash of the block
         let hash = calculate_sha256(&block.to_bytes()?);
 
         // Check if we already have a block with that hash
         if let Some(_block) = self.blocks.get(&hash) {
-            Err(BlocksManagerError::BlockAlreadyExists)
+            Err(ChainManagerError::BlockAlreadyExists)
         } else {
             // This is a new block, insert it into the internal maps
             {
@@ -148,10 +160,10 @@ impl BlocksManager {
         }
     }
 
-    fn try_to_get_block(&mut self, hash: Hash) -> Result<Block, BlocksManagerError> {
+    fn try_to_get_block(&mut self, hash: Hash) -> Result<Block, ChainManagerError> {
         // Check if we have a block with that hash
         self.blocks.get(&hash).map_or_else(
-            || Err(BlocksManagerError::BlockDoesNotExist),
+            || Err(ChainManagerError::BlockDoesNotExist),
             |block| Ok(block.clone()),
         )
     }
@@ -185,13 +197,13 @@ mod tests {
 
     #[test]
     fn add_block() {
-        let mut bm = BlocksManager::default();
+        let mut bm = ChainManager::default();
 
         // Build hardcoded block
         let checkpoint = 2;
         let block_a = build_hardcoded_block(checkpoint, 99999);
 
-        // Add block to BlocksManager
+        // Add block to ChainManager
         let hash_a = bm.process_new_block(block_a.clone()).unwrap();
 
         // Check the block is added into the blocks map
@@ -213,7 +225,7 @@ mod tests {
 
     #[test]
     fn add_same_block_twice() {
-        let mut bm = BlocksManager::default();
+        let mut bm = ChainManager::default();
 
         // Build hardcoded block
         let block = build_hardcoded_block(2, 99999);
@@ -226,14 +238,14 @@ mod tests {
 
     #[test]
     fn add_blocks_same_epoch() {
-        let mut bm = BlocksManager::default();
+        let mut bm = ChainManager::default();
 
         // Build hardcoded blocks
         let checkpoint = 2;
         let block_a = build_hardcoded_block(checkpoint, 99999);
         let block_b = build_hardcoded_block(checkpoint, 12345);
 
-        // Add blocks to the BlocksManager
+        // Add blocks to the ChainManager
         let hash_a = bm.process_new_block(block_a).unwrap();
         let hash_b = bm.process_new_block(block_b).unwrap();
 
@@ -253,16 +265,16 @@ mod tests {
 
     #[test]
     fn get_existing_block() {
-        // Create empty BlocksManager
-        let mut bm = BlocksManager::default();
+        // Create empty ChainManager
+        let mut bm = ChainManager::default();
 
         // Create a hardcoded block
         let block_a = build_hardcoded_block(2, 99999);
 
-        // Add the block to the BlocksManager
+        // Add the block to the ChainManager
         let hash_a = bm.process_new_block(block_a.clone()).unwrap();
 
-        // Try to get the block from the BlocksManager
+        // Try to get the block from the ChainManager
         let stored_block = bm.try_to_get_block(hash_a).unwrap();
 
         assert_eq!(stored_block, block_a);
@@ -270,8 +282,8 @@ mod tests {
 
     #[test]
     fn get_non_existent_block() {
-        // Create empty BlocksManager
-        let mut bm = BlocksManager::default();
+        // Create empty ChainManager
+        let mut bm = ChainManager::default();
 
         // Try to get a block with an invented hash
         let result = bm.try_to_get_block(Hash::SHA256([1; 32]));
@@ -282,15 +294,15 @@ mod tests {
 
     #[test]
     fn discard_all() {
-        // Create empty BlocksManager
-        let mut bm = BlocksManager::default();
+        // Create empty ChainManager
+        let mut bm = ChainManager::default();
 
         // Build blocks
         let block_a = build_hardcoded_block(2, 99999);
         let block_b = build_hardcoded_block(1, 10000);
         let block_c = build_hardcoded_block(3, 72138);
 
-        // Add blocks to the BlocksManager
+        // Add blocks to the ChainManager
         let hash_a = bm.process_new_block(block_a.clone()).unwrap();
         let hash_b = bm.process_new_block(block_b.clone()).unwrap();
         let hash_c = bm.process_new_block(block_c.clone()).unwrap();
@@ -310,15 +322,15 @@ mod tests {
 
     #[test]
     fn discard_some() {
-        // Create empty BlocksManager
-        let mut bm = BlocksManager::default();
+        // Create empty ChainManager
+        let mut bm = ChainManager::default();
 
         // Build blocks
         let block_a = build_hardcoded_block(2, 99999);
         let block_b = build_hardcoded_block(1, 10000);
         let block_c = build_hardcoded_block(3, 72138);
 
-        // Add blocks to the BlocksManager
+        // Add blocks to the ChainManager
         let hash_a = bm.process_new_block(block_a.clone()).unwrap();
         let hash_b = bm.process_new_block(block_b.clone()).unwrap();
         let hash_c = bm.process_new_block(block_c.clone()).unwrap();
@@ -342,15 +354,15 @@ mod tests {
 
     #[test]
     fn discard_none() {
-        // Create empty BlocksManager
-        let mut bm = BlocksManager::default();
+        // Create empty ChainManager
+        let mut bm = ChainManager::default();
 
         // Build blocks
         let block_a = build_hardcoded_block(2, 99999);
         let block_b = build_hardcoded_block(1, 10000);
         let block_c = build_hardcoded_block(3, 72138);
 
-        // Add blocks to the BlocksManager
+        // Add blocks to the ChainManager
         bm.process_new_block(block_a.clone()).unwrap();
         bm.process_new_block(block_b.clone()).unwrap();
         bm.process_new_block(block_c.clone()).unwrap();

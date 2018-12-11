@@ -34,7 +34,7 @@ impl fmt::Display for ChainInfoErrorKind {
     }
 }
 
-/// Result type for the ChainInfo in BlocksManager module.
+/// Result type for the ChainInfo in ChainManager module.
 pub type ChainInfoResult<T> = WitnetResult<T, ChainInfoError>;
 
 /// Error in builders functions

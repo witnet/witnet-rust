@@ -1,6 +1,6 @@
 #[cfg(test)]
 use self::mock_actix::System;
-use crate::actors::blocks_manager::{messages::AddNewBlock, BlocksManager};
+use crate::actors::chain_manager::{messages::AddNewBlock, ChainManager};
 #[cfg(not(test))]
 use actix::System;
 use jsonrpc_core::{IoHandler, Params, Value};
@@ -52,10 +52,10 @@ pub fn inventory(inv_elem: InventoryItem) -> Result<Value, jsonrpc_core::Error> 
             info!("Got block from JSON-RPC. Sending AnnounceItems message.");
 
             // Get SessionsManager's address
-            let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
+            let chain_manager_addr = System::current().registry().get::<ChainManager>();
             // If this function was called asynchronously, it could wait for the result
             // But it's not so we just assume success
-            blocks_manager_addr.do_send(AddNewBlock { block });
+            chain_manager_addr.do_send(AddNewBlock { block });
 
             // Returns a boolean indicating success
             Ok(Value::Bool(true))

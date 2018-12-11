@@ -9,11 +9,11 @@ use actix::{
 use log::{debug, error, info, warn};
 
 use crate::actors::{
-    blocks_manager::{
+    chain_manager::{
         messages::{
             AddNewBlock, DiscardExistingInvVectors, GetBlocksEpochRange, GetHighestCheckpointBeacon,
         },
-        BlocksManager,
+        ChainManager,
     },
     codec::BytesMut,
     peers_manager,
@@ -199,10 +199,10 @@ fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
 
 /// Function to retrieve highest CheckpointBeacon and send GetBlocks message in Session
 fn inventory_get_blocks(session: &Session, ctx: &mut Context<Session>) {
-    // Get BlocksManager address from registry
-    let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
-    // Send GetHighestCheckpointBeacon message to BlocksManager
-    blocks_manager_addr
+    // Get ChainManager address from registry
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    // Send GetHighestCheckpointBeacon message to ChainManager
+    chain_manager_addr
         .send(GetHighestCheckpointBeacon)
         .into_actor(session)
         .then(|res, act, ctx| {
@@ -216,7 +216,7 @@ fn inventory_get_blocks(session: &Session, ctx: &mut Context<Session>) {
                     actix::fut::ok(())
                 }
                 _ => {
-                    warn!("Get highest checkpoint beacon in Blocks Manager failed");
+                    warn!("Get highest checkpoint beacon in Chain Manager failed");
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();
@@ -322,11 +322,11 @@ fn peer_discovery_peers(peers: &[Address]) {
 
 /// Function called when Block message is received
 fn inventory_process_block(_session: &mut Session, _ctx: &mut Context<Session>, block: Block) {
-    // Get BlocksManager address
-    let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
+    // Get ChainManager address
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
 
-    // Send a message to the BlocksManager to try to add a new block
-    blocks_manager_addr.do_send(AddNewBlock { block });
+    // Send a message to the ChainManager to try to add a new block
+    chain_manager_addr.do_send(AddNewBlock { block });
 }
 
 /// Function to process an Inv message
@@ -334,11 +334,11 @@ fn inventory_process_inv(session: &mut Session, ctx: &mut Context<Session>, inv:
     // Check how many of the received inventory vectors need to be requested
     let inv_vectors = &inv.inventory;
 
-    // Get BlocksManager address
-    let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
+    // Get ChainManager address
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
 
-    // Send a message to the BlocksManager to try to add a new block
-    blocks_manager_addr
+    // Send a message to the ChainManager to try to add a new block
+    chain_manager_addr
         // Send GetConfig message to config manager actor
         // This returns a Request Future, representing an asynchronous message sending process
         .send(DiscardExistingInvVectors {
@@ -346,13 +346,13 @@ fn inventory_process_inv(session: &mut Session, ctx: &mut Context<Session>, inv:
         })
         // Convert a normal future into an ActorFuture
         .into_actor(session)
-        // Process the response from the blocks manager
+        // Process the response from the Chain Manager
         // This returns a FutureResult containing the socket address if present
         .then(|res, _act, _ctx| {
             // Process the Result<InvVectorsResult, MailboxError>
             match res {
                 Err(e) => {
-                    error!("Unsuccessful communication with blocks manager: {}", e);
+                    error!("Unsuccessful communication with Chain Manager: {}", e);
                     actix::fut::err(())
                 }
                 Ok(res) => match res {
@@ -475,10 +475,10 @@ fn todo_inbound_session_getblocks(
         ..
     }: CheckpointBeacon,
 ) {
-    // Get BlocksManager address from registry
-    let blocks_manager_addr = System::current().registry().get::<BlocksManager>();
-    // Send GetHighestCheckpointBeacon message to BlocksManager
-    blocks_manager_addr
+    // Get ChainManager address from registry
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    // Send GetHighestCheckpointBeacon message to ChainManager
+    chain_manager_addr
         .send(GetHighestCheckpointBeacon)
         .into_actor(session)
         .then(move |res, act, ctx| {
@@ -490,7 +490,7 @@ fn todo_inbound_session_getblocks(
                     if highest_checkpoint > received_checkpoint {
                         let range = (received_checkpoint + 1)..=highest_checkpoint;
 
-                        blocks_manager_addr
+                        chain_manager_addr
                             .send(GetBlocksEpochRange { range })
                             .into_actor(act)
                             .then(|res, act, _ctx| match res {
@@ -522,7 +522,7 @@ fn todo_inbound_session_getblocks(
                     actix::fut::ok(())
                 }
                 _ => {
-                    warn!("Get highest checkpoint beacon in Blocks Manager failed");
+                    warn!("Get highest checkpoint beacon in Chain Manager failed");
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();
