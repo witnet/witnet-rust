@@ -1,5 +1,3 @@
-use crate::chain::Hash;
-
 pub trait Hashable<T> {
     fn hash(value: T) -> Hash;
 }
