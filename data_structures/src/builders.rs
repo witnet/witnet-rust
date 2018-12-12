@@ -3,7 +3,9 @@ use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
-use crate::chain::{Block, BlockHeaderWithProof, CheckpointBeacon, InventoryEntry, Transaction};
+use crate::chain::{
+    Block, BlockHeader, CheckpointBeacon, InventoryEntry, LeadershipProof, Transaction,
+};
 use crate::error::{BuildersError, BuildersErrorKind, BuildersResult};
 use crate::types::{
     Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress, LastBeacon,
@@ -137,10 +139,14 @@ impl Message {
     }
 
     /// Function to build Block message
-    pub fn build_block(header: BlockHeaderWithProof, txns: Vec<Transaction>) -> Message {
+    pub fn build_block(
+        block_header: BlockHeader,
+        proof: LeadershipProof,
+        txns: Vec<Transaction>,
+    ) -> Message {
         Message::build_message(Command::Block(Block {
-            header,
-            txn_count: txns.len() as u32,
+            block_header,
+            proof,
             txns,
         }))
     }

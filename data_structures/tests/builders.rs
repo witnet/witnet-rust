@@ -34,31 +34,32 @@ fn builders_build_block() {
         s: [0; 32],
         v: 0,
     });
-    let header_with_proof = BlockHeaderWithProof {
-        block_header: BlockHeader {
-            version: header.version,
-            beacon: header.beacon,
-            hash_merkle_root: header.hash_merkle_root,
-        },
-        proof: LeadershipProof {
-            block_sig: Some(signature),
-            influence: 0,
-        },
+    let block_header = BlockHeader {
+        version: header.version,
+        beacon: header.beacon,
+        hash_merkle_root: header.hash_merkle_root,
+    };
+    let proof = LeadershipProof {
+        block_sig: Some(signature.clone()),
+        influence: 0,
     };
     let txns: Vec<Transaction> = vec![Transaction];
 
     // Expected message
     let msg = Message {
         kind: Command::Block(Block {
-            header: header_with_proof.clone(),
-            txn_count: txns.len() as u32,
+            block_header: block_header.clone(),
+            proof: LeadershipProof {
+                block_sig: Some(signature),
+                influence: 0,
+            },
             txns: txns.clone(),
         }),
         magic: MAGIC,
     };
 
     // Check that the build_block function builds the expected message
-    assert_eq!(msg, Message::build_block(header_with_proof, txns));
+    assert_eq!(msg, Message::build_block(block_header, proof, txns));
 }
 
 #[test]

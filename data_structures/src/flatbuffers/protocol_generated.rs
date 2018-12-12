@@ -1120,22 +1120,22 @@ impl<'a> Block<'a> {
         args: &'args BlockArgs<'args>) -> flatbuffers::WIPOffset<Block<'bldr>> {
       let mut builder = BlockBuilder::new(_fbb);
       if let Some(x) = args.txns { builder.add_txns(x); }
-      builder.add_txn_count(args.txn_count);
-      if let Some(x) = args.header { builder.add_header(x); }
+      if let Some(x) = args.proof { builder.add_proof(x); }
+      if let Some(x) = args.block_header { builder.add_block_header(x); }
       builder.finish()
     }
 
-    pub const VT_HEADER: flatbuffers::VOffsetT = 4;
-    pub const VT_TXN_COUNT: flatbuffers::VOffsetT = 6;
+    pub const VT_BLOCK_HEADER: flatbuffers::VOffsetT = 4;
+    pub const VT_PROOF: flatbuffers::VOffsetT = 6;
     pub const VT_TXNS: flatbuffers::VOffsetT = 8;
 
   #[inline]
-  pub fn header(&self) -> BlockHeader<'a> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<BlockHeader<'a>>>(Block::VT_HEADER, None).unwrap()
+  pub fn block_header(&self) -> BlockHeader<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<BlockHeader<'a>>>(Block::VT_BLOCK_HEADER, None).unwrap()
   }
   #[inline]
-  pub fn txn_count(&self) -> u32 {
-    self._tab.get::<u32>(Block::VT_TXN_COUNT, Some(0)).unwrap()
+  pub fn proof(&self) -> LeadershipProof<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<LeadershipProof<'a>>>(Block::VT_PROOF, None).unwrap()
   }
   #[inline]
   pub fn txns(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<Transaction<'a>>> {
@@ -1144,16 +1144,16 @@ impl<'a> Block<'a> {
 }
 
 pub struct BlockArgs<'a> {
-    pub header: Option<flatbuffers::WIPOffset<BlockHeader<'a >>>,
-    pub txn_count: u32,
+    pub block_header: Option<flatbuffers::WIPOffset<BlockHeader<'a >>>,
+    pub proof: Option<flatbuffers::WIPOffset<LeadershipProof<'a >>>,
     pub txns: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Transaction<'a >>>>>,
 }
 impl<'a> Default for BlockArgs<'a> {
     #[inline]
     fn default() -> Self {
         BlockArgs {
-            header: None, // required field
-            txn_count: 0,
+            block_header: None, // required field
+            proof: None, // required field
             txns: None, // required field
         }
     }
@@ -1164,12 +1164,12 @@ pub struct BlockBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> BlockBuilder<'a, 'b> {
   #[inline]
-  pub fn add_header(&mut self, header: flatbuffers::WIPOffset<BlockHeader<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<BlockHeader>>(Block::VT_HEADER, header);
+  pub fn add_block_header(&mut self, block_header: flatbuffers::WIPOffset<BlockHeader<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<BlockHeader>>(Block::VT_BLOCK_HEADER, block_header);
   }
   #[inline]
-  pub fn add_txn_count(&mut self, txn_count: u32) {
-    self.fbb_.push_slot::<u32>(Block::VT_TXN_COUNT, txn_count, 0);
+  pub fn add_proof(&mut self, proof: flatbuffers::WIPOffset<LeadershipProof<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<LeadershipProof>>(Block::VT_PROOF, proof);
   }
   #[inline]
   pub fn add_txns(&mut self, txns: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Transaction<'b >>>>) {
@@ -1186,7 +1186,8 @@ impl<'a: 'b, 'b> BlockBuilder<'a, 'b> {
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<Block<'a>> {
     let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, Block::VT_HEADER,"header");
+    self.fbb_.required(o, Block::VT_BLOCK_HEADER,"block_header");
+    self.fbb_.required(o, Block::VT_PROOF,"proof");
     self.fbb_.required(o, Block::VT_TXNS,"txns");
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -2290,7 +2291,6 @@ impl<'a> BlockHeader<'a> {
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
         args: &'args BlockHeaderArgs<'args>) -> flatbuffers::WIPOffset<BlockHeader<'bldr>> {
       let mut builder = BlockHeaderBuilder::new(_fbb);
-      if let Some(x) = args.proof { builder.add_proof(x); }
       if let Some(x) = args.hash_merkle_root { builder.add_hash_merkle_root(x); }
       if let Some(x) = args.beacon { builder.add_beacon(x); }
       builder.add_version(args.version);
@@ -2300,7 +2300,6 @@ impl<'a> BlockHeader<'a> {
     pub const VT_VERSION: flatbuffers::VOffsetT = 4;
     pub const VT_BEACON: flatbuffers::VOffsetT = 6;
     pub const VT_HASH_MERKLE_ROOT: flatbuffers::VOffsetT = 8;
-    pub const VT_PROOF: flatbuffers::VOffsetT = 10;
 
   #[inline]
   pub fn version(&self) -> u32 {
@@ -2314,17 +2313,12 @@ impl<'a> BlockHeader<'a> {
   pub fn hash_merkle_root(&self) -> Hash<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(BlockHeader::VT_HASH_MERKLE_ROOT, None).unwrap()
   }
-  #[inline]
-  pub fn proof(&self) -> LeadershipProof<'a> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<LeadershipProof<'a>>>(BlockHeader::VT_PROOF, None).unwrap()
-  }
 }
 
 pub struct BlockHeaderArgs<'a> {
     pub version: u32,
     pub beacon: Option<flatbuffers::WIPOffset<CheckpointBeacon<'a >>>,
     pub hash_merkle_root: Option<flatbuffers::WIPOffset<Hash<'a >>>,
-    pub proof: Option<flatbuffers::WIPOffset<LeadershipProof<'a >>>,
 }
 impl<'a> Default for BlockHeaderArgs<'a> {
     #[inline]
@@ -2333,7 +2327,6 @@ impl<'a> Default for BlockHeaderArgs<'a> {
             version: 0,
             beacon: None, // required field
             hash_merkle_root: None, // required field
-            proof: None, // required field
         }
     }
 }
@@ -2355,10 +2348,6 @@ impl<'a: 'b, 'b> BlockHeaderBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(BlockHeader::VT_HASH_MERKLE_ROOT, hash_merkle_root);
   }
   #[inline]
-  pub fn add_proof(&mut self, proof: flatbuffers::WIPOffset<LeadershipProof<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<LeadershipProof>>(BlockHeader::VT_PROOF, proof);
-  }
-  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> BlockHeaderBuilder<'a, 'b> {
     let start = _fbb.start_table();
     BlockHeaderBuilder {
@@ -2371,7 +2360,6 @@ impl<'a: 'b, 'b> BlockHeaderBuilder<'a, 'b> {
     let o = self.fbb_.end_table(self.start_);
     self.fbb_.required(o, BlockHeader::VT_BEACON,"beacon");
     self.fbb_.required(o, BlockHeader::VT_HASH_MERKLE_ROOT,"hash_merkle_root");
-    self.fbb_.required(o, BlockHeader::VT_PROOF,"proof");
     flatbuffers::WIPOffset::new(o.value())
   }
 }

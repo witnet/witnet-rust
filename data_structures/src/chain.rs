@@ -1,7 +1,7 @@
 use witnet_crypto::hash::Sha256;
 
-pub trait Hashable<T> {
-    fn hash(value: T) -> Hash;
+pub trait Hashable {
+    fn hash(&self) -> Hash;
 }
 
 /// Data structure holding critical information about the chain state and protocol constants
@@ -82,9 +82,9 @@ pub type Epoch = u32;
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Block {
     /// The header of the block
-    pub header: BlockHeaderWithProof,
-    /// The total number of transactions of the block
-    pub txn_count: u32,
+    pub block_header: BlockHeader,
+    /// A miner-provided proof of leadership
+    pub proof: LeadershipProof,
     /// A non-empty list of transactions
     pub txns: Vec<Transaction>,
 }
@@ -98,15 +98,6 @@ pub struct BlockHeader {
     pub beacon: CheckpointBeacon,
     /// A 256-bit hash based on all of the transactions committed to this block
     pub hash_merkle_root: Hash,
-}
-
-/// Block header structure with proof of leadership
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub struct BlockHeaderWithProof {
-    /// The block header
-    pub block_header: BlockHeader,
-    /// A miner-provided proof of leadership
-    pub proof: LeadershipProof,
 }
 
 /// Proof of leadership structure

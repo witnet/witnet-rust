@@ -139,7 +139,7 @@ impl ChainManager {
             // This is a new block, insert it into the internal maps
             {
                 // Insert the new block into the map that relates epochs to block hashes
-                let beacon = &block.header.block_header.beacon;
+                let beacon = &block.block_header.beacon;
                 let hash_set = &mut self
                     .epoch_to_block_hash
                     .entry(beacon.checkpoint)
@@ -395,21 +395,18 @@ mod tests {
     fn build_hardcoded_block(checkpoint: u32, influence: u64) -> Block {
         use witnet_data_structures::chain::*;
         Block {
-            header: BlockHeaderWithProof {
-                block_header: BlockHeader {
-                    version: 1,
-                    beacon: CheckpointBeacon {
-                        checkpoint,
-                        hash_prev_block: Hash::SHA256([4; 32]),
-                    },
-                    hash_merkle_root: Hash::SHA256([3; 32]),
+            block_header: BlockHeader {
+                version: 1,
+                beacon: CheckpointBeacon {
+                    checkpoint,
+                    hash_prev_block: Hash::SHA256([4; 32]),
                 },
-                proof: LeadershipProof {
-                    block_sig: None,
-                    influence,
-                },
+                hash_merkle_root: Hash::SHA256([3; 32]),
             },
-            txn_count: 1,
+            proof: LeadershipProof {
+                block_sig: None,
+                influence,
+            },
             txns: vec![Transaction],
         }
     }

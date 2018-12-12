@@ -44,7 +44,7 @@ pub enum InventoryItem {
 ///
 /// Returns a boolean indicating success.
 /* Test string:
-{"jsonrpc": "2.0", "method": "inventory", "params": {"block":{"header":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":{"SHA256":[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig":null,"influence":99999}},"txn_count":1,"txns":[null]}}, "id": 1}
+{"jsonrpc": "2.0","method": "inventory","params": {"block": {"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block": {"SHA256": [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig": null,"influence":99999}"txns":[null]}},"id": 1}
 */
 pub fn inventory(inv_elem: InventoryItem) -> Result<Value, jsonrpc_core::Error> {
     match inv_elem {
@@ -122,21 +122,18 @@ mod tests {
         use witnet_data_structures::chain::*;
 
         let block = Block {
-            header: BlockHeaderWithProof {
-                block_header: BlockHeader {
-                    version: 1,
-                    beacon: CheckpointBeacon {
-                        checkpoint: 2,
-                        hash_prev_block: Hash::SHA256([4; 32]),
-                    },
-                    hash_merkle_root: Hash::SHA256([3; 32]),
+            block_header: BlockHeader {
+                version: 1,
+                beacon: CheckpointBeacon {
+                    checkpoint: 2,
+                    hash_prev_block: Hash::SHA256([4; 32]),
                 },
-                proof: LeadershipProof {
-                    block_sig: None,
-                    influence: 99999,
-                },
+                hash_merkle_root: Hash::SHA256([3; 32]),
             },
-            txn_count: 1,
+            proof: LeadershipProof {
+                block_sig: None,
+                influence: 99999,
+            },
             txns: vec![Transaction],
         };
 
@@ -188,26 +185,24 @@ mod tests {
         use witnet_data_structures::chain::*;
 
         let block = Block {
-            header: BlockHeaderWithProof {
-                block_header: BlockHeader {
-                    version: 1,
-                    beacon: CheckpointBeacon {
-                        checkpoint: 2,
-                        hash_prev_block: Hash::SHA256([4; 32]),
-                    },
-                    hash_merkle_root: Hash::SHA256([3; 32]),
+            block_header: BlockHeader {
+                version: 1,
+                beacon: CheckpointBeacon {
+                    checkpoint: 2,
+                    hash_prev_block: Hash::SHA256([4; 32]),
                 },
-                proof: LeadershipProof {
-                    block_sig: None,
-                    influence: 99999,
-                },
+                hash_merkle_root: Hash::SHA256([3; 32]),
             },
-            txn_count: 1,
+            proof: LeadershipProof {
+                block_sig: None,
+                influence: 99999,
+            },
             txns: vec![Transaction],
         };
         let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem);
-        let expected = r#"{"block":{"header":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":{"SHA256":[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig":null,"influence":99999}},"txn_count":1,"txns":[null]}}"#;
+        let expected = r#"{"block":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":{"SHA256":[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig":null,"influence":99999},"txns":[null]}}"#;
+
         assert_eq!(s.unwrap(), expected);
     }
 }

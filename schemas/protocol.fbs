@@ -57,8 +57,8 @@ table Pong {
 // INVENTORY MESSAGES
 /////////////////////////////////////////////////////////
 table Block {
-    header: BlockHeader (required);
-    txn_count: uint32;
+    block_header: BlockHeader (required);
+    proof: LeadershipProof (required);
     txns: [Transaction] (required);
 }
 
@@ -141,7 +141,6 @@ table BlockHeader {
     version: uint32;
     beacon: CheckpointBeacon (required);
     hash_merkle_root: Hash (required);
-    proof: LeadershipProof (required);
 }
 
 root_type Message;

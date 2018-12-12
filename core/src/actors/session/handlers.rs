@@ -464,11 +464,11 @@ fn send_block_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash
         .and_then(|block_from_storage, act, _ctx| {
             // block_from_storage can be None if the storage does not contain that key
             if let Some(block_from_storage) = block_from_storage {
-                let header = block_from_storage.header;
+                let block_header = block_from_storage.block_header;
+                let proof = block_from_storage.proof;
                 let txns = block_from_storage.txns;
-
                 // Build Block msg
-                let block_msg = WitnetMessage::build_block(header, txns);
+                let block_msg = WitnetMessage::build_block(block_header, proof, txns);
 
                 // Send Block msg
                 act.send_message(block_msg);

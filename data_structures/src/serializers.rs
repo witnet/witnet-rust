@@ -3,8 +3,8 @@ extern crate flatbuffers;
 use std::convert::Into;
 
 use crate::chain::{
-    Block, BlockHeader, BlockHeaderWithProof, CheckpointBeacon, Hash, InventoryEntry,
-    LeadershipProof, Secp256k1Signature, Signature, Transaction, SHA256,
+    Block, BlockHeader, CheckpointBeacon, Hash, InventoryEntry, LeadershipProof,
+    Secp256k1Signature, Signature, Transaction, SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol;
 
@@ -71,8 +71,8 @@ struct LastBeaconCommandArgs {
 #[derive(Debug, Clone)]
 struct BlockCommandArgs<'a> {
     magic: u16,
-    header: BlockHeaderWithProof,
-    txn_count: u32,
+    block_header: BlockHeader,
+    proof: LeadershipProof,
     txns: &'a [Transaction],
 }
 
@@ -176,35 +176,47 @@ impl TryFrom<Vec<u8>> for Message {
                 .command_as_block()
                 .map(|block| {
                     // Get Header
-                    let header_ftb = block.header();
-                    let version = header_ftb.version();
+                    let block_header = block.block_header();
+                    // Get transactions
+                    let len = block.txns().len();
+                    let mut counter = 0;
+                    let mut _tx_ftb;
+                    let mut block_txns = Vec::new();
+                    while counter < len {
+                        _tx_ftb = block.txns().get(counter);
+                        // Call create_transaction(ftb_tx) in order to get native Transaction
+                        block_txns.push(Transaction);
+                        counter += 1;
+                    }
+
+                    let version = block_header.version();
                     // Get CheckpointBeacon
-                    let hash: Hash = match header_ftb.beacon().hash_prev_block().type_() {
+                    let hash: Hash = match block_header.beacon().hash_prev_block().type_() {
                         protocol::HashType::SHA256 => {
                             let mut sha256: SHA256 = [0; 32];
-                            let sha256_bytes = header_ftb.beacon().hash_prev_block().bytes();
+                            let sha256_bytes = block_header.beacon().hash_prev_block().bytes();
                             sha256.copy_from_slice(sha256_bytes);
 
                             Hash::SHA256(sha256)
                         }
                     };
                     let beacon = CheckpointBeacon {
-                        checkpoint: header_ftb.beacon().checkpoint(),
+                        checkpoint: block_header.beacon().checkpoint(),
                         hash_prev_block: hash,
                     };
                     // Get hash merkle root
-                    let hash_merkle_root: Hash = match header_ftb.hash_merkle_root().type_() {
+                    let hash_merkle_root: Hash = match block_header.hash_merkle_root().type_() {
                         protocol::HashType::SHA256 => {
                             let mut sha256: SHA256 = [0; 32];
-                            let sha256_bytes = header_ftb.hash_merkle_root().bytes();
+                            let sha256_bytes = block_header.hash_merkle_root().bytes();
                             sha256.copy_from_slice(sha256_bytes);
 
                             Hash::SHA256(sha256)
                         }
                     };
                     // Get proof of leadership
-                    let block_sig = match header_ftb.proof().block_sig_type() {
-                        protocol::Signature::Secp256k1Signature => header_ftb
+                    let block_sig = match block.proof().block_sig_type() {
+                        protocol::Signature::Secp256k1Signature => block
                             .proof()
                             .block_sig_as_secp_256k_1signature()
                             .and_then(|signature_ftb| {
@@ -221,39 +233,24 @@ impl TryFrom<Vec<u8>> for Message {
                             }),
                         _ => None,
                     };
-                    let influence = header_ftb.proof().influence();
+                    let influence = block.proof().influence();
                     let proof = LeadershipProof {
                         block_sig,
                         influence,
                     };
-                    // Create BlockHeaderWithProof
-                    let header = BlockHeaderWithProof {
-                        block_header: BlockHeader {
-                            version,
-                            beacon,
-                            hash_merkle_root,
-                        },
-                        proof,
+                    // Create BlockHeader
+                    let header = BlockHeader {
+                        version,
+                        beacon,
+                        hash_merkle_root,
                     };
-                    // Get transaction count
-                    let txn_count = block.txn_count();
-                    // Get transactions
-                    let len = block.txns().len();
-                    let mut counter = 0;
-                    let mut _tx_ftb;
-                    let mut txns = Vec::new();
-                    while counter < len {
-                        _tx_ftb = block.txns().get(counter);
-                        // Call create_transaction(ftb_tx) in order to get native Transaction
-                        txns.push(Transaction);
-                        counter += 1;
-                    }
+
                     // Create Message with command
                     Message {
                         kind: Command::Block(Block {
-                            header,
-                            txn_count,
-                            txns,
+                            block_header: header,
+                            proof,
+                            txns: block_txns,
                         }),
                         magic,
                     }
@@ -380,15 +377,15 @@ impl Into<Vec<u8>> for Message {
 
             // Inventory
             Command::Block(Block {
-                header,
-                txn_count,
+                block_header,
+                proof,
                 txns,
             }) => create_block_flatbuffer(
                 &mut builder,
                 BlockCommandArgs {
                     magic: self.magic,
-                    header,
-                    txn_count,
+                    block_header,
+                    proof,
                     txns: &txns,
                 },
             ),
@@ -865,7 +862,7 @@ fn create_block_flatbuffer(
     block_args: BlockCommandArgs,
 ) -> Vec<u8> {
     // Create checkpoint beacon flatbuffer
-    let hash_prev_block_args = match block_args.header.block_header.beacon.hash_prev_block {
+    let hash_prev_block_args = match block_args.block_header.beacon.hash_prev_block {
         Hash::SHA256(hash) => protocol::HashArgs {
             type_: protocol::HashType::SHA256,
             bytes: Some(builder.create_vector(&hash)),
@@ -875,12 +872,12 @@ fn create_block_flatbuffer(
     let beacon = Some(protocol::CheckpointBeacon::create(
         builder,
         &protocol::CheckpointBeaconArgs {
-            checkpoint: block_args.header.block_header.beacon.checkpoint,
+            checkpoint: block_args.block_header.beacon.checkpoint,
             hash_prev_block,
         },
     ));
     // Create hash merkle root flatbuffer
-    let hash_merkle_root_args = match block_args.header.block_header.hash_merkle_root {
+    let hash_merkle_root_args = match block_args.block_header.hash_merkle_root {
         Hash::SHA256(hash) => protocol::HashArgs {
             type_: protocol::HashType::SHA256,
             bytes: Some(builder.create_vector(&hash)),
@@ -888,49 +885,42 @@ fn create_block_flatbuffer(
     };
     let hash_merkle_root = Some(protocol::Hash::create(builder, &hash_merkle_root_args));
     // Create proof of leadership flatbuffer
-    let block_sig_type =
-        block_args
-            .header
-            .proof
-            .block_sig
-            .clone()
-            .map(|signature| match signature {
-                Signature::Secp256k1(_) => protocol::Signature::Secp256k1Signature,
-            });
-    let block_sig = block_args
-        .header
+    let block_sig_type = block_args
         .proof
         .block_sig
+        .clone()
         .map(|signature| match signature {
-            Signature::Secp256k1(secp256k1) => {
-                let mut s = secp256k1.s.to_vec();
-                s.push(secp256k1.v);
-                let r_ftb = Some(builder.create_vector(&secp256k1.r));
-                let s_ftb = Some(builder.create_vector(&s));
-
-                protocol::Secp256k1Signature::create(
-                    builder,
-                    &protocol::Secp256k1SignatureArgs { r: r_ftb, s: s_ftb },
-                )
-                .as_union_value()
-            }
+            Signature::Secp256k1(_) => protocol::Signature::Secp256k1Signature,
         });
+    let block_sig = block_args.proof.block_sig.map(|signature| match signature {
+        Signature::Secp256k1(secp256k1) => {
+            let mut s = secp256k1.s.to_vec();
+            s.push(secp256k1.v);
+            let r_ftb = Some(builder.create_vector(&secp256k1.r));
+            let s_ftb = Some(builder.create_vector(&s));
+
+            protocol::Secp256k1Signature::create(
+                builder,
+                &protocol::Secp256k1SignatureArgs { r: r_ftb, s: s_ftb },
+            )
+            .as_union_value()
+        }
+    });
     let proof = Some(protocol::LeadershipProof::create(
         builder,
         &protocol::LeadershipProofArgs {
             block_sig_type: block_sig_type.unwrap_or(protocol::Signature::NONE),
             block_sig,
-            influence: block_args.header.proof.influence,
+            influence: block_args.proof.influence,
         },
     ));
     // Create block header flatbuffer
-    let header = Some(protocol::BlockHeader::create(
+    let block_header = Some(protocol::BlockHeader::create(
         builder,
         &protocol::BlockHeaderArgs {
-            version: block_args.header.block_header.version,
+            version: block_args.block_header.version,
             beacon,
             hash_merkle_root,
-            proof,
         },
     ));
     // Create transaction array flatbuffer
@@ -946,8 +936,8 @@ fn create_block_flatbuffer(
     let block_command = protocol::Block::create(
         builder,
         &protocol::BlockArgs {
-            header,
-            txn_count: block_args.txn_count,
+            block_header,
+            proof,
             txns: txns_ftb,
         },
     );

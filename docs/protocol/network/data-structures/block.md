@@ -5,8 +5,7 @@ In the Witnet network protocol, a `block` is formatted as follows:
 | Field       | Type              | Description                                                                                          |
 | ----------- | :---------------: | ---------------------------------------------------------------------------------------------------- |
 | `header`    | `block_header`    | The header of the block                                                                              |
-| `txn_count` | `u32`             | The total number of transactions of the block                                                        |
-| `txns`      | `[tx; txn_count]` | Block transactions following the format of a `TX` command, as described in the [Transaction] section |
+| `txns`      | `[tx]` | Block transactions following the format of a `TX` command, as described in the [Transaction] section |
 
 A non-empty list of transactions is always provided because the coinbase transaction should always be included.
 
