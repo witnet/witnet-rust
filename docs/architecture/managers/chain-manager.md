@@ -57,7 +57,7 @@ These are the messages supported by the `ChainManager` handlers:
 | `EpochNotification<EpochPayload>`      | `Epoch`, `EpochPayload`      | `()`                              | The requested epoch has been reached              |
 | `EpochNotification<EveryEpochPayload>` | `Epoch`, `EveryEpochPayload` | `()`                              | A new epoch has been reached                      |
 | `GetHighestBlockCheckpoint`            | `()`                         | `ChainInfoResult`                 | Request a copy of the highest block checkpoint    |
-| `AddNewBlock`                          | `Block`                      | `Result<Hash, ChainManagerError>` | Add a new block and announce it to other sessions |
+| `AddNewBlock`                          | `Block`                      | `Result<(), ChainManagerError>` | Add a new block and announce it to other sessions |
 
 Where `ChainInfoResult` is just:
 
@@ -105,14 +105,15 @@ fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Se
 
 These are the messages sent by the Chain Manager:
 
-| Message                    | Destination       | Input type                                  | Output type                 | Description                                   |
-| -------------------------- | ----------------- | ------------------------------------------- | --------------------------- | --------------------------------------------- |
-| `SubscribeEpoch`           | `EpochManager`    | `Epoch`, `Addr<ChainManager>, EpochPayload` | `()`                        | Subscribe to a particular epoch               |
-| `SubscribeAll`             | `EpochManager`    | `Addr<ChainManager>, EveryEpochPayload`     | `()`                        | Subscribe to all epochs                       |
-| `GetConfig`                | `ConfigManager`   | `()`                                        | `Result<Config, io::Error>` | Request the configuration                     |
-| `Get`                      | `StorageManager`  | `&'static [u8]`                             | `StorageResult<Option<T>>`  | Wrapper to Storage `get()` method             |
-| `Put`                      | `StorageManager`  | `&'static [u8]`, `Vec<u8>`                  | `StorageResult<()>`         | Wrapper to Storage `put()` method             |
-| `Broadcast<AnnounceItems>` | `SessionsManager` | `Vec<InventoryEntry>`                       | `()`                        | Announce new invetory entries to the sessions |
+| Message                    | Destination         | Input type                                  | Output type                 | Description                                   |
+| -------------------------- | ------------------- | ------------------------------------------- | --------------------------- | --------------------------------------------- |
+| `SubscribeEpoch`           | `EpochManager`      | `Epoch`, `Addr<ChainManager>, EpochPayload` | `()`                        | Subscribe to a particular epoch               |
+| `SubscribeAll`             | `EpochManager`      | `Addr<ChainManager>, EveryEpochPayload`     | `()`                        | Subscribe to all epochs                       |
+| `GetConfig`                | `ConfigManager`     | `()`                                        | `Result<Config, io::Error>` | Request the configuration                     |
+| `Get`                      | `StorageManager`    | `&'static [u8]`                             | `StorageResult<Option<T>>`  | Wrapper to Storage `get()` method             |
+| `Put`                      | `StorageManager`    | `&'static [u8]`, `Vec<u8>`                  | `StorageResult<()>`         | Wrapper to Storage `put()` method             |
+| `Broadcast<AnnounceItems>` | `SessionsManager`   | `Vec<InventoryEntry>`                       | `()`                        | Announce new invetory entries to the sessions |
+| `ValidatePoE`              | `ReputationManager` | `CheckpointBeacon`,`LeadershipProof`        | `bool`                      | Request Proof of Eligibility validation       |
 
 #### SubscribeEpoch
 
@@ -157,6 +158,11 @@ The return value is used to check if the storage process has been successful.
 This message is sent to the [`SessionsManager`][sessions_manager] actor which will
 broadcast a `AnnounceItems` message to the open outbound sessions.
 
+#### ValidatePoE
+
+This message is sent to the [`ReputationManager`][reputation_manager] actor to request a
+Proof of Eligibility validation for the `BlockHeaderWithProof` sent.
+
 ## Further information
 
 The full source code of the `ChainManager` can be found at [`chain_manager.rs`][chain_manager].
@@ -165,6 +171,7 @@ The full source code of the `ChainManager` can be found at [`chain_manager.rs`][
 [storage_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager
 [sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager
 [epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager
+[reputation_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/reputation_manager
 
 [noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
 [chain]: https://github.com/witnet/witnet-rust/tree/master/data_structures/src/chain.rs

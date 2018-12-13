@@ -42,6 +42,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{Block, Epoch, Hash, InventoryEntry};
 
+use crate::actors::session::messages::AnnounceItems;
+use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
+
 use witnet_storage::{error::StorageError, storage::Storable};
 
 use witnet_crypto::hash::calculate_sha256;
@@ -83,6 +86,8 @@ pub struct ChainManager {
     epoch_to_block_hash: HashMap<Epoch, HashSet<Hash>>,
     /// Map that stores blocks by their hash
     blocks: HashMap<Hash, Block>,
+    /// Current Epoch
+    current_epoch: Option<Epoch>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -158,6 +163,17 @@ impl ChainManager {
 
             Ok(hash)
         }
+    }
+
+    fn broadcast_block(&mut self, hash: Hash) {
+        // Get SessionsManager's address
+        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+
+        // Tell SessionsManager to announce the new block through every consolidated Session
+        let items = vec![InventoryEntry::Block(hash)];
+        sessions_manager_addr.do_send(Broadcast {
+            command: AnnounceItems { items },
+        });
     }
 
     fn try_to_get_block(&mut self, hash: Hash) -> Result<Block, ChainManagerError> {

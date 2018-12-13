@@ -1,23 +1,25 @@
-use actix::{Context, Handler, System};
+use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, System, WrapFuture};
 
-use crate::actors::chain_manager::{ChainManager, ChainManagerError};
+use crate::actors::chain_manager::{messages::SessionUnitResult, ChainManager, ChainManagerError};
 use crate::actors::epoch_manager::messages::EpochNotification;
 
+use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
+
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Hash, InventoryEntry},
+    chain::{Block, CheckpointBeacon, InventoryEntry},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
+use crate::validations::{validate_coinbase, validate_merkle_tree};
+
 use witnet_util::error::WitnetError;
 
-use log::{debug, error};
+use log::{debug, error, warn};
 
 use super::messages::{
     AddNewBlock, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
     GetHighestCheckpointBeacon, InventoryEntriesResult,
 };
-use crate::actors::session::messages::AnnounceItems;
-use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -45,6 +47,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, _ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        self.current_epoch = Some(msg.checkpoint);
     }
 }
 
@@ -71,37 +74,59 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
 
 /// Handler for AddNewBlock message
 impl Handler<AddNewBlock> for ChainManager {
-    type Result = Result<Hash, ChainManagerError>;
+    type Result = SessionUnitResult;
 
-    fn handle(
-        &mut self,
-        msg: AddNewBlock,
-        _ctx: &mut Context<Self>,
-    ) -> Result<Hash, ChainManagerError> {
-        let res = self.process_new_block(msg.block);
-        match res {
-            Ok(hash) => {
-                // Get SessionsManager's address
-                let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+    fn handle(&mut self, msg: AddNewBlock, ctx: &mut Context<Self>) {
+        // Block verify process
+        let reputation_manager_addr = System::current().registry().get::<ReputationManager>();
 
-                // Tell SessionsManager to announce the new block through every consolidated Session
-                let items = vec![InventoryEntry::Block(hash)];
-                sessions_manager_addr.do_send(Broadcast {
-                    command: AnnounceItems { items },
-                });
-            }
-            Err(ChainManagerError::BlockAlreadyExists) => {
-                debug!("Block already exists");
-            }
-            Err(ChainManagerError::StorageError(_)) => {
-                debug!("Error when serializing block");
-            }
-            Err(_) => {
-                debug!("Unexpected error");
-            }
-        };
+        let block_epoch = msg.block.block_header.beacon.checkpoint;
+        if self.current_epoch.is_none() {
+            warn!("ChainManager doesn't have current epoch");
+        } else if Some(block_epoch) != self.current_epoch {
+            warn!("Block epoch not valid");
+        } else if !validate_coinbase(&msg.block) {
+            warn!("Block coinbase not valid");
+        } else if !validate_merkle_tree(&msg.block) {
+            warn!("Block merkle tree not valid");
+        } else {
+            // Request proof of eligibility validation to ReputationManager
+            reputation_manager_addr
+                .send(ValidatePoE {
+                    beacon: msg.block.block_header.beacon.clone(),
+                    proof: msg.block.proof.clone(),
+                })
+                .into_actor(self)
+                .then(|res, act, _ctx| {
+                    match res {
+                        Err(e) => {
+                            // Error when sending message
+                            error!("Unsuccessful communication with reputation manager: {}", e);
+                        }
+                        Ok(false) => {
+                            warn!("Block PoE not valid");
+                        }
+                        Ok(true) => {
+                            // Insert in blocks mempool
+                            let res = act.process_new_block(msg.block);
+                            match res {
+                                Ok(hash) => {
+                                    act.broadcast_block(hash);
+                                }
+                                Err(ChainManagerError::BlockAlreadyExists) => {
+                                    warn!("Block already exists");
+                                }
+                                Err(_) => {
+                                    error!("Unexpected error");
+                                }
+                            };
+                        }
+                    }
 
-        res
+                    actix::fut::ok(())
+                })
+                .wait(ctx);
+        }
     }
 }
 

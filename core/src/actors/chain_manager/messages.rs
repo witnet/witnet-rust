@@ -7,6 +7,9 @@ use witnet_data_structures::{
     error::ChainInfoResult,
 };
 
+/// Message result of unit
+pub type SessionUnitResult = ();
+
 /// Message to obtain the highest block checkpoint managed by the `ChainManager`
 /// actor.
 pub struct GetHighestCheckpointBeacon;
@@ -22,7 +25,7 @@ pub struct AddNewBlock {
 }
 
 impl Message for AddNewBlock {
-    type Result = Result<Hash, ChainManagerError>;
+    type Result = SessionUnitResult;
 }
 
 /// Ask for a block identified by its hash

@@ -9,3 +9,6 @@
 
 /// Actors module
 pub mod actors;
+
+/// Validations library
+pub mod validations;
