@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 
 use crate::actors::chain_manager::ChainManagerError;
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Epoch, Hash, InventoryEntry},
+    chain::{Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, LeadershipProof},
     error::ChainInfoResult,
 };
 
@@ -46,6 +46,15 @@ pub struct GetBlocksEpochRange {
 
 impl Message for GetBlocksEpochRange {
     type Result = Result<Vec<InventoryEntry>, ChainManagerError>;
+}
+
+/// Build a new block using the supplied leadership proof
+#[derive(Debug, Message)]
+pub struct BuildBlock {
+    /// Checkpoint beacon
+    pub beacon: CheckpointBeacon,
+    /// Proof of eligibility
+    pub leadership_proof: LeadershipProof,
 }
 
 /// Discard inventory entries that exist in the BlocksManager

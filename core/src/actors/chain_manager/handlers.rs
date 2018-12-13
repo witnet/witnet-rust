@@ -1,4 +1,6 @@
-use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, System, WrapFuture};
+use actix::{
+    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture,
+};
 
 use crate::actors::chain_manager::{messages::SessionUnitResult, ChainManager, ChainManagerError};
 use crate::actors::epoch_manager::messages::EpochNotification;
@@ -6,7 +8,7 @@ use crate::actors::epoch_manager::messages::EpochNotification;
 use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
 
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, InventoryEntry},
+    chain::{Block, BlockHeader, CheckpointBeacon, Hash, InventoryEntry, LeadershipProof},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
@@ -17,9 +19,11 @@ use witnet_util::error::WitnetError;
 use log::{debug, error, warn};
 
 use super::messages::{
-    AddNewBlock, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
+    AddNewBlock, BuildBlock, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
     GetHighestCheckpointBeacon, InventoryEntriesResult,
 };
+
+use witnet_crypto::{hash::calculate_sha256, merkle::merkle_tree_root};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -161,6 +165,48 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
             .collect();
 
         Ok(hashes)
+    }
+}
+
+/// Handler for BuildBlock message
+impl Handler<BuildBlock> for ChainManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: BuildBlock, ctx: &mut Context<Self>) -> Self::Result {
+        // The leadership proof will be verified by the AddNewBlock handler
+
+        // FIXME(#238): get transactions
+        let txns = vec![];
+        // TODO: push coinbase transaction
+        let txns_hashes = txns
+            .iter()
+            .map(|_t| {
+                // FIXME(#224): actually calculate transaction hash
+                calculate_sha256(b"")
+            })
+            .collect::<Vec<_>>();
+        // TODO: what is version?
+        let version = 0;
+        let beacon = msg.beacon;
+        let hash_merkle_root = Hash::from(merkle_tree_root(&txns_hashes));
+        let block_header = BlockHeader {
+            version,
+            beacon,
+            hash_merkle_root,
+        };
+        let proof = LeadershipProof {
+            block_sig: None,
+            influence: 0,
+        };
+        let block = Block {
+            block_header,
+            proof,
+            txns,
+        };
+
+        // Send AddNewBlock message to self
+        // This will run all the validations again
+        ctx.notify(AddNewBlock { block })
     }
 }
 
