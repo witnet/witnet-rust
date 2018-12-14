@@ -8,5 +8,3 @@ edition = "2018"
 
 [dependencies]
 rust-crypto = "0.2"
-
-witnet_data_structures = { path = "../data_structures" }

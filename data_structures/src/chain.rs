@@ -1,3 +1,5 @@
+use witnet_crypto::hash::Sha256;
+
 pub trait Hashable<T> {
     fn hash(value: T) -> Hash;
 }
@@ -139,6 +141,13 @@ pub struct Secp256k1Signature {
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),
+}
+
+/// Conversion between witnet_crypto::Sha256 and witnet_data_structures::Hash
+impl From<Sha256> for Hash {
+    fn from(x: Sha256) -> Self {
+        Hash::SHA256(x.0)
+    }
 }
 
 /// SHA-256 Hash

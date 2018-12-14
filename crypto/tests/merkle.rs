@@ -1,6 +1,5 @@
-use witnet_crypto::hash::calculate_sha256;
+use witnet_crypto::hash::{calculate_sha256, Sha256};
 use witnet_crypto::merkle::merkle_tree_root;
-use witnet_data_structures::chain::Hash;
 
 #[test]
 fn empty() {
@@ -16,13 +15,7 @@ fn one() {
 }
 
 // Helper function to test hash order
-fn hash_concat(a: Hash, b: Hash) -> Hash {
-    let a = match a {
-        Hash::SHA256(x) => x,
-    };
-    let b = match b {
-        Hash::SHA256(x) => x,
-    };
+fn hash_concat(Sha256(a): Sha256, Sha256(b): Sha256) -> Sha256 {
     let mut h = a.to_vec();
     h.extend(&b);
     calculate_sha256(&h)
@@ -32,8 +25,8 @@ fn hash_concat(a: Hash, b: Hash) -> Hash {
 fn two() {
     let a = [0x00; 32];
     let b = [0xFF; 32];
-    let a = Hash::SHA256(a);
-    let b = Hash::SHA256(b);
+    let a = Sha256(a);
+    let b = Sha256(b);
 
     // expected:
     // python -c "import sys; sys.stdout.write('\x00' * 32 + '\xFF' * 32)" | sha256sum
@@ -42,7 +35,7 @@ fn two() {
         0x7b, 0xf9, 0x19, 0x3b, 0x14, 0x35, 0x0d, 0x20, 0xfb, 0xa8, 0xa8, 0xb4, 0x06, 0x73, 0x0a,
         0xe3, 0x0a,
     ];
-    let expected = Hash::SHA256(expected);
+    let expected = Sha256(expected);
     assert_eq!(merkle_tree_root(&[a, b]), expected);
 
     // Test the hash_concat function
@@ -52,13 +45,13 @@ fn two() {
 
 #[test]
 fn manual_hash_test() {
-    let a = Hash::SHA256([0x00; 32]);
-    let b = Hash::SHA256([0x11; 32]);
-    let c = Hash::SHA256([0x22; 32]);
-    let d = Hash::SHA256([0x33; 32]);
-    let e = Hash::SHA256([0x44; 32]);
-    let f = Hash::SHA256([0x55; 32]);
-    let g = Hash::SHA256([0x66; 32]);
+    let a = Sha256([0x00; 32]);
+    let b = Sha256([0x11; 32]);
+    let c = Sha256([0x22; 32]);
+    let d = Sha256([0x33; 32]);
+    let e = Sha256([0x44; 32]);
+    let f = Sha256([0x55; 32]);
+    let g = Sha256([0x66; 32]);
 
     let h = hash_concat;
     // Verify the expected hash by manually hashing the elements in order
