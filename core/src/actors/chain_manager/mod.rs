@@ -94,6 +94,8 @@ pub struct ChainManager {
     current_epoch: Option<Epoch>,
     /// Transactions Pool
     transactions_pool: TransactionsPool,
+    /// Block candidate to update chain_info in the next epoch
+    block_candidate: Option<Block>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -137,6 +139,12 @@ impl ChainManager {
                 actix::fut::ok(())
             })
             .wait(ctx);
+    }
+
+    /// Method to Send block to Inventory Manager
+    fn persist_block(&self, _ctx: &mut Context<Self>, _block: &Block) {
+        // TODO Send to InventoryManager
+        debug!("Send block to inventory manager");
     }
 
     fn process_new_block(&mut self, block: Block) -> Result<Hash, ChainManagerError> {

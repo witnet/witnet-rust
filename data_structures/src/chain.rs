@@ -150,7 +150,7 @@ pub struct Secp256k1Signature {
 }
 
 /// Hash
-#[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Copy, Clone, Serialize, Deserialize, Hash)]
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),

@@ -8,7 +8,7 @@ use crate::actors::epoch_manager::messages::EpochNotification;
 use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
 
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, InventoryEntry},
+    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
@@ -47,9 +47,29 @@ impl Handler<EpochNotification<EpochPayload>> for ChainManager {
 impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
     type Result = ();
 
-    fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, _ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         self.current_epoch = Some(msg.checkpoint);
+
+        if let Some(candidate) = self.block_candidate.take() {
+            // Send block to Inventory Manager
+            self.persist_block(ctx, &candidate);
+
+            // Update chain_info
+            match self.chain_info.as_mut() {
+                Some(chain_info) => {
+                    let beacon = CheckpointBeacon {
+                        checkpoint: msg.checkpoint,
+                        hash_prev_block: candidate.hash(),
+                    };
+
+                    chain_info.highest_block_checkpoint = beacon;
+                }
+                None => {
+                    error!("No ChainInfo loaded in ChainManager");
+                }
+            }
+        }
     }
 }
 
@@ -82,11 +102,18 @@ impl Handler<AddNewBlock> for ChainManager {
         // Block verify process
         let reputation_manager_addr = System::current().registry().get::<ReputationManager>();
 
+        let candidate_better_eligibility = match self.block_candidate.as_ref() {
+            Some(candidate) => candidate.hash() < msg.block.hash(),
+            None => false,
+        };
+
         let block_epoch = msg.block.block_header.beacon.checkpoint;
         if self.current_epoch.is_none() {
             warn!("ChainManager doesn't have current epoch");
         } else if Some(block_epoch) != self.current_epoch {
             warn!("Block epoch not valid");
+        } else if candidate_better_eligibility {
+            warn!("Block hash bigger than candidate hash");
         } else if !validate_coinbase(&msg.block) {
             warn!("Block coinbase not valid");
         } else if !validate_merkle_tree(&msg.block) {
@@ -109,6 +136,9 @@ impl Handler<AddNewBlock> for ChainManager {
                             warn!("Block PoE not valid");
                         }
                         Ok(true) => {
+                            // Update block candidate
+                            act.block_candidate = Some(msg.block.clone());
+
                             // Insert in blocks mempool
                             let res = act.process_new_block(msg.block);
                             match res {

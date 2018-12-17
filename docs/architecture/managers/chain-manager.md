@@ -33,6 +33,15 @@ The state of the actor is an instance of the [`ChainInfo`][chain] data structure
 pub struct ChainManager {
     /// Blockchain information data structure
     chain_info: Option<ChainInfo>,
+    /// Map that relates an epoch with the hashes of the blocks for that epoch
+    // One epoch can have more than one block
+    epoch_to_block_hash: HashMap<Epoch, HashSet<Hash>>,
+    /// Map that stores blocks by their hash
+    blocks: HashMap<Hash, Block>,
+    /// Current Epoch
+    current_epoch: Option<Epoch>,
+    /// Block candidate to update chain_info in the next epoch
+    block_candidate: Option<Block>,
 }
 ```
 
