@@ -93,8 +93,8 @@ impl Handler<AddNewBlock> for ChainManager {
             // Request proof of eligibility validation to ReputationManager
             reputation_manager_addr
                 .send(ValidatePoE {
-                    beacon: msg.block.block_header.beacon.clone(),
-                    proof: msg.block.proof.clone(),
+                    beacon: msg.block.block_header.beacon,
+                    proof: msg.block.proof,
                 })
                 .into_actor(self)
                 .then(|res, act, _ctx| {

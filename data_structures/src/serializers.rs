@@ -3,24 +3,66 @@ extern crate flatbuffers;
 use std::convert::Into;
 
 use crate::chain::{
-    Block, BlockHeader, CheckpointBeacon, Hash, InventoryEntry, LeadershipProof,
+    Block, BlockHeader, CheckpointBeacon, Epoch, Hash, InventoryEntry, LeadershipProof,
     Secp256k1Signature, Signature, Transaction, SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol;
 
 use crate::types::{
-    Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest,
+    Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress,
     IpAddress::{Ipv4, Ipv6},
     LastBeacon, Message, Peers, Ping, Pong, Verack, Version,
 };
 
 use flatbuffers::FlatBufferBuilder;
 
-const FTB_SIZE: usize = 1024;
+pub const FTB_SIZE: usize = 1024;
+
+type WIPOffsetAddress<'a> = flatbuffers::WIPOffset<protocol::Address<'a>>;
+type WIPOffsetAddresses<'a> = flatbuffers::WIPOffset<
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::Address<'a>>>,
+>;
+type WIPOffsetBlock<'a> = flatbuffers::WIPOffset<protocol::Block<'a>>;
+type WIPOffsetBlockHeader<'a> = flatbuffers::WIPOffset<protocol::BlockHeader<'a>>;
+type WIPOffsetBlockMessage<'a> = flatbuffers::WIPOffset<protocol::Block<'a>>;
+type WIPOffsetCheckpointBeacon<'a> = flatbuffers::WIPOffset<protocol::CheckpointBeacon<'a>>;
+type WIPOffsetGetPeers<'a> = flatbuffers::WIPOffset<protocol::GetPeers<'a>>;
+type WIPOffsetHash<'a> = flatbuffers::WIPOffset<protocol::Hash<'a>>;
+type WIPOffsetInventoryAnnouncement<'a> =
+    flatbuffers::WIPOffset<protocol::InventoryAnnouncement<'a>>;
+type WIPOffsetInventoryEntry<'a> = flatbuffers::WIPOffset<protocol::InventoryEntry<'a>>;
+type WIPOffsetInventoryEntryVector<'a> = flatbuffers::WIPOffset<
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::InventoryEntry<'a>>>,
+>;
+type WIPOffsetInventoryRequest<'a> = flatbuffers::WIPOffset<protocol::InventoryRequest<'a>>;
+type WIPOffsetIpV4<'a> = flatbuffers::WIPOffset<protocol::Ipv4<'a>>;
+type WIPOffsetIpV6<'a> = flatbuffers::WIPOffset<protocol::Ipv6<'a>>;
+type WIPOffsetLastBeacon<'a> = flatbuffers::WIPOffset<protocol::LastBeacon<'a>>;
+type WIPOffsetLeadershipProof<'a> = flatbuffers::WIPOffset<protocol::LeadershipProof<'a>>;
+type WIPOffsetMessage<'a> = flatbuffers::WIPOffset<protocol::Message<'a>>;
+type WIPOffsetPeersMessage<'a> = flatbuffers::WIPOffset<protocol::Peers<'a>>;
+type WIPOffsetPing<'a> = flatbuffers::WIPOffset<protocol::Ping<'a>>;
+type WIPOffsetPong<'a> = flatbuffers::WIPOffset<protocol::Pong<'a>>;
+type WIPOffsetTransactionVector<'a> = Option<
+    flatbuffers::WIPOffset<
+        flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::Transaction<'a>>>,
+    >,
+>;
+type WIPOffsetUnion = std::option::Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>;
+type WIPOffsetVerackMessage<'a> = flatbuffers::WIPOffset<protocol::Verack<'a>>;
+type WIPOffsetVersionMessage<'a> = flatbuffers::WIPOffset<protocol::Version<'a>>;
 
 ////////////////////////////////////////////////////////
-// COMMAND ARGS
+// ARGS
 ////////////////////////////////////////////////////////
+#[derive(Debug, Clone)]
+pub struct BlockArgs {
+    pub block_header: BlockHeader,
+    pub proof: LeadershipProof,
+    pub txns: Vec<Transaction>,
+}
+
+// COMMAND ARGS
 #[derive(Debug, Clone, Copy)]
 struct EmptyCommandArgs {
     magic: u16,
@@ -69,11 +111,11 @@ struct LastBeaconCommandArgs {
 }
 
 #[derive(Debug, Clone)]
-struct BlockCommandArgs<'a> {
-    magic: u16,
-    block_header: BlockHeader,
-    proof: LeadershipProof,
-    txns: &'a [Transaction],
+pub struct BlockCommandArgs<'a> {
+    pub magic: u16,
+    pub block_header: BlockHeader,
+    pub proof: LeadershipProof,
+    pub txns: &'a [Transaction],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -94,6 +136,107 @@ struct InventoryArgs<'a> {
     inventory: &'a [InventoryEntry],
 }
 
+pub struct TransactionsVectorArgs<'a> {
+    txns: &'a [Transaction],
+}
+
+pub struct PeersArgs<'a> {
+    peers: &'a [Address],
+}
+
+pub struct VersionMessageArgs {
+    version: u32,
+    timestamp: i64,
+    capabilities: u64,
+    sender_ip: IpAddress,
+    sender_port: u16,
+    receiver_ip: IpAddress,
+    receiver_port: u16,
+    user_agent: String,
+    last_epoch: u32,
+    genesis: u64,
+    nonce: u64,
+}
+
+pub struct BlockMessageArgs<'a> {
+    version: u32,
+    checkpoint: u32,
+    hash: Hash,
+    hash_prev_block: Hash,
+    block_sig: Option<Signature>,
+    influence: u64,
+    txns: &'a [Transaction],
+}
+
+pub struct InventoryWipoffsetArgs<'a> {
+    inventory_entries: &'a [InventoryEntry],
+}
+
+pub struct InventoryEntryArgs<'a> {
+    inv_item: &'a InventoryEntry,
+}
+
+pub struct LastBeaconWipoffsetArgs {
+    checkpoint: Epoch,
+    hash_prev_block: Hash,
+}
+
+pub struct BlockWipoffsetArgs<'a> {
+    txns: &'a [Transaction],
+    version: u32,
+    hash: Hash,
+    checkpoint: u32,
+    hash_prev_block: Hash,
+    block_sig: Option<Signature>,
+    influence: u64,
+}
+
+pub struct CheckpointBeaconArgs {
+    checkpoint: u32,
+    hash_prev_block: Hash,
+}
+
+pub struct BlockHeaderArgs {
+    version: u32,
+    hash: Hash,
+    checkpoint: u32,
+    hash_prev_block: Hash,
+}
+
+pub struct HashArgs {
+    hash: Hash,
+}
+
+pub struct HeartbeatArgs {
+    nonce: u64,
+}
+
+pub struct LeadershipProofArgs {
+    block_sig: Option<Signature>,
+    influence: u64,
+}
+
+pub struct MessageArgs {
+    magic: u16,
+    command_type: protocol::Command,
+    command: WIPOffsetUnion,
+}
+
+pub struct IpV4Args {
+    ip: u32,
+}
+
+pub struct IpV6Args {
+    ip0: u32,
+    ip1: u32,
+    ip2: u32,
+    ip3: u32,
+}
+
+pub struct AddressArgs {
+    ip: IpAddress,
+    port: u16,
+}
 ////////////////////////////////////////////////////////
 // FROM TRAIT (Vec<u8> ---> Message)
 ////////////////////////////////////////////////////////
@@ -113,7 +256,7 @@ impl TryFrom<Vec<u8>> for Message {
         // Get magic field from message
         let magic = message.magic();
 
-        // Create Witnet's message to decode a flatbuffer message
+        // Build Witnet's message to decode a flatbuffer message
         match message.command_type() {
             // Heartbeat
             protocol::Command::Ping => message
@@ -238,14 +381,14 @@ impl TryFrom<Vec<u8>> for Message {
                         block_sig,
                         influence,
                     };
-                    // Create BlockHeader
+                    // Build BlockHeader
                     let header = BlockHeader {
                         version,
                         beacon,
                         hash_merkle_root,
                     };
 
-                    // Create Message with command
+                    // Build Message with command
                     Message {
                         kind: Command::Block(Block {
                             block_header: header,
@@ -312,20 +455,20 @@ impl TryFrom<Vec<u8>> for Message {
 ////////////////////////////////////////////////////////
 impl Into<Vec<u8>> for Message {
     fn into(self) -> Vec<u8> {
-        // Create builder to create flatbuffers to encode Witnet messages
+        // Build builder to create flatbuffers to encode Witnet messages
         let mut builder = flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
 
-        // Create flatbuffer to encode a Witnet message
+        // Build flatbuffer to encode a Witnet message
         match self.kind {
             // Heartbeat
-            Command::Ping(Ping { nonce }) => create_ping_flatbuffer(
+            Command::Ping(Ping { nonce }) => build_ping_message_flatbuffer(
                 &mut builder,
                 HeartbeatCommandsArgs {
                     magic: self.magic,
                     nonce,
                 },
             ),
-            Command::Pong(Pong { nonce }) => create_pong_flatbuffer(
+            Command::Pong(Pong { nonce }) => build_pong_message_flatbuffer(
                 &mut builder,
                 HeartbeatCommandsArgs {
                     magic: self.magic,
@@ -334,10 +477,11 @@ impl Into<Vec<u8>> for Message {
             ),
 
             // Peer discovery
-            Command::GetPeers(GetPeers) => {
-                create_get_peers_flatbuffer(&mut builder, EmptyCommandArgs { magic: self.magic })
-            }
-            Command::Peers(Peers { peers }) => create_peers_flatbuffer(
+            Command::GetPeers(GetPeers) => build_get_peers_message_flatbuffer(
+                &mut builder,
+                EmptyCommandArgs { magic: self.magic },
+            ),
+            Command::Peers(Peers { peers }) => build_peers_message_flatbuffer(
                 &mut builder,
                 PeersFlatbufferArgs {
                     magic: self.magic,
@@ -346,9 +490,10 @@ impl Into<Vec<u8>> for Message {
             ),
 
             // Handshake
-            Command::Verack(Verack) => {
-                create_verack_flatbuffer(&mut builder, EmptyCommandArgs { magic: self.magic })
-            }
+            Command::Verack(Verack) => build_verack_message_flatbuffer(
+                &mut builder,
+                EmptyCommandArgs { magic: self.magic },
+            ),
             Command::Version(Version {
                 version,
                 timestamp,
@@ -359,7 +504,7 @@ impl Into<Vec<u8>> for Message {
                 last_epoch,
                 genesis,
                 nonce,
-            }) => create_version_flatbuffer(
+            }) => build_version_message_flatbuffer(
                 &mut builder,
                 VersionCommandArgs {
                     magic: self.magic,
@@ -380,9 +525,9 @@ impl Into<Vec<u8>> for Message {
                 block_header,
                 proof,
                 txns,
-            }) => create_block_flatbuffer(
+            }) => build_block_message_flatbuffer(
                 &mut builder,
-                BlockCommandArgs {
+                &BlockCommandArgs {
                     magic: self.magic,
                     block_header,
                     proof,
@@ -390,7 +535,7 @@ impl Into<Vec<u8>> for Message {
                 },
             ),
             Command::InventoryAnnouncement(InventoryAnnouncement { inventory }) => {
-                create_inventory_announcement_flatbuffer(
+                build_inv_announcement_message_flatbuffer(
                     &mut builder,
                     InventoryArgs {
                         magic: self.magic,
@@ -399,7 +544,7 @@ impl Into<Vec<u8>> for Message {
                 )
             }
             Command::InventoryRequest(InventoryRequest { inventory }) => {
-                create_inventory_request_flatbuffer(
+                build_inv_request_message_flatbuffer(
                     &mut builder,
                     InventoryArgs {
                         magic: self.magic,
@@ -409,7 +554,7 @@ impl Into<Vec<u8>> for Message {
             }
             Command::LastBeacon(LastBeacon {
                 highest_block_checkpoint,
-            }) => create_last_beacon_flatbuffer(
+            }) => build_last_beacon_message_flatbuffer(
                 &mut builder,
                 LastBeaconCommandArgs {
                     magic: self.magic,
@@ -423,7 +568,7 @@ impl Into<Vec<u8>> for Message {
 ////////////////////////////////////////////////////////
 // FROM TRAIT AUX FUNCTIONS: to create Witnet's types
 ////////////////////////////////////////////////////////
-// Create a Witnet Ping message to decode a flatbuffers' Ping message
+// Build a Witnet Ping message to decode a flatbuffers' Ping message
 fn create_ping_message(ping_args: HeartbeatCommandsArgs) -> Message {
     Message {
         kind: Command::Ping(Ping {
@@ -433,7 +578,7 @@ fn create_ping_message(ping_args: HeartbeatCommandsArgs) -> Message {
     }
 }
 
-// Create a Witnet Pong message to decode a flatbuffers' Pong message
+// Build a Witnet Pong message to decode a flatbuffers' Pong message
 fn create_pong_message(pong_args: HeartbeatCommandsArgs) -> Message {
     Message {
         kind: Command::Pong(Pong {
@@ -443,7 +588,7 @@ fn create_pong_message(pong_args: HeartbeatCommandsArgs) -> Message {
     }
 }
 
-// Create a Witnet GetPeers message to decode a flatbuffers' GetPeers message
+// Build a Witnet GetPeers message to decode a flatbuffers' GetPeers message
 fn create_get_peers_message(get_peers_args: EmptyCommandArgs) -> Message {
     Message {
         kind: Command::GetPeers(GetPeers),
@@ -451,7 +596,7 @@ fn create_get_peers_message(get_peers_args: EmptyCommandArgs) -> Message {
     }
 }
 
-// Create a Witnet's Peers message to decode a flatbuffers' Peers message
+// Build a Witnet's Peers message to decode a flatbuffers' Peers message
 fn create_peers_message(peers_args: PeersWitnetArgs) -> Option<Message> {
     peers_args.peers.peers().map(|ftb_addresses| {
         // TODO: Refactor as declarative code [24-10-2018]
@@ -477,7 +622,7 @@ fn create_peers_message(peers_args: PeersWitnetArgs) -> Option<Message> {
     })
 }
 
-// Create a Witnet Verack message to decode a flatbuffers' Verack message
+// Build a Witnet Verack message to decode a flatbuffers' Verack message
 fn create_verack_message(verack_args: EmptyCommandArgs) -> Message {
     Message {
         kind: Command::Verack(Verack),
@@ -485,7 +630,7 @@ fn create_verack_message(verack_args: EmptyCommandArgs) -> Message {
     }
 }
 
-// Create a Witnet Version message to decode a flatbuffers' Version message
+// Build a Witnet Version message to decode a flatbuffers' Version message
 fn create_version_message(version_args: VersionCommandArgs) -> Message {
     Message {
         kind: Command::Version(Version {
@@ -503,23 +648,23 @@ fn create_version_message(version_args: VersionCommandArgs) -> Message {
     }
 }
 
-// Create a Witnet's InventoryAnnouncement message to decode a flatbuffers' InventoryAnnouncement
+// Build a Witnet's InventoryAnnouncement message to decode a flatbuffers' InventoryAnnouncement
 // message
 fn create_inventory_announcement_message(inv_args: InventoryAnnouncementWitnetArgs) -> Message {
     // Get inventory entries (flatbuffers' types)
     let ftb_inv_items = inv_args.inventory.inventory();
     let len = ftb_inv_items.len();
 
-    // Create empty vector of inventory entries
+    // Build empty vector of inventory entries
     let mut inv_items = Vec::new();
 
-    // Create all inventory entries (Witnet's types) and add them to a vector
+    // Build all inventory entries (Witnet's types) and add them to a vector
     for i in 0..len {
         let inv_item = create_inventory_entry(ftb_inv_items.get(i));
         inv_items.push(inv_item);
     }
 
-    // Create message
+    // Build message
     Message {
         magic: inv_args.magic,
         kind: Command::InventoryAnnouncement(InventoryAnnouncement {
@@ -528,22 +673,22 @@ fn create_inventory_announcement_message(inv_args: InventoryAnnouncementWitnetAr
     }
 }
 
-// Create a Witnet's InventoryRequest message to decode a flatbuffers' InventoryRequest message
+// Build a Witnet's InventoryRequest message to decode a flatbuffers' InventoryRequest message
 fn create_inventory_request_message(get_data_args: InventoryRequestWitnetArgs) -> Message {
     // Get inventory entries (flatbuffers' types)
     let ftb_inv_items = get_data_args.inventory.inventory();
     let len = ftb_inv_items.len();
 
-    // Create empty vector of inventory entries
+    // Build empty vector of inventory entries
     let mut inv_items = Vec::new();
 
-    // Create all inventory entries (Witnet's types) and add them to a vector
+    // Build all inventory entries (Witnet's types) and add them to a vector
     for i in 0..len {
         let inv_item = create_inventory_entry(ftb_inv_items.get(i));
         inv_items.push(inv_item);
     }
 
-    // Create message
+    // Build message
     Message {
         magic: get_data_args.magic,
         kind: Command::InventoryRequest(InventoryRequest {
@@ -552,7 +697,7 @@ fn create_inventory_request_message(get_data_args: InventoryRequestWitnetArgs) -
     }
 }
 
-// Create a Witnet LastBeacon message to decode flatbuffers' LastBeacon message
+// Build a Witnet LastBeacon message to decode flatbuffers' LastBeacon message
 fn create_last_beacon_message(last_beacon_args: LastBeaconCommandArgs) -> Message {
     Message {
         kind: Command::LastBeacon(LastBeacon {
@@ -565,12 +710,12 @@ fn create_last_beacon_message(last_beacon_args: LastBeaconCommandArgs) -> Messag
     }
 }
 
-// Create a Witnet's InventoryEntry from a flatbuffers' InventoryEntry
+// Build a Witnet's InventoryEntry from a flatbuffers' InventoryEntry
 fn create_inventory_entry(inv_item: protocol::InventoryEntry) -> InventoryEntry {
-    // Create inventory entry hash
+    // Build inventory entry hash
     let hash = create_hash(inv_item.hash());
 
-    // Create inventory entry
+    // Build inventory entry
     match inv_item.type_() {
         protocol::InventoryItemType::Error => InventoryEntry::Error(hash),
         protocol::InventoryItemType::Tx => InventoryEntry::Tx(hash),
@@ -580,7 +725,7 @@ fn create_inventory_entry(inv_item: protocol::InventoryEntry) -> InventoryEntry 
     }
 }
 
-// Create a Witnet's Hash from a flatbuffers' Hash
+// Build a Witnet's Hash from a flatbuffers' Hash
 fn create_hash(hash: protocol::Hash) -> Hash {
     // Get hash bytes
     let mut hash_bytes: SHA256 = [0; 32];
@@ -592,7 +737,7 @@ fn create_hash(hash: protocol::Hash) -> Hash {
     }
 }
 
-// Create Witnet IP address
+// Build Witnet IP address
 fn create_address(address: protocol::Address) -> Option<Address> {
     match address.ip_type() {
         protocol::IpAddress::Ipv4 => address
@@ -612,7 +757,7 @@ fn create_address(address: protocol::Address) -> Option<Address> {
     }
 }
 
-// Create Witnet IPv4 address
+// Build Witnet IPv4 address
 fn create_ipv4_address(ip: u32, port: u16) -> Address {
     Address {
         ip: Ipv4 { ip },
@@ -620,7 +765,7 @@ fn create_ipv4_address(ip: u32, port: u16) -> Address {
     }
 }
 
-// Create Witnet IPv6 address
+// Build Witnet IPv6 address
 fn create_ipv6_address(ip0: u32, ip1: u32, ip2: u32, ip3: u32, port: u16) -> Address {
     Address {
         ip: Ipv6 { ip0, ip1, ip2, ip3 },
@@ -631,516 +776,140 @@ fn create_ipv6_address(ip0: u32, ip1: u32, ip2: u32, ip3: u32, port: u16) -> Add
 ////////////////////////////////////////////////////////
 // INTO TRAIT AUX FUNCTIONS: to create ftb types
 ////////////////////////////////////////////////////////
-// Convert a flatbuffers message into a vector of bytes
-fn build_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    message: flatbuffers::WIPOffset<protocol::Message>,
+
+/////////////////////
+// FBT BUILDERS
+/////////////////////
+
+pub fn build_block_flatbuffer(
+    builder: Option<&mut FlatBufferBuilder>,
+    block_args: &BlockArgs,
 ) -> Vec<u8> {
-    builder.finish(message, None);
+    let aux_builder: &mut FlatBufferBuilder =
+        &mut flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
+    let builder = builder.unwrap_or_else(|| aux_builder);
+    let block_wipoffset = build_block_wipoffset(
+        builder,
+        &BlockWipoffsetArgs {
+            txns: &block_args.txns,
+            version: block_args.block_header.version,
+            checkpoint: block_args.block_header.beacon.checkpoint,
+            hash_prev_block: block_args.block_header.beacon.hash_prev_block,
+            hash: block_args.block_header.hash_merkle_root,
+            block_sig: block_args.proof.block_sig,
+            influence: block_args.proof.influence,
+        },
+    );
+    // Build block flatbuffer
+    builder.finish(block_wipoffset, None);
     builder.finished_data().to_vec()
 }
 
-// Create a Ping flatbuffer to encode a Witnet's Ping message
-fn create_ping_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    ping_args: HeartbeatCommandsArgs,
+// Build a Block flatbuffer to encode a Witnet's Block message
+fn build_block_message_flatbuffer<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    block_args: &BlockCommandArgs<'a>,
 ) -> Vec<u8> {
-    let ping_command = protocol::Ping::create(
+    let block_command_wipoffset = build_block_command_wipoffset(
         builder,
-        &protocol::PingArgs {
-            nonce: ping_args.nonce.to_owned(),
+        &BlockMessageArgs {
+            version: block_args.block_header.version,
+            checkpoint: block_args.block_header.beacon.checkpoint,
+            hash_prev_block: block_args.block_header.beacon.hash_prev_block,
+            hash: block_args.block_header.hash_merkle_root,
+            block_sig: block_args.proof.block_sig,
+            influence: block_args.proof.influence,
+            txns: block_args.txns,
         },
     );
-    let message = protocol::Message::create(
+    let block_message_wipoffset = build_message_wipoffset(
         builder,
-        &protocol::MessageArgs {
-            magic: ping_args.magic,
-            command_type: protocol::Command::Ping,
-            command: Some(ping_command.as_union_value()),
+        &MessageArgs {
+            magic: block_args.magic,
+            command_type: protocol::Command::Block,
+            command: Some(block_command_wipoffset.as_union_value()),
         },
     );
 
-    build_flatbuffer(builder, message)
+    build_message_flatbuffer(builder, block_message_wipoffset)
 }
 
-// Create a Pong flatbuffer to encode a Witnet's Pong message
-fn create_pong_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    pong_args: HeartbeatCommandsArgs,
-) -> Vec<u8> {
-    let pong_command = protocol::Pong::create(
-        builder,
-        &protocol::PongArgs {
-            nonce: pong_args.nonce,
-        },
-    );
-    let message = protocol::Message::create(
-        builder,
-        &protocol::MessageArgs {
-            magic: pong_args.magic,
-            command_type: protocol::Command::Pong,
-            command: Some(pong_command.as_union_value()),
-        },
-    );
-
-    build_flatbuffer(builder, message)
-}
-
-// Create a GetPeers flatbuffer to encode Witnet's GetPeers message
-fn create_get_peers_flatbuffer(
+// Build a GetPeers flatbuffer to encode Witnet's GetPeers message
+fn build_get_peers_message_flatbuffer(
     builder: &mut FlatBufferBuilder,
     get_peers_args: EmptyCommandArgs,
 ) -> Vec<u8> {
-    let get_peers_command = protocol::GetPeers::create(builder, &protocol::GetPeersArgs {});
-
-    let message = protocol::Message::create(
+    let get_peers_command_wipoffset = build_get_peers_command_wipoffset(builder);
+    let get_peers_message_wipoffset = build_message_wipoffset(
         builder,
-        &protocol::MessageArgs {
+        &MessageArgs {
             magic: get_peers_args.magic,
             command_type: protocol::Command::GetPeers,
-            command: Some(get_peers_command.as_union_value()),
+            command: Some(get_peers_command_wipoffset.as_union_value()),
         },
     );
-    build_flatbuffer(builder, message)
+
+    build_message_flatbuffer(builder, get_peers_message_wipoffset)
 }
 
-// Create a Peers flatbuffer to encode a Witnet's Peers message
-fn create_peers_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    peers_args: PeersFlatbufferArgs,
+// Build an InventoryAnnouncement flatbuffer to encode a Witnet's InventoryAnnouncement message
+fn build_inv_announcement_message_flatbuffer<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    inv_args: InventoryArgs<'a>,
 ) -> Vec<u8> {
-    let addresses_command: Vec<flatbuffers::WIPOffset<protocol::Address>> = peers_args
-        .peers
-        .iter()
-        .map(|peer: &Address| match peer.ip {
-            Ipv4 { ip } => {
-                let ip_command = protocol::Ipv4::create(builder, &protocol::Ipv4Args { ip });
-                protocol::Address::create(
-                    builder,
-                    &protocol::AddressArgs {
-                        ip_type: protocol::IpAddress::Ipv4,
-                        ip: Some(ip_command.as_union_value()),
-                        port: peer.port,
-                    },
-                )
-            }
-            Ipv6 { ip0, ip1, ip2, ip3 } => {
-                let ip_command =
-                    protocol::Ipv6::create(builder, &protocol::Ipv6Args { ip0, ip1, ip2, ip3 });
-                protocol::Address::create(
-                    builder,
-                    &protocol::AddressArgs {
-                        ip_type: protocol::IpAddress::Ipv6,
-                        ip: Some(ip_command.as_union_value()),
-                        port: peer.port,
-                    },
-                )
-            }
-        })
-        .collect();
-
-    let addresses = Some(builder.create_vector(&addresses_command));
-    let peers_command = protocol::Peers::create(builder, &protocol::PeersArgs { peers: addresses });
-
-    let message = protocol::Message::create(
+    let inv_announcement_command_wipoffset = build_inv_announcement_wipoffset(
         builder,
-        &protocol::MessageArgs {
-            magic: peers_args.magic,
-            command_type: protocol::Command::Peers,
-            command: Some(peers_command.as_union_value()),
+        &InventoryWipoffsetArgs {
+            inventory_entries: inv_args.inventory,
         },
     );
-    build_flatbuffer(builder, message)
-}
-
-// Create a Verack flatbuffer to encode a Witnet's Verack message
-fn create_verack_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    verack_args: EmptyCommandArgs,
-) -> Vec<u8> {
-    let verack_command = protocol::Verack::create(builder, &protocol::VerackArgs {});
-
-    let message = protocol::Message::create(
+    let message_wipoffset = build_message_wipoffset(
         builder,
-        &protocol::MessageArgs {
-            magic: verack_args.magic,
-            command_type: protocol::Command::Verack,
-            command: Some(verack_command.as_union_value()),
-        },
-    );
-    build_flatbuffer(builder, message)
-}
-
-// Create a Version flatbuffer to encode a Witnet's Version message
-fn create_version_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    version_args: VersionCommandArgs,
-) -> Vec<u8> {
-    let sender_address_command = match version_args.sender_address.ip {
-        Ipv4 { ip } => {
-            let ip_command = protocol::Ipv4::create(builder, &protocol::Ipv4Args { ip });
-            protocol::Address::create(
-                builder,
-                &protocol::AddressArgs {
-                    ip_type: protocol::IpAddress::Ipv4,
-                    ip: Some(ip_command.as_union_value()),
-                    port: version_args.sender_address.port,
-                },
-            )
-        }
-        Ipv6 { ip0, ip1, ip2, ip3 } => {
-            let ip_command =
-                protocol::Ipv6::create(builder, &protocol::Ipv6Args { ip0, ip1, ip2, ip3 });
-            protocol::Address::create(
-                builder,
-                &protocol::AddressArgs {
-                    ip_type: protocol::IpAddress::Ipv6,
-                    ip: Some(ip_command.as_union_value()),
-                    port: version_args.sender_address.port,
-                },
-            )
-        }
-    };
-
-    let receiver_address_command = match version_args.receiver_address.ip {
-        Ipv4 { ip } => {
-            let ip_command = protocol::Ipv4::create(builder, &protocol::Ipv4Args { ip });
-            protocol::Address::create(
-                builder,
-                &protocol::AddressArgs {
-                    ip_type: protocol::IpAddress::Ipv4,
-                    ip: Some(ip_command.as_union_value()),
-                    port: version_args.receiver_address.port,
-                },
-            )
-        }
-        Ipv6 { ip0, ip1, ip2, ip3 } => {
-            let ip_command =
-                protocol::Ipv6::create(builder, &protocol::Ipv6Args { ip0, ip1, ip2, ip3 });
-            protocol::Address::create(
-                builder,
-                &protocol::AddressArgs {
-                    ip_type: protocol::IpAddress::Ipv6,
-                    ip: Some(ip_command.as_union_value()),
-                    port: version_args.receiver_address.port,
-                },
-            )
-        }
-    };
-
-    let user_agent = Some(builder.create_string(&version_args.user_agent));
-    let version_command = protocol::Version::create(
-        builder,
-        &protocol::VersionArgs {
-            version: version_args.version,
-            timestamp: version_args.timestamp,
-            capabilities: version_args.capabilities,
-            sender_address: Some(sender_address_command),
-            receiver_address: Some(receiver_address_command),
-            user_agent,
-            last_epoch: version_args.last_epoch,
-            genesis: version_args.genesis,
-            nonce: version_args.nonce,
-        },
-    );
-
-    let message = protocol::Message::create(
-        builder,
-        &protocol::MessageArgs {
-            magic: version_args.magic,
-            command_type: protocol::Command::Version,
-            command: Some(version_command.as_union_value()),
-        },
-    );
-
-    build_flatbuffer(builder, message)
-}
-
-// Create a Block flatbuffer to encode a Witnet's Block message
-fn create_block_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    block_args: BlockCommandArgs,
-) -> Vec<u8> {
-    // Create checkpoint beacon flatbuffer
-    let hash_prev_block_args = match block_args.block_header.beacon.hash_prev_block {
-        Hash::SHA256(hash) => protocol::HashArgs {
-            type_: protocol::HashType::SHA256,
-            bytes: Some(builder.create_vector(&hash)),
-        },
-    };
-    let hash_prev_block = Some(protocol::Hash::create(builder, &hash_prev_block_args));
-    let beacon = Some(protocol::CheckpointBeacon::create(
-        builder,
-        &protocol::CheckpointBeaconArgs {
-            checkpoint: block_args.block_header.beacon.checkpoint,
-            hash_prev_block,
-        },
-    ));
-    // Create hash merkle root flatbuffer
-    let hash_merkle_root_args = match block_args.block_header.hash_merkle_root {
-        Hash::SHA256(hash) => protocol::HashArgs {
-            type_: protocol::HashType::SHA256,
-            bytes: Some(builder.create_vector(&hash)),
-        },
-    };
-    let hash_merkle_root = Some(protocol::Hash::create(builder, &hash_merkle_root_args));
-    // Create proof of leadership flatbuffer
-    let block_sig_type = block_args
-        .proof
-        .block_sig
-        .clone()
-        .map(|signature| match signature {
-            Signature::Secp256k1(_) => protocol::Signature::Secp256k1Signature,
-        });
-    let block_sig = block_args.proof.block_sig.map(|signature| match signature {
-        Signature::Secp256k1(secp256k1) => {
-            let mut s = secp256k1.s.to_vec();
-            s.push(secp256k1.v);
-            let r_ftb = Some(builder.create_vector(&secp256k1.r));
-            let s_ftb = Some(builder.create_vector(&s));
-
-            protocol::Secp256k1Signature::create(
-                builder,
-                &protocol::Secp256k1SignatureArgs { r: r_ftb, s: s_ftb },
-            )
-            .as_union_value()
-        }
-    });
-    let proof = Some(protocol::LeadershipProof::create(
-        builder,
-        &protocol::LeadershipProofArgs {
-            block_sig_type: block_sig_type.unwrap_or(protocol::Signature::NONE),
-            block_sig,
-            influence: block_args.proof.influence,
-        },
-    ));
-    // Create block header flatbuffer
-    let block_header = Some(protocol::BlockHeader::create(
-        builder,
-        &protocol::BlockHeaderArgs {
-            version: block_args.block_header.version,
-            beacon,
-            hash_merkle_root,
-        },
-    ));
-    // Create transaction array flatbuffer
-    let txns: Vec<flatbuffers::WIPOffset<protocol::Transaction>> = block_args
-        .txns
-        .iter()
-        .map(|_tx: &Transaction| {
-            protocol::Transaction::create(builder, &protocol::TransactionArgs {})
-        })
-        .collect();
-    let txns_ftb = Some(builder.create_vector(&txns));
-    // Create block command flatbuffer
-    let block_command = protocol::Block::create(
-        builder,
-        &protocol::BlockArgs {
-            block_header,
-            proof,
-            txns: txns_ftb,
-        },
-    );
-    // Create message flatbuffer
-    let message = protocol::Message::create(
-        builder,
-        &protocol::MessageArgs {
-            magic: block_args.magic,
-            command_type: protocol::Command::Block,
-            command: Some(block_command.as_union_value()),
-        },
-    );
-
-    build_flatbuffer(builder, message)
-}
-
-// Create an InventoryAnnouncement flatbuffer to encode a Witnet's InventoryAnnouncement message
-fn create_inventory_announcement_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    inv_args: InventoryArgs,
-) -> Vec<u8> {
-    // Create vector of flatbuffers' inv items
-    let ftb_inv_items: Vec<flatbuffers::WIPOffset<protocol::InventoryEntry>> = inv_args
-        .inventory
-        .iter()
-        .map(|inv_item: &InventoryEntry| {
-            // Create flatbuffers' hash bytes
-            let hash = match inv_item {
-                InventoryEntry::Error(hash)
-                | InventoryEntry::Tx(hash)
-                | InventoryEntry::Block(hash)
-                | InventoryEntry::DataRequest(hash)
-                | InventoryEntry::DataResult(hash) => hash,
-            };
-
-            // Get hash bytes
-            let bytes = match hash {
-                Hash::SHA256(bytes) => builder.create_vector(bytes),
-            };
-
-            // Create flatbuffers' hash
-            let ftb_hash = match hash {
-                Hash::SHA256(_) => protocol::Hash::create(
-                    builder,
-                    &protocol::HashArgs {
-                        type_: protocol::HashType::SHA256,
-                        bytes: Some(bytes),
-                    },
-                ),
-            };
-
-            // Create flatbuffers inv vector type
-            let ftb_type = match inv_item {
-                InventoryEntry::Error(_) => protocol::InventoryItemType::Error,
-                InventoryEntry::Tx(_) => protocol::InventoryItemType::Tx,
-                InventoryEntry::Block(_) => protocol::InventoryItemType::Block,
-                InventoryEntry::DataRequest(_) => protocol::InventoryItemType::DataRequest,
-                InventoryEntry::DataResult(_) => protocol::InventoryItemType::DataResult,
-            };
-
-            // Create flatbuffers inv vector
-            protocol::InventoryEntry::create(
-                builder,
-                &protocol::InventoryEntryArgs {
-                    type_: ftb_type,
-                    hash: Some(ftb_hash),
-                },
-            )
-        })
-        .collect();
-
-    // Create flatbuffers' vector of flatbuffers' inv items
-    let ftb_inv_items = Some(builder.create_vector(&ftb_inv_items));
-
-    // Create inv flatbuffers command
-    let inv_command = protocol::InventoryAnnouncement::create(
-        builder,
-        &protocol::InventoryAnnouncementArgs {
-            inventory: ftb_inv_items,
-        },
-    );
-
-    // Create flatbuffers message
-    let message = protocol::Message::create(
-        builder,
-        &protocol::MessageArgs {
+        &MessageArgs {
             magic: inv_args.magic,
             command_type: protocol::Command::InventoryAnnouncement,
-            command: Some(inv_command.as_union_value()),
+            command: Some(inv_announcement_command_wipoffset.as_union_value()),
         },
     );
 
     // Get vector of bytes from flatbuffer message
-    build_flatbuffer(builder, message)
+    build_message_flatbuffer(builder, message_wipoffset)
 }
 
-// Create an InventoryRequest flatbuffer to encode a Witnet's InventoryRequest message
-fn create_inventory_request_flatbuffer(
-    builder: &mut FlatBufferBuilder,
-    get_data_args: InventoryArgs,
+// Build an InventoryRequest flatbuffer to encode a Witnet's InventoryRequest message
+fn build_inv_request_message_flatbuffer<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    get_data_args: InventoryArgs<'a>,
 ) -> Vec<u8> {
-    // Create vector of flatbuffers' inv items
-    let ftb_inv_items: Vec<flatbuffers::WIPOffset<protocol::InventoryEntry>> = get_data_args
-        .inventory
-        .iter()
-        .map(|inv_item: &InventoryEntry| {
-            // Create flatbuffers' hash bytes
-            let hash = match inv_item {
-                InventoryEntry::Error(hash)
-                | InventoryEntry::Tx(hash)
-                | InventoryEntry::Block(hash)
-                | InventoryEntry::DataRequest(hash)
-                | InventoryEntry::DataResult(hash) => hash,
-            };
-
-            // Get hash bytes
-            let bytes = match hash {
-                Hash::SHA256(bytes) => builder.create_vector(bytes),
-            };
-
-            // Create flatbuffers' hash
-            let ftb_hash = match hash {
-                Hash::SHA256(_) => protocol::Hash::create(
-                    builder,
-                    &protocol::HashArgs {
-                        type_: protocol::HashType::SHA256,
-                        bytes: Some(bytes),
-                    },
-                ),
-            };
-
-            // Create flatbuffers inv item type
-            let ftb_type = match inv_item {
-                InventoryEntry::Error(_) => protocol::InventoryItemType::Error,
-                InventoryEntry::Tx(_) => protocol::InventoryItemType::Tx,
-                InventoryEntry::Block(_) => protocol::InventoryItemType::Block,
-                InventoryEntry::DataRequest(_) => protocol::InventoryItemType::DataRequest,
-                InventoryEntry::DataResult(_) => protocol::InventoryItemType::DataResult,
-            };
-
-            // Create flatbuffers inv item
-            protocol::InventoryEntry::create(
-                builder,
-                &protocol::InventoryEntryArgs {
-                    type_: ftb_type,
-                    hash: Some(ftb_hash),
-                },
-            )
-        })
-        .collect();
-
-    // Create flatbuffers' vector of flatbuffers' inv items
-    let ftb_inv_items = Some(builder.create_vector(&ftb_inv_items));
-
-    // Create get_data flatbuffers command
-    let get_data_command = protocol::InventoryRequest::create(
+    let inventory_request_command_wipoffset = build_inv_request_command_wipoffset(
         builder,
-        &protocol::InventoryRequestArgs {
-            inventory: ftb_inv_items,
+        &InventoryWipoffsetArgs {
+            inventory_entries: get_data_args.inventory,
         },
     );
-
-    // Create flatbuffers message
-    let message = protocol::Message::create(
+    let message_wipoffset = build_message_wipoffset(
         builder,
-        &protocol::MessageArgs {
+        &MessageArgs {
             magic: get_data_args.magic,
             command_type: protocol::Command::InventoryRequest,
-            command: Some(get_data_command.as_union_value()),
+            command: Some(inventory_request_command_wipoffset.as_union_value()),
         },
     );
 
     // Get vector of bytes from flatbuffer message
-    build_flatbuffer(builder, message)
+    build_message_flatbuffer(builder, message_wipoffset)
 }
 
-// Create a LastBeacon flatbuffer to encode a Witnet LastBeacon message
-fn create_last_beacon_flatbuffer(
+// Build a LastBeacon flatbuffer to encode a Witnet LastBeacon message
+fn build_last_beacon_message_flatbuffer(
     builder: &mut FlatBufferBuilder,
     last_beacon_args: LastBeaconCommandArgs,
 ) -> Vec<u8> {
-    let Hash::SHA256(hash) = last_beacon_args.highest_block_checkpoint.hash_prev_block;
-    let ftb_hash = builder.create_vector(&hash);
-    let hash_command = protocol::Hash::create(
+    let last_beacon_command_wipoffset = build_last_beacon_command_wipoffset(
         builder,
-        &protocol::HashArgs {
-            type_: protocol::HashType::SHA256,
-            bytes: Some(ftb_hash),
-        },
-    );
-
-    let beacon = protocol::CheckpointBeacon::create(
-        builder,
-        &protocol::CheckpointBeaconArgs {
+        &LastBeaconWipoffsetArgs {
             checkpoint: last_beacon_args.highest_block_checkpoint.checkpoint,
-            hash_prev_block: Some(hash_command),
-        },
-    );
-
-    let last_beacon_command = protocol::LastBeacon::create(
-        builder,
-        &protocol::LastBeaconArgs {
-            highest_block_checkpoint: Some(beacon),
+            hash_prev_block: last_beacon_args.highest_block_checkpoint.hash_prev_block,
         },
     );
     let message = protocol::Message::create(
@@ -1148,8 +917,612 @@ fn create_last_beacon_flatbuffer(
         &protocol::MessageArgs {
             magic: last_beacon_args.magic,
             command_type: protocol::Command::LastBeacon,
-            command: Some(last_beacon_command.as_union_value()),
+            command: Some(last_beacon_command_wipoffset.as_union_value()),
         },
     );
-    build_flatbuffer(builder, message)
+
+    build_message_flatbuffer(builder, message)
+}
+
+// Convert a flatbuffers message into a vector of bytes
+fn build_message_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    message: flatbuffers::WIPOffset<protocol::Message>,
+) -> Vec<u8> {
+    builder.finish(message, None);
+    builder.finished_data().to_vec()
+}
+
+// Build a Ping flatbuffer to encode a Witnet's Ping message
+fn build_ping_message_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    ping_args: HeartbeatCommandsArgs,
+) -> Vec<u8> {
+    let ping_command_wipoffset = build_ping_command_wipoffset(
+        builder,
+        &HeartbeatArgs {
+            nonce: ping_args.nonce,
+        },
+    );
+
+    let ping_message_wipoffset = build_message_wipoffset(
+        builder,
+        &MessageArgs {
+            magic: ping_args.magic,
+            command_type: protocol::Command::Ping,
+            command: Some(ping_command_wipoffset.as_union_value()),
+        },
+    );
+
+    build_message_flatbuffer(builder, ping_message_wipoffset)
+}
+
+// Build a Peers flatbuffer to encode a Witnet's Peers message
+fn build_peers_message_flatbuffer<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    peers_args: PeersFlatbufferArgs<'a>,
+) -> Vec<u8> {
+    let peers_command_wipoffset = build_peers_message_wipoffset(
+        builder,
+        &PeersArgs {
+            peers: peers_args.peers,
+        },
+    );
+    let peers_message_wipoffset = build_message_wipoffset(
+        builder,
+        &MessageArgs {
+            magic: peers_args.magic,
+            command_type: protocol::Command::Peers,
+            command: Some(peers_command_wipoffset.as_union_value()),
+        },
+    );
+
+    build_message_flatbuffer(builder, peers_message_wipoffset)
+}
+
+// Build a Pong flatbuffer to encode a Witnet's Pong message
+fn build_pong_message_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    pong_args: HeartbeatCommandsArgs,
+) -> Vec<u8> {
+    let pong_command_wipoffset = build_pong_command_wipoffset(
+        builder,
+        &HeartbeatArgs {
+            nonce: pong_args.nonce,
+        },
+    );
+    let pong_message_wipoffset = build_message_wipoffset(
+        builder,
+        &MessageArgs {
+            magic: pong_args.magic,
+            command_type: protocol::Command::Pong,
+            command: Some(pong_command_wipoffset.as_union_value()),
+        },
+    );
+
+    build_message_flatbuffer(builder, pong_message_wipoffset)
+}
+
+// Build a Verack flatbuffer to encode a Witnet's Verack message
+fn build_verack_message_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    verack_args: EmptyCommandArgs,
+) -> Vec<u8> {
+    let verack_command_wipoffset = build_verack_message_wipoffset(builder);
+    let verack_message_wipoffset = build_message_wipoffset(
+        builder,
+        &MessageArgs {
+            magic: verack_args.magic,
+            command_type: protocol::Command::Verack,
+            command: Some(verack_command_wipoffset.as_union_value()),
+        },
+    );
+
+    build_message_flatbuffer(builder, verack_message_wipoffset)
+}
+
+// Build a Version flatbuffer to encode a Witnet's Version message
+fn build_version_message_flatbuffer(
+    builder: &mut FlatBufferBuilder,
+    version_args: VersionCommandArgs,
+) -> Vec<u8> {
+    let version_command_wipoffset = build_version_message_wipoffset(
+        builder,
+        &VersionMessageArgs {
+            version: version_args.version,
+            timestamp: version_args.timestamp,
+            capabilities: version_args.capabilities,
+            sender_ip: version_args.sender_address.ip,
+            sender_port: version_args.sender_address.port,
+            receiver_ip: version_args.receiver_address.ip,
+            receiver_port: version_args.receiver_address.port,
+            user_agent: version_args.user_agent.to_string(),
+            last_epoch: version_args.last_epoch,
+            genesis: version_args.genesis,
+            nonce: version_args.nonce,
+        },
+    );
+    let version_message_wipoffset = build_message_wipoffset(
+        builder,
+        &MessageArgs {
+            magic: version_args.magic,
+            command_type: protocol::Command::Version,
+            command: Some(version_command_wipoffset.as_union_value()),
+        },
+    );
+
+    build_message_flatbuffer(builder, version_message_wipoffset)
+}
+
+/////////////////////////////
+// WIPOFFSET BUILDERS
+/////////////////////////////
+pub fn build_address_vector_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    addresses_args: &PeersArgs<'a>,
+) -> WIPOffsetAddresses<'a> {
+    let ftb_addresses: Vec<flatbuffers::WIPOffset<protocol::Address>> = addresses_args
+        .peers
+        .iter()
+        .map(|peer: &Address| {
+            build_address_wipoffset(
+                builder,
+                &AddressArgs {
+                    ip: peer.ip,
+                    port: peer.port,
+                },
+            )
+        })
+        .collect();
+    builder.create_vector(&ftb_addresses)
+}
+
+pub fn build_address_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    address_args: &AddressArgs,
+) -> WIPOffsetAddress<'a> {
+    match address_args.ip {
+        Ipv4 { ip } => {
+            let ip_v4_wipoffset = build_ipv4_wipoffset(builder, &IpV4Args { ip });
+            protocol::Address::create(
+                builder,
+                &protocol::AddressArgs {
+                    ip_type: protocol::IpAddress::Ipv4,
+                    ip: Some(ip_v4_wipoffset.as_union_value()),
+                    port: address_args.port,
+                },
+            )
+        }
+        Ipv6 { ip0, ip1, ip2, ip3 } => {
+            let ipv6_wipoffset = build_ipv6_wipoffset(builder, &IpV6Args { ip0, ip1, ip2, ip3 });
+            protocol::Address::create(
+                builder,
+                &protocol::AddressArgs {
+                    ip_type: protocol::IpAddress::Ipv6,
+                    ip: Some(ipv6_wipoffset.as_union_value()),
+                    port: address_args.port,
+                },
+            )
+        }
+    }
+}
+
+pub fn build_block_command_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    block_message_args: &BlockMessageArgs<'a>,
+) -> WIPOffsetBlockMessage<'a> {
+    let txns_vector_wipoffset = build_transactions_vector_wipoffset(
+        builder,
+        &TransactionsVectorArgs {
+            txns: block_message_args.txns,
+        },
+    );
+    let block_header_wipoffset = Some(build_block_header_wipoffset(
+        builder,
+        &BlockHeaderArgs {
+            version: block_message_args.version,
+            checkpoint: block_message_args.checkpoint,
+            hash_prev_block: block_message_args.hash_prev_block,
+            hash: block_message_args.hash,
+        },
+    ));
+
+    let proof_wipoffset = build_leadership_proof_wipoffset(
+        builder,
+        &LeadershipProofArgs {
+            block_sig: block_message_args.block_sig,
+            influence: block_message_args.influence,
+        },
+    );
+    protocol::Block::create(
+        builder,
+        &protocol::BlockArgs {
+            block_header: block_header_wipoffset,
+            proof: Some(proof_wipoffset),
+            txns: txns_vector_wipoffset,
+        },
+    )
+}
+
+pub fn build_block_header_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    block_headers_args: &BlockHeaderArgs,
+) -> WIPOffsetBlockHeader<'a> {
+    let hash_merkle_root = Some(build_hash_wipoffset(
+        builder,
+        &HashArgs {
+            hash: block_headers_args.hash,
+        },
+    ));
+    let checkpoint_beacon_wipoffset = Some(build_checkpoint_beacon_wipoffset(
+        builder,
+        &CheckpointBeaconArgs {
+            checkpoint: block_headers_args.checkpoint,
+            hash_prev_block: block_headers_args.hash_prev_block,
+        },
+    ));
+    protocol::BlockHeader::create(
+        builder,
+        &protocol::BlockHeaderArgs {
+            version: block_headers_args.version,
+            beacon: checkpoint_beacon_wipoffset,
+            hash_merkle_root,
+        },
+    )
+}
+
+pub fn build_block_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    block_args: &BlockWipoffsetArgs,
+) -> WIPOffsetBlock<'a> {
+    let proof_wipoffset = Some(build_leadership_proof_wipoffset(
+        builder,
+        &LeadershipProofArgs {
+            block_sig: block_args.block_sig,
+            influence: block_args.influence,
+        },
+    ));
+    // Build block header flatbuffer
+    let block_header_wipoffset = Some(build_block_header_wipoffset(
+        builder,
+        &BlockHeaderArgs {
+            version: block_args.version,
+            checkpoint: block_args.checkpoint,
+            hash_prev_block: block_args.hash_prev_block,
+            hash: block_args.hash,
+        },
+    ));
+    // Build transaction array flatbuffer
+    let txns_vector_wipoffset = build_transactions_vector_wipoffset(
+        builder,
+        &TransactionsVectorArgs {
+            txns: block_args.txns,
+        },
+    );
+    // Build block command flatbuffer
+    protocol::Block::create(
+        builder,
+        &protocol::BlockArgs {
+            block_header: block_header_wipoffset,
+            proof: proof_wipoffset,
+            txns: txns_vector_wipoffset,
+        },
+    )
+}
+
+pub fn build_checkpoint_beacon_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    beacon_args: &CheckpointBeaconArgs,
+) -> WIPOffsetCheckpointBeacon<'a> {
+    let hash_prev_block_wipoffset = Some(build_hash_wipoffset(
+        builder,
+        &HashArgs {
+            hash: beacon_args.hash_prev_block,
+        },
+    ));
+    protocol::CheckpointBeacon::create(
+        builder,
+        &protocol::CheckpointBeaconArgs {
+            checkpoint: beacon_args.checkpoint,
+            hash_prev_block: hash_prev_block_wipoffset,
+        },
+    )
+}
+
+pub fn build_get_peers_command_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+) -> WIPOffsetGetPeers<'a> {
+    protocol::GetPeers::create(builder, &protocol::GetPeersArgs {})
+}
+
+pub fn build_inv_announcement_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    inventory_announcement_args: &InventoryWipoffsetArgs<'a>,
+) -> WIPOffsetInventoryAnnouncement<'a> {
+    let inventory_entry_vector_wipoffset = build_inv_entry_vector_wipoffset(
+        builder,
+        &InventoryWipoffsetArgs {
+            inventory_entries: inventory_announcement_args.inventory_entries,
+        },
+    );
+    // Build inv flatbuffers command
+    protocol::InventoryAnnouncement::create(
+        builder,
+        &protocol::InventoryAnnouncementArgs {
+            inventory: Some(inventory_entry_vector_wipoffset),
+        },
+    )
+}
+
+pub fn build_inv_entry_vector_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    inventory_entry_vector_args: &InventoryWipoffsetArgs<'a>,
+) -> WIPOffsetInventoryEntryVector<'a> {
+    // Build vector of flatbuffers' inv items
+    let inventory_entry_wipoffset: Vec<flatbuffers::WIPOffset<protocol::InventoryEntry>> =
+        inventory_entry_vector_args
+            .inventory_entries
+            .iter()
+            .map(|inv_item: &InventoryEntry| {
+                build_inv_entry_wipoffset(builder, &InventoryEntryArgs { inv_item })
+            })
+            .collect();
+
+    // Build flatbuffers' vector of flatbuffers' inv items
+    builder.create_vector(&inventory_entry_wipoffset)
+}
+
+pub fn build_inv_entry_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    inventory_entry_args: &InventoryEntryArgs,
+) -> WIPOffsetInventoryEntry<'a> {
+    // Build flatbuffers' hash bytes
+    let hash = match inventory_entry_args.inv_item {
+        InventoryEntry::Error(hash)
+        | InventoryEntry::Tx(hash)
+        | InventoryEntry::Block(hash)
+        | InventoryEntry::DataRequest(hash)
+        | InventoryEntry::DataResult(hash) => hash,
+    };
+
+    let ftb_hash = build_hash_wipoffset(builder, &HashArgs { hash: *hash });
+    // Build flatbuffers inv vector type
+    let ftb_type = match inventory_entry_args.inv_item {
+        InventoryEntry::Error(_) => protocol::InventoryItemType::Error,
+        InventoryEntry::Tx(_) => protocol::InventoryItemType::Tx,
+        InventoryEntry::Block(_) => protocol::InventoryItemType::Block,
+        InventoryEntry::DataRequest(_) => protocol::InventoryItemType::DataRequest,
+        InventoryEntry::DataResult(_) => protocol::InventoryItemType::DataResult,
+    };
+
+    // Build flatbuffers inv vector
+    protocol::InventoryEntry::create(
+        builder,
+        &protocol::InventoryEntryArgs {
+            type_: ftb_type,
+            hash: Some(ftb_hash),
+        },
+    )
+}
+
+pub fn build_inv_request_command_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    inventory_request_args: &InventoryWipoffsetArgs<'a>,
+) -> WIPOffsetInventoryRequest<'a> {
+    let inventory_entry_vector_wipoffset = build_inv_entry_vector_wipoffset(
+        builder,
+        &InventoryWipoffsetArgs {
+            inventory_entries: inventory_request_args.inventory_entries,
+        },
+    );
+    // Build get_data flatbuffers command
+    protocol::InventoryRequest::create(
+        builder,
+        &protocol::InventoryRequestArgs {
+            inventory: Some(inventory_entry_vector_wipoffset),
+        },
+    )
+}
+
+pub fn build_ipv4_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    ip_v4_args: &IpV4Args,
+) -> WIPOffsetIpV4<'a> {
+    protocol::Ipv4::create(builder, &protocol::Ipv4Args { ip: ip_v4_args.ip })
+}
+
+pub fn build_ipv6_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    ip_v6_args: &IpV6Args,
+) -> WIPOffsetIpV6<'a> {
+    protocol::Ipv6::create(
+        builder,
+        &protocol::Ipv6Args {
+            ip0: ip_v6_args.ip0,
+            ip1: ip_v6_args.ip1,
+            ip2: ip_v6_args.ip2,
+            ip3: ip_v6_args.ip3,
+        },
+    )
+}
+
+pub fn build_hash_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    hash_args: &HashArgs,
+) -> WIPOffsetHash<'a> {
+    let hash = match hash_args.hash {
+        Hash::SHA256(sha256) => protocol::HashArgs {
+            type_: protocol::HashType::SHA256,
+            bytes: Some(builder.create_vector(&sha256)),
+        },
+    };
+    protocol::Hash::create(builder, &hash)
+}
+
+pub fn build_last_beacon_command_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    last_beacon_args: &LastBeaconWipoffsetArgs,
+) -> WIPOffsetLastBeacon<'a> {
+    let beacon = build_checkpoint_beacon_wipoffset(
+        builder,
+        &CheckpointBeaconArgs {
+            checkpoint: last_beacon_args.checkpoint,
+            hash_prev_block: last_beacon_args.hash_prev_block,
+        },
+    );
+
+    protocol::LastBeacon::create(
+        builder,
+        &protocol::LastBeaconArgs {
+            highest_block_checkpoint: Some(beacon),
+        },
+    )
+}
+
+pub fn build_leadership_proof_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    leadership_proof_args: &LeadershipProofArgs,
+) -> WIPOffsetLeadershipProof<'a> {
+    let block_sig_type = leadership_proof_args
+        .block_sig
+        .map(|signature| match signature {
+            Signature::Secp256k1(_) => protocol::Signature::Secp256k1Signature,
+        });
+    let block_sig = leadership_proof_args
+        .block_sig
+        .map(|signature| match signature {
+            Signature::Secp256k1(secp256k1) => {
+                let mut s = secp256k1.s.to_vec();
+                s.push(secp256k1.v);
+                let r_ftb = Some(builder.create_vector(&secp256k1.r));
+                let s_ftb = Some(builder.create_vector(&s));
+
+                protocol::Secp256k1Signature::create(
+                    builder,
+                    &protocol::Secp256k1SignatureArgs { r: r_ftb, s: s_ftb },
+                )
+                .as_union_value()
+            }
+        });
+
+    protocol::LeadershipProof::create(
+        builder,
+        &protocol::LeadershipProofArgs {
+            block_sig_type: block_sig_type.unwrap_or(protocol::Signature::NONE),
+            block_sig,
+            influence: leadership_proof_args.influence,
+        },
+    )
+}
+
+pub fn build_message_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    message_args: &MessageArgs,
+) -> WIPOffsetMessage<'a> {
+    protocol::Message::create(
+        builder,
+        &protocol::MessageArgs {
+            magic: message_args.magic,
+            command_type: message_args.command_type,
+            command: message_args.command,
+        },
+    )
+}
+
+pub fn build_peers_message_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    peers_message_args: &PeersArgs<'a>,
+) -> WIPOffsetPeersMessage<'a> {
+    let addresses_wipoffset = build_address_vector_wipoffset(
+        builder,
+        &PeersArgs {
+            peers: peers_message_args.peers,
+        },
+    );
+    protocol::Peers::create(
+        builder,
+        &protocol::PeersArgs {
+            peers: Some(addresses_wipoffset),
+        },
+    )
+}
+
+pub fn build_ping_command_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    ping_args: &HeartbeatArgs,
+) -> WIPOffsetPing<'a> {
+    protocol::Ping::create(
+        builder,
+        &protocol::PingArgs {
+            nonce: ping_args.nonce,
+        },
+    )
+}
+
+pub fn build_pong_command_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    pong_args: &HeartbeatArgs,
+) -> WIPOffsetPong<'a> {
+    protocol::Pong::create(
+        builder,
+        &protocol::PongArgs {
+            nonce: pong_args.nonce,
+        },
+    )
+}
+
+pub fn build_transactions_vector_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    transactions_vector_args: &TransactionsVectorArgs,
+) -> WIPOffsetTransactionVector<'a> {
+    let txns: Vec<_> = transactions_vector_args
+        .txns
+        .iter()
+        .map(|_tx: &Transaction| {
+            protocol::Transaction::create(builder, &protocol::TransactionArgs {})
+        })
+        .collect();
+    Some(builder.create_vector(&txns))
+}
+
+pub fn build_verack_message_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+) -> WIPOffsetVerackMessage<'a> {
+    protocol::Verack::create(builder, &protocol::VerackArgs {})
+}
+
+pub fn build_version_message_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    version_message_args: &VersionMessageArgs,
+) -> WIPOffsetVersionMessage<'a> {
+    let sender_address_wipoffset = build_address_wipoffset(
+        builder,
+        &AddressArgs {
+            ip: version_message_args.sender_ip,
+            port: version_message_args.sender_port,
+        },
+    );
+    let receiver_address_wipoffset = build_address_wipoffset(
+        builder,
+        &AddressArgs {
+            ip: version_message_args.receiver_ip,
+            port: version_message_args.receiver_port,
+        },
+    );
+    let user_agent = builder.create_string(&version_message_args.user_agent);
+
+    protocol::Version::create(
+        builder,
+        &protocol::VersionArgs {
+            version: version_message_args.version,
+            timestamp: version_message_args.timestamp,
+            capabilities: version_message_args.capabilities,
+            sender_address: Some(sender_address_wipoffset),
+            receiver_address: Some(receiver_address_wipoffset),
+            user_agent: Some(user_agent),
+            last_epoch: version_message_args.last_epoch,
+            genesis: version_message_args.genesis,
+            nonce: version_message_args.nonce,
+        },
+    )
 }

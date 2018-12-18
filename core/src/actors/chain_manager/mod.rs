@@ -135,7 +135,7 @@ impl ChainManager {
 
     fn process_new_block(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
         // Calculate the hash of the block
-        let hash = Hash::from(calculate_sha256(&block.to_bytes()?));
+        let hash: Hash = Hash::from(calculate_sha256(&block.to_bytes()?));
 
         // Check if we already have a block with that hash
         if let Some(_block) = self.blocks.get(&hash) {
