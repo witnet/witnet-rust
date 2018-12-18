@@ -22,6 +22,7 @@ At the moment, the available environments are: `testnet-1` and `mainnet`.
 | `consensus_constants` | `checkpoints_period_seconds`     | `90`                       | Seconds between the start of an epoch and the start of the next one |
 | `jsonrpc`             | `enabled`                        | `true`                     | Enable JSON-RPC server                                              |
 | `jsonrpc`             | `server_address`                 | `"127.0.0.1:21338"`        | JSON-RPC server socket address                                      |
+| `mining`              | `enabled`                        | `true`                     | Enable MiningManager                                                |
 
 ## Defaults for Mainnet
 
@@ -39,3 +40,4 @@ At the moment, the available environments are: `testnet-1` and `mainnet`.
 | `consensus_constants` | `checkpoints_period_seconds`     | `90`                       | Seconds between the start of an epoch and the start of the next one |
 | `jsonrpc`             | `enabled`                        | `true`                     | Enable JSON-RPC server                                              |
 | `jsonrpc`             | `server_address`                 | `"127.0.0.1:11338"`        | JSON-RPC server socket address                                      |
+| `mining`              | `enabled`                        | `true`                     | Enable MiningManager                                                |

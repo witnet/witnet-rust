@@ -223,4 +223,19 @@ enabled = false
         );
         assert_eq!(config_disabled.jsonrpc.enabled, Some(false),);
     }
+
+    #[test]
+    fn test_configure_mining() {
+        let empty_config = super::from_str("[mining]").unwrap();
+        let config_disabled = super::from_str(
+            r"
+[mining]
+enabled = false
+",
+        )
+        .unwrap();
+
+        assert_eq!(empty_config.mining, Mining::default());
+        assert_eq!(config_disabled.mining.enabled, Some(false),);
+    }
 }

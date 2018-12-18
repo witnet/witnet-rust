@@ -39,6 +39,10 @@ pub struct Config {
     /// JSON-RPC API configuration
     #[serde(default)]
     pub jsonrpc: JsonRPC,
+
+    /// Mining-related configuration
+    #[serde(default)]
+    pub mining: Mining,
 }
 
 /// Connection-specific partial configuration.
@@ -129,6 +133,13 @@ pub struct JsonRPC {
     /// JSON-RPC server address, that is, the socket address (interface ip and
     /// port) for the JSON-RPC server
     pub server_address: Option<SocketAddr>,
+}
+
+/// Mining-related configuration
+#[derive(Deserialize, Default, Debug, Clone, PartialEq)]
+pub struct Mining {
+    /// Binary flag telling whether to enable the MiningManager or not
+    pub enabled: Option<bool>,
 }
 
 impl Config {

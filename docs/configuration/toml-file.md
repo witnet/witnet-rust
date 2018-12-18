@@ -27,6 +27,9 @@ checkpoints_period_seconds = 90
 enabled = true
 server_address = "127.0.0.1:4321"
 
+[mining] # mining-related params
+enabled = true
+
 # ... more options
 ```
 
@@ -46,6 +49,7 @@ server_address = "127.0.0.1:4321"
 | `consensus_constants` | `checkpoints_period_seconds`     | `90`                       | Seconds between the start of an epoch and the start of the next one |
 | `jsonrpc`             | `enabled`                        | `true`                     | Enable JSON-RPC server                                              |
 | `jsonrpc`             | `server_address`                 | `"127.0.0.1:21338"`        | JSON-RPC server socket address                                      |
+| `mining`              | `enabled`                        | `true`                     | Enable MiningManager                                                |
 
 These are the defaults for `testnet-1`.
 See [environment][environment] for the specific values for all the environments.

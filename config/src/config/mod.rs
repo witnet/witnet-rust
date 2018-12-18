@@ -71,6 +71,9 @@ pub struct Config {
 
     /// JSON-RPC API configuration
     pub jsonrpc: JsonRPC,
+
+    /// Mining-related configuration
+    pub mining: Mining,
 }
 
 /// Connection-specific configuration.
@@ -124,6 +127,13 @@ pub struct JsonRPC {
     pub server_address: SocketAddr,
 }
 
+/// Mining-related configuration
+#[derive(Debug, Clone, PartialEq)]
+pub struct Mining {
+    /// Binary flag telling whether to enable the MiningManager or not
+    pub enabled: bool,
+}
+
 impl Config {
     pub fn from_partial(config: &partial::Config) -> Self {
         let defaults: Box<Defaults> = match config.environment {
@@ -157,6 +167,7 @@ impl Config {
             storage: Storage::from_partial(&config.storage, &*defaults),
             consensus_constants,
             jsonrpc: JsonRPC::from_partial(&config.jsonrpc, &*defaults),
+            mining: Mining::from_partial(&config.mining, &*defaults),
         }
     }
 }
@@ -256,6 +267,17 @@ impl JsonRPC {
                 .server_address
                 .to_owned()
                 .unwrap_or_else(|| defaults.jsonrpc_server_address()),
+        }
+    }
+}
+
+impl Mining {
+    pub fn from_partial(config: &partial::Mining, defaults: &dyn Defaults) -> Self {
+        Mining {
+            enabled: config
+                .enabled
+                .to_owned()
+                .unwrap_or_else(|| defaults.mining_enabled()),
         }
     }
 }

@@ -91,6 +91,11 @@ pub trait Defaults {
 
     /// Default JSON-RPC server addr
     fn jsonrpc_server_address(&self) -> SocketAddr;
+
+    /// MiningManager, enabled by default
+    fn mining_enabled(&self) -> bool {
+        true
+    }
 }
 
 /// Struct that will implement all the mainnet defaults
