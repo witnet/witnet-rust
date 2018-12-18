@@ -1,4 +1,5 @@
-use witnet_crypto::hash::Sha256;
+use super::serializers::{build_block_flatbuffer, BlockArgs};
+use witnet_crypto::hash::{calculate_sha256, Sha256};
 
 pub trait Hashable {
     fn hash(&self) -> Hash;
@@ -89,8 +90,22 @@ pub struct Block {
     pub txns: Vec<Transaction>,
 }
 
+impl Hashable for Block {
+    fn hash(&self) -> Hash {
+        let block_ftb = build_block_flatbuffer(
+            None,
+            &BlockArgs {
+                block_header: self.block_header,
+                proof: self.proof,
+                txns: self.txns.clone(),
+            },
+        );
+        calculate_sha256(&block_ftb).into()
+    }
+}
+
 /// Block header structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BlockHeader {
     /// The block version number indicating the block validation rules
     pub version: u32,
@@ -101,7 +116,7 @@ pub struct BlockHeader {
 }
 
 /// Proof of leadership structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct LeadershipProof {
     /// An enveloped signature of the block header except the `proof` part
     pub block_sig: Option<Signature>,
@@ -110,14 +125,14 @@ pub struct LeadershipProof {
 }
 
 /// Digital signatures structure (based on supported cryptosystems)
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Signature {
     /// ECDSA over secp256k1
     Secp256k1(Secp256k1Signature),
 }
 
 /// ECDSA (over secp256k1) signature
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Secp256k1Signature {
     /// The signature value R
     pub r: [u8; 32],
@@ -146,7 +161,7 @@ pub type SHA256 = [u8; 32];
 
 /// Transaction data structure
 // FIXME(#99): define Transaction as defined in issue
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Transaction;
 
 /// Inventory entry data structure
@@ -157,4 +172,41 @@ pub enum InventoryEntry {
     Block(Hash),
     DataRequest(Hash),
     DataResult(Hash),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_block_hashable_trait() {
+        let block_header = BlockHeader {
+            version: 0,
+            beacon: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::SHA256([0; 32]),
+            },
+            hash_merkle_root: Hash::SHA256([0; 32]),
+        };
+        let signature = Signature::Secp256k1(Secp256k1Signature {
+            r: [0; 32],
+            s: [0; 32],
+            v: 0,
+        });
+        let proof = LeadershipProof {
+            block_sig: Some(signature),
+            influence: 0,
+        };
+        let txns: Vec<Transaction> = vec![Transaction];
+        let block = Block {
+            block_header,
+            proof,
+            txns,
+        };
+        let expected = Hash::SHA256([
+            222, 143, 136, 148, 115, 96, 203, 166, 243, 118, 165, 93, 124, 25, 218, 124, 196, 150,
+            149, 96, 254, 156, 243, 114, 246, 128, 81, 43, 55, 58, 26, 241,
+        ]);
+        assert_eq!(block.hash(), expected);
+    }
 }
