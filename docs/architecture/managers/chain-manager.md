@@ -58,6 +58,7 @@ These are the messages supported by the `ChainManager` handlers:
 | `EpochNotification<EveryEpochPayload>` | `Epoch`, `EveryEpochPayload` | `()`                              | A new epoch has been reached                      |
 | `GetHighestBlockCheckpoint`            | `()`                         | `ChainInfoResult`                 | Request a copy of the highest block checkpoint    |
 | `AddNewBlock`                          | `Block`                      | `Result<(), ChainManagerError>` | Add a new block and announce it to other sessions |
+| `BuildBlock`                           | `CheckpointBeacon`,`LeadershipProof` | `()`                    | Build a new block and add it |
 
 Where `ChainInfoResult` is just:
 
