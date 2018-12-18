@@ -29,7 +29,7 @@ use actix::{
     ActorFuture, Context, ContextFutureSpawner, Supervised, System, SystemService, WrapFuture,
 };
 
-use witnet_data_structures::chain::ChainInfo;
+use witnet_data_structures::chain::{ChainInfo, TransactionsPool};
 
 use crate::actors::{
     chain_manager::messages::InventoryEntriesResult,
@@ -88,6 +88,8 @@ pub struct ChainManager {
     blocks: HashMap<Hash, Block>,
     /// Current Epoch
     current_epoch: Option<Epoch>,
+    /// Transactions Pool
+    _transactions_pool: TransactionsPool,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
