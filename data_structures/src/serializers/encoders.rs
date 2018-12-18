@@ -371,6 +371,8 @@ impl Into<Vec<u8>> for Message {
                     highest_block_checkpoint,
                 },
             ),
+            // TODO Use create_transaction_flatbuffer
+            Command::Transaction(_) => unimplemented!("Transaction"),
         }
     }
 }

@@ -13,7 +13,7 @@ use log::{debug, error, info, warn};
 use crate::actors::{
     chain_manager::{
         messages::{
-            AddNewBlock, DiscardExistingInventoryEntries, GetBlocksEpochRange,
+            AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlocksEpochRange,
             GetHighestCheckpointBeacon,
         },
         ChainManager,
@@ -30,7 +30,7 @@ use super::{
 };
 use witnet_data_structures::{
     builders::from_address,
-    chain::{Block, CheckpointBeacon, Hash, InventoryEntry, InventoryItem},
+    chain::{Block, CheckpointBeacon, Hash, InventoryEntry, InventoryItem, Transaction},
     serializers::decoders::TryFrom,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
@@ -109,6 +109,13 @@ impl StreamHandler<BytesMut, Error> for Session {
                             }
                         }
                     }
+                    //////////////////////////
+                    // TRANSACTION RECEIVED //
+                    //////////////////////////
+                    (_, SessionStatus::Consolidated, Command::Transaction(transaction)) => {
+                        inventory_process_transaction(self, ctx, transaction);
+                    }
+
                     ////////////////////
                     // BLOCK RECEIVED //
                     ////////////////////
@@ -342,6 +349,19 @@ fn inventory_process_block(_session: &mut Session, _ctx: &mut Context<Session>, 
 
     // Send a message to the ChainManager to try to add a new block
     chain_manager_addr.do_send(AddNewBlock { block });
+}
+
+/// Function called when Block message is received
+fn inventory_process_transaction(
+    _session: &mut Session,
+    _ctx: &mut Context<Session>,
+    transaction: Transaction,
+) {
+    // Get ChainManager address
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+
+    // Send a message to the ChainManager to try to add a new transaction
+    chain_manager_addr.do_send(AddTransaction { transaction });
 }
 
 /// Function to process an InventoryAnnouncement message

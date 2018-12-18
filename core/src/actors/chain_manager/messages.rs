@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 
 use crate::actors::chain_manager::ChainManagerError;
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, LeadershipProof},
+    chain::{Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, LeadershipProof, Transaction},
     error::ChainInfoResult,
 };
 
@@ -25,6 +25,16 @@ pub struct AddNewBlock {
 }
 
 impl Message for AddNewBlock {
+    type Result = SessionUnitResult;
+}
+
+/// Add a new transaction
+pub struct AddTransaction {
+    /// Transaction
+    pub transaction: Transaction,
+}
+
+impl Message for AddTransaction {
     type Result = SessionUnitResult;
 }
 

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::chain::{Block, CheckpointBeacon, InventoryEntry};
+use crate::chain::{Block, CheckpointBeacon, InventoryEntry, Transaction};
 
 /// Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -26,6 +26,7 @@ pub enum Command {
 
     // Inventory messages
     Block(Block),
+    Transaction(Transaction),
     InventoryAnnouncement(InventoryAnnouncement),
     InventoryRequest(InventoryRequest),
     LastBeacon(LastBeacon),
@@ -47,6 +48,7 @@ impl fmt::Display for Command {
                 Command::InventoryAnnouncement(_) => "INVENTORY_ANNOUNCEMENT",
                 Command::InventoryRequest(_) => "INVENTORY_REQUEST",
                 Command::LastBeacon(_) => "LAST_BEACON",
+                Command::Transaction(_) => "TRANSACTION",
             }
         )
     }

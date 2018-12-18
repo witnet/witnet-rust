@@ -13,8 +13,8 @@ use witnet_util::error::WitnetError;
 use log::{debug, error, warn};
 
 use super::messages::{
-    AddNewBlock, BuildBlock, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
-    GetHighestCheckpointBeacon, InventoryEntriesResult,
+    AddNewBlock, AddTransaction, BuildBlock, DiscardExistingInventoryEntries, GetBlock,
+    GetBlocksEpochRange, GetHighestCheckpointBeacon, InventoryEntriesResult,
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +103,16 @@ impl Handler<AddNewBlock> for ChainManager {
 
     fn handle(&mut self, msg: AddNewBlock, ctx: &mut Context<Self>) {
         self.process_block_candidate(ctx, msg.block)
+    }
+}
+
+/// Handler for AddTransaction message
+impl Handler<AddTransaction> for ChainManager {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, _msg: AddTransaction, _ctx: &mut Context<Self>) {
+        // FIXME(#240) Implement transaction process
+        debug!("Transaction received");
     }
 }
 
