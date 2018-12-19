@@ -165,8 +165,8 @@ pub type SHA256 = [u8; 32];
 #[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Transaction;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct WeightedHash(u64, Hash);
+type WeightedHash = (u64, Hash);
+type WeightedTransaction = (u64, Transaction);
 
 /// A pool of validated transactions that supports constant access by
 /// [`Hash`](Hash) and iteration over the
@@ -174,7 +174,7 @@ struct WeightedHash(u64, Hash);
 /// transactions with smaller fees.
 #[derive(Debug, Default, Clone)]
 pub struct TransactionsPool {
-    transactions: HashMap<Hash, Transaction>,
+    transactions: HashMap<Hash, WeightedTransaction>,
     sorted_index: BTreeSet<WeightedHash>,
 }
 
@@ -294,8 +294,8 @@ impl TransactionsPool {
     /// ```
     pub fn insert(&mut self, key: Hash, transaction: Transaction) {
         let weight = 0; // TODO: weight = transaction-fee / transaction-weight
-        self.transactions.insert(key, transaction);
-        self.sorted_index.insert(WeightedHash(weight, key));
+        self.transactions.insert(key, (weight, transaction));
+        self.sorted_index.insert((weight, key));
     }
 
     /// An iterator visiting all the transactions in the pool in
@@ -321,7 +321,43 @@ impl TransactionsPool {
         self.sorted_index
             .iter()
             .rev()
-            .filter_map(move |WeightedHash(_, h)| self.transactions.get(h))
+            .filter_map(move |(_, h)| self.transactions.get(h).map(|(_, t)| t))
+    }
+
+    /// Retains only the elements specified by the predicate.
+    ///
+    /// In other words, remove all transactions such that
+    /// `f(&Hash,&mut Transaction)` returns `false`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Transaction, Hash};
+    ///
+    /// let mut pool = TransactionsPool::new();
+    /// pool.insert(Hash::SHA256([0 as u8; 32]), Transaction);
+    /// pool.insert(Hash::SHA256([1 as u8; 32]), Transaction);
+    /// assert_eq!(pool.len(), 2);
+    /// pool.retain(|h, _| match h { Hash::SHA256(n) => n[0]== 0 });
+    /// assert_eq!(pool.len(), 1);
+    /// ```
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&Hash, &mut Transaction) -> bool,
+    {
+        let TransactionsPool {
+            ref mut transactions,
+            ref mut sorted_index,
+        } = *self;
+
+        transactions.retain(|hash, (weight, transaction)| {
+            let retain = f(hash, transaction);
+            if !retain {
+                sorted_index.remove(&(*weight, *hash));
+            }
+
+            retain
+        });
     }
 }
 
