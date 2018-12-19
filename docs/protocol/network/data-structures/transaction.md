@@ -110,32 +110,34 @@ In Witnet, different output types implicitly have different spending conditions 
 
 Value transfer claims prove ownership of a certain private key by providing a signature of the identifier of the transaction produced with such key and the serialization of the matching public key.
 
-| Field        |  Type  | Description                                     |
-| ------------ | :----: | ----------------------------------------------- |
-| `signature`  | `[u8]` | Signed hash of the transaction                  |
-| `public_key` | `[u8]` | Public Key of the P2PKH outpoint to be consumed |
+| Field        |  Type  | Description                                                |
+| ------------ | :----: | ---------------------------------------------------------- |
+| `signature`  | `[u8]` | Signature of the transaction digest, i.e. `transaction_id` |
+| `public_key` | `[u8]` | Public Key of the P2PKH outpoint to be consumed            |
 
 ### Data request claim (**commit stage**)
 
 A **data request** output has to be consumed/used by a number of **witnesses**, i.e. there will be as many claims as **witnesses** have been defined. For a committer to be able to pledge a share of the reward from the data request, they must provide a _Proof of Eligibility_ (PoE) that proves their eligibility as witnesses for such data request in the current epoch. In addition, for everyone in the network to be able to verify such proof, they must include the public key that matches the private key that produced the PoE.
 
-| Field        |  Type  | Description                           |
-| ------------ | :----: | ------------------------------------- |
-| `poe`        | `[u8]` | Proof of eligibility                  |
-| `public_key` | `[u8]` | Public Key used for computing the PoE |
+| Field        |  Type  | Description                                                |
+| ------------ | :----: | ---------------------------------------------------------- |
+| `signature`  | `[u8]` | Signature of the transaction digest, i.e. `transaction_id` |
+| `poe`        | `[u8]` | Proof of eligibility                                       |
+| `public_key` | `[u8]` | Public Key used for computing the PoE                      |
 
 ### Commit claim (**reveal stage**)
 
 A commit claim is used to prove that the witness has a valid `reveal`, i.e. the signed data request result and nonce match the previous commitment.
 
-| Field    |  Type  | Description                                                                                                |
-| -------- | :----: | ---------------------------------------------------------------------------------------------------------- |
-| `reveal` | `[u8]` | Signed data request result using the previously advertised public key during the previous **commit stage** |
-| `nonce`  | `u64`  | The nonce used to generate the data request commitment                                                     |
+| Field       |  Type  | Description                                                                                                |
+| ----------- | :----: | ---------------------------------------------------------------------------------------------------------- |
+| `signature` | `[u8]` | Signature of the transaction digest, i.e. `transaction_id`                                                 |
+| `reveal`    | `[u8]` | Signed data request result using the previously advertised public key during the previous **commit stage** |
+| `nonce`     | `u64`  | The nonce used to generate the data request commitment                                                     |
 
 ### Reveal claim (**tally stage**)
 
-The reveal claim is included by the block miner and it defines the data request result after the consensus clause. Only one **reveal claim** is required for all **reveal inputs** of the same data request as it contains the data consensus result. The amount of inputs that the **reveal claim** is matching, is defined by the `reveals` field.
+The reveal claim is included by the **block miner** and it defines the data request result after the consensus clause. Only one **reveal claim** is required for all **reveal inputs** of the same data request as it contains the data consensus result. The amount of inputs that the **reveal claim** is matching, is defined by the `reveals` field.
 
 | Field       |  Type  | Description                                                                                               |
 | ----------- | :----: | --------------------------------------------------------------------------------------------------------- |
