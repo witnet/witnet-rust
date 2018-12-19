@@ -104,6 +104,12 @@ impl Hashable for Block {
         calculate_sha256(&block_ftb).into()
     }
 }
+// FIXME(#224) Implement Hashable for Transaction
+impl Hashable for Transaction {
+    fn hash(&self) -> Hash {
+        Hash::SHA256([0; 32])
+    }
+}
 
 /// Block header structure
 #[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
