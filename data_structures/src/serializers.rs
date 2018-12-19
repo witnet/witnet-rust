@@ -192,8 +192,8 @@ pub struct BlockWipoffsetArgs<'a> {
 }
 
 pub struct CheckpointBeaconArgs {
-    checkpoint: u32,
-    hash_prev_block: Hash,
+    pub checkpoint: u32,
+    pub hash_prev_block: Hash,
 }
 
 pub struct BlockHeaderArgs {
@@ -832,6 +832,21 @@ fn build_block_message_flatbuffer<'a>(
     );
 
     build_message_flatbuffer(builder, block_message_wipoffset)
+}
+
+/// Build CheckpointBeacon flatbuffer
+pub fn build_checkpoint_beacon_flatbuffer(
+    builder: Option<&mut FlatBufferBuilder>,
+    checkpoint_beacon_args: &CheckpointBeaconArgs,
+) -> Vec<u8> {
+    let aux_builder: &mut FlatBufferBuilder =
+        &mut flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
+    let builder = builder.unwrap_or_else(|| aux_builder);
+
+    let checkpoint_beacon_wipoffset =
+        build_checkpoint_beacon_wipoffset(builder, checkpoint_beacon_args);
+    builder.finish(checkpoint_beacon_wipoffset, None);
+    builder.finished_data().to_vec()
 }
 
 // Build a GetPeers flatbuffer to encode Witnet's GetPeers message

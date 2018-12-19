@@ -1,4 +1,4 @@
-use super::serializers::{build_block_flatbuffer, BlockArgs};
+use super::serializers::{build_block_flatbuffer, BlockArgs, CheckpointBeaconArgs};
 use std::collections::{BTreeSet, HashMap};
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 
@@ -104,6 +104,22 @@ impl Hashable for Block {
         calculate_sha256(&block_ftb).into()
     }
 }
+
+impl Hashable for CheckpointBeacon {
+    fn hash(&self) -> Hash {
+        let CheckpointBeacon {
+            checkpoint,
+            hash_prev_block,
+        } = *self;
+        let args = CheckpointBeaconArgs {
+            checkpoint,
+            hash_prev_block,
+        };
+        let beacon_ftb = super::serializers::build_checkpoint_beacon_flatbuffer(None, &args);
+        calculate_sha256(&beacon_ftb).into()
+    }
+}
+
 // FIXME(#224) Implement Hashable for Transaction
 impl Hashable for Transaction {
     fn hash(&self) -> Hash {
