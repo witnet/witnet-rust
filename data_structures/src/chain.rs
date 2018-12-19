@@ -327,7 +327,7 @@ impl TransactionsPool {
     /// Retains only the elements specified by the predicate.
     ///
     /// In other words, remove all transactions such that
-    /// `f(&Hash,&mut Transaction)` returns `false`.
+    /// `f(&Hash, &Transaction)` returns `false`.
     ///
     /// # Examples
     ///
@@ -341,9 +341,9 @@ impl TransactionsPool {
     /// pool.retain(|h, _| match h { Hash::SHA256(n) => n[0]== 0 });
     /// assert_eq!(pool.len(), 1);
     /// ```
-    pub fn retain<F>(&mut self, mut f: F)
+    pub fn retain<F>(&mut self, f: F)
     where
-        F: FnMut(&Hash, &mut Transaction) -> bool,
+        F: Fn(&Hash, &Transaction) -> bool,
     {
         let TransactionsPool {
             ref mut transactions,
