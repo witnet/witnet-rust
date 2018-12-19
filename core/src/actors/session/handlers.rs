@@ -2,8 +2,8 @@ use std::io::Error;
 
 use actix::io::WriteHandler;
 use actix::{
-    ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler, StreamHandler, System,
-    WrapFuture,
+    Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler,
+    StreamHandler, System, WrapFuture,
 };
 
 use log::{debug, error, info, warn};
@@ -17,9 +17,9 @@ use crate::actors::{
         ChainManager,
     },
     codec::BytesMut,
+    inventory_manager::{messages::GetItem, InventoryManager},
     peers_manager,
     sessions_manager::{messages::Consolidate, SessionsManager},
-    storage_manager::{messages::Get, StorageManager},
 };
 
 use super::{
@@ -28,7 +28,7 @@ use super::{
 };
 use witnet_data_structures::{
     builders::from_address,
-    chain::{Block, CheckpointBeacon, Hash, InventoryEntry},
+    chain::{Block, CheckpointBeacon, Hash, InventoryEntry, InventoryItem},
     serializers::TryFrom,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
@@ -88,9 +88,9 @@ impl StreamHandler<BytesMut, Error> for Session {
                     ) => {
                         peer_discovery_peers(&peers);
                     }
-                    //////////////
-                    // GET DATA //
-                    //////////////
+                    ///////////////////////
+                    // INVENTORY_REQUEST //
+                    ///////////////////////
                     (
                         _,
                         SessionStatus::Consolidated,
@@ -98,13 +98,13 @@ impl StreamHandler<BytesMut, Error> for Session {
                     ) => {
                         for elem in inventory {
                             match elem {
-                                InventoryEntry::Block(hash)
-                                | InventoryEntry::Tx(hash)
-                                | InventoryEntry::DataRequest(hash)
-                                | InventoryEntry::DataResult(hash) => {
-                                    send_block_msg(self, ctx, &hash);
+                                InventoryEntry::Block(hash) | InventoryEntry::Tx(hash) => {
+                                    send_item_msg(self, ctx, &hash);
                                 }
-                                InventoryEntry::Error(_) => warn!("Error InvElem received"),
+                                InventoryEntry::DataRequest(_) | InventoryEntry::DataResult(_) => {
+                                    warn!("No block or transaction requested");
+                                }
+                                InventoryEntry::Error(_) => error!("Error InvElem received"),
                             }
                         }
                     }
@@ -433,52 +433,77 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
     responses
 }
 
-/// Function called when InventoryRequest message is received
-fn send_block_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash) {
-    let Hash::SHA256(block_key) = *hash;
+fn send_get_item_request<T, U: 'static>(
+    act: &mut T,
+    ctx: &mut T::Context,
+    hash: Hash,
+    process_item: U,
+) where
+    T: Actor,
+    T::Context: AsyncContext<T>,
+    U: FnOnce(&mut T, &mut T::Context, &InventoryItem),
+{
+    // Get InventoryManager address
+    let inventory_manager_addr = System::current().registry().get::<InventoryManager>();
 
-    // TODO Use Inventory Manager
-    // Add block from storage:
-    // Get storage manager actor address
-    let storage_manager_addr = System::current().registry().get::<StorageManager>();
-    storage_manager_addr
-        // Send a message to read the block from the storage
-        .send(Get::<Block>::new(block_key.to_vec()))
-        .into_actor(session)
-        // Process the response
+    // Start chain of actions to send a message to the InventoryManager
+    inventory_manager_addr
+        // Send GetItem message to InventoryManager actor
+        // This returns a Request Future, representing an asynchronous message sending process
+        .send(GetItem { hash })
+        // Convert a normal future into an ActorFuture
+        .into_actor(act)
+        // Process the response from the InventoryManager
+        // This returns a FutureResult containing the socket address if present
         .then(|res, _act, _ctx| match res {
+            // Process the response from InventoryManager
             Err(e) => {
                 // Error when sending message
-                error!("Unsuccessful communication with storage manager: {}", e);
+                error!("Unsuccessful communication with InventoryManager: {}", e);
                 actix::fut::err(())
             }
             Ok(res) => match res {
                 Err(e) => {
-                    // Storage error
-                    error!("Error while getting block from storage: {}", e);
+                    // InventoryManager error
+                    error!("Error while getting block from InventoryManager: {}", e);
                     actix::fut::err(())
                 }
                 Ok(res) => actix::fut::ok(res),
             },
         })
-        .and_then(|block_from_storage, act, _ctx| {
-            // block_from_storage can be None if the storage does not contain that key
-            if let Some(block_from_storage) = block_from_storage {
-                let block_header = block_from_storage.block_header;
-                let proof = block_from_storage.proof;
-                let txns = block_from_storage.txns;
-                // Build Block msg
-                let block_msg = WitnetMessage::build_block(block_header, proof, txns);
-
-                // Send Block msg
-                act.send_message(block_msg);
-            } else {
-                warn!("Inventory element not found in Storage");
-            }
+        // Process the received config
+        // This returns a FutureResult containing a success
+        .and_then(|item, act, ctx| {
+            // Call function to process item
+            process_item(act, ctx, &item);
 
             actix::fut::ok(())
         })
         .wait(ctx);
+}
+
+/// Method to send a GetItem message to the InventoryManager
+fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash) {
+    let hash = *hash;
+
+    // Send message to config manager and process response
+    send_get_item_request(session, ctx, hash, |act, _ctx, item| {
+        match item {
+            InventoryItem::Block(block_from_inventory) => {
+                let block_header = block_from_inventory.block_header;
+                let proof = block_from_inventory.proof;
+                let txns = block_from_inventory.txns.clone();
+                // Build Block msg
+                let block_msg = WitnetMessage::build_block(block_header, proof, txns);
+                // Send Block msg
+                act.send_message(block_msg);
+            }
+            // TODO Use build_transaction
+            InventoryItem::Transaction(_transaction_from_inventory) => {
+                unimplemented!("Create transaction and send")
+            }
+        }
+    });
 }
 
 fn todo_inbound_session_getblocks(

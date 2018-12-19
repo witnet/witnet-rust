@@ -17,20 +17,12 @@ impl Handler<AddItem> for InventoryManager {
     type Result = ResponseActFuture<Self, (), InventoryManagerError>;
 
     fn handle(&mut self, msg: AddItem, _ctx: &mut Context<Self>) -> Self::Result {
-        let add_msg = match msg.item {
-            InventoryItem::Block(item) => {
-                let hash = match item.hash() {
-                    Hash::SHA256(x) => x.to_vec(),
-                };
-                Put::from_value(hash, &item).unwrap()
-            }
-
-            InventoryItem::Transaction(item) => {
-                let hash = match item.hash() {
-                    Hash::SHA256(x) => x.to_vec(),
-                };
-                Put::from_value(hash, &item).unwrap()
-            }
+        let hash = match &msg.item {
+            InventoryItem::Block(item) => item.hash(),
+            InventoryItem::Transaction(item) => item.hash(),
+        };
+        let add_msg = match hash {
+            Hash::SHA256(h) => Put::from_value(h.to_vec(), &msg.item).unwrap(),
         };
 
         // Persist items into storage
