@@ -12,7 +12,7 @@ use witnet_data_structures::{
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
-use crate::validations::{validate_coinbase, validate_merkle_tree};
+use crate::validations::{block_reward, validate_coinbase, validate_merkle_tree};
 
 use witnet_util::error::WitnetError;
 
@@ -177,6 +177,8 @@ impl Handler<BuildBlock> for ChainManager {
 
         // FIXME(#238): get transactions
         let txns = vec![];
+        let epoch = msg.beacon.checkpoint;
+        let _reward = block_reward(epoch);
         // TODO: push coinbase transaction
         let txns_hashes = txns
             .iter()
