@@ -8,11 +8,11 @@ use crate::actors::epoch_manager::messages::EpochNotification;
 use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
 
 use witnet_data_structures::{
-    chain::{Block, BlockHeader, CheckpointBeacon, Hash, InventoryEntry, LeadershipProof},
+    chain::{Block, CheckpointBeacon, InventoryEntry},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
-use crate::validations::{block_reward, validate_coinbase, validate_merkle_tree};
+use crate::validations::{validate_coinbase, validate_merkle_tree};
 
 use witnet_util::error::WitnetError;
 
@@ -22,9 +22,6 @@ use super::messages::{
     AddNewBlock, BuildBlock, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
     GetHighestCheckpointBeacon, InventoryEntriesResult,
 };
-
-use witnet_crypto::{hash::calculate_sha256, merkle::merkle_tree_root};
-use witnet_data_structures::chain::Transaction;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -174,39 +171,8 @@ impl Handler<BuildBlock> for ChainManager {
     type Result = ();
 
     fn handle(&mut self, msg: BuildBlock, ctx: &mut Context<Self>) -> Self::Result {
-        // The leadership proof will be verified by the AddNewBlock handler
-
-        // Get all the unspent transactions
-        let txns: Vec<Transaction> = self.transactions_pool.iter().cloned().collect();
-        let epoch = msg.beacon.checkpoint;
-        let _reward = block_reward(epoch);
-        // TODO: push coinbase transaction
-        let txns_hashes = txns
-            .iter()
-            .map(|_t| {
-                // FIXME(#224): actually calculate transaction hash
-                calculate_sha256(b"")
-            })
-            .collect::<Vec<_>>();
-        // TODO: what is version?
-        let version = 0;
-        let beacon = msg.beacon;
-        // TODO: use create_merkle_root from validations.rs
-        let hash_merkle_root = Hash::from(merkle_tree_root(&txns_hashes));
-        let block_header = BlockHeader {
-            version,
-            beacon,
-            hash_merkle_root,
-        };
-        let proof = LeadershipProof {
-            block_sig: None,
-            influence: 0,
-        };
-        let block = Block {
-            block_header,
-            proof,
-            txns,
-        };
+        // Build the block using the supplied beacon and eligibility proof
+        let block = self.build_block(&msg);
 
         // Send AddNewBlock message to self
         // This will run all the validations again

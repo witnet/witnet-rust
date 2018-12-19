@@ -29,8 +29,6 @@ use actix::{
     ActorFuture, Context, ContextFutureSpawner, Supervised, System, SystemService, WrapFuture,
 };
 
-use witnet_data_structures::chain::{ChainInfo, TransactionsPool};
-
 use crate::actors::{
     chain_manager::messages::InventoryEntriesResult,
     storage_keys::CHAIN_KEY,
@@ -40,13 +38,19 @@ use crate::actors::{
 use log::{debug, error, info};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use witnet_data_structures::chain::{Block, Epoch, Hash, InventoryEntry};
+use witnet_data_structures::chain::{
+    Block, BlockHeader, ChainInfo, Epoch, Hash, InventoryEntry, LeadershipProof, Transaction,
+    TransactionsPool,
+};
 
 use crate::actors::session::messages::AnnounceItems;
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
 use witnet_storage::{error::StorageError, storage::Storable};
 
+use crate::actors::chain_manager::messages::BuildBlock;
+use crate::validations::block_reward;
+use crate::validations::merkle_tree_root;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_util::error::WitnetError;
 
@@ -184,6 +188,40 @@ impl ChainManager {
             || Err(ChainManagerError::BlockDoesNotExist),
             |block| Ok(block.clone()),
         )
+    }
+
+    fn build_block(&self, msg: &BuildBlock) -> Block {
+        // Get all the unspent transactions and calculate the sum of their fees
+        let mut transaction_fees = 0;
+        let transactions: Vec<Transaction> = self
+            .transactions_pool
+            .iter()
+            .map(|t| {
+                // TODO: t.fee()
+                transaction_fees += 1;
+                *t
+            })
+            .collect();
+        let epoch = msg.beacon.checkpoint;
+        let _reward = block_reward(epoch) + transaction_fees;
+        // TODO: push coinbase transaction
+        let beacon = msg.beacon;
+        let hash_merkle_root = merkle_tree_root(&transactions);
+        let block_header = BlockHeader {
+            version: 0,
+            beacon,
+            hash_merkle_root,
+        };
+        let proof = LeadershipProof {
+            block_sig: None,
+            influence: 0,
+        };
+
+        Block {
+            block_header,
+            proof,
+            txns: transactions,
+        }
     }
 
     fn discard_existing_inventory_entries(
