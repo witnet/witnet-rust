@@ -8,7 +8,7 @@ use crate::actors::epoch_manager::messages::EpochNotification;
 use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
 
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry},
+    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
@@ -52,9 +52,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         self.current_epoch = Some(msg.checkpoint);
 
         if let Some(candidate) = self.block_candidate.take() {
-            // Send block to Inventory Manager
-            self.persist_block(ctx, &candidate);
-
             // Update chain_info
             match self.chain_info.as_mut() {
                 Some(chain_info) => {
@@ -69,6 +66,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     error!("No ChainInfo loaded in ChainManager");
                 }
             }
+
+            // Send block to Inventory Manager
+            self.persist_item(ctx, InventoryItem::Block(candidate));
         }
     }
 }

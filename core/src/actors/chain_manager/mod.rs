@@ -31,6 +31,7 @@ use actix::{
 
 use crate::actors::{
     chain_manager::messages::InventoryEntriesResult,
+    inventory_manager::{messages::AddItem, InventoryManager},
     storage_keys::CHAIN_KEY,
     storage_manager::{messages::Put, StorageManager},
 };
@@ -39,8 +40,8 @@ use log::{debug, error, info};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{
-    Block, BlockHeader, ChainInfo, Epoch, Hash, InventoryEntry, LeadershipProof, Transaction,
-    TransactionsPool,
+    Block, BlockHeader, ChainInfo, Epoch, Hash, InventoryEntry, InventoryItem, LeadershipProof,
+    Transaction, TransactionsPool,
 };
 
 use crate::actors::session::messages::AnnounceItems;
@@ -141,10 +142,34 @@ impl ChainManager {
             .wait(ctx);
     }
 
-    /// Method to Send block to Inventory Manager
-    fn persist_block(&self, _ctx: &mut Context<Self>, _block: &Block) {
-        // TODO Send to InventoryManager
-        debug!("Send block to inventory manager");
+    /// Method to Send an Item to Inventory Manager
+    fn persist_item(&self, ctx: &mut Context<Self>, item: InventoryItem) {
+        // Get InventoryManager address
+        let inventory_manager_addr = System::current().registry().get::<InventoryManager>();
+
+        // Persist block into storage through InventoryManager. `AsyncContext::wait` registers
+        // future within context, but context waits until this future resolves
+        // before processing any other events.
+        inventory_manager_addr
+            .send(AddItem { item })
+            .into_actor(self)
+            .then(|res, _act, _ctx| match res {
+                // Process the response from InventoryManager
+                Err(e) => {
+                    // Error when sending message
+                    error!("Unsuccessful communication with InventoryManager: {}", e);
+                    actix::fut::err(())
+                }
+                Ok(res) => match res {
+                    Err(e) => {
+                        // InventoryManager error
+                        error!("Error while getting block from InventoryManager: {}", e);
+                        actix::fut::err(())
+                    }
+                    Ok(_) => actix::fut::ok(()),
+                },
+            })
+            .wait(ctx)
     }
 
     fn process_new_block(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
