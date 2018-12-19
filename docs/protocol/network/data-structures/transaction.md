@@ -2,23 +2,57 @@
 
 In the Witnet network protocol, a `transaction` is formatted as follows:
 
-| Field     |    Type    | Description                                 |
-| --------- | :--------: | ------------------------------------------- |
-| `version` |   `u32`    | The transaction data format version number  |
-| `inputs`  | `[input]`  | A list of transaction inputs                |
-| `outputs` | `[output]` | A list of 1 or more transaction outputs     |
-| `claims`  | `[claim]`  | A list of claims (i.e. spending conditions) |
+| Field     |    Type    | Description                                |
+| --------- | :--------: | ------------------------------------------ |
+| `version` |   `u32`    | The transaction data format version number |
+| `inputs`  | `[input]`  | A list of transaction inputs               |
+| `outputs` | `[output]` | A list of 1 or more transaction outputs    |
+| `claims`  | `[claim]`  | A list of claims                           |
 
 ## Inputs
 
-Transaction inputs are references to outputs from past transactions. They "pull" all the value from those outputs and make it available for being spent by the outputs in the same transaction they are in. This data structure—which pairs a transaction's identifier with the index of one of its outputs—is also known as `outpoint` as it unambiguously points to a unique output from a specific transaction.
+Transaction inputs are references to outputs from past transactions, and additionally, some may require specific spending conditions. They "pull" all the value from those outputs and make it available for being spent by the outputs in the same transaction they are in. This data structure—which pairs a transaction's identifier with the index of one of its outputs—is also known as `outpoint` as it unambiguously points to a unique output from a specific transaction.
 
-The input structure consists of the following fields:
+Transactions may contain different types of inputs:
+
+- Value transfer: roughly equivalent to Bitcoin's P2PKH/P2WPKH, where the input refers to a value transfer past transaction.
+- Commit: used by witnesses to (1) reference a past data request output, and (2) prove their eligibility as witness for such data request.
+- Reveal: used by witnesses to (1) reference a past commitment output, and (2) prove its validity by providing the result and a nonce.
+- Tally: used by block miner to (1) reference a past reveal output.
+
+All input structures consist at least of the following fields:
 
 | Field            |  Type  | Description                                       |
 | ---------------- | :----: | ------------------------------------------------- |
 | `transaction_id` | `[u8]` | The transaction identifier                        |
 | `output_index`   | `u32`  | The index of a specific output in the transaction |
+
+The commit and reveal input types require additional fields in their data structures.
+
+### Commit input
+
+A **data request** output has to be consumed/used by a number of **witnesses**, i.e. there will be as many claims as **witnesses** have been defined. For a committer to be able to pledge a share of the reward from the data request, they must provide an input with a _Proof of Eligibility_ (PoE) that proves their eligibility as witnesses for such data request in the current epoch. In addition, for everyone in the network to be able to verify such proof, this PoE should have been produced using a private key that matches the the public key included in the claim.
+
+Thus, the commit input structure consists of the following fields:
+
+| Field            |  Type  | Description                                            |
+| ---------------- | :----: | ------------------------------------------------------ |
+| `transaction_id` | `[u8]` | The transaction identifier                             |
+| `output_index`   | `u32`  | The index of a specific output in the transaction      |
+| `poe`            | `[u8]` | Proof of Eligibility (same key pair as in claim field) |
+
+### Reveal input
+
+A reveal input is used to prove that the witness has a valid `reveal`, i.e. the data request result and nonce match the previous commitment.
+
+The commit input structure consists of the following fields:
+
+| Field            |  Type  | Description                                            |
+| ---------------- | :----: | ------------------------------------------------------ |
+| `transaction_id` | `[u8]` | The transaction identifier                             |
+| `output_index`   | `u32`  | The index of a specific output in the transaction      |
+| `reveal`         | `[u8]` | Data request result                                    |
+| `nonce`          | `u64`  | The nonce used to generate the data request commitment |
 
 ## Outputs
 
@@ -28,6 +62,7 @@ Transactions may contain different types of outputs:
 - Client Data Request (DR): output that publishes a request for data. It shall include scripts for retrieval, aggregation, consensus and, optionally, deliver clauses.
 - Commit: used by witnesses to (1) commit the results of their retrieval tasks without revealing the actual value of the retrieved data, and (2) pledge their share of the value attached to the data request as a reward.
 - Reveal: used by witnesses to (1) reveal the actual value of the retrieved data that they committed in their previous *commit*, and once again to (2) pledge their share of the value attached to the data request as a reward.
+- Consensus: used by the block miner to (1) publish the result of a data request after consensus, and (2) reimburse the data request creator with the unspent commit outputs.
 
 ### Value transfer outputs
 
@@ -85,9 +120,13 @@ commit_value = (data_request_value / witnesses) - commit_fee
 
 ### Reveal outputs
 
-| Field   | Type  | Description                                                                                                |
-| ------- | :---: | ---------------------------------------------------------------------------------------------------------- |
-| `value` | `u64` | Remaining transaction value that will be used as reward to be distributed after consensus has been reached |
+The reveal output is included by witnesses and it contains the data request result. It also provides the public key hash to which the witness wants to be reimbursed if the consensus is reached.
+
+| Field    |  Type  | Description                                                                                                |
+| -------- | :----: | ---------------------------------------------------------------------------------------------------------- |
+| `reveal` | `[u8]` | Data request result                                                                                        |
+| `pkh`    | `[u8]` | Slice of public key hash (20 bytes)                                                                        |
+| `value`  | `u64`  | Remaining transaction value that will be used as reward to be distributed after consensus has been reached |
 
 The `value` of the reveal output depends on the number of committers that revealed their data request results:
 
@@ -95,51 +134,31 @@ The `value` of the reveal output depends on the number of committers that reveal
 reveal_value = commit_value - reveal_fee
 ```
 
+### Consensus outputs
+
+The consensus output is included by the **block miner** and it defines the data request result after the consensus clause. Only one **consensus output** is required per data request.
+
+| Field    |  Type  | Description                                                                                               |
+| -------- | :----: | --------------------------------------------------------------------------------------------------------- |
+| `result` | `[u8]` | Data request consensus result after using all data request reveal values of the previous **reveal stage** |
+| `pkh`    | `[u8]` | Slice of public key hash (20 bytes) of the data request creator                                           |
+| `value`  | `u64`  | Remaining transaction value that has not been used as reward or fee of the data request                   |
+
+The `value` of the consensus output is the remaining value after distributing all rewards and fees among witnesses and miners respectively:
+
+```math
+reveal_value = data_request_value - committers * commit_fee - revealers * (reveal_fee + tally_fee + reward)
+```
+
 ## Claims
 
-As aforementioned, transactions should include as many claims as inputs. In every transaction, claims provide the material required for satisfying the spending conditions that encumbered the past transaction outputs that the inputs in the transaction are trying to spend (e.g. signatures). Claims and inputs are matched positionally, that is, the first claim is checked against the first input and so forth.
+As aforementioned, transactions should include as many claims as inputs. In every transaction, claims complement the material required for satisfying the spending conditions that encumbered the past transaction outputs that the inputs in the transaction are trying to spend (e.g. signatures). Claims and inputs are matched positionally, that is, the first claim is checked against the first input and so forth.
 
-In Witnet, different output types implicitly have different spending conditions and therefore the spending transaction must provide specific items in their claims:
-
-- Value transfer claim: prove ownership of a certain private key.
-- Data request claim: prove eligibility for resolving the data request and publishing a commitment of the resulting value.
-- Commit claim: provide a signed reveal message matching a previous `commitment` (hash) and that matches with the previous advertised public key.
-- Reveal claim: provide a data request consensus result which is valid according to the consensus script and previous reveals outputs.
-
-### Value transfer claim
-
-Value transfer claims prove ownership of a certain private key by providing a signature of the identifier of the transaction produced with such key and the serialization of the matching public key.
+Claims prove ownership of a certain private key by providing a signature of the identifier of the transaction produced with such key and the serialization of the matching public key.
 
 | Field        |  Type  | Description                                                |
 | ------------ | :----: | ---------------------------------------------------------- |
 | `signature`  | `[u8]` | Signature of the transaction digest, i.e. `transaction_id` |
 | `public_key` | `[u8]` | Public Key of the P2PKH outpoint to be consumed            |
 
-### Data request claim (**commit stage**)
-
-A **data request** output has to be consumed/used by a number of **witnesses**, i.e. there will be as many claims as **witnesses** have been defined. For a committer to be able to pledge a share of the reward from the data request, they must provide a _Proof of Eligibility_ (PoE) that proves their eligibility as witnesses for such data request in the current epoch. In addition, for everyone in the network to be able to verify such proof, they must include the public key that matches the private key that produced the PoE.
-
-| Field        |  Type  | Description                                                |
-| ------------ | :----: | ---------------------------------------------------------- |
-| `signature`  | `[u8]` | Signature of the transaction digest, i.e. `transaction_id` |
-| `poe`        | `[u8]` | Proof of eligibility                                       |
-| `public_key` | `[u8]` | Public Key used for computing the PoE                      |
-
-### Commit claim (**reveal stage**)
-
-A commit claim is used to prove that the witness has a valid `reveal`, i.e. the signed data request result and nonce match the previous commitment.
-
-| Field       |  Type  | Description                                                                                                |
-| ----------- | :----: | ---------------------------------------------------------------------------------------------------------- |
-| `signature` | `[u8]` | Signature of the transaction digest, i.e. `transaction_id`                                                 |
-| `reveal`    | `[u8]` | Signed data request result using the previously advertised public key during the previous **commit stage** |
-| `nonce`     | `u64`  | The nonce used to generate the data request commitment                                                     |
-
-### Reveal claim (**tally stage**)
-
-The reveal claim is included by the **block miner** and it defines the data request result after the consensus clause. Only one **reveal claim** is required for all **reveal inputs** of the same data request as it contains the data consensus result. The amount of inputs that the **reveal claim** is matching, is defined by the `reveals` field.
-
-| Field       |  Type  | Description                                                                                               |
-| ----------- | :----: | --------------------------------------------------------------------------------------------------------- |
-| `consensus` | `[u8]` | Data request consensus after using all data request results provided during the previous **reveal stage** |
-| `reveals`   |  `u8`  | Number of witnesses that revealed a data request result                                                   |
+In Witnet, only the **tally inputs** do not require corresponding claims, as they are built by the miner, which already provides its own proof of leadership to mine the block.
