@@ -89,7 +89,7 @@ pub struct ChainManager {
     /// Current Epoch
     current_epoch: Option<Epoch>,
     /// Transactions Pool
-    _transactions_pool: TransactionsPool,
+    transactions_pool: TransactionsPool,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry

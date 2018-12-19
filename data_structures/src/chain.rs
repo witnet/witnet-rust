@@ -347,9 +347,9 @@ impl TransactionsPool {
     /// pool.retain(|h, _| match h { Hash::SHA256(n) => n[0]== 0 });
     /// assert_eq!(pool.len(), 1);
     /// ```
-    pub fn retain<F>(&mut self, f: F)
+    pub fn retain<F>(&mut self, mut f: F)
     where
-        F: Fn(&Hash, &Transaction) -> bool,
+        F: FnMut(&Hash, &Transaction) -> bool,
     {
         let TransactionsPool {
             ref mut transactions,

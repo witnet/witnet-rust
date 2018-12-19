@@ -24,6 +24,7 @@ use super::messages::{
 };
 
 use witnet_crypto::{hash::calculate_sha256, merkle::merkle_tree_root};
+use witnet_data_structures::chain::Transaction;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -175,8 +176,8 @@ impl Handler<BuildBlock> for ChainManager {
     fn handle(&mut self, msg: BuildBlock, ctx: &mut Context<Self>) -> Self::Result {
         // The leadership proof will be verified by the AddNewBlock handler
 
-        // FIXME(#238): get transactions
-        let txns = vec![];
+        // Get all the unspent transactions
+        let txns: Vec<Transaction> = self.transactions_pool.iter().cloned().collect();
         let epoch = msg.beacon.checkpoint;
         let _reward = block_reward(epoch);
         // TODO: push coinbase transaction
@@ -190,6 +191,7 @@ impl Handler<BuildBlock> for ChainManager {
         // TODO: what is version?
         let version = 0;
         let beacon = msg.beacon;
+        // TODO: use create_merkle_root from validations.rs
         let hash_merkle_root = Hash::from(merkle_tree_root(&txns_hashes));
         let block_header = BlockHeader {
             version,
