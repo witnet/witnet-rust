@@ -40,19 +40,18 @@ use log::{debug, error, info};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{
-    Block, BlockHeader, ChainInfo, Epoch, Hash, InventoryEntry, InventoryItem, LeadershipProof,
+    Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, InventoryEntry, InventoryItem,
     Transaction, TransactionsPool,
 };
 
 use crate::actors::session::messages::AnnounceItems;
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
-use witnet_storage::{error::StorageError, storage::Storable};
+use witnet_storage::error::StorageError;
 
 use crate::actors::chain_manager::messages::BuildBlock;
 use crate::validations::block_reward;
 use crate::validations::merkle_tree_root;
-use witnet_crypto::hash::calculate_sha256;
 use witnet_util::error::WitnetError;
 
 mod actor;
@@ -174,7 +173,7 @@ impl ChainManager {
 
     fn process_new_block(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
         // Calculate the hash of the block
-        let hash: Hash = Hash::from(calculate_sha256(&block.to_bytes()?));
+        let hash: Hash = block.hash();
 
         // Check if we already have a block with that hash
         if let Some(_block) = self.blocks.get(&hash) {
