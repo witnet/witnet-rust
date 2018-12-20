@@ -16,12 +16,14 @@ use crate::validations::{validate_coinbase, validate_merkle_tree};
 
 use witnet_util::error::WitnetError;
 
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 
 use super::messages::{
     AddNewBlock, BuildBlock, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
     GetHighestCheckpointBeacon, InventoryEntriesResult,
 };
+
+use std::time::Duration;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -203,10 +205,18 @@ impl Handler<BuildBlock> for ChainManager {
     fn handle(&mut self, msg: BuildBlock, ctx: &mut Context<Self>) -> Self::Result {
         // Build the block using the supplied beacon and eligibility proof
         let block = self.build_block(&msg);
+        info!(
+            "Mined a new block with hash {:?}:\n{:?}",
+            block.hash(),
+            block
+        );
 
         // Send AddNewBlock message to self
         // This will run all the validations again
-        ctx.notify(AddNewBlock { block })
+        // Wait 2 seconds because otherwise the block can arrive to other peers just
+        // before the epoch checkpoint, which marks the blocks as invalid because the
+        // current epoch is N while the block header checkpoint is N+1
+        ctx.notify_later(AddNewBlock { block }, Duration::from_secs(2));
     }
 }
 
