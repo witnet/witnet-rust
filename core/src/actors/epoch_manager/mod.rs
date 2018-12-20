@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use witnet_config::config::Config;
-use witnet_util::timestamp::get_timestamp;
+use witnet_util::timestamp::{get_timestamp, get_timestamp_nanos};
 
 use crate::actors::epoch_manager::messages::{EpochNotification, EpochResult};
 
@@ -126,10 +126,9 @@ impl EpochManager {
     }
     /// Method to compute time remaining to next checkpoint
     fn time_to_next_checkpoint(&self) -> EpochResult<Duration> {
-        // FIXME(#145): Improve time precision, use nanoseconds
         // Get current timestamp and epoch
-        let now = get_timestamp();
-        let current_epoch = self.epoch_at(now)?;
+        let (now_secs, now_nanos) = get_timestamp_nanos();
+        let current_epoch = self.epoch_at(now_secs)?;
 
         // Get timestamp for the start of next checkpoint
         let next_checkpoint = self.epoch_timestamp(
@@ -138,15 +137,15 @@ impl EpochManager {
                 .ok_or(EpochManagerError::Overflow)?,
         )?;
 
-        // Get number of seconds remaining to the next checkpoint
-        let secs = next_checkpoint - now;
+        // Get number of nanoseconds remaining to the next checkpoint
+        let secs = next_checkpoint - now_secs;
 
         // Check if number of seconds to next checkpoint is valid
         // This number should never be negative with current implementation
         if secs < 0 {
             Err(EpochManagerError::Overflow)
         } else {
-            Ok(Duration::from_secs(secs as u64))
+            Ok(Duration::new(secs as u64, 1_000_000_000 - now_nanos))
         }
     }
     /// Method to monitor checkpoints and execute some actions on each
