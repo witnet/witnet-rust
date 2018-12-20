@@ -19,7 +19,12 @@ mod handlers;
 ////////////////////////////////////////////////////////////////////////////////////////
 /// MiningManager actor
 #[derive(Default)]
-pub struct MiningManager {}
+pub struct MiningManager {
+    // Random value to help with debugging because there is no signature
+    // and all the mined blocks have the same hash.
+    // This random value helps to distinguish blocks mined on different nodes
+    random: u64,
+}
 
 /// Auxiliary methods for MiningManager actor
 impl MiningManager {

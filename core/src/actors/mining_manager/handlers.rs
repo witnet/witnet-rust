@@ -59,7 +59,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for MiningManager {
 
                 // TODO: send Sign message to CryptoManager
                 let sign = |x, _k| match x {
-                    Hash::SHA256(x) => x,
+                    Hash::SHA256(mut x) => {
+                        // Add some randomness to the signature
+                        x[0] = act.random as u8;
+                        x
+                    }
                 };
                 let signed_beacon_hash = sign(beacon_hash, private_key);
                 // Currently, every hash is valid
