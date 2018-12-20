@@ -336,6 +336,7 @@ mod tests {
         // Add blocks to the ChainManager
         let hash_a = bm.process_new_block(block_a).unwrap();
         let hash_b = bm.process_new_block(block_b).unwrap();
+        assert_ne!(hash_a, hash_b);
 
         // Check that both blocks are stored in the same epoch
         assert_eq!(bm.epoch_to_block_hash.get(&checkpoint).unwrap().len(), 2);
@@ -479,20 +480,174 @@ mod tests {
     #[cfg(test)]
     fn build_hardcoded_block(checkpoint: u32, influence: u64) -> Block {
         use witnet_data_structures::chain::*;
+        let signed_beacon_hash = [4; 32];
+        // Currently, every hash is valid
+        // Fake signature which will be accepted anyway
+        let signature = Signature::Secp256k1(Secp256k1Signature {
+            r: signed_beacon_hash,
+            s: signed_beacon_hash,
+            v: 0,
+        });
+        let proof = LeadershipProof {
+            block_sig: Some(signature),
+            influence,
+        };
+
         Block {
             block_header: BlockHeader {
                 version: 1,
                 beacon: CheckpointBeacon {
                     checkpoint,
-                    hash_prev_block: Hash::SHA256([4; 32]),
+                    hash_prev_block: Hash::SHA256([111; 32]),
                 },
-                hash_merkle_root: Hash::SHA256([3; 32]),
+                hash_merkle_root: Hash::SHA256([222; 32]),
             },
-            proof: LeadershipProof {
-                block_sig: None,
-                influence,
-            },
+            proof,
             txns: vec![Transaction],
         }
+    }
+
+    #[test]
+    fn block_storable() {
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+
+        let b = InventoryItem::Block(build_hardcoded_block(0, 0));
+        let msp = b.to_bytes().unwrap();
+        assert_eq!(InventoryItem::from_bytes(&msp).unwrap(), b);
+
+        println!("{:?}", b);
+        println!("{:?}", msp);
+        /*
+        use witnet_data_structures::chain::Hash::SHA256;
+        use witnet_data_structures::chain::Signature::Secp256k1;
+        let mined_block = InventoryItem::Block(Block {
+            block_header: BlockHeader {
+                version: 0,
+                beacon: CheckpointBeacon {
+                    checkpoint: 400,
+                    hash_prev_block: SHA256([
+                        47, 17, 139, 130, 7, 164, 151, 185, 64, 43, 88, 183, 53, 213, 38, 89, 76,
+                        66, 231, 53, 78, 216, 230, 217, 245, 184, 150, 33, 182, 15, 111, 38,
+                    ]),
+                },
+                hash_merkle_root: SHA256([
+                    227, 176, 196, 66, 152, 252, 28, 20, 154, 251, 244, 200, 153, 111, 185, 36, 39,
+                    174, 65, 228, 100, 155, 147, 76, 164, 149, 153, 27, 120, 82, 184, 85,
+                ]),
+            },
+            proof: LeadershipProof {
+                block_sig: Some(Secp256k1(Secp256k1Signature {
+                    r: [
+                        128, 205, 5, 48, 74, 223, 4, 72, 223, 231, 60, 90, 128, 196, 37, 74, 225,
+                        60, 123, 112, 167, 2, 28, 201, 210, 41, 9, 128, 136, 223, 228, 35,
+                    ],
+                    s: [
+                        128, 205, 5, 48, 74, 223, 4, 72, 223, 231, 60, 90, 128, 196, 37, 74, 225,
+                        60, 123, 112, 167, 2, 28, 201, 210, 41, 9, 128, 136, 223, 228, 35,
+                    ],
+                    v: 0,
+                })),
+                influence: 0,
+            },
+            txns: vec![],
+        });
+        let raw_block = [146, 1, 145, 147, 147, 0, 146, 205, 1, 144, 146, 0, 145, 220, 0, 32, 47, 17, 204, 139, 204, 130, 7, 204, 164, 204, 151, 204, 185, 64, 43, 88, 204, 183, 53, 204, 213, 38, 89, 76, 66, 204, 231, 53, 78, 204, 216, 204, 230, 204, 217, 204, 245, 204, 184, 204, 150, 33, 204, 182, 15, 111, 38, 146, 0, 145, 220, 0, 32, 204, 227, 204, 176, 204, 196, 66, 204, 152, 204, 252, 28, 20, 204, 154, 204, 251, 204, 244, 204, 200, 204, 153, 111, 204, 185, 36, 39, 204, 174, 65, 204, 228, 100, 204, 155, 204, 147, 76, 204, 164, 204, 149, 204, 153, 27, 120, 82, 204, 184, 85, 146, 146, 0, 145, 147, 220, 0, 32, 204, 128, 204, 205, 5, 48, 74, 204, 223, 4, 72, 204, 223, 204, 231, 60, 90, 204, 128, 204, 196, 37, 74, 204, 225, 60, 123, 112, 204, 167, 2, 28, 204, 201, 204, 210, 41, 9, 204, 128, 204, 136, 204, 223, 204, 228, 35, 220, 0, 32, 204, 128, 204, 205, 5, 48, 74, 204, 223, 4, 72, 204, 223, 204, 231, 60, 90, 204, 128, 204, 196, 37, 74, 204, 225, 60, 123, 112, 204, 167, 2, 28, 204, 201, 204, 210, 41, 9, 204, 128, 204, 136, 204, 223, 204, 228, 35, 0, 0, 144];
+        println!("{:?}", mined_block);
+        println!("Mined block to bytes:");
+        println!("{:?}", mined_block.to_bytes());
+        println!("Mined block bytes from storage:");
+        println!("{:?}", &raw_block[..]);
+        assert_eq!(InventoryItem::from_bytes(&raw_block).unwrap(), mined_block);
+        */
+    }
+
+    #[test]
+    fn block_storable_fail() {
+        use witnet_data_structures::chain::Hash::SHA256;
+        use witnet_data_structures::chain::Signature::Secp256k1;
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+
+        let mined_block = InventoryItem::Block(Block {
+            block_header: BlockHeader {
+                version: 0,
+                beacon: CheckpointBeacon {
+                    checkpoint: 400,
+                    hash_prev_block: SHA256([
+                        47, 17, 139, 130, 7, 164, 151, 185, 64, 43, 88, 183, 53, 213, 38, 89, 76,
+                        66, 231, 53, 78, 216, 230, 217, 245, 184, 150, 33, 182, 15, 111, 38,
+                    ]),
+                },
+                hash_merkle_root: SHA256([
+                    227, 176, 196, 66, 152, 252, 28, 20, 154, 251, 244, 200, 153, 111, 185, 36, 39,
+                    174, 65, 228, 100, 155, 147, 76, 164, 149, 153, 27, 120, 82, 184, 85,
+                ]),
+            },
+            proof: LeadershipProof {
+                block_sig: Some(Secp256k1(Secp256k1Signature {
+                    r: [
+                        128, 205, 5, 48, 74, 223, 4, 72, 223, 231, 60, 90, 128, 196, 37, 74, 225,
+                        60, 123, 112, 167, 2, 28, 201, 210, 41, 9, 128, 136, 223, 228, 35,
+                    ],
+                    s: [
+                        128, 205, 5, 48, 74, 223, 4, 72, 223, 231, 60, 90, 128, 196, 37, 74, 225,
+                        60, 123, 112, 167, 2, 28, 201, 210, 41, 9, 128, 136, 223, 228, 35,
+                    ],
+                    v: 0,
+                })),
+                influence: 0,
+            },
+            txns: vec![],
+        });
+        let msp = mined_block.to_bytes().unwrap();
+
+        assert_eq!(InventoryItem::from_bytes(&msp).unwrap(), mined_block);
+    }
+
+    #[test]
+    fn leadership_storable() {
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+        let signed_beacon_hash = [4; 32];
+
+        let signature = Signature::Secp256k1(Secp256k1Signature {
+            r: signed_beacon_hash,
+            s: signed_beacon_hash,
+            v: 0,
+        });
+        let a = LeadershipProof {
+            block_sig: Some(signature),
+            influence: 0,
+        };
+
+        let msp = a.to_bytes().unwrap();
+
+        assert_eq!(LeadershipProof::from_bytes(&msp).unwrap(), a);
+    }
+
+    #[test]
+    fn signature_storable() {
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+        let signed_beacon_hash = [4; 32];
+
+        let a = Some(Signature::Secp256k1(Secp256k1Signature {
+            r: signed_beacon_hash,
+            s: signed_beacon_hash,
+            v: 0,
+        }));
+        let msp = a.to_bytes().unwrap();
+
+        assert_eq!(Option::<Signature>::from_bytes(&msp).unwrap(), a);
+    }
+
+    #[test]
+    fn som_de_uno() {
+        use witnet_storage::storage::Storable;
+
+        let a = Some(Some(1u8));
+        let msp = a.to_bytes().unwrap();
+        assert_eq!(Option::<Option<u8>>::from_bytes(&msp).unwrap(), a);
     }
 }
