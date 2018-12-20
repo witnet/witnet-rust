@@ -46,7 +46,7 @@ where
 {
     /// Convert `Self` into `Vec<u8>`
     fn to_bytes(&self) -> StorageResult<Vec<u8>> {
-        rmp_serde::to_vec(&self).map_err(|e| {
+        serde_json::to_vec(&self).map_err(|e| {
             WitnetError::from(StorageError::new(
                 StorageErrorKind::Encode,
                 "Error when encoding value".to_string(),
@@ -54,9 +54,9 @@ where
             ))
         })
     }
-    /// Convert `Vec<u8>` into `Self
+    /// Convert `Vec<u8>` into `Self`
     fn from_bytes(x: &[u8]) -> StorageResult<Self> {
-        rmp_serde::from_slice(x).map_err(|e| {
+        serde_json::from_slice(x).map_err(|e| {
             WitnetError::from(StorageError::new(
                 StorageErrorKind::Decode,
                 "Error when decoding value".to_string(),
