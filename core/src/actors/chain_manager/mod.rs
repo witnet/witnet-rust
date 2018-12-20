@@ -244,10 +244,7 @@ impl ChainManager {
             beacon,
             hash_merkle_root,
         };
-        let proof = LeadershipProof {
-            block_sig: None,
-            influence: 0,
-        };
+        let proof = msg.leadership_proof;
 
         Block {
             block_header,
