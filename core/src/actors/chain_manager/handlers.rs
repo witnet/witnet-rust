@@ -247,7 +247,7 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
     ) -> Self::Result {
         debug!("GetBlocksEpochRange received {:?}", range);
         let hashes = range
-            .map(|epoch| &self.epoch_to_block_hash[&epoch])
+            .flat_map(|epoch| self.epoch_to_block_hash.get(&epoch))
             .flatten()
             .map(|hash| InventoryEntry::Block(*hash))
             .collect();
