@@ -2,12 +2,12 @@
 
 In the Witnet network protocol, a `transaction` is formatted as follows:
 
-| Field        | Type                | Description                                |
-|--------------|---------------------|--------------------------------------------|
-| `version`    | `u32`               | The transaction data format version number |
-| `inputs`     | `[input]`           | A list of transaction inputs               |
-| `outputs`    | `[output]`          | A list of 1 or more transaction outputs    |
-| `signatures` | `[keyed_signature]` | A list of signatures (as many as inputs)   |
+| Field        | Type                | Description                                    |
+|--------------|---------------------|------------------------------------------------|
+| `version`    | `u32`               | The transaction data format version number     |
+| `inputs`     | `[input]`           | A list of transaction inputs                   |
+| `outputs`    | `[output]`          | A list of 1 or more transaction outputs        |
+| `signatures` | `[keyed_signature]` | A list of keyed signatures (as many as inputs) |
 
 Long story short, _inputs_ contain data that proves ability to "pull" value from past transactions into a new transaction, while _outputs_ redistribute such value and lock them under new spending conditions. Signatures ensure integrity of the transaction and complement input's function when it comes to prove ability to unlock funds from past transactions.
 
