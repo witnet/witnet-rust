@@ -240,7 +240,7 @@ The only distinctive feature of _reveal_ inputs is that they do not require matc
 
 As aforementioned, transactions should include as many signatures as inputs. In every transaction, signatures complement the material required for satisfying the spending conditions that encumbered the past transaction outputs that the inputs in the transaction are trying to spend. Signatures and inputs are matched positionally, i.e. the first claim is checked against the first input and so forth.
 
-Signatures prove ownership of a certain private key by providing a signature of the identfier of the transaction produced with such key and the serialization of the matching public key.
+Signatures prove ownership of a certain private key by providing a signature of the identifier of the transaction produced with such key and the serialization of the matching public key.
 
 Transaction signatures are structured as [keyed signatures][Signature]. 
 
