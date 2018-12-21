@@ -2,12 +2,12 @@
 
 In the Witnet network protocol, a `transaction` is formatted as follows:
 
-| Field        | Type          | Description                                |
-|--------------|---------------|--------------------------------------------|
-| `version`    | `u32`         | The transaction data format version number |
-| `inputs`     | `[input]`     | A list of transaction inputs               |
-| `outputs`    | `[output]`    | A list of 1 or more transaction outputs    |
-| `signatures` | `[signature]` | A list of claims (as many as inputs)       |
+| Field        | Type                | Description                                |
+|--------------|---------------------|--------------------------------------------|
+| `version`    | `u32`               | The transaction data format version number |
+| `inputs`     | `[input]`           | A list of transaction inputs               |
+| `outputs`    | `[output]`          | A list of 1 or more transaction outputs    |
+| `signatures` | `[keyed_signature]` | A list of signatures (as many as inputs)   |
 
 Long story short, _inputs_ contain data that proves ability to "pull" value from past transactions into a new transaction, while _outputs_ redistribute such value and lock them under new spending conditions. Signatures ensure integrity of the transaction and complement input's function when it comes to prove ability to unlock funds from past transactions.
 
@@ -240,13 +240,11 @@ The only distinctive feature of _reveal_ inputs is that they do not require matc
 
 As aforementioned, transactions should include as many signatures as inputs. In every transaction, signatures complement the material required for satisfying the spending conditions that encumbered the past transaction outputs that the inputs in the transaction are trying to spend. Signatures and inputs are matched positionally, i.e. the first claim is checked against the first input and so forth.
 
-Signatures prove ownership of a certain private key by providing a signature of the identifier of the transaction produced with such key and the serialization of the matching public key.
+Signatures prove ownership of a certain private key by providing a signature of the identfier of the transaction produced with such key and the serialization of the matching public key.
 
-| Field        | Type   | Description                                                |
-|--------------|--------|------------------------------------------------------------|
-| `signature`  | `[u8]` | Signature of the transaction digest, i.e. `transaction_id` |
-| `public_key` | `[u8]` | Public key used for producing the signature                |
+Transaction signatures are structured as [keyed signatures][Signature]. 
 
 Only the _reveal inputs_ do not require matching signatures, as the transactions where these inputs can be included are always built by the nodes who produce the blocks where they are anchored, and in doing so, they already provide the signature of the entire list of transactions in the block's header.
 
 [random oracle model]: https://en.wikipedia.org/wiki/Random_oracle
+[Signature]: /protocol/network/data-structures/signature/
