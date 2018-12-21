@@ -86,6 +86,9 @@ The `get` operator returns the `T` item at `index: Int` in an `Array<T>`.
     `Array<T>`.
     Exceptions are handled as specified in the [Exception handling] section.
 
+!!! danger "Incentive safety"
+    This operator may introduce adverse incentives if used in the aggregation or consensus stages.
+
 ## `Array.map(operator)`
 ```ts
 map<O>(function: (item: T) => O): Array<Result<O>>
