@@ -96,6 +96,11 @@ pub trait Defaults {
     fn mining_enabled(&self) -> bool {
         true
     }
+
+    fn consensus_constants_max_block_weight(&self) -> u32 {
+        // TODO: Replace  with real max_block_weight value used in mainnet
+        10_000
+    }
 }
 
 /// Struct that will implement all the mainnet defaults

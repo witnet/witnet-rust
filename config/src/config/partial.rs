@@ -123,6 +123,10 @@ pub struct ConsensusConstants {
     /// Punishment value for claims out of the consensus bounds
     #[serde(default)]
     pub reputation_punishment: Option<f64>,
+
+    /// Maximum block weight allowed
+    #[serde(default)]
+    pub max_block_weight: Option<u32>,
 }
 
 /// JSON-RPC API configuration

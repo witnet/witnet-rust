@@ -197,6 +197,10 @@ pub fn consensus_constants_from_partial(
             .reputation_punishment
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_reputation_punishment()),
+        max_block_weight: config
+            .max_block_weight
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_max_block_weight()),
     }
 }
 

@@ -41,7 +41,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{
     Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, InventoryEntry, InventoryItem,
-    Transaction, TransactionsPool,
+    TransactionsPool,
 };
 
 use crate::actors::session::messages::AnnounceItems;
@@ -96,6 +96,8 @@ pub struct ChainManager {
     transactions_pool: TransactionsPool,
     /// Block candidate to update chain_info in the next epoch
     block_candidate: Option<Block>,
+    /// Maximum weight each block can have
+    max_block_weight: u32,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -225,17 +227,28 @@ impl ChainManager {
     fn build_block(&self, msg: &BuildBlock) -> Block {
         // Get all the unspent transactions and calculate the sum of their fees
         let mut transaction_fees = 0;
-        let transactions: Vec<Transaction> = self
-            .transactions_pool
-            .iter()
-            .map(|t| {
-                // TODO: t.fee()
-                // TODO: get the transactions that fit in block (https://github.com/witnet/witnet-rust/issues/262)
 
-                transaction_fees += 1;
-                t.clone()
-            })
-            .collect();
+        let max_block_weight = self.max_block_weight;
+        let mut block_weight = 0;
+        let mut transactions = Vec::new();
+
+        for transaction in self.transactions_pool.iter() {
+            // Currently, 1 weight unit is equivalent to 1 byte
+            let transaction_weight = transaction.size();
+            let transaction_fee = transaction.fee();
+            let new_block_weight = block_weight + transaction_weight;
+
+            if new_block_weight <= max_block_weight {
+                transactions.push(transaction.clone());
+                transaction_fees += transaction_fee;
+                block_weight += transaction_weight;
+
+                if new_block_weight == max_block_weight {
+                    break;
+                }
+            }
+        }
+
         let epoch = msg.beacon.checkpoint;
         let _reward = block_reward(epoch) + transaction_fees;
         // TODO: push coinbase transaction

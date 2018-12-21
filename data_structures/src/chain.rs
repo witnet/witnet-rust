@@ -3,6 +3,7 @@ use super::serializers::encoders::{
     BlockArgs, CheckpointBeaconArgs, TransactionArgs,
 };
 use std::collections::{BTreeSet, HashMap};
+use std::convert::AsRef;
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 
 pub trait Hashable {
@@ -60,6 +61,16 @@ pub struct ConsensusConstants {
     /// Punishment value for claims out of the consensus bounds
     // TODO Use fixed point arithmetic (see Issue #172)
     pub reputation_punishment: f64,
+
+    /// Maximum weight a block can have, this affects the number of
+    /// transactions a block can contain: there will be as many
+    /// transactions as the sum of _their_ weights is less than, or
+    /// equal to, this maximum block weight parameter.
+    ///
+    /// Currently, a weight of 1 is equivalent to 1 byte.
+    /// This is only configurable in testnet, in mainnet the default
+    /// will be used.
+    pub max_block_weight: u32,
 }
 
 /// Checkpoint beacon structure
@@ -92,6 +103,13 @@ pub struct Block {
     pub proof: LeadershipProof,
     /// A non-empty list of transactions
     pub txns: Vec<Transaction>,
+}
+
+/// Any reference to a Hashable type is also Hashable
+impl<'a, T: Hashable> Hashable for &'a T {
+    fn hash(&self) -> Hash {
+        (*self).hash()
+    }
 }
 
 impl Hashable for Block {
@@ -201,6 +219,34 @@ pub struct Transaction {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
     pub signatures: Vec<KeyedSignature>,
+}
+
+impl Transaction {
+    /// Returns the size a transaction will have on the wire in bytes
+    pub fn size(&self) -> u32 {
+        build_transaction_flatbuffer(
+            None,
+            &TransactionArgs {
+                version: self.version,
+                inputs: self.inputs.clone(),
+                outputs: self.outputs.clone(),
+                signatures: self.signatures.clone(),
+            },
+        )
+        .len() as u32
+    }
+
+    /// Returns the fee of a transaction
+    pub fn fee(&self) -> u64 {
+        // TODO: Calculate fee of the transaction
+        1
+    }
+}
+
+impl AsRef<Transaction> for Transaction {
+    fn as_ref(&self) -> &Self {
+        self
+    }
 }
 
 /// Input data structure

@@ -9,7 +9,10 @@ pub fn validate_coinbase(_block: &Block) -> bool {
 }
 
 /// Function to calculate a merkle tree from a transaction vector
-pub fn merkle_tree_root(transactions: &[Transaction]) -> Hash {
+pub fn merkle_tree_root<T>(transactions: &[T]) -> Hash
+where
+    T: std::convert::AsRef<Transaction> + Hashable,
+{
     let transactions_hashes: Vec<Sha256> = transactions
         .iter()
         .map(|x| match x.hash() {

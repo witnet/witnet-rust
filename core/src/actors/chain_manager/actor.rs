@@ -77,6 +77,8 @@ impl Actor for ChainManager {
             let environment = (&config.environment).clone();
             let consensus_constants = (&config.consensus_constants).clone();
 
+            act.max_block_weight = consensus_constants.max_block_weight;
+
             // Get storage manager actor address
             let storage_manager_addr = System::current().registry().get::<StorageManager>();
             storage_manager_addr
@@ -116,7 +118,7 @@ impl Actor for ChainManager {
                             } else {
                                 // Mismatching environment names between config and storage
                                 panic!(
-                                    "Mismatching environments: tried to run a node on environment 
+                                    "Mismatching environments: tried to run a node on environment
                                 \"{:?}\" with a chain that was initialized with environment
                                 \"{:?}\".",
                                     environment, chain_info_from_storage.environment
