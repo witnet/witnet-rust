@@ -102,7 +102,7 @@ theme:
   favicon: 'assets/images/favicon.ico'
   logo: 'assets/images/logo.svg" alt="Witnet Logo'
   palette:
-    primary: 'brown'
+    primary: 'deep purple'
     accent: 'deep orange'
 
 repo_name: 'witnet/witnet-rust'
