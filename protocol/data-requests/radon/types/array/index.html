@@ -1810,6 +1810,10 @@ The <code class="codehilite">get</code> operator returns the <code class="codehi
 <code class="codehilite">Array&lt;T&gt;</code>.
 Exceptions are handled as specified in the [Exception handling] section.</p>
 </div>
+<div class="admonition danger">
+<p class="admonition-title">Incentive safety</p>
+<p>This operator may introduce adverse incentives if used in the aggregation or consensus stages.</p>
+</div>
 <h2 id="arraymapoperator"><code class="codehilite">Array.map(operator)</code><a class="headerlink" href="#arraymapoperator" title="Permanent link">&para;</a></h2>
 <p><div class="codehilite"><pre><span></span><span class="nx">map</span><span class="o">&lt;</span><span class="nx">O</span><span class="o">&gt;</span><span class="p">(</span><span class="kd">function</span><span class="o">:</span> <span class="p">(</span><span class="nx">item</span>: <span class="kt">T</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">O</span><span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">Result</span><span class="o">&lt;</span><span class="nx">O</span><span class="o">&gt;&gt;</span>
 </pre></div>
@@ -1891,6 +1895,10 @@ empty <code class="codehilite">Array</code>:</p>
 </pre></div>
 
 </div>
+<div class="admonition danger">
+<p class="admonition-title">Incentive safety</p>
+<p>This operator may introduce adverse incentives if used in the aggregation or consensus stages.</p>
+</div>
 <h2 id="arraytakemin-max"><code class="codehilite">Array.take(min, max)</code><a class="headerlink" href="#arraytakemin-max" title="Permanent link">&para;</a></h2>
 <p><div class="codehilite"><pre><span></span><span class="nx">take</span><span class="p">(</span><span class="nx">min?</span>: <span class="kt">Int</span><span class="p">,</span> <span class="nx">max?</span>: <span class="kt">Int</span><span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span>
 </pre></div>
@@ -1914,6 +1922,10 @@ Conversely, this will take <strong>exactly</strong> <code class="codehilite">7</
 <div class="admonition danger">
 <p>This operator can throw a runtime exception if the input <code class="codehilite">Array&lt;T&gt;</code> does not contain enough items to satisfy the
 minimum amount of items required by the supplied <code class="codehilite"><span class="n">min</span><span class="o">:</span> <span class="n">Int</span></code> argument.</p>
+</div>
+<div class="admonition danger">
+<p class="admonition-title">Incentive safety</p>
+<p>This operator may introduce adverse incentives if used in the aggregation or consensus stages.</p>
 </div>
                 
                   
