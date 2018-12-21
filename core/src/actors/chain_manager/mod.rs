@@ -190,7 +190,7 @@ impl ChainManager {
                 hash_set.insert(hash);
 
                 debug!(
-                    "Checkpoint {} has {} blocks",
+                    "Checkpoint {} has {} block candidates",
                     beacon.checkpoint,
                     hash_set.len()
                 );
