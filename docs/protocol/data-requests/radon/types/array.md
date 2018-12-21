@@ -222,6 +222,9 @@ most `max: Int` items.
     This operator can throw a runtime exception if the input `Array<T>` does not contain enough items to satisfy the
     minimum amount of items required by the supplied `min: Int` argument.
 
+!!! danger "Incentive safety"
+    This operator may introduce adverse incentives if used in the aggregation or consensus stages.
+
 [subscript]: ../../subscripts
 [filters]: ../../functions#filtering-functions
 [reducers]: ../../functions#reducing-functions
