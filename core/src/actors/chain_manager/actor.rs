@@ -142,9 +142,6 @@ impl Actor for ChainManager {
                     actix::fut::ok(())
                 })
                 .wait(ctx);
-
-            // Persist chain_info into storage
-            act.persist_chain_info(ctx);
         });
     }
 }

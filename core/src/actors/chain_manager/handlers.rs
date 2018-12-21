@@ -71,6 +71,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
             // Send block to Inventory Manager
             self.persist_item(ctx, InventoryItem::Block(candidate));
+
+            // Persist chain_info into storage
+            self.persist_chain_info(ctx);
         }
     }
 }
