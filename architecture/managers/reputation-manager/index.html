@@ -11,7 +11,7 @@
       <meta http-equiv="x-ua-compatible" content="ie=edge">
       
       
-        <link rel="canonical" href="https://docs.witnet.io/architecture/managers/mempool-manager/">
+        <link rel="canonical" href="https://docs.witnet.io/architecture/managers/reputation-manager/">
       
       
       
@@ -34,15 +34,15 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../../../assets/images/favicon.ico">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.1.0">
     
     
       
-        <title>Mempool Manager - Witnet-rust Documentation</title>
+        <title>Reputation Manager - Witnet-rust Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/application.451f80e5.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/application.11e41852.css">
       
         <link rel="stylesheet" href="../../../assets/stylesheets/application-palette.22915126.css">
       
@@ -53,7 +53,7 @@
       
     
     
-      <script src="../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../../assets/javascripts/modernizr.20ef595d.js"></script>
     
     
       
@@ -63,6 +63,7 @@
       
     
     <link rel="stylesheet" href="../../../assets/fonts/material-icons.css">
+    
     
     
   </head>
@@ -100,7 +101,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="../../../#mempool-manager" tabindex="1" class="md-skip">
+      <a href="#reputation-manager" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -126,7 +127,7 @@
                 Witnet-rust Documentation
               </span>
               <span class="md-header-nav__topic">
-                Mempool Manager
+                Reputation Manager
               </span>
             
           
@@ -1089,8 +1090,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../blocks-manager/" title="Blocks Manager" class="md-nav__link">
-      Blocks Manager
+    <a href="../chain-manager/" title="Chain Manager" class="md-nav__link">
+      Chain Manager
     </a>
   </li>
 
@@ -1135,6 +1136,42 @@
           
           
 
+
+  <li class="md-nav__item">
+    <a href="../../../arquitecture/managers/inventory-manager.md" title="Inventory Manager" class="md-nav__link">
+      Inventory Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../mempool-manager.md" title="Mempool Manager" class="md-nav__link">
+      Mempool Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../peers-manager/" title="Peers Manager" class="md-nav__link">
+      Peers Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
   
 
 
@@ -1146,11 +1183,11 @@
     
     
       <label class="md-nav__link md-nav__link--active" for="__toc">
-        Mempool Manager
+        Reputation Manager
       </label>
     
-    <a href="./" title="Mempool Manager" class="md-nav__link md-nav__link--active">
-      Mempool Manager
+    <a href="./" title="Reputation Manager" class="md-nav__link md-nav__link--active">
+      Reputation Manager
     </a>
     
       
@@ -1179,15 +1216,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#incoming-others-mempoolmanager" title="Incoming: Others -&gt; MempoolManager" class="md-nav__link">
-    Incoming: Others -&gt; MempoolManager
+  <a href="#incoming-messages-others-reputation-manager" title="Incoming messages: Others -&gt; Reputation manager" class="md-nav__link">
+    Incoming messages: Others -&gt; Reputation manager
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#outgoing-messages-mempoolmanager-others" title="Outgoing messages: MempoolManager -&gt; Others" class="md-nav__link">
-    Outgoing messages: MempoolManager -&gt; Others
+  <a href="#outgoing-messages-reputation-manager-others" title="Outgoing messages: Reputation manager -&gt; Others" class="md-nav__link">
+    Outgoing messages: Reputation manager -&gt; Others
   </a>
   
 </li>
@@ -1205,18 +1242,6 @@
   
 </nav>
     
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../peers-manager/" title="Peers Manager" class="md-nav__link">
-      Peers Manager
-    </a>
   </li>
 
         
@@ -1250,7 +1275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../utxo-manager/" title="UTXO Manager" class="md-nav__link">
+    <a href="../utxo-manager.md" title="UTXO Manager" class="md-nav__link">
       UTXO Manager
     </a>
   </li>
@@ -1357,6 +1382,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../json-rpc-server/" title="JSON-RPC Server" class="md-nav__link">
+      JSON-RPC Server
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -1372,10 +1409,46 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
     
     <label class="md-nav__link" for="nav-5">
-      Advanced
+      Interface
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-5">
+        Interface
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../interface/json-rpc/" title="JSON-RPC" class="md-nav__link">
+      JSON-RPC
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+    
+    <label class="md-nav__link" for="nav-6">
+      Advanced
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
         Advanced
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1453,13 +1526,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9" type="checkbox" id="nav-9">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-10" type="checkbox" id="nav-10">
     
-    <label class="md-nav__link" for="nav-9">
+    <label class="md-nav__link" for="nav-10">
       Configuration
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-9">
+      <label class="md-nav__title" for="nav-10">
         Configuration
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1554,15 +1627,15 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#incoming-others-mempoolmanager" title="Incoming: Others -&gt; MempoolManager" class="md-nav__link">
-    Incoming: Others -&gt; MempoolManager
+  <a href="#incoming-messages-others-reputation-manager" title="Incoming messages: Others -&gt; Reputation manager" class="md-nav__link">
+    Incoming messages: Others -&gt; Reputation manager
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#outgoing-messages-mempoolmanager-others" title="Outgoing messages: MempoolManager -&gt; Others" class="md-nav__link">
-    Outgoing messages: MempoolManager -&gt; Others
+  <a href="#outgoing-messages-reputation-manager-others" title="Outgoing messages: Reputation manager -&gt; Others" class="md-nav__link">
+    Outgoing messages: Reputation manager -&gt; Others
   </a>
   
 </li>
@@ -1588,33 +1661,24 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/managers/mempool-manager.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/managers/reputation-manager.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="mempool-manager">Mempool Manager<a class="headerlink" href="#mempool-manager" title="Permanent link">&para;</a></h1>
-<p>The <strong>mempool manager</strong> is the actor in charge of:</p>
+                <h1 id="reputation-manager">Reputation Manager<a class="headerlink" href="#reputation-manager" title="Permanent link">&para;</a></h1>
+<p>The <strong>Reputation manager</strong> is the actor that encapsulates the logic related to the reputation of the node inside the Witnet network, that is, it will be in charge of:</p>
 <ul>
-<li>Validating transactions as they come from any <code class="codehilite">Session</code>. This includes:<ul>
-<li>Iterating over its inputs, asking the <code class="codehilite">UtxoManager</code> for the to-be-spent UTXOs and adding the value of the inputs to calculate the value of the transaction.</li>
-<li>Running the output scripts, expecting them all to return <code class="codehilite">TRUE</code> and leave an empty stack.</li>
-<li>Verifying that the sum of all inputs is greater than or equal to the sum of all the outputs.</li>
+<li>Checking that proofs of eligibility are valid for the known reputation of the issuers of such proofs</li>
+<li>Keeping score of the reputation balances for everyone in the network</li>
 </ul>
-</li>
-<li>Keeping valid transactions into memory. This in-memory transaction pool is what we call the <em>mempool</em>. Valid transactions are immediately appended to the mempool.</li>
-<li>Receiving confirmation notifications from <code class="codehilite">BlocksManager</code>. This notifications tell that a certain transaction ID has been anchored into a new block and thus it can be removed from the mempool and persisted into local storage (for archival purposes, non-archival nodes can just drop them).</li>
-<li>Notifying <code class="codehilite">UtxoManager</code> for it to apply a valid transaction on the UTXO set.</li>
-</ul>
-<p>The mempool actor is not backed by any persistance medium. If a node goes down, it will need to ask its peers for the entire mempool.</p>
 <h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
-<p>The creation of the mempool actor and its registration into the system registry are
-performed directly by the main process [<code class="codehilite">node.rs</code>][noders]:</p>
-<div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">mempool_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MempoolManager</span>::<span class="n">start_default</span><span class="p">();</span><span class="w"></span>
-<span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">mempool_manager_addr</span><span class="p">);</span><span class="w"></span>
+<p>The creation of the Reputation manager actor is performed directly by the <code class="codehilite">main</code> process:</p>
+<div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">reputation_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ReputationManager</span>::<span class="n">start_default</span><span class="p">();</span><span class="w"></span>
+<span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">reputation_manager_addr</span><span class="p">);</span><span class="w"></span>
 </pre></div>
 
 <h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
-<h3 id="incoming-others-mempoolmanager">Incoming: Others -&gt; MempoolManager<a class="headerlink" href="#incoming-others-mempoolmanager" title="Permanent link">&para;</a></h3>
-<p>These are the messages supported by the <code class="codehilite">MempoolManager</code> handlers:</p>
+<h3 id="incoming-messages-others-reputation-manager">Incoming messages: Others -&gt; Reputation manager<a class="headerlink" href="#incoming-messages-others-reputation-manager" title="Permanent link">&para;</a></h3>
+<p>These are the messages supported by the Reputation manager handlers:</p>
 <table>
 <thead>
 <tr>
@@ -1626,15 +1690,41 @@ performed directly by the main process [<code class="codehilite">node.rs</code>]
 </thead>
 <tbody>
 <tr>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
+<td><code class="codehilite">ValidatePoE</code></td>
+<td><code class="codehilite">CheckpointBeacon</code>,<code class="codehilite">LeadershipProof</code></td>
+<td><code class="codehilite">bool</code></td>
+<td>Checks that the given proof of eligibility is valid</td>
 </tr>
 </tbody>
 </table>
-<h3 id="outgoing-messages-mempoolmanager-others">Outgoing messages: MempoolManager -&gt; Others<a class="headerlink" href="#outgoing-messages-mempoolmanager-others" title="Permanent link">&para;</a></h3>
-<p>These are the messages sent by the blocks manager:</p>
+<p>The way other actors will communicate with the ReputationManager is:</p>
+<ol>
+<li>
+<p>Get the address of the ReputationManager actor from the registry:</p>
+<div class="codehilite"><pre><span></span><span class="c1">// Get ReputationManager address</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">reputation_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">get</span>::<span class="o">&lt;</span><span class="n">ChainManager</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+</pre></div>
+
+</li>
+<li>
+<p>Use any of the sending methods provided by the address (<code class="codehilite">do_send()</code>, <code class="codehilite">try_send()</code>, <code class="codehilite">send()</code>) to send a message to the actor:</p>
+<div class="codehilite"><pre><span></span><span class="n">reputation_manager_addr</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">ValidatePoE</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">beacon</span>: <span class="nc">msg</span><span class="p">.</span><span class="n">block</span><span class="p">.</span><span class="n">block_header</span><span class="p">.</span><span class="n">beacon</span><span class="p">.</span><span class="n">clone</span><span class="p">(),</span><span class="w"></span>
+<span class="w">        </span><span class="n">proof</span>: <span class="nc">msg</span><span class="p">.</span><span class="n">block</span><span class="p">.</span><span class="n">proof</span><span class="p">.</span><span class="n">clone</span><span class="p">(),</span><span class="w"></span>
+<span class="w">    </span><span class="p">})</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">into_actor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">then</span><span class="p">(</span><span class="o">|</span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="n">_act</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="c1">// Process the response from ReputationManager</span>
+<span class="w">        </span><span class="n">process_get_config_response</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="p">})</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">ctx</span><span class="p">);</span><span class="w"></span>
+</pre></div>
+
+</li>
+</ol>
+<h3 id="outgoing-messages-reputation-manager-others">Outgoing messages: Reputation manager -&gt; Others<a class="headerlink" href="#outgoing-messages-reputation-manager-others" title="Permanent link">&para;</a></h3>
+<p>These are the messages sent by the Reputation manager:</p>
 <table>
 <thead>
 <tr>
@@ -1675,7 +1765,7 @@ performed directly by the main process [<code class="codehilite">node.rs</code>]
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../epoch-manager/" title="Epoch Manager" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../peers-manager/" title="Peers Manager" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1684,19 +1774,19 @@ performed directly by the main process [<code class="codehilite">node.rs</code>]
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Epoch Manager
+                Peers Manager
               </span>
             </div>
           </a>
         
         
-          <a href="../peers-manager/" title="Peers Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../sessions-manager/" title="Sessions Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Peers Manager
+                Sessions Manager
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
@@ -1741,7 +1831,7 @@ performed directly by the main process [<code class="codehilite">node.rs</code>]
       
     </div>
     
-      <script src="../../../assets/javascripts/application.583bbe55.js"></script>
+      <script src="../../../assets/javascripts/application.9e1f3b71.js"></script>
       
       <script>app.initialize({version:"1.0.4",url:{base:"../../.."}})</script>
       

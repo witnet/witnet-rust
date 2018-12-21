@@ -11,7 +11,7 @@
       <meta http-equiv="x-ua-compatible" content="ie=edge">
       
       
-        <link rel="canonical" href="https://docs.witnet.io/architecture/managers/blocks-manager/">
+        <link rel="canonical" href="https://docs.witnet.io/architecture/json-rpc-server/">
       
       
       
@@ -33,18 +33,18 @@
       
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
-      <link rel="shortcut icon" href="../../../assets/images/favicon.ico">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
+      <link rel="shortcut icon" href="../../assets/images/favicon.ico">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.1.0">
     
     
       
-        <title>Blocks Manager - Witnet-rust Documentation</title>
+        <title>JSON-RPC Server - Witnet-rust Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/application.451f80e5.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/application.11e41852.css">
       
-        <link rel="stylesheet" href="../../../assets/stylesheets/application-palette.22915126.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/application-palette.22915126.css">
       
       
         
@@ -53,7 +53,7 @@
       
     
     
-      <script src="../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../assets/javascripts/modernizr.20ef595d.js"></script>
     
     
       
@@ -62,7 +62,8 @@
         <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
       
     
-    <link rel="stylesheet" href="../../../assets/fonts/material-icons.css">
+    <link rel="stylesheet" href="../../assets/fonts/material-icons.css">
+    
     
     
   </head>
@@ -100,7 +101,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="../../../#blocks-manager" tabindex="1" class="md-skip">
+      <a href="#jsonrpcserver" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -111,7 +112,7 @@
       <div class="md-flex__cell md-flex__cell--shrink">
         <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-header-nav__button md-logo">
           
-            <img src="../../../assets/images/logo.svg" alt="Witnet Logo" width="24" height="24">
+            <img src="../../assets/images/logo.svg" alt="Witnet Logo" width="24" height="24">
           
         </a>
       </div>
@@ -126,7 +127,7 @@
                 Witnet-rust Documentation
               </span>
               <span class="md-header-nav__topic">
-                Blocks Manager
+                JSON-RPC Server
               </span>
             
           
@@ -207,7 +208,7 @@
   <label class="md-nav__title md-nav__title--site" for="__drawer">
     <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-nav__button md-logo">
       
-        <img src="../../../assets/images/logo.svg" alt="Witnet Logo" width="48" height="48">
+        <img src="../../assets/images/logo.svg" alt="Witnet Logo" width="48" height="48">
       
     </a>
     Witnet-rust Documentation
@@ -243,7 +244,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../.." title="Home" class="md-nav__link">
+    <a href="../.." title="Home" class="md-nav__link">
       Home
     </a>
   </li>
@@ -274,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/what-is-witnet/" title="What is Witnet" class="md-nav__link">
+    <a href="../../get-started/what-is-witnet/" title="What is Witnet" class="md-nav__link">
       What is Witnet
     </a>
   </li>
@@ -286,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/why-rust/" title="Why Rust?" class="md-nav__link">
+    <a href="../../get-started/why-rust/" title="Why Rust?" class="md-nav__link">
       Why Rust?
     </a>
   </li>
@@ -298,7 +299,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/design-overview.md" title="Design Overview" class="md-nav__link">
+    <a href="../../get-started/design-overview.md" title="Design Overview" class="md-nav__link">
       Design Overview
     </a>
   </li>
@@ -310,7 +311,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/install.md" title="Install" class="md-nav__link">
+    <a href="../../get-started/install.md" title="Install" class="md-nav__link">
       Install
     </a>
   </li>
@@ -365,7 +366,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/overview/" title="Overview" class="md-nav__link">
+    <a href="../../protocol/network/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -396,7 +397,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/data-structures/block/" title="Block" class="md-nav__link">
+    <a href="../../protocol/network/data-structures/block/" title="Block" class="md-nav__link">
       Block
     </a>
   </li>
@@ -408,7 +409,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/data-structures/ip-address/" title="IP Address" class="md-nav__link">
+    <a href="../../protocol/network/data-structures/ip-address/" title="IP Address" class="md-nav__link">
       IP Address
     </a>
   </li>
@@ -420,7 +421,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/data-structures/signature/" title="Signature" class="md-nav__link">
+    <a href="../../protocol/network/data-structures/signature/" title="Signature" class="md-nav__link">
       Signature
     </a>
   </li>
@@ -432,7 +433,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/data-structures/transaction/" title="Transaction" class="md-nav__link">
+    <a href="../../protocol/network/data-structures/transaction/" title="Transaction" class="md-nav__link">
       Transaction
     </a>
   </li>
@@ -468,7 +469,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/messages/overview/" title="Overview" class="md-nav__link">
+    <a href="../../protocol/network/messages/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -480,7 +481,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/messages/handshake/" title="Handshake" class="md-nav__link">
+    <a href="../../protocol/network/messages/handshake/" title="Handshake" class="md-nav__link">
       Handshake
     </a>
   </li>
@@ -492,7 +493,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/messages/peer-discovery/" title="Peer Discovery" class="md-nav__link">
+    <a href="../../protocol/network/messages/peer-discovery/" title="Peer Discovery" class="md-nav__link">
       Peer Discovery
     </a>
   </li>
@@ -504,7 +505,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/messages/heartbeat/" title="Heartbeat" class="md-nav__link">
+    <a href="../../protocol/network/messages/heartbeat/" title="Heartbeat" class="md-nav__link">
       Heartbeat
     </a>
   </li>
@@ -516,7 +517,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/messages/inventory/" title="Inventory exchange" class="md-nav__link">
+    <a href="../../protocol/network/messages/inventory/" title="Inventory exchange" class="md-nav__link">
       Inventory exchange
     </a>
   </li>
@@ -533,7 +534,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/network/constants/" title="Constants" class="md-nav__link">
+    <a href="../../protocol/network/constants/" title="Constants" class="md-nav__link">
       Constants
     </a>
   </li>
@@ -569,7 +570,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/overview/" title="Overview" class="md-nav__link">
+    <a href="../../protocol/data-requests/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -600,7 +601,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/encoding/" title="Encoding" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/encoding/" title="Encoding" class="md-nav__link">
       Encoding
     </a>
   </li>
@@ -631,7 +632,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/overview/" title="Overview" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -643,7 +644,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/array/" title="Array<V>" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/array/" title="Array<V>" class="md-nav__link">
       Array<V>
     </a>
   </li>
@@ -655,7 +656,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/boolean/" title="Boolean" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/boolean/" title="Boolean" class="md-nav__link">
       Boolean
     </a>
   </li>
@@ -667,7 +668,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/int/" title="Int" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/int/" title="Int" class="md-nav__link">
       Int
     </a>
   </li>
@@ -679,7 +680,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/float/" title="Float" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/float/" title="Float" class="md-nav__link">
       Float
     </a>
   </li>
@@ -691,7 +692,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/map/" title="Map<V>" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/map/" title="Map<V>" class="md-nav__link">
       Map<V>
     </a>
   </li>
@@ -703,7 +704,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/mixed/" title="Mixed" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/mixed/" title="Mixed" class="md-nav__link">
       Mixed
     </a>
   </li>
@@ -715,7 +716,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/null/" title="Null" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/null/" title="Null" class="md-nav__link">
       Null
     </a>
   </li>
@@ -727,7 +728,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/result/" title="Result<V>" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/result/" title="Result<V>" class="md-nav__link">
       Result<V>
     </a>
   </li>
@@ -739,7 +740,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/types/string/" title="String" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/types/string/" title="String" class="md-nav__link">
       String
     </a>
   </li>
@@ -756,7 +757,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
       Implicit `Result<V>` wrapping
     </a>
   </li>
@@ -768,7 +769,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/exceptions/" title="Exception handling" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/exceptions/" title="Exception handling" class="md-nav__link">
       Exception handling
     </a>
   </li>
@@ -780,7 +781,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/functions/" title="Predefined functions" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/functions/" title="Predefined functions" class="md-nav__link">
       Predefined functions
     </a>
   </li>
@@ -792,7 +793,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/subscripts/" title="Subscripts" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/subscripts/" title="Subscripts" class="md-nav__link">
       Subscripts
     </a>
   </li>
@@ -804,7 +805,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/examples/" title="Examples" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/examples/" title="Examples" class="md-nav__link">
       Examples
     </a>
   </li>
@@ -816,7 +817,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radon/constants/" title="Constants" class="md-nav__link">
+    <a href="../../protocol/data-requests/radon/constants/" title="Constants" class="md-nav__link">
       Constants
     </a>
   </li>
@@ -833,7 +834,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/data-requests/radlang.md" title="RADlang" class="md-nav__link">
+    <a href="../../protocol/data-requests/radlang.md" title="RADlang" class="md-nav__link">
       RADlang
     </a>
   </li>
@@ -869,7 +870,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/transactions.md" title="Introduction" class="md-nav__link">
+    <a href="../../protocol/transactions.md" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -881,7 +882,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/witscript.md" title="WitScript" class="md-nav__link">
+    <a href="../../protocol/witscript.md" title="WitScript" class="md-nav__link">
       WitScript
     </a>
   </li>
@@ -898,7 +899,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/blocks.md" title="Blocks" class="md-nav__link">
+    <a href="../../protocol/blocks.md" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -910,7 +911,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/reputation.md" title="Reputation" class="md-nav__link">
+    <a href="../../protocol/reputation.md" title="Reputation" class="md-nav__link">
       Reputation
     </a>
   </li>
@@ -922,7 +923,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/mining.md" title="Mining" class="md-nav__link">
+    <a href="../../protocol/mining.md" title="Mining" class="md-nav__link">
       Mining
     </a>
   </li>
@@ -934,7 +935,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/task-assignment.md" title="Task assignment" class="md-nav__link">
+    <a href="../../protocol/task-assignment.md" title="Task assignment" class="md-nav__link">
       Task assignment
     </a>
   </li>
@@ -972,7 +973,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../overview.md" title="Overview" class="md-nav__link">
+    <a href="../overview.md" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -1003,7 +1004,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../p2p/connections.md" title="Connections" class="md-nav__link">
+    <a href="../p2p/connections.md" title="Connections" class="md-nav__link">
       Connections
     </a>
   </li>
@@ -1015,7 +1016,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../p2p/gossip.md" title="Gossiping" class="md-nav__link">
+    <a href="../p2p/gossip.md" title="Gossiping" class="md-nav__link">
       Gossiping
     </a>
   </li>
@@ -1027,7 +1028,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../p2p/encoding/" title="Encoding" class="md-nav__link">
+    <a href="../p2p/encoding/" title="Encoding" class="md-nav__link">
       Encoding
     </a>
   </li>
@@ -1044,7 +1045,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../storage/" title="Persistent Storage" class="md-nav__link">
+    <a href="../storage/" title="Persistent Storage" class="md-nav__link">
       Persistent Storage
     </a>
   </li>
@@ -1054,12 +1055,10 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-4" type="checkbox" id="nav-4-4">
     
     <label class="md-nav__link" for="nav-4-4">
       Managers
@@ -1077,7 +1076,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../managers/" title="Introduction" class="md-nav__link">
+    <a href="../managers/managers/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -1087,131 +1086,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="__toc">
-        Blocks Manager
-      </label>
-    
-    <a href="./" title="Blocks Manager" class="md-nav__link md-nav__link--active">
-      Blocks Manager
+  <li class="md-nav__item">
+    <a href="../managers/chain-manager/" title="Chain Manager" class="md-nav__link">
+      Chain Manager
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#state" title="State" class="md-nav__link">
-    State
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#actor-creation-and-registration" title="Actor creation and registration" class="md-nav__link">
-    Actor creation and registration
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#api" title="API" class="md-nav__link">
-    API
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#incoming-others-blocksmanager" title="Incoming: Others -&gt; BlocksManager" class="md-nav__link">
-    Incoming: Others -&gt; BlocksManager
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#outgoing-messages-blocksmanager-others" title="Outgoing messages: BlocksManager -&gt; Others" class="md-nav__link">
-    Outgoing messages: BlocksManager -&gt; Others
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#subscribeepoch" title="SubscribeEpoch" class="md-nav__link">
-    SubscribeEpoch
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#subscribeall" title="SubscribeAll" class="md-nav__link">
-    SubscribeAll
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#getconfig" title="GetConfig" class="md-nav__link">
-    GetConfig
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#get" title="Get" class="md-nav__link">
-    Get
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#put" title="Put" class="md-nav__link">
-    Put
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#further-information" title="Further information" class="md-nav__link">
-    Further information
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -1221,7 +1100,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../config-manager/" title="Config Manager" class="md-nav__link">
+    <a href="../managers/config-manager/" title="Config Manager" class="md-nav__link">
       Config Manager
     </a>
   </li>
@@ -1233,7 +1112,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../connections-manager/" title="Connections Manager" class="md-nav__link">
+    <a href="../managers/connections-manager/" title="Connections Manager" class="md-nav__link">
       Connections Manager
     </a>
   </li>
@@ -1245,7 +1124,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../epoch-manager/" title="Epoch Manager" class="md-nav__link">
+    <a href="../managers/epoch-manager/" title="Epoch Manager" class="md-nav__link">
       Epoch Manager
     </a>
   </li>
@@ -1257,7 +1136,19 @@
 
 
   <li class="md-nav__item">
-    <a href="../mempool-manager/" title="Mempool Manager" class="md-nav__link">
+    <a href="../../arquitecture/managers/inventory-manager.md" title="Inventory Manager" class="md-nav__link">
+      Inventory Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../managers/mempool-manager.md" title="Mempool Manager" class="md-nav__link">
       Mempool Manager
     </a>
   </li>
@@ -1269,7 +1160,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../peers-manager/" title="Peers Manager" class="md-nav__link">
+    <a href="../managers/peers-manager/" title="Peers Manager" class="md-nav__link">
       Peers Manager
     </a>
   </li>
@@ -1281,7 +1172,19 @@
 
 
   <li class="md-nav__item">
-    <a href="../sessions-manager/" title="Sessions Manager" class="md-nav__link">
+    <a href="../managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
+      Reputation Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
       Sessions Manager
     </a>
   </li>
@@ -1293,7 +1196,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../storage-manager/" title="Storage Manager" class="md-nav__link">
+    <a href="../managers/storage-manager/" title="Storage Manager" class="md-nav__link">
       Storage Manager
     </a>
   </li>
@@ -1305,7 +1208,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../utxo-manager/" title="UTXO Manager" class="md-nav__link">
+    <a href="../managers/utxo-manager.md" title="UTXO Manager" class="md-nav__link">
       UTXO Manager
     </a>
   </li>
@@ -1322,7 +1225,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../session/" title="Session" class="md-nav__link">
+    <a href="../session/" title="Session" class="md-nav__link">
       Session
     </a>
   </li>
@@ -1334,7 +1237,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../mempool-mgmt.md" title="Mempool Management" class="md-nav__link">
+    <a href="../mempool-mgmt.md" title="Mempool Management" class="md-nav__link">
       Mempool Management
     </a>
   </li>
@@ -1346,7 +1249,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../block-mgmt.md" title="Block Management" class="md-nav__link">
+    <a href="../block-mgmt.md" title="Block Management" class="md-nav__link">
       Block Management
     </a>
   </li>
@@ -1358,7 +1261,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../utxo-mgmt.md" title="UTXO Management" class="md-nav__link">
+    <a href="../utxo-mgmt.md" title="UTXO Management" class="md-nav__link">
       UTXO Management
     </a>
   </li>
@@ -1389,7 +1292,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../rad/overview.md" title="Overview" class="md-nav__link">
+    <a href="../rad/overview.md" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -1406,9 +1309,113 @@
 
 
   <li class="md-nav__item">
-    <a href="../../witscript.md" title="Witscript Parser" class="md-nav__link">
+    <a href="../witscript.md" title="Witscript Parser" class="md-nav__link">
       Witscript Parser
     </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        JSON-RPC Server
+      </label>
+    
+    <a href="./" title="JSON-RPC Server" class="md-nav__link md-nav__link--active">
+      JSON-RPC Server
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#api" title="API" class="md-nav__link">
+    API
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incoming-others-jsonrpcserver" title="Incoming: Others -&gt; JsonRpcServer" class="md-nav__link">
+    Incoming: Others -&gt; JsonRpcServer
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outgoing-messages-jsonrpcserver-others" title="Outgoing messages: JsonRpcServer -&gt; Others" class="md-nav__link">
+    Outgoing messages: JsonRpcServer -&gt; Others
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#getconfig" title="GetConfig" class="md-nav__link">
+    GetConfig
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incoming-others-jsonrpc" title="Incoming: Others -&gt; JsonRpc" class="md-nav__link">
+    Incoming: Others -&gt; JsonRpc
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outgoing-messages-jsonrpc-others" title="Outgoing messages: JsonRpc -&gt; Others" class="md-nav__link">
+    Outgoing messages: JsonRpc -&gt; Others
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#further-information" title="Further information" class="md-nav__link">
+    Further information
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -1427,10 +1434,46 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
     
     <label class="md-nav__link" for="nav-5">
-      Advanced
+      Interface
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-5">
+        Interface
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../interface/json-rpc/" title="JSON-RPC" class="md-nav__link">
+      JSON-RPC
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+    
+    <label class="md-nav__link" for="nav-6">
+      Advanced
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
         Advanced
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1442,7 +1485,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../advanced/constants.md" title="Network constants" class="md-nav__link">
+    <a href="../../advanced/constants.md" title="Network constants" class="md-nav__link">
       Network constants
     </a>
   </li>
@@ -1454,7 +1497,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../advanced/whitepaper-differences.md" title="Differences with the whitepaper" class="md-nav__link">
+    <a href="../../advanced/whitepaper-differences.md" title="Differences with the whitepaper" class="md-nav__link">
       Differences with the whitepaper
     </a>
   </li>
@@ -1471,7 +1514,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../roadmap/" title="Roadmap" class="md-nav__link">
+    <a href="../../roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
     </a>
   </li>
@@ -1483,7 +1526,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../contributing/" title="Contributing" class="md-nav__link">
+    <a href="../../contributing/" title="Contributing" class="md-nav__link">
       Contributing
     </a>
   </li>
@@ -1495,7 +1538,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../development/" title="Development" class="md-nav__link">
+    <a href="../../development/" title="Development" class="md-nav__link">
       Development
     </a>
   </li>
@@ -1508,13 +1551,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9" type="checkbox" id="nav-9">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-10" type="checkbox" id="nav-10">
     
-    <label class="md-nav__link" for="nav-9">
+    <label class="md-nav__link" for="nav-10">
       Configuration
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-9">
+      <label class="md-nav__title" for="nav-10">
         Configuration
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1526,7 +1569,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../configuration/toml-file/" title="Custom toml file" class="md-nav__link">
+    <a href="../../configuration/toml-file/" title="Custom toml file" class="md-nav__link">
       Custom toml file
     </a>
   </li>
@@ -1538,7 +1581,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../configuration/cli/" title="Command Line Interface (CLI)" class="md-nav__link">
+    <a href="../../configuration/cli/" title="Command Line Interface (CLI)" class="md-nav__link">
       Command Line Interface (CLI)
     </a>
   </li>
@@ -1550,7 +1593,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../configuration/environment/" title="Environment defaults" class="md-nav__link">
+    <a href="../../configuration/environment/" title="Environment defaults" class="md-nav__link">
       Environment defaults
     </a>
   </li>
@@ -1567,7 +1610,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../glossary/" title="Glossary" class="md-nav__link">
+    <a href="../../glossary/" title="Glossary" class="md-nav__link">
       Glossary
     </a>
   </li>
@@ -1594,20 +1637,6 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#state" title="State" class="md-nav__link">
-    State
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#actor-creation-and-registration" title="Actor creation and registration" class="md-nav__link">
-    Actor creation and registration
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#api" title="API" class="md-nav__link">
     API
   </a>
@@ -1616,33 +1645,19 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#incoming-others-blocksmanager" title="Incoming: Others -&gt; BlocksManager" class="md-nav__link">
-    Incoming: Others -&gt; BlocksManager
+  <a href="#incoming-others-jsonrpcserver" title="Incoming: Others -&gt; JsonRpcServer" class="md-nav__link">
+    Incoming: Others -&gt; JsonRpcServer
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#outgoing-messages-blocksmanager-others" title="Outgoing messages: BlocksManager -&gt; Others" class="md-nav__link">
-    Outgoing messages: BlocksManager -&gt; Others
+  <a href="#outgoing-messages-jsonrpcserver-others" title="Outgoing messages: JsonRpcServer -&gt; Others" class="md-nav__link">
+    Outgoing messages: JsonRpcServer -&gt; Others
   </a>
   
     <nav class="md-nav">
       <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#subscribeepoch" title="SubscribeEpoch" class="md-nav__link">
-    SubscribeEpoch
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#subscribeall" title="SubscribeAll" class="md-nav__link">
-    SubscribeAll
-  </a>
-  
-</li>
         
           <li class="md-nav__item">
   <a href="#getconfig" title="GetConfig" class="md-nav__link">
@@ -1651,22 +1666,22 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#get" title="Get" class="md-nav__link">
-    Get
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#put" title="Put" class="md-nav__link">
-    Put
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incoming-others-jsonrpc" title="Incoming: Others -&gt; JsonRpc" class="md-nav__link">
+    Incoming: Others -&gt; JsonRpc
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outgoing-messages-jsonrpc-others" title="Outgoing messages: JsonRpc -&gt; Others" class="md-nav__link">
+    Outgoing messages: JsonRpc -&gt; Others
+  </a>
   
 </li>
         
@@ -1698,40 +1713,23 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/managers/blocks-manager.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/json-rpc-server.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="blocks-manager">Blocks Manager<a class="headerlink" href="#blocks-manager" title="Permanent link">&para;</a></h1>
-<p>The <strong>blocks manager</strong> is the actor in charge of managing the blocks of the Witnet blockchain. Among its responsabilities are the following:</p>
-<ul>
-<li>Initializing the chain info upon running the node for the first time and persisting it into storage (see <strong>Storage Manager</strong>).</li>
-<li>Recovering the chain info from storage and keeping it in its state.</li>
-<li>Validating block candidates as they come from a session (see <strong>Sessions Manager</strong>).</li>
-<li>Consolidating multiple block candidates for the same checkpoint into a single valid block.</li>
-<li>Putting valid blocks into storage by sending them to the storage manager actor.</li>
-<li>Having a method for letting other components to get blocks by <em>hash</em> or <em>checkpoint</em>.</li>
-<li>Having a method for letting other components get the epoch of the current tip of the blockchain (e.g. last epoch field required for the handshake in the Witnet network protocol).</li>
-</ul>
-<h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
-<p>The state of the actor is an instance of the <a href="https://github.com/witnet/witnet-rust/tree/master/data_structures/src/chain.rs"><code class="codehilite">ChainInfo</code></a> data structures.</p>
-<div class="codehilite"><pre><span></span><span class="sd">/// BlocksManager actor</span>
-<span class="cp">#[derive(Default)]</span><span class="w"></span>
-<span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">BlocksManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="sd">/// Blockchain information data structure</span>
-<span class="w">    </span><span class="n">chain_info</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">ChainInfo</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
-<span class="p">}</span><span class="w"></span>
-</pre></div>
-
-<h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
-<p>The creation of the blocks manager actor and its registration into the system registry are
-performed directly by the main process <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs"><code class="codehilite">node.rs</code></a>:</p>
-<div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">blocks_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">BlocksManager</span>::<span class="n">default</span><span class="p">().</span><span class="n">start</span><span class="p">();</span><span class="w"></span>
-<span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">blocks_manager_addr</span><span class="p">);</span><span class="w"></span>
-</pre></div>
-
+                <h1 id="jsonrpcserver">JsonRpcServer<a class="headerlink" href="#jsonrpcserver" title="Permanent link">&para;</a></h1>
+<p>The <a href="../../interface/json-rpc/">JSON-RPC interface</a> is implemented using a <code class="codehilite">JsonRpcServer</code> actor
+which handles the new incoming connections and spawns a <code class="codehilite">JsonRpc</code> actor for each
+new connection.</p>
+<p>The <code class="codehilite">JsonRpc</code> actor handles the JSON-RPC protocol, parses the input stream as JSON-RPC,
+executes the request and generates an appropriate response.</p>
+<p>The supported JSON-RPC methods are implemented in <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/json_rpc_methods.rs"><code class="codehilite">json_rpc_methods.rs</code></a>.</p>
+<p>See <a href="../../interface/json-rpc/">JSON-RPC</a> for further information.</p>
 <h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
-<h3 id="incoming-others-blocksmanager">Incoming: Others -&gt; BlocksManager<a class="headerlink" href="#incoming-others-blocksmanager" title="Permanent link">&para;</a></h3>
-<p>These are the messages supported by the <code class="codehilite">BlocksManager</code> handlers:</p>
+<p>The <code class="codehilite">JsonRpcServer</code> does not expose any public API, once it is started
+it will read the necessary parameters from the <code class="codehilite">ConfigManager</code> and
+automatically handle all the incoming connections.</p>
+<h3 id="incoming-others-jsonrpcserver">Incoming: Others -&gt; JsonRpcServer<a class="headerlink" href="#incoming-others-jsonrpcserver" title="Permanent link">&para;</a></h3>
+<p>These are the messages supported by the <code class="codehilite">JsonRpcServer</code>:</p>
 <table>
 <thead>
 <tr>
@@ -1743,66 +1741,24 @@ performed directly by the main process <a href="https://github.com/witnet/witnet
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">EpochNotification&lt;EpochPayload&gt;</code></td>
-<td><code class="codehilite">Epoch</code>, <code class="codehilite">EpochPayload</code></td>
+<td><code class="codehilite">InboundTcpConnect</code></td>
+<td><code class="codehilite">TcpStream</code></td>
 <td><code class="codehilite">()</code></td>
-<td>The requested epoch has been reached</td>
+<td>Request to create a session from an incoming TCP connection</td>
 </tr>
 <tr>
-<td><code class="codehilite">EpochNotification&lt;EveryEpochPayload&gt;</code></td>
-<td><code class="codehilite">Epoch</code>, <code class="codehilite">EveryEpochPayload</code></td>
+<td><code class="codehilite">Unregister</code></td>
+<td><code class="codehilite">Addr&lt;JsonRpc&gt;</code></td>
 <td><code class="codehilite">()</code></td>
-<td>A new epoch has been reached</td>
-</tr>
-<tr>
-<td><code class="codehilite">GetHighestBlockCheckpoint</code></td>
-<td><code class="codehilite">()</code></td>
-<td><code class="codehilite">ChainInfoResult</code></td>
-<td>Request a copy of the highest block checkpoint</td>
+<td>Removes a closed connection from the list of open connections</td>
 </tr>
 </tbody>
 </table>
-<p>Where <code class="codehilite">ChainInfoResult</code> is just:</p>
-<div class="codehilite"><pre><span></span><span class="sd">/// Result type for the ChainInfo in BlocksManager module.</span>
-<span class="k">pub</span><span class="w"> </span><span class="k">type</span> <span class="nc">ChainInfoResult</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">WitnetResult</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">ChainInfoError</span><span class="o">&gt;</span><span class="p">;</span><span class="w"></span>
-</pre></div>
-
-<p>The way other actors will communicate with the BlocksManager is:</p>
-<ol>
-<li>
-<p>Get the address of the BlocksManager actor from the registry:</p>
-<div class="codehilite"><pre><span></span><span class="c1">// Get BlocksManager address</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">blocks_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">get</span>::<span class="o">&lt;</span><span class="n">BlocksManager</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
-</pre></div>
-
-</li>
-<li>
-<p>Use any of the sending methods provided by the address (<code class="codehilite">do_send()</code>, <code class="codehilite">try_send()</code>, <code class="codehilite">send()</code>) to send a message to the actor:</p>
-<div class="codehilite"><pre><span></span><span class="n">config_manager_addr</span><span class="w"></span>
-<span class="w">    </span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">GetHighestBlockCheckpoint</span><span class="p">)</span><span class="w"></span>
-<span class="w">    </span><span class="p">.</span><span class="n">into_actor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="w"></span>
-<span class="w">    </span><span class="p">.</span><span class="n">then</span><span class="p">(</span><span class="o">|</span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="n">_act</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">        </span><span class="c1">// Process the response from BlocksManager</span>
-<span class="w">        </span><span class="n">process_get_config_response</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="w"></span>
-<span class="w">    </span><span class="p">})</span><span class="w"></span>
-<span class="w">    </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">checkpoint</span><span class="p">,</span><span class="w"> </span><span class="n">_act</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">        </span><span class="c1">// Do something with the checkpoint</span>
-<span class="w">        </span><span class="n">actix</span>::<span class="n">fut</span>::<span class="n">ok</span><span class="p">(())</span><span class="w"></span>
-<span class="w">    </span><span class="p">})</span><span class="w"></span>
-<span class="w">    </span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">ctx</span><span class="p">);</span><span class="w"></span>
-</pre></div>
-
-</li>
-</ol>
-<p>For the time being, the handlers for Epoch messages just print a debug message with the notified
-checkpoint. </p>
-<div class="codehilite"><pre><span></span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span>: <span class="nc">EpochNotification</span><span class="o">&lt;</span><span class="n">EpochPayload</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Context</span><span class="o">&lt;</span><span class="n">Self</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Epoch notification received {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">checkpoint</span><span class="p">);</span><span class="w"></span>
-<span class="p">}</span><span class="w"></span>
-</pre></div>
-
-<h3 id="outgoing-messages-blocksmanager-others">Outgoing messages: BlocksManager -&gt; Others<a class="headerlink" href="#outgoing-messages-blocksmanager-others" title="Permanent link">&para;</a></h3>
-<p>These are the messages sent by the blocks manager:</p>
+<p>However, they are internal messages: the <code class="codehilite">InboundTcpConnect</code> is sent
+by the stream listener and the <code class="codehilite">Unregister</code> is sent by the <code class="codehilite">JsonRpc</code>
+actor.</p>
+<h3 id="outgoing-messages-jsonrpcserver-others">Outgoing messages: JsonRpcServer -&gt; Others<a class="headerlink" href="#outgoing-messages-jsonrpcserver-others" title="Permanent link">&para;</a></h3>
+<p>These are the messages sent by the EpochManager:</p>
 <table>
 <thead>
 <tr>
@@ -1815,65 +1771,46 @@ checkpoint. </p>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">SubscribeEpoch</code></td>
-<td><code class="codehilite">EpochManager</code></td>
-<td><code class="codehilite">Epoch</code>, <code class="codehilite">Addr&lt;BlocksManager&gt;, EpochPayload</code></td>
-<td><code class="codehilite">()</code></td>
-<td>Subscribe to a particular epoch</td>
-</tr>
-<tr>
-<td><code class="codehilite">SubscribeAll</code></td>
-<td><code class="codehilite">EpochManager</code></td>
-<td><code class="codehilite">Addr&lt;BlocksManager&gt;, EveryEpochPayload</code></td>
-<td><code class="codehilite">()</code></td>
-<td>Subscribe to all epochs</td>
-</tr>
-<tr>
 <td><code class="codehilite">GetConfig</code></td>
 <td><code class="codehilite">ConfigManager</code></td>
 <td><code class="codehilite">()</code></td>
 <td><code class="codehilite">Result&lt;Config, io::Error&gt;</code></td>
 <td>Request the configuration</td>
 </tr>
+</tbody>
+</table>
+<h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a> actor when the <code class="codehilite">JsonRpcServer</code> actor is started.</p>
+<p>The return value is used to initialize the protocol constants (checkpoint period and
+epoch zero timestamp).
+For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a>.</p>
+<h3 id="incoming-others-jsonrpc">Incoming: Others -&gt; JsonRpc<a class="headerlink" href="#incoming-others-jsonrpc" title="Permanent link">&para;</a></h3>
+<p>The <code class="codehilite">JsonRpc</code> actor does not have any message handlers.</p>
+<h3 id="outgoing-messages-jsonrpc-others">Outgoing messages: JsonRpc -&gt; Others<a class="headerlink" href="#outgoing-messages-jsonrpc-others" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
 <tr>
-<td><code class="codehilite">Get</code></td>
-<td><code class="codehilite">StorageManager</code></td>
-<td><code class="codehilite">&amp;&#39;static [u8]</code></td>
-<td><code class="codehilite">StorageResult&lt;Option&lt;T&gt;&gt;</code></td>
-<td>Wrapper to Storage <code class="codehilite">get()</code> method</td>
+<th>Message</th>
+<th>Destination</th>
+<th>Input type</th>
+<th>Output type</th>
+<th>Description</th>
 </tr>
+</thead>
+<tbody>
 <tr>
-<td><code class="codehilite">Put</code></td>
-<td><code class="codehilite">StorageManager</code></td>
-<td><code class="codehilite">&amp;&#39;static [u8]</code>, <code class="codehilite">Vec&lt;u8&gt;</code></td>
-<td><code class="codehilite">StorageResult&lt;()&gt;</code></td>
-<td>Wrapper to Storage <code class="codehilite">put()</code> method</td>
+<td><code class="codehilite">Unregister</code></td>
+<td><code class="codehilite">JsonRpcServer</code></td>
+<td><code class="codehilite">Addr&lt;JsonRpc&gt;</code></td>
+<td><code class="codehilite">()</code></td>
+<td>Removes a closed connection from the list of open connections</td>
 </tr>
 </tbody>
 </table>
-<h4 id="subscribeepoch">SubscribeEpoch<a class="headerlink" href="#subscribeepoch" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs"><code class="codehilite">EpochManager</code></a> actor when the <code class="codehilite">BlocksManager</code> actor is
-started, in order to subscribe to the next epoch (test functionality).</p>
-<p>Subscribing to the next epoch means that the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs"><code class="codehilite">EpochManager</code></a> will send an
-<code class="codehilite">EpochNotification&lt;EpochPayload&gt;</code> back to the <code class="codehilite">BlocksManager</code> when the epoch is reached.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs"><code class="codehilite">EpochManager</code></a>.</p>
-<h4 id="subscribeall">SubscribeAll<a class="headerlink" href="#subscribeall" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs"><code class="codehilite">EpochManager</code></a> actor when the blocks manager actor is
-started, in order to subscribe to the all epochs (test functionality).</p>
-<p>Subscribing to all epochs means that the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs"><code class="codehilite">EpochManager</code></a> will send an
-<code class="codehilite">EpochNotification&lt;EveryEpochPayload&gt;</code> back to the <code class="codehilite">BlocksManager</code> when every epoch is reached.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs"><code class="codehilite">EpochManager</code></a>.</p>
-<h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the [<code class="codehilite">ConfigManager</code>][config_manager] actor when the peers manager actor is started.</p>
-<p>The return value is used to initialize the list of known peers. For further information, see  [<code class="codehilite">ConfigManager</code>][config_manager].</p>
-<h4 id="get">Get<a class="headerlink" href="#get" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the [<code class="codehilite">StorageManager</code>][storage_manager] actor when the blocks manager actor is started.</p>
-<p>The return value is a <code class="codehilite">ChainInfo</code> structure from the storage which are added to the state of the actor.</p>
-<h4 id="put">Put<a class="headerlink" href="#put" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the [<code class="codehilite">StorageManager</code>][storage_manager] actor to persist the <code class="codehilite">ChainInfo</code> structure</p>
-<p>The return value is used to check if the storage process has been successful.</p>
+<p>The <code class="codehilite">JsonRpc</code> actor only sends one <code class="codehilite">Unregister</code> message to its parent
+when the connection closes.</p>
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">BlocksManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/blocks_manager.rs"><code class="codehilite">blocks_manager.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">JsonRpcServer</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/server.rs"><code class="codehilite">server.rs</code></a>.</p>
                 
                   
                 
@@ -1894,7 +1831,7 @@ started, in order to subscribe to the all epochs (test functionality).</p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../managers/" title="Introduction" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../session/" title="Session" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1903,19 +1840,19 @@ started, in order to subscribe to the all epochs (test functionality).</p>
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Introduction
+                Session
               </span>
             </div>
           </a>
         
         
-          <a href="../config-manager/" title="Config Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../../interface/json-rpc/" title="JSON-RPC" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Config Manager
+                JSON-RPC
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
@@ -1943,7 +1880,7 @@ started, in order to subscribe to the all epochs (test functionality).</p>
       
         
   <div class="md-footer-social">
-    <link rel="stylesheet" href="../../../assets/fonts/font-awesome.css">
+    <link rel="stylesheet" href="../../assets/fonts/font-awesome.css">
     
       <a href="https://github.com/witnet" class="md-footer-social__link fa fa-github"></a>
     
@@ -1960,9 +1897,9 @@ started, in order to subscribe to the all epochs (test functionality).</p>
       
     </div>
     
-      <script src="../../../assets/javascripts/application.583bbe55.js"></script>
+      <script src="../../assets/javascripts/application.9e1f3b71.js"></script>
       
-      <script>app.initialize({version:"1.0.4",url:{base:"../../.."}})</script>
+      <script>app.initialize({version:"1.0.4",url:{base:"../.."}})</script>
       
     
     

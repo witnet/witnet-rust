@@ -34,7 +34,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../../../../assets/images/favicon.ico">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.1.0">
     
     
       
@@ -42,7 +42,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/application.451f80e5.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/application.11e41852.css">
       
         <link rel="stylesheet" href="../../../../assets/stylesheets/application-palette.22915126.css">
       
@@ -53,7 +53,7 @@
       
     
     
-      <script src="../../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../../../assets/javascripts/modernizr.20ef595d.js"></script>
     
     
       
@@ -63,6 +63,7 @@
       
     
     <link rel="stylesheet" href="../../../../assets/fonts/material-icons.css">
+    
     
     
   </head>
@@ -99,6 +100,10 @@
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="#transaction" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
     
     
       <header class="md-header" data-md-component="header">
@@ -439,10 +444,251 @@
     
     <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
     
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Transaction
+      </label>
     
     <a href="./" title="Transaction" class="md-nav__link md-nav__link--active">
       Transaction
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#outputs" title="Outputs" class="md-nav__link">
+    Outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#value-transfer-outputs" title="Value transfer outputs" class="md-nav__link">
+    Value transfer outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-request-outputs" title="Data Request outputs" class="md-nav__link">
+    Data Request outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure_1" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-rewards-and-fees" title="Values, rewards and fees" class="md-nav__link">
+    Values, rewards and fees
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules_1" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commit-outputs" title="Commit outputs" class="md-nav__link">
+    Commit outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure_2" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-rewards-and-fees_1" title="Values, rewards and fees" class="md-nav__link">
+    Values, rewards and fees
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules_2" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reveal-outputs" title="Reveal outputs" class="md-nav__link">
+    Reveal outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure_3" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-rewards-and-fees_2" title="Values, rewards and fees" class="md-nav__link">
+    Values, rewards and fees
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules_3" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tally-outputs" title="Tally outputs" class="md-nav__link">
+    Tally outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure_4" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-rewards-and-fees_3" title="Values, rewards and fees" class="md-nav__link">
+    Values, rewards and fees
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules_4" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inputs" title="Inputs" class="md-nav__link">
+    Inputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-request-input" title="Data request input" class="md-nav__link">
+    Data request input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commit-input" title="Commit input" class="md-nav__link">
+    Commit input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reveal-input" title="Reveal input" class="md-nav__link">
+    Reveal input
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signatures" title="Signatures" class="md-nav__link">
+    Signatures
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
     
   </li>
 
@@ -1094,8 +1340,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/blocks-manager/" title="Blocks Manager" class="md-nav__link">
-      Blocks Manager
+    <a href="../../../../architecture/managers/chain-manager/" title="Chain Manager" class="md-nav__link">
+      Chain Manager
     </a>
   </li>
 
@@ -1142,7 +1388,19 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/mempool-manager/" title="Mempool Manager" class="md-nav__link">
+    <a href="../../../../arquitecture/managers/inventory-manager.md" title="Inventory Manager" class="md-nav__link">
+      Inventory Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/mempool-manager.md" title="Mempool Manager" class="md-nav__link">
       Mempool Manager
     </a>
   </li>
@@ -1156,6 +1414,18 @@
   <li class="md-nav__item">
     <a href="../../../../architecture/managers/peers-manager/" title="Peers Manager" class="md-nav__link">
       Peers Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
+      Reputation Manager
     </a>
   </li>
 
@@ -1190,7 +1460,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../architecture/managers/utxo-manager/" title="UTXO Manager" class="md-nav__link">
+    <a href="../../../../architecture/managers/utxo-manager.md" title="UTXO Manager" class="md-nav__link">
       UTXO Manager
     </a>
   </li>
@@ -1297,6 +1567,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../architecture/json-rpc-server/" title="JSON-RPC Server" class="md-nav__link">
+      JSON-RPC Server
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -1312,10 +1594,46 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
     
     <label class="md-nav__link" for="nav-5">
-      Advanced
+      Interface
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-5">
+        Interface
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../interface/json-rpc/" title="JSON-RPC" class="md-nav__link">
+      JSON-RPC
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+    
+    <label class="md-nav__link" for="nav-6">
+      Advanced
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
         Advanced
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1393,13 +1711,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9" type="checkbox" id="nav-9">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-10" type="checkbox" id="nav-10">
     
-    <label class="md-nav__link" for="nav-9">
+    <label class="md-nav__link" for="nav-10">
       Configuration
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-9">
+      <label class="md-nav__title" for="nav-10">
         Configuration
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1465,6 +1783,247 @@
               </div>
             
             
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#outputs" title="Outputs" class="md-nav__link">
+    Outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#value-transfer-outputs" title="Value transfer outputs" class="md-nav__link">
+    Value transfer outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-request-outputs" title="Data Request outputs" class="md-nav__link">
+    Data Request outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure_1" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-rewards-and-fees" title="Values, rewards and fees" class="md-nav__link">
+    Values, rewards and fees
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules_1" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commit-outputs" title="Commit outputs" class="md-nav__link">
+    Commit outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure_2" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-rewards-and-fees_1" title="Values, rewards and fees" class="md-nav__link">
+    Values, rewards and fees
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules_2" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reveal-outputs" title="Reveal outputs" class="md-nav__link">
+    Reveal outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure_3" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-rewards-and-fees_2" title="Values, rewards and fees" class="md-nav__link">
+    Values, rewards and fees
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules_3" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tally-outputs" title="Tally outputs" class="md-nav__link">
+    Tally outputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-structure_4" title="Data structure" class="md-nav__link">
+    Data structure
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#values-rewards-and-fees_3" title="Values, rewards and fees" class="md-nav__link">
+    Values, rewards and fees
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specific-validation-rules_4" title="Specific validation rules" class="md-nav__link">
+    Specific validation rules
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inputs" title="Inputs" class="md-nav__link">
+    Inputs
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#data-request-input" title="Data request input" class="md-nav__link">
+    Data request input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commit-input" title="Commit input" class="md-nav__link">
+    Commit input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reveal-input" title="Reveal input" class="md-nav__link">
+    Reveal input
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#signatures" title="Signatures" class="md-nav__link">
+    Signatures
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
           
           <div class="md-content">
             <article class="md-content__inner md-typeset">
@@ -1473,9 +2032,409 @@
                   <a href="https://github.com/witnet/witnet-rust/blob/master/docs/protocol/network/data-structures/transaction.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                  <h1>Transaction</h1>
-                
-                
+                <h1 id="transaction">Transaction<a class="headerlink" href="#transaction" title="Permanent link">&para;</a></h1>
+<p>In the Witnet network protocol, a <code class="codehilite">transaction</code> is formatted as follows:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">version</code></td>
+<td><code class="codehilite">u32</code></td>
+<td>The transaction data format version number</td>
+</tr>
+<tr>
+<td><code class="codehilite">inputs</code></td>
+<td><code class="codehilite">[input]</code></td>
+<td>A list of transaction inputs</td>
+</tr>
+<tr>
+<td><code class="codehilite">outputs</code></td>
+<td><code class="codehilite">[output]</code></td>
+<td>A list of 1 or more transaction outputs</td>
+</tr>
+<tr>
+<td><code class="codehilite">signatures</code></td>
+<td><code class="codehilite">[signature]</code></td>
+<td>A list of claims (as many as inputs)</td>
+</tr>
+</tbody>
+</table>
+<p>Long story short, <em>inputs</em> contain data that proves ability to "pull" value from past transactions into a new transaction, while <em>outputs</em> redistribute such value and lock them under new spending conditions. Signatures ensure integrity of the transaction and complement input's function when it comes to prove ability to unlock funds from past transactions.</p>
+<p>Generally, the sum of the values of the outputs in a transaction must not exceed the sum of the values of the inputs, so as to guarantee that value is not created out of thin air. The only exception to this rule is the <em>mint</em> transaction, which every block's miner node must include at the beginning of the transactions list contained in it. <em>Mint</em> transactions, which are roughly equivalent to Bitcoin's <em>coinbase</em>, have no inputs and only one output, thus effectively <em>minting</em> a fixed amount of new value.</p>
+<p>As it is the case for many other <em>unspent output based</em> cryptocurrencies, for every transaction, any value surplus after detracting the total output value from the total input value is considered to be the <em>miner fee</em>, which can be redeemed by the miner of the block in which the transaction gets anchored.</p>
+<h2 id="outputs">Outputs<a class="headerlink" href="#outputs" title="Permanent link">&para;</a></h2>
+<p>Outputs gather the value brought into transactions by inputs and lock fractions of that value under new spending conditions. </p>
+<p>Transactions may contain different types of outputs:</p>
+<ul>
+<li>Value transfer: roughly equivalent to Bitcoin's P2PKH/P2WPKH, where the output specifies the hash of a public key.</li>
+<li>Client Data Request (DR): publishes a request for data. It must include scripts for retrieval, aggregation, consensus and, optionally, deliver clauses.</li>
+<li>Commit: used by witnesses to (1) commit the results of their retrieval tasks without revealing the actual value of the retrieved data, and (2) pledge their share of the value attached to the data request as a reward.</li>
+<li>Reveal: used by witnesses to (1) reveal the actual value of the retrieved data that they committed in their previous <em>commit</em>, and once again to (2) pledge their share of the value attached to the data request as a reward.</li>
+<li>Tally: used by the block miner to (1) publish the result of a data request after consensus, and (2) refund the unspent <em>commit</em> outputs to the data request creator.</li>
+</ul>
+<p>Different output types also cause the transactions they are in to be validated using specific validation rules.</p>
+<h3 id="value-transfer-outputs">Value transfer outputs<a class="headerlink" href="#value-transfer-outputs" title="Permanent link">&para;</a></h3>
+<p><em>Value transfer</em> outputs (VTO) very much resemble Bitcoin's <em>pay-to-public-key</em> (P2PKH) outputs. For anyone to spend a value transfer output, they must sign the spending transaction with a private key whose matching public key's <code class="codehilite">SHA256</code> hash digest starts with the exact 20 bytes explicitly stated in the output itself.</p>
+<p>As those 20 bytes represent an entropy of <code class="codehilite">2^160</code> taken from the output of a hash function that is generally accepted to be secure under the <a href="https://en.wikipedia.org/wiki/Random_oracle">random oracle model</a>, it can be safely assumed that a signature that satisfies such requirements was likely produced with a particular private key and therefore whoever provided the signature is also in possession of such private key.</p>
+<p>The <code class="codehilite">pkh</code> field is defined as the first 20 bytes of the digest of a public key.</p>
+<p>VTOs can be time locked so as to prevent further transactions from spending their value before a certain date and time.</p>
+<h4 id="data-structure">Data structure<a class="headerlink" href="#data-structure" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">pkh</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Slice of the digest of a public key (20 bytes)</td>
+</tr>
+<tr>
+<td><code class="codehilite">value</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>Transaction value</td>
+</tr>
+<tr>
+<td><code class="codehilite">time_lock</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>The UTC Unix timestamp before which the output can not be spent</td>
+</tr>
+</tbody>
+</table>
+<h4 id="specific-validation-rules">Specific validation rules<a class="headerlink" href="#specific-validation-rules" title="Permanent link">&para;</a></h4>
+<ul>
+<li>VTOs take their value from the aggregate of all the inputs in the transactions.</li>
+<li>The number of VTOs in a single transaction is virtually unlimited as long as the VTOs are all contiguous and located at the end of the outputs list.</li>
+<li>A single VTO spending from no inputs is considered to be a <em>mint</em> transaction, which is only acceptable if located first in the list of transactions of a block.</li>
+<li>The value brought into a transaction by an input pointing to a VTO can be freely assigned to any output of any type, unless otherwise restricted by the specific validation rules for such output type.</li>
+</ul>
+<h3 id="data-request-outputs">Data Request outputs<a class="headerlink" href="#data-request-outputs" title="Permanent link">&para;</a></h3>
+<p>Data request outputs publish requests for retrieving, aggregating and delivering data from external sources. At the same time, they specify and lock fees that will reward the different players involved throughout the life cycle of a data request, i.e. the nodes retrieving the data (a.k.a. <em>witnesses</em>) and the miner nodes responsible for timely including <code class="codehilite">commit</code>, <code class="codehilite">reveal</code> and <code class="codehilite">tally</code> transactions into new blocks.</p>
+<p>During the <em>reveal</em> stage, some eligible witnesses who published commitments may not follow up with their reveals. This could happen if they are not able to see their commitment transactions timely included in a block (e.g. because of network errors).</p>
+<p>Miners are actually not obliged to include all the reveal transactions and eventually end up assigning rewards to the committers. This is because there is no way for the network to enforce punishment on them for neglecting or trying to conceal those transactions because there is no guarantee that they will be known to them in discrete time or even known whatsoever.</p>
+<p>However, for every of those transactions that they include in a block, they are eligible for collecting special fees as explicitly specified and set aside for them in the original data request output, i.e. the <em>reveal_fee</em> and <em>tally_fee</em>. It is therefore to be expected that miners will include as many of those transactions as known to them as for maximizing their profit.</p>
+<p>This type of output also provides the digest of the public key to which the requester wants any unassigned rewards to be refunded. This digest does not necessarily need to match the public key used to sign the transaction where this output is included, which allows requesters to "donate" those funds to a third party or to simply move them to another public key of their own.</p>
+<h4 id="data-structure_1">Data structure<a class="headerlink" href="#data-structure_1" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">data_request</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Data request scripts as a byte array</td>
+</tr>
+<tr>
+<td><code class="codehilite">pkh</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Slice of the digest of a public key (20 bytes)</td>
+</tr>
+<tr>
+<td><code class="codehilite">value</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>Transaction value that will be used as reward to be distributed after consensus has been reached and fees have been subtracted</td>
+</tr>
+<tr>
+<td><code class="codehilite">witnesses</code></td>
+<td><code class="codehilite">u8</code></td>
+<td>Minimum amount of witness nodes that will be employed for resolving this data request</td>
+</tr>
+<tr>
+<td><code class="codehilite">backup_witnesses</code></td>
+<td><code class="codehilite">u8</code></td>
+<td>Number of backup witnesses that will be employed for resolving this data request</td>
+</tr>
+<tr>
+<td><code class="codehilite">commit_fee</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>Miner fee for each valid <em>commit</em> output included in the block during the <em>commit stage</em></td>
+</tr>
+<tr>
+<td><code class="codehilite">reveal_fee</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>Miner fee for each valid <em>reveal</em> output included in the block during the <em>reveal stage</em></td>
+</tr>
+<tr>
+<td><code class="codehilite">tally_fee</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>Miner fee for each valid <em>value</em> transfer output included in the block during the <em>tally stage</em></td>
+</tr>
+<tr>
+<td><code class="codehilite">time_lock</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>The UTC Unix timestamp after which data request shall be executed</td>
+</tr>
+</tbody>
+</table>
+<h4 id="values-rewards-and-fees">Values, rewards and fees<a class="headerlink" href="#values-rewards-and-fees" title="Permanent link">&para;</a></h4>
+<p>The minimum data request reward to be eventually distributed in the <em>tally</em> among nodes that agreed with the consensus is defined as follows:</p>
+<div class="codehilite"><pre><span></span>dr_reward_min = value - (witnesses * commit_fee) - (witnesses * reveal_fee) - (witnesses * tally_fee)
+</pre></div>
+
+<h4 id="specific-validation-rules_1">Specific validation rules<a class="headerlink" href="#specific-validation-rules_1" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Multiple <em>data request</em> outputs can be included into a single transaction as long as the <em>inputs are greater than outputs</em> rule still hold true. The difference with VTOs is that the total output value for <em>data request</em> outputs also include the <em>commit fee</em>, <em>reveal fee</em> and <em>tally fee</em>.</li>
+<li>The value brought into a transaction by an input pointing to a <em>data request</em> output can only be spent by <em>commit</em> outputs.</li>
+</ul>
+<h3 id="commit-outputs">Commit outputs<a class="headerlink" href="#commit-outputs" title="Permanent link">&para;</a></h3>
+<p><em>Commit</em> outputs are used by witnesses for submitting a commitment of the results of their retrieval and aggregation tasks without revealing the actual value of the data. This prevents other eligible witness nodes from not executing the data request, just trying to replay other witness nodes' reported results.</p>
+<p>When creating commitments, a randomly generated secret value called <em>nonce</em> is paired with the actual value that resulted from executing the data request, again to prevent other witness nodes from acting lazy, trying to guess and replay others' commitments.</p>
+<p>An unforeseeable and time-bound source of pseudo-randomness is also included into the mix when creating the commitment, so that this computation cannot be performed ahead of time. Namely, this source of randomness is the latest checkpoint beacon, which contains the identifier of the latest block in the chain, which is extremely hard to predict.</p>
+<p>Therefore, the algorithm for computing a commitment is:</p>
+<div class="codehilite"><pre><span></span>SHA256(result || nonce || beacon)
+</pre></div>
+
+<h4 id="data-structure_2">Data structure<a class="headerlink" href="#data-structure_2" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">commitment</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Digest of the data request's aggregation stage, salted by a nonce and the previous checkpoint beacon</td>
+</tr>
+<tr>
+<td><code class="codehilite">value</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>Remaining transaction value that will be used as reward to be distributed after consensus has been reached</td>
+</tr>
+</tbody>
+</table>
+<h4 id="values-rewards-and-fees_1">Values, rewards and fees<a class="headerlink" href="#values-rewards-and-fees_1" title="Permanent link">&para;</a></h4>
+<p>The <code class="codehilite">value</code> of the commit output depends on the target number of witness nodes employed, as stated in the data request itself:</p>
+<div class="codehilite"><pre><span></span>commit_value = (data_request_value / witnesses) - commit_fee
+</pre></div>
+
+<h4 id="specific-validation-rules_2">Specific validation rules<a class="headerlink" href="#specific-validation-rules_2" title="Permanent link">&para;</a></h4>
+<ul>
+<li><em>Commit</em> outputs can only take value from <em>data request</em> inputs whose index in the inputs list is the same as their own index in the outputs list.</li>
+<li>Multiple <em>commit</em> outputs can exist in a single transaction, but each of them needs to be coupled with a <em>data request</em> input occupying the same index in the inputs list as their own in the outputs list. Predictably, as a result of the previous rule, each of the multiple <em>commit</em> outputs only takes value from the <em>data request</em> input with the same index.</li>
+<li>The value brought into a transaction by an input pointing to a <em>commit</em> output can only be spent by <em>reveal</em> or <em>tally</em> outputs.</li>
+</ul>
+<h3 id="reveal-outputs">Reveal outputs<a class="headerlink" href="#reveal-outputs" title="Permanent link">&para;</a></h3>
+<p><em>Reveal</em> outputs are created and published by every witness node who previously published a commitment only after they have verified that a sufficient number of other witness nodes have published their own commitments for the same data request. This is to prevent others from forging commitments without actually executing the retrieval and aggregation as requested.</p>
+<p>This type of output contains the result of executing the retrieval and aggregation stage scripts of a data request. It also provides the digest of the public key to which the witness node wants the reward to be assigned if the revealed value passes the consensus stage function as explicitly defined by the original data request. This digest does not necessarily need to match the public key used by the witness node for eligibility (i.e. mining and request resolving). This allows witness nodes to "donate" the rewards to a third party or to simply move them to another public key of their own.</p>
+<h4 id="data-structure_3">Data structure<a class="headerlink" href="#data-structure_3" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">reveal</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>The result of executing the retrieval and aggregation stage scripts of a data inputs can onrequest</td>
+</tr>
+<tr>
+<td><code class="codehilite">pkh</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Slice of the digest of a public key (20 bytes)</td>
+</tr>
+<tr>
+<td><code class="codehilite">value</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>Remaining transaction value that will be used as reward to be distributed after consensus has been reached</td>
+</tr>
+</tbody>
+</table>
+<h4 id="values-rewards-and-fees_2">Values, rewards and fees<a class="headerlink" href="#values-rewards-and-fees_2" title="Permanent link">&para;</a></h4>
+<p>The <code class="codehilite">value</code> of the reveal output depends on the number of witness nodes employed, as stated in the data request itself:</p>
+<div class="codehilite"><pre><span></span>reveal_value = commit_value - reveal_fee
+</pre></div>
+
+<h4 id="specific-validation-rules_3">Specific validation rules<a class="headerlink" href="#specific-validation-rules_3" title="Permanent link">&para;</a></h4>
+<ul>
+<li><em>Reveal</em> outputs can only take value from <em>commit</em> inputs whose index in the inputs list is the same as their own index in the outputs list.</li>
+<li>Multiple <em>reveal</em> outputs can exist in a single transaction, but each of them needs to be coupled with a <em>commit</em> input occupying the same index in the inputs list as their own in the outputs list. Predictably, as a result of the previous rule, each of the multiple <em>reveal</em> outputs only takes value from the <em>commit</em> input with the same index.</li>
+<li>The value brought into a transaction by an input pointing to a <em>reveal</em> output can only be spent by <em>value transfer</em> outputs.</li>
+<li>Any transaction including an input pointing to a <em>reveal</em> output must also include exactly only one <em>tally</em> output.</li>
+</ul>
+<h3 id="tally-outputs">Tally outputs<a class="headerlink" href="#tally-outputs" title="Permanent link">&para;</a></h3>
+<p><em>Tally</em> outputs are used by block miners for publishing the result of running each data request's consensus stage script on the data revealed by the witness nodes that were lucky enough to be eligible for doing so. <em>Tally</em> outputs are only present in transactions created by miners for joining all the reveal outputs for the same data request and eventually creating new outputs for rewarding the "revealers". Thus, those transactions will contain at most as many <em>value transfer</em> outputs as witnesses were originally employed plus the <em>tally</em> output itself.</p>
+<p>Singularly, the <code class="codehilite">pkh</code> found in tally outputs is not the digest of the public key of the miner or any witness node, but that of the request creator, as explicitly stated in the original data request. This allows refunding any value left after distributing all rewards and fees.</p>
+<h4 id="data-structure_4">Data structure<a class="headerlink" href="#data-structure_4" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">result</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Data request result as computed by applying the consensus stage function as specified by the data request on every <em>reveal</em> input in the same transaction as this output</td>
+</tr>
+<tr>
+<td><code class="codehilite">pkh</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Slice of the digest of the public key of the data request creator (20 bytes)</td>
+</tr>
+<tr>
+<td><code class="codehilite">value</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>Remaining transaction value that has not been used as reward or fee of the data request</td>
+</tr>
+</tbody>
+</table>
+<h4 id="values-rewards-and-fees_3">Values, rewards and fees<a class="headerlink" href="#values-rewards-and-fees_3" title="Permanent link">&para;</a></h4>
+<p>The <code class="codehilite">value</code> of the <em>tally</em> output is the remaining value after distributing all rewards and fees among witnesses and miners respectively:</p>
+<div class="codehilite"><pre><span></span>reveal_value = data_request_value - committers * commit_fee - revealers * (reveal_fee + tally_fee + reward)
+</pre></div>
+
+<h4 id="specific-validation-rules_4">Specific validation rules<a class="headerlink" href="#specific-validation-rules_4" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Any transaction can contain at most one <em>tally</em> output.</li>
+<li>Transactions containing <em>tally</em> outputs must not be broadcast through the inventory announcement protocol.</li>
+<li>As a result of the previous rule, transactions containing <em>tally</em> outputs can only be included into a block by the miner of the block.</li>
+<li>The value brought into a transaction by an input pointing to a <em>tally</em> output can be freely assigned to any output of any type, unless otherwise restricted by the specific validation rules for such output type.</li>
+</ul>
+<h2 id="inputs">Inputs<a class="headerlink" href="#inputs" title="Permanent link">&para;</a></h2>
+<p>Transaction inputs are references to outputs from past transactions. They "pull" all the value from those outputs and make it available for being spent by the outputs in the same transaction they are in. This data structure—which pairs a transaction's identifier with the index of one of its outputs—unambiguously points to a unique output from a specific transaction.</p>
+<p>Every input included in a transaction needs to be coupled with a signature in the <em>signatures</em> section.</p>
+<p>Some inputs also provide additional pieces of data as required to fulfill the specific spending conditions of the outputs they are pointing to. These pieces of data are called <em>claims</em>, and allow the party creating a transaction to prove their right to spend the referred output and convince every other node in the network to consider the transaction to be valid and to broadcast it.</p>
+<p>Different output types require their spending inputs to provide specific claims in order to fulfill their spending conditions.</p>
+<p>All input structures consist at least of the following fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">transaction_id</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>A transaction identifier</td>
+</tr>
+<tr>
+<td><code class="codehilite">output_index</code></td>
+<td><code class="codehilite">u32</code></td>
+<td>The index of a specific output in the transaction</td>
+</tr>
+</tbody>
+</table>
+<p>Inputs trying to spend outputs of type <em>data request</em> and <em>commit</em> have additional fields for their specific claims, as described below.</p>
+<h3 id="data-request-input">Data request input<a class="headerlink" href="#data-request-input" title="Permanent link">&para;</a></h3>
+<p>Every <em>data request</em> output can be spent by as many <em>data request</em> inputs as defined in the output itself, which has a field explicitly stating such number. For a witness node to be able to put aside a share of the reward from the data for itself, it must provide an input with a <em>Proof of Eligibility</em> (PoE) claim: a cryptographically verifiable proof of their right to act as a witness for such data request in the current epoch. In addition, for every other node in the network to be able to verify such proof, this PoE must be produced using a private key that matches the the public key included in the <em>signatures</em> section of the transaction.</p>
+<p>Thus, the <em>data request</em> input structure consists of the following fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">transaction_id</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>A transaction identifier</td>
+</tr>
+<tr>
+<td><code class="codehilite">output_index</code></td>
+<td><code class="codehilite">u32</code></td>
+<td>The index of a specific output in the transaction</td>
+</tr>
+<tr>
+<td><code class="codehilite">poe</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Proof of Eligibility produced with same keypair as the transaction signature</td>
+</tr>
+</tbody>
+</table>
+<h3 id="commit-input">Commit input<a class="headerlink" href="#commit-input" title="Permanent link">&para;</a></h3>
+<p><em>Commit</em> inputs are used by witness nodes for proving that they actually executed the data request in a timely manner and revealing the actual result value that they secretly committed in their <em>commit</em> transactions. Therefore, the claims in <em>commit</em> inputs provide every element that was used for producing the previously published commitment but was unknown to the rest of the nodes in the network by that moment. Namely, those claims are the <em>reveal</em> and <em>nonce</em> values.</p>
+<p>Thus, the <em>commit</em> input structure consists of the following fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">transaction_id</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>A transaction identifier</td>
+</tr>
+<tr>
+<td><code class="codehilite">output_index</code></td>
+<td><code class="codehilite">u32</code></td>
+<td>The index of a specific output in the transaction</td>
+</tr>
+<tr>
+<td><code class="codehilite">reveal</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>The result of executing the retrieval and aggregation stages of the data request</td>
+</tr>
+<tr>
+<td><code class="codehilite">nonce</code></td>
+<td><code class="codehilite">u64</code></td>
+<td>The nonce used for generating the previously published commitment</td>
+</tr>
+</tbody>
+</table>
+<h3 id="reveal-input">Reveal input<a class="headerlink" href="#reveal-input" title="Permanent link">&para;</a></h3>
+<p><em>Reveal</em> inputs abide by the general input format without adding any specific claim.</p>
+<p>The only distinctive feature of <em>reveal</em> inputs is that they do not require matching signatures, as the transactions where these inputs can be included are always built by the nodes who produce the blocks where they are anchored, and in doing so, they already provide the signature of the entire list of transactions in the block's header.</p>
+<h2 id="signatures">Signatures<a class="headerlink" href="#signatures" title="Permanent link">&para;</a></h2>
+<p>As aforementioned, transactions should include as many signatures as inputs. In every transaction, signatures complement the material required for satisfying the spending conditions that encumbered the past transaction outputs that the inputs in the transaction are trying to spend. Signatures and inputs are matched positionally, i.e. the first claim is checked against the first input and so forth.</p>
+<p>Signatures prove ownership of a certain private key by providing a signature of the identifier of the transaction produced with such key and the serialization of the matching public key.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code class="codehilite">signature</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Signature of the transaction digest, i.e. <code class="codehilite">transaction_id</code></td>
+</tr>
+<tr>
+<td><code class="codehilite">public_key</code></td>
+<td><code class="codehilite">[u8]</code></td>
+<td>Public key used for producing the signature</td>
+</tr>
+</tbody>
+</table>
+<p>Only the <em>reveal inputs</em> do not require matching signatures, as the transactions where these inputs can be included are always built by the nodes who produce the blocks where they are anchored, and in doing so, they already provide the signature of the entire list of transactions in the block's header.</p>
                 
                   
                 
@@ -1562,7 +2521,7 @@
       
     </div>
     
-      <script src="../../../../assets/javascripts/application.583bbe55.js"></script>
+      <script src="../../../../assets/javascripts/application.9e1f3b71.js"></script>
       
       <script>app.initialize({version:"1.0.4",url:{base:"../../../.."}})</script>
       

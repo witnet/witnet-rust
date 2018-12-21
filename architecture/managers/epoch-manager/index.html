@@ -34,7 +34,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../../../assets/images/favicon.ico">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.1.0">
     
     
       
@@ -42,7 +42,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/application.451f80e5.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/application.11e41852.css">
       
         <link rel="stylesheet" href="../../../assets/stylesheets/application-palette.22915126.css">
       
@@ -53,7 +53,7 @@
       
     
     
-      <script src="../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../../assets/javascripts/modernizr.20ef595d.js"></script>
     
     
       
@@ -63,6 +63,7 @@
       
     
     <link rel="stylesheet" href="../../../assets/fonts/material-icons.css">
+    
     
     
   </head>
@@ -100,7 +101,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="../../../#epoch-manager" tabindex="1" class="md-skip">
+      <a href="#epoch-manager" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -1089,8 +1090,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../blocks-manager/" title="Blocks Manager" class="md-nav__link">
-      Blocks Manager
+    <a href="../chain-manager/" title="Chain Manager" class="md-nav__link">
+      Chain Manager
     </a>
   </li>
 
@@ -1256,7 +1257,19 @@
 
 
   <li class="md-nav__item">
-    <a href="../mempool-manager/" title="Mempool Manager" class="md-nav__link">
+    <a href="../../../arquitecture/managers/inventory-manager.md" title="Inventory Manager" class="md-nav__link">
+      Inventory Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../mempool-manager.md" title="Mempool Manager" class="md-nav__link">
       Mempool Manager
     </a>
   </li>
@@ -1270,6 +1283,18 @@
   <li class="md-nav__item">
     <a href="../peers-manager/" title="Peers Manager" class="md-nav__link">
       Peers Manager
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../reputation-manager/" title="Reputation Manager" class="md-nav__link">
+      Reputation Manager
     </a>
   </li>
 
@@ -1304,7 +1329,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../utxo-manager/" title="UTXO Manager" class="md-nav__link">
+    <a href="../utxo-manager.md" title="UTXO Manager" class="md-nav__link">
       UTXO Manager
     </a>
   </li>
@@ -1411,6 +1436,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../json-rpc-server/" title="JSON-RPC Server" class="md-nav__link">
+      JSON-RPC Server
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -1426,10 +1463,46 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
     
     <label class="md-nav__link" for="nav-5">
-      Advanced
+      Interface
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-5">
+        Interface
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../interface/json-rpc/" title="JSON-RPC" class="md-nav__link">
+      JSON-RPC
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+    
+    <label class="md-nav__link" for="nav-6">
+      Advanced
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
         Advanced
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1507,13 +1580,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-9" type="checkbox" id="nav-9">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-10" type="checkbox" id="nav-10">
     
-    <label class="md-nav__link" for="nav-9">
+    <label class="md-nav__link" for="nav-10">
       Configuration
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-9">
+      <label class="md-nav__title" for="nav-10">
         Configuration
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -1920,10 +1993,10 @@ a type like <code class="codehilite">()</code> or an empty struct can be used.</
 </tbody>
 </table>
 <h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a> actor when the epoch manager actor is started.</p>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor when the epoch manager actor is started.</p>
 <p>The return value is used to initialize the protocol constants (checkpoint period and
 epoch zero timestamp).
-For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a>.</p>
+For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a>.</p>
 <h4 id="epochnotification">EpochNotification<T><a class="headerlink" href="#epochnotification" title="Permanent link">&para;</a></h4>
 <p>This message is sent to all the actors which are subscribed to the epoch that just started.
 There are two types of subscriptions:</p>
@@ -1948,7 +2021,7 @@ There are two types of subscriptions:</p>
 </pre></div>
 
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">EpochManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager.rs"><code class="codehilite">epoch_manager.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">EpochManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">epoch_manager.rs</code></a>.</p>
                 
                   
                 
@@ -1984,13 +2057,13 @@ There are two types of subscriptions:</p>
           </a>
         
         
-          <a href="../mempool-manager/" title="Mempool Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../peers-manager/" title="Peers Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Mempool Manager
+                Peers Manager
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
@@ -2035,7 +2108,7 @@ There are two types of subscriptions:</p>
       
     </div>
     
-      <script src="../../../assets/javascripts/application.583bbe55.js"></script>
+      <script src="../../../assets/javascripts/application.9e1f3b71.js"></script>
       
       <script>app.initialize({version:"1.0.4",url:{base:"../../.."}})</script>
       

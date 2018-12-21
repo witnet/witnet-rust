@@ -11,7 +11,7 @@
       <meta http-equiv="x-ua-compatible" content="ie=edge">
       
       
-        <link rel="canonical" href="https://docs.witnet.io/architecture/managers/sessions-manager/">
+        <link rel="canonical" href="https://docs.witnet.io/architecture/managers/chain-manager/">
       
       
       
@@ -38,7 +38,7 @@
     
     
       
-        <title>Sessions Manager - Witnet-rust Documentation</title>
+        <title>Chain Manager - Witnet-rust Documentation</title>
       
     
     
@@ -101,7 +101,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="#sessions-manager" tabindex="1" class="md-skip">
+      <a href="#chain-manager" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -127,7 +127,7 @@
                 Witnet-rust Documentation
               </span>
               <span class="md-header-nav__topic">
-                Sessions Manager
+                Chain Manager
               </span>
             
           
@@ -1088,11 +1088,152 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../chain-manager/" title="Chain Manager" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Chain Manager
+      </label>
+    
+    <a href="./" title="Chain Manager" class="md-nav__link md-nav__link--active">
       Chain Manager
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#state" title="State" class="md-nav__link">
+    State
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#actor-creation-and-registration" title="Actor creation and registration" class="md-nav__link">
+    Actor creation and registration
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api" title="API" class="md-nav__link">
+    API
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incoming-others-chainmanager" title="Incoming: Others -&gt; ChainManager" class="md-nav__link">
+    Incoming: Others -&gt; ChainManager
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outgoing-messages-chainmanager-others" title="Outgoing messages: ChainManager -&gt; Others" class="md-nav__link">
+    Outgoing messages: ChainManager -&gt; Others
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#subscribeepoch" title="SubscribeEpoch" class="md-nav__link">
+    SubscribeEpoch
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subscribeall" title="SubscribeAll" class="md-nav__link">
+    SubscribeAll
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getconfig" title="GetConfig" class="md-nav__link">
+    GetConfig
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get" title="Get" class="md-nav__link">
+    Get
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#put" title="Put" class="md-nav__link">
+    Put
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#broadcast" title="Broadcast" class="md-nav__link">
+    Broadcast
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validatepoe" title="ValidatePoE" class="md-nav__link">
+    ValidatePoE
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#additem" title="AddItem" class="md-nav__link">
+    AddItem
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#further-information" title="Further information" class="md-nav__link">
+    Further information
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -1184,144 +1325,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="__toc">
-        Sessions Manager
-      </label>
-    
-    <a href="./" title="Sessions Manager" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../sessions-manager/" title="Sessions Manager" class="md-nav__link">
       Sessions Manager
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#state" title="State" class="md-nav__link">
-    State
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#actor-creation-and-registration" title="Actor creation and registration" class="md-nav__link">
-    Actor creation and registration
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#api" title="API" class="md-nav__link">
-    API
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#incoming-messages-others-sessions-manager" title="Incoming messages: Others -&gt; Sessions Manager" class="md-nav__link">
-    Incoming messages: Others -&gt; Sessions Manager
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#anycast" title="Anycast" class="md-nav__link">
-    Anycast
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#broadcast" title="Broadcast" class="md-nav__link">
-    Broadcast
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#outgoing-messages-sessions-manager-others" title="Outgoing messages: Sessions Manager -&gt; Others" class="md-nav__link">
-    Outgoing messages: Sessions Manager -&gt; Others
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#getconfig" title="GetConfig" class="md-nav__link">
-    GetConfig
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#getrandompeer" title="GetRandomPeer" class="md-nav__link">
-    GetRandomPeer
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#outboundtcpconnect" title="OutboundTcpConnect" class="md-nav__link">
-    OutboundTcpConnect
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#anycast_1" title="Anycast" class="md-nav__link">
-    Anycast
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#further-information" title="Further information" class="md-nav__link">
-    Further information
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -1702,16 +1710,51 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#incoming-messages-others-sessions-manager" title="Incoming messages: Others -&gt; Sessions Manager" class="md-nav__link">
-    Incoming messages: Others -&gt; Sessions Manager
+  <a href="#incoming-others-chainmanager" title="Incoming: Others -&gt; ChainManager" class="md-nav__link">
+    Incoming: Others -&gt; ChainManager
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#outgoing-messages-chainmanager-others" title="Outgoing messages: ChainManager -&gt; Others" class="md-nav__link">
+    Outgoing messages: ChainManager -&gt; Others
   </a>
   
     <nav class="md-nav">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#anycast" title="Anycast" class="md-nav__link">
-    Anycast
+  <a href="#subscribeepoch" title="SubscribeEpoch" class="md-nav__link">
+    SubscribeEpoch
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subscribeall" title="SubscribeAll" class="md-nav__link">
+    SubscribeAll
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getconfig" title="GetConfig" class="md-nav__link">
+    GetConfig
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get" title="Get" class="md-nav__link">
+    Get
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#put" title="Put" class="md-nav__link">
+    Put
   </a>
   
 </li>
@@ -1723,43 +1766,16 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-        
           <li class="md-nav__item">
-  <a href="#outgoing-messages-sessions-manager-others" title="Outgoing messages: Sessions Manager -&gt; Others" class="md-nav__link">
-    Outgoing messages: Sessions Manager -&gt; Others
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#getconfig" title="GetConfig" class="md-nav__link">
-    GetConfig
+  <a href="#validatepoe" title="ValidatePoE" class="md-nav__link">
+    ValidatePoE
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#getrandompeer" title="GetRandomPeer" class="md-nav__link">
-    GetRandomPeer
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#outboundtcpconnect" title="OutboundTcpConnect" class="md-nav__link">
-    OutboundTcpConnect
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#anycast_1" title="Anycast" class="md-nav__link">
-    Anycast
+  <a href="#additem" title="AddItem" class="md-nav__link">
+    AddItem
   </a>
   
 </li>
@@ -1797,43 +1813,61 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/managers/sessions-manager.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/architecture/managers/chain-manager.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="sessions-manager">Sessions Manager<a class="headerlink" href="#sessions-manager" title="Permanent link">&para;</a></h1>
-<p>The <strong>sessions manager</strong> is the actor that handles incoming (inbound) and outgoing (outbound) sessions. Its responsibilities include:</p>
+                <h1 id="chain-manager">Chain Manager<a class="headerlink" href="#chain-manager" title="Permanent link">&para;</a></h1>
+<p>The <strong>Chain Manager</strong> is the actor in charge of managing the blocks of managing
+the blocks and transactions of the Witnet blockchain received through the protocol,
+and also encapsulates the logic of the <em>unspent transaction outputs</em>.</p>
+<p>Among its responsabilities are the following:</p>
 <ul>
-<li>Create new sessions (i.e. starting a <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/session">session</a> actor)</li>
-<li>Register / unregister new sessions</li>
-<li>Keep track of the status of the sessions</li>
-<li>Periodically check the number of outgoing connections. If less than the configured number of outgoing peers, the sessions manager will:</li>
-<li>Request a new peer address from the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager"><code class="codehilite">PeersManager</code></a>.</li>
-<li>Send a message to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager"><code class="codehilite">ConnectionsManager</code></a> to request a new TCP
-    connection to that peer.</li>
+<li>Initializing the chain info upon running the node for the first time and persisting it into storage (see <strong>Storage Manager</strong>).</li>
+<li>Recovering the chain info from storage and keeping it in its state.</li>
+<li>Validating block candidates as they come from a session (see <strong>Sessions Manager</strong>).</li>
+<li>Consolidating multiple block candidates for the same checkpoint into a single valid block.</li>
+<li>Putting valid blocks into storage by sending them to the storage manager actor.</li>
+<li>Having a method for letting other components to get blocks by <em>hash</em> or <em>checkpoint</em>.</li>
+<li>Having a method for letting other components get the epoch of the current tip of the blockchain (e.g. last epoch field required for the handshake in the Witnet network protocol).</li>
+<li>Validating transactions as they come from any <a href="actors::session::Session">Session</a>. This includes:</li>
+<li>Iterating over its inputs, adding the value of the inputs to calculate the value of the transaction.</li>
+<li>Running the output scripts, expecting them all to return <code class="codehilite">TRUE</code> and leave an empty stack.</li>
+<li>Verifying that the sum of all inputs is greater than or equal to the sum of all the outputs.</li>
+<li>Keeping valid transactions into memory. This in-memory transaction pool is what we call the <em>mempool</em>. Valid transactions are immediately appended to the mempool.</li>
+<li>Keeping every unspent transaction output (UTXO) in the block chain in memory. This is called the <em>UTXO set</em>.</li>
+<li>Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:</li>
+<li>Removing the UTXOs that the transaction spends as inputs.</li>
+<li>Adding a new UTXO for every output in the transaction.</li>
 </ul>
-<p>The <strong>sessions manager</strong> is the actor that encapsulates the logic of the <strong>sessions</strong> library, defined under the subcrate <code class="codehilite">witnet_p2p</code>. The library allows to manage the sessions collection present at the Witnet node.</p>
 <h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
-<p>The state of the <code class="codehilite">Sessions Manager</code> is an instance of the <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions"><code class="codehilite">Sessions</code></a> library,
-which contains the collection of inbound and outbound sessions present at the Witnet node.</p>
-<div class="codehilite"><pre><span></span><span class="cp">#[derive(Default)]</span><span class="w"></span>
-<span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">SessionsManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="c1">// Registered sessions</span>
-<span class="w">    </span><span class="n">sessions</span>: <span class="nc">Sessions</span><span class="o">&lt;</span><span class="n">Addr</span><span class="o">&lt;</span><span class="n">Session</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="w"></span>
+<p>The state of the actor is an instance of the <a href="https://github.com/witnet/witnet-rust/tree/master/data_structures/src/chain.rs"><code class="codehilite">ChainInfo</code></a> data structures.</p>
+<div class="codehilite"><pre><span></span><span class="sd">/// ChainManager actor</span>
+<span class="cp">#[derive(Default)]</span><span class="w"></span>
+<span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">ChainManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Blockchain information data structure</span>
+<span class="w">    </span><span class="n">chain_info</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">ChainInfo</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Map that relates an epoch with the hashes of the blocks for that epoch</span>
+<span class="w">    </span><span class="c1">// One epoch can have more than one block</span>
+<span class="w">    </span><span class="n">epoch_to_block_hash</span>: <span class="nc">HashMap</span><span class="o">&lt;</span><span class="n">Epoch</span><span class="p">,</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;</span><span class="n">Hash</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Map that stores blocks by their hash</span>
+<span class="w">    </span><span class="n">blocks</span>: <span class="nc">HashMap</span><span class="o">&lt;</span><span class="n">Hash</span><span class="p">,</span><span class="w"> </span><span class="n">Block</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Current Epoch</span>
+<span class="w">    </span><span class="n">current_epoch</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">Epoch</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Block candidate to update chain_info in the next epoch</span>
+<span class="w">    </span><span class="n">block_candidate</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">Block</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </pre></div>
 
-<p>The <code class="codehilite">Sessions</code> struct is generic over a type T, which is the type of the reference to the <code class="codehilite">Session</code>.
-As the <strong>actors</strong> paradigm is being used, this generic type T is the <code class="codehilite">Addr</code> of the <code class="codehilite">Session</code> actor. </p>
 <h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
-<p>The creation of the sessions manager actor and its registration into the system registry are
-performed directly by the <code class="codehilite">main</code> process:</p>
-<div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">sessions_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SessionsManager</span>::<span class="n">default</span><span class="p">().</span><span class="n">start</span><span class="p">();</span><span class="w"></span>
-<span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">sessions_manager_addr</span><span class="p">);</span><span class="w"></span>
+<p>The creation of the Chain Manager actor and its registration into the system registry are
+performed directly by the main process <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs"><code class="codehilite">node.rs</code></a>:</p>
+<div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">chain_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ChainManager</span>::<span class="n">default</span><span class="p">().</span><span class="n">start</span><span class="p">();</span><span class="w"></span>
+<span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">chain_manager_addr</span><span class="p">);</span><span class="w"></span>
 </pre></div>
 
 <h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
-<h3 id="incoming-messages-others-sessions-manager">Incoming messages: Others -&gt; Sessions Manager<a class="headerlink" href="#incoming-messages-others-sessions-manager" title="Permanent link">&para;</a></h3>
-<p>These are the messages supported by the sessions manager handlers:</p>
+<h3 id="incoming-others-chainmanager">Incoming: Others -&gt; ChainManager<a class="headerlink" href="#incoming-others-chainmanager" title="Permanent link">&para;</a></h3>
+<p>These are the messages supported by the <code class="codehilite">ChainManager</code> handlers:</p>
 <table>
 <thead>
 <tr>
@@ -1845,86 +1879,62 @@ performed directly by the <code class="codehilite">main</code> process:</p>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">Create</code></td>
-<td><code class="codehilite">TcpStream, SessionType</code></td>
+<td><code class="codehilite">EpochNotification&lt;EpochPayload&gt;</code></td>
+<td><code class="codehilite">Epoch</code>, <code class="codehilite">EpochPayload</code></td>
 <td><code class="codehilite">()</code></td>
-<td>Request to create a new session</td>
+<td>The requested epoch has been reached</td>
 </tr>
 <tr>
-<td><code class="codehilite">Register</code></td>
-<td><code class="codehilite">SocketAddr, Addr&lt;Session&gt;, SessionType</code></td>
-<td><code class="codehilite">SessionsResult&lt;()&gt;</code></td>
-<td>Request to register a new session</td>
-</tr>
-<tr>
-<td><code class="codehilite">Unregister</code></td>
-<td><code class="codehilite">SocketAddr, SessionType, SessionStatus</code></td>
-<td><code class="codehilite">SessionsResult&lt;()&gt;</code></td>
-<td>Request to unregister a session</td>
-</tr>
-<tr>
-<td><code class="codehilite">Consolidate</code></td>
-<td><code class="codehilite">SocketAddr, SessionType</code></td>
-<td><code class="codehilite">SessionsResult&lt;()&gt;</code></td>
-<td>Request to consolidate a session</td>
-</tr>
-<tr>
-<td><code class="codehilite">Anycast&lt;T&gt;</code></td>
-<td><code class="codehilite">T</code></td>
+<td><code class="codehilite">EpochNotification&lt;EveryEpochPayload&gt;</code></td>
+<td><code class="codehilite">Epoch</code>, <code class="codehilite">EveryEpochPayload</code></td>
 <td><code class="codehilite">()</code></td>
-<td>Request to send a T message to a random Session</td>
+<td>A new epoch has been reached</td>
 </tr>
 <tr>
-<td><code class="codehilite">Broadcast&lt;T&gt;</code></td>
-<td><code class="codehilite">T</code></td>
+<td><code class="codehilite">GetHighestBlockCheckpoint</code></td>
 <td><code class="codehilite">()</code></td>
-<td>Request to send a T message to all the consolidated outbound sesions</td>
+<td><code class="codehilite">ChainInfoResult</code></td>
+<td>Request a copy of the highest block checkpoint</td>
+</tr>
+<tr>
+<td><code class="codehilite">AddNewBlock</code></td>
+<td><code class="codehilite">Block</code></td>
+<td><code class="codehilite">Result&lt;(), ChainManagerError&gt;</code></td>
+<td>Add a new block and announce it to other sessions</td>
+</tr>
+<tr>
+<td><code class="codehilite">BuildBlock</code></td>
+<td><code class="codehilite">CheckpointBeacon</code>,<code class="codehilite">LeadershipProof</code></td>
+<td><code class="codehilite">()</code></td>
+<td>Build a new block and add it</td>
 </tr>
 </tbody>
 </table>
-<p>The handling of these messages is basically just calling the corresponding methods from the
-<a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions"><code class="codehilite">Sessions</code></a> library. For example, the handler of the <code class="codehilite">Register</code> message would be
-implemented as:</p>
-<div class="codehilite"><pre><span></span><span class="k">pub</span><span class="w"> </span><span class="k">type</span> <span class="nc">SessionsUnitResult</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SessionsResult</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="p">;</span><span class="w"></span>
-
-<span class="sd">/// Handler for Register message.</span>
-<span class="k">impl</span><span class="w"> </span><span class="n">Handler</span><span class="o">&lt;</span><span class="n">Register</span><span class="o">&gt;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">SessionsManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="k">type</span> <span class="nb">Result</span> <span class="o">=</span><span class="w"> </span><span class="n">SessionsUnitResult</span><span class="p">;</span><span class="w"></span>
-
-<span class="w">    </span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span>: <span class="nc">Register</span><span class="p">,</span><span class="w"> </span><span class="n">_</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Context</span><span class="o">&lt;</span><span class="n">Self</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">Self</span>::<span class="nb">Result</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">        </span><span class="c1">// Call method register session from sessions library</span>
-<span class="w">        </span><span class="bp">self</span><span class="p">.</span><span class="n">sessions</span><span class="w"></span>
-<span class="w">            </span><span class="p">.</span><span class="n">register_session</span><span class="p">(</span><span class="n">msg</span><span class="p">.</span><span class="n">session_type</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">address</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">actor</span><span class="p">)</span><span class="w"></span>
-<span class="w">    </span><span class="p">}</span><span class="w"></span>
-<span class="p">}</span><span class="w"></span>
+<p>Where <code class="codehilite">ChainInfoResult</code> is just:</p>
+<div class="codehilite"><pre><span></span><span class="sd">/// Result type for the ChainInfo in ChainManager module.</span>
+<span class="k">pub</span><span class="w"> </span><span class="k">type</span> <span class="nc">ChainInfoResult</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">WitnetResult</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">ChainInfoError</span><span class="o">&gt;</span><span class="p">;</span><span class="w"></span>
 </pre></div>
 
-<p>Being the <code class="codehilite">SessionsManager</code> such a simple actor, there are no errors that can arise due to its own
-logic and thus, returning just a <code class="codehilite">SessionsResult&lt;()&gt;</code> library generic error may be the right thing
-to do.</p>
-<p>The way other actors will communicate with the sessions manager is:</p>
+<p>The way other actors will communicate with the ChainManager is:</p>
 <ol>
 <li>
-<p>Get the address of the sessions manager from the registry:</p>
-<div class="codehilite"><pre><span></span><span class="c1">// Get sessions manager address</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">sessions_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">get</span>::<span class="o">&lt;</span><span class="n">SessionsManager</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
+<p>Get the address of the ChainManager actor from the registry:</p>
+<div class="codehilite"><pre><span></span><span class="c1">// Get ChainManager address</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">chain_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">get</span>::<span class="o">&lt;</span><span class="n">ChainManager</span><span class="o">&gt;</span><span class="p">();</span><span class="w"></span>
 </pre></div>
 
 </li>
 <li>
 <p>Use any of the sending methods provided by the address (<code class="codehilite">do_send()</code>, <code class="codehilite">try_send()</code>, <code class="codehilite">send()</code>) to send a message to the actor:</p>
-<div class="codehilite"><pre><span></span><span class="n">session_manager_addr</span><span class="w"></span>
-<span class="w">    </span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">Register</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">        </span><span class="n">address</span>: <span class="nc">self</span><span class="p">.</span><span class="n">address</span><span class="p">,</span><span class="w"></span>
-<span class="w">        </span><span class="n">actor</span>: <span class="nc">ctx</span><span class="p">.</span><span class="n">address</span><span class="p">(),</span><span class="w"></span>
-<span class="w">        </span><span class="n">session_type</span>: <span class="nc">self</span><span class="p">.</span><span class="n">session_type</span><span class="p">,</span><span class="w"></span>
-<span class="w">    </span><span class="p">})</span><span class="w"></span>
+<div class="codehilite"><pre><span></span><span class="n">chain_manager_addr</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">send</span><span class="p">(</span><span class="n">GetHighestBlockCheckpoint</span><span class="p">)</span><span class="w"></span>
 <span class="w">    </span><span class="p">.</span><span class="n">into_actor</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="w"></span>
-<span class="w">    </span><span class="p">.</span><span class="n">then</span><span class="p">(</span><span class="o">|</span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="n">_act</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">        </span><span class="k">match</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="nb">Ok</span><span class="p">(</span><span class="n">_</span><span class="p">))</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Session successfully registered into the Session Manager&quot;</span><span class="p">),</span><span class="w"></span>
-<span class="w">            </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Session register into Session Manager failed&quot;</span><span class="p">)</span><span class="w"></span>
-<span class="w">        </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">then</span><span class="p">(</span><span class="o">|</span><span class="n">res</span><span class="p">,</span><span class="w"> </span><span class="n">_act</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="c1">// Process the response from ChainManager</span>
+<span class="w">        </span><span class="n">process_get_config_response</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="p">})</span><span class="w"></span>
+<span class="w">    </span><span class="p">.</span><span class="n">and_then</span><span class="p">(</span><span class="o">|</span><span class="n">checkpoint</span><span class="p">,</span><span class="w"> </span><span class="n">_act</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="c1">// Do something with the checkpoint</span>
 <span class="w">        </span><span class="n">actix</span>::<span class="n">fut</span>::<span class="n">ok</span><span class="p">(())</span><span class="w"></span>
 <span class="w">    </span><span class="p">})</span><span class="w"></span>
 <span class="w">    </span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">ctx</span><span class="p">);</span><span class="w"></span>
@@ -1932,34 +1942,15 @@ to do.</p>
 
 </li>
 </ol>
-<h4 id="anycast">Anycast<T><a class="headerlink" href="#anycast" title="Permanent link">&para;</a></h4>
-<p>The handler for <code class="codehilite">Anycast&lt;T&gt;</code> messages is basically just calling the method <code class="codehilite">get_random_anycast_session</code> from the
-<a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions"><code class="codehilite">Sessions</code></a> library to obtain a random <code class="codehilite">Session</code> and forward the <code class="codehilite">T</code> message to it.</p>
-<p>The return value of the delegated call is processed by <code class="codehilite">act.process_command_response(&amp;res)</code></p>
-<div class="codehilite"><pre><span></span><span class="w">   </span><span class="sd">/// Method to process session SendMessage response</span>
-<span class="w">    </span><span class="k">fn</span> <span class="nf">process_command_response</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">(</span><span class="w"></span>
-<span class="w">        </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"></span>
-<span class="w">        </span><span class="n">response</span>: <span class="kp">&amp;</span><span class="nb">Result</span><span class="o">&lt;</span><span class="n">T</span>::<span class="nb">Result</span><span class="p">,</span><span class="w"> </span><span class="n">MailboxError</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
-<span class="w">    </span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">FutureResult</span><span class="o">&lt;</span><span class="p">(),</span><span class="w"> </span><span class="p">(),</span><span class="w"> </span><span class="n">Self</span><span class="o">&gt;</span><span class="w"></span>
-<span class="w">    </span><span class="k">where</span><span class="w"></span>
-<span class="w">        </span><span class="n">T</span>: <span class="nc">Message</span><span class="p">,</span><span class="w"></span>
-<span class="w">        </span><span class="n">Session</span>: <span class="nc">Handler</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
-<span class="w">    </span><span class="p">{</span><span class="w"></span>
-<span class="w">        </span><span class="k">match</span><span class="w"> </span><span class="n">response</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">actix</span>::<span class="n">fut</span>::<span class="n">ok</span><span class="p">(()),</span><span class="w"></span>
-<span class="w">            </span><span class="nb">Err</span><span class="p">(</span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">actix</span>::<span class="n">fut</span>::<span class="n">err</span><span class="p">(()),</span><span class="w"></span>
-<span class="w">        </span><span class="p">}</span><span class="w"></span>
-<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<p>For the time being, the handlers for Epoch messages just print a debug message with the notified
+checkpoint.</p>
+<div class="codehilite"><pre><span></span><span class="k">fn</span> <span class="nf">handle</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span>: <span class="nc">EpochNotification</span><span class="o">&lt;</span><span class="n">EpochPayload</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">_ctx</span>: <span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="n">Context</span><span class="o">&lt;</span><span class="n">Self</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">debug</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;Epoch notification received {:?}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="p">.</span><span class="n">checkpoint</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
 </pre></div>
 
-<h4 id="broadcast">Broadcast<T><a class="headerlink" href="#broadcast" title="Permanent link">&para;</a></h4>
-<p>Similarly to the <code class="codehilite">Anycast&lt;T&gt;</code> handler, the handler for <code class="codehilite">Broadcast&lt;T&gt;</code> is just calling
-the method <code class="codehilite">get_all_consolidated_outbound_sessions</code> from <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions"><code class="codehilite">Sessions</code></a> library
-and forwards the message <code class="codehilite">T</code> to all the received addresses.</p>
-<p>This message does not do any error handling, the messages are all assumed to be
-successfully sent.</p>
-<h3 id="outgoing-messages-sessions-manager-others">Outgoing messages: Sessions Manager -&gt; Others<a class="headerlink" href="#outgoing-messages-sessions-manager-others" title="Permanent link">&para;</a></h3>
-<p>These are the messages sent by the sessions manager:</p>
+<h3 id="outgoing-messages-chainmanager-others">Outgoing messages: ChainManager -&gt; Others<a class="headerlink" href="#outgoing-messages-chainmanager-others" title="Permanent link">&para;</a></h3>
+<p>These are the messages sent by the Chain Manager:</p>
 <table>
 <thead>
 <tr>
@@ -1972,6 +1963,20 @@ successfully sent.</p>
 </thead>
 <tbody>
 <tr>
+<td><code class="codehilite">SubscribeEpoch</code></td>
+<td><code class="codehilite">EpochManager</code></td>
+<td><code class="codehilite">Epoch</code>, <code class="codehilite">Addr&lt;ChainManager&gt;, EpochPayload</code></td>
+<td><code class="codehilite">()</code></td>
+<td>Subscribe to a particular epoch</td>
+</tr>
+<tr>
+<td><code class="codehilite">SubscribeAll</code></td>
+<td><code class="codehilite">EpochManager</code></td>
+<td><code class="codehilite">Addr&lt;ChainManager&gt;, EveryEpochPayload</code></td>
+<td><code class="codehilite">()</code></td>
+<td>Subscribe to all epochs</td>
+</tr>
+<tr>
 <td><code class="codehilite">GetConfig</code></td>
 <td><code class="codehilite">ConfigManager</code></td>
 <td><code class="codehilite">()</code></td>
@@ -1979,71 +1984,74 @@ successfully sent.</p>
 <td>Request the configuration</td>
 </tr>
 <tr>
-<td><code class="codehilite">GetRandomPeer</code></td>
-<td><code class="codehilite">PeersManager</code></td>
-<td><code class="codehilite">()</code></td>
-<td><code class="codehilite">PeersResult&lt;Option&lt;SocketAddr&gt;&gt;</code></td>
-<td>Request the address of a peer</td>
+<td><code class="codehilite">Get</code></td>
+<td><code class="codehilite">StorageManager</code></td>
+<td><code class="codehilite">&amp;&#39;static [u8]</code></td>
+<td><code class="codehilite">StorageResult&lt;Option&lt;T&gt;&gt;</code></td>
+<td>Wrapper to Storage <code class="codehilite">get()</code> method</td>
 </tr>
 <tr>
-<td><code class="codehilite">OutboundTcpConnect</code></td>
-<td><code class="codehilite">ConnectionsManager</code></td>
-<td><code class="codehilite">SocketAddr</code></td>
-<td><code class="codehilite">()</code></td>
-<td>Request a TCP conn to an address</td>
+<td><code class="codehilite">Put</code></td>
+<td><code class="codehilite">StorageManager</code></td>
+<td><code class="codehilite">&amp;&#39;static [u8]</code>, <code class="codehilite">Vec&lt;u8&gt;</code></td>
+<td><code class="codehilite">StorageResult&lt;()&gt;</code></td>
+<td>Wrapper to Storage <code class="codehilite">put()</code> method</td>
 </tr>
 <tr>
-<td><code class="codehilite">Anycast&lt;GetPeers&gt;</code></td>
+<td><code class="codehilite">Broadcast&lt;AnnounceItems&gt;</code></td>
 <td><code class="codehilite">SessionsManager</code></td>
+<td><code class="codehilite">Vec&lt;InventoryEntry&gt;</code></td>
 <td><code class="codehilite">()</code></td>
-<td><code class="codehilite">()</code></td>
-<td>Request to forward a GetPeers message to one randomly selected <code class="codehilite">Session</code></td>
+<td>Announce new inventory entries to the sessions</td>
+</tr>
+<tr>
+<td><code class="codehilite">ValidatePoE</code></td>
+<td><code class="codehilite">ReputationManager</code></td>
+<td><code class="codehilite">CheckpointBeacon</code>,<code class="codehilite">LeadershipProof</code></td>
+<td><code class="codehilite">bool</code></td>
+<td>Request Proof of Eligibility validation</td>
+</tr>
+<tr>
+<td><code class="codehilite">AddItem</code></td>
+<td><code class="codehilite">InventoryManager</code></td>
+<td><code class="codehilite">InventoryItem</code></td>
+<td><code class="codehilite">Result&lt;(), InventoryManagerError&gt;</code></td>
+<td>Persist the <code class="codehilite">block_candidate</code></td>
 </tr>
 </tbody>
 </table>
+<h4 id="subscribeepoch">SubscribeEpoch<a class="headerlink" href="#subscribeepoch" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> actor when the <code class="codehilite">ChainManager</code> actor is
+started, in order to subscribe to the next epoch (test functionality).</p>
+<p>Subscribing to the next epoch means that the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> will send an
+<code class="codehilite">EpochNotification&lt;EpochPayload&gt;</code> back to the <code class="codehilite">ChainManager</code> when the epoch is reached.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a>.</p>
+<h4 id="subscribeall">SubscribeAll<a class="headerlink" href="#subscribeall" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> actor when the Chain Manager actor is
+started, in order to subscribe to the all epochs (test functionality).</p>
+<p>Subscribing to all epochs means that the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> will send an
+<code class="codehilite">EpochNotification&lt;EveryEpochPayload&gt;</code> back to the <code class="codehilite">ChainManager</code> when every epoch is reached.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a>.</p>
 <h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor when the sessions manager actor
-is started.</p>
-<p>The returned configuration is used to store some parameters at the <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions"><code class="codehilite">Sessions</code></a> state:</p>
-<ul>
-<li>Server address: used in the Witnet node to avoid connections with itself.</li>
-<li>Inbound limit: used to reject incoming connections once the limit has been reached.</li>
-<li>Outbound limit: used to stop requesting new outgoing connections once the limit has been reached.</li>
-<li>Handshake timeout: sent to the session upon creation to set a time limit to the handshake process.</li>
-</ul>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a>.</p>
-<h4 id="getrandompeer">GetRandomPeer<a class="headerlink" href="#getrandompeer" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager"><code class="codehilite">PeersManager</code></a> actor when the sessions manager actor
-detects that the number of outbound sessions registered is less than the configured limit. This
-detection is done in a bootstrap periodic task.</p>
-<p>The return value is then processed. If an error happened, nothing occurs. If the <code class="codehilite">PeersManager</code>
-returned an address, then the <code class="codehilite">SessionsManager</code> checks if it is valid and if so, it sends an 
-<code class="codehilite">OutboundTcpConnect</code> message to the <code class="codehilite">ConnectionsManager</code> to start a new TCP connection to that
-address.</p>
-<p>In this context, a <strong>valid</strong> address means that:</p>
-<ul>
-<li>The address is not the own Witnet node's server address</li>
-<li>The address is not one of the already existing outbound connections  </li>
-</ul>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager"><code class="codehilite">PeersManager</code></a>.</p>
-<h4 id="outboundtcpconnect">OutboundTcpConnect<a class="headerlink" href="#outboundtcpconnect" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager"><code class="codehilite">ConnectionsManager</code></a> actor when the sessions
-manager receives a valid peer address from the <code class="codehilite">PeersManager</code>.</p>
-<p>It is a best effort message, its return value is not processed and the sessions manager actor does
-not even wait for its response after sending it.</p>
-<p>If the operation was successful, the sessions manager will know it by other means (a session will be
-created and registered into the <code class="codehilite">SessionsManager</code>). If the operation was not successful, then the
-sessions manager will detect in its next periodic bootstrap task that there are no new outbound
-connections and try to create a new one.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager"><code class="codehilite">ConnectionsManager</code></a>.</p>
-<h4 id="anycast_1">Anycast<GetPeers><a class="headerlink" href="#anycast_1" title="Permanent link">&para;</a></h4>
-<p>Due to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> having an <code class="codehilite">Anycast&lt;T&gt;</code> handler to forward a <code class="codehilite">T</code> message
-to one randomly selected <code class="codehilite">Session</code>, this message is periodically sent to itself.</p>
-<p>It is a best effort message, its return value is not processed and the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>
-actor does not even wait for its response after sending it.</p>
-<p>This message causes <code class="codehilite">SessionManager</code> to forward a <code class="codehilite">GetPeers</code> message to one randomly selected <code class="codehilite">Session</code> actor.</p>
+<p>This message is sent to the [<code class="codehilite">ConfigManager</code>][config_manager] actor when the peers manager actor is started.</p>
+<p>The return value is used to initialize the list of known peers. For further information, see  [<code class="codehilite">ConfigManager</code>][config_manager].</p>
+<h4 id="get">Get<a class="headerlink" href="#get" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager"><code class="codehilite">StorageManager</code></a> actor when the Chain Manager actor is started.</p>
+<p>The return value is a <code class="codehilite">ChainInfo</code> structure from the storage which are added to the state of the actor.</p>
+<h4 id="put">Put<a class="headerlink" href="#put" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager"><code class="codehilite">StorageManager</code></a> actor to persist the <code class="codehilite">ChainInfo</code> structure</p>
+<p>The return value is used to check if the storage process has been successful.</p>
+<h4 id="broadcast">Broadcast<AnnounceItems><a class="headerlink" href="#broadcast" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor which will
+broadcast a <code class="codehilite">AnnounceItems</code> message to the open outbound sessions.</p>
+<h4 id="validatepoe">ValidatePoE<a class="headerlink" href="#validatepoe" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/reputation_manager"><code class="codehilite">ReputationManager</code></a> actor to request a
+Proof of Eligibility validation for the <code class="codehilite">BlockHeaderWithProof</code> sent.</p>
+<h4 id="additem">AddItem<a class="headerlink" href="#additem" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/inventory_manager"><code class="codehilite">InventoryManager</code></a> actor as a <code class="codehilite">InventoryItem</code>
+to persist the <code class="codehilite">block_candidate</code> state.</p>
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">SessionsManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">sessions_manager.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">ChainManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/chain_manager"><code class="codehilite">chain_manager.rs</code></a>.</p>
                 
                   
                 
@@ -2064,7 +2072,7 @@ actor does not even wait for its response after sending it.</p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../reputation-manager/" title="Reputation Manager" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../managers/" title="Introduction" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -2073,19 +2081,19 @@ actor does not even wait for its response after sending it.</p>
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Reputation Manager
+                Introduction
               </span>
             </div>
           </a>
         
         
-          <a href="../storage-manager/" title="Storage Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../config-manager/" title="Config Manager" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Storage Manager
+                Config Manager
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
