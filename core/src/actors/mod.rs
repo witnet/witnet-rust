@@ -37,5 +37,8 @@ pub mod inventory_manager;
 /// ReputationManager actor module
 pub mod reputation_manager;
 
+/// MiningManager actor module
+pub mod mining_manager;
+
 /// JSON RPC server
 pub mod json_rpc;

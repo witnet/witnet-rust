@@ -6,9 +6,9 @@ use log::info;
 use crate::actors::{
     chain_manager::ChainManager, config_manager::ConfigManager,
     connections_manager::ConnectionsManager, epoch_manager::EpochManager,
-    inventory_manager::InventoryManager, json_rpc::JsonRpcServer, peers_manager::PeersManager,
-    reputation_manager::ReputationManager, sessions_manager::SessionsManager,
-    storage_manager::StorageManager,
+    inventory_manager::InventoryManager, json_rpc::JsonRpcServer, mining_manager::MiningManager,
+    peers_manager::PeersManager, reputation_manager::ReputationManager,
+    sessions_manager::SessionsManager, storage_manager::StorageManager,
 };
 
 /// Function to run the main system
@@ -57,6 +57,9 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
 
     // Start JSON RPC server (this doesn't need to be in the registry)
     let _json_rpc_server_addr = JsonRpcServer::default().start();
+
+    // Start Mining Manager (this doesn't need to be in the registry)
+    let _mining_manager_addr = MiningManager::default().start();
 
     // Run system
     system.run();
