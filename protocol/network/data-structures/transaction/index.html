@@ -2060,8 +2060,8 @@
 </tr>
 <tr>
 <td><code class="codehilite">signatures</code></td>
-<td><code class="codehilite">[signature]</code></td>
-<td>A list of claims (as many as inputs)</td>
+<td><code class="codehilite">[keyed_signature]</code></td>
+<td>A list of keyed signatures (as many as inputs)</td>
 </tr>
 </tbody>
 </table>
@@ -2413,27 +2413,7 @@
 <h2 id="signatures">Signatures<a class="headerlink" href="#signatures" title="Permanent link">&para;</a></h2>
 <p>As aforementioned, transactions should include as many signatures as inputs. In every transaction, signatures complement the material required for satisfying the spending conditions that encumbered the past transaction outputs that the inputs in the transaction are trying to spend. Signatures and inputs are matched positionally, i.e. the first claim is checked against the first input and so forth.</p>
 <p>Signatures prove ownership of a certain private key by providing a signature of the identifier of the transaction produced with such key and the serialization of the matching public key.</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code class="codehilite">signature</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Signature of the transaction digest, i.e. <code class="codehilite">transaction_id</code></td>
-</tr>
-<tr>
-<td><code class="codehilite">public_key</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Public key used for producing the signature</td>
-</tr>
-</tbody>
-</table>
+<p>Transaction signatures are structured as <a href="/protocol/network/data-structures/signature/">keyed signatures</a>. </p>
 <p>Only the <em>reveal inputs</em> do not require matching signatures, as the transactions where these inputs can be included are always built by the nodes who produce the blocks where they are anchored, and in doing so, they already provide the signature of the entire list of transactions in the block's header.</p>
                 
                   

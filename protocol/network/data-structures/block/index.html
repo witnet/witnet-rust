@@ -444,8 +444,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#proof-of-leadership-structure" title="Proof of leadership structure" class="md-nav__link">
-    Proof of leadership structure
+  <a href="#proof-of-eligibility" title="Proof of Eligibility" class="md-nav__link">
+    Proof of Eligibility
   </a>
   
 </li>
@@ -1615,8 +1615,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#proof-of-leadership-structure" title="Proof of leadership structure" class="md-nav__link">
-    Proof of leadership structure
+  <a href="#proof-of-eligibility" title="Proof of Eligibility" class="md-nav__link">
+    Proof of Eligibility
   </a>
   
 </li>
@@ -1646,54 +1646,59 @@
 <thead>
 <tr>
 <th>Field</th>
-<th align="center">Type</th>
+<th>Type</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code class="codehilite">header</code></td>
-<td align="center"><code class="codehilite">block_header</code></td>
+<td><code class="codehilite">block_header</code></td>
 <td>The header of the block</td>
 </tr>
 <tr>
 <td><code class="codehilite">txns</code></td>
-<td align="center"><code class="codehilite">[tx]</code></td>
+<td><code class="codehilite">[tx]</code></td>
 <td>Block transactions following the format of a <code class="codehilite">TX</code> command, as described in the <a href="/protocol/network/data-structures/transaction/">Transaction</a> section</td>
+</tr>
+<tr>
+<td><code class="codehilite">signature</code></td>
+<td><code class="codehilite">keyed_signature</code></td>
+<td>A <a href="/protocol/network/data-structures/signature/">keyed signature</a> of the block header</td>
 </tr>
 </tbody>
 </table>
-<p>A non-empty list of transactions is always provided because the coinbase transaction should always be included.</p>
+<p>A non-empty list of transactions is always provided because the <em>mint</em> transaction should always be included.</p>
 <h2 id="block-header-structure">Block header structure<a class="headerlink" href="#block-header-structure" title="Permanent link">&para;</a></h2>
 <p>The block header (<code class="codehilite">block_header</code>) is composed of the following fields:</p>
 <table>
 <thead>
 <tr>
 <th>Field</th>
-<th align="center">Type</th>
+<th>Type</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code class="codehilite">version</code></td>
-<td align="center"><code class="codehilite">u32</code></td>
+<td><code class="codehilite">u32</code></td>
 <td>The block version number indicating the block validation rules</td>
 </tr>
 <tr>
 <td><code class="codehilite">beacon</code></td>
-<td align="center"><code class="codehilite">beacon</code></td>
+<td><code class="codehilite">beacon</code></td>
 <td>A checkpoint beacon for the epoch that this block is closing</td>
 </tr>
 <tr>
 <td><code class="codehilite">hash_merkle_root</code></td>
-<td align="center"><code class="codehilite">[u8; 32]</code></td>
+<td><code class="codehilite">[u8; 32]</code></td>
 <td>A 256-bit hash based on all of the transactions committed to this block</td>
 </tr>
 <tr>
 <td><code class="codehilite">proof</code></td>
-<td align="center"><code class="codehilite">proof</code></td>
-<td>A miner-provided proof of leadership</td>
+<td><code class="codehilite">signature</code></td>
+<td>A miner-provided <em>Proof of Eligibility</em></td>
 </tr>
 </tbody>
 </table>
@@ -1703,46 +1708,25 @@
 <thead>
 <tr>
 <th>Field</th>
-<th align="center">Type</th>
+<th>Type</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code class="codehilite">checkpoint</code></td>
-<td align="center"><code class="codehilite">u32</code></td>
+<td><code class="codehilite">u32</code></td>
 <td>The serial number for an epoch</td>
 </tr>
 <tr>
 <td><code class="codehilite">hash_prev_block</code></td>
-<td align="center"><code class="codehilite">[u8; 32]</code></td>
+<td><code class="codehilite">[u8; 32]</code></td>
 <td>The 256-bit hash of the previous block header</td>
 </tr>
 </tbody>
 </table>
-<h2 id="proof-of-leadership-structure">Proof of leadership structure<a class="headerlink" href="#proof-of-leadership-structure" title="Permanent link">&para;</a></h2>
-<p>The proof of leadership (<code class="codehilite">proof</code>) is formatted as:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code class="codehilite">block_sig</code></td>
-<td align="center"><code class="codehilite">signature</code></td>
-<td>An enveloped signature of the block header except the <code class="codehilite">proof</code> part</td>
-</tr>
-<tr>
-<td><code class="codehilite">influence</code></td>
-<td align="center"><code class="codehilite">[u8; 32]</code></td>
-<td>The miner influence as of last checkpoint</td>
-</tr>
-</tbody>
-</table>
+<h2 id="proof-of-eligibility">Proof of Eligibility<a class="headerlink" href="#proof-of-eligibility" title="Permanent link">&para;</a></h2>
+<p>The <em>Proof of Eligibility</em> (<code class="codehilite">proof</code>) signature is computed by simply signing the <code class="codehilite">beacon</code> field of the block header using the same private key as for the <code class="codehilite">signature</code>.</p>
 <p>Signature structures are defined in the <a href="/protocol/network/data-structures/signature/">Signature</a> section.</p>
                 
                   
