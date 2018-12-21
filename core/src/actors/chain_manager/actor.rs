@@ -5,10 +5,7 @@ use crate::actors::epoch_manager::{
     EpochManager,
 };
 
-use crate::actors::chain_manager::{
-    handlers::{EpochPayload, EveryEpochPayload},
-    ChainManager,
-};
+use crate::actors::chain_manager::{handlers::EveryEpochPayload, ChainManager};
 
 use crate::actors::{
     config_manager::send_get_config_request,
@@ -29,7 +26,6 @@ impl Actor for ChainManager {
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("ChainManager actor has been started!");
 
-        // TODO begin remove this once ChainManager real functionality is implemented
         // Get EpochManager address from registry
         let epoch_manager_addr = System::current().registry().get::<EpochManager>();
 
@@ -42,23 +38,19 @@ impl Actor for ChainManager {
             .into_actor(self)
             // Process the response from the EpochManager
             // This returns a FutureResult containing the socket address if present
-            .then(move |res, _act, ctx| {
+            .then(move |res, act, ctx| {
                 // Get ChainManager address
                 let chain_manager_addr = ctx.address();
 
                 // Check GetEpoch result
                 match res {
                     Ok(Ok(epoch)) => {
-                        // Subscribe to the next epoch with an EpochPayload
-                        epoch_manager_addr.do_send(Subscribe::to_epoch(
-                            epoch + 1,
-                            chain_manager_addr.clone(),
-                            EpochPayload,
-                        ));
-
                         // Subscribe to all epochs with an EveryEpochPayload
                         epoch_manager_addr
                             .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
+
+                        // Set current_epoch
+                        act.current_epoch = Some(epoch);
                     }
                     _ => {
                         error!("Current epoch could not be retrieved from EpochManager");
@@ -68,7 +60,6 @@ impl Actor for ChainManager {
                 actix::fut::ok(())
             })
             .wait(ctx);
-        // TODO end remove this once Chain Manager real functionality is implemented
 
         // Query ConfigManager for initial configuration and process response
         send_get_config_request(self, ctx, |act, ctx, config| {
