@@ -188,6 +188,9 @@ on them.
     [ ARRAY_SORT, [] ]
     ```
 
+!!! danger "Incentive safety"
+    This operator may introduce adverse incentives if used in the aggregation or consensus stages.
+
 ## `Array.take(min, max)`
 ```ts
 take(min?: Int, max?: Int): Array<T>
