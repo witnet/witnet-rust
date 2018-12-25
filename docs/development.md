@@ -4,10 +4,10 @@ Witnet-rust is build using [The Rust Programming language](https://rust-lang-nur
 ## Installing
 
 1. Install dependencies
-    - Rust 1.31 (currently on the `beta` release channel)
+    - Rust2018 (stable channel)
     ```
     $ curl https://sh.rustup.rs -sSf | sh
-    $ rustup default beta
+    $ rustup default stable
     $ rustc --version
     ```
     - `clang` Clang compiler
