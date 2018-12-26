@@ -183,9 +183,111 @@ impl From<Sha256> for Hash {
 pub type SHA256 = [u8; 32];
 
 /// Transaction data structure
-// FIXME(#99): define Transaction as defined in issue
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct Transaction {
+    pub version: u32,
+    pub inputs: Vec<Input>,
+    pub outputs: Vec<Output>,
+    pub signatures: Vec<KeyedSignature>,
+}
+
+/// Input data structure
 #[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub struct Transaction;
+pub enum Input {
+    ValueTransfer(ValueTransferInput),
+    Commit(CommitInput),
+    Reveal(RevealInput),
+    Tally(TallyInput),
+}
+/// Value transfer input transaction data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct ValueTransferInput {
+    pub transaction_id: [u8; 32],
+    pub output_index: u32,
+}
+
+/// Commit input transaction data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct CommitInput {
+    pub transaction_id: [u8; 32],
+    pub output_index: u32,
+    pub poe: [u8; 32],
+}
+
+/// Reveal input transaction data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct RevealInput {
+    pub transaction_id: [u8; 32],
+    pub output_index: u32,
+    pub reveal: [u8; 32],
+    pub nonce: u64,
+}
+
+/// Tally input transaction data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct TallyInput {
+    pub transaction_id: [u8; 32],
+    pub output_index: u32,
+}
+
+/// Value transfer output transaction data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct ValueTransferOutput {
+    pub pkh: Hash,
+    pub value: u64,
+}
+
+/// Data request output transaction data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct DataRequestOutput {
+    pub data_request: [u8; 32],
+    pub value: u64,
+    pub witnesses: u8,
+    pub backup_witnesses: u8,
+    pub commit_fee: u64,
+    pub reveal_fee: u64,
+    pub tally_fee: u64,
+    pub time_lock: u64,
+}
+
+/// Commit output transaction data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct CommitOutput {
+    pub commitment: Hash,
+    pub value: u64,
+}
+
+/// Reveal output transaction data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct RevealOutput {
+    pub reveal: [u8; 32],
+    pub pkh: Hash,
+    pub value: u64,
+}
+
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct ConsensusOutput {
+    pub result: [u8; 32],
+    pub pkh: Hash,
+    pub value: u64,
+}
+
+/// Output data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub enum Output {
+    ValueTransfer(ValueTransferOutput),
+    DataRequest(DataRequestOutput),
+    Commit(CommitOutput),
+    Reveal(RevealOutput),
+    Consensus(ConsensusOutput),
+}
+
+/// Keyed signature data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct KeyedSignature {
+    pub signature: Signature,
+    pub public_key: [u8; 32],
+}
 
 type WeightedHash = (u64, Hash);
 type WeightedTransaction = (u64, Transaction);
@@ -425,7 +527,85 @@ mod tests {
             block_sig: Some(signature),
             influence: 0,
         };
-        let txns: Vec<Transaction> = vec![Transaction];
+        let signature = Signature::Secp256k1(Secp256k1Signature {
+            r: [0; 32],
+            s: [0; 32],
+            v: 0,
+        });
+        let proof = LeadershipProof {
+            block_sig: Some(signature),
+            influence: 0,
+        };
+        let keyed_signatures = vec![KeyedSignature {
+            public_key: [0; 32],
+            signature,
+        }];
+        let value_transfer_input = Input::ValueTransfer(ValueTransferInput {
+            output_index: 0,
+            transaction_id: [0; 32],
+        });
+        let reveal_input = Input::Reveal(RevealInput {
+            nonce: 0,
+            output_index: 0,
+            reveal: [0; 32],
+            transaction_id: [0; 32],
+        });
+        let tally_input = Input::Tally(TallyInput {
+            output_index: 0,
+            transaction_id: [0; 32],
+        });
+        let commit_input = Input::Commit(CommitInput {
+            output_index: 0,
+            poe: [0; 32],
+            transaction_id: [0; 32],
+        });
+        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
+            pkh: Hash::SHA256([0; 32]),
+            value: 0,
+        });
+        let data_request_output = Output::DataRequest(DataRequestOutput {
+            backup_witnesses: 0,
+            commit_fee: 0,
+            data_request: [0; 32],
+            reveal_fee: 0,
+            tally_fee: 0,
+            time_lock: 0,
+            value: 0,
+            witnesses: 0,
+        });
+        let commit_output = Output::Commit(CommitOutput {
+            commitment: Hash::SHA256([0; 32]),
+            value: 0,
+        });
+        let reveal_output = Output::Reveal(RevealOutput {
+            pkh: Hash::SHA256([0; 32]),
+            reveal: [0; 32],
+            value: 0,
+        });
+        let consensus_output = Output::Consensus(ConsensusOutput {
+            pkh: Hash::SHA256([0; 32]),
+            result: [0; 32],
+            value: 0,
+        });
+        let inputs = vec![
+            value_transfer_input,
+            reveal_input,
+            tally_input,
+            commit_input,
+        ];
+        let outputs = vec![
+            value_transfer_output,
+            data_request_output,
+            commit_output,
+            reveal_output,
+            consensus_output,
+        ];
+        let txns: Vec<Transaction> = vec![Transaction {
+            inputs,
+            signatures: keyed_signatures,
+            outputs,
+            version: 0,
+        }];
         let block = Block {
             block_header,
             proof,
