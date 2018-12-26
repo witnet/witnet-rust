@@ -1,4 +1,7 @@
-use super::serializers::{build_block_flatbuffer, BlockArgs, CheckpointBeaconArgs};
+use super::serializers::{
+    build_block_flatbuffer, build_transaction_flatbuffer, BlockArgs, CheckpointBeaconArgs,
+    TransactionArgs,
+};
 use std::collections::{BTreeSet, HashMap};
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 
@@ -120,10 +123,19 @@ impl Hashable for CheckpointBeacon {
     }
 }
 
-// FIXME(#224) Implement Hashable for Transaction
 impl Hashable for Transaction {
     fn hash(&self) -> Hash {
-        Hash::SHA256([0; 32])
+        let transaction_ftb = build_transaction_flatbuffer(
+            None,
+            &TransactionArgs {
+                version: self.version,
+                inputs: self.inputs.clone(),
+                outputs: self.outputs.clone(),
+                signatures: self.signatures.clone(),
+            },
+        );
+
+        calculate_sha256(&transaction_ftb).into()
     }
 }
 
@@ -559,15 +571,6 @@ mod tests {
             block_sig: Some(signature),
             influence: 0,
         };
-        let signature = Signature::Secp256k1(Secp256k1Signature {
-            r: [0; 32],
-            s: [0; 32],
-            v: 0,
-        });
-        let proof = LeadershipProof {
-            block_sig: Some(signature),
-            influence: 0,
-        };
         let keyed_signatures = vec![KeyedSignature {
             public_key: [0; 32],
             signature,
@@ -648,5 +651,89 @@ mod tests {
             52, 211, 212, 109, 108, 205, 149, 166, 216, 242, 60, 239,
         ]);
         assert_eq!(block.hash(), expected);
+    }
+
+    #[test]
+    fn test_transaction_hashable_trait() {
+        let signature = Signature::Secp256k1(Secp256k1Signature {
+            r: [0; 32],
+            s: [0; 32],
+            v: 0,
+        });
+        let signatures = vec![KeyedSignature {
+            public_key: [0; 32],
+            signature,
+        }];
+        let value_transfer_input = Input::ValueTransfer(ValueTransferInput {
+            output_index: 0,
+            transaction_id: [0; 32],
+        });
+        let reveal_input = Input::Reveal(RevealInput {
+            nonce: 0,
+            output_index: 0,
+            reveal: [0; 32],
+            transaction_id: [0; 32],
+        });
+        let tally_input = Input::Tally(TallyInput {
+            output_index: 0,
+            transaction_id: [0; 32],
+        });
+        let commit_input = Input::Commit(CommitInput {
+            output_index: 0,
+            poe: [0; 32],
+            transaction_id: [0; 32],
+        });
+        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
+            pkh: Hash::SHA256([0; 32]),
+            value: 0,
+        });
+        let data_request_output = Output::DataRequest(DataRequestOutput {
+            backup_witnesses: 0,
+            commit_fee: 0,
+            data_request: [0; 32],
+            reveal_fee: 0,
+            tally_fee: 0,
+            time_lock: 0,
+            value: 0,
+            witnesses: 0,
+        });
+        let commit_output = Output::Commit(CommitOutput {
+            commitment: Hash::SHA256([0; 32]),
+            value: 0,
+        });
+        let reveal_output = Output::Reveal(RevealOutput {
+            pkh: Hash::SHA256([0; 32]),
+            reveal: [0; 32],
+            value: 0,
+        });
+        let consensus_output = Output::Consensus(ConsensusOutput {
+            pkh: Hash::SHA256([0; 32]),
+            result: [0; 32],
+            value: 0,
+        });
+        let inputs = vec![
+            value_transfer_input,
+            reveal_input,
+            tally_input,
+            commit_input,
+        ];
+        let outputs = vec![
+            value_transfer_output,
+            data_request_output,
+            commit_output,
+            reveal_output,
+            consensus_output,
+        ];
+        let transaction: Transaction = Transaction {
+            inputs,
+            outputs,
+            signatures,
+            version: 0,
+        };
+        let expected = Hash::SHA256([
+            210, 97, 146, 25, 56, 31, 47, 86, 212, 73, 115, 112, 79, 233, 239, 214, 30, 58, 137,
+            174, 191, 146, 196, 222, 24, 248, 211, 55, 150, 243, 87, 228,
+        ]);
+        assert_eq!(transaction.hash(), expected);
     }
 }
