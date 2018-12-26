@@ -230,8 +230,10 @@ impl ChainManager {
             .iter()
             .map(|t| {
                 // TODO: t.fee()
+                // TODO: get the transactions that fit in block (https://github.com/witnet/witnet-rust/issues/262)
+
                 transaction_fees += 1;
-                *t
+                t.clone()
             })
             .collect();
         let epoch = msg.beacon.checkpoint;
@@ -480,14 +482,87 @@ mod tests {
     #[cfg(test)]
     fn build_hardcoded_block(checkpoint: u32, influence: u64) -> Block {
         use witnet_data_structures::chain::*;
-        let signed_beacon_hash = [4; 32];
-        // Currently, every hash is valid
-        // Fake signature which will be accepted anyway
         let signature = Signature::Secp256k1(Secp256k1Signature {
-            r: signed_beacon_hash,
-            s: signed_beacon_hash,
+            r: [0; 32],
+            s: [0; 32],
             v: 0,
         });
+        let keyed_signature = vec![KeyedSignature {
+            public_key: [0; 32],
+            signature,
+        }];
+
+        let value_transfer_input = Input::ValueTransfer(ValueTransferInput {
+            output_index: 0,
+            transaction_id: [0; 32],
+        });
+
+        let reveal_input = Input::Reveal(RevealInput {
+            nonce: 0,
+            output_index: 0,
+            reveal: [0; 32],
+            transaction_id: [0; 32],
+        });
+        let tally_input = Input::Tally(TallyInput {
+            output_index: 0,
+            transaction_id: [0; 32],
+        });
+
+        let commit_input = Input::Commit(CommitInput {
+            output_index: 0,
+            poe: [0; 32],
+            transaction_id: [0; 32],
+        });
+
+        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
+            pkh: Hash::SHA256([0; 32]),
+            value: 0,
+        });
+
+        let data_request_output = Output::DataRequest(DataRequestOutput {
+            backup_witnesses: 0,
+            commit_fee: 0,
+            data_request: [0; 32],
+            reveal_fee: 0,
+            tally_fee: 0,
+            time_lock: 0,
+            value: 0,
+            witnesses: 0,
+        });
+        let commit_output = Output::Commit(CommitOutput {
+            commitment: Hash::SHA256([0; 32]),
+            value: 0,
+        });
+        let reveal_output = Output::Reveal(RevealOutput {
+            pkh: Hash::SHA256([0; 32]),
+            reveal: [0; 32],
+            value: 0,
+        });
+        let consensus_output = Output::Consensus(ConsensusOutput {
+            pkh: Hash::SHA256([0; 32]),
+            result: [0; 32],
+            value: 0,
+        });
+
+        let inputs = vec![
+            value_transfer_input,
+            reveal_input,
+            tally_input,
+            commit_input,
+        ];
+        let outputs = vec![
+            value_transfer_output,
+            data_request_output,
+            commit_output,
+            reveal_output,
+            consensus_output,
+        ];
+        let txns: Vec<Transaction> = vec![Transaction {
+            inputs,
+            signatures: keyed_signature,
+            outputs,
+            version: 0,
+        }];
         let proof = LeadershipProof {
             block_sig: Some(signature),
             influence,
@@ -503,7 +578,7 @@ mod tests {
                 hash_merkle_root: Hash::SHA256([222; 32]),
             },
             proof,
-            txns: vec![Transaction],
+            txns,
         }
     }
 
