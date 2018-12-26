@@ -74,21 +74,12 @@ pub struct ConsensusConstants {
 }
 
 /// Checkpoint beacon structure
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct CheckpointBeacon {
     /// The serial number for an epoch
     pub checkpoint: Epoch,
     /// The 256-bit hash of the previous block header
     pub hash_prev_block: Hash,
-}
-
-impl Default for CheckpointBeacon {
-    fn default() -> CheckpointBeacon {
-        CheckpointBeacon {
-            checkpoint: 0,
-            hash_prev_block: Hash::SHA256([0; 32]),
-        }
-    }
 }
 
 /// Epoch id (starting from 0)
@@ -200,6 +191,12 @@ pub struct Secp256k1Signature {
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),
+}
+
+impl Default for Hash {
+    fn default() -> Hash {
+        Hash::SHA256([0; 32])
+    }
 }
 
 /// Conversion between witnet_crypto::Sha256 and witnet_data_structures::Hash
