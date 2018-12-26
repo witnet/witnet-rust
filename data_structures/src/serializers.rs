@@ -74,6 +74,13 @@ pub struct BlockArgs {
     pub txns: Vec<Transaction>,
 }
 
+pub struct TransactionArgs {
+    pub version: u32,
+    pub inputs: Vec<Input>,
+    pub outputs: Vec<Output>,
+    pub signatures: Vec<KeyedSignature>,
+}
+
 // COMMAND ARGS
 #[derive(Debug, Clone, Copy)]
 struct EmptyCommandArgs {
@@ -249,6 +256,7 @@ pub struct AddressArgs {
     ip: IpAddress,
     port: u16,
 }
+
 ////////////////////////////////////////////////////////
 // FROM TRAIT (Vec<u8> ---> Message)
 ////////////////////////////////////////////////////////
@@ -1026,6 +1034,7 @@ fn create_ipv6_address(ip0: u32, ip1: u32, ip2: u32, ip3: u32, port: u16) -> Add
 // FBT BUILDERS
 /////////////////////
 
+// Build a Block flatbuffer (used for block id based on digest)
 pub fn build_block_flatbuffer(
     builder: Option<&mut FlatBufferBuilder>,
     block_args: &BlockArgs,
@@ -1047,6 +1056,35 @@ pub fn build_block_flatbuffer(
     );
     // Build block flatbuffer
     builder.finish(block_wipoffset, None);
+    builder.finished_data().to_vec()
+}
+
+// Build a Transaction flatbuffer (used for transaction id based on digest)
+pub fn build_transaction_flatbuffer(
+    builder: Option<&mut FlatBufferBuilder>,
+    transaction_args: &TransactionArgs,
+) -> Vec<u8> {
+    let aux_builder: &mut FlatBufferBuilder =
+        &mut flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
+    let builder = builder.unwrap_or_else(|| aux_builder);
+
+    let input_vector_wipoffset = build_input_vector_wipoffset(builder, &transaction_args.inputs);
+    let output_vector_wipoffset = build_output_vector_wipoffset(builder, &transaction_args.outputs);
+    let signatures_vector_wipoffset =
+        build_keyed_signature_vector_wipoffset(builder, &transaction_args.signatures);
+
+    let transaction_wipoffset = protocol::Transaction::create(
+        builder,
+        &protocol::TransactionArgs {
+            version: transaction_args.version,
+            inputs: Some(input_vector_wipoffset),
+            outputs: Some(output_vector_wipoffset),
+            signatures: Some(signatures_vector_wipoffset),
+        },
+    );
+
+    // Build transaction flatbuffer
+    builder.finish(transaction_wipoffset, None);
     builder.finished_data().to_vec()
 }
 
