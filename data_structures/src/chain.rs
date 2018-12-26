@@ -379,7 +379,7 @@ impl TransactionsPool {
     ///     outputs: [].to_vec(),
     ///     version: 0
     /// };
-    /// 
+    ///
     /// assert_eq!(pool.len(), 0);
     ///
     /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction);
@@ -455,7 +455,7 @@ impl TransactionsPool {
     ///     outputs: [].to_vec(),
     ///     version: 0
     /// };
-    /// 
+    ///
     /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction.clone());
     /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction);
     ///
@@ -483,14 +483,14 @@ impl TransactionsPool {
     /// # use witnet_data_structures::chain::{TransactionsPool, Transaction, Hash};
     ///
     /// let mut pool = TransactionsPool::new();
-    /// 
+    ///
     /// let transaction = Transaction {
     ///     inputs: [].to_vec(),
     ///     signatures: [].to_vec(),
     ///     outputs: [].to_vec(),
     ///     version: 0
     /// };
-    /// 
+    ///
     /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction.clone());
     /// pool.insert(Hash::SHA256([1 as u8; 32]), transaction);
     /// assert_eq!(pool.len(), 2);

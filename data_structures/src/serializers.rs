@@ -586,9 +586,9 @@ fn create_transaction(ftb_tx: protocol::Transaction) -> Transaction {
     let ftb_keyed_signatures = ftb_tx.signatures();
 
     Transaction {
-        inputs: create_input_vector(ftb_inputs),
-        outputs: create_output_vector(ftb_outputs),
-        signatures: create_keyed_signature_vector(ftb_keyed_signatures),
+        inputs: create_input_vector(&ftb_inputs),
+        outputs: create_output_vector(&ftb_outputs),
+        signatures: create_keyed_signature_vector(&ftb_keyed_signatures),
         version: ftb_tx.version(),
     }
 }
@@ -600,7 +600,7 @@ type FlatbufferOutputVector<'a> =
 type FlatbufferKeyedSignatureVector<'a> =
     flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::KeyedSignature<'a>>>;
 
-fn create_input_vector(ftb_inputs: FlatbufferInputVector) -> Vec<Input> {
+fn create_input_vector(ftb_inputs: &FlatbufferInputVector) -> Vec<Input> {
     let mut counter = 0;
     let mut inputs = vec![];
     while counter < ftb_inputs.len() {
@@ -682,7 +682,7 @@ fn create_input(ftb_input: protocol::Input) -> Input {
     }
 }
 
-fn create_output_vector(ftb_outputs: FlatbufferOutputVector) -> Vec<Output> {
+fn create_output_vector(ftb_outputs: &FlatbufferOutputVector) -> Vec<Output> {
     let mut counter = 0;
     let mut outputs = vec![];
     while counter < ftb_outputs.len() {
@@ -770,7 +770,7 @@ fn create_output(ftb_output: protocol::Output) -> Output {
 }
 
 fn create_keyed_signature_vector(
-    ftb_keyed_signatures: FlatbufferKeyedSignatureVector,
+    ftb_keyed_signatures: &FlatbufferKeyedSignatureVector,
 ) -> Vec<KeyedSignature> {
     let mut counter = 0;
     let mut keyed_signatures = vec![];
@@ -809,7 +809,7 @@ fn create_keyed_signature(ftb_keyed_signature: protocol::KeyedSignature) -> Keye
             public_key.copy_from_slice(&ftb_keyed_signature.public_key()[0..32]);
             public_key
         },
-        signature: signature,
+        signature,
     }
 }
 
@@ -1744,7 +1744,7 @@ pub fn build_transactions_vector_wipoffset<'a>(
             let keyed_signature_vector_wipoffset =
                 build_keyed_signature_vector_wipoffset(builder, &tx.signatures);
 
-            let transaction_wipoffset = protocol::Transaction::create(
+            protocol::Transaction::create(
                 builder,
                 &protocol::TransactionArgs {
                     version: tx.version,
@@ -1752,9 +1752,7 @@ pub fn build_transactions_vector_wipoffset<'a>(
                     outputs: Some(output_vector_wipoffset),
                     signatures: Some(keyed_signature_vector_wipoffset),
                 },
-            );
-
-            transaction_wipoffset
+            )
         })
         .collect();
 
@@ -1792,7 +1790,7 @@ fn build_keyed_signature_vector_wipoffset<'a>(
                 protocol::KeyedSignature::create(
                     builder,
                     &protocol::KeyedSignatureArgs {
-                        signature_type: signature_type,
+                        signature_type,
                         signature: Some(signature_wipoffset),
                         public_key: Some(publick_key_vector_wipoffset),
                     },
