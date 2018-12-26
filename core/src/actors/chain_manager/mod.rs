@@ -5,7 +5,7 @@
 //! received through the protocol, and also encapsulates the logic of the
 //! _unspent transaction outputs_.
 //!
-//! Among its responsabilities are the following:
+//! Among its responsibilities are the following:
 //!
 //! * Initializing the chain info upon running the node for the first time and persisting it into storage [StorageManager](actors::storage_manager::StorageManager)
 //! * Recovering the chain info from storage and keeping it in its state.
@@ -40,8 +40,8 @@ use log::{debug, error, info};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{
-    Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, InventoryEntry, InventoryItem,
-    TransactionsPool,
+    Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, Output,
+    OutputPointer, TransactionsPool,
 };
 
 use crate::actors::session::messages::AnnounceItems;
@@ -98,6 +98,8 @@ pub struct ChainManager {
     block_candidate: Option<Block>,
     /// Maximum weight each block can have
     max_block_weight: u32,
+    /// Unspent Outputs Pool
+    _unspent_outputs_pool: HashMap<OutputPointer, Output>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry

@@ -572,6 +572,14 @@ impl TransactionsPool {
     }
 }
 
+/// Unspent output data structure (equivalent of Bitcoin's UTXO)
+/// It is used to locate the output by its transaction identifier and its position
+#[derive(Debug, Default, Hash, Clone, Eq, PartialEq)]
+pub struct OutputPointer {
+    pub transaction_id: Hash,
+    pub output_index: u32,
+}
+
 /// Inventory entry data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum InventoryEntry {
