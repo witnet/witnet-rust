@@ -3,8 +3,10 @@ extern crate flatbuffers;
 use std::convert::Into;
 
 use crate::chain::{
-    Block, BlockHeader, CheckpointBeacon, Epoch, Hash, InventoryEntry, LeadershipProof,
-    Secp256k1Signature, Signature, Transaction, SHA256,
+    Block, BlockHeader, CheckpointBeacon, CommitInput, CommitOutput, ConsensusOutput,
+    DataRequestOutput, Epoch, Hash, Input, InventoryEntry, KeyedSignature, LeadershipProof, Output,
+    RevealInput, RevealOutput, Secp256k1Signature, Signature, TallyInput, Transaction,
+    ValueTransferInput, ValueTransferOutput, SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol;
 
@@ -28,6 +30,15 @@ type WIPOffsetBlockMessage<'a> = flatbuffers::WIPOffset<protocol::Block<'a>>;
 type WIPOffsetCheckpointBeacon<'a> = flatbuffers::WIPOffset<protocol::CheckpointBeacon<'a>>;
 type WIPOffsetGetPeers<'a> = flatbuffers::WIPOffset<protocol::GetPeers<'a>>;
 type WIPOffsetHash<'a> = flatbuffers::WIPOffset<protocol::Hash<'a>>;
+type WIPOffsetInputVector<'a> = flatbuffers::WIPOffset<
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::Input<'a>>>,
+>;
+type WIPOffsetOutputVector<'a> = flatbuffers::WIPOffset<
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::Output<'a>>>,
+>;
+type WOIPOffsetKeyedSignatureVector<'a> = flatbuffers::WIPOffset<
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::KeyedSignature<'a>>>,
+>;
 type WIPOffsetInventoryAnnouncement<'a> =
     flatbuffers::WIPOffset<protocol::InventoryAnnouncement<'a>>;
 type WIPOffsetInventoryEntry<'a> = flatbuffers::WIPOffset<protocol::InventoryEntry<'a>>;
@@ -43,6 +54,7 @@ type WIPOffsetMessage<'a> = flatbuffers::WIPOffset<protocol::Message<'a>>;
 type WIPOffsetPeersMessage<'a> = flatbuffers::WIPOffset<protocol::Peers<'a>>;
 type WIPOffsetPing<'a> = flatbuffers::WIPOffset<protocol::Ping<'a>>;
 type WIPOffsetPong<'a> = flatbuffers::WIPOffset<protocol::Pong<'a>>;
+type WIPOffsetTransaction<'a> = flatbuffers::WIPOffset<protocol::Transaction<'a>>;
 type WIPOffsetTransactionVector<'a> = Option<
     flatbuffers::WIPOffset<
         flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::Transaction<'a>>>,
@@ -323,12 +335,11 @@ impl TryFrom<Vec<u8>> for Message {
                     // Get transactions
                     let len = block.txns().len();
                     let mut counter = 0;
-                    let mut _tx_ftb;
+                    let mut tx_ftb;
                     let mut block_txns = Vec::new();
                     while counter < len {
-                        _tx_ftb = block.txns().get(counter);
-                        // Call create_transaction(ftb_tx) in order to get native Transaction
-                        block_txns.push(Transaction);
+                        tx_ftb = block.txns().get(counter);
+                        block_txns.push(create_transaction(tx_ftb));
                         counter += 1;
                     }
 
@@ -568,6 +579,240 @@ impl Into<Vec<u8>> for Message {
 ////////////////////////////////////////////////////////
 // FROM TRAIT AUX FUNCTIONS: to create Witnet's types
 ////////////////////////////////////////////////////////
+
+fn create_transaction(ftb_tx: protocol::Transaction) -> Transaction {
+    let ftb_inputs = ftb_tx.inputs();
+    let ftb_outputs = ftb_tx.outputs();
+    let ftb_keyed_signatures = ftb_tx.signatures();
+
+    Transaction {
+        inputs: create_input_vector(ftb_inputs),
+        outputs: create_output_vector(ftb_outputs),
+        signatures: create_keyed_signature_vector(ftb_keyed_signatures),
+        version: ftb_tx.version(),
+    }
+}
+
+type FlatbufferInputVector<'a> =
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::Input<'a>>>;
+type FlatbufferOutputVector<'a> =
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::Output<'a>>>;
+type FlatbufferKeyedSignatureVector<'a> =
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::KeyedSignature<'a>>>;
+
+fn create_input_vector(ftb_inputs: FlatbufferInputVector) -> Vec<Input> {
+    let mut counter = 0;
+    let mut inputs = vec![];
+    while counter < ftb_inputs.len() {
+        let input = create_input(ftb_inputs.get(counter));
+        inputs.push(input);
+        counter += 1;
+    }
+
+    inputs
+}
+
+fn create_input(ftb_input: protocol::Input) -> Input {
+    match ftb_input.input_type() {
+        protocol::InputUnion::ValueTransferInput => ftb_input
+            .input_as_value_transfer_input()
+            .map(|value_transfer_input| {
+                Input::ValueTransfer(ValueTransferInput {
+                    output_index: value_transfer_input.output_index(),
+                    transaction_id: {
+                        let mut transaction_id = [0; 32];
+                        transaction_id
+                            .copy_from_slice(&value_transfer_input.transaction_id()[0..32]);
+                        transaction_id
+                    },
+                })
+            })
+            .unwrap(),
+        protocol::InputUnion::CommitInput => ftb_input
+            .input_as_commit_input()
+            .map(|commit_input| {
+                Input::Commit(CommitInput {
+                    transaction_id: {
+                        let mut transaction_id = [0; 32];
+                        transaction_id.copy_from_slice(&commit_input.transaction_id()[0..32]);
+                        transaction_id
+                    },
+                    output_index: commit_input.output_index(),
+                    poe: {
+                        let mut poe = [0; 32];
+                        poe.copy_from_slice(&commit_input.poe()[0..32]);
+                        poe
+                    },
+                })
+            })
+            .unwrap(),
+        protocol::InputUnion::RevealInput => ftb_input
+            .input_as_reveal_input()
+            .map(|reveal_input| {
+                Input::Reveal(RevealInput {
+                    transaction_id: {
+                        let mut transaction_id = [0; 32];
+                        transaction_id.copy_from_slice(&reveal_input.transaction_id()[0..32]);
+                        transaction_id
+                    },
+                    output_index: reveal_input.output_index(),
+                    reveal: {
+                        let mut reveal = [0; 32];
+                        reveal.copy_from_slice(&reveal_input.reveal()[0..32]);
+                        reveal
+                    },
+                    nonce: reveal_input.nonce(),
+                })
+            })
+            .unwrap(),
+        protocol::InputUnion::TallyInput => ftb_input
+            .input_as_tally_input()
+            .map(|tally_input| {
+                Input::Tally(TallyInput {
+                    output_index: tally_input.output_index(),
+                    transaction_id: {
+                        let mut transaction_id = [0; 32];
+                        transaction_id.copy_from_slice(&tally_input.transaction_id()[0..32]);
+                        transaction_id
+                    },
+                })
+            })
+            .unwrap(),
+        _ => unreachable!(), // All Input types are covered
+    }
+}
+
+fn create_output_vector(ftb_outputs: FlatbufferOutputVector) -> Vec<Output> {
+    let mut counter = 0;
+    let mut outputs = vec![];
+    while counter < ftb_outputs.len() {
+        let output = create_output(ftb_outputs.get(counter));
+        outputs.push(output);
+        counter += 1;
+    }
+
+    outputs
+}
+
+fn create_output(ftb_output: protocol::Output) -> Output {
+    match ftb_output.output_type() {
+        protocol::OutputUnion::ValueTransferOutput => ftb_output
+            .output_as_value_transfer_output()
+            .map(|value_transfer_output| {
+                Output::ValueTransfer(ValueTransferOutput {
+                    pkh: create_hash(value_transfer_output.pkh()),
+                    value: value_transfer_output.value(),
+                })
+            })
+            .unwrap(),
+
+        protocol::OutputUnion::DataRequestOutput => ftb_output
+            .output_as_data_request_output()
+            .map(|data_request_output| {
+                Output::DataRequest(DataRequestOutput {
+                    backup_witnesses: data_request_output.backup_witnesses(),
+                    commit_fee: data_request_output.commit_fee(),
+                    reveal_fee: data_request_output.reveal_fee(),
+                    data_request: {
+                        let mut arr = [0; 32];
+                        arr.copy_from_slice(data_request_output.data_request());
+                        arr
+                    },
+                    tally_fee: data_request_output.tally_fee(),
+                    time_lock: data_request_output.time_lock(),
+                    value: data_request_output.value(),
+                    witnesses: data_request_output.witnesses(),
+                })
+            })
+            .unwrap(),
+
+        protocol::OutputUnion::CommitOutput => ftb_output
+            .output_as_commit_output()
+            .map(|commit_output| {
+                Output::Commit(CommitOutput {
+                    commitment: create_hash(commit_output.commitment()),
+                    value: commit_output.value(),
+                })
+            })
+            .unwrap(),
+
+        protocol::OutputUnion::RevealOutput => ftb_output
+            .output_as_reveal_output()
+            .map(|reveal_output| {
+                Output::Reveal(RevealOutput {
+                    pkh: create_hash(reveal_output.pkh()),
+                    reveal: {
+                        let mut reveal = [0; 32];
+                        reveal.copy_from_slice(&reveal_output.reveal()[0..32]);
+                        reveal
+                    },
+                    value: reveal_output.value(),
+                })
+            })
+            .unwrap(),
+
+        protocol::OutputUnion::ConsensusOutput => ftb_output
+            .output_as_consensus_output()
+            .map(|consensus_output| {
+                Output::Consensus(ConsensusOutput {
+                    pkh: create_hash(consensus_output.pkh()),
+                    result: {
+                        let mut result = [0; 32];
+                        result.copy_from_slice(&consensus_output.result()[0..32]);
+                        result
+                    },
+                    value: consensus_output.value(),
+                })
+            })
+            .unwrap(),
+        _ => unreachable!(), // All output types are covered
+    }
+}
+
+fn create_keyed_signature_vector(
+    ftb_keyed_signatures: FlatbufferKeyedSignatureVector,
+) -> Vec<KeyedSignature> {
+    let mut counter = 0;
+    let mut keyed_signatures = vec![];
+    while counter < ftb_keyed_signatures.len() {
+        let keyed_signature = create_keyed_signature(ftb_keyed_signatures.get(counter));
+        keyed_signatures.push(keyed_signature);
+        counter += 1;
+    }
+
+    keyed_signatures
+}
+
+fn create_keyed_signature(ftb_keyed_signature: protocol::KeyedSignature) -> KeyedSignature {
+    let signature = match ftb_keyed_signature.signature_type() {
+        protocol::Signature::Secp256k1Signature => ftb_keyed_signature
+            .signature_as_secp_256k_1signature()
+            .and_then(|signature_ftb| {
+                let mut signature = Secp256k1Signature {
+                    r: [0; 32],
+                    s: [0; 32],
+                    v: 0,
+                };
+                signature.r.copy_from_slice(&signature_ftb.r()[0..32]);
+                signature.s.copy_from_slice(&signature_ftb.s()[0..32]);
+                signature.v = signature_ftb.s()[32];
+
+                Some(Signature::Secp256k1(signature))
+            })
+            .unwrap(),
+        _ => unreachable!(), // All keyed signatures types covered
+    };
+
+    KeyedSignature {
+        public_key: {
+            let mut public_key = [0; 32];
+            public_key.copy_from_slice(&ftb_keyed_signature.public_key()[0..32]);
+            public_key
+        },
+        signature: signature,
+    }
+}
+
 // Build a Witnet Ping message to decode a flatbuffers' Ping message
 fn create_ping_message(ping_args: HeartbeatCommandsArgs) -> Message {
     Message {
@@ -1490,14 +1735,289 @@ pub fn build_transactions_vector_wipoffset<'a>(
     builder: &mut FlatBufferBuilder<'a>,
     transactions_vector_args: &TransactionsVectorArgs,
 ) -> WIPOffsetTransactionVector<'a> {
-    let txns: Vec<_> = transactions_vector_args
+    let txns: Vec<WIPOffsetTransaction> = transactions_vector_args
         .txns
         .iter()
-        .map(|_tx: &Transaction| {
-            protocol::Transaction::create(builder, &protocol::TransactionArgs {})
+        .map(|tx: &Transaction| {
+            let input_vector_wipoffset = build_input_vector_wipoffset(builder, &tx.inputs);
+            let output_vector_wipoffset = build_output_vector_wipoffset(builder, &tx.outputs);
+            let keyed_signature_vector_wipoffset =
+                build_keyed_signature_vector_wipoffset(builder, &tx.signatures);
+
+            let transaction_wipoffset = protocol::Transaction::create(
+                builder,
+                &protocol::TransactionArgs {
+                    version: tx.version,
+                    inputs: Some(input_vector_wipoffset),
+                    outputs: Some(output_vector_wipoffset),
+                    signatures: Some(keyed_signature_vector_wipoffset),
+                },
+            );
+
+            transaction_wipoffset
         })
         .collect();
+
     Some(builder.create_vector(&txns))
+}
+
+fn build_keyed_signature_vector_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    keyed_signature_vector: &[KeyedSignature],
+) -> WOIPOffsetKeyedSignatureVector<'a> {
+    let keyed_signature_vector_wipoffset: Vec<flatbuffers::WIPOffset<protocol::KeyedSignature>> =
+        keyed_signature_vector
+            .iter()
+            .map(|keyed_signature: &KeyedSignature| {
+                let signature_type = match keyed_signature.signature {
+                    Signature::Secp256k1(_) => protocol::Signature::Secp256k1Signature,
+                };
+                let signature_wipoffset = match keyed_signature.signature {
+                    Signature::Secp256k1(secp256k1) => {
+                        let mut s = secp256k1.s.to_vec();
+                        s.push(secp256k1.v);
+                        let r_ftb = Some(builder.create_vector(&secp256k1.r));
+                        let s_ftb = Some(builder.create_vector(&s));
+
+                        protocol::Secp256k1Signature::create(
+                            builder,
+                            &protocol::Secp256k1SignatureArgs { r: r_ftb, s: s_ftb },
+                        )
+                        .as_union_value()
+                    }
+                };
+                let publick_key_vector_wipoffset =
+                    builder.create_vector(&keyed_signature.public_key);
+
+                protocol::KeyedSignature::create(
+                    builder,
+                    &protocol::KeyedSignatureArgs {
+                        signature_type: signature_type,
+                        signature: Some(signature_wipoffset),
+                        public_key: Some(publick_key_vector_wipoffset),
+                    },
+                )
+            })
+            .collect();
+
+    builder.create_vector(&keyed_signature_vector_wipoffset)
+}
+
+fn build_output_vector_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    output_vector: &[Output],
+) -> WIPOffsetOutputVector<'a> {
+    let output_vector_wipoffset: Vec<flatbuffers::WIPOffset<protocol::Output>> = output_vector
+        .iter()
+        .map(|output: &Output| match output {
+            Output::Commit(commit) => {
+                let commitment_wipoffset = build_hash_wipoffset(
+                    builder,
+                    &HashArgs {
+                        hash: commit.commitment,
+                    },
+                );
+                let commit_output_wipoffset = protocol::CommitOutput::create(
+                    builder,
+                    &protocol::CommitOutputArgs {
+                        commitment: Some(commitment_wipoffset),
+                        value: commit.value,
+                    },
+                );
+
+                protocol::Output::create(
+                    builder,
+                    &protocol::OutputArgs {
+                        output_type: protocol::OutputUnion::CommitOutput,
+                        output: Some(commit_output_wipoffset.as_union_value()),
+                    },
+                )
+            }
+            Output::Consensus(consensus) => {
+                let result_vector_wipoffset = builder.create_vector(&consensus.result);
+                let pkh_wipoffset = build_hash_wipoffset(
+                    builder,
+                    &HashArgs {
+                        hash: consensus.pkh,
+                    },
+                );
+                let consensus_output_wipoffset = protocol::ConsensusOutput::create(
+                    builder,
+                    &protocol::ConsensusOutputArgs {
+                        result: Some(result_vector_wipoffset),
+                        pkh: Some(pkh_wipoffset),
+                        value: consensus.value,
+                    },
+                );
+
+                protocol::Output::create(
+                    builder,
+                    &protocol::OutputArgs {
+                        output_type: protocol::OutputUnion::ConsensusOutput,
+                        output: Some(consensus_output_wipoffset.as_union_value()),
+                    },
+                )
+            }
+            Output::DataRequest(data_request) => {
+                let data_request_wipoffset = builder.create_vector(&data_request.data_request);
+                let data_request_output_wipoffset = protocol::DataRequestOutput::create(
+                    builder,
+                    &protocol::DataRequestOutputArgs {
+                        data_request: Some(data_request_wipoffset),
+                        value: data_request.value,
+                        witnesses: data_request.witnesses,
+                        backup_witnesses: data_request.backup_witnesses,
+                        commit_fee: data_request.commit_fee,
+                        reveal_fee: data_request.reveal_fee,
+                        tally_fee: data_request.tally_fee,
+                        time_lock: data_request.time_lock,
+                    },
+                );
+
+                protocol::Output::create(
+                    builder,
+                    &protocol::OutputArgs {
+                        output_type: protocol::OutputUnion::DataRequestOutput,
+                        output: Some(data_request_output_wipoffset.as_union_value()),
+                    },
+                )
+            }
+            Output::Reveal(reveal) => {
+                let reveal_wipoffset = builder.create_vector(&reveal.reveal);
+                let pkh_wipoffset = build_hash_wipoffset(builder, &HashArgs { hash: reveal.pkh });
+                let reveal_output_wipoffset = protocol::RevealOutput::create(
+                    builder,
+                    &protocol::RevealOutputArgs {
+                        reveal: Some(reveal_wipoffset),
+                        pkh: Some(pkh_wipoffset),
+                        value: reveal.value,
+                    },
+                );
+
+                protocol::Output::create(
+                    builder,
+                    &protocol::OutputArgs {
+                        output_type: protocol::OutputUnion::RevealOutput,
+                        output: Some(reveal_output_wipoffset.as_union_value()),
+                    },
+                )
+            }
+            Output::ValueTransfer(value_transfer) => {
+                let pkh_wipoffset = build_hash_wipoffset(
+                    builder,
+                    &HashArgs {
+                        hash: value_transfer.pkh,
+                    },
+                );
+                let value_transfer_wipoffset = protocol::ValueTransferOutput::create(
+                    builder,
+                    &protocol::ValueTransferOutputArgs {
+                        pkh: Some(pkh_wipoffset),
+                        value: value_transfer.value,
+                    },
+                );
+
+                protocol::Output::create(
+                    builder,
+                    &protocol::OutputArgs {
+                        output_type: protocol::OutputUnion::ValueTransferOutput,
+                        output: Some(value_transfer_wipoffset.as_union_value()),
+                    },
+                )
+            }
+        })
+        .collect();
+
+    builder.create_vector(&output_vector_wipoffset)
+}
+
+fn build_input_vector_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    input_vector: &[Input],
+) -> WIPOffsetInputVector<'a> {
+    let input_vector_wipoffset: Vec<flatbuffers::WIPOffset<protocol::Input>> = input_vector
+        .iter()
+        .map(|input: &Input| match input {
+            Input::ValueTransfer(value_transfer) => {
+                let transaction_id = builder.create_vector(&value_transfer.transaction_id);
+                let value_transfer_input_wipoffset = protocol::ValueTransferInput::create(
+                    builder,
+                    &protocol::ValueTransferInputArgs {
+                        output_index: value_transfer.output_index,
+                        transaction_id: Some(transaction_id),
+                    },
+                );
+
+                protocol::Input::create(
+                    builder,
+                    &protocol::InputArgs {
+                        input_type: protocol::InputUnion::ValueTransferInput,
+                        input: Some(value_transfer_input_wipoffset.as_union_value()),
+                    },
+                )
+            }
+            Input::Commit(commit) => {
+                let transaction_id = builder.create_vector(&commit.transaction_id);
+                let poe = builder.create_vector(&commit.poe);
+                let commit_input_wipoffset = protocol::CommitInput::create(
+                    builder,
+                    &protocol::CommitInputArgs {
+                        transaction_id: Some(transaction_id),
+                        output_index: commit.output_index,
+                        poe: Some(poe),
+                    },
+                );
+
+                protocol::Input::create(
+                    builder,
+                    &protocol::InputArgs {
+                        input_type: protocol::InputUnion::CommitInput,
+                        input: Some(commit_input_wipoffset.as_union_value()),
+                    },
+                )
+            }
+            Input::Reveal(reveal) => {
+                let transaction_id_vector_wipoffset = builder.create_vector(&reveal.transaction_id);
+                let reveal_vector_wipoffset = builder.create_vector(&reveal.reveal);
+                let reveal_input_wipoffset = protocol::RevealInput::create(
+                    builder,
+                    &protocol::RevealInputArgs {
+                        transaction_id: Some(transaction_id_vector_wipoffset),
+                        output_index: reveal.output_index,
+                        reveal: Some(reveal_vector_wipoffset),
+                        nonce: reveal.nonce,
+                    },
+                );
+
+                protocol::Input::create(
+                    builder,
+                    &protocol::InputArgs {
+                        input_type: protocol::InputUnion::RevealInput,
+                        input: Some(reveal_input_wipoffset.as_union_value()),
+                    },
+                )
+            }
+            Input::Tally(tally) => {
+                let transaction_id_vector_wipoffset = builder.create_vector(&tally.transaction_id);
+                let tally_input_wipoffset = protocol::TallyInput::create(
+                    builder,
+                    &protocol::TallyInputArgs {
+                        transaction_id: Some(transaction_id_vector_wipoffset),
+                        output_index: tally.output_index,
+                    },
+                );
+                protocol::Input::create(
+                    builder,
+                    &protocol::InputArgs {
+                        input_type: protocol::InputUnion::TallyInput,
+                        input: Some(tally_input_wipoffset.as_union_value()),
+                    },
+                )
+            }
+        })
+        .collect();
+
+    builder.create_vector(&input_vector_wipoffset)
 }
 
 pub fn build_verack_message_wipoffset<'a>(
