@@ -1,5 +1,5 @@
 use witnet_data_structures::{
-    serializers::TryFrom,
+    serializers::decoders::TryFrom,
     {chain::*, types::*},
 };
 
