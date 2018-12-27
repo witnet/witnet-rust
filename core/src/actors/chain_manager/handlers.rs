@@ -1,5 +1,5 @@
 use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture,
+    Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture,
 };
 
 use crate::actors::chain_manager::{messages::SessionUnitResult, ChainManager, ChainManagerError};
@@ -38,8 +38,14 @@ pub struct EveryEpochPayload;
 impl Handler<EpochNotification<EpochPayload>> for ChainManager {
     type Result = ();
 
-    fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: EpochNotification<EpochPayload>, ctx: &mut Context<Self>) {
         debug!("Epoch notification received {:?}", msg.checkpoint);
+
+        // Genesis checkpoint notification. We need to start building the chain.
+        if msg.checkpoint == 0 {
+            warn!("Genesis checkpoint is here! Starting to bootstrap the chain...");
+            self.started(ctx);
+        }
     }
 }
 
