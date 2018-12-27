@@ -29,7 +29,7 @@ pub enum EpochManagerError {
     // (unused because get_timestamp() cannot fail)
     //UnknownTimestamp,
     /// Checkpoint zero is in the future
-    CheckpointZeroInTheFuture,
+    CheckpointZeroInTheFuture(i64),
     /// Overflow when calculating the epoch timestamp
     Overflow,
 }
@@ -82,7 +82,7 @@ impl EpochManager {
             (Some(zero), Some(period)) => {
                 let elapsed = timestamp - zero;
                 if elapsed < 0 {
-                    Err(EpochManagerError::CheckpointZeroInTheFuture)
+                    Err(EpochManagerError::CheckpointZeroInTheFuture(zero))
                 } else {
                     let epoch = elapsed as Epoch / Epoch::from(period);
                     Ok(epoch)

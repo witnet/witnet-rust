@@ -34,7 +34,7 @@ fn epoch_zero_in_the_future() {
 
     assert_eq!(
         em.epoch_at(now),
-        Err(EpochManagerError::CheckpointZeroInTheFuture)
+        Err(EpochManagerError::CheckpointZeroInTheFuture(zero))
     );
 }
 
