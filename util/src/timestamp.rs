@@ -17,3 +17,16 @@ pub fn get_timestamp_nanos() -> (i64, u32) {
     // Return number of non-leap seconds since Unix epoch and the number of nanoseconds since the last second boundary
     (utc.timestamp(), utc.timestamp_subsec_nanos())
 }
+
+/// Function for pretty printing a timestamp as a human friendly date and time
+pub fn pretty_print(seconds: i64, nanoseconds: u32) -> String {
+    Utc.timestamp(seconds, nanoseconds).to_string()
+}
+
+#[test]
+fn pretty_print_test() {
+    let result = pretty_print(0, 0);
+    let expected = "1970-01-01 00:00:00 UTC";
+
+    assert_eq!(result, expected);
+}
