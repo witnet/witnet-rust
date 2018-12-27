@@ -3,9 +3,10 @@ use actix::{Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Sys
 use crate::actors::epoch_manager::{
     messages::{GetEpoch, Subscribe},
     EpochManager,
+    EpochManagerError::CheckpointZeroInTheFuture,
 };
 
-use crate::actors::chain_manager::{handlers::EveryEpochPayload, ChainManager};
+use crate::actors::chain_manager::{handlers::*, ChainManager};
 
 use crate::actors::{
     config_manager::send_get_config_request,
@@ -15,7 +16,9 @@ use crate::actors::{
 
 use witnet_data_structures::chain::{ChainInfo, CheckpointBeacon};
 
-use log::{debug, error, info};
+use witnet_util::timestamp::pretty_print;
+
+use log::{debug, error, info, warn};
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -52,8 +55,15 @@ impl Actor for ChainManager {
                         // Set current_epoch
                         act.current_epoch = Some(epoch);
                     }
-                    _ => {
-                        error!("Current epoch could not be retrieved from EpochManager");
+                    Ok(Err(CheckpointZeroInTheFuture(zero))) => {
+                        let date = pretty_print(zero, 0);
+                        warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
+                        // Subscribe to first epoch
+                        epoch_manager_addr
+                            .do_send(Subscribe::to_epoch(0, chain_manager_addr, EpochPayload))
+                    }
+                    error => {
+                        error!("Current epoch could not be retrieved from EpochManager: {:?}", error);
                     }
                 }
 
