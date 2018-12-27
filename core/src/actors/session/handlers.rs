@@ -81,11 +81,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                         peer_discovery_get_peers(self, ctx);
                     }
                     // Handle Peers message
-                    (
-                        SessionType::Outbound,
-                        SessionStatus::Consolidated,
-                        Command::Peers(Peers { peers }),
-                    ) => {
+                    (_, SessionStatus::Consolidated, Command::Peers(Peers { peers })) => {
                         peer_discovery_peers(&peers);
                     }
                     ///////////////////////
