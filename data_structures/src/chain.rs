@@ -4,6 +4,7 @@ use super::serializers::encoders::{
 };
 use std::collections::{BTreeSet, HashMap};
 use std::convert::AsRef;
+use std::fmt;
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 
 pub trait Hashable {
@@ -203,6 +204,19 @@ impl Default for Hash {
 impl From<Sha256> for Hash {
     fn from(x: Sha256) -> Self {
         Hash::SHA256(x.0)
+    }
+}
+
+impl fmt::Display for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Hash::SHA256(h) => f.write_str(
+                &h.into_iter()
+                    .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x)),
+            )?,
+        };
+
+        Ok(())
     }
 }
 
