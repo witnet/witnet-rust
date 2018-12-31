@@ -18,7 +18,7 @@ use witnet_data_structures::chain::{ChainInfo, CheckpointBeacon};
 
 use witnet_util::timestamp::pretty_print;
 
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -114,30 +114,30 @@ impl Actor for ChainManager {
                                         .highest_block_checkpoint,
                                 };
                                 act.chain_info = Some(chain_info);
-                                info!("ChainInfo successfully obtained from storage");
+                                debug!("ChainInfo successfully obtained from storage");
                             } else {
                                 // Mismatching environment names between config and storage
                                 panic!(
-                                    "Mismatching environments: tried to run a node on environment
-                                \"{:?}\" with a chain that was initialized with environment
-                                \"{:?}\".",
+                                    "Mismatching environments: tried to run a node on environment \
+                                     \"{:?}\" with a chain that was initialized with environment \
+                                     \"{:?}\".",
                                     environment, chain_info_from_storage.environment
                                 );
                             }
                         } else {
                             // Mismatching consensus constants between config and storage
                             panic!(
-                                "Mismatching consensus constants: tried to run a node using
-                                different consensus constants than the ones that were used when
-                                the local chain was initialized.\nNode constants: {:#?}\nChain
-                                constants: {:#?}",
+                                "Mismatching consensus constants: tried to run a node using \
+                                 different consensus constants than the ones that were used when \
+                                 the local chain was initialized.\nNode constants: {:#?}\nChain \
+                                 constants: {:#?}",
                                 consensus_constants, chain_info_from_storage.consensus_constants
                             );
                         }
                     } else {
                         debug!(
-                            "Uninitialized local chain (no ChainInfo in storage). Proceeding to
-                        initialize and store a new chain."
+                            "Uninitialized local chain (no ChainInfo in storage). Proceeding to \
+                             initialize and store a new chain."
                         );
                         // Create a new ChainInfo
                         let genesis_hash = consensus_constants.genesis_hash;

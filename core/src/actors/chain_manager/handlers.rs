@@ -1,18 +1,12 @@
-use actix::{
-    Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture,
-};
+use actix::{Actor, AsyncContext, Context, Handler};
 
 use crate::actors::chain_manager::{messages::SessionUnitResult, ChainManager, ChainManagerError};
 use crate::actors::epoch_manager::messages::EpochNotification;
-
-use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
 
 use witnet_data_structures::{
     chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
-
-use crate::validations::{validate_coinbase, validate_merkle_tree};
 
 use witnet_util::error::WitnetError;
 
@@ -108,124 +102,7 @@ impl Handler<AddNewBlock> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddNewBlock, ctx: &mut Context<Self>) {
-        // Block verify process
-        let reputation_manager_addr = System::current().registry().get::<ReputationManager>();
-
-        let candidate_better_eligibility = match self.block_candidate.as_ref() {
-            Some(candidate) => candidate.hash() < msg.block.hash(),
-            None => false,
-        };
-
-        let block_epoch = msg.block.block_header.beacon.checkpoint;
-        if self.current_epoch.is_none() {
-            warn!("ChainManager doesn't have current epoch");
-        } else if !validate_coinbase(&msg.block) {
-            warn!("Block coinbase not valid");
-        } else if !validate_merkle_tree(&msg.block) {
-            warn!("Block merkle tree not valid");
-        } else if Some(block_epoch) > self.current_epoch {
-            warn!(
-                "Block epoch from the future: current: {}, block: {}",
-                self.current_epoch.unwrap(),
-                block_epoch
-            );
-        } else if Some(block_epoch) < self.current_epoch {
-            warn!(
-                "Block epoch mismatch: current: {}, block: {}",
-                self.current_epoch.unwrap(),
-                block_epoch
-            );
-            // Add old block
-            // FIXME(#235): check proof of eligibility from the past
-            // ReputationManager should have a method to validate PoE from a past epoch
-            reputation_manager_addr
-                .send(ValidatePoE {
-                    beacon: msg.block.block_header.beacon,
-                    proof: msg.block.proof,
-                })
-                .into_actor(self)
-                .then(|res, act, ctx| {
-                    match res {
-                        Err(e) => {
-                            // Error when sending message
-                            error!("Unsuccessful communication with reputation manager: {}", e);
-                        }
-                        Ok(false) => {
-                            warn!("Block PoE not valid");
-                        }
-                        Ok(true) => {
-                            // Insert in blocks mempool
-                            let res = act.process_new_block(msg.block.clone());
-                            match res {
-                                Ok(hash) => {
-                                    act.broadcast_block(hash);
-
-                                    // Save block to storage
-                                    act.persist_item(ctx, InventoryItem::Block(msg.block));
-                                }
-                                Err(ChainManagerError::BlockAlreadyExists) => {
-                                    warn!("Block already exists");
-                                }
-                                Err(_) => {
-                                    error!("Unexpected error");
-                                }
-                            };
-                        }
-                    }
-
-                    actix::fut::ok(())
-                })
-                .wait(ctx);
-        } else if candidate_better_eligibility {
-            warn!("Block hash bigger than candidate hash");
-        } else {
-            // Request proof of eligibility validation to ReputationManager
-            reputation_manager_addr
-                .send(ValidatePoE {
-                    beacon: msg.block.block_header.beacon,
-                    proof: msg.block.proof,
-                })
-                .into_actor(self)
-                .then(|res, act, ctx| {
-                    match res {
-                        Err(e) => {
-                            // Error when sending message
-                            error!("Unsuccessful communication with reputation manager: {}", e);
-                        }
-                        Ok(false) => {
-                            warn!("Block PoE not valid");
-                        }
-                        Ok(true) => {
-                            // Update block candidate
-                            act.block_candidate = Some(msg.block.clone());
-
-                            // Insert in blocks mempool
-                            let res = act.process_new_block(msg.block.clone());
-                            match res {
-                                Ok(hash) => {
-                                    act.broadcast_block(hash);
-
-                                    // Save block to storage
-                                    // TODO: dont save the current candidate into storage
-                                    // Because it may not be the chosen block
-                                    // Add in Session a method to retrieve the block candidate
-                                    // before checking for blocks in storage
-                                    act.persist_item(ctx, InventoryItem::Block(msg.block));
-                                }
-                                Err(ChainManagerError::BlockAlreadyExists) => {
-                                    warn!("Block already exists");
-                                }
-                                Err(_) => {
-                                    error!("Unexpected error");
-                                }
-                            };
-                        }
-                    }
-
-                    actix::fut::ok(())
-                })
-                .wait(ctx);
-        }
+        self.process_block_candidate(ctx, msg.block)
     }
 }
 

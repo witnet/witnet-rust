@@ -26,8 +26,11 @@
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
 use actix::{
-    ActorFuture, Context, ContextFutureSpawner, Supervised, System, SystemService, WrapFuture,
+    ActorFuture, Context, ContextFutureSpawner, MailboxError, Supervised, System, SystemService,
+    WrapFuture,
 };
+
+use ansi_term::Color::Purple;
 
 use crate::actors::{
     chain_manager::messages::InventoryEntriesResult,
@@ -36,7 +39,7 @@ use crate::actors::{
     storage_manager::{messages::Put, StorageManager},
 };
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{
@@ -44,14 +47,14 @@ use witnet_data_structures::chain::{
     OutputPointer, TransactionsPool,
 };
 
+use crate::actors::chain_manager::messages::BuildBlock;
+use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
 use crate::actors::session::messages::AnnounceItems;
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
-use witnet_storage::error::StorageError;
+use crate::validations::{block_reward, merkle_tree_root, validate_coinbase, validate_merkle_tree};
 
-use crate::actors::chain_manager::messages::BuildBlock;
-use crate::validations::block_reward;
-use crate::validations::merkle_tree_root;
+use witnet_storage::error::StorageError;
 use witnet_util::error::WitnetError;
 
 mod actor;
@@ -175,7 +178,7 @@ impl ChainManager {
             .wait(ctx)
     }
 
-    fn process_new_block(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
+    fn accept_block(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
         // Calculate the hash of the block
         let hash: Hash = block.hash();
 
@@ -193,10 +196,11 @@ impl ChainManager {
                     .or_insert_with(HashSet::new);
                 hash_set.insert(hash);
 
-                debug!(
-                    "Checkpoint {} has {} block candidates",
-                    beacon.checkpoint,
-                    hash_set.len()
+                info!(
+                    "{} Epoch #{} has {} block candidates now",
+                    Purple.bold().paint("[Checkpoints]"),
+                    Purple.bold().paint(beacon.checkpoint.to_string()),
+                    Purple.bold().paint(hash_set.len().to_string())
                 );
             }
 
@@ -294,6 +298,104 @@ impl ChainManager {
 
         Ok(missing_inv_entries)
     }
+
+    fn process_block_candidate(&mut self, ctx: &mut Context<Self>, block: Block) {
+        // Block verify process
+        let reputation_manager_addr = System::current().registry().get::<ReputationManager>();
+
+        let ours_is_better = match self.block_candidate.as_ref() {
+            Some(candidate) => candidate.hash() < block.hash(),
+            None => false,
+        };
+
+        let block_epoch = block.block_header.beacon.checkpoint;
+
+        self.current_epoch
+            .map(|current_epoch| {
+                if !validate_coinbase(&block) {
+                    warn!("Block coinbase not valid");
+                } else if !validate_merkle_tree(&block) {
+                    warn!("Block merkle tree not valid");
+                } else if block_epoch > current_epoch {
+                    warn!(
+                        "Block epoch from the future: current: {}, block: {}",
+                        current_epoch, block_epoch
+                    );
+                } else if ours_is_better {
+                    if let Some(candidate) = self.block_candidate.as_ref() {
+                        debug!(
+                            "We already had a better candidate ({:?} overpowers {:?})",
+                            candidate.hash(),
+                            block.hash()
+                        );
+                    }
+                } else {
+                    if block_epoch < current_epoch {
+                        // FIXME(#235): check proof of eligibility from the past
+                        // ReputationManager should have a method to validate PoE from a past epoch
+                        warn!(
+                            "Block epoch from the past: current: {}, block: {}",
+                            current_epoch, block_epoch
+                        );
+                    }
+                    // Request proof of eligibility validation to ReputationManager
+                    reputation_manager_addr
+                        .send(ValidatePoE {
+                            beacon: block.block_header.beacon,
+                            proof: block.proof,
+                        })
+                        .into_actor(self)
+                        .then(|res, act, ctx| {
+                            act.process_poe_validation_response(res, ctx, block);
+
+                            actix::fut::ok(())
+                        })
+                        .wait(ctx);
+                }
+            })
+            .unwrap_or_else(|| {
+                warn!("ChainManager doesn't have current epoch");
+            });
+    }
+
+    fn process_poe_validation_response(
+        &mut self,
+        res: Result<bool, MailboxError>,
+        ctx: &mut Context<Self>,
+        block: Block,
+    ) {
+        match res {
+            Err(e) => {
+                // Error when sending message
+                error!("Unsuccessful communication with reputation manager: {}", e);
+            }
+            Ok(false) => {
+                warn!("Block PoE not valid");
+            }
+            Ok(true) => {
+                // Insert in blocks mempool
+                let res = self.accept_block(block.clone());
+                match res {
+                    Ok(hash) => {
+                        self.broadcast_block(hash);
+
+                        // Save block to storage
+                        // TODO: dont save the current candidate into storage
+                        // Because it may not be the chosen block
+                        // Add in Session a method to retrieve the block candidate
+                        // before checking for blocks in storage
+                        self.persist_item(ctx, InventoryItem::Block(block));
+                    }
+                    Err(ChainManagerError::BlockAlreadyExists) => {
+                        warn!("Block already exists");
+                    }
+                    Err(_) => {
+                        error!("Unexpected error");
+                    }
+                };
+            }
+        };
+    }
 }
 
 #[cfg(test)]
@@ -309,7 +411,7 @@ mod tests {
         let block_a = build_hardcoded_block(checkpoint, 99999);
 
         // Add block to ChainManager
-        let hash_a = bm.process_new_block(block_a.clone()).unwrap();
+        let hash_a = bm.accept_block(block_a.clone()).unwrap();
 
         // Check the block is added into the blocks map
         assert_eq!(bm.blocks.len(), 1);
@@ -336,8 +438,8 @@ mod tests {
         let block = build_hardcoded_block(2, 99999);
 
         // Only the first block will be inserted
-        assert!(bm.process_new_block(block.clone()).is_ok());
-        assert!(bm.process_new_block(block).is_err());
+        assert!(bm.accept_block(block.clone()).is_ok());
+        assert!(bm.accept_block(block).is_err());
         assert_eq!(bm.blocks.len(), 1);
     }
 
@@ -351,8 +453,8 @@ mod tests {
         let block_b = build_hardcoded_block(checkpoint, 12345);
 
         // Add blocks to the ChainManager
-        let hash_a = bm.process_new_block(block_a).unwrap();
-        let hash_b = bm.process_new_block(block_b).unwrap();
+        let hash_a = bm.accept_block(block_a).unwrap();
+        let hash_b = bm.accept_block(block_b).unwrap();
         assert_ne!(hash_a, hash_b);
 
         // Check that both blocks are stored in the same epoch
@@ -378,7 +480,7 @@ mod tests {
         let block_a = build_hardcoded_block(2, 99999);
 
         // Add the block to the ChainManager
-        let hash_a = bm.process_new_block(block_a.clone()).unwrap();
+        let hash_a = bm.accept_block(block_a.clone()).unwrap();
 
         // Try to get the block from the ChainManager
         let stored_block = bm.try_to_get_block(hash_a).unwrap();
@@ -409,9 +511,9 @@ mod tests {
         let block_c = build_hardcoded_block(3, 72138);
 
         // Add blocks to the ChainManager
-        let hash_a = bm.process_new_block(block_a.clone()).unwrap();
-        let hash_b = bm.process_new_block(block_b.clone()).unwrap();
-        let hash_c = bm.process_new_block(block_c.clone()).unwrap();
+        let hash_a = bm.accept_block(block_a.clone()).unwrap();
+        let hash_b = bm.accept_block(block_b.clone()).unwrap();
+        let hash_c = bm.accept_block(block_c.clone()).unwrap();
 
         // Build vector of inventory entries from hashes
         let mut inv_entries = Vec::new();
@@ -437,9 +539,9 @@ mod tests {
         let block_c = build_hardcoded_block(3, 72138);
 
         // Add blocks to the ChainManager
-        let hash_a = bm.process_new_block(block_a.clone()).unwrap();
-        let hash_b = bm.process_new_block(block_b.clone()).unwrap();
-        let hash_c = bm.process_new_block(block_c.clone()).unwrap();
+        let hash_a = bm.accept_block(block_a.clone()).unwrap();
+        let hash_b = bm.accept_block(block_b.clone()).unwrap();
+        let hash_c = bm.accept_block(block_c.clone()).unwrap();
 
         // Missing inventory vector
         let missing_inv_entries = InventoryEntry::Block(Hash::SHA256([1; 32]));
@@ -470,9 +572,9 @@ mod tests {
         let block_c = build_hardcoded_block(3, 72138);
 
         // Add blocks to the ChainManager
-        bm.process_new_block(block_a.clone()).unwrap();
-        bm.process_new_block(block_b.clone()).unwrap();
-        bm.process_new_block(block_c.clone()).unwrap();
+        bm.accept_block(block_a.clone()).unwrap();
+        bm.accept_block(block_b.clone()).unwrap();
+        bm.accept_block(block_c.clone()).unwrap();
 
         // Missing inventory vector
         let missing_inv_entries_1 = InventoryEntry::Block(Hash::SHA256([1; 32]));
