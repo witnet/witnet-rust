@@ -6,6 +6,8 @@ use actix::{
     StreamHandler, System, WrapFuture,
 };
 
+use ansi_term::Color::Green;
+
 use log::{debug, error, info, warn};
 
 use crate::actors::{
@@ -49,9 +51,12 @@ impl StreamHandler<BytesMut, Error> for Session {
             Err(err) => error!("Error decoding message: {:?}", err),
             Ok(msg) => {
                 info!(
-                    "<----- Session ({}) received message: {}",
-                    self.remote_addr, msg.kind
+                    "{} Received {} message from session {:?}",
+                    Green.bold().paint("[<]"),
+                    Green.bold().paint(msg.kind.to_string()),
+                    self.remote_addr,
                 );
+                debug!("\t{:?}", msg);
                 match (self.session_type, self.status, msg.kind) {
                     ////////////////////
                     //   HANDSHAKE    //
@@ -162,7 +167,7 @@ impl Handler<GetPeers> for Session {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, _msg: GetPeers, _: &mut Context<Self>) {
-        debug!("GetPeers message should be sent through the network");
+        debug!("Sending GetPeers message to peer at {:?}", self.remote_addr);
         // Create get peers message
         let get_peers_msg = WitnetMessage::build_get_peers();
         // Write get peers message in session
@@ -220,7 +225,7 @@ fn inventory_get_blocks(session: &Session, ctx: &mut Context<Session>) {
                     actix::fut::ok(())
                 }
                 _ => {
-                    warn!("Get highest checkpoint beacon in Chain Manager failed");
+                    warn!("Failed to get highest checkpoint beacon from ChainManager");
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();
@@ -250,14 +255,20 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
         .then(|res, act, ctx| {
             match res {
                 Ok(Ok(_)) => {
-                    debug!("Session successfully consolidated in the Session Manager");
+                    debug!(
+                        "Successfully consolidated session {:?} in SessionManager",
+                        act.remote_addr
+                    );
                     // Set status to consolidate
                     act.status = SessionStatus::Consolidated;
 
                     actix::fut::ok(())
                 }
                 _ => {
-                    warn!("Session consolidate in Session Manager failed");
+                    warn!(
+                        "Failed to consolidate session {:?} in SessionManager",
+                        act.remote_addr
+                    );
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();
@@ -289,14 +300,14 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
             match res {
                 Ok(Ok(addresses)) => {
                     info!(
-                        "Received ({:?}) peer addresses from PeersManager",
+                        "Received {} peer addresses from PeersManager",
                         addresses.len()
                     );
                     let peers_msg = WitnetMessage::build_peers(&addresses);
                     act.send_message(peers_msg);
                 }
                 _ => {
-                    warn!("Failed to receive peers from PeersManager");
+                    warn!("Failed to receive peer addresses from PeersManager");
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();
@@ -548,8 +559,13 @@ fn todo_inbound_session_getblocks(
                                 }
                             })
                             .wait(ctx);
+                    } else if highest_checkpoint == received_checkpoint {
+                        info!("Our chain is on par with our peer's",)
                     } else {
-                        debug!("Received checkpoint beacon is ahead of ours.");
+                        warn!(
+                            "Received a checkpoint beacon that is ahead of ours ({} > {})",
+                            received_checkpoint, highest_checkpoint
+                        );
                     }
                     // Create get blocks message
                     // let get_blocks_msg = WitnetMessage::build_last_beacon(beacon);
@@ -560,7 +576,7 @@ fn todo_inbound_session_getblocks(
                     actix::fut::ok(())
                 }
                 _ => {
-                    warn!("Get highest checkpoint beacon in Chain Manager failed");
+                    warn!("Failed to get highest checkpoint beacon from ChainManager");
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();

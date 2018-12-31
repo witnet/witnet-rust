@@ -47,10 +47,13 @@ impl Actor for Session {
                 session_type: self.session_type,
             })
             .into_actor(self)
-            .then(|res, _act, ctx| {
+            .then(|res, act, ctx| {
                 match res {
                     Ok(Ok(_)) => {
-                        debug!("Session successfully registered into the Session Manager");
+                        debug!(
+                            "Successfully registered session {:?} into SessionManager",
+                            act.remote_addr
+                        );
 
                         actix::fut::ok(())
                     }

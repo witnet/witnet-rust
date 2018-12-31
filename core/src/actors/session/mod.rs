@@ -3,7 +3,9 @@ use std::time::Duration;
 
 use actix::io::FramedWrite;
 
-use log::info;
+use ansi_term::Color::Green;
+
+use log::{debug, info};
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
 
@@ -89,9 +91,12 @@ impl Session {
     /// Method to send a Witnet message to the remote peer
     fn send_message(&mut self, msg: WitnetMessage) {
         info!(
-            "-----> Session ({:?}) sending message: {:?}",
-            self.remote_addr, msg
+            "{} Sending {} message to session {:?}",
+            Green.bold().paint("[>]"),
+            Green.bold().paint(msg.kind.to_string()),
+            self.remote_addr,
         );
+        debug!("\t{:?}", msg);
         // Convert WitnetMessage into a vector of bytes
         let bytes: Vec<u8> = msg.into();
         // Convert bytes into BytestMut and send them
