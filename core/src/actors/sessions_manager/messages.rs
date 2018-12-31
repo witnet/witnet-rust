@@ -1,4 +1,4 @@
-use std::{marker::Send, net::SocketAddr};
+use std::{fmt::Debug, marker::Send, net::SocketAddr};
 
 use actix::{Addr, Handler, Message};
 use tokio::net::TcpStream;
@@ -81,7 +81,7 @@ pub struct Anycast<T> {
 
 impl<T> Message for Anycast<T>
 where
-    T: Message + Send,
+    T: Message + Send + Debug,
     T::Result: Send,
     Session: Handler<T>,
 {

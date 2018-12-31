@@ -1,10 +1,13 @@
-use std::marker::Send;
+use std::{
+    fmt::{Debug, Display},
+    marker::Send,
+};
 
 use actix::{
     io::FramedWrite, Actor, ActorFuture, Context, ContextFutureSpawner, Handler, Message,
     StreamHandler, System, WrapFuture,
 };
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use crate::actors::{
@@ -66,11 +69,11 @@ impl Handler<Register> for SessionsManager {
             .register_session(msg.session_type, msg.address, msg.actor);
 
         match &result {
-            Ok(_) => info!(
+            Ok(_) => debug!(
                 "Session (type {:?}) registered for peer {}",
                 msg.session_type, msg.address
             ),
-            Err(error) => warn!(
+            Err(error) => error!(
                 "Error while registering peer {} (session type {:?}): {}",
                 msg.address, msg.session_type, error
             ),
@@ -91,11 +94,11 @@ impl Handler<Unregister> for SessionsManager {
             .unregister_session(msg.session_type, msg.status, msg.address);
 
         match &result {
-            Ok(_) => info!(
+            Ok(_) => debug!(
                 "Session (type {:?}) unregistered for peer {}",
                 msg.session_type, msg.address
             ),
-            Err(error) => warn!(
+            Err(error) => error!(
                 "Error while unregistering peer {} (session type {:?}): {}",
                 msg.address, msg.session_type, error
             ),
@@ -128,12 +131,12 @@ impl Handler<Consolidate> for SessionsManager {
 
         match &result {
             Ok(_) => info!(
-                "Session (type {:?}) status consolidated for peer {}",
+                "Stablished a consolidated {:?} session with the peer at {}",
                 msg.session_type, msg.address
             ),
-            Err(error) => warn!(
-                "Error while consolidating peer {} (session type {:?}): {}",
-                msg.address, msg.session_type, error
+            Err(error) => error!(
+                "Error while consolidating {:?} session with the peer at {}: {:?}",
+                msg.session_type, msg.address, error
             ),
         }
 
@@ -144,14 +147,17 @@ impl Handler<Consolidate> for SessionsManager {
 /// Handler for Anycast message
 impl<T: 'static> Handler<Anycast<T>> for SessionsManager
 where
-    T: Message + Send,
+    T: Message + Send + Debug + Display,
     T::Result: Send,
     Session: Handler<T>,
 {
     type Result = ();
 
     fn handle(&mut self, msg: Anycast<T>, ctx: &mut Context<Self>) {
-        debug!("Received a message to send to a random session");
+        debug!(
+            "An Anycast<{}> message is now being forwarded to a random session",
+            msg.command
+        );
 
         // Request a random consolidated outbound session
         self.sessions
@@ -181,14 +187,17 @@ where
 /// Handler for Broadcast message
 impl<T: 'static> Handler<Broadcast<T>> for SessionsManager
 where
-    T: Clone + Message + Send,
+    T: Clone + Message + Send + Display,
     T::Result: Send,
     Session: Handler<T>,
 {
     type Result = ();
 
     fn handle(&mut self, msg: Broadcast<T>, _ctx: &mut Context<Self>) {
-        debug!("Received a message to send to all the sessions");
+        debug!(
+            "A Broadcast<{}> message is now being forwarded to all sessions",
+            msg.command
+        );
 
         self.sessions
             .get_all_consolidated_outbound_sessions()

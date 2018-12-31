@@ -6,6 +6,8 @@ use actix::{
     MailboxError, Message, System, SystemService, WrapFuture,
 };
 
+use ansi_term::Color::Cyan;
+
 use crate::actors::{
     connections_manager::{messages::OutboundTcpConnect, ConnectionsManager},
     peers_manager::{
@@ -35,12 +37,12 @@ impl SessionsManager {
         // Schedule the bootstrap with a given period
         ctx.run_later(bootstrap_peers_period, move |act, ctx| {
             info!(
-                "Number of outbound sessions {}",
-                act.sessions.get_num_outbound_sessions()
-            );
-            info!(
-                "Number of inbound sessions {}",
-                act.sessions.get_num_inbound_sessions()
+                "{} Inbound: {} | Outbound: {}",
+                Cyan.bold().paint("[Sessions]"),
+                Cyan.bold()
+                    .paint(act.sessions.get_num_outbound_sessions().to_string()),
+                Cyan.bold()
+                    .paint(act.sessions.get_num_inbound_sessions().to_string())
             );
 
             // Check if bootstrap is needed
@@ -101,17 +103,17 @@ impl SessionsManager {
         response
             // Unwrap the Result<PeersSocketAddrResult, MailboxError>
             .unwrap_or_else(|_| {
-                error!("Unsuccessful communication with peers manager");
+                error!("Failed to communicate with PeersManager");
                 Ok(None)
             })
             // Unwrap the PeersSocketAddrResult
             .unwrap_or_else(|_| {
-                error!("An error happened in peers manager when getting a peer");
+                error!("Error when trying to get a peer address from PeersManager");
                 None
             })
             // Check if PeersSocketAddrResult returned `None`
             .or_else(|| {
-                warn!("No peer obtained from peers manager");
+                warn!("Did not obtain any peer addresses from PeersManager");
                 None
             })
             // Filter the result checking if outbound address is eligible as new peer
@@ -120,7 +122,9 @@ impl SessionsManager {
             })
             // Check if there is a peer after filter
             .or_else(|| {
-                warn!("No eligible peer obtained from peers manager");
+                warn!(
+                    "The peer address obtained from PeersManager is not eligible for a new session"
+                );
                 None
             })
             // Convert Some(SocketAddr) or None to FutureResult<SocketAddr, (), Self>
