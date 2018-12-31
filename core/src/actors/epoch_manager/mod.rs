@@ -1,6 +1,8 @@
 use actix::{Actor, AsyncContext, Context, Recipient, SystemService};
 
-use log::{debug, error, warn};
+use ansi_term::Color::Purple;
+
+use log::{debug, error, info, warn};
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -115,7 +117,7 @@ impl EpochManager {
     fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
         self.set_checkpoint_zero(config.consensus_constants.checkpoint_zero_timestamp);
         self.set_period(config.consensus_constants.checkpoints_period);
-        debug!(
+        info!(
             "Checkpoint zero timestamp: {}, checkpoints period: {}",
             self.checkpoint_zero_timestamp.unwrap(),
             self.checkpoints_period.unwrap()
@@ -195,7 +197,12 @@ impl EpochManager {
                 // Update last checked epoch
                 act.last_checked_epoch = Some(current_epoch);
 
-                debug!("Current epoch: {:?}", current_epoch);
+                debug!("Updated epoch in ChainManager state to #{}", current_epoch);
+                info!(
+                    "{} We are now in epoch #{}",
+                    Purple.bold().paint("[Checkpoints]"),
+                    Purple.bold().paint(current_epoch.to_string())
+                );
 
                 // Reschedule checkpoint monitor process
                 act.checkpoint_monitor(ctx);

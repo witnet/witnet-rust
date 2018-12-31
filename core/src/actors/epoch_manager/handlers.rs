@@ -1,6 +1,6 @@
 use actix::Handler;
 
-use log::debug;
+use log::{debug, error};
 
 use super::{
     messages::{EpochResult, GetEpoch, SubscribeAll, SubscribeEpoch},
@@ -19,7 +19,15 @@ impl Handler<GetEpoch> for EpochManager {
     fn handle(&mut self, _msg: GetEpoch, _ctx: &mut Self::Context) -> EpochResult<Epoch> {
         // Get the last checkpoint (current epoch)
         let checkpoint = self.current_epoch();
-        debug!("Current epoch: {:?}", checkpoint);
+        checkpoint
+            .as_ref()
+            .map(|checkpoint| debug!("Asked for current epoch (#{})", checkpoint))
+            .unwrap_or_else(|error| {
+                error!(
+                    "Failed to retrieve epoch when asked to. Error was: {:?}",
+                    error
+                )
+            });
         checkpoint
     }
 }
@@ -29,7 +37,7 @@ impl Handler<SubscribeEpoch> for EpochManager {
 
     /// Method to handle SubscribeEpoch messages
     fn handle(&mut self, msg: SubscribeEpoch, _ctx: &mut Self::Context) {
-        debug!("New subscription to checkpoint {:?}", msg.checkpoint);
+        debug!("New subscription to checkpoint #{:?}", msg.checkpoint);
 
         // Store subscription to target checkpoint
         self.subscriptions_epoch
