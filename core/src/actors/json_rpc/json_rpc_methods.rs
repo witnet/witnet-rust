@@ -1,12 +1,20 @@
 #[cfg(test)]
 use self::mock_actix::System;
-use crate::actors::chain_manager::{messages::AddNewBlock, ChainManager};
+use crate::actors::chain_manager::{
+    messages::{AddNewBlock, GetBlocksEpochRange},
+    ChainManager,
+};
 #[cfg(not(test))]
 use actix::System;
+use actix::SystemService;
+use jsonrpc_core::futures;
+use jsonrpc_core::futures::Future;
 use jsonrpc_core::{IoHandler, Params, Value};
 use log::info;
 use serde_derive::{Deserialize, Serialize};
-use witnet_data_structures::chain::Block;
+use witnet_data_structures::chain::{Block, InventoryEntry};
+
+type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 
 /// Define the JSON-RPC interface:
 /// All the methods available through JSON-RPC
@@ -14,6 +22,7 @@ pub fn jsonrpc_io_handler() -> IoHandler<()> {
     let mut io = IoHandler::new();
 
     io.add_method("inventory", |params: Params| inventory(params.parse()?));
+    io.add_method("getBlockChain", |_params| get_block_chain());
 
     io
 }
@@ -46,7 +55,7 @@ pub enum InventoryItem {
 /* Test string:
 {"jsonrpc": "2.0","method": "inventory","params": {"block": {"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block": {"SHA256": [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig": null,"influence":99999}"txns":[null]}},"id": 1}
 */
-pub fn inventory(inv_elem: InventoryItem) -> Result<Value, jsonrpc_core::Error> {
+pub fn inventory(inv_elem: InventoryItem) -> JsonRpcResult {
     match inv_elem {
         InventoryItem::Block(block) => {
             info!("Got block from JSON-RPC. Sending AnnounceItems message.");
@@ -70,6 +79,61 @@ pub fn inventory(inv_elem: InventoryItem) -> Result<Value, jsonrpc_core::Error> 
             ))
         }
     }
+}
+
+/// Get the list of all the known block hashes.
+///
+/// Returns a list of `(epoch, block_hash)` pairs.
+/* test
+{"jsonrpc": "2.0","method": "getBlockChain", "id": 1}
+*/
+pub fn get_block_chain() -> impl Future<Item = Value, Error = jsonrpc_core::Error> {
+    let chain_manager_addr = ChainManager::from_registry();
+    chain_manager_addr
+        .send(GetBlocksEpochRange::new(..))
+        .then(|res| match res {
+            Ok(Ok(vec_inv_entry)) => {
+                let epoch_and_hash: Vec<_> = vec_inv_entry
+                    .into_iter()
+                    .map(|(epoch, inv_entry)| {
+                        let hash = match inv_entry {
+                            InventoryEntry::Block(hash) => hash,
+                            x => panic!("{:?} is not a block", x),
+                        };
+                        let hash_string = format!("{}", hash);
+                        (epoch, hash_string)
+                    })
+                    .collect();
+                let value = match serde_json::to_value(epoch_and_hash) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        let err = jsonrpc_core::Error {
+                            code: jsonrpc_core::ErrorCode::InternalError,
+                            message: format!("{}", e),
+                            data: None,
+                        };
+                        return futures::failed(err);
+                    }
+                };
+                futures::finished(value)
+            }
+            Ok(Err(e)) => {
+                let err = jsonrpc_core::Error {
+                    code: jsonrpc_core::ErrorCode::InternalError,
+                    message: format!("{:?}", e),
+                    data: None,
+                };
+                futures::failed(err)
+            }
+            Err(e) => {
+                let err = jsonrpc_core::Error {
+                    code: jsonrpc_core::ErrorCode::InternalError,
+                    message: format!("{:?}", e),
+                    data: None,
+                };
+                futures::failed(err)
+            }
+        })
 }
 
 #[cfg(test)]

@@ -2,7 +2,8 @@ use super::newline_codec::NewLineCodec;
 use super::server::JsonRpcServer;
 use super::server::Unregister;
 use actix::{
-    io::FramedWrite, io::WriteHandler, Actor, Addr, AsyncContext, Context, Running, StreamHandler,
+    io::FramedWrite, io::WriteHandler, Actor, ActorFuture, Addr, AsyncContext, Context,
+    ContextFutureSpawner, Running, StreamHandler, WrapFuture,
 };
 use bytes;
 use bytes::BytesMut;
@@ -43,7 +44,7 @@ impl WriteHandler<io::Error> for JsonRpc {}
 /// Implement `StreamHandler` trait in order to use `Framed` with an actor
 impl StreamHandler<BytesMut, io::Error> for JsonRpc {
     /// This is main event loop for client requests
-    fn handle(&mut self, bytes: BytesMut, _ctx: &mut Self::Context) {
+    fn handle(&mut self, bytes: BytesMut, ctx: &mut Self::Context) {
         info!("Got JSON-RPC message");
         let msg = match String::from_utf8(bytes.to_vec()) {
             Ok(msg) => {
@@ -66,10 +67,17 @@ impl StreamHandler<BytesMut, io::Error> for JsonRpc {
             }
         };
 
-        // Handle response synchronously
-        let response = self.jsonrpc_io.handle_request_sync(&msg);
-        if let Some(response) = response {
-            self.framed.write(BytesMut::from(response));
-        }
+        // Handle response asynchronously
+        self.jsonrpc_io
+            .handle_request(&msg)
+            .into_actor(self)
+            .then(|res, act, _ctx| {
+                if let Ok(Some(response)) = res {
+                    act.framed.write(BytesMut::from(response));
+                }
+
+                actix::fut::ok(())
+            })
+            .wait(ctx);
     }
 }
