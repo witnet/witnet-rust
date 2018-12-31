@@ -36,6 +36,8 @@ impl Peers {
         // Note: if the peer address exists, the peer info will be overwritten
         Ok(addrs
             .into_iter()
+            // Filter out unspecified addresses (aka 0.0.0.0)
+            .filter(|address| !address.ip().is_unspecified())
             .filter_map(|address| {
                 self.peers
                     .insert(
