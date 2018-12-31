@@ -53,6 +53,24 @@ Response:
 {"jsonrpc":"2.0","result":true,"id":1}
 ```
 
+#### getBlockChain
+
+Get the list of all the known block hashes.
+
+Returns a list of `(epoch, block_hash)` pairs.
+
+Example:
+
+```
+{"jsonrpc": "2.0","method": "getBlockChain", "id": 1}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":[[0,"ed28899af8c3148a4162736af942bc68c4466da93c5124dabfaa7c582af49e30"],[1,"9c9038cfb31a7050796920f91b17f4a68c7e9a795ee8962916b35d39fc1efefc"]],"id":1}
+```
+
 [json_rpc_server]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/server.rs
 [noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
 [json_rpc_methods]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/json_rpc_methods.rs
