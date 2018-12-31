@@ -61,14 +61,17 @@ System::current().registry().set(chain_manager_addr);
 
 These are the messages supported by the `ChainManager` handlers:
 
-| Message                                | Input type                           | Output type                       | Description                                             |
-| -------------------------------------- | ------------------------------------ | --------------------------------- | ------------------------------------------------------- |
-| `EpochNotification<EpochPayload>`      | `Epoch`, `EpochPayload`              | `()`                              | The requested epoch has been reached                    |
-| `EpochNotification<EveryEpochPayload>` | `Epoch`, `EveryEpochPayload`         | `()`                              | A new epoch has been reached                            |
-| `GetHighestBlockCheckpoint`            | `()`                                 | `ChainInfoResult`                 | Request a copy of the highest block checkpoint          |
-| `AddNewBlock`                          | `Block`                              | `Result<(), ChainManagerError>`   | Add a new block and announce it to other sessions       |
-| `AddTransaction`                       | `Transaction`                        | `Result<(), ChainManagerError>`   | Add a new transaction and announce it to other sessions |
-| `BuildBlock`                           | `CheckpointBeacon`,`LeadershipProof` | `()`                              | Build a new block and add it                            |
+| Message                                | Input type                           | Output type                                               | Description                                                        |
+|----------------------------------------|--------------------------------------|-----------------------------------------------------------|--------------------------------------------------------------------|
+| `EpochNotification<EpochPayload>`      | `Epoch`, `EpochPayload`              | `()`                                                      | The requested epoch has been reached                               |
+| `EpochNotification<EveryEpochPayload>` | `Epoch`, `EveryEpochPayload`         | `()`                                                      | A new epoch has been reached                                       |
+| `GetHighestBlockCheckpoint`            | `()`                                 | `ChainInfoResult`                                         | Request a copy of the highest block checkpoint                     |
+| `AddNewBlock`                          | `Block`                              | `Result<(), ChainManagerError>`                           | Add a new block and announce it to other sessions                  |
+| `AddTransaction`                       | `Transaction`                        | `Result<(), ChainManagerError>`                           | Add a new transaction and announce it to other sessions            |
+| `GetBlock`                             | `Hash`                               | `Result<(), ChainManagerError>`                           | Ask for a block identified by its hash                             |
+| `GetBlocksEpochRange`                  | `(Bound<Epoch>, Bound<Epoch>)`       | `Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>` | Obtain a vector of epochs and block hashes using a range of epochs |
+| `BuildBlock`                           | `CheckpointBeacon`,`LeadershipProof` | `()`                                                      | Build a new block and add it                                       |
+| `DiscardExistingInventoryEntries`      | `Vec<InventoryEntries>`              | `InventoryEntriesResult`                                  | Discard inventory entries that exist in the BlocksManager          |
 
 Where `ChainInfoResult` is just:
 
