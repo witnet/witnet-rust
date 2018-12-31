@@ -1,5 +1,7 @@
 use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, System, WrapFuture};
 
+use ansi_term::Color::Yellow;
+
 use super::MiningManager;
 use crate::actors::chain_manager::messages::GetHighestCheckpointBeacon;
 use crate::actors::chain_manager::ChainManager;
@@ -91,8 +93,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for MiningManager {
                     .and_then(move |eligible, _act, _ctx| {
                         if eligible {
                             info!(
-                                "Discovered eligibility for mining a block for epoch #{:?}",
-                                beacon.checkpoint
+                                "{} Discovered eligibility for mining a block for epoch #{}",
+                                Yellow.bold().paint("[Mining]"),
+                                Yellow.bold().paint(beacon.checkpoint.to_string())
                             );
                             // Send proof of eligibility to chain manager,
                             // which will construct and broadcast the block
