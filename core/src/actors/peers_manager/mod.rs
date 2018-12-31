@@ -8,7 +8,7 @@ use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System, SystemService,
     WrapFuture,
 };
-use log::{error, info};
+use log::{debug, error};
 
 use witnet_p2p::peers::Peers;
 
@@ -58,7 +58,10 @@ impl PeersManager {
                 .into_actor(act)
                 .then(|res, _act, _ctx| {
                     match res {
-                        Ok(Ok(_)) => info!("PeersManager successfully persist peers to storage"),
+                        Ok(Ok(v)) => debug!(
+                            "PeersManager successfully persisted peers to storage {:?}",
+                            v
+                        ),
                         _ => {
                             error!("Peers manager persist peers to storage failed");
                             // FIXME(#72): handle errors

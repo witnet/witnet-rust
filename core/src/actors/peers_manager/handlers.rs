@@ -1,5 +1,5 @@
 use actix::{Context, Handler};
-use log::{debug, info};
+use log::{debug, error, warn};
 
 use super::messages::{
     AddPeers, GetPeers, GetRandomPeer, PeersSocketAddrResult, PeersSocketAddrsResult, RemovePeers,
@@ -13,7 +13,7 @@ impl Handler<AddPeers> for PeersManager {
 
     fn handle(&mut self, msg: AddPeers, _: &mut Context<Self>) -> Self::Result {
         // Insert address
-        info!("Add peer handle for addresses: {:?}", msg.addresses);
+        debug!("Adding the following peer addresses: {:?}", msg.addresses);
         self.peers.add(msg.addresses)
     }
 }
@@ -24,7 +24,7 @@ impl Handler<RemovePeers> for PeersManager {
 
     fn handle(&mut self, msg: RemovePeers, _: &mut Context<Self>) -> Self::Result {
         // // Find index of element with address
-        info!("Remove peer handle for addresses: {:?}", msg.addresses);
+        debug!("Removing the following addresses: {:?}", msg.addresses);
         self.peers.remove(&msg.addresses)
     }
 }
@@ -34,8 +34,22 @@ impl Handler<GetRandomPeer> for PeersManager {
     type Result = PeersSocketAddrResult;
 
     fn handle(&mut self, _msg: GetRandomPeer, _: &mut Context<Self>) -> Self::Result {
-        debug!("Get random peer");
-        self.peers.get_random()
+        let result = self.peers.get_random();
+
+        match result {
+            Ok(Some(address)) => {
+                debug!("Selected a random peer address: {:?}", address);
+                result
+            }
+            Ok(None) => {
+                warn!("Could not select a random peer address because there were none");
+                result
+            }
+            error => {
+                error!("Error selecting a random peer address: {:?}", error);
+                error
+            }
+        }
     }
 }
 
