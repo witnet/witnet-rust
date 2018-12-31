@@ -54,19 +54,22 @@ impl ConnectionsManager {
     ) -> FutureResult<(), (), Self> {
         // Process the Result<ResolverResult, MailboxError>
         match response {
-            Err(e) => {
-                error!("Unsuccessful communication with resolver: {}", e);
+            Err(error) => {
+                error!("Unsuccessful communication with resolver: {}", error);
                 actix::fut::err(())
             }
             Ok(res) => {
                 // Process the ResolverResult
                 match res {
-                    Err(e) => {
-                        warn!("Error while trying to connect to the peer: {}", e);
+                    Err(error) => {
+                        warn!("Failed to connect to a peer with error: {:?}", error);
                         actix::fut::err(())
                     }
                     Ok(stream) => {
-                        info!("Connected to peer {:?}", stream.peer_addr());
+                        stream
+                            .peer_addr()
+                            .map(|ip| info!("Connected to peer {:?}", ip))
+                            .unwrap_or_else(|err| error!("Peer address error in stream: {}", err));
 
                         // Request the creation of a new session actor from connection
                         ConnectionsManager::request_session_creation(stream, SessionType::Outbound);
