@@ -4,7 +4,7 @@ use crate::actors::chain_manager::{messages::SessionUnitResult, ChainManager, Ch
 use crate::actors::epoch_manager::messages::EpochNotification;
 
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem},
+    chain::{Block, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
@@ -132,7 +132,7 @@ impl Handler<GetBlock> for ChainManager {
 
 /// Handler for GetBlocksEpochRange
 impl Handler<GetBlocksEpochRange> for ChainManager {
-    type Result = Result<Vec<InventoryEntry>, ChainManagerError>;
+    type Result = Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>;
 
     fn handle(
         &mut self,
@@ -140,10 +140,14 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
         debug!("GetBlocksEpochRange received {:?}", range);
-        let hashes = range
-            .flat_map(|epoch| self.epoch_to_block_hash.get(&epoch))
-            .flatten()
-            .map(|hash| InventoryEntry::Block(*hash))
+        let hashes = self
+            .epoch_to_block_hash
+            .range(range)
+            .flat_map(|(epoch, hashset)| {
+                hashset
+                    .into_iter()
+                    .map(move |hash| (*epoch, InventoryEntry::Block(*hash)))
+            })
             .collect();
 
         Ok(hashes)

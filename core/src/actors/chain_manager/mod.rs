@@ -40,8 +40,7 @@ use crate::actors::{
 };
 
 use log::{debug, error, info, warn};
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use witnet_data_structures::chain::{
     Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, Output,
     OutputPointer, TransactionsPool,
@@ -90,7 +89,7 @@ pub struct ChainManager {
     chain_info: Option<ChainInfo>,
     /// Map that relates an epoch with the hashes of the blocks for that epoch
     // One epoch can have more than one block
-    epoch_to_block_hash: HashMap<Epoch, HashSet<Hash>>,
+    epoch_to_block_hash: BTreeMap<Epoch, HashSet<Hash>>,
     /// Map that stores blocks by their hash
     blocks: HashMap<Hash, Block>,
     /// Current Epoch

@@ -557,14 +557,14 @@ fn todo_inbound_session_getblocks(
                         let range = (received_checkpoint + 1)..=highest_checkpoint;
 
                         chain_manager_addr
-                            .send(GetBlocksEpochRange { range })
+                            .send(GetBlocksEpochRange::new(range))
                             .into_actor(act)
                             .then(|res, act, _ctx| match res {
                                 Ok(Ok(blocks)) => {
                                     // Try to create an Inv protocol message with the items to
                                     // be announced
                                     if let Ok(inv_msg) =
-                                        WitnetMessage::build_inventory_announcement(blocks)
+                                        WitnetMessage::build_inventory_announcement(blocks.into_iter().map(|(_epoch, hash)| hash).collect())
                                     {
                                         // Send Inv message through the session network connection
                                         act.send_message(inv_msg);

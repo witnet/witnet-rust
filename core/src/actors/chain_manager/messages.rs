@@ -1,7 +1,7 @@
 use actix::Message;
-use std::ops::RangeInclusive;
 
 use crate::actors::chain_manager::ChainManagerError;
+use std::ops::{Bound, RangeBounds};
 use witnet_data_structures::{
     chain::{Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, LeadershipProof, Transaction},
     error::ChainInfoResult,
@@ -50,12 +50,37 @@ impl Message for GetBlock {
 
 /// Message to obtain a vector of block hashes using a range of epochs
 pub struct GetBlocksEpochRange {
-    /// Range of Epochs
-    pub range: RangeInclusive<Epoch>,
+    /// Range of Epochs (prefer using the new method to create a range)
+    pub range: (Bound<Epoch>, Bound<Epoch>),
+}
+
+impl GetBlocksEpochRange {
+    /// Create a GetBlockEpochRange message using range syntax:
+    ///
+    /// ```rust
+    /// # use witnet_core::actors::chain_manager::messages::GetBlocksEpochRange;
+    /// GetBlocksEpochRange::new(..); // Unbounded range: all items
+    /// GetBlocksEpochRange::new(10..); // All items starting from epoch 10
+    /// GetBlocksEpochRange::new(..10); // All items up to epoch 10 (10 excluded)
+    /// GetBlocksEpochRange::new(..=9); // All items up to epoch 9 inclusive (same as above)
+    /// GetBlocksEpochRange::new(4..=4); // Only epoch 4
+    /// ```
+    pub fn new<R: RangeBounds<Epoch>>(r: R) -> Self {
+        // Manually implement `cloned` method
+        let cloned = |b: Bound<&Epoch>| match b {
+            Bound::Included(x) => Bound::Included(*x),
+            Bound::Excluded(x) => Bound::Excluded(*x),
+            Bound::Unbounded => Bound::Unbounded,
+        };
+
+        Self {
+            range: (cloned(r.start_bound()), cloned(r.end_bound())),
+        }
+    }
 }
 
 impl Message for GetBlocksEpochRange {
-    type Result = Result<Vec<InventoryEntry>, ChainManagerError>;
+    type Result = Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>;
 }
 
 /// Build a new block using the supplied leadership proof
