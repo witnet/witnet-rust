@@ -40,9 +40,9 @@ impl SessionsManager {
                 "{} Inbound: {} | Outbound: {}",
                 Cyan.bold().paint("[Sessions]"),
                 Cyan.bold()
-                    .paint(act.sessions.get_num_outbound_sessions().to_string()),
+                    .paint(act.sessions.get_num_inbound_sessions().to_string()),
                 Cyan.bold()
-                    .paint(act.sessions.get_num_inbound_sessions().to_string())
+                    .paint(act.sessions.get_num_outbound_sessions().to_string())
             );
 
             // Check if bootstrap is needed
