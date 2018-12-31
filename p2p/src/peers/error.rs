@@ -4,26 +4,24 @@ use failure::Fail;
 use std::fmt;
 use witnet_util::error::WitnetResult;
 
-/// Peers Error
+/// Peers management error
 #[derive(Debug, Fail)]
-#[fail(display = "{} : at \"{}\", msg {}", kind, info, msg)]
+#[fail(display = "{} :  msg {}", kind, msg)]
 pub struct PeersError {
-    /// Operation kind
+    /// Which operation errored
     kind: PeersErrorKind,
-    /// Operation parameter
-    info: String,
-    /// Error message from database
+    /// Error message
     msg: String,
 }
 
 impl PeersError {
-    /// Create a peers error based on operation kind and related info.
-    pub fn new(kind: PeersErrorKind, info: String, msg: String) -> Self {
-        Self { kind, info, msg }
+    /// Create a peers management error based on operation kind and related message
+    pub fn new(kind: PeersErrorKind, msg: String) -> Self {
+        Self { kind, msg }
     }
 }
 
-/// Peers Errors while operating on database
+/// Different kinds of peers management errors
 #[derive(Debug)]
 pub enum PeersErrorKind {}
 
