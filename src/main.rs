@@ -15,6 +15,7 @@ use structopt::StructOpt;
 use witnet_core as core;
 
 mod cli;
+mod json_rpc_client;
 
 fn main() {
     // Init app logger

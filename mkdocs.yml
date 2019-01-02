@@ -84,6 +84,7 @@ nav:
     - Witscript Parser: architecture/witscript.md
     - JSON-RPC Server: architecture/json-rpc-server.md
   - Interface:
+    - Command Line Interface (CLI): interface/cli.md
     - JSON-RPC: interface/json-rpc.md
   - Advanced:
     - Network constants: advanced/constants.md
