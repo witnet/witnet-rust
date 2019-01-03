@@ -379,6 +379,11 @@ impl ChainManager {
                     Ok(hash) => {
                         self.broadcast_block(hash);
 
+                        // Update block candidate
+                        if Some(block.block_header.beacon.checkpoint) == self.current_epoch {
+                            self.block_candidate = Some(block.clone());
+                        }
+
                         // Save block to storage
                         // TODO: dont save the current candidate into storage
                         // Because it may not be the chosen block
