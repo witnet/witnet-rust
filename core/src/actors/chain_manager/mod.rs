@@ -43,8 +43,8 @@ use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{
-    Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, Output,
-    Transaction, TransactionsPool, UnspentOutput,
+    Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, Input, InventoryEntry, InventoryItem,
+    Output, OutputPointer, TransactionsPool,
 };
 
 use crate::actors::chain_manager::messages::BuildBlock;
@@ -99,8 +99,10 @@ pub struct ChainManager {
     transactions_pool: TransactionsPool,
     /// Block candidate to update chain_info in the next epoch
     block_candidate: Option<Block>,
+    /// Maximum weight each block can have
+    max_block_weight: u32,
     /// Unspent Outputs Pool
-    _unspent_outputs_pool: HashMap<UnspentOutput, Output>,
+    unspent_outputs_pool: HashMap<OutputPointer, Output>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -111,6 +113,55 @@ impl SystemService for ChainManager {}
 
 /// Auxiliary methods for ChainManager actor
 impl ChainManager {
+    /// Method to check that all inpunts point to unspend output
+    fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
+        inputs.iter().all(|tx_input| {
+            let output_pointer = match tx_input {
+                Input::Commit(tx) => OutputPointer {
+                    transaction_id: Hash::SHA256(tx.transaction_id),
+                    output_index: tx.output_index,
+                },
+                Input::Reveal(tx) => OutputPointer {
+                    transaction_id: Hash::SHA256(tx.transaction_id),
+                    output_index: tx.output_index,
+                },
+                Input::DataRequest(tx) => OutputPointer {
+                    transaction_id: Hash::SHA256(tx.transaction_id),
+                    output_index: tx.output_index,
+                },
+            };
+
+            self.unspent_outputs_pool.contains_key(&output_pointer)
+        })
+    }
+    /// calculate output pointed from input
+    fn get_output_from_input(&self, input: Input) -> Output {
+        let output_pointer = match input {
+            Input::Commit(tx) => OutputPointer {
+                transaction_id: Hash::SHA256(tx.transaction_id),
+                output_index: tx.output_index,
+            },
+            Input::DataRequest(tx) => OutputPointer {
+                transaction_id: Hash::SHA256(tx.transaction_id),
+                output_index: tx.output_index,
+            },
+            Input::Reveal(tx) => OutputPointer {
+                transaction_id: Hash::SHA256(tx.transaction_id),
+                output_index: tx.output_index,
+            },
+        };
+
+        self.unspent_outputs_pool[&output_pointer]
+    }
+
+    /// calculate output vector from inputs vector
+    fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Vec<Output> {
+        inputs
+            .iter()
+            .map(|input| self.get_output_from_input(*input))
+            .collect()
+    }
+
     /// Method to persist chain_info into storage
     fn persist_chain_info(&self, ctx: &mut Context<Self>) {
         // Get StorageManager address
