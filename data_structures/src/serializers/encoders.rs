@@ -135,6 +135,15 @@ pub struct BlockCommandArgs<'a> {
     pub txns: &'a [Transaction],
 }
 
+#[derive(Debug, Clone)]
+pub struct TransactionCommandArgs<'a> {
+    pub version: u32,
+    pub magic: u16,
+    pub inputs: &'a [Input],
+    pub outputs: &'a [Output],
+    pub signatures: &'a [KeyedSignature],
+}
+
 #[derive(Debug, Clone, Copy)]
 struct InventoryAnnouncementWitnetArgs<'a> {
     magic: u16,
@@ -342,6 +351,23 @@ impl Into<Vec<u8>> for Message {
                 },
             ),
 
+            // TODO Use create_transaction_flatbuffer
+            Command::Transaction(Transaction {
+                version,
+                inputs,
+                outputs,
+                signatures,
+            }) => build_transaction_message_flatbuffer(
+                &mut builder,
+                &TransactionCommandArgs {
+                    magic: self.magic,
+                    version,
+                    inputs: &inputs,
+                    outputs: &outputs,
+                    signatures: &signatures,
+                },
+            ),
+
             Command::InventoryAnnouncement(InventoryAnnouncement { inventory }) => {
                 build_inv_announcement_message_flatbuffer(
                     &mut builder,
@@ -371,8 +397,6 @@ impl Into<Vec<u8>> for Message {
                     highest_block_checkpoint,
                 },
             ),
-            // TODO Use create_transaction_flatbuffer
-            Command::Transaction(_) => unimplemented!("Transaction"),
         }
     }
 }
@@ -462,6 +486,32 @@ fn build_block_message_flatbuffer<'a>(
     );
 
     build_message_flatbuffer(builder, block_message_wipoffset)
+}
+
+// Build a Transaction flatbuffer to encode a Witnet's Block message
+fn build_transaction_message_flatbuffer<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    transaction_args: &TransactionCommandArgs<'a>,
+) -> Vec<u8> {
+    let transaction_command_wipoffset = build_transaction_wipoffset(
+        builder,
+        &Transaction {
+            version: transaction_args.version,
+            inputs: transaction_args.inputs.to_vec(),
+            outputs: transaction_args.outputs.to_vec(),
+            signatures: transaction_args.signatures.to_vec(),
+        },
+    );
+    let transaction_message_wipoffset = build_message_wipoffset(
+        builder,
+        &MessageArgs {
+            magic: transaction_args.magic,
+            command_type: protocol::Command::Transaction,
+            command: Some(transaction_command_wipoffset.as_union_value()),
+        },
+    );
+
+    build_message_flatbuffer(builder, transaction_message_wipoffset)
 }
 
 /// Build CheckpointBeacon flatbuffer
@@ -1123,25 +1173,30 @@ pub fn build_transactions_vector_wipoffset<'a>(
     let txns: Vec<WIPOffsetTransaction> = transactions_vector_args
         .txns
         .iter()
-        .map(|tx: &Transaction| {
-            let input_vector_wipoffset = build_input_vector_wipoffset(builder, &tx.inputs);
-            let output_vector_wipoffset = build_output_vector_wipoffset(builder, &tx.outputs);
-            let keyed_signature_vector_wipoffset =
-                build_keyed_signature_vector_wipoffset(builder, &tx.signatures);
-
-            protocol::Transaction::create(
-                builder,
-                &protocol::TransactionArgs {
-                    version: tx.version,
-                    inputs: Some(input_vector_wipoffset),
-                    outputs: Some(output_vector_wipoffset),
-                    signatures: Some(keyed_signature_vector_wipoffset),
-                },
-            )
-        })
+        .map(|tx: &Transaction| build_transaction_wipoffset(builder, tx))
         .collect();
 
     Some(builder.create_vector(&txns))
+}
+
+pub fn build_transaction_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    transaction_args: &Transaction,
+) -> WIPOffsetTransaction<'a> {
+    let input_vector_wipoffset = build_input_vector_wipoffset(builder, &transaction_args.inputs);
+    let output_vector_wipoffset = build_output_vector_wipoffset(builder, &transaction_args.outputs);
+    let keyed_signature_vector_wipoffset =
+        build_keyed_signature_vector_wipoffset(builder, &transaction_args.signatures);
+
+    protocol::Transaction::create(
+        builder,
+        &protocol::TransactionArgs {
+            version: transaction_args.version,
+            inputs: Some(input_vector_wipoffset),
+            outputs: Some(output_vector_wipoffset),
+            signatures: Some(keyed_signature_vector_wipoffset),
+        },
+    )
 }
 
 fn build_keyed_signature_vector_wipoffset<'a>(

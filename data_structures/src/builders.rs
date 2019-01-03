@@ -151,6 +151,11 @@ impl Message {
         }))
     }
 
+    /// Function to build Block message
+    pub fn build_transaction(transaction: Transaction) -> Message {
+        Message::build_message(Command::Transaction(transaction))
+    }
+
     /// Function to build LastBeacon messages
     pub fn build_last_beacon(highest_block_checkpoint: CheckpointBeacon) -> Message {
         Message::build_message(Command::LastBeacon(LastBeacon {

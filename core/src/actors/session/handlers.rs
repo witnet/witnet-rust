@@ -468,7 +468,7 @@ fn send_get_item_request<T, U: 'static>(
 ) where
     T: Actor,
     T::Context: AsyncContext<T>,
-    U: FnOnce(&mut T, &mut T::Context, &InventoryItem),
+    U: FnOnce(&mut T, &mut T::Context, InventoryItem),
 {
     // Get InventoryManager address
     let inventory_manager_addr = System::current().registry().get::<InventoryManager>();
@@ -502,7 +502,7 @@ fn send_get_item_request<T, U: 'static>(
         // This returns a FutureResult containing a success
         .and_then(|item, act, ctx| {
             // Call function to process item
-            process_item(act, ctx, &item);
+            process_item(act, ctx, item);
 
             actix::fut::ok(())
         })
@@ -525,9 +525,11 @@ fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash)
                 // Send Block msg
                 act.send_message(block_msg);
             }
-            // TODO Use build_transaction
-            InventoryItem::Transaction(_transaction_from_inventory) => {
-                unimplemented!("Create transaction and send")
+            InventoryItem::Transaction(transaction_from_inventory) => {
+                // Build Transaction msg
+                let transaction_msg = WitnetMessage::build_transaction(transaction_from_inventory);
+                // Send Transaction msg
+                act.send_message(transaction_msg);
             }
         }
     });
