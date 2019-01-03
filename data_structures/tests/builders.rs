@@ -125,6 +125,88 @@ fn builders_build_block() {
 }
 
 #[test]
+fn builders_build_transaction() {
+    let signature = Signature::Secp256k1(Secp256k1Signature {
+        r: [0; 32],
+        s: [0; 32],
+        v: 0,
+    });
+    let keyed_signatures = vec![KeyedSignature {
+        public_key: [0; 32],
+        signature,
+    }];
+    let reveal_input = Input::Reveal(RevealInput {
+        output_index: 0,
+        transaction_id: Hash::SHA256([0; 32]),
+    });
+    let commit_input = Input::Commit(CommitInput {
+        nonce: 0,
+        output_index: 0,
+        reveal: [0; 32].to_vec(),
+        transaction_id: Hash::SHA256([0; 32]),
+    });
+    let data_request_input = Input::DataRequest(DataRequestInput {
+        output_index: 0,
+        poe: [0; 32],
+        transaction_id: Hash::SHA256([0; 32]),
+    });
+    let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
+        pkh: [0; 20],
+        value: 0,
+    });
+    let data_request_output = Output::DataRequest(DataRequestOutput {
+        backup_witnesses: 0,
+        commit_fee: 0,
+        data_request: [0; 32].to_vec(),
+        pkh: [0; 20],
+        reveal_fee: 0,
+        tally_fee: 0,
+        time_lock: 0,
+        value: 0,
+        witnesses: 0,
+    });
+    let commit_output = Output::Commit(CommitOutput {
+        commitment: Hash::SHA256([0; 32]),
+        value: 0,
+    });
+    let reveal_output = Output::Reveal(RevealOutput {
+        pkh: [0; 20],
+        reveal: [0; 32].to_vec(),
+        value: 0,
+    });
+    let consensus_output = Output::Tally(TallyOutput {
+        pkh: [0; 20],
+        result: [0; 32].to_vec(),
+        value: 0,
+    });
+
+    let inputs = vec![reveal_input, data_request_input, commit_input];
+    let outputs = vec![
+        value_transfer_output,
+        data_request_output,
+        commit_output,
+        reveal_output,
+        consensus_output,
+    ];
+
+    let txn = Transaction {
+        inputs,
+        signatures: keyed_signatures,
+        outputs,
+        version: 0,
+    };
+
+    // Expected message
+    let msg = Message {
+        kind: Command::Transaction(txn.clone()),
+        magic: MAGIC,
+    };
+
+    // Check that the build_transaction function builds the expected message
+    assert_eq!(msg, Message::build_transaction(txn));
+}
+
+#[test]
 fn builders_build_get_peers() {
     // Expected message
     let msg = Message {

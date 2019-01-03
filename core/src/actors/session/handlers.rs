@@ -208,7 +208,7 @@ impl Handler<SendBlock> for Session {
             "Sending SendBlock message to peer at {:?}",
             self.remote_addr
         );
-        send_block_msg(self, &msg.block)
+        send_block_msg(self, msg.block)
     }
 }
 
@@ -481,7 +481,7 @@ fn send_get_item_request<T, U: 'static>(
 ) where
     T: Actor,
     T::Context: AsyncContext<T>,
-    U: FnOnce(&mut T, &mut T::Context, &InventoryItem),
+    U: FnOnce(&mut T, &mut T::Context, InventoryItem),
 {
     // Get InventoryManager address
     let inventory_manager_addr = System::current().registry().get::<InventoryManager>();
@@ -515,7 +515,7 @@ fn send_get_item_request<T, U: 'static>(
         // This returns a FutureResult containing a success
         .and_then(|item, act, ctx| {
             // Call function to process item
-            process_item(act, ctx, &item);
+            process_item(act, ctx, item);
 
             actix::fut::ok(())
         })
@@ -532,18 +532,20 @@ fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash)
             InventoryItem::Block(block_from_inventory) => {
                 send_block_msg(act, block_from_inventory);
             }
-            // TODO Use build_transaction
-            InventoryItem::Transaction(_transaction_from_inventory) => {
-                unimplemented!("Create transaction and send")
+            InventoryItem::Transaction(transaction_from_inventory) => {
+                // Build Transaction msg
+                let transaction_msg = WitnetMessage::build_transaction(transaction_from_inventory);
+                // Send Transaction msg
+                act.send_message(transaction_msg);
             }
         }
     });
 }
 
-fn send_block_msg(session: &mut Session, block: &Block) {
+fn send_block_msg(session: &mut Session, block: Block) {
     let block_header = block.block_header;
     let proof = block.proof;
-    let txns = block.txns.clone();
+    let txns = block.txns;
     // Build Block msg
     let block_msg = WitnetMessage::build_block(block_header, proof, txns);
     // Send Block msg
