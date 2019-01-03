@@ -102,7 +102,7 @@ impl Handler<AddNewBlock> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddNewBlock, ctx: &mut Context<Self>) {
-        self.process_block_candidate(ctx, msg.block)
+        self.process_block(ctx, msg.block)
     }
 }
 

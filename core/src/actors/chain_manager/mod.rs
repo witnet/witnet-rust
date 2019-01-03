@@ -299,16 +299,17 @@ impl ChainManager {
         Ok(missing_inv_entries)
     }
 
-    fn process_block_candidate(&mut self, ctx: &mut Context<Self>, block: Block) {
+    fn process_block(&mut self, ctx: &mut Context<Self>, block: Block) {
         // Block verify process
         let reputation_manager_addr = System::current().registry().get::<ReputationManager>();
 
-        let ours_is_better = match self.block_candidate.as_ref() {
-            Some(candidate) => candidate.hash() < block.hash(),
-            None => false,
-        };
-
         let block_epoch = block.block_header.beacon.checkpoint;
+
+        let our_candidate_is_better = Some(block_epoch) == self.current_epoch
+            && match self.block_candidate.as_ref() {
+                Some(candidate) => candidate.hash() < block.hash(),
+                None => false,
+            };
 
         self.current_epoch
             .map(|current_epoch| {
@@ -321,7 +322,7 @@ impl ChainManager {
                         "Block epoch from the future: current: {}, block: {}",
                         current_epoch, block_epoch
                     );
-                } else if ours_is_better {
+                } else if our_candidate_is_better {
                     if let Some(candidate) = self.block_candidate.as_ref() {
                         debug!(
                             "We already had a better candidate ({:?} overpowers {:?})",
