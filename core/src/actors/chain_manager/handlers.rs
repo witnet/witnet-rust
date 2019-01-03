@@ -102,7 +102,17 @@ impl Handler<AddNewBlock> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddNewBlock, ctx: &mut Context<Self>) {
-        self.process_block_candidate(ctx, msg.block)
+        self.process_block(ctx, msg.block)
+    }
+}
+
+/// Handler for AddTransaction message
+impl Handler<AddTransaction> for ChainManager {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, _msg: AddTransaction, _ctx: &mut Context<Self>) {
+        // FIXME(#240) Implement transaction process
+        debug!("Transaction received");
     }
 }
 

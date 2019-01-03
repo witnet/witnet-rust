@@ -44,7 +44,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{
     Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, Output,
-    OutputPointer, TransactionsPool,
+    Transaction, TransactionsPool, UnspentOutput,
 };
 
 use crate::actors::chain_manager::messages::BuildBlock;
@@ -99,10 +99,8 @@ pub struct ChainManager {
     transactions_pool: TransactionsPool,
     /// Block candidate to update chain_info in the next epoch
     block_candidate: Option<Block>,
-    /// Maximum weight each block can have
-    max_block_weight: u32,
     /// Unspent Outputs Pool
-    _unspent_outputs_pool: HashMap<OutputPointer, Output>,
+    _unspent_outputs_pool: HashMap<UnspentOutput, Output>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -299,16 +297,17 @@ impl ChainManager {
         Ok(missing_inv_entries)
     }
 
-    fn process_block_candidate(&mut self, ctx: &mut Context<Self>, block: Block) {
+    fn process_block(&mut self, ctx: &mut Context<Self>, block: Block) {
         // Block verify process
         let reputation_manager_addr = System::current().registry().get::<ReputationManager>();
 
-        let ours_is_better = match self.block_candidate.as_ref() {
-            Some(candidate) => candidate.hash() < block.hash(),
-            None => false,
-        };
-
         let block_epoch = block.block_header.beacon.checkpoint;
+
+        let our_candidate_is_better = Some(block_epoch) == self.current_epoch
+            && match self.block_candidate.as_ref() {
+                Some(candidate) => candidate.hash() < block.hash(),
+                None => false,
+            };
 
         self.current_epoch
             .map(|current_epoch| {
@@ -321,7 +320,7 @@ impl ChainManager {
                         "Block epoch from the future: current: {}, block: {}",
                         current_epoch, block_epoch
                     );
-                } else if ours_is_better {
+                } else if our_candidate_is_better {
                     if let Some(candidate) = self.block_candidate.as_ref() {
                         debug!(
                             "We already had a better candidate ({:?} overpowers {:?})",

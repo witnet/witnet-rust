@@ -31,7 +31,7 @@ use super::{
 use witnet_data_structures::{
     builders::from_address,
     chain::{Block, CheckpointBeacon, Hash, InventoryEntry, InventoryItem, Transaction},
-    serializers::decoders::TryFrom,
+    serializers::TryFrom,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
         Message as WitnetMessage, Peers, Version,
