@@ -1321,54 +1321,13 @@ fn build_input_vector_wipoffset<'a>(
     let input_vector_wipoffset: Vec<flatbuffers::WIPOffset<protocol::Input>> = input_vector
         .iter()
         .map(|input: &Input| match input {
-            Input::ValueTransfer(value_transfer) => {
-                let transaction_id = builder.create_vector(&value_transfer.transaction_id);
-                let value_transfer_input_wipoffset = protocol::ValueTransferInput::create(
-                    builder,
-                    &protocol::ValueTransferInputArgs {
-                        output_index: value_transfer.output_index,
-                        transaction_id: Some(transaction_id),
-                    },
-                );
-
-                protocol::Input::create(
-                    builder,
-                    &protocol::InputArgs {
-                        input_type: protocol::InputUnion::ValueTransferInput,
-                        input: Some(value_transfer_input_wipoffset.as_union_value()),
-                    },
-                )
-            }
-            Input::Commit(commit) => {
-                let transaction_id = builder.create_vector(&commit.transaction_id);
-                let poe = builder.create_vector(&commit.poe);
-                let commit_input_wipoffset = protocol::CommitInput::create(
-                    builder,
-                    &protocol::CommitInputArgs {
-                        transaction_id: Some(transaction_id),
-                        output_index: commit.output_index,
-                        poe: Some(poe),
-                    },
-                );
-
-                protocol::Input::create(
-                    builder,
-                    &protocol::InputArgs {
-                        input_type: protocol::InputUnion::CommitInput,
-                        input: Some(commit_input_wipoffset.as_union_value()),
-                    },
-                )
-            }
             Input::Reveal(reveal) => {
-                let transaction_id_vector_wipoffset = builder.create_vector(&reveal.transaction_id);
-                let reveal_vector_wipoffset = builder.create_vector(&reveal.reveal);
-                let reveal_input_wipoffset = protocol::RevealInput::create(
+                let transaction_id = builder.create_vector(&reveal.transaction_id);
+                let value_transfer_input_wipoffset = protocol::RevealInput::create(
                     builder,
                     &protocol::RevealInputArgs {
-                        transaction_id: Some(transaction_id_vector_wipoffset),
                         output_index: reveal.output_index,
-                        reveal: Some(reveal_vector_wipoffset),
-                        nonce: reveal.nonce,
+                        transaction_id: Some(transaction_id),
                     },
                 );
 
@@ -1376,24 +1335,48 @@ fn build_input_vector_wipoffset<'a>(
                     builder,
                     &protocol::InputArgs {
                         input_type: protocol::InputUnion::RevealInput,
-                        input: Some(reveal_input_wipoffset.as_union_value()),
+                        input: Some(value_transfer_input_wipoffset.as_union_value()),
                     },
                 )
             }
-            Input::Tally(tally) => {
-                let transaction_id_vector_wipoffset = builder.create_vector(&tally.transaction_id);
-                let tally_input_wipoffset = protocol::TallyInput::create(
+            Input::DataRequest(data_request) => {
+                let transaction_id = builder.create_vector(&data_request.transaction_id);
+                let poe = builder.create_vector(&data_request.poe);
+                let commit_input_wipoffset = protocol::DataRequestInput::create(
                     builder,
-                    &protocol::TallyInputArgs {
-                        transaction_id: Some(transaction_id_vector_wipoffset),
-                        output_index: tally.output_index,
+                    &protocol::DataRequestInputArgs {
+                        transaction_id: Some(transaction_id),
+                        output_index: data_request.output_index,
+                        poe: Some(poe),
                     },
                 );
+
                 protocol::Input::create(
                     builder,
                     &protocol::InputArgs {
-                        input_type: protocol::InputUnion::TallyInput,
-                        input: Some(tally_input_wipoffset.as_union_value()),
+                        input_type: protocol::InputUnion::DataRequestInput,
+                        input: Some(commit_input_wipoffset.as_union_value()),
+                    },
+                )
+            }
+            Input::Commit(commit) => {
+                let transaction_id_vector_wipoffset = builder.create_vector(&commit.transaction_id);
+                let commit_vector_wipoffset = builder.create_vector(&commit.reveal);
+                let reveal_input_wipoffset = protocol::CommitInput::create(
+                    builder,
+                    &protocol::CommitInputArgs {
+                        transaction_id: Some(transaction_id_vector_wipoffset),
+                        output_index: commit.output_index,
+                        reveal: Some(commit_vector_wipoffset),
+                        nonce: commit.nonce,
+                    },
+                );
+
+                protocol::Input::create(
+                    builder,
+                    &protocol::InputArgs {
+                        input_type: protocol::InputUnion::CommitInput,
+                        input: Some(reveal_input_wipoffset.as_union_value()),
                     },
                 )
             }

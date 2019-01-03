@@ -194,33 +194,22 @@ mod tests {
             signature,
         }];
 
-        let value_transfer_input = Input::ValueTransfer(ValueTransferInput {
-            output_index: 0,
-            transaction_id: [0; 32],
-        });
-
         let reveal_input = Input::Reveal(RevealInput {
-            nonce: 0,
-            output_index: 0,
-            reveal: [0; 32],
-            transaction_id: [0; 32],
-        });
-        let tally_input = Input::Tally(TallyInput {
             output_index: 0,
             transaction_id: [0; 32],
         });
 
         let commit_input = Input::Commit(CommitInput {
+            nonce: 0,
+            output_index: 0,
+            reveal: [0; 32],
+            transaction_id: [0; 32],
+        });
+        let data_request_input = Input::DataRequest(DataRequestInput {
             output_index: 0,
             poe: [0; 32],
             transaction_id: [0; 32],
         });
-
-        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-            pkh: Hash::SHA256([0; 32]),
-            value: 0,
-        });
-
         let data_request_output = Output::DataRequest(DataRequestOutput {
             backup_witnesses: 0,
             commit_fee: 0,
@@ -245,13 +234,11 @@ mod tests {
             result: [0; 32],
             value: 0,
         });
-
-        let inputs = vec![
-            value_transfer_input,
-            reveal_input,
-            tally_input,
-            commit_input,
-        ];
+        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
+            pkh: Hash::SHA256([0; 32]),
+            value: 0,
+        });
+        let inputs = vec![reveal_input, data_request_input, commit_input];
         let outputs = vec![
             value_transfer_output,
             data_request_output,
@@ -336,21 +323,17 @@ mod tests {
             public_key: [0; 32],
             signature,
         }];
-        let value_transfer_input = Input::ValueTransfer(ValueTransferInput {
+        let reveal_input = Input::Reveal(RevealInput {
             output_index: 0,
             transaction_id: [0; 32],
         });
-        let reveal_input = Input::Reveal(RevealInput {
+        let commit_input = Input::Commit(CommitInput {
             nonce: 0,
             output_index: 0,
             reveal: [0; 32],
             transaction_id: [0; 32],
         });
-        let tally_input = Input::Tally(TallyInput {
-            output_index: 0,
-            transaction_id: [0; 32],
-        });
-        let commit_input = Input::Commit(CommitInput {
+        let data_request_input = Input::DataRequest(DataRequestInput {
             output_index: 0,
             poe: [0; 32],
             transaction_id: [0; 32],
@@ -384,12 +367,7 @@ mod tests {
             value: 0,
         });
 
-        let inputs = vec![
-            value_transfer_input,
-            reveal_input,
-            tally_input,
-            commit_input,
-        ];
+        let inputs = vec![commit_input, data_request_input, reveal_input];
         let outputs = vec![
             value_transfer_output,
             data_request_output,
@@ -420,7 +398,7 @@ mod tests {
         };
         let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem);
-        let expected = r#"{"block":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":{"SHA256":[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig":null,"influence":99999},"txns":[{"version":0,"inputs":[{"ValueTransfer":{"transaction_id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"output_index":0}},{"Reveal":{"transaction_id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"output_index":0,"reveal":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"nonce":0}},{"Tally":{"transaction_id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"output_index":0}},{"Commit":{"transaction_id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"output_index":0,"poe":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}],"outputs":[{"ValueTransfer":{"pkh":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"value":0}},{"DataRequest":{"data_request":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}},{"Commit":{"commitment":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"value":0}},{"Reveal":{"reveal":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"pkh":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"value":0}},{"Consensus":{"result":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"pkh":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"value":0}}],"signatures":[{"signature":{"Secp256k1":{"r":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"s":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"v":0}},"public_key":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]}]}}"#;
+        let expected = r#"{"block":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":{"SHA256":[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig":null,"influence":99999},"txns":[{"version":0,"inputs":[{"Commit":{"transaction_id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"output_index":0,"reveal":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"nonce":0}},{"DataRequest":{"transaction_id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"output_index":0,"poe":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}},{"Reveal":{"transaction_id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"output_index":0}}],"outputs":[{"ValueTransfer":{"pkh":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"value":0}},{"DataRequest":{"data_request":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}},{"Commit":{"commitment":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"value":0}},{"Reveal":{"reveal":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"pkh":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"value":0}},{"Consensus":{"result":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"pkh":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"value":0}}],"signatures":[{"signature":{"Secp256k1":{"r":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"s":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"v":0}},"public_key":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]}]}}"#;
         assert_eq!(s.unwrap(), expected);
     }
 }

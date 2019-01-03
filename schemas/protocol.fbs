@@ -144,29 +144,24 @@ table Block {
 /////////////////////////////////////////////////////////
 // TRANSACTION MESSAGES
 /////////////////////////////////////////////////////////
-union InputUnion (required) {ValueTransferInput, CommitInput, RevealInput, TallyInput}
+union InputUnion (required) {CommitInput, RevealInput, DataRequestInput}
 
-table ValueTransferInput {
+table RevealInput {
     transaction_id: [ubyte] (required);
     output_index: uint32;
 }
 
-table CommitInput {
+table DataRequestInput {
     transaction_id: [ubyte] (required);
     output_index: uint32;
     poe: [ubyte] (required);
 }
 
-table RevealInput {
+table CommitInput {
     transaction_id: [ubyte] (required);
     output_index: uint32;
     reveal: [ubyte] (required);
     nonce: uint64;
-}
-
-table TallyInput {
-    transaction_id: [ubyte] (required);
-    output_index: uint32;
 }
 
 table Input {

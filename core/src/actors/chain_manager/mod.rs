@@ -641,23 +641,19 @@ mod tests {
             signature,
         }];
 
-        let value_transfer_input = Input::ValueTransfer(ValueTransferInput {
-            output_index: 0,
-            transaction_id: [0; 32],
-        });
-
         let reveal_input = Input::Reveal(RevealInput {
-            nonce: 0,
-            output_index: 0,
-            reveal: [0; 32],
-            transaction_id: [0; 32],
-        });
-        let tally_input = Input::Tally(TallyInput {
             output_index: 0,
             transaction_id: [0; 32],
         });
 
         let commit_input = Input::Commit(CommitInput {
+            nonce: 0,
+            output_index: 0,
+            reveal: [0; 32],
+            transaction_id: [0; 32],
+        });
+
+        let data_request_input = Input::DataRequest(DataRequestInput {
             output_index: 0,
             poe: [0; 32],
             transaction_id: [0; 32],
@@ -693,12 +689,7 @@ mod tests {
             value: 0,
         });
 
-        let inputs = vec![
-            value_transfer_input,
-            reveal_input,
-            tally_input,
-            commit_input,
-        ];
+        let inputs = vec![commit_input, data_request_input, reveal_input];
         let outputs = vec![
             value_transfer_output,
             data_request_output,

@@ -265,21 +265,23 @@ impl AsRef<Transaction> for Transaction {
 /// Input data structure
 #[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Input {
-    ValueTransfer(ValueTransferInput),
     Commit(CommitInput),
+    DataRequest(DataRequestInput),
     Reveal(RevealInput),
-    Tally(TallyInput),
-}
-/// Value transfer input transaction data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub struct ValueTransferInput {
-    pub transaction_id: [u8; 32],
-    pub output_index: u32,
 }
 
 /// Commit input transaction data structure
 #[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct CommitInput {
+    pub transaction_id: [u8; 32],
+    pub output_index: u32,
+    pub reveal: [u8; 32],
+    pub nonce: u64,
+}
+
+/// Commit input transaction data structure
+#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct DataRequestInput {
     pub transaction_id: [u8; 32],
     pub output_index: u32,
     pub poe: [u8; 32],
@@ -288,15 +290,6 @@ pub struct CommitInput {
 /// Reveal input transaction data structure
 #[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct RevealInput {
-    pub transaction_id: [u8; 32],
-    pub output_index: u32,
-    pub reveal: [u8; 32],
-    pub nonce: u64,
-}
-
-/// Tally input transaction data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub struct TallyInput {
     pub transaction_id: [u8; 32],
     pub output_index: u32,
 }
@@ -591,11 +584,7 @@ impl TransactionsPool {
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
 #[derive(Debug, Default, Hash, Clone, Eq, PartialEq)]
-<<<<<<< HEAD
 pub struct OutputPointer {
-=======
-pub struct UnspentOutput {
->>>>>>> feat(actors): add unspent output pool to ChainManager
     pub transaction_id: Hash,
     pub output_index: u32,
 }
@@ -646,21 +635,17 @@ mod tests {
             public_key: [0; 32],
             signature,
         }];
-        let value_transfer_input = Input::ValueTransfer(ValueTransferInput {
-            output_index: 0,
-            transaction_id: [0; 32],
-        });
-        let reveal_input = Input::Reveal(RevealInput {
+        let commit_input = Input::Commit(CommitInput {
             nonce: 0,
             output_index: 0,
             reveal: [0; 32],
             transaction_id: [0; 32],
         });
-        let tally_input = Input::Tally(TallyInput {
+        let reveal_input = Input::Reveal(RevealInput {
             output_index: 0,
             transaction_id: [0; 32],
         });
-        let commit_input = Input::Commit(CommitInput {
+        let data_request_input = Input::DataRequest(DataRequestInput {
             output_index: 0,
             poe: [0; 32],
             transaction_id: [0; 32],
@@ -693,12 +678,7 @@ mod tests {
             result: [0; 32],
             value: 0,
         });
-        let inputs = vec![
-            value_transfer_input,
-            reveal_input,
-            tally_input,
-            commit_input,
-        ];
+        let inputs = vec![commit_input, data_request_input, reveal_input];
         let outputs = vec![
             value_transfer_output,
             data_request_output,
@@ -718,8 +698,8 @@ mod tests {
             txns,
         };
         let expected = Hash::SHA256([
-            75, 60, 44, 31, 102, 63, 104, 156, 20, 88, 228, 8, 138, 160, 207, 99, 82, 141, 187, 19,
-            52, 211, 212, 109, 108, 205, 149, 166, 216, 242, 60, 239,
+            139, 24, 35, 96, 160, 205, 247, 41, 14, 61, 156, 100, 126, 60, 68, 118, 95, 42, 204,
+            129, 228, 29, 54, 52, 38, 203, 172, 58, 200, 20, 211, 248,
         ]);
         assert_eq!(block.hash(), expected);
     }
@@ -735,21 +715,17 @@ mod tests {
             public_key: [0; 32],
             signature,
         }];
-        let value_transfer_input = Input::ValueTransfer(ValueTransferInput {
-            output_index: 0,
-            transaction_id: [0; 32],
-        });
-        let reveal_input = Input::Reveal(RevealInput {
+        let commit_input = Input::Commit(CommitInput {
             nonce: 0,
             output_index: 0,
             reveal: [0; 32],
             transaction_id: [0; 32],
         });
-        let tally_input = Input::Tally(TallyInput {
+        let reveal_input = Input::Reveal(RevealInput {
             output_index: 0,
             transaction_id: [0; 32],
         });
-        let commit_input = Input::Commit(CommitInput {
+        let data_request_input = Input::DataRequest(DataRequestInput {
             output_index: 0,
             poe: [0; 32],
             transaction_id: [0; 32],
@@ -782,12 +758,7 @@ mod tests {
             result: [0; 32],
             value: 0,
         });
-        let inputs = vec![
-            value_transfer_input,
-            reveal_input,
-            tally_input,
-            commit_input,
-        ];
+        let inputs = vec![commit_input, data_request_input, reveal_input];
         let outputs = vec![
             value_transfer_output,
             data_request_output,
@@ -802,8 +773,8 @@ mod tests {
             version: 0,
         };
         let expected = Hash::SHA256([
-            210, 97, 146, 25, 56, 31, 47, 86, 212, 73, 115, 112, 79, 233, 239, 214, 30, 58, 137,
-            174, 191, 146, 196, 222, 24, 248, 211, 55, 150, 243, 87, 228,
+            78, 197, 225, 15, 12, 154, 137, 124, 155, 77, 166, 144, 177, 172, 136, 235, 142, 203,
+            145, 146, 138, 20, 179, 215, 245, 23, 66, 11, 29, 75, 57, 171,
         ]);
         assert_eq!(transaction.hash(), expected);
     }
