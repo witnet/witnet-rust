@@ -1,10 +1,9 @@
 //! Load the configuration from a file or a `String` written in [Toml format](Tomlhttps://en.wikipedia.org/wiki/TOML)
 
-use crate::config::partial::Config;
+use crate::config::PartialConfig;
 use failure::Fail;
 use std::fmt;
-use std::fs::File;
-use std::io::{self, Read};
+use std::io;
 use std::path::Path;
 use toml;
 use witnet_util::error::{WitnetError, WitnetResult};
@@ -19,7 +18,7 @@ pub enum Error {
     /// Indicates there was an error when trying to load configuration from a file.
     IOError(io::Error),
     /// Indicates there was an error when trying to build a
-    /// `witnet_config::config::partial::Config` instance out of the Toml string given.
+    /// `witnet_config::config::PartialConfig` instance out of the Toml string given.
     ParseError(toml::de::Error),
 }
 
@@ -40,7 +39,7 @@ impl fmt::Display for Error {
 pub type Result<T> = WitnetResult<T, Error>;
 
 /// Load configuration from a file written in Toml format.
-pub fn from_file(file: &Path) -> Result<Config> {
+pub fn from_file(file: &Path) -> Result<PartialConfig> {
     let mut contents = String::new();
     read_file_contents(file, &mut contents).map_err(Error::IOError)?;
     from_str(&contents)
@@ -48,6 +47,9 @@ pub fn from_file(file: &Path) -> Result<Config> {
 
 #[cfg(not(test))]
 fn read_file_contents(file: &Path, contents: &mut String) -> io::Result<usize> {
+    use std::fs::File;
+    use std::io::Read;
+
     let mut file = File::open(file)?;
     file.read_to_string(contents)
 }
@@ -65,13 +67,13 @@ fn read_file_contents(_filename: &Path, contents: &mut String) -> io::Result<usi
 }
 
 /// Load configuration from a string written in Toml format.
-pub fn from_str(contents: &str) -> Result<Config> {
+pub fn from_str(contents: &str) -> Result<PartialConfig> {
     toml::from_str(contents).map_err(|e| WitnetError::from(Error::ParseError(e)))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::config::partial::*;
+    use crate::config::*;
     use std::path::{Path, PathBuf};
     use witnet_data_structures::chain::Environment;
 
@@ -79,7 +81,7 @@ mod tests {
     fn test_load_empty_config() {
         let config = super::from_str("").unwrap();
 
-        assert_eq!(config, Config::default());
+        assert_eq!(config, PartialConfig::default());
     }
 
     #[test]
@@ -88,7 +90,7 @@ mod tests {
         let filename = Path::new("config.toml");
         let config = super::from_file(&filename).unwrap();
 
-        assert_eq!(config, Config::default());
+        assert_eq!(config, PartialConfig::default());
     }
 
     #[test]
@@ -99,7 +101,7 @@ mod tests {
 environment = 'testnet-1'
 [connections]
 inbound_limit = 999
-",
+    ",
             )
         });
         let filename = Path::new("config.toml");
@@ -126,11 +128,11 @@ inbound_limit = 999
 [connections]
 server_addr = '127.0.0.1:1234'
 known_peers = ['192.168.1.12:1234']
-",
+    ",
         )
         .unwrap();
 
-        assert_eq!(empty_config.connections, Connections::default());
+        assert_eq!(empty_config.connections, PartialConnections::default());
         assert_eq!(empty_config.connections.known_peers.len(), 0);
         assert_eq!(
             config.connections.server_addr,
@@ -146,11 +148,11 @@ known_peers = ['192.168.1.12:1234']
             r"
 [storage]
 db_path = 'dbfiles'
-",
+    ",
         )
         .unwrap();
 
-        assert_eq!(empty_config.storage, Storage::default());
+        assert_eq!(empty_config.storage, PartialStorage::default());
         assert_eq!(config.storage.db_path, Some(PathBuf::from("dbfiles")));
     }
 
@@ -165,22 +167,22 @@ db_path = 'dbfiles'
 bootstrap_peers_period_seconds = 11
 storage_peers_period_seconds = 7
 handshake_timeout_seconds = 21
-",
+    ",
         )
         .unwrap();
 
         // Check default values in empty config
         assert_eq!(
             empty_config.connections.bootstrap_peers_period,
-            Connections::default().bootstrap_peers_period
+            PartialConnections::default().bootstrap_peers_period
         );
         assert_eq!(
             empty_config.connections.storage_peers_period,
-            Connections::default().storage_peers_period
+            PartialConnections::default().storage_peers_period
         );
         assert_eq!(
             empty_config.connections.handshake_timeout,
-            Connections::default().handshake_timeout
+            PartialConnections::default().handshake_timeout
         );
 
         // Check values in initialized config
@@ -205,18 +207,18 @@ handshake_timeout_seconds = 21
             r"
 [jsonrpc]
 server_address = '127.0.0.1:1234'
-",
+    ",
         )
         .unwrap();
         let config_disabled = super::from_str(
             r"
 [jsonrpc]
 enabled = false
-",
+    ",
         )
         .unwrap();
 
-        assert_eq!(empty_config.jsonrpc, JsonRPC::default());
+        assert_eq!(empty_config.jsonrpc, PartialJsonRPC::default());
         assert_eq!(
             config.jsonrpc.server_address,
             Some("127.0.0.1:1234".parse().unwrap())
@@ -231,11 +233,11 @@ enabled = false
             r"
 [mining]
 enabled = false
-",
+    ",
         )
         .unwrap();
 
-        assert_eq!(empty_config.mining, Mining::default());
+        assert_eq!(empty_config.mining, PartialMining::default());
         assert_eq!(config_disabled.mining.enabled, Some(false),);
     }
 }

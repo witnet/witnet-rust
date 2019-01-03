@@ -4,7 +4,7 @@
 //! configuration params for Witnet. The `Config` struct in this
 //! module is __total__, that is, it contains all the required fields
 //! needed by the rest of the application unlike the partial
-//! [Config](config::partial::Config) which is
+//! [Config](config::PartialConfig) which is
 //! __partial__, meaning most fields are optional and they may not
 //! appear in configuration file in which case a default value for the
 //! environment will be used.
@@ -17,8 +17,8 @@
 //! You can create an instance of this config in serveral ways:
 //!
 //! * By creating the instance manually:
-//! ```
-//! // Config { environment: Environment::Testnet1, ... }
+//! ```text
+//! Config { environment: Environment::Testnet1, ... }
 //! ```
 //! * By using the [Default](std::default::Default) instance
 //! ```
@@ -26,58 +26,69 @@
 //!
 //! Config::default();
 //! ```
-//! * By using a partial [Config](config::partial::Config) instance
+//! * By using a partial [Config](config::PartialConfig) instance
 //!   that will be merged on top of the environment-specific one
 //!   ([defaults](defaults))
 //! ```
-//! use witnet_config::config::{partial, Config};
+//! use witnet_config::config::{PartialConfig, Config};
 //!
 //! // Default config for testnet
-//! Config::from_partial(&partial::Config::default());
+//! Config::from_partial(&PartialConfig::default());
 //!
 //! // Default config for mainnet
-//! // Config::from_partial(&partial::Config::default_mainnet());
+//! // Config::from_partial(&PartialConfig::default_mainnet());
 //! ```
-
 use crate::defaults::{Defaults, Testnet1};
 use log::warn;
+use partial_struct::PartialStruct;
+use serde::{Deserialize, Deserializer};
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use witnet_data_structures::chain::{ConsensusConstants, Environment};
-
-/// Module containing the partial configuration struct that is
-/// returned by the loaders.
-pub mod partial;
+use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
 
 /// The total configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(PartialStruct, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct Config {
     /// The "environment" in which the protocol will be deployed, eg:
     /// mainnet, testnet, etc.
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
     pub environment: Environment,
 
     /// Connections-related configuration
+    #[partial_struct(ty = "PartialConnections")]
+    #[partial_struct(serde(default))]
     pub connections: Connections,
 
     /// Storage-related configuration
+    #[partial_struct(ty = "PartialStorage")]
+    #[partial_struct(serde(default))]
     pub storage: Storage,
 
     /// Consensus-critical configuration
+    #[partial_struct(ty = "PartialConsensusConstants")]
+    #[partial_struct(serde(default))]
     pub consensus_constants: ConsensusConstants,
 
     /// JSON-RPC API configuration
+    #[partial_struct(ty = "PartialJsonRPC")]
+    #[partial_struct(serde(default))]
     pub jsonrpc: JsonRPC,
 
     /// Mining-related configuration
+    #[partial_struct(ty = "PartialMining")]
+    #[partial_struct(serde(default))]
     pub mining: Mining,
 }
 
 /// Connection-specific configuration.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(PartialStruct, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct Connections {
     /// Server address, that is, the socket address (interface ip and
     /// port) to which the server accepting connections from other
@@ -95,30 +106,64 @@ pub struct Connections {
     /// List of other peer addresses this node knows at start, it is
     /// used as a bootstrap mechanism to gain access to the P2P
     /// network
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
     pub known_peers: HashSet<SocketAddr>,
 
     /// Period of the bootstrap peers task
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "bootstrap_peers_period_seconds"
+    ))]
     pub bootstrap_peers_period: Duration,
 
     /// Period of the persist peers task
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "storage_peers_period_seconds"
+    ))]
     pub storage_peers_period: Duration,
 
     /// Period of the peers discovery task
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "discovery_peers_period_seconds"
+    ))]
     pub discovery_peers_period: Duration,
 
     /// Handshake timeout
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "handshake_timeout_seconds"
+    ))]
     pub handshake_timeout: Duration,
 }
 
+fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(match u64::deserialize(deserializer) {
+        Ok(secs) => Some(Duration::from_secs(secs)),
+        Err(_) => None,
+    })
+}
+
 /// Storage-specific configuration
-#[derive(Debug, Clone, PartialEq)]
+#[derive(PartialStruct, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct Storage {
     /// Path to the directory that will contain the database files
     pub db_path: PathBuf,
 }
 
 /// JsonRPC API configuration
-#[derive(Debug, Clone, PartialEq)]
+#[derive(PartialStruct, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct JsonRPC {
     /// Binary flag telling whether to enable the JSON-RPC interface or not
     pub enabled: bool,
@@ -128,52 +173,53 @@ pub struct JsonRPC {
 }
 
 /// Mining-related configuration
-#[derive(Debug, Clone, PartialEq)]
+#[derive(PartialStruct, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct Mining {
     /// Binary flag telling whether to enable the MiningManager or not
     pub enabled: bool,
 }
 
 impl Config {
-    pub fn from_partial(config: &partial::Config) -> Self {
-        let defaults: Box<Defaults> = match config.environment {
+    pub fn from_partial(config: &PartialConfig) -> Self {
+        let defaults = match config.environment {
             Environment::Mainnet => {
                 panic!("Config with mainnet environment is currently not allowed");
             }
-            Environment::Testnet1 => Box::new(Testnet1),
+            Environment::Testnet1 => &Testnet1,
         };
 
         let consensus_constants = match config.environment {
             // When in mainnet, ignore the [consensus_constants] section of the configuration
             Environment::Mainnet => {
-                let consensus_constants_no_changes = partial::ConsensusConstants::default();
+                let consensus_constants_no_changes = PartialConsensusConstants::default();
                 // Warn the user if the config file contains a non-empty [consensus_constant] section
                 if config.consensus_constants != consensus_constants_no_changes {
                     warn!(
                         "Consensus constants in the configuration are ignored when running mainnet"
                     );
                 }
-                consensus_constants_from_partial(&consensus_constants_no_changes, &*defaults)
+                consensus_constants_from_partial(&consensus_constants_no_changes, defaults)
             }
             // In testnet, allow to override the consensus constants
             Environment::Testnet1 => {
-                consensus_constants_from_partial(&config.consensus_constants, &*defaults)
+                consensus_constants_from_partial(&config.consensus_constants, defaults)
             }
         };
 
         Config {
             environment: config.environment.clone(),
-            connections: Connections::from_partial(&config.connections, &*defaults),
-            storage: Storage::from_partial(&config.storage, &*defaults),
+            connections: Connections::from_partial(&config.connections, defaults),
+            storage: Storage::from_partial(&config.storage, defaults),
             consensus_constants,
-            jsonrpc: JsonRPC::from_partial(&config.jsonrpc, &*defaults),
-            mining: Mining::from_partial(&config.mining, &*defaults),
+            jsonrpc: JsonRPC::from_partial(&config.jsonrpc, defaults),
+            mining: Mining::from_partial(&config.mining, defaults),
         }
     }
 }
 
 pub fn consensus_constants_from_partial(
-    config: &partial::ConsensusConstants,
+    config: &PartialConsensusConstants,
     defaults: &dyn Defaults,
 ) -> ConsensusConstants {
     ConsensusConstants {
@@ -206,12 +252,12 @@ pub fn consensus_constants_from_partial(
 
 impl Default for Config {
     fn default() -> Self {
-        Self::from_partial(&partial::Config::default())
+        Self::from_partial(&PartialConfig::default())
     }
 }
 
 impl Connections {
-    pub fn from_partial(config: &partial::Connections, defaults: &Defaults) -> Self {
+    pub fn from_partial(config: &PartialConnections, defaults: &dyn Defaults) -> Self {
         Connections {
             server_addr: config
                 .server_addr
@@ -250,7 +296,7 @@ impl Connections {
 }
 
 impl Storage {
-    pub fn from_partial(config: &partial::Storage, defaults: &Defaults) -> Self {
+    pub fn from_partial(config: &PartialStorage, defaults: &dyn Defaults) -> Self {
         Storage {
             db_path: config
                 .db_path
@@ -261,7 +307,7 @@ impl Storage {
 }
 
 impl JsonRPC {
-    pub fn from_partial(config: &partial::JsonRPC, defaults: &dyn Defaults) -> Self {
+    pub fn from_partial(config: &PartialJsonRPC, defaults: &dyn Defaults) -> Self {
         JsonRPC {
             enabled: config
                 .enabled
@@ -276,7 +322,7 @@ impl JsonRPC {
 }
 
 impl Mining {
-    pub fn from_partial(config: &partial::Mining, defaults: &dyn Defaults) -> Self {
+    pub fn from_partial(config: &PartialMining, defaults: &dyn Defaults) -> Self {
         Mining {
             enabled: config
                 .enabled
@@ -292,29 +338,26 @@ mod tests {
 
     #[test]
     fn test_storage_default_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
-        let partial_config = partial::Storage::default();
-        let config = Storage::from_partial(&partial_config, &*defaults);
+        let partial_config = PartialStorage::default();
+        let config = Storage::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.db_path.to_str(), Testnet1.storage_db_path().to_str());
     }
 
     #[test]
     fn test_storage_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
-        let partial_config = partial::Storage {
+        let partial_config = PartialStorage {
             db_path: Some(PathBuf::from("other")),
         };
-        let config = Storage::from_partial(&partial_config, &*defaults);
+        let config = Storage::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.db_path.to_str(), Some("other"));
     }
 
     #[test]
     fn test_connections_default_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
-        let partial_config = partial::Connections::default();
-        let config = Connections::from_partial(&partial_config, &*defaults);
+        let partial_config = PartialConnections::default();
+        let config = Connections::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.server_addr, Testnet1.connections_server_addr());
         assert_eq!(config.inbound_limit, Testnet1.connections_inbound_limit());
@@ -340,9 +383,8 @@ mod tests {
 
     #[test]
     fn test_connections_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
         let addr: SocketAddr = "127.0.0.1:3000".parse().unwrap();
-        let partial_config = partial::Connections {
+        let partial_config = PartialConnections {
             server_addr: Some(addr),
             inbound_limit: Some(3),
             outbound_limit: Some(4),
@@ -352,7 +394,7 @@ mod tests {
             discovery_peers_period: Some(Duration::from_secs(100)),
             handshake_timeout: Some(Duration::from_secs(3)),
         };
-        let config = Connections::from_partial(&partial_config, &*defaults);
+        let config = Connections::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.server_addr, addr);
         assert_eq!(config.inbound_limit, 3);
@@ -366,29 +408,27 @@ mod tests {
 
     #[test]
     fn test_jsonrpc_default_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
-        let partial_config = partial::JsonRPC::default();
-        let config = JsonRPC::from_partial(&partial_config, &*defaults);
+        let partial_config = PartialJsonRPC::default();
+        let config = JsonRPC::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.server_address, Testnet1.jsonrpc_server_address());
     }
 
     #[test]
     fn test_jsonrpc_from_partial() {
-        let defaults: Box<Defaults> = Box::new(Testnet1);
         let addr: SocketAddr = "127.0.0.1:4000".parse().unwrap();
-        let partial_config = partial::JsonRPC {
+        let partial_config = PartialJsonRPC {
             enabled: None,
             server_address: Some(addr),
         };
-        let config = JsonRPC::from_partial(&partial_config, &*defaults);
+        let config = JsonRPC::from_partial(&partial_config, &Testnet1);
 
         assert_eq!(config.server_address, addr);
     }
 
     #[test]
     fn test_config_default_from_partial() {
-        let partial_config = partial::Config::default();
+        let partial_config = PartialConfig::default();
         let config = Config::from_partial(&partial_config);
 
         assert_eq!(config.environment, Environment::Testnet1);

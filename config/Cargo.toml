@@ -1,16 +1,23 @@
 [package]
-name = "witnet_config"
-version = "0.1.0"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
-workspace = ".."
 description = "config component"
 edition = "2018"
+name = "witnet_config"
+version = "0.1.0"
+workspace = ".."
 
 [dependencies]
-log = "0.4"
-serde = "1.0.79"
-serde_derive = "1.0.79"
-toml = "0.4.6"
 failure = "0.1.2"
-witnet_data_structures = { path = "../data_structures" }
-witnet_util = { path = "../util" }
+log = "0.4"
+toml = "0.4.6"
+partial_struct = { path = "../partial_struct" }
+
+[dependencies.serde]
+features = ["derive"]
+version = "1.0.82"
+
+[dependencies.witnet_data_structures]
+path = "../data_structures"
+
+[dependencies.witnet_util]
+path = "../util"

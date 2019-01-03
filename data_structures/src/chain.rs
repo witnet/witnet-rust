@@ -2,6 +2,7 @@ use super::serializers::encoders::{
     build_block_flatbuffer, build_checkpoint_beacon_flatbuffer, build_transaction_flatbuffer,
     BlockArgs, CheckpointBeaconArgs, TransactionArgs,
 };
+use partial_struct::PartialStruct;
 use std::collections::{BTreeSet, HashMap};
 use std::convert::AsRef;
 use std::fmt;
@@ -42,7 +43,8 @@ impl Default for Environment {
 }
 
 /// Consensus-critical configuration
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(PartialStruct, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct ConsensusConstants {
     /// Timestamp at checkpoint 0 (the start of epoch 0)
     pub checkpoint_zero_timestamp: i64,

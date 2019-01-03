@@ -1,0 +1,18 @@
+[package]
+authors = ["Witnet Foundation <info@witnet.foundation>"]
+description = "Macro that will generate from a struct another one with only Option<T> fields"
+edition = "2018"
+name = "partial_struct"
+version = "0.1.0"
+workspace = ".."
+
+[dependencies]
+quote = "0.6.10"
+syn = "0.15.23"
+
+[dev-dependencies]
+syn = { version = "0.15.23", features = ["extra-traits"] }
+serde = { version = "1.0", features = ["derive"] }
+
+[lib]
+proc-macro = true

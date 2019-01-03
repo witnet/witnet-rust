@@ -11,13 +11,6 @@
 //! `StorageConfig` and `ConnectionsConfig`. This instance is the one
 //! you use in your Rust code to interact with the loaded
 //! configuration.
-#![cfg_attr(test, allow(dead_code, unused_macros, unused_imports))]
-
-#[macro_use]
-extern crate serde_derive;
-
-extern crate failure;
-
 pub mod config;
 pub mod defaults;
 pub mod loaders;
