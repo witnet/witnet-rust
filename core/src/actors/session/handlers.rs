@@ -25,7 +25,7 @@ use crate::actors::{
 };
 
 use super::{
-    messages::{AnnounceItems, GetPeers, SessionUnitResult},
+    messages::{AnnounceItems, GetPeers, SendBlock, SessionUnitResult},
     Session,
 };
 use witnet_data_structures::{
@@ -196,6 +196,19 @@ impl Handler<AnnounceItems> for Session {
             // Send message through the session network connection
             self.send_message(announce_items_msg);
         };
+    }
+}
+
+/// Handler for SendBlock message (sent by other actors)
+impl Handler<SendBlock> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, msg: SendBlock, _: &mut Context<Self>) {
+        debug!(
+            "Sending SendBlock message to peer at {:?}",
+            self.remote_addr
+        );
+        send_block_msg(self, &msg.block)
     }
 }
 
@@ -517,13 +530,7 @@ fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash)
     send_get_item_request(session, ctx, hash, |act, _ctx, item| {
         match item {
             InventoryItem::Block(block_from_inventory) => {
-                let block_header = block_from_inventory.block_header;
-                let proof = block_from_inventory.proof;
-                let txns = block_from_inventory.txns.clone();
-                // Build Block msg
-                let block_msg = WitnetMessage::build_block(block_header, proof, txns);
-                // Send Block msg
-                act.send_message(block_msg);
+                send_block_msg(act, block_from_inventory);
             }
             // TODO Use build_transaction
             InventoryItem::Transaction(_transaction_from_inventory) => {
@@ -531,6 +538,16 @@ fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash)
             }
         }
     });
+}
+
+fn send_block_msg(session: &mut Session, block: &Block) {
+    let block_header = block.block_header;
+    let proof = block.proof;
+    let txns = block.txns.clone();
+    // Build Block msg
+    let block_msg = WitnetMessage::build_block(block_header, proof, txns);
+    // Send Block msg
+    session.send_message(block_msg);
 }
 
 fn todo_inbound_session_getblocks(

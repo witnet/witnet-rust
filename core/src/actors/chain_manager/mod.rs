@@ -48,7 +48,7 @@ use witnet_data_structures::chain::{
 
 use crate::actors::chain_manager::messages::BuildBlock;
 use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
-use crate::actors::session::messages::AnnounceItems;
+use crate::actors::session::messages::{AnnounceItems, SendBlock};
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
 use crate::validations::{block_reward, merkle_tree_root, validate_coinbase, validate_merkle_tree};
@@ -233,7 +233,7 @@ impl ChainManager {
         }
     }
 
-    fn broadcast_block(&mut self, hash: Hash) {
+    fn broadcast_announce_items(&mut self, hash: Hash) {
         // Get SessionsManager's address
         let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
@@ -241,6 +241,15 @@ impl ChainManager {
         let items = vec![InventoryEntry::Block(hash)];
         sessions_manager_addr.do_send(Broadcast {
             command: AnnounceItems { items },
+        });
+    }
+
+    fn broadcast_block(&mut self, block: Block) {
+        // Get SessionsManager's address
+        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+
+        sessions_manager_addr.do_send(Broadcast {
+            command: SendBlock { block },
         });
     }
 
@@ -327,9 +336,10 @@ impl ChainManager {
 
         let block_epoch = block.block_header.beacon.checkpoint;
 
+        //Discard blocks whose hash is bigger or equal than our candidate
         let our_candidate_is_better = Some(block_epoch) == self.current_epoch
             && match self.block_candidate.as_ref() {
-                Some(candidate) => candidate.hash() < block.hash(),
+                Some(candidate) => candidate.hash() <= block.hash(),
                 None => false,
             };
 
@@ -400,21 +410,17 @@ impl ChainManager {
                 let res = self.accept_block(block.clone());
                 match res {
                     Ok(hash) => {
-                        self.broadcast_block(hash);
-
-                        // Update block candidate
-                        if Some(block.block_header.beacon.checkpoint) == self.current_epoch {
+                        let block_epoch = block.block_header.beacon.checkpoint;
+                        if Some(block_epoch) == self.current_epoch {
+                            // Update block candidate
                             self.block_candidate = Some(block.clone());
+                            //Broadcast blocks in current epoch
+                            self.broadcast_block(block);
+                        } else {
+                            //Announce and persist older blocks
+                            self.broadcast_announce_items(hash);
+                            self.persist_item(ctx, InventoryItem::Block(block));
                         }
-
-                        // Save block to storage
-                        // TODO: dont save the current candidate into storage
-                        // Because it may not be the chosen block
-                        // Add in Session a method to retrieve the block candidate
-                        // before checking for blocks in storage
-                        self.persist_item(ctx, InventoryItem::Block(block));
-
-                        // TODO: MARIO
                     }
                     Err(ChainManagerError::BlockAlreadyExists) => {
                         warn!("Block already exists");
