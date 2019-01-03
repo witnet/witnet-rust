@@ -1,10 +1,11 @@
 extern crate flatbuffers;
 
+use crate::chain::DataRequestInput;
 use crate::chain::{
     Block, BlockHeader, CheckpointBeacon, CommitInput, CommitOutput, ConsensusOutput,
     DataRequestOutput, Hash, Input, InventoryEntry, KeyedSignature, LeadershipProof, Output,
-    RevealInput, RevealOutput, Secp256k1Signature, Signature, TallyInput, Transaction,
-    ValueTransferInput, ValueTransferOutput, SHA256,
+    RevealInput, RevealOutput, Secp256k1Signature, Signature, Transaction, ValueTransferOutput,
+    SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol;
 
@@ -324,16 +325,20 @@ fn create_input_vector(ftb_inputs: &FlatbufferInputVector) -> Vec<Input> {
 
 fn create_input(ftb_input: protocol::Input) -> Input {
     match ftb_input.input_type() {
-        protocol::InputUnion::ValueTransferInput => ftb_input
-            .input_as_value_transfer_input()
-            .map(|value_transfer_input| {
-                Input::ValueTransfer(ValueTransferInput {
-                    output_index: value_transfer_input.output_index(),
+        protocol::InputUnion::DataRequestInput => ftb_input
+            .input_as_data_request_input()
+            .map(|data_request_input| {
+                Input::DataRequest(DataRequestInput {
                     transaction_id: {
                         let mut transaction_id = [0; 32];
+                        transaction_id.copy_from_slice(&data_request_input.transaction_id()[0..32]);
                         transaction_id
-                            .copy_from_slice(&value_transfer_input.transaction_id()[0..32]);
-                        transaction_id
+                    },
+                    output_index: data_request_input.output_index(),
+                    poe: {
+                        let mut poe = [0; 32];
+                        poe.copy_from_slice(&data_request_input.poe()[0..32]);
+                        poe
                     },
                 })
             })
@@ -348,11 +353,12 @@ fn create_input(ftb_input: protocol::Input) -> Input {
                         transaction_id
                     },
                     output_index: commit_input.output_index(),
-                    poe: {
-                        let mut poe = [0; 32];
-                        poe.copy_from_slice(&commit_input.poe()[0..32]);
-                        poe
+                    reveal: {
+                        let mut reveal = [0; 32];
+                        reveal.copy_from_slice(&commit_input.reveal()[0..32]);
+                        reveal
                     },
+                    nonce: commit_input.nonce(),
                 })
             })
             .unwrap(),
@@ -366,25 +372,6 @@ fn create_input(ftb_input: protocol::Input) -> Input {
                         transaction_id
                     },
                     output_index: reveal_input.output_index(),
-                    reveal: {
-                        let mut reveal = [0; 32];
-                        reveal.copy_from_slice(&reveal_input.reveal()[0..32]);
-                        reveal
-                    },
-                    nonce: reveal_input.nonce(),
-                })
-            })
-            .unwrap(),
-        protocol::InputUnion::TallyInput => ftb_input
-            .input_as_tally_input()
-            .map(|tally_input| {
-                Input::Tally(TallyInput {
-                    output_index: tally_input.output_index(),
-                    transaction_id: {
-                        let mut transaction_id = [0; 32];
-                        transaction_id.copy_from_slice(&tally_input.transaction_id()[0..32]);
-                        transaction_id
-                    },
                 })
             })
             .unwrap(),
