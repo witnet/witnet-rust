@@ -135,7 +135,7 @@ impl ChainManager {
             .then(|res, _act, _ctx| {
                 match res {
                     Ok(Ok(_)) => {
-                        info!("ChainManager successfully persisted chain_info into storage")
+                        debug!("ChainManager successfully persisted chain_info into storage")
                     }
                     _ => {
                         error!("ChainManager failed to persist chain_info into storage");
@@ -197,7 +197,7 @@ impl ChainManager {
 
                 info!(
                     "{} Epoch #{} has {} block candidates now",
-                    Purple.bold().paint("[Checkpoints]"),
+                    Purple.bold().paint("[Chain]"),
                     Purple.bold().paint(beacon.checkpoint.to_string()),
                     Purple.bold().paint(hash_set.len().to_string())
                 );

@@ -1,4 +1,5 @@
 use actix::{Actor, AsyncContext, Context, Handler};
+use ansi_term::Color::Purple;
 
 use crate::actors::chain_manager::{messages::SessionUnitResult, ChainManager, ChainManagerError};
 use crate::actors::epoch_manager::messages::EpochNotification;
@@ -10,7 +11,7 @@ use witnet_data_structures::{
 
 use witnet_util::error::WitnetError;
 
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 
 use super::messages::{
     AddNewBlock, AddTransaction, BuildBlock, DiscardExistingInventoryEntries, GetBlock,
@@ -61,17 +62,24 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     };
 
                     chain_info.highest_block_checkpoint = beacon;
+
+                    info!(
+                        "{} Block {} consolidated for epoch #{}",
+                        Purple.bold().paint("[Chain]"),
+                        Purple.bold().paint(candidate.hash().to_string()),
+                        Purple.bold().paint(beacon.checkpoint.to_string()),
+                    );
+
+                    // Send block to Inventory Manager
+                    self.persist_item(ctx, InventoryItem::Block(candidate));
+
+                    // Persist chain_info into storage
+                    self.persist_chain_info(ctx);
                 }
                 None => {
                     error!("No ChainInfo loaded in ChainManager");
                 }
             }
-
-            // Send block to Inventory Manager
-            self.persist_item(ctx, InventoryItem::Block(candidate));
-
-            // Persist chain_info into storage
-            self.persist_chain_info(ctx);
         }
     }
 }
