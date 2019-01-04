@@ -2,7 +2,6 @@ use crate::cli::CliCommand;
 use failure::Fail;
 use log::{info, warn};
 use serde::Deserialize;
-use serde_derive::Deserialize;
 use std::{
     fmt,
     io::{self, BufRead, BufReader, Read, Write},

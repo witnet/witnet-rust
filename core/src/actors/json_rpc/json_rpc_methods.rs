@@ -11,7 +11,7 @@ use jsonrpc_core::futures;
 use jsonrpc_core::futures::Future;
 use jsonrpc_core::{IoHandler, Params, Value};
 use log::info;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use witnet_data_structures::chain::{Block, InventoryEntry};
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;

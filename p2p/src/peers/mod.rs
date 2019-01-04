@@ -1,6 +1,6 @@
 //! Library for managing a list of available peers
 
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
