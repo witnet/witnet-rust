@@ -1,7 +1,7 @@
 # You can read more about all the configuration params in
 # https://docs.witnet.io/configuration/toml-file/
 [connections]
-server_addr = "0.0.0.0:21337"
+server_addr = "127.0.0.1:21337"
 
 [storage]
 db_path = ".wit"
