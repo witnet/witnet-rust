@@ -35,7 +35,7 @@ use ansi_term::Color::Purple;
 use crate::actors::{
     chain_manager::messages::InventoryEntriesResult,
     inventory_manager::{messages::AddItem, InventoryManager},
-    storage_keys::CHAIN_KEY,
+    storage_keys::{BLOCK_CHAIN_KEY, CHAIN_KEY},
     storage_manager::{messages::Put, StorageManager},
 };
 
@@ -87,9 +87,9 @@ impl From<WitnetError<StorageError>> for ChainManagerError {
 pub struct ChainManager {
     /// Blockchain information data structure
     chain_info: Option<ChainInfo>,
-    /// Map that relates an epoch with the hashes of the blocks for that epoch
+    /// Map that relates an epoch with the hashes of the blocks for that epoch (blocks index)
     // One epoch can have more than one block
-    epoch_to_block_hash: BTreeMap<Epoch, HashSet<Hash>>,
+    block_chain: BTreeMap<Epoch, HashSet<Hash>>,
     /// Map that stores blocks by their hash
     blocks: HashMap<Hash, Block>,
     /// Current Epoch
@@ -135,10 +135,37 @@ impl ChainManager {
             .then(|res, _act, _ctx| {
                 match res {
                     Ok(Ok(_)) => {
-                        debug!("ChainManager successfully persisted chain_info into storage")
+                        debug!("Successfully persisted chain_info into storage")
                     }
                     _ => {
-                        error!("ChainManager failed to persist chain_info into storage");
+                        error!("Failed to persist chain_info into storage");
+                        // FIXME(#72): handle errors
+                    }
+                }
+                actix::fut::ok(())
+            })
+            .wait(ctx);
+    }
+
+    /// Method to persist `block_chain` into Storage
+    fn persist_block_chain(&self, ctx: &mut Context<Self>) {
+        // Get StorageManager address
+        let storage_manager_addr = System::current().registry().get::<StorageManager>();
+
+        // Persist block_chain into storage. `AsyncContext::wait` registers
+        // future within context, but context waits until this future resolves
+        // before processing any other events.
+        let msg = Put::from_value(BLOCK_CHAIN_KEY, &self.block_chain).unwrap();
+        storage_manager_addr
+            .send(msg)
+            .into_actor(self)
+            .then(|res, _act, _ctx| {
+                match res {
+                    Ok(Ok(_)) => {
+                        debug!("Successfully persisted block_chain into storage")
+                    }
+                    _ => {
+                        error!("Failed to persist block_chain into storage");
                         // FIXME(#72): handle errors
                     }
                 }
@@ -190,7 +217,7 @@ impl ChainManager {
                 // Insert the new block into the map that relates epochs to block hashes
                 let beacon = &block.block_header.beacon;
                 let hash_set = &mut self
-                    .epoch_to_block_hash
+                    .block_chain
                     .entry(beacon.checkpoint)
                     .or_insert_with(HashSet::new);
                 hash_set.insert(hash);
@@ -390,6 +417,8 @@ impl ChainManager {
                         // Add in Session a method to retrieve the block candidate
                         // before checking for blocks in storage
                         self.persist_item(ctx, InventoryItem::Block(block));
+
+                        // TODO: MARIO
                     }
                     Err(ChainManagerError::BlockAlreadyExists) => {
                         warn!("Block already exists");
@@ -423,9 +452,9 @@ mod tests {
         assert_eq!(bm.blocks.get(&hash_a).unwrap(), &block_a);
 
         // Check the block is added into the epoch-to-hash map
-        assert_eq!(bm.epoch_to_block_hash.get(&checkpoint).unwrap().len(), 1);
+        assert_eq!(bm.block_chain.get(&checkpoint).unwrap().len(), 1);
         assert_eq!(
-            bm.epoch_to_block_hash
+            bm.block_chain
                 .get(&checkpoint)
                 .unwrap()
                 .iter()
@@ -463,17 +492,9 @@ mod tests {
         assert_ne!(hash_a, hash_b);
 
         // Check that both blocks are stored in the same epoch
-        assert_eq!(bm.epoch_to_block_hash.get(&checkpoint).unwrap().len(), 2);
-        assert!(bm
-            .epoch_to_block_hash
-            .get(&checkpoint)
-            .unwrap()
-            .contains(&hash_a));
-        assert!(bm
-            .epoch_to_block_hash
-            .get(&checkpoint)
-            .unwrap()
-            .contains(&hash_b));
+        assert_eq!(bm.block_chain.get(&checkpoint).unwrap().len(), 2);
+        assert!(bm.block_chain.get(&checkpoint).unwrap().contains(&hash_a));
+        assert!(bm.block_chain.get(&checkpoint).unwrap().contains(&hash_b));
     }
 
     #[test]

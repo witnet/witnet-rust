@@ -75,6 +75,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                     // Persist chain_info into storage
                     self.persist_chain_info(ctx);
+
+                    // Persist block_chain into storage
+                    self.persist_block_chain(ctx);
                 }
                 None => {
                     error!("No ChainInfo loaded in ChainManager");
@@ -149,7 +152,7 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
     ) -> Self::Result {
         debug!("GetBlocksEpochRange received {:?}", range);
         let hashes = self
-            .epoch_to_block_hash
+            .block_chain
             .range(range)
             .flat_map(|(epoch, hashset)| {
                 hashset
