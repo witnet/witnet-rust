@@ -134,9 +134,7 @@ impl ChainManager {
             .into_actor(self)
             .then(|res, _act, _ctx| {
                 match res {
-                    Ok(Ok(_)) => {
-                        debug!("Successfully persisted chain_info into storage")
-                    }
+                    Ok(Ok(_)) => debug!("Successfully persisted chain_info into storage"),
                     _ => {
                         error!("Failed to persist chain_info into storage");
                         // FIXME(#72): handle errors
@@ -161,9 +159,7 @@ impl ChainManager {
             .into_actor(self)
             .then(|res, _act, _ctx| {
                 match res {
-                    Ok(Ok(_)) => {
-                        debug!("Successfully persisted block_chain into storage")
-                    }
+                    Ok(Ok(_)) => debug!("Successfully persisted block_chain into storage"),
                     _ => {
                         error!("Failed to persist block_chain into storage");
                         // FIXME(#72): handle errors
