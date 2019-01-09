@@ -22,6 +22,14 @@ Among its responsabilities are the following:
 * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
   * Removing the UTXOs that the transaction spends as inputs.
   * Adding a new UTXO for every output in the transaction.
+* Discovering our eligibility for mining new blocks and resolving data requests.
+
+The mining is optional and can be disabled using a configuration flag in `witnet.toml`:
+
+```
+[mining]
+enabled = false
+```
 
 ## State
 
@@ -61,17 +69,18 @@ System::current().registry().set(chain_manager_addr);
 
 These are the messages supported by the `ChainManager` handlers:
 
-| Message                                | Input type                           | Output type                                               | Description                                                        |
-|----------------------------------------|--------------------------------------|-----------------------------------------------------------|--------------------------------------------------------------------|
-| `EpochNotification<EpochPayload>`      | `Epoch`, `EpochPayload`              | `()`                                                      | The requested epoch has been reached                               |
-| `EpochNotification<EveryEpochPayload>` | `Epoch`, `EveryEpochPayload`         | `()`                                                      | A new epoch has been reached                                       |
-| `GetHighestBlockCheckpoint`            | `()`                                 | `ChainInfoResult`                                         | Request a copy of the highest block checkpoint                     |
-| `AddNewBlock`                          | `Block`                              | `Result<(), ChainManagerError>`                           | Add a new block and announce it to other sessions                  |
-| `AddTransaction`                       | `Transaction`                        | `Result<(), ChainManagerError>`                           | Add a new transaction and announce it to other sessions            |
-| `GetBlock`                             | `Hash`                               | `Result<(), ChainManagerError>`                           | Ask for a block identified by its hash                             |
-| `GetBlocksEpochRange`                  | `(Bound<Epoch>, Bound<Epoch>)`       | `Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>` | Obtain a vector of epochs and block hashes using a range of epochs |
-| `BuildBlock`                           | `CheckpointBeacon`,`LeadershipProof` | `()`                                                      | Build a new block and add it                                       |
-| `DiscardExistingInventoryEntries`      | `Vec<InventoryEntries>`              | `InventoryEntriesResult`                                  | Discard inventory entries that exist in the BlocksManager          |
+| Message                                 | Input type                           | Output type                                               | Description                                                        |
+|-----------------------------------------|--------------------------------------|-----------------------------------------------------------|--------------------------------------------------------------------|
+| `EpochNotification<EpochPayload>`       | `Epoch`, `EpochPayload`              | `()`                                                      | The requested epoch has been reached                               |
+| `EpochNotification<EveryEpochPayload>`  | `Epoch`, `EveryEpochPayload`         | `()`                                                      | A new epoch has been reached                                       |
+| `EpochNotification<MiningNotification>` | `Epoch`, `MiningNotification`        | `()`                                                      | A new epoch has been reached, try to mine a new block              |
+| `GetHighestBlockCheckpoint`             | `()`                                 | `ChainInfoResult`                                         | Request a copy of the highest block checkpoint                     |
+| `AddNewBlock`                           | `Block`                              | `Result<(), ChainManagerError>`                           | Add a new block and announce it to other sessions                  |
+| `AddTransaction`                        | `Transaction`                        | `Result<(), ChainManagerError>`                           | Add a new transaction and announce it to other sessions            |
+| `GetBlock`                              | `Hash`                               | `Result<(), ChainManagerError>`                           | Ask for a block identified by its hash                             |
+| `GetBlocksEpochRange`                   | `(Bound<Epoch>, Bound<Epoch>)`       | `Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>` | Obtain a vector of epochs and block hashes using a range of epochs |
+| `BuildBlock`                            | `CheckpointBeacon`,`LeadershipProof` | `()`                                                      | Build a new block and add it                                       |
+| `DiscardExistingInventoryEntries`       | `Vec<InventoryEntries>`              | `InventoryEntriesResult`                                  | Discard inventory entries that exist in the BlocksManager          |
 
 Where `ChainInfoResult` is just:
 
@@ -143,7 +152,7 @@ For further information, see [`EpochManager`][epoch_manager].
 #### SubscribeAll
 
 This message is sent to the [`EpochManager`][epoch_manager] actor when the Chain Manager actor is
-started, in order to subscribe to the all epochs (test functionality).
+started, in order to subscribe to the all epochs.
 
 Subscribing to all epochs means that the [`EpochManager`][epoch_manager] will send an
 `EpochNotification<EveryEpochPayload>` back to the `ChainManager` when every epoch is reached.
@@ -154,7 +163,10 @@ For further information, see [`EpochManager`][epoch_manager].
 
 This message is sent to the [`ConfigManager`][config_manager] actor when the peers manager actor is started.
 
-The return value is used to initialize the list of known peers. For further information, see  [`ConfigManager`][config_manager].
+The return value is used to initialize the list of known peers, and
+to decide whether or not enable the mining.
+
+For further information, see  [`ConfigManager`][config_manager].
 
 #### Get
 
