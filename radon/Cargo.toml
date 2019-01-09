@@ -1,0 +1,9 @@
+[package]
+name = "witnet_radon"
+version = "0.1.0"
+authors = ["Witnet Foundation <info@witnet.foundation>"]
+edition = "2018"
+workspace = ".."
+description = "radon component"
+
+[dependencies]

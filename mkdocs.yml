@@ -71,9 +71,10 @@ nav:
       - Inventory Manager: arquitecture/managers/inventory-manager.md
       - Mempool Manager: architecture/managers/mempool-manager.md
       - Peers Manager: architecture/managers/peers-manager.md
-      - Reputation Manager: architecture/managers/reputation-manager.md
       - Sessions Manager: architecture/managers/sessions-manager.md
       - Storage Manager: architecture/managers/storage-manager.md
+      - RAD Manager: architecture/managers/rad-manager.md
+      - Reputation Manager: architecture/managers/reputation-manager.md
       - UTXO Manager: architecture/managers/utxo-manager.md
     - Session: architecture/session.md
     - Mempool Management: architecture/mempool-mgmt.md

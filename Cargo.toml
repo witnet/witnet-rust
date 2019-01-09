@@ -32,6 +32,7 @@ witnet_core = { path = "./core" }
 witnet_crypto = { path = "./crypto" }
 witnet_data_structures = { path = "./data_structures" }
 witnet_p2p = { path = "./p2p" }
+witnet_radon = { path = "./radon" }
 witnet_storage = { path = "./storage", features = ["rocksdb-backend"] }
 witnet_util = { path = "./util" }
 
