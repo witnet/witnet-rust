@@ -6,9 +6,9 @@ use log::info;
 use crate::actors::{
     chain_manager::ChainManager, config_manager::ConfigManager,
     connections_manager::ConnectionsManager, epoch_manager::EpochManager,
-    inventory_manager::InventoryManager, json_rpc::JsonRpcServer,
-    peers_manager::PeersManager, reputation_manager::ReputationManager,
-    sessions_manager::SessionsManager, storage_manager::StorageManager,
+    inventory_manager::InventoryManager, json_rpc::JsonRpcServer, peers_manager::PeersManager,
+    reputation_manager::ReputationManager, sessions_manager::SessionsManager,
+    storage_manager::StorageManager,
 };
 
 /// Function to run the main system

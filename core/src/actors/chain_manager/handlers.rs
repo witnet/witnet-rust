@@ -1,4 +1,4 @@
-use actix::{Actor, AsyncContext, Context, Handler};
+use actix::{Actor, Context, Handler};
 use ansi_term::Color::Purple;
 
 use crate::actors::chain_manager::{messages::SessionUnitResult, ChainManager, ChainManagerError};
@@ -14,8 +14,8 @@ use witnet_util::error::WitnetError;
 use log::{debug, error, info, warn};
 
 use super::messages::{
-    AddNewBlock, AddTransaction, BuildBlock, DiscardExistingInventoryEntries, GetBlock,
-    GetBlocksEpochRange, GetHighestCheckpointBeacon, InventoryEntriesResult,
+    AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
+    GetHighestCheckpointBeacon, InventoryEntriesResult,
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -162,20 +162,6 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
             .collect();
 
         Ok(hashes)
-    }
-}
-
-/// Handler for BuildBlock message
-impl Handler<BuildBlock> for ChainManager {
-    type Result = ();
-
-    fn handle(&mut self, msg: BuildBlock, ctx: &mut Context<Self>) -> Self::Result {
-        // Build the block using the supplied beacon and eligibility proof
-        let block = self.build_block(&msg);
-
-        // Send AddNewBlock message to self
-        // This will run all the validations again
-        ctx.notify(AddNewBlock { block })
     }
 }
 
