@@ -54,10 +54,14 @@ use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
 use crate::validations::{block_reward, merkle_tree_root, validate_coinbase, validate_merkle_tree};
 
+use witnet_data_structures::chain::RevealOutput;
 use witnet_storage::error::StorageError;
 use witnet_util::error::WitnetError;
 
+use self::data_request::DataRequestState;
+
 mod actor;
+mod data_request;
 mod handlers;
 mod mining;
 
@@ -96,7 +100,7 @@ pub struct ChainManager {
     blocks: HashMap<Hash, Block>,
     /// Current Epoch
     current_epoch: Option<Epoch>,
-    /// Transactions Pool
+    /// Transactions Pool (_mempool_)
     transactions_pool: TransactionsPool,
     /// Block candidate to update chain_info in the next epoch
     block_candidate: Option<Block>,
@@ -109,6 +113,12 @@ pub struct ChainManager {
     // This random value helps to distinguish blocks mined on different nodes
     // To be removed when we implement real signing.
     random: u64,
+    /// Current active data request, in which this node has announced commitments
+    _my_claims: HashMap<OutputPointer, RevealOutput>,
+    /// List of active data request output pointers ordered by epoch (for mining purposes)
+    _data_requests_by_epoch: BTreeMap<Epoch, HashSet<OutputPointer>>,
+    /// List of active data requests indexed by output pointer
+    _data_request_pool: HashMap<OutputPointer, DataRequestState>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
