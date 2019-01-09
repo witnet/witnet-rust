@@ -366,6 +366,36 @@ pub struct TransactionsPool {
     sorted_index: BTreeSet<WeightedHash>,
 }
 
+impl Transaction {
+    /// Method to calculate outputs sum value of self transaction ouputs
+    pub fn calculate_outputs_sum(&self) -> u64 {
+        self.sum_outputs(&self.outputs)
+    }
+
+    /// Method to calculate outputs sum value of given outputs
+    pub fn calculate_outputs_sum_of(&self, outputs: &[Output]) -> u64 {
+        self.sum_outputs(outputs)
+    }
+
+    /// Method to calculate outputs sum value
+    fn sum_outputs(&self, outputs: &[Output]) -> u64 {
+        outputs.iter().fold(0, |mut sum, output| {
+            let output_value = match output {
+                Output::Commit(output) => output.value,
+                Output::Consensus(output) => output.value,
+                Output::DataRequest(output) => {
+                    output.value + output.commit_fee + output.reveal_fee + output.tally_fee
+                }
+                Output::Reveal(output) => output.value,
+                Output::ValueTransfer(output) => output.value,
+            };
+            sum += output_value;
+
+            sum
+        })
+    }
+}
+
 impl TransactionsPool {
     /// Makes a new empty pool of transactions.
     ///

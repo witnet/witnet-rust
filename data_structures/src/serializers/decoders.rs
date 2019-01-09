@@ -130,6 +130,7 @@ impl TryFrom<Vec<u8>> for Message {
                 .and_then(|peers| create_peers_message(PeersWitnetArgs { magic, peers }))
                 .ok_or(""),
 
+            protocol::Command::Transaction => panic!("Unimplemented"), // Unimplemented,
             // Handshake
             protocol::Command::Verack => Ok(create_verack_message(EmptyCommandArgs { magic })),
             protocol::Command::Version => message

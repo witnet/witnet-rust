@@ -214,11 +214,12 @@ pub enum Command {
   InventoryAnnouncement = 8,
   InventoryRequest = 9,
   LastBeacon = 10,
+  Transaction = 11,
 
 }
 
 const ENUM_MIN_COMMAND: u8 = 0;
-const ENUM_MAX_COMMAND: u8 = 10;
+const ENUM_MAX_COMMAND: u8 = 11;
 
 impl<'a> flatbuffers::Follow<'a> for Command {
   type Inner = Self;
@@ -252,7 +253,7 @@ impl flatbuffers::Push for Command {
 }
 
 #[allow(non_camel_case_types)]
-const ENUM_VALUES_COMMAND:[Command; 11] = [
+const ENUM_VALUES_COMMAND:[Command; 12] = [
   Command::NONE,
   Command::Version,
   Command::Verack,
@@ -263,11 +264,12 @@ const ENUM_VALUES_COMMAND:[Command; 11] = [
   Command::Block,
   Command::InventoryAnnouncement,
   Command::InventoryRequest,
-  Command::LastBeacon
+  Command::LastBeacon,
+  Command::Transaction
 ];
 
 #[allow(non_camel_case_types)]
-const ENUM_NAMES_COMMAND:[&'static str; 11] = [
+const ENUM_NAMES_COMMAND:[&'static str; 12] = [
     "NONE",
     "Version",
     "Verack",
@@ -278,7 +280,8 @@ const ENUM_NAMES_COMMAND:[&'static str; 11] = [
     "Block",
     "InventoryAnnouncement",
     "InventoryRequest",
-    "LastBeacon"
+    "LastBeacon",
+    "Transaction"
 ];
 
 pub fn enum_name_command(e: Command) -> &'static str {
@@ -1133,6 +1136,16 @@ impl<'a> Message<'a> {
   pub fn command_as_last_beacon(&'a self) -> Option<LastBeacon> {
     if self.command_type() == Command::LastBeacon {
       Some(LastBeacon::init_from_table(self.command()))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn command_as_transaction(&'a self) -> Option<Transaction> {
+    if self.command_type() == Command::Transaction {
+      Some(Transaction::init_from_table(self.command()))
     } else {
       None
     }

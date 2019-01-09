@@ -12,3 +12,6 @@ pub mod actors;
 
 /// Validations library
 pub mod validations;
+
+/// Utilities for actor behaviour
+pub mod utils;

@@ -38,12 +38,13 @@ use crate::actors::{
     storage_keys::{BLOCK_CHAIN_KEY, CHAIN_KEY},
     storage_manager::{messages::Put, StorageManager},
 };
+use crate::utils::{find_unspent_outputs, get_output_from_input};
 
 use log::{debug, error, info, warn};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use witnet_data_structures::chain::{
-    Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, Output,
-    Transaction, TransactionsPool, UnspentOutput,
+    Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, Input, InventoryEntry, InventoryItem,
+    Output, OutputPointer, TransactionsPool,
 };
 
 use crate::actors::chain_manager::messages::BuildBlock;
@@ -99,8 +100,10 @@ pub struct ChainManager {
     transactions_pool: TransactionsPool,
     /// Block candidate to update chain_info in the next epoch
     block_candidate: Option<Block>,
+    /// Maximum weight each block can have
+    max_block_weight: u32,
     /// Unspent Outputs Pool
-    _unspent_outputs_pool: HashMap<UnspentOutput, Output>,
+    unspent_outputs_pool: HashMap<OutputPointer, Output>,
     // Random value to help with debugging because there is no signature
     // and all the mined blocks have the same hash.
     // This random value helps to distinguish blocks mined on different nodes
@@ -116,6 +119,23 @@ impl SystemService for ChainManager {}
 
 /// Auxiliary methods for ChainManager actor
 impl ChainManager {
+    /// Method to check that all inpunts point to unspend output
+    fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
+        find_unspent_outputs(&self.unspent_outputs_pool, inputs)
+    }
+    /// calculate output pointed from input
+    fn get_output_from_input(&self, input: &Input) -> Output {
+        get_output_from_input(&self.unspent_outputs_pool, input)
+    }
+
+    /// calculate output vector from inputs vector
+    fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Vec<Output> {
+        inputs
+            .iter()
+            .map(|input| get_output_from_input(&self.unspent_outputs_pool, input))
+            .collect()
+    }
+
     /// Method to persist chain_info into storage
     fn persist_chain_info(&self, ctx: &mut Context<Self>) {
         // Get StorageManager address
