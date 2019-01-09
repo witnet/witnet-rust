@@ -127,6 +127,16 @@ impl Handler<AddTransaction> for ChainManager {
     }
 }
 
+/// Handler for AddTransaction message
+impl Handler<AddTransaction> for ChainManager {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, _msg: AddTransaction, _ctx: &mut Context<Self>) {
+        // FIXME(#240) Implement transaction process
+        debug!("Transaction received");
+    }
+}
+
 /// Handler for GetBlock message
 impl Handler<GetBlock> for ChainManager {
     type Result = Result<Block, ChainManagerError>;

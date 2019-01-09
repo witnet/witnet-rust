@@ -43,7 +43,7 @@ use log::{debug, error, info, warn};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use witnet_data_structures::chain::{
     Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, Output,
-    OutputPointer, TransactionsPool,
+    Transaction, TransactionsPool, UnspentOutput,
 };
 
 use crate::actors::chain_manager::messages::BuildBlock;
@@ -99,10 +99,8 @@ pub struct ChainManager {
     transactions_pool: TransactionsPool,
     /// Block candidate to update chain_info in the next epoch
     block_candidate: Option<Block>,
-    /// Maximum weight each block can have
-    max_block_weight: u32,
     /// Unspent Outputs Pool
-    _unspent_outputs_pool: HashMap<OutputPointer, Output>,
+    _unspent_outputs_pool: HashMap<UnspentOutput, Output>,
     // Random value to help with debugging because there is no signature
     // and all the mined blocks have the same hash.
     // This random value helps to distinguish blocks mined on different nodes

@@ -591,7 +591,11 @@ impl TransactionsPool {
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
 #[derive(Debug, Default, Hash, Clone, Eq, PartialEq)]
+<<<<<<< HEAD
 pub struct OutputPointer {
+=======
+pub struct UnspentOutput {
+>>>>>>> feat(actors): add unspent output pool to ChainManager
     pub transaction_id: Hash,
     pub output_index: u32,
 }
