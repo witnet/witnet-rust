@@ -58,6 +58,7 @@ use witnet_util::error::WitnetError;
 
 mod actor;
 mod handlers;
+mod mining;
 
 /// Messages for ChainManager
 pub mod messages;
@@ -102,6 +103,11 @@ pub struct ChainManager {
     max_block_weight: u32,
     /// Unspent Outputs Pool
     _unspent_outputs_pool: HashMap<OutputPointer, Output>,
+    // Random value to help with debugging because there is no signature
+    // and all the mined blocks have the same hash.
+    // This random value helps to distinguish blocks mined on different nodes
+    // To be removed when we implement real signing.
+    random: u64,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry

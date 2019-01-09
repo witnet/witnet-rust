@@ -1,10 +1,10 @@
-use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, System, WrapFuture};
+
+use actix::{ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture};
 
 use ansi_term::Color::Yellow;
 
-use super::MiningManager;
+use super::ChainManager;
 use crate::actors::chain_manager::messages::GetHighestCheckpointBeacon;
-use crate::actors::chain_manager::ChainManager;
 use crate::actors::epoch_manager::messages::EpochNotification;
 
 use witnet_crypto::hash::calculate_sha256;
@@ -16,22 +16,18 @@ use crate::actors::reputation_manager::messages::ValidatePoE;
 use crate::actors::reputation_manager::ReputationManager;
 use log::{debug, error, info};
 
-////////////////////////////////////////////////////////////////////////////////////////
-// ACTOR MESSAGE HANDLERS
-////////////////////////////////////////////////////////////////////////////////////////
-
 /// Payload for the notification for all epochs
 #[derive(Clone, Debug)]
-pub struct EveryEpochPayload;
+pub struct MiningNotification;
 
-/// Handler for EpochNotification<EveryEpochPayload>
-impl Handler<EpochNotification<EveryEpochPayload>> for MiningManager {
+/// Handler for EpochNotification<MiningNotification>
+impl Handler<EpochNotification<MiningNotification>> for ChainManager {
     type Result = ();
 
-    fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: EpochNotification<MiningNotification>, ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
 
-        let chain_manager_addr = System::current().registry().get::<ChainManager>();
+        let chain_manager_addr = ctx.address();
         chain_manager_addr
             .send(GetHighestCheckpointBeacon)
             .into_actor(self)

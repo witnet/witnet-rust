@@ -6,7 +6,7 @@ use crate::actors::epoch_manager::{
     EpochManagerError::CheckpointZeroInTheFuture,
 };
 
-use crate::actors::chain_manager::{handlers::*, ChainManager};
+use super::{handlers::*, mining::MiningNotification, ChainManager};
 
 use crate::actors::{
     config_manager::send_get_config_request,
@@ -16,7 +16,7 @@ use crate::actors::{
 
 use witnet_data_structures::chain::{ChainInfo, CheckpointBeacon};
 
-use witnet_util::timestamp::pretty_print;
+use witnet_util::timestamp::{get_timestamp, pretty_print};
 
 use log::{debug, error, warn};
 
@@ -28,6 +28,10 @@ impl Actor for ChainManager {
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("ChainManager actor has been started!");
+
+        // Use the current timestamp as a random value to modify the signature
+        // Make sure to wait at least 1 second before starting each node
+        self.random = get_timestamp() as u64;
 
         // Get EpochManager address from registry
         let epoch_manager_addr = System::current().registry().get::<EpochManager>();
@@ -154,6 +158,20 @@ impl Actor for ChainManager {
                     actix::fut::ok(())
                 })
                 .wait(ctx);
+
+            // Do not start the MiningManager if the configuration disables it
+            if config.mining.enabled {
+                debug!("MiningManager actor has been started!");
+
+                // Subscribe to epoch manager
+                // Get EpochManager address from registry
+                let epoch_manager_addr = System::current().registry().get::<EpochManager>();
+
+                // Subscribe to all epochs with an EveryEpochPayload
+                epoch_manager_addr.do_send(Subscribe::to_all(ctx.address(), MiningNotification));
+            } else {
+                debug!("MiningManager explicitly disabled by configuration.");
+            }
         });
     }
 }
