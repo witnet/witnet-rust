@@ -1,7 +1,7 @@
 use crate::utils::{
-    count_consensus_outputs, is_commit_input, is_commit_output, is_consensus_output,
-    is_data_request_input, is_reveal_output, is_value_transfer_output,
-    validate_tally_output_uniqueness, validate_value_transfer_output_position,
+    count_tally_outputs, is_commit_input, is_commit_output, is_data_request_input,
+    is_reveal_output, is_tally_output, is_value_transfer_output, validate_tally_output_uniqueness,
+    validate_value_transfer_output_position,
 };
 use actix::{Actor, Context, Handler};
 use ansi_term::Color::Purple;
@@ -149,7 +149,7 @@ impl Handler<AddTransaction> for ChainManager {
                 let is_valid_vto_position = validate_value_transfer_output_position(outputs);
 
                 // TO RULE 1. Any transaction can contain at most one tally output.
-                let consensus_output_overflow = count_consensus_outputs(outputs) > 1;
+                let consensus_output_overflow = count_tally_outputs(outputs) > 1;
 
                 let is_valid_transaction = iter
                     .take_while(|(output, input)| {
@@ -163,7 +163,7 @@ impl Handler<AddTransaction> for ChainManager {
 
                             // CO RULE 3. The value brought into a transaction by an input pointing to a commit output can only be spent by reveal or tally outputs.
                             Output::Commit(_) => {
-                                is_reveal_output(output) && is_consensus_output(output)
+                                is_reveal_output(output) && is_tally_output(output)
                             }
 
                             // RO 3. The value brought into a transaction by an input pointing to a reveal output can only be spent by value transfer outputs.

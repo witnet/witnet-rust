@@ -58,7 +58,7 @@ pub fn get_output_from_input<S: ::std::hash::BuildHasher>(
 }
 
 /// Check if an output is a consensus output
-pub fn is_consensus_output(output: &Output) -> bool {
+pub fn is_tally_output(output: &Output) -> bool {
     match output {
         Output::Tally(_) => true,
         _ => false,
@@ -120,11 +120,11 @@ pub fn validate_value_transfer_output_position(outputs: &[Output]) -> bool {
 }
 
 /// Count consensus outputs
-pub fn count_consensus_outputs(outputs: &[Output]) -> usize {
-    outputs.iter().filter(|x| is_consensus_output(x)).count()
+pub fn count_tally_outputs(outputs: &[Output]) -> usize {
+    outputs.iter().filter(|x| is_tally_output(x)).count()
 }
 
 /// Validate tally output uniqueness
 pub fn validate_tally_output_uniqueness(outputs: &[Output]) -> bool {
-    count_consensus_outputs(outputs) == 1
+    count_tally_outputs(outputs) == 1
 }
