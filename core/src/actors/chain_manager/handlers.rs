@@ -242,7 +242,7 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
             .range(range)
             .flat_map(|(epoch, hashset)| {
                 hashset
-                    .into_iter()
+                    .iter()
                     .map(move |hash| (*epoch, InventoryEntry::Block(*hash)))
             })
             .collect();

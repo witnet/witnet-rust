@@ -98,6 +98,8 @@ pub struct ChainManager {
     block_chain: BTreeMap<Epoch, HashSet<Hash>>,
     /// Map that stores blocks by their hash
     blocks: HashMap<Hash, Block>,
+    /// Map that stores blocks without validation by their hash
+    blocks_to_validate: HashMap<Hash, Block>,
     /// Current Epoch
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
@@ -267,6 +269,29 @@ impl ChainManager {
         }
     }
 
+    fn keep_block_without_validation(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
+        // Calculate the hash of the block
+        let hash: Hash = block.hash();
+
+        // Check if we already have a block with that hash
+        if let Some(_block) = self.blocks_to_validate.get(&hash) {
+            Err(ChainManagerError::BlockAlreadyExists)
+        } else {
+            // Insert the new block into the map of blocks to validate
+            self.blocks_to_validate.insert(hash, block);
+
+            debug!(
+                "{} There are {} blocks to validate now",
+                Purple.bold().paint("[Chain]"),
+                Purple
+                    .bold()
+                    .paint(self.blocks_to_validate.len().to_string())
+            );
+
+            Ok(hash)
+        }
+    }
+
     fn broadcast_announce_items(&mut self, hash: Hash) {
         // Get SessionsManager's address
         let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
@@ -364,11 +389,16 @@ impl ChainManager {
         Ok(missing_inv_entries)
     }
 
+    fn get_block_to_validate(&mut self, hash: &Hash) -> Option<Block> {
+        self.blocks_to_validate.remove(hash)
+    }
+
     fn process_block(&mut self, ctx: &mut Context<Self>, block: Block) {
         // Block verify process
         let reputation_manager_addr = System::current().registry().get::<ReputationManager>();
 
         let block_epoch = block.block_header.beacon.checkpoint;
+        let hash_prev_block = block.block_header.beacon.hash_prev_block;
 
         //Discard blocks whose hash is bigger or equal than our candidate
         let our_candidate_is_better = Some(block_epoch) == self.current_epoch
@@ -379,9 +409,12 @@ impl ChainManager {
 
         self.current_epoch
             .map(|current_epoch| {
-                if !validate_coinbase(&block) {
-                    warn!("Block coinbase not valid");
-                } else if !validate_merkle_tree(&block) {
+                // Check before if exist a block to validate
+                if let Some(previous_block) = self.get_block_to_validate(&hash_prev_block) {
+                    self.process_block(ctx, previous_block);
+                }
+
+                if !validate_merkle_tree(&block) {
                     warn!("Block merkle tree not valid");
                 } else if block_epoch > current_epoch {
                     warn!(
@@ -396,6 +429,22 @@ impl ChainManager {
                             block.hash()
                         );
                     }
+                } else if !self.blocks.contains_key(&hash_prev_block) {
+                    //TODO Request this lost block to our peers
+                    match self.keep_block_without_validation(block) {
+                        Ok(hash) => warn!(
+                            "Block [{}] has a previous hash [{}] not known",
+                            hash, hash_prev_block
+                        ),
+                        Err(ChainManagerError::BlockAlreadyExists) => {
+                            warn!("Block without previous hash known already exists in blocks_to_validate");
+                        }
+                        Err(_) => {
+                            error!("Unexpected error");
+                        }
+                    }
+                } else if !validate_coinbase(&block) {
+                    warn!("Block coinbase not valid");
                 } else {
                     if block_epoch < current_epoch {
                         // FIXME(#235): check proof of eligibility from the past
@@ -453,7 +502,10 @@ impl ChainManager {
                         } else {
                             //Announce and persist older blocks
                             self.broadcast_announce_items(hash);
-                            self.persist_item(ctx, InventoryItem::Block(block));
+                            self.persist_item(ctx, InventoryItem::Block(block.clone()));
+                            
+                            // Update utxo set with an older block transactions
+                            self.unspent_outputs_pool = self.update_utxo_set(block);
                         }
                     }
                     Err(ChainManagerError::BlockAlreadyExists) => {
@@ -560,6 +612,75 @@ mod tests {
 
         // Check that an error was obtained
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn add_block_to_validate() {
+        let mut bm = ChainManager::default();
+
+        // Build hardcoded block
+        let checkpoint = 2;
+        let hash_prev_block = Hash::SHA256([111; 32]);
+        let block_a = build_hardcoded_block(checkpoint, 99999, hash_prev_block);
+
+        // Add block to ChainManager without complete validation
+        let hash_a = bm.keep_block_without_validation(block_a.clone()).unwrap();
+
+        // Check the block is added into the blocks_to_validate map
+        assert_eq!(bm.blocks_to_validate.len(), 1);
+        assert_eq!(bm.blocks_to_validate.get(&hash_a).unwrap(), &block_a);
+    }
+
+    #[test]
+    fn add_same_block_to_validate_twice() {
+        let mut bm = ChainManager::default();
+
+        // Build hardcoded block
+        let block = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
+
+        // Only the first block will be inserted
+        assert!(bm.keep_block_without_validation(block.clone()).is_ok());
+        assert!(bm.keep_block_without_validation(block).is_err());
+        assert_eq!(bm.blocks_to_validate.len(), 1);
+    }
+
+    #[test]
+    fn add_blocks_to_validate_same_previous_hash() {
+        let mut bm = ChainManager::default();
+
+        // Build hardcoded blocks
+        let checkpoint = 2;
+        let hash_prev_block = Hash::SHA256([111; 32]);
+        let block_a = build_hardcoded_block(checkpoint, 99999, hash_prev_block);
+        let block_b = build_hardcoded_block(checkpoint, 12345, hash_prev_block);
+
+        // Add blocks to the ChainManager without complete validation
+        let hash_a = bm.keep_block_without_validation(block_a).unwrap();
+        let hash_b = bm.keep_block_without_validation(block_b).unwrap();
+        assert_ne!(hash_a, hash_b);
+    }
+
+    #[test]
+    fn get_next_block_without_validation() {
+        let mut bm = ChainManager::default();
+
+        // Build hardcoded block
+        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
+
+        // Add block to ChainManager without complete validation
+        let hash_a = bm.keep_block_without_validation(block_a.clone()).unwrap();
+
+        // Check the block is added into the blocks_to_validate map
+        assert_eq!(bm.blocks_to_validate.len(), 1);
+        assert_eq!(bm.blocks_to_validate.get(&hashhash_a_b).unwrap(), &block_a);
+
+        let block_extract = &bm.get_block_to_validate(&hash_a).unwrap();
+
+        // Check the block is removed from blocks_to_validate map
+        assert_eq!(bm.blocks_to_validate.len(), 0);
+
+        // Check that the block extracted is the same than inserted
+        assert_eq!(block_b, *block_extract);
     }
 
     #[test]
