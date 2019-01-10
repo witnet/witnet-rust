@@ -442,7 +442,7 @@ pub enum OutputUnion {
   DataRequestOutput = 2,
   CommitOutput = 3,
   RevealOutput = 4,
-  ConsensusOutput = 5,
+  TallyOutput = 5,
 
 }
 
@@ -487,7 +487,7 @@ const ENUM_VALUES_OUTPUT_UNION:[OutputUnion; 6] = [
   OutputUnion::DataRequestOutput,
   OutputUnion::CommitOutput,
   OutputUnion::RevealOutput,
-  OutputUnion::ConsensusOutput
+  OutputUnion::TallyOutput
 ];
 
 #[allow(non_camel_case_types)]
@@ -497,7 +497,7 @@ const ENUM_NAMES_OUTPUT_UNION:[&'static str; 6] = [
     "DataRequestOutput",
     "CommitOutput",
     "RevealOutput",
-    "ConsensusOutput"
+    "TallyOutput"
 ];
 
 pub fn enum_name_output_union(e: OutputUnion) -> &'static str {
@@ -2996,9 +2996,9 @@ impl<'a> Output<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn output_as_consensus_output(&'a self) -> Option<ConsensusOutput> {
-    if self.output_type() == OutputUnion::ConsensusOutput {
-      Some(ConsensusOutput::init_from_table(self.output()))
+  pub fn output_as_tally_output(&'a self) -> Option<TallyOutput> {
+    if self.output_type() == OutputUnion::TallyOutput {
+      Some(TallyOutput::init_from_table(self.output()))
     } else {
       None
     }
@@ -3502,15 +3502,15 @@ impl<'a: 'b, 'b> RevealOutputBuilder<'a, 'b> {
   }
 }
 
-pub enum ConsensusOutputOffset {}
+pub enum TallyOutputOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct ConsensusOutput<'a> {
+pub struct TallyOutput<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for ConsensusOutput<'a> {
-    type Inner = ConsensusOutput<'a>;
+impl<'a> flatbuffers::Follow<'a> for TallyOutput<'a> {
+    type Inner = TallyOutput<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -3519,18 +3519,18 @@ impl<'a> flatbuffers::Follow<'a> for ConsensusOutput<'a> {
     }
 }
 
-impl<'a> ConsensusOutput<'a> {
+impl<'a> TallyOutput<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        ConsensusOutput {
+        TallyOutput {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args ConsensusOutputArgs<'args>) -> flatbuffers::WIPOffset<ConsensusOutput<'bldr>> {
-      let mut builder = ConsensusOutputBuilder::new(_fbb);
+        args: &'args TallyOutputArgs<'args>) -> flatbuffers::WIPOffset<TallyOutput<'bldr>> {
+      let mut builder = TallyOutputBuilder::new(_fbb);
       builder.add_value(args.value);
       if let Some(x) = args.pkh { builder.add_pkh(x); }
       if let Some(x) = args.result { builder.add_result(x); }
@@ -3543,63 +3543,63 @@ impl<'a> ConsensusOutput<'a> {
 
   #[inline]
   pub fn result(&self) -> &'a [u8] {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(ConsensusOutput::VT_RESULT, None).map(|v| v.safe_slice()).unwrap()
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(TallyOutput::VT_RESULT, None).map(|v| v.safe_slice()).unwrap()
   }
   #[inline]
   pub fn pkh(&self) -> &'a [u8] {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(ConsensusOutput::VT_PKH, None).map(|v| v.safe_slice()).unwrap()
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(TallyOutput::VT_PKH, None).map(|v| v.safe_slice()).unwrap()
   }
   #[inline]
   pub fn value(&self) -> u64 {
-    self._tab.get::<u64>(ConsensusOutput::VT_VALUE, Some(0)).unwrap()
+    self._tab.get::<u64>(TallyOutput::VT_VALUE, Some(0)).unwrap()
   }
 }
 
-pub struct ConsensusOutputArgs<'a> {
+pub struct TallyOutputArgs<'a> {
     pub result: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
     pub pkh: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
     pub value: u64,
 }
-impl<'a> Default for ConsensusOutputArgs<'a> {
+impl<'a> Default for TallyOutputArgs<'a> {
     #[inline]
     fn default() -> Self {
-        ConsensusOutputArgs {
+        TallyOutputArgs {
             result: None, // required field
             pkh: None, // required field
             value: 0,
         }
     }
 }
-pub struct ConsensusOutputBuilder<'a: 'b, 'b> {
+pub struct TallyOutputBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> ConsensusOutputBuilder<'a, 'b> {
+impl<'a: 'b, 'b> TallyOutputBuilder<'a, 'b> {
   #[inline]
   pub fn add_result(&mut self, result: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ConsensusOutput::VT_RESULT, result);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TallyOutput::VT_RESULT, result);
   }
   #[inline]
   pub fn add_pkh(&mut self, pkh: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ConsensusOutput::VT_PKH, pkh);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(TallyOutput::VT_PKH, pkh);
   }
   #[inline]
   pub fn add_value(&mut self, value: u64) {
-    self.fbb_.push_slot::<u64>(ConsensusOutput::VT_VALUE, value, 0);
+    self.fbb_.push_slot::<u64>(TallyOutput::VT_VALUE, value, 0);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> ConsensusOutputBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> TallyOutputBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    ConsensusOutputBuilder {
+    TallyOutputBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<ConsensusOutput<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<TallyOutput<'a>> {
     let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, ConsensusOutput::VT_RESULT,"result");
-    self.fbb_.required(o, ConsensusOutput::VT_PKH,"pkh");
+    self.fbb_.required(o, TallyOutput::VT_RESULT,"result");
+    self.fbb_.required(o, TallyOutput::VT_PKH,"pkh");
     flatbuffers::WIPOffset::new(o.value())
   }
 }

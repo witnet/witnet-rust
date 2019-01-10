@@ -173,7 +173,7 @@ table Input {
     input: InputUnion (required);
 }
 
-union OutputUnion (required) { ValueTransferOutput, DataRequestOutput, CommitOutput, RevealOutput, ConsensusOutput }
+union OutputUnion (required) { ValueTransferOutput, DataRequestOutput, CommitOutput, RevealOutput, TallyOutput }
 
 table Output {
     output: OutputUnion (required);
@@ -207,7 +207,7 @@ table RevealOutput {
     value: uint64;
 }
 
-table ConsensusOutput {
+table TallyOutput {
     result: [ubyte] (required);
     pkh: [ubyte] (required);
     value: uint64;
