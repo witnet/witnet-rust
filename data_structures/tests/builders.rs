@@ -49,27 +49,28 @@ fn builders_build_block() {
     }];
     let reveal_input = Input::Reveal(RevealInput {
         output_index: 0,
-        transaction_id: [0; 32],
+        transaction_id: Hash::SHA256([0; 32]),
     });
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        reveal: [0; 32],
-        transaction_id: [0; 32],
+        reveal: [0; 32].to_vec(),
+        transaction_id: Hash::SHA256([0; 32]),
     });
     let data_request_input = Input::DataRequest(DataRequestInput {
         output_index: 0,
         poe: [0; 32],
-        transaction_id: [0; 32],
+        transaction_id: Hash::SHA256([0; 32]),
     });
     let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-        pkh: Hash::SHA256([0; 32]),
+        pkh: [0; 20],
         value: 0,
     });
     let data_request_output = Output::DataRequest(DataRequestOutput {
         backup_witnesses: 0,
         commit_fee: 0,
-        data_request: [0; 32],
+        data_request: [0; 32].to_vec(),
+        pkh: [0; 20],
         reveal_fee: 0,
         tally_fee: 0,
         time_lock: 0,
@@ -81,13 +82,13 @@ fn builders_build_block() {
         value: 0,
     });
     let reveal_output = Output::Reveal(RevealOutput {
-        pkh: Hash::SHA256([0; 32]),
-        reveal: [0; 32],
+        pkh: [0; 20],
+        reveal: [0; 32].to_vec(),
         value: 0,
     });
-    let consensus_output = Output::Consensus(ConsensusOutput {
-        pkh: Hash::SHA256([0; 32]),
-        result: [0; 32],
+    let consensus_output = Output::Tally(TallyOutput {
+        pkh: [0; 20],
+        result: [0; 32].to_vec(),
         value: 0,
     });
 
