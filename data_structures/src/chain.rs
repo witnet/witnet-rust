@@ -407,6 +407,44 @@ pub struct RADDeliver {
 type WeightedHash = (u64, Hash);
 type WeightedTransaction = (u64, Transaction);
 
+/// Auxiliar methods to get the output pointer from an input
+
+impl CommitInput {
+    pub fn output_pointer(&self) -> OutputPointer {
+        OutputPointer {
+            transaction_id: self.transaction_id,
+            output_index: self.output_index,
+        }
+    }
+}
+
+impl DataRequestInput {
+    pub fn output_pointer(&self) -> OutputPointer {
+        OutputPointer {
+            transaction_id: self.transaction_id,
+            output_index: self.output_index,
+        }
+    }
+}
+
+impl RevealInput {
+    pub fn output_pointer(&self) -> OutputPointer {
+        OutputPointer {
+            transaction_id: self.transaction_id,
+            output_index: self.output_index,
+        }
+    }
+}
+
+impl ValueTransferInput {
+    pub fn output_pointer(&self) -> OutputPointer {
+        OutputPointer {
+            transaction_id: self.transaction_id,
+            output_index: self.output_index,
+        }
+    }
+}
+
 /// A pool of validated transactions that supports constant access by
 /// [`Hash`](Hash) and iteration over the
 /// transactions sorted from by transactions with bigger fees to

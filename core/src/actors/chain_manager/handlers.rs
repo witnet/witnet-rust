@@ -79,6 +79,18 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     self.unspent_outputs_pool = candidate.utxo_set;
                     self.transactions_pool = candidate.txn_mempool;
 
+                    // Add DataRequests from the block into the data request pool
+                    let reveals = self
+                        .data_request_pool
+                        .add_data_requests_from_block(&candidate, self.current_epoch.unwrap());
+
+                    for _reveal in reveals {
+                        // FIXME(#337): broadcast transaction
+                    }
+
+                    // TODO: store finished data requests into storage
+                    let _to_be_stored = self.data_request_pool.finished_data_requests();
+
                     // Send block to Inventory Manager
                     self.persist_item(ctx, InventoryItem::Block(candidate.block));
 

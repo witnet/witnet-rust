@@ -56,11 +56,9 @@ use crate::validations::{
     block_reward, merkle_tree_root, validate_merkle_tree, validate_mint, validate_transactions,
 };
 
-use witnet_data_structures::chain::RevealOutput;
+use self::data_request::DataRequestPool;
 use witnet_storage::error::StorageError;
 use witnet_util::error::WitnetError;
-
-use self::data_request::DataRequestState;
 
 mod actor;
 mod data_request;
@@ -117,12 +115,8 @@ pub struct ChainManager {
     // This random value helps to distinguish blocks mined on different nodes
     // To be removed when we implement real signing.
     random: u64,
-    /// Current active data request, in which this node has announced commitments
-    _my_claims: HashMap<OutputPointer, RevealOutput>,
-    /// List of active data request output pointers ordered by epoch (for mining purposes)
-    _data_requests_by_epoch: BTreeMap<Epoch, HashSet<OutputPointer>>,
-    /// List of active data requests indexed by output pointer
-    _data_request_pool: HashMap<OutputPointer, DataRequestState>,
+    /// Pool of active data requests
+    data_request_pool: DataRequestPool,
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
