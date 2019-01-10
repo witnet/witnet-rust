@@ -144,7 +144,14 @@ table Block {
 /////////////////////////////////////////////////////////
 // TRANSACTION MESSAGES
 /////////////////////////////////////////////////////////
-union InputUnion (required) {CommitInput, RevealInput, DataRequestInput}
+union InputUnion (required) {CommitInput, RevealInput, DataRequestInput, ValueTransferInput}
+
+table CommitInput {
+    transaction_id: [ubyte] (required);
+    output_index: uint32;
+    reveal: [ubyte] (required);
+    nonce: uint64;
+}
 
 table RevealInput {
     transaction_id: [ubyte] (required);
@@ -157,11 +164,9 @@ table DataRequestInput {
     poe: [ubyte] (required);
 }
 
-table CommitInput {
+table ValueTransferInput {
     transaction_id: [ubyte] (required);
     output_index: uint32;
-    reveal: [ubyte] (required);
-    nonce: uint64;
 }
 
 table Input {
@@ -175,12 +180,13 @@ table Output {
 }
 
 table ValueTransferOutput {
-    pkh: Hash (required);
+    pkh: [ubyte] (required);
     value: uint64;
 }
 
 table DataRequestOutput {
     data_request: [ubyte] (required);
+    pkh: [ubyte] (required);
     value: uint64;
     witnesses: uint8;
     backup_witnesses: uint8;
@@ -197,13 +203,13 @@ table CommitOutput {
 
 table RevealOutput {
     reveal: [ubyte] (required);
-    pkh: Hash (required);
+    pkh: [ubyte] (required);
     value: uint64;
 }
 
 table ConsensusOutput {
     result: [ubyte] (required);
-    pkh: Hash (required);
+    pkh: [ubyte] (required);
     value: uint64;
 }
 

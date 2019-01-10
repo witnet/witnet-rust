@@ -371,11 +371,12 @@ pub enum InputUnion {
   CommitInput = 1,
   RevealInput = 2,
   DataRequestInput = 3,
+  ValueTransferInput = 4,
 
 }
 
 const ENUM_MIN_INPUT_UNION: u8 = 0;
-const ENUM_MAX_INPUT_UNION: u8 = 3;
+const ENUM_MAX_INPUT_UNION: u8 = 4;
 
 impl<'a> flatbuffers::Follow<'a> for InputUnion {
   type Inner = Self;
@@ -409,19 +410,21 @@ impl flatbuffers::Push for InputUnion {
 }
 
 #[allow(non_camel_case_types)]
-const ENUM_VALUES_INPUT_UNION:[InputUnion; 4] = [
+const ENUM_VALUES_INPUT_UNION:[InputUnion; 5] = [
   InputUnion::NONE,
   InputUnion::CommitInput,
   InputUnion::RevealInput,
-  InputUnion::DataRequestInput
+  InputUnion::DataRequestInput,
+  InputUnion::ValueTransferInput
 ];
 
 #[allow(non_camel_case_types)]
-const ENUM_NAMES_INPUT_UNION:[&'static str; 4] = [
+const ENUM_NAMES_INPUT_UNION:[&'static str; 5] = [
     "NONE",
     "CommitInput",
     "RevealInput",
-    "DataRequestInput"
+    "DataRequestInput",
+    "ValueTransferInput"
 ];
 
 pub fn enum_name_input_union(e: InputUnion) -> &'static str {
@@ -2383,6 +2386,120 @@ impl<'a: 'b, 'b> BlockBuilder<'a, 'b> {
   }
 }
 
+pub enum CommitInputOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct CommitInput<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for CommitInput<'a> {
+    type Inner = CommitInput<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> CommitInput<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        CommitInput {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args CommitInputArgs<'args>) -> flatbuffers::WIPOffset<CommitInput<'bldr>> {
+      let mut builder = CommitInputBuilder::new(_fbb);
+      builder.add_nonce(args.nonce);
+      if let Some(x) = args.reveal { builder.add_reveal(x); }
+      builder.add_output_index(args.output_index);
+      if let Some(x) = args.transaction_id { builder.add_transaction_id(x); }
+      builder.finish()
+    }
+
+    pub const VT_TRANSACTION_ID: flatbuffers::VOffsetT = 4;
+    pub const VT_OUTPUT_INDEX: flatbuffers::VOffsetT = 6;
+    pub const VT_REVEAL: flatbuffers::VOffsetT = 8;
+    pub const VT_NONCE: flatbuffers::VOffsetT = 10;
+
+  #[inline]
+  pub fn transaction_id(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(CommitInput::VT_TRANSACTION_ID, None).map(|v| v.safe_slice()).unwrap()
+  }
+  #[inline]
+  pub fn output_index(&self) -> u32 {
+    self._tab.get::<u32>(CommitInput::VT_OUTPUT_INDEX, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn reveal(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(CommitInput::VT_REVEAL, None).map(|v| v.safe_slice()).unwrap()
+  }
+  #[inline]
+  pub fn nonce(&self) -> u64 {
+    self._tab.get::<u64>(CommitInput::VT_NONCE, Some(0)).unwrap()
+  }
+}
+
+pub struct CommitInputArgs<'a> {
+    pub transaction_id: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+    pub output_index: u32,
+    pub reveal: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+    pub nonce: u64,
+}
+impl<'a> Default for CommitInputArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        CommitInputArgs {
+            transaction_id: None, // required field
+            output_index: 0,
+            reveal: None, // required field
+            nonce: 0,
+        }
+    }
+}
+pub struct CommitInputBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> CommitInputBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_transaction_id(&mut self, transaction_id: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(CommitInput::VT_TRANSACTION_ID, transaction_id);
+  }
+  #[inline]
+  pub fn add_output_index(&mut self, output_index: u32) {
+    self.fbb_.push_slot::<u32>(CommitInput::VT_OUTPUT_INDEX, output_index, 0);
+  }
+  #[inline]
+  pub fn add_reveal(&mut self, reveal: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(CommitInput::VT_REVEAL, reveal);
+  }
+  #[inline]
+  pub fn add_nonce(&mut self, nonce: u64) {
+    self.fbb_.push_slot::<u64>(CommitInput::VT_NONCE, nonce, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> CommitInputBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    CommitInputBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<CommitInput<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, CommitInput::VT_TRANSACTION_ID,"transaction_id");
+    self.fbb_.required(o, CommitInput::VT_REVEAL,"reveal");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
 pub enum RevealInputOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -2574,15 +2691,15 @@ impl<'a: 'b, 'b> DataRequestInputBuilder<'a, 'b> {
   }
 }
 
-pub enum CommitInputOffset {}
+pub enum ValueTransferInputOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct CommitInput<'a> {
+pub struct ValueTransferInput<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for CommitInput<'a> {
-    type Inner = CommitInput<'a>;
+impl<'a> flatbuffers::Follow<'a> for ValueTransferInput<'a> {
+    type Inner = ValueTransferInput<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -2591,20 +2708,18 @@ impl<'a> flatbuffers::Follow<'a> for CommitInput<'a> {
     }
 }
 
-impl<'a> CommitInput<'a> {
+impl<'a> ValueTransferInput<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        CommitInput {
+        ValueTransferInput {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args CommitInputArgs<'args>) -> flatbuffers::WIPOffset<CommitInput<'bldr>> {
-      let mut builder = CommitInputBuilder::new(_fbb);
-      builder.add_nonce(args.nonce);
-      if let Some(x) = args.reveal { builder.add_reveal(x); }
+        args: &'args ValueTransferInputArgs<'args>) -> flatbuffers::WIPOffset<ValueTransferInput<'bldr>> {
+      let mut builder = ValueTransferInputBuilder::new(_fbb);
       builder.add_output_index(args.output_index);
       if let Some(x) = args.transaction_id { builder.add_transaction_id(x); }
       builder.finish()
@@ -2612,78 +2727,55 @@ impl<'a> CommitInput<'a> {
 
     pub const VT_TRANSACTION_ID: flatbuffers::VOffsetT = 4;
     pub const VT_OUTPUT_INDEX: flatbuffers::VOffsetT = 6;
-    pub const VT_REVEAL: flatbuffers::VOffsetT = 8;
-    pub const VT_NONCE: flatbuffers::VOffsetT = 10;
 
   #[inline]
   pub fn transaction_id(&self) -> &'a [u8] {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(CommitInput::VT_TRANSACTION_ID, None).map(|v| v.safe_slice()).unwrap()
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(ValueTransferInput::VT_TRANSACTION_ID, None).map(|v| v.safe_slice()).unwrap()
   }
   #[inline]
   pub fn output_index(&self) -> u32 {
-    self._tab.get::<u32>(CommitInput::VT_OUTPUT_INDEX, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn reveal(&self) -> &'a [u8] {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(CommitInput::VT_REVEAL, None).map(|v| v.safe_slice()).unwrap()
-  }
-  #[inline]
-  pub fn nonce(&self) -> u64 {
-    self._tab.get::<u64>(CommitInput::VT_NONCE, Some(0)).unwrap()
+    self._tab.get::<u32>(ValueTransferInput::VT_OUTPUT_INDEX, Some(0)).unwrap()
   }
 }
 
-pub struct CommitInputArgs<'a> {
+pub struct ValueTransferInputArgs<'a> {
     pub transaction_id: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
     pub output_index: u32,
-    pub reveal: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
-    pub nonce: u64,
 }
-impl<'a> Default for CommitInputArgs<'a> {
+impl<'a> Default for ValueTransferInputArgs<'a> {
     #[inline]
     fn default() -> Self {
-        CommitInputArgs {
+        ValueTransferInputArgs {
             transaction_id: None, // required field
             output_index: 0,
-            reveal: None, // required field
-            nonce: 0,
         }
     }
 }
-pub struct CommitInputBuilder<'a: 'b, 'b> {
+pub struct ValueTransferInputBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> CommitInputBuilder<'a, 'b> {
+impl<'a: 'b, 'b> ValueTransferInputBuilder<'a, 'b> {
   #[inline]
   pub fn add_transaction_id(&mut self, transaction_id: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(CommitInput::VT_TRANSACTION_ID, transaction_id);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ValueTransferInput::VT_TRANSACTION_ID, transaction_id);
   }
   #[inline]
   pub fn add_output_index(&mut self, output_index: u32) {
-    self.fbb_.push_slot::<u32>(CommitInput::VT_OUTPUT_INDEX, output_index, 0);
+    self.fbb_.push_slot::<u32>(ValueTransferInput::VT_OUTPUT_INDEX, output_index, 0);
   }
   #[inline]
-  pub fn add_reveal(&mut self, reveal: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(CommitInput::VT_REVEAL, reveal);
-  }
-  #[inline]
-  pub fn add_nonce(&mut self, nonce: u64) {
-    self.fbb_.push_slot::<u64>(CommitInput::VT_NONCE, nonce, 0);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> CommitInputBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> ValueTransferInputBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    CommitInputBuilder {
+    ValueTransferInputBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<CommitInput<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<ValueTransferInput<'a>> {
     let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, CommitInput::VT_TRANSACTION_ID,"transaction_id");
-    self.fbb_.required(o, CommitInput::VT_REVEAL,"reveal");
+    self.fbb_.required(o, ValueTransferInput::VT_TRANSACTION_ID,"transaction_id");
     flatbuffers::WIPOffset::new(o.value())
   }
 }
@@ -2758,6 +2850,16 @@ impl<'a> Input<'a> {
   pub fn input_as_data_request_input(&'a self) -> Option<DataRequestInput> {
     if self.input_type() == InputUnion::DataRequestInput {
       Some(DataRequestInput::init_from_table(self.input()))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn input_as_value_transfer_input(&'a self) -> Option<ValueTransferInput> {
+    if self.input_type() == InputUnion::ValueTransferInput {
+      Some(ValueTransferInput::init_from_table(self.input()))
     } else {
       None
     }
@@ -2984,8 +3086,8 @@ impl<'a> ValueTransferOutput<'a> {
     pub const VT_VALUE: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn pkh(&self) -> Hash<'a> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(ValueTransferOutput::VT_PKH, None).unwrap()
+  pub fn pkh(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(ValueTransferOutput::VT_PKH, None).map(|v| v.safe_slice()).unwrap()
   }
   #[inline]
   pub fn value(&self) -> u64 {
@@ -2994,7 +3096,7 @@ impl<'a> ValueTransferOutput<'a> {
 }
 
 pub struct ValueTransferOutputArgs<'a> {
-    pub pkh: Option<flatbuffers::WIPOffset<Hash<'a >>>,
+    pub pkh: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
     pub value: u64,
 }
 impl<'a> Default for ValueTransferOutputArgs<'a> {
@@ -3012,8 +3114,8 @@ pub struct ValueTransferOutputBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> ValueTransferOutputBuilder<'a, 'b> {
   #[inline]
-  pub fn add_pkh(&mut self, pkh: flatbuffers::WIPOffset<Hash<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(ValueTransferOutput::VT_PKH, pkh);
+  pub fn add_pkh(&mut self, pkh: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ValueTransferOutput::VT_PKH, pkh);
   }
   #[inline]
   pub fn add_value(&mut self, value: u64) {
@@ -3069,6 +3171,7 @@ impl<'a> DataRequestOutput<'a> {
       builder.add_reveal_fee(args.reveal_fee);
       builder.add_commit_fee(args.commit_fee);
       builder.add_value(args.value);
+      if let Some(x) = args.pkh { builder.add_pkh(x); }
       if let Some(x) = args.data_request { builder.add_data_request(x); }
       builder.add_backup_witnesses(args.backup_witnesses);
       builder.add_witnesses(args.witnesses);
@@ -3076,17 +3179,22 @@ impl<'a> DataRequestOutput<'a> {
     }
 
     pub const VT_DATA_REQUEST: flatbuffers::VOffsetT = 4;
-    pub const VT_VALUE: flatbuffers::VOffsetT = 6;
-    pub const VT_WITNESSES: flatbuffers::VOffsetT = 8;
-    pub const VT_BACKUP_WITNESSES: flatbuffers::VOffsetT = 10;
-    pub const VT_COMMIT_FEE: flatbuffers::VOffsetT = 12;
-    pub const VT_REVEAL_FEE: flatbuffers::VOffsetT = 14;
-    pub const VT_TALLY_FEE: flatbuffers::VOffsetT = 16;
-    pub const VT_TIME_LOCK: flatbuffers::VOffsetT = 18;
+    pub const VT_PKH: flatbuffers::VOffsetT = 6;
+    pub const VT_VALUE: flatbuffers::VOffsetT = 8;
+    pub const VT_WITNESSES: flatbuffers::VOffsetT = 10;
+    pub const VT_BACKUP_WITNESSES: flatbuffers::VOffsetT = 12;
+    pub const VT_COMMIT_FEE: flatbuffers::VOffsetT = 14;
+    pub const VT_REVEAL_FEE: flatbuffers::VOffsetT = 16;
+    pub const VT_TALLY_FEE: flatbuffers::VOffsetT = 18;
+    pub const VT_TIME_LOCK: flatbuffers::VOffsetT = 20;
 
   #[inline]
   pub fn data_request(&self) -> &'a [u8] {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(DataRequestOutput::VT_DATA_REQUEST, None).map(|v| v.safe_slice()).unwrap()
+  }
+  #[inline]
+  pub fn pkh(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(DataRequestOutput::VT_PKH, None).map(|v| v.safe_slice()).unwrap()
   }
   #[inline]
   pub fn value(&self) -> u64 {
@@ -3120,6 +3228,7 @@ impl<'a> DataRequestOutput<'a> {
 
 pub struct DataRequestOutputArgs<'a> {
     pub data_request: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+    pub pkh: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
     pub value: u64,
     pub witnesses: u8,
     pub backup_witnesses: u8,
@@ -3133,6 +3242,7 @@ impl<'a> Default for DataRequestOutputArgs<'a> {
     fn default() -> Self {
         DataRequestOutputArgs {
             data_request: None, // required field
+            pkh: None, // required field
             value: 0,
             witnesses: 0,
             backup_witnesses: 0,
@@ -3151,6 +3261,10 @@ impl<'a: 'b, 'b> DataRequestOutputBuilder<'a, 'b> {
   #[inline]
   pub fn add_data_request(&mut self, data_request: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(DataRequestOutput::VT_DATA_REQUEST, data_request);
+  }
+  #[inline]
+  pub fn add_pkh(&mut self, pkh: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(DataRequestOutput::VT_PKH, pkh);
   }
   #[inline]
   pub fn add_value(&mut self, value: u64) {
@@ -3192,6 +3306,7 @@ impl<'a: 'b, 'b> DataRequestOutputBuilder<'a, 'b> {
   pub fn finish(self) -> flatbuffers::WIPOffset<DataRequestOutput<'a>> {
     let o = self.fbb_.end_table(self.start_);
     self.fbb_.required(o, DataRequestOutput::VT_DATA_REQUEST,"data_request");
+    self.fbb_.required(o, DataRequestOutput::VT_PKH,"pkh");
     flatbuffers::WIPOffset::new(o.value())
   }
 }
@@ -3329,8 +3444,8 @@ impl<'a> RevealOutput<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(RevealOutput::VT_REVEAL, None).map(|v| v.safe_slice()).unwrap()
   }
   #[inline]
-  pub fn pkh(&self) -> Hash<'a> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(RevealOutput::VT_PKH, None).unwrap()
+  pub fn pkh(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(RevealOutput::VT_PKH, None).map(|v| v.safe_slice()).unwrap()
   }
   #[inline]
   pub fn value(&self) -> u64 {
@@ -3340,7 +3455,7 @@ impl<'a> RevealOutput<'a> {
 
 pub struct RevealOutputArgs<'a> {
     pub reveal: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
-    pub pkh: Option<flatbuffers::WIPOffset<Hash<'a >>>,
+    pub pkh: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
     pub value: u64,
 }
 impl<'a> Default for RevealOutputArgs<'a> {
@@ -3363,8 +3478,8 @@ impl<'a: 'b, 'b> RevealOutputBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RevealOutput::VT_REVEAL, reveal);
   }
   #[inline]
-  pub fn add_pkh(&mut self, pkh: flatbuffers::WIPOffset<Hash<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(RevealOutput::VT_PKH, pkh);
+  pub fn add_pkh(&mut self, pkh: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RevealOutput::VT_PKH, pkh);
   }
   #[inline]
   pub fn add_value(&mut self, value: u64) {
@@ -3431,8 +3546,8 @@ impl<'a> ConsensusOutput<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(ConsensusOutput::VT_RESULT, None).map(|v| v.safe_slice()).unwrap()
   }
   #[inline]
-  pub fn pkh(&self) -> Hash<'a> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Hash<'a>>>(ConsensusOutput::VT_PKH, None).unwrap()
+  pub fn pkh(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(ConsensusOutput::VT_PKH, None).map(|v| v.safe_slice()).unwrap()
   }
   #[inline]
   pub fn value(&self) -> u64 {
@@ -3442,7 +3557,7 @@ impl<'a> ConsensusOutput<'a> {
 
 pub struct ConsensusOutputArgs<'a> {
     pub result: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
-    pub pkh: Option<flatbuffers::WIPOffset<Hash<'a >>>,
+    pub pkh: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
     pub value: u64,
 }
 impl<'a> Default for ConsensusOutputArgs<'a> {
@@ -3465,8 +3580,8 @@ impl<'a: 'b, 'b> ConsensusOutputBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ConsensusOutput::VT_RESULT, result);
   }
   #[inline]
-  pub fn add_pkh(&mut self, pkh: flatbuffers::WIPOffset<Hash<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Hash>>(ConsensusOutput::VT_PKH, pkh);
+  pub fn add_pkh(&mut self, pkh: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(ConsensusOutput::VT_PKH, pkh);
   }
   #[inline]
   pub fn add_value(&mut self, value: u64) {
