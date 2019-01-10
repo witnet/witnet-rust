@@ -1219,9 +1219,9 @@ fn build_output_vector_wipoffset<'a>(
             Output::Tally(tally) => {
                 let result_vector_wipoffset = builder.create_vector(&tally.result);
                 let pkh_wipoffset = builder.create_vector(&tally.pkh);
-                let consensus_output_wipoffset = protocol::ConsensusOutput::create(
+                let tally_output_wipoffset = protocol::TallyOutput::create(
                     builder,
-                    &protocol::ConsensusOutputArgs {
+                    &protocol::TallyOutputArgs {
                         result: Some(result_vector_wipoffset),
                         pkh: Some(pkh_wipoffset),
                         value: tally.value,
@@ -1231,8 +1231,8 @@ fn build_output_vector_wipoffset<'a>(
                 protocol::Output::create(
                     builder,
                     &protocol::OutputArgs {
-                        output_type: protocol::OutputUnion::ConsensusOutput,
-                        output: Some(consensus_output_wipoffset.as_union_value()),
+                        output_type: protocol::OutputUnion::TallyOutput,
+                        output: Some(tally_output_wipoffset.as_union_value()),
                     },
                 )
             }

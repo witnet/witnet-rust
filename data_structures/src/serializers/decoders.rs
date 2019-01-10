@@ -471,18 +471,18 @@ fn create_output(ftb_output: protocol::Output) -> Output {
             })
             .unwrap(),
 
-        protocol::OutputUnion::ConsensusOutput => ftb_output
-            .output_as_consensus_output()
-            .map(|consensus_output| {
+        protocol::OutputUnion::TallyOutput => ftb_output
+            .output_as_tally_output()
+            .map(|tally_output| {
                 Output::Tally(TallyOutput {
-                    pkh: create_pkh(consensus_output.pkh()),
+                    pkh: create_pkh(tally_output.pkh()),
                     result: {
                         let mut result = [0; 32];
-                        result.copy_from_slice(&consensus_output.result()[0..32]);
+                        result.copy_from_slice(&tally_output.result()[0..32]);
 
                         result.to_vec()
                     },
-                    value: consensus_output.value(),
+                    value: tally_output.value(),
                 })
             })
             .unwrap(),
