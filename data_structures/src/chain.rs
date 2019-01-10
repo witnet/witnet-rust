@@ -225,6 +225,9 @@ impl fmt::Display for Hash {
 /// SHA-256 Hash
 pub type SHA256 = [u8; 32];
 
+/// Public Key Hash: slice of the digest of a public key (20 bytes)
+pub type PublicKeyHash = [u8; 20];
+
 /// Transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Transaction {
@@ -263,49 +266,68 @@ impl AsRef<Transaction> for Transaction {
 }
 
 /// Input data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Input {
     Commit(CommitInput),
     DataRequest(DataRequestInput),
     Reveal(RevealInput),
+    ValueTransfer(ValueTransferInput),
+}
+
+/// Value transfer input transaction data structure
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct ValueTransferInput {
+    pub transaction_id: Hash,
+    pub output_index: u32,
 }
 
 /// Commit input transaction data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct CommitInput {
-    pub transaction_id: [u8; 32],
+    pub transaction_id: Hash,
     pub output_index: u32,
-    pub reveal: [u8; 32],
+    pub reveal: Vec<u8>,
     pub nonce: u64,
 }
 
 /// Commit input transaction data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct DataRequestInput {
-    pub transaction_id: [u8; 32],
+    pub transaction_id: Hash,
     pub output_index: u32,
     pub poe: [u8; 32],
 }
 
 /// Reveal input transaction data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct RevealInput {
-    pub transaction_id: [u8; 32],
+    pub transaction_id: Hash,
     pub output_index: u32,
 }
 
+/// Output data structure
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub enum Output {
+    ValueTransfer(ValueTransferOutput),
+    DataRequest(DataRequestOutput),
+    Commit(CommitOutput),
+    Reveal(RevealOutput),
+    Tally(TallyOutput),
+}
+
 /// Value transfer output transaction data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ValueTransferOutput {
-    pub pkh: Hash,
+    pub pkh: PublicKeyHash,
     pub value: u64,
 }
 
 /// Data request output transaction data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct DataRequestOutput {
-    pub data_request: [u8; 32],
+    pub pkh: PublicKeyHash,
     pub value: u64,
+    pub data_request: Vec<u8>,
     pub witnesses: u8,
     pub backup_witnesses: u8,
     pub commit_fee: u64,
@@ -315,35 +337,25 @@ pub struct DataRequestOutput {
 }
 
 /// Commit output transaction data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct CommitOutput {
     pub commitment: Hash,
     pub value: u64,
 }
 
 /// Reveal output transaction data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct RevealOutput {
-    pub reveal: [u8; 32],
-    pub pkh: Hash,
+    pub reveal: Vec<u8>,
+    pub pkh: PublicKeyHash,
     pub value: u64,
 }
 
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub struct ConsensusOutput {
-    pub result: [u8; 32],
-    pub pkh: Hash,
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct TallyOutput {
+    pub result: Vec<u8>,
+    pub pkh: PublicKeyHash,
     pub value: u64,
-}
-
-/// Output data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub enum Output {
-    ValueTransfer(ValueTransferOutput),
-    DataRequest(DataRequestOutput),
-    Commit(CommitOutput),
-    Reveal(RevealOutput),
-    Consensus(ConsensusOutput),
 }
 
 /// Keyed signature data structure
@@ -382,7 +394,7 @@ impl Transaction {
         outputs.iter().fold(0, |mut sum, output| {
             let output_value = match output {
                 Output::Commit(output) => output.value,
-                Output::Consensus(output) => output.value,
+                Output::Tally(output) => output.value,
                 Output::DataRequest(output) => {
                     output.value + output.commit_fee + output.reveal_fee + output.tally_fee
                 }
@@ -668,26 +680,27 @@ mod tests {
         let commit_input = Input::Commit(CommitInput {
             nonce: 0,
             output_index: 0,
-            reveal: [0; 32],
-            transaction_id: [0; 32],
+            reveal: [0; 32].to_vec(),
+            transaction_id: Hash::SHA256([0; 32]),
         });
         let reveal_input = Input::Reveal(RevealInput {
             output_index: 0,
-            transaction_id: [0; 32],
+            transaction_id: Hash::SHA256([0; 32]),
         });
         let data_request_input = Input::DataRequest(DataRequestInput {
             output_index: 0,
             poe: [0; 32],
-            transaction_id: [0; 32],
+            transaction_id: Hash::SHA256([0; 32]),
         });
         let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-            pkh: Hash::SHA256([0; 32]),
+            pkh: [0; 20],
             value: 0,
         });
         let data_request_output = Output::DataRequest(DataRequestOutput {
             backup_witnesses: 0,
             commit_fee: 0,
-            data_request: [0; 32],
+            data_request: [0; 32].to_vec(),
+            pkh: [0; 20],
             reveal_fee: 0,
             tally_fee: 0,
             time_lock: 0,
@@ -699,13 +712,13 @@ mod tests {
             value: 0,
         });
         let reveal_output = Output::Reveal(RevealOutput {
-            pkh: Hash::SHA256([0; 32]),
-            reveal: [0; 32],
+            pkh: [0; 20],
+            reveal: [0; 32].to_vec(),
             value: 0,
         });
-        let consensus_output = Output::Consensus(ConsensusOutput {
-            pkh: Hash::SHA256([0; 32]),
-            result: [0; 32],
+        let consensus_output = Output::Tally(TallyOutput {
+            pkh: [0; 20],
+            result: [0; 32].to_vec(),
             value: 0,
         });
         let inputs = vec![commit_input, data_request_input, reveal_input];
@@ -728,8 +741,8 @@ mod tests {
             txns,
         };
         let expected = Hash::SHA256([
-            139, 24, 35, 96, 160, 205, 247, 41, 14, 61, 156, 100, 126, 60, 68, 118, 95, 42, 204,
-            129, 228, 29, 54, 52, 38, 203, 172, 58, 200, 20, 211, 248,
+            125, 62, 180, 29, 196, 66, 125, 28, 84, 72, 208, 43, 35, 111, 6, 138, 189, 65, 142, 45,
+            73, 205, 7, 242, 21, 229, 239, 194, 9, 247, 116, 155,
         ]);
         assert_eq!(block.hash(), expected);
     }
@@ -748,26 +761,27 @@ mod tests {
         let commit_input = Input::Commit(CommitInput {
             nonce: 0,
             output_index: 0,
-            reveal: [0; 32],
-            transaction_id: [0; 32],
+            reveal: [0; 32].to_vec(),
+            transaction_id: Hash::SHA256([0; 32]),
         });
         let reveal_input = Input::Reveal(RevealInput {
             output_index: 0,
-            transaction_id: [0; 32],
+            transaction_id: Hash::SHA256([0; 32]),
         });
         let data_request_input = Input::DataRequest(DataRequestInput {
             output_index: 0,
             poe: [0; 32],
-            transaction_id: [0; 32],
+            transaction_id: Hash::SHA256([0; 32]),
         });
         let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-            pkh: Hash::SHA256([0; 32]),
+            pkh: [0; 20],
             value: 0,
         });
         let data_request_output = Output::DataRequest(DataRequestOutput {
             backup_witnesses: 0,
             commit_fee: 0,
-            data_request: [0; 32],
+            data_request: [0; 32].to_vec(),
+            pkh: [0; 20],
             reveal_fee: 0,
             tally_fee: 0,
             time_lock: 0,
@@ -779,13 +793,13 @@ mod tests {
             value: 0,
         });
         let reveal_output = Output::Reveal(RevealOutput {
-            pkh: Hash::SHA256([0; 32]),
-            reveal: [0; 32],
+            pkh: [0; 20],
+            reveal: [0; 32].to_vec(),
             value: 0,
         });
-        let consensus_output = Output::Consensus(ConsensusOutput {
-            pkh: Hash::SHA256([0; 32]),
-            result: [0; 32],
+        let consensus_output = Output::Tally(TallyOutput {
+            pkh: [0; 20],
+            result: [0; 32].to_vec(),
             value: 0,
         });
         let inputs = vec![commit_input, data_request_input, reveal_input];
@@ -803,8 +817,8 @@ mod tests {
             version: 0,
         };
         let expected = Hash::SHA256([
-            78, 197, 225, 15, 12, 154, 137, 124, 155, 77, 166, 144, 177, 172, 136, 235, 142, 203,
-            145, 146, 138, 20, 179, 215, 245, 23, 66, 11, 29, 75, 57, 171,
+            226, 59, 163, 40, 104, 109, 31, 90, 209, 34, 237, 205, 37, 115, 7, 118, 41, 88, 8, 99,
+            195, 50, 49, 21, 139, 120, 85, 151, 204, 137, 206, 38,
         ]);
         assert_eq!(transaction.hash(), expected);
     }
