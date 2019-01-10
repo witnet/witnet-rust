@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use witnet_data_structures::chain::{Hash, Input, Output, OutputPointer};
+use witnet_data_structures::chain::{Input, Output, OutputPointer};
 
 /// find unspent outputs in unspent outputs
 pub fn find_unspent_outputs<S: ::std::hash::BuildHasher>(
@@ -9,15 +9,19 @@ pub fn find_unspent_outputs<S: ::std::hash::BuildHasher>(
     inputs.iter().all(|tx_input| {
         let output_pointer = match tx_input {
             Input::Commit(tx) => OutputPointer {
-                transaction_id: Hash::SHA256(tx.transaction_id),
+                transaction_id: tx.transaction_id,
                 output_index: tx.output_index,
             },
             Input::Reveal(tx) => OutputPointer {
-                transaction_id: Hash::SHA256(tx.transaction_id),
+                transaction_id: tx.transaction_id,
                 output_index: tx.output_index,
             },
             Input::DataRequest(tx) => OutputPointer {
-                transaction_id: Hash::SHA256(tx.transaction_id),
+                transaction_id: tx.transaction_id,
+                output_index: tx.output_index,
+            },
+            Input::ValueTransfer(tx) => OutputPointer {
+                transaction_id: tx.transaction_id,
                 output_index: tx.output_index,
             },
         };
@@ -33,26 +37,30 @@ pub fn get_output_from_input<S: ::std::hash::BuildHasher>(
 ) -> Output {
     let output_pointer = match input {
         Input::Commit(tx) => OutputPointer {
-            transaction_id: Hash::SHA256(tx.transaction_id),
+            transaction_id: tx.transaction_id,
             output_index: tx.output_index,
         },
         Input::DataRequest(tx) => OutputPointer {
-            transaction_id: Hash::SHA256(tx.transaction_id),
+            transaction_id: tx.transaction_id,
             output_index: tx.output_index,
         },
         Input::Reveal(tx) => OutputPointer {
-            transaction_id: Hash::SHA256(tx.transaction_id),
+            transaction_id: tx.transaction_id,
+            output_index: tx.output_index,
+        },
+        Input::ValueTransfer(tx) => OutputPointer {
+            transaction_id: tx.transaction_id,
             output_index: tx.output_index,
         },
     };
 
-    unspent_outputs[&output_pointer]
+    unspent_outputs[&output_pointer].clone()
 }
 
 /// Check if an output is a consensus output
 pub fn is_consensus_output(output: &Output) -> bool {
     match output {
-        Output::Consensus(_) => true,
+        Output::Tally(_) => true,
         _ => false,
     }
 }

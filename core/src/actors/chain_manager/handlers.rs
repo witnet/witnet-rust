@@ -172,7 +172,7 @@ impl Handler<AddTransaction> for ChainManager {
                                 _ => false,
                             },
                             // TO RULE 4. The value brought into a transaction by an input pointing to a tally output can be freely assigned to any output of any type unless otherwise restricted by the specific validation rules for such output type.
-                            Output::Consensus(_) => true,
+                            Output::Tally(_) => true,
                         };
 
                         is_valid_output = match output {
@@ -193,7 +193,7 @@ impl Handler<AddTransaction> for ChainManager {
                                     // RO RULE 4. Any transaction including an input pointing to a reveal output must also include exactly only one tally output.
                                     && validate_tally_output_uniqueness(outputs)
                             }
-                            Output::Consensus(_) => true,
+                            Output::Tally(_) => true,
                         };
 
                         is_valid_input && is_valid_output
