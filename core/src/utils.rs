@@ -7,24 +7,7 @@ pub fn find_unspent_outputs<S: ::std::hash::BuildHasher>(
     inputs: &[Input],
 ) -> bool {
     inputs.iter().all(|tx_input| {
-        let output_pointer = match tx_input {
-            Input::Commit(tx) => OutputPointer {
-                transaction_id: tx.transaction_id,
-                output_index: tx.output_index,
-            },
-            Input::Reveal(tx) => OutputPointer {
-                transaction_id: tx.transaction_id,
-                output_index: tx.output_index,
-            },
-            Input::DataRequest(tx) => OutputPointer {
-                transaction_id: tx.transaction_id,
-                output_index: tx.output_index,
-            },
-            Input::ValueTransfer(tx) => OutputPointer {
-                transaction_id: tx.transaction_id,
-                output_index: tx.output_index,
-            },
-        };
+        let output_pointer = get_output_pointer_from_input(tx_input);
 
         unspent_outputs.contains_key(&output_pointer)
     })
@@ -35,7 +18,14 @@ pub fn get_output_from_input<S: ::std::hash::BuildHasher>(
     unspent_outputs: &HashMap<OutputPointer, Output, S>,
     input: &Input,
 ) -> Output {
-    let output_pointer = match input {
+    let output_pointer = get_output_pointer_from_input(input);
+
+    unspent_outputs[&output_pointer].clone()
+}
+
+/// get OutputPointer from input
+pub fn get_output_pointer_from_input(input: &Input) -> OutputPointer {
+    match input {
         Input::Commit(tx) => OutputPointer {
             transaction_id: tx.transaction_id,
             output_index: tx.output_index,
@@ -52,9 +42,7 @@ pub fn get_output_from_input<S: ::std::hash::BuildHasher>(
             transaction_id: tx.transaction_id,
             output_index: tx.output_index,
         },
-    };
-
-    unspent_outputs[&output_pointer].clone()
+    }
 }
 
 /// Check if an output is a consensus output

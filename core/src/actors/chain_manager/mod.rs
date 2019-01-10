@@ -38,7 +38,7 @@ use crate::actors::{
     storage_keys::{BLOCK_CHAIN_KEY, CHAIN_KEY},
     storage_manager::{messages::Put, StorageManager},
 };
-use crate::utils::{find_unspent_outputs, get_output_from_input};
+use crate::utils::{find_unspent_outputs, get_output_from_input, get_output_pointer_from_input};
 
 use log::{debug, error, info, warn};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -146,6 +146,36 @@ impl ChainManager {
             .iter()
             .map(|input| get_output_from_input(&self.unspent_outputs_pool, input))
             .collect()
+    }
+
+    /// Method to update utxo set
+    fn update_utxo_set(&self, block: Block) -> HashMap<OutputPointer, Output> {
+        // Create a copy of the state "unspent_outputs_pool"
+        let mut utxo_set = self.unspent_outputs_pool.clone();
+
+        let transactions = block.txns;
+
+        for transaction in transactions {
+            let txn_hash = transaction.hash();
+            for input in transaction.inputs {
+                // Obtain the OuputPointer of each input and remove it from the utxo_set
+                let output_pointer = get_output_pointer_from_input(&input);
+
+                utxo_set.remove(&output_pointer);
+            }
+
+            for (index, output) in transaction.outputs.iter().enumerate() {
+                // Add the new outputs to the utxo_set
+                let output_pointer = OutputPointer {
+                    transaction_id: txn_hash,
+                    output_index: index as u32,
+                };
+
+                utxo_set.insert(output_pointer, output.clone());
+            }
+        }
+
+        utxo_set
     }
 
     /// Method to persist chain_info into storage
@@ -389,7 +419,7 @@ impl ChainManager {
         Ok(missing_inv_entries)
     }
 
-    fn get_block_to_validate(&mut self, hash: &Hash) -> Option<Block> {
+    fn remove_block_to_validate(&mut self, hash: &Hash) -> Option<Block> {
         self.blocks_to_validate.remove(hash)
     }
 
@@ -410,7 +440,7 @@ impl ChainManager {
         self.current_epoch
             .map(|current_epoch| {
                 // Check before if exist a block to validate
-                if let Some(previous_block) = self.get_block_to_validate(&hash_prev_block) {
+                if let Some(previous_block) = self.remove_block_to_validate(&hash_prev_block) {
                     self.process_block(ctx, previous_block);
                 }
 
@@ -674,7 +704,7 @@ mod tests {
         assert_eq!(bm.blocks_to_validate.len(), 1);
         assert_eq!(bm.blocks_to_validate.get(&hash_a).unwrap(), &block_a);
 
-        let block_extract = &bm.get_block_to_validate(&hash_a).unwrap();
+        let block_extract = &bm.remove_block_to_validate(&hash_a).unwrap();
 
         // Check the block is removed from blocks_to_validate map
         assert_eq!(bm.blocks_to_validate.len(), 0);
