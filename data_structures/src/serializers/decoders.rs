@@ -1,11 +1,10 @@
 extern crate flatbuffers;
 
-use crate::chain::DataRequestInput;
 use crate::chain::{
-    Block, BlockHeader, CheckpointBeacon, CommitInput, CommitOutput, ConsensusOutput,
+    Block, BlockHeader, CheckpointBeacon, CommitInput, CommitOutput, DataRequestInput,
     DataRequestOutput, Hash, Input, InventoryEntry, KeyedSignature, LeadershipProof, Output,
-    RevealInput, RevealOutput, Secp256k1Signature, Signature, Transaction, ValueTransferOutput,
-    SHA256,
+    PublicKeyHash, RevealInput, RevealOutput, Secp256k1Signature, Signature, TallyOutput,
+    Transaction, ValueTransferInput, ValueTransferOutput, SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol;
 
@@ -333,12 +332,14 @@ fn create_input(ftb_input: protocol::Input) -> Input {
                     transaction_id: {
                         let mut transaction_id = [0; 32];
                         transaction_id.copy_from_slice(&data_request_input.transaction_id()[0..32]);
-                        transaction_id
+
+                        Hash::SHA256(transaction_id)
                     },
                     output_index: data_request_input.output_index(),
                     poe: {
                         let mut poe = [0; 32];
                         poe.copy_from_slice(&data_request_input.poe()[0..32]);
+
                         poe
                     },
                 })
@@ -351,13 +352,15 @@ fn create_input(ftb_input: protocol::Input) -> Input {
                     transaction_id: {
                         let mut transaction_id = [0; 32];
                         transaction_id.copy_from_slice(&commit_input.transaction_id()[0..32]);
-                        transaction_id
+
+                        Hash::SHA256(transaction_id)
                     },
                     output_index: commit_input.output_index(),
                     reveal: {
                         let mut reveal = [0; 32];
                         reveal.copy_from_slice(&commit_input.reveal()[0..32]);
-                        reveal
+
+                        reveal.to_vec()
                     },
                     nonce: commit_input.nonce(),
                 })
@@ -370,9 +373,25 @@ fn create_input(ftb_input: protocol::Input) -> Input {
                     transaction_id: {
                         let mut transaction_id = [0; 32];
                         transaction_id.copy_from_slice(&reveal_input.transaction_id()[0..32]);
-                        transaction_id
+
+                        Hash::SHA256(transaction_id)
                     },
                     output_index: reveal_input.output_index(),
+                })
+            })
+            .unwrap(),
+        protocol::InputUnion::ValueTransferInput => ftb_input
+            .input_as_value_transfer_input()
+            .map(|value_transfer_input| {
+                Input::ValueTransfer(ValueTransferInput {
+                    transaction_id: {
+                        let mut transaction_id = [0; 32];
+                        transaction_id
+                            .copy_from_slice(&value_transfer_input.transaction_id()[0..32]);
+
+                        Hash::SHA256(transaction_id)
+                    },
+                    output_index: value_transfer_input.output_index(),
                 })
             })
             .unwrap(),
@@ -398,7 +417,7 @@ fn create_output(ftb_output: protocol::Output) -> Output {
             .output_as_value_transfer_output()
             .map(|value_transfer_output| {
                 Output::ValueTransfer(ValueTransferOutput {
-                    pkh: create_hash(value_transfer_output.pkh()),
+                    pkh: create_pkh(value_transfer_output.pkh()),
                     value: value_transfer_output.value(),
                 })
             })
@@ -410,11 +429,13 @@ fn create_output(ftb_output: protocol::Output) -> Output {
                 Output::DataRequest(DataRequestOutput {
                     backup_witnesses: data_request_output.backup_witnesses(),
                     commit_fee: data_request_output.commit_fee(),
+                    pkh: create_pkh(data_request_output.pkh()),
                     reveal_fee: data_request_output.reveal_fee(),
                     data_request: {
                         let mut arr = [0; 32];
                         arr.copy_from_slice(data_request_output.data_request());
-                        arr
+
+                        arr.to_vec()
                     },
                     tally_fee: data_request_output.tally_fee(),
                     time_lock: data_request_output.time_lock(),
@@ -438,11 +459,12 @@ fn create_output(ftb_output: protocol::Output) -> Output {
             .output_as_reveal_output()
             .map(|reveal_output| {
                 Output::Reveal(RevealOutput {
-                    pkh: create_hash(reveal_output.pkh()),
+                    pkh: create_pkh(reveal_output.pkh()),
                     reveal: {
                         let mut reveal = [0; 32];
                         reveal.copy_from_slice(&reveal_output.reveal()[0..32]);
-                        reveal
+
+                        reveal.to_vec()
                     },
                     value: reveal_output.value(),
                 })
@@ -452,12 +474,13 @@ fn create_output(ftb_output: protocol::Output) -> Output {
         protocol::OutputUnion::ConsensusOutput => ftb_output
             .output_as_consensus_output()
             .map(|consensus_output| {
-                Output::Consensus(ConsensusOutput {
-                    pkh: create_hash(consensus_output.pkh()),
+                Output::Tally(TallyOutput {
+                    pkh: create_pkh(consensus_output.pkh()),
                     result: {
                         let mut result = [0; 32];
                         result.copy_from_slice(&consensus_output.result()[0..32]);
-                        result
+
+                        result.to_vec()
                     },
                     value: consensus_output.value(),
                 })
@@ -678,6 +701,15 @@ fn create_hash(hash: protocol::Hash) -> Hash {
     match hash.type_() {
         protocol::HashType::SHA256 => Hash::SHA256(hash_bytes),
     }
+}
+
+// Build a Witnet's Public Key Hash from a flatbuffers' array of bytes
+fn create_pkh(pkh_bytes: &[u8]) -> PublicKeyHash {
+    // Get pkh bytes
+    let mut pkh: PublicKeyHash = [0; 20];
+    pkh.copy_from_slice(pkh_bytes);
+
+    pkh
 }
 
 // Build Witnet IP address

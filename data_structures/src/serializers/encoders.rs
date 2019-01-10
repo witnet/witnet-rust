@@ -1216,20 +1216,15 @@ fn build_output_vector_wipoffset<'a>(
                     },
                 )
             }
-            Output::Consensus(consensus) => {
-                let result_vector_wipoffset = builder.create_vector(&consensus.result);
-                let pkh_wipoffset = build_hash_wipoffset(
-                    builder,
-                    &HashArgs {
-                        hash: consensus.pkh,
-                    },
-                );
+            Output::Tally(tally) => {
+                let result_vector_wipoffset = builder.create_vector(&tally.result);
+                let pkh_wipoffset = builder.create_vector(&tally.pkh);
                 let consensus_output_wipoffset = protocol::ConsensusOutput::create(
                     builder,
                     &protocol::ConsensusOutputArgs {
                         result: Some(result_vector_wipoffset),
                         pkh: Some(pkh_wipoffset),
-                        value: consensus.value,
+                        value: tally.value,
                     },
                 );
 
@@ -1243,10 +1238,13 @@ fn build_output_vector_wipoffset<'a>(
             }
             Output::DataRequest(data_request) => {
                 let data_request_wipoffset = builder.create_vector(&data_request.data_request);
+                let pkh_wipoffset = builder.create_vector(&data_request.pkh);
+
                 let data_request_output_wipoffset = protocol::DataRequestOutput::create(
                     builder,
                     &protocol::DataRequestOutputArgs {
                         data_request: Some(data_request_wipoffset),
+                        pkh: Some(pkh_wipoffset),
                         value: data_request.value,
                         witnesses: data_request.witnesses,
                         backup_witnesses: data_request.backup_witnesses,
@@ -1267,7 +1265,7 @@ fn build_output_vector_wipoffset<'a>(
             }
             Output::Reveal(reveal) => {
                 let reveal_wipoffset = builder.create_vector(&reveal.reveal);
-                let pkh_wipoffset = build_hash_wipoffset(builder, &HashArgs { hash: reveal.pkh });
+                let pkh_wipoffset = builder.create_vector(&reveal.pkh);
                 let reveal_output_wipoffset = protocol::RevealOutput::create(
                     builder,
                     &protocol::RevealOutputArgs {
@@ -1286,12 +1284,7 @@ fn build_output_vector_wipoffset<'a>(
                 )
             }
             Output::ValueTransfer(value_transfer) => {
-                let pkh_wipoffset = build_hash_wipoffset(
-                    builder,
-                    &HashArgs {
-                        hash: value_transfer.pkh,
-                    },
-                );
+                let pkh_wipoffset = builder.create_vector(&value_transfer.pkh);
                 let value_transfer_wipoffset = protocol::ValueTransferOutput::create(
                     builder,
                     &protocol::ValueTransferOutputArgs {
@@ -1322,8 +1315,10 @@ fn build_input_vector_wipoffset<'a>(
         .iter()
         .map(|input: &Input| match input {
             Input::Reveal(reveal) => {
-                let transaction_id = builder.create_vector(&reveal.transaction_id);
-                let value_transfer_input_wipoffset = protocol::RevealInput::create(
+                let transaction_id = match reveal.transaction_id {
+                    Hash::SHA256(sha256) => builder.create_vector(&sha256),
+                };
+                let reveal_input_wipoffset = protocol::RevealInput::create(
                     builder,
                     &protocol::RevealInputArgs {
                         output_index: reveal.output_index,
@@ -1335,14 +1330,16 @@ fn build_input_vector_wipoffset<'a>(
                     builder,
                     &protocol::InputArgs {
                         input_type: protocol::InputUnion::RevealInput,
-                        input: Some(value_transfer_input_wipoffset.as_union_value()),
+                        input: Some(reveal_input_wipoffset.as_union_value()),
                     },
                 )
             }
             Input::DataRequest(data_request) => {
-                let transaction_id = builder.create_vector(&data_request.transaction_id);
+                let transaction_id = match data_request.transaction_id {
+                    Hash::SHA256(sha256) => builder.create_vector(&sha256),
+                };
                 let poe = builder.create_vector(&data_request.poe);
-                let commit_input_wipoffset = protocol::DataRequestInput::create(
+                let data_request_input_wipoffset = protocol::DataRequestInput::create(
                     builder,
                     &protocol::DataRequestInputArgs {
                         transaction_id: Some(transaction_id),
@@ -1355,14 +1352,16 @@ fn build_input_vector_wipoffset<'a>(
                     builder,
                     &protocol::InputArgs {
                         input_type: protocol::InputUnion::DataRequestInput,
-                        input: Some(commit_input_wipoffset.as_union_value()),
+                        input: Some(data_request_input_wipoffset.as_union_value()),
                     },
                 )
             }
             Input::Commit(commit) => {
-                let transaction_id_vector_wipoffset = builder.create_vector(&commit.transaction_id);
+                let transaction_id_vector_wipoffset = match commit.transaction_id {
+                    Hash::SHA256(sha256) => builder.create_vector(&sha256),
+                };
                 let commit_vector_wipoffset = builder.create_vector(&commit.reveal);
-                let reveal_input_wipoffset = protocol::CommitInput::create(
+                let commit_input_wipoffset = protocol::CommitInput::create(
                     builder,
                     &protocol::CommitInputArgs {
                         transaction_id: Some(transaction_id_vector_wipoffset),
@@ -1376,7 +1375,27 @@ fn build_input_vector_wipoffset<'a>(
                     builder,
                     &protocol::InputArgs {
                         input_type: protocol::InputUnion::CommitInput,
-                        input: Some(reveal_input_wipoffset.as_union_value()),
+                        input: Some(commit_input_wipoffset.as_union_value()),
+                    },
+                )
+            }
+            Input::ValueTransfer(reveal) => {
+                let transaction_id = match reveal.transaction_id {
+                    Hash::SHA256(sha256) => builder.create_vector(&sha256),
+                };
+                let value_transfer_input_wipoffset = protocol::ValueTransferInput::create(
+                    builder,
+                    &protocol::ValueTransferInputArgs {
+                        output_index: reveal.output_index,
+                        transaction_id: Some(transaction_id),
+                    },
+                );
+
+                protocol::Input::create(
+                    builder,
+                    &protocol::InputArgs {
+                        input_type: protocol::InputUnion::ValueTransferInput,
+                        input: Some(value_transfer_input_wipoffset.as_union_value()),
                     },
                 )
             }
