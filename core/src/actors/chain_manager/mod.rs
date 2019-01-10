@@ -503,7 +503,7 @@ impl ChainManager {
                             //Announce and persist older blocks
                             self.broadcast_announce_items(hash);
                             self.persist_item(ctx, InventoryItem::Block(block.clone()));
-                            
+
                             // Update utxo set with an older block transactions
                             self.unspent_outputs_pool = self.update_utxo_set(block);
                         }
@@ -530,7 +530,7 @@ mod tests {
 
         // Build hardcoded block
         let checkpoint = 2;
-        let block_a = build_hardcoded_block(checkpoint, 99999);
+        let block_a = build_hardcoded_block(checkpoint, 99999, Hash::SHA256([111; 32]));
 
         // Add block to ChainManager
         let hash_a = bm.accept_block(block_a.clone()).unwrap();
@@ -557,7 +557,7 @@ mod tests {
         let mut bm = ChainManager::default();
 
         // Build hardcoded block
-        let block = build_hardcoded_block(2, 99999);
+        let block = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
 
         // Only the first block will be inserted
         assert!(bm.accept_block(block.clone()).is_ok());
@@ -571,8 +571,8 @@ mod tests {
 
         // Build hardcoded blocks
         let checkpoint = 2;
-        let block_a = build_hardcoded_block(checkpoint, 99999);
-        let block_b = build_hardcoded_block(checkpoint, 12345);
+        let block_a = build_hardcoded_block(checkpoint, 99999, Hash::SHA256([111; 32]));
+        let block_b = build_hardcoded_block(checkpoint, 12345, Hash::SHA256([112; 32]));
 
         // Add blocks to the ChainManager
         let hash_a = bm.accept_block(block_a).unwrap();
@@ -591,7 +591,7 @@ mod tests {
         let mut bm = ChainManager::default();
 
         // Create a hardcoded block
-        let block_a = build_hardcoded_block(2, 99999);
+        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
 
         // Add the block to the ChainManager
         let hash_a = bm.accept_block(block_a.clone()).unwrap();
@@ -661,7 +661,7 @@ mod tests {
     }
 
     #[test]
-    fn get_next_block_without_validation() {
+    fn get_block_without_validation() {
         let mut bm = ChainManager::default();
 
         // Build hardcoded block
@@ -672,7 +672,7 @@ mod tests {
 
         // Check the block is added into the blocks_to_validate map
         assert_eq!(bm.blocks_to_validate.len(), 1);
-        assert_eq!(bm.blocks_to_validate.get(&hashhash_a_b).unwrap(), &block_a);
+        assert_eq!(bm.blocks_to_validate.get(&hash_a).unwrap(), &block_a);
 
         let block_extract = &bm.get_block_to_validate(&hash_a).unwrap();
 
@@ -680,7 +680,7 @@ mod tests {
         assert_eq!(bm.blocks_to_validate.len(), 0);
 
         // Check that the block extracted is the same than inserted
-        assert_eq!(block_b, *block_extract);
+        assert_eq!(block_a, *block_extract);
     }
 
     #[test]
@@ -689,9 +689,9 @@ mod tests {
         let mut bm = ChainManager::default();
 
         // Build blocks
-        let block_a = build_hardcoded_block(2, 99999);
-        let block_b = build_hardcoded_block(1, 10000);
-        let block_c = build_hardcoded_block(3, 72138);
+        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
+        let block_b = build_hardcoded_block(1, 10000, Hash::SHA256([112; 32]));
+        let block_c = build_hardcoded_block(3, 72138, Hash::SHA256([113; 32]));
 
         // Add blocks to the ChainManager
         let hash_a = bm.accept_block(block_a.clone()).unwrap();
@@ -717,9 +717,9 @@ mod tests {
         let mut bm = ChainManager::default();
 
         // Build blocks
-        let block_a = build_hardcoded_block(2, 99999);
-        let block_b = build_hardcoded_block(1, 10000);
-        let block_c = build_hardcoded_block(3, 72138);
+        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
+        let block_b = build_hardcoded_block(1, 10000, Hash::SHA256([112; 32]));
+        let block_c = build_hardcoded_block(3, 72138, Hash::SHA256([113; 32]));
 
         // Add blocks to the ChainManager
         let hash_a = bm.accept_block(block_a.clone()).unwrap();
@@ -750,9 +750,9 @@ mod tests {
         let mut bm = ChainManager::default();
 
         // Build blocks
-        let block_a = build_hardcoded_block(2, 99999);
-        let block_b = build_hardcoded_block(1, 10000);
-        let block_c = build_hardcoded_block(3, 72138);
+        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
+        let block_b = build_hardcoded_block(1, 10000, Hash::SHA256([112; 32]));
+        let block_c = build_hardcoded_block(3, 72138, Hash::SHA256([113; 32]));
 
         // Add blocks to the ChainManager
         bm.accept_block(block_a.clone()).unwrap();
@@ -780,7 +780,7 @@ mod tests {
     }
 
     #[cfg(test)]
-    fn build_hardcoded_block(checkpoint: u32, influence: u64) -> Block {
+    fn build_hardcoded_block(checkpoint: u32, influence: u64, hash_prev_block: Hash) -> Block {
         use witnet_data_structures::chain::*;
         let signature = Signature::Secp256k1(Secp256k1Signature {
             r: [0; 32],
@@ -865,7 +865,7 @@ mod tests {
                 version: 1,
                 beacon: CheckpointBeacon {
                     checkpoint,
-                    hash_prev_block: Hash::SHA256([111; 32]),
+                    hash_prev_block,
                 },
                 hash_merkle_root: Hash::SHA256([222; 32]),
             },
@@ -879,7 +879,7 @@ mod tests {
         use witnet_data_structures::chain::*;
         use witnet_storage::storage::Storable;
 
-        let b = InventoryItem::Block(build_hardcoded_block(0, 0));
+        let b = InventoryItem::Block(build_hardcoded_block(0, 0, Hash::SHA256([111; 32])));
         let msp = b.to_bytes().unwrap();
         assert_eq!(InventoryItem::from_bytes(&msp).unwrap(), b);
 
