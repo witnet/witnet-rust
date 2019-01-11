@@ -561,6 +561,38 @@ impl TransactionsPool {
         self.transactions.contains_key(key)
     }
 
+    /// Returns an `Option` with the transaction for the specified hash or `None` if not exist.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    ///
+    /// # Examples:
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Transaction, Hash};
+    /// let mut pool = TransactionsPool::new();
+    /// let hash = Hash::SHA256([0 as u8; 32]);
+    /// let transaction = Transaction {
+    ///     inputs: [].to_vec(),
+    ///     signatures: [].to_vec(),
+    ///     outputs: [].to_vec(),
+    ///     version: 0
+    /// };
+    /// pool.insert(hash, transaction.clone());
+    ///
+    /// assert!(pool.contains(&hash));
+    ///
+    /// let op_transaction_removed = pool.remove(&hash);
+    ///
+    /// assert_eq!(Some(transaction), op_transaction_removed);
+    /// assert!(!pool.contains(&hash));
+    /// ```
+    pub fn remove(&mut self, key: &Hash) -> Option<Transaction> {
+        self.transactions.remove(key).map(|(weight, transaction)| {
+            self.sorted_index.remove(&(weight, *key));
+            transaction
+        })
+    }
+
     /// Insert a transaction identified by `key` into the pool.
     ///
     /// # Examples:

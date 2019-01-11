@@ -148,15 +148,20 @@ impl ChainManager {
             .collect()
     }
 
-    /// Method to update utxo set
-    fn update_utxo_set(&self, block: Block) -> HashMap<OutputPointer, Output> {
+    /// Method to update UTXO set
+    fn update_utxo_and_transactions_pool(
+        &self,
+        block: Block,
+    ) -> (HashMap<OutputPointer, Output>, TransactionsPool) {
         // Create a copy of the state "unspent_outputs_pool"
         let mut utxo_set = self.unspent_outputs_pool.clone();
+        let mut txn_pool = self.transactions_pool.clone();
 
         let transactions = block.txns;
 
         for transaction in transactions {
             let txn_hash = transaction.hash();
+
             for input in transaction.inputs {
                 // Obtain the OuputPointer of each input and remove it from the utxo_set
                 let output_pointer = get_output_pointer_from_input(&input);
@@ -173,9 +178,11 @@ impl ChainManager {
 
                 utxo_set.insert(output_pointer, output.clone());
             }
+
+            txn_pool.remove(&txn_hash);
         }
 
-        utxo_set
+        (utxo_set, txn_pool)
     }
 
     /// Method to persist chain_info into storage
@@ -534,8 +541,12 @@ impl ChainManager {
                             self.broadcast_announce_items(hash);
                             self.persist_item(ctx, InventoryItem::Block(block.clone()));
 
-                            // Update utxo set with an older block transactions
-                            self.unspent_outputs_pool = self.update_utxo_set(block);
+                            // Update UTXO set with an older block transactions
+                            let (utxo_set, txns_pool) =
+                                self.update_utxo_and_transactions_pool(block);
+                            // TODO Handle utxo_set and txns_pool in synchronization protocol
+                            self.unspent_outputs_pool = utxo_set;
+                            self.transactions_pool = txns_pool;
                         }
                     }
                     Err(ChainManagerError::BlockAlreadyExists) => {

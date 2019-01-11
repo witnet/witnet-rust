@@ -75,8 +75,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         Purple.bold().paint(beacon.checkpoint.to_string()),
                     );
 
-                    // Update utxo set with block_candidate transactions
-                    self.unspent_outputs_pool = self.update_utxo_set(candidate.clone());
+                    // Update utxo_set and transactions_pool with block_candidate transactions
+                    let (utxo_set, transactions_pool) =
+                        self.update_utxo_and_transactions_pool(candidate.clone());
+                    self.unspent_outputs_pool = utxo_set;
+                    self.transactions_pool = transactions_pool;
 
                     // Send block to Inventory Manager
                     self.persist_item(ctx, InventoryItem::Block(candidate));
