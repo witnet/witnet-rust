@@ -29,28 +29,27 @@ use actix::{
     ActorFuture, Context, ContextFutureSpawner, MailboxError, Supervised, System, SystemService,
     WrapFuture,
 };
-
 use ansi_term::Color::Purple;
+use log::{debug, error, info, warn};
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+use self::messages::{BuildBlock, InventoryEntriesResult};
+use self::mining::build_mint_transaction;
 
 use crate::actors::{
-    chain_manager::messages::InventoryEntriesResult,
     inventory_manager::{messages::AddItem, InventoryManager},
+    reputation_manager::{messages::ValidatePoE, ReputationManager},
+    session::messages::{AnnounceItems, SendBlock},
+    sessions_manager::{messages::Broadcast, SessionsManager},
     storage_keys::{BLOCK_CHAIN_KEY, CHAIN_KEY},
     storage_manager::{messages::Put, StorageManager},
 };
 use crate::utils::{find_unspent_outputs, get_output_from_input};
 
-use log::{debug, error, info, warn};
-use std::collections::{BTreeMap, HashMap, HashSet};
 use witnet_data_structures::chain::{
     Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, Input, InventoryEntry, InventoryItem,
-    Output, OutputPointer, TransactionsPool,
+    Output, OutputPointer, PublicKeyHash, Transaction, TransactionsPool,
 };
-
-use crate::actors::chain_manager::messages::BuildBlock;
-use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
-use crate::actors::session::messages::{AnnounceItems, SendBlock};
-use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
 use crate::validations::{
     block_reward, merkle_tree_root, validate_merkle_tree, validate_mint, validate_transactions,
@@ -332,12 +331,19 @@ impl ChainManager {
 
     fn build_block(&self, msg: &BuildBlock) -> Block {
         // Get all the unspent transactions and calculate the sum of their fees
-        let mut transaction_fees = 0;
-
         let max_block_weight = self.max_block_weight;
+        let mut transaction_fees = 0;
         let mut block_weight = 0;
         let mut transactions = Vec::new();
 
+        // Insert fake mint transaction to be replaced after collecting block transaction fees
+        transactions.push(Transaction {
+            version: 0,
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+            signatures: Vec::new(),
+        });
+        // Push transactions from pool
         for transaction in self.transactions_pool.iter() {
             // Currently, 1 weight unit is equivalent to 1 byte
             let transaction_weight = transaction.size();
@@ -355,9 +361,14 @@ impl ChainManager {
             }
         }
 
+        // Include Mint Transaction by miner
+        // TODO: Include Witnet's node PKH (keyed signature is not needed as there is no input)
+        let pkh = PublicKeyHash::default();
         let epoch = msg.beacon.checkpoint;
-        let _reward = block_reward(epoch) + transaction_fees;
-        // TODO: push coinbase transaction
+        let reward = block_reward(epoch) + transaction_fees;
+        transactions[0] = build_mint_transaction(pkh, reward);
+
+        // Additional Block fields
         let beacon = msg.beacon;
         let hash_merkle_root = merkle_tree_root(&transactions);
         let block_header = BlockHeader {
