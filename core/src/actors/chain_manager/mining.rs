@@ -2,18 +2,19 @@ use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, System, WrapFut
 
 use ansi_term::Color::Yellow;
 
+use super::messages::{AddNewBlock, BuildBlock, GetHighestCheckpointBeacon};
 use super::ChainManager;
-use crate::actors::chain_manager::messages::GetHighestCheckpointBeacon;
 use crate::actors::epoch_manager::messages::EpochNotification;
-
-use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::{Hash, LeadershipProof, Secp256k1Signature, Signature};
-use witnet_storage::storage::Storable;
-
-use crate::actors::chain_manager::messages::AddNewBlock;
-use crate::actors::chain_manager::messages::BuildBlock;
 use crate::actors::reputation_manager::messages::ValidatePoE;
 use crate::actors::reputation_manager::ReputationManager;
+
+use witnet_crypto::hash::calculate_sha256;
+use witnet_data_structures::chain::{
+    Hash, LeadershipProof, Output, PublicKeyHash, Secp256k1Signature, Signature, Transaction,
+    ValueTransferOutput,
+};
+use witnet_storage::storage::Storable;
+
 use log::{debug, error, info};
 
 /// Payload for the notification for all epochs
@@ -104,5 +105,15 @@ impl Handler<EpochNotification<MiningNotification>> for ChainManager {
                 actix::fut::ok(())
             })
             .wait(ctx);
+    }
+}
+
+/// Build Mint Transaction
+pub fn build_mint_transaction(pkh: PublicKeyHash, value: u64) -> Transaction {
+    Transaction {
+        version: 0,
+        inputs: Vec::new(),
+        outputs: vec![Output::ValueTransfer(ValueTransferOutput { pkh, value })],
+        signatures: Vec::new(),
     }
 }
