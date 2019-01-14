@@ -1,11 +1,64 @@
+use crate::utils::get_output_pointer_from_input;
+use std::collections::HashMap;
 use witnet_crypto::hash::Sha256;
 use witnet_crypto::merkle::merkle_tree_root as crypto_merkle_tree_root;
-use witnet_data_structures::chain::{Block, Epoch, Hash, Hashable, Transaction};
+use witnet_data_structures::chain::{
+    Block, Epoch, Hash, Hashable, Output, OutputPointer, Transaction, TransactionsPool,
+};
 
-/// Function to validate block's coinbase
-pub fn validate_coinbase(_block: &Block) -> bool {
-    // TODO Implement validate coinbase algorithm
+/// Function to validate block's mint
+pub fn validate_mint(_block: &Block) -> bool {
+    // TODO Implement validate mint algorithm
     true
+}
+
+/// Function to validate a transaction
+pub fn validate_transaction<S: ::std::hash::BuildHasher>(
+    _transaction: &Transaction,
+    _utxo_set: &mut HashMap<OutputPointer, Output, S>,
+) -> bool {
+    //TODO Implement validate transaction properly
+    true
+}
+
+/// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
+pub fn validate_transactions<S: ::std::hash::BuildHasher>(
+    utxo_set: &mut HashMap<OutputPointer, Output, S>,
+    txn_pool: &mut TransactionsPool,
+    block: &Block,
+) -> bool {
+    let mut valid_transactions = true;
+    let transactions = block.txns.clone();
+
+    for transaction in transactions {
+        if validate_transaction(&transaction, utxo_set) {
+            let txn_hash = transaction.hash();
+
+            for input in transaction.inputs {
+                // Obtain the OuputPointer of each input and remove it from the utxo_set
+                let output_pointer = get_output_pointer_from_input(&input);
+
+                utxo_set.remove(&output_pointer);
+            }
+
+            for (index, output) in transaction.outputs.iter().enumerate() {
+                // Add the new outputs to the utxo_set
+                let output_pointer = OutputPointer {
+                    transaction_id: txn_hash,
+                    output_index: index as u32,
+                };
+
+                utxo_set.insert(output_pointer, output.clone());
+            }
+
+            txn_pool.remove(&txn_hash);
+        } else {
+            valid_transactions = false;
+            break;
+        }
+    }
+
+    valid_transactions
 }
 
 /// Function to calculate a merkle tree from a transaction vector

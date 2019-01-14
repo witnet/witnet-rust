@@ -38,7 +38,7 @@ use crate::actors::{
     storage_keys::{BLOCK_CHAIN_KEY, CHAIN_KEY},
     storage_manager::{messages::Put, StorageManager},
 };
-use crate::utils::{find_unspent_outputs, get_output_from_input, get_output_pointer_from_input};
+use crate::utils::{find_unspent_outputs, get_output_from_input};
 
 use log::{debug, error, info, warn};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -52,7 +52,9 @@ use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager
 use crate::actors::session::messages::{AnnounceItems, SendBlock};
 use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
-use crate::validations::{block_reward, merkle_tree_root, validate_coinbase, validate_merkle_tree};
+use crate::validations::{
+    block_reward, merkle_tree_root, validate_merkle_tree, validate_mint, validate_transactions,
+};
 
 use witnet_data_structures::chain::RevealOutput;
 use witnet_storage::error::StorageError;
@@ -104,8 +106,8 @@ pub struct ChainManager {
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
     transactions_pool: TransactionsPool,
-    /// Block candidate to update chain_info in the next epoch
-    block_candidate: Option<Block>,
+    /// Candidate to update chain_info, unspent_outputs_pool and transactions_pool in the next epoch
+    best_candidate: Option<Candidate>,
     /// Maximum weight each block can have
     max_block_weight: u32,
     /// Unspent Outputs Pool
@@ -121,6 +123,13 @@ pub struct ChainManager {
     _data_requests_by_epoch: BTreeMap<Epoch, HashSet<OutputPointer>>,
     /// List of active data requests indexed by output pointer
     _data_request_pool: HashMap<OutputPointer, DataRequestState>,
+}
+
+/// Struct that keeps a block candidate and its modifications in the blockchain
+pub struct Candidate {
+    block: Block,
+    utxo_set: HashMap<OutputPointer, Output>,
+    txn_mempool: TransactionsPool,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -146,43 +155,6 @@ impl ChainManager {
             .iter()
             .map(|input| get_output_from_input(&self.unspent_outputs_pool, input))
             .collect()
-    }
-
-    /// Method to update UTXO set
-    fn update_utxo_and_transactions_pool(
-        &self,
-        block: Block,
-    ) -> (HashMap<OutputPointer, Output>, TransactionsPool) {
-        // Create a copy of the state "unspent_outputs_pool"
-        let mut utxo_set = self.unspent_outputs_pool.clone();
-        let mut txn_pool = self.transactions_pool.clone();
-
-        let transactions = block.txns;
-
-        for transaction in transactions {
-            let txn_hash = transaction.hash();
-
-            for input in transaction.inputs {
-                // Obtain the OuputPointer of each input and remove it from the utxo_set
-                let output_pointer = get_output_pointer_from_input(&input);
-
-                utxo_set.remove(&output_pointer);
-            }
-
-            for (index, output) in transaction.outputs.iter().enumerate() {
-                // Add the new outputs to the utxo_set
-                let output_pointer = OutputPointer {
-                    transaction_id: txn_hash,
-                    output_index: index as u32,
-                };
-
-                utxo_set.insert(output_pointer, output.clone());
-            }
-
-            txn_pool.remove(&txn_hash);
-        }
-
-        (utxo_set, txn_pool)
     }
 
     /// Method to persist chain_info into storage
@@ -426,28 +398,27 @@ impl ChainManager {
         Ok(missing_inv_entries)
     }
 
-    fn remove_block_to_validate(&mut self, hash: &Hash) -> Option<Block> {
-        self.blocks_to_validate.remove(hash)
-    }
-
     fn process_block(&mut self, ctx: &mut Context<Self>, block: Block) {
-        // Block verify process
+        // Block verification process
         let reputation_manager_addr = System::current().registry().get::<ReputationManager>();
 
         let block_epoch = block.block_header.beacon.checkpoint;
         let hash_prev_block = block.block_header.beacon.hash_prev_block;
 
-        //Discard blocks whose hash is bigger or equal than our candidate
+        //Discard blocks whose hash is bigger or equal than the candidate
         let our_candidate_is_better = Some(block_epoch) == self.current_epoch
-            && match self.block_candidate.as_ref() {
-                Some(candidate) => candidate.hash() <= block.hash(),
+            && match self.best_candidate.as_ref() {
+                Some(candidate) => candidate.block.hash() <= block.hash(),
                 None => false,
             };
 
         self.current_epoch
             .map(|current_epoch| {
-                // Check before if exist a block to validate
-                if let Some(previous_block) = self.remove_block_to_validate(&hash_prev_block) {
+                // Remove from blocks_to_validate HashMap if it exists
+                self.blocks_to_validate.remove(&block.hash());
+
+                // Check beforehand if a block exists to validate
+                if let Some(previous_block) = self.blocks_to_validate.remove(&hash_prev_block) {
                     self.process_block(ctx, previous_block);
                 }
 
@@ -459,10 +430,10 @@ impl ChainManager {
                         current_epoch, block_epoch
                     );
                 } else if our_candidate_is_better {
-                    if let Some(candidate) = self.block_candidate.as_ref() {
+                    if let Some(candidate) = self.best_candidate.as_ref() {
                         debug!(
                             "We already had a better candidate ({:?} overpowers {:?})",
-                            candidate.hash(),
+                            candidate.block.hash(),
                             block.hash()
                         );
                     }
@@ -480,8 +451,8 @@ impl ChainManager {
                             error!("Unexpected error");
                         }
                     }
-                } else if !validate_coinbase(&block) {
-                    warn!("Block coinbase not valid");
+                } else if !validate_mint(&block) {
+                    warn!("Block mint not valid");
                 } else {
                     if block_epoch < current_epoch {
                         // FIXME(#235): check proof of eligibility from the past
@@ -526,36 +497,44 @@ impl ChainManager {
                 warn!("Block PoE not valid");
             }
             Ok(true) => {
-                // Insert in blocks mempool
-                let res = self.accept_block(block.clone());
-                match res {
-                    Ok(hash) => {
-                        let block_epoch = block.block_header.beacon.checkpoint;
-                        if Some(block_epoch) == self.current_epoch {
-                            // Update block candidate
-                            self.block_candidate = Some(block.clone());
-                            //Broadcast blocks in current epoch
-                            self.broadcast_block(block);
-                        } else {
-                            //Announce and persist older blocks
-                            self.broadcast_announce_items(hash);
-                            self.persist_item(ctx, InventoryItem::Block(block.clone()));
+                let mut utxo_set = self.unspent_outputs_pool.clone();
+                let mut txn_mempool = self.transactions_pool.clone();
 
-                            // Update UTXO set with an older block transactions
-                            let (utxo_set, txns_pool) =
-                                self.update_utxo_and_transactions_pool(block);
-                            // TODO Handle utxo_set and txns_pool in synchronization protocol
-                            self.unspent_outputs_pool = utxo_set;
-                            self.transactions_pool = txns_pool;
+                if validate_transactions(&mut utxo_set, &mut txn_mempool, &block) {
+                    // Insert in blocks mempool
+                    let res = self.accept_block(block.clone());
+                    match res {
+                        Ok(hash) => {
+                            let block_epoch = block.block_header.beacon.checkpoint;
+                            if Some(block_epoch) == self.current_epoch {
+                                // Update candidate
+                                self.best_candidate = Some(Candidate {
+                                    block: block.clone(),
+                                    utxo_set,
+                                    txn_mempool,
+                                });
+                                //Broadcast blocks in current epoch
+                                self.broadcast_block(block);
+                            } else {
+                                //Announce and persist older blocks
+                                self.broadcast_announce_items(hash);
+                                self.persist_item(ctx, InventoryItem::Block(block));
+
+                                // Update UTXO set with older block transactions
+                                self.unspent_outputs_pool = utxo_set;
+                                self.transactions_pool = txn_mempool;
+                            }
                         }
-                    }
-                    Err(ChainManagerError::BlockAlreadyExists) => {
-                        warn!("Block already exists");
-                    }
-                    Err(_) => {
-                        error!("Unexpected error");
-                    }
-                };
+                        Err(ChainManagerError::BlockAlreadyExists) => {
+                            warn!("Block already exists");
+                        }
+                        Err(_) => {
+                            error!("Unexpected error");
+                        }
+                    };
+                } else {
+                    warn!("Transactions not valid")
+                }
             }
         };
     }
@@ -699,29 +678,6 @@ mod tests {
         let hash_a = bm.keep_block_without_validation(block_a).unwrap();
         let hash_b = bm.keep_block_without_validation(block_b).unwrap();
         assert_ne!(hash_a, hash_b);
-    }
-
-    #[test]
-    fn get_block_without_validation() {
-        let mut bm = ChainManager::default();
-
-        // Build hardcoded block
-        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
-
-        // Add block to ChainManager without complete validation
-        let hash_a = bm.keep_block_without_validation(block_a.clone()).unwrap();
-
-        // Check the block is added into the blocks_to_validate map
-        assert_eq!(bm.blocks_to_validate.len(), 1);
-        assert_eq!(bm.blocks_to_validate.get(&hash_a).unwrap(), &block_a);
-
-        let block_extract = &bm.remove_block_to_validate(&hash_a).unwrap();
-
-        // Check the block is removed from blocks_to_validate map
-        assert_eq!(bm.blocks_to_validate.len(), 0);
-
-        // Check that the block extracted is the same than inserted
-        assert_eq!(block_a, *block_extract);
     }
 
     #[test]

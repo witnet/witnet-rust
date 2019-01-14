@@ -57,13 +57,13 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         self.current_epoch = Some(msg.checkpoint);
 
-        if let Some(candidate) = self.block_candidate.take() {
+        if let Some(candidate) = self.best_candidate.take() {
             // Update chain_info
             match self.chain_info.as_mut() {
                 Some(chain_info) => {
                     let beacon = CheckpointBeacon {
                         checkpoint: msg.checkpoint,
-                        hash_prev_block: candidate.hash(),
+                        hash_prev_block: candidate.block.hash(),
                     };
 
                     chain_info.highest_block_checkpoint = beacon;
@@ -71,18 +71,16 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     info!(
                         "{} Block {} consolidated for epoch #{}",
                         Purple.bold().paint("[Chain]"),
-                        Purple.bold().paint(candidate.hash().to_string()),
+                        Purple.bold().paint(candidate.block.hash().to_string()),
                         Purple.bold().paint(beacon.checkpoint.to_string()),
                     );
 
                     // Update utxo_set and transactions_pool with block_candidate transactions
-                    let (utxo_set, transactions_pool) =
-                        self.update_utxo_and_transactions_pool(candidate.clone());
-                    self.unspent_outputs_pool = utxo_set;
-                    self.transactions_pool = transactions_pool;
+                    self.unspent_outputs_pool = candidate.utxo_set;
+                    self.transactions_pool = candidate.txn_mempool;
 
                     // Send block to Inventory Manager
-                    self.persist_item(ctx, InventoryItem::Block(candidate));
+                    self.persist_item(ctx, InventoryItem::Block(candidate.block));
 
                     // Persist chain_info into storage
                     self.persist_chain_info(ctx);
