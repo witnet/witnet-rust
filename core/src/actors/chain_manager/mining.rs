@@ -173,3 +173,154 @@ fn build_block(
         txns: transactions,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use witnet_data_structures::chain::*;
+
+    #[test]
+    fn build_empty_block() {
+        // Initialize transaction_pool with 1 transaction
+        let mut transaction_pool = TransactionsPool::default();
+        let transaction = Transaction {
+            version: 0,
+            inputs: vec![],
+            outputs: vec![],
+            signatures: vec![],
+        };
+        transaction_pool.insert(transaction.hash(), transaction.clone());
+
+        // Set `max_block_weight` to zero (no transaction should be included)
+        let max_block_weight = 0;
+
+        // Fields required to mine a block
+        let block_beacon = CheckpointBeacon::default();
+        let block_proof = LeadershipProof {
+            block_sig: None,
+            influence: 0,
+        };
+
+        // Build empty block (because max weight is zero)
+        let block = build_block(
+            &transaction_pool,
+            max_block_weight,
+            block_beacon,
+            block_proof,
+        );
+
+        // Check if block only contains the Mint Transaction
+        assert_eq!(block.txns.len(), 1);
+        assert_eq!(block.txns[0].inputs.len(), 0);
+        assert_eq!(block.txns[0].outputs.len(), 1);
+        assert_eq!(block.txns[0].signatures.len(), 0);
+
+        // Check that transaction in block is not the transaction in `transactions_pool`
+        assert_ne!(block.txns[0], transaction);
+    }
+
+    #[test]
+    fn build_block_with_transactions() {
+        // Build sample transactions
+        let transaction_1 = Transaction {
+            version: 0,
+            inputs: vec![Input::ValueTransfer(ValueTransferInput {
+                transaction_id: Hash::SHA256([1; 32]),
+                output_index: 0,
+            })],
+            outputs: vec![Output::ValueTransfer(ValueTransferOutput {
+                pkh: PublicKeyHash::default(),
+                value: 1,
+            })],
+            signatures: vec![],
+        };
+        let transaction_2 = Transaction {
+            version: 0,
+            inputs: vec![
+                Input::ValueTransfer(ValueTransferInput {
+                    transaction_id: Hash::SHA256([2; 32]),
+                    output_index: 0,
+                }),
+                Input::ValueTransfer(ValueTransferInput {
+                    transaction_id: Hash::SHA256([3; 32]),
+                    output_index: 0,
+                }),
+            ],
+            outputs: vec![
+                Output::ValueTransfer(ValueTransferOutput {
+                    pkh: PublicKeyHash::default(),
+                    value: 2,
+                }),
+                Output::ValueTransfer(ValueTransferOutput {
+                    pkh: PublicKeyHash::default(),
+                    value: 3,
+                }),
+            ],
+            signatures: vec![],
+        };
+        let transaction_3 = Transaction {
+            version: 0,
+            inputs: vec![
+                Input::ValueTransfer(ValueTransferInput {
+                    transaction_id: Hash::SHA256([4; 32]),
+                    output_index: 0,
+                }),
+                Input::ValueTransfer(ValueTransferInput {
+                    transaction_id: Hash::SHA256([5; 32]),
+                    output_index: 0,
+                }),
+            ],
+            outputs: vec![
+                Output::ValueTransfer(ValueTransferOutput {
+                    pkh: PublicKeyHash::default(),
+                    value: 4,
+                }),
+                Output::ValueTransfer(ValueTransferOutput {
+                    pkh: PublicKeyHash::default(),
+                    value: 5,
+                }),
+            ],
+            signatures: vec![],
+        };
+
+        // Insert transactions into `transactions_pool`
+        // TODO: Currently the insert function does not take into account the fees to compute the transaction's weight
+        let mut transaction_pool = TransactionsPool::default();
+        transaction_pool.insert(transaction_1.hash(), transaction_1.clone());
+        transaction_pool.insert(transaction_2.hash(), transaction_2.clone());
+        transaction_pool.insert(transaction_3.hash(), transaction_3.clone());
+
+        // Set `max_block_weight` to fit only `transaction_1` size
+        let max_block_weight = transaction_1.size();
+
+        // Fields required to mine a block
+        let block_beacon = CheckpointBeacon::default();
+        let block_proof = LeadershipProof {
+            block_sig: None,
+            influence: 0,
+        };
+
+        // Build block with
+        let block = build_block(
+            &transaction_pool,
+            max_block_weight,
+            block_beacon,
+            block_proof,
+        );
+
+        // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
+        assert_eq!(block.txns.len(), 2);
+
+        // Check that first transaction is the Mint Transaction
+        assert_eq!(block.txns[0].inputs.len(), 0);
+        assert_eq!(block.txns[0].outputs.len(), 1);
+        assert_eq!(block.txns[0].signatures.len(), 0);
+        // Check that transaction in block is not a transaction from `transactions_pool`
+        assert_ne!(block.txns[0], transaction_1);
+        assert_ne!(block.txns[0], transaction_2);
+        assert_ne!(block.txns[0], transaction_3);
+
+        // Check that the included transaction is the only one that fits the `max_block_weight`
+        assert_eq!(block.txns[1], transaction_1);
+    }
+}
