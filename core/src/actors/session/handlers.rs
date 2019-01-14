@@ -208,7 +208,7 @@ impl Handler<SendBlock> for Session {
             "Sending SendBlock message to peer at {:?}",
             self.remote_addr
         );
-        send_block_msg(self, msg.block)
+        send_block_msg(self, &msg.block)
     }
 }
 
@@ -530,7 +530,7 @@ fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash)
     send_get_item_request(session, ctx, hash, |act, _ctx, item| {
         match item {
             InventoryItem::Block(block_from_inventory) => {
-                send_block_msg(act, block_from_inventory);
+                send_block_msg(act, &block_from_inventory);
             }
             InventoryItem::Transaction(transaction_from_inventory) => {
                 // Build Transaction msg
@@ -542,10 +542,10 @@ fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash)
     });
 }
 
-fn send_block_msg(session: &mut Session, block: Block) {
-    let block_header = block.block_header;
-    let proof = block.proof;
-    let txns = block.txns;
+fn send_block_msg(session: &mut Session, block: &Block) {
+    let block_header = block.block_header.clone();
+    let proof = block.proof.clone();
+    let txns = block.txns.clone();
     // Build Block msg
     let block_msg = WitnetMessage::build_block(block_header, proof, txns);
     // Send Block msg

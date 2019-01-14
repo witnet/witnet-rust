@@ -77,7 +77,7 @@ impl Handler<EpochNotification<MiningNotification>> for ChainManager {
         reputation_manager_addr
             .send(ValidatePoE {
                 beacon,
-                proof: leadership_proof,
+                proof: leadership_proof.clone(),
             })
             .into_actor(self)
             .drop_err()

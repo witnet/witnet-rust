@@ -506,6 +506,67 @@ pub fn enum_name_output_union(e: OutputUnion) -> &'static str {
 }
 
 pub struct OutputUnionUnionTableOffset {}
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum RADType {
+  NONE = 0,
+  HttpGet = 1,
+
+}
+
+const ENUM_MIN_RADTYPE: u8 = 0;
+const ENUM_MAX_RADTYPE: u8 = 1;
+
+impl<'a> flatbuffers::Follow<'a> for RADType {
+  type Inner = Self;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::read_scalar_at::<Self>(buf, loc)
+  }
+}
+
+impl flatbuffers::EndianScalar for RADType {
+  #[inline]
+  fn to_little_endian(self) -> Self {
+    let n = u8::to_le(self as u8);
+    let p = &n as *const u8 as *const RADType;
+    unsafe { *p }
+  }
+  #[inline]
+  fn from_little_endian(self) -> Self {
+    let n = u8::from_le(self as u8);
+    let p = &n as *const u8 as *const RADType;
+    unsafe { *p }
+  }
+}
+
+impl flatbuffers::Push for RADType {
+    type Output = RADType;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        flatbuffers::emplace_scalar::<RADType>(dst, *self);
+    }
+}
+
+#[allow(non_camel_case_types)]
+const ENUM_VALUES_RADTYPE:[RADType; 2] = [
+  RADType::NONE,
+  RADType::HttpGet
+];
+
+#[allow(non_camel_case_types)]
+const ENUM_NAMES_RADTYPE:[&'static str; 2] = [
+    "NONE",
+    "HttpGet"
+];
+
+pub fn enum_name_radtype(e: RADType) -> &'static str {
+  let index: usize = e as usize;
+  ENUM_NAMES_RADTYPE[index]
+}
+
+pub struct RADTypeUnionTableOffset {}
 pub enum Ipv4Offset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -3137,6 +3198,588 @@ impl<'a: 'b, 'b> ValueTransferOutputBuilder<'a, 'b> {
   }
 }
 
+pub enum HttpGetOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct HttpGet<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for HttpGet<'a> {
+    type Inner = HttpGet<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> HttpGet<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        HttpGet {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        _args: &'args HttpGetArgs) -> flatbuffers::WIPOffset<HttpGet<'bldr>> {
+      let mut builder = HttpGetBuilder::new(_fbb);
+      builder.finish()
+    }
+
+}
+
+pub struct HttpGetArgs {
+}
+impl<'a> Default for HttpGetArgs {
+    #[inline]
+    fn default() -> Self {
+        HttpGetArgs {
+        }
+    }
+}
+pub struct HttpGetBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> HttpGetBuilder<'a, 'b> {
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> HttpGetBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    HttpGetBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<HttpGet<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum RADRetrieveOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct RADRetrieve<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for RADRetrieve<'a> {
+    type Inner = RADRetrieve<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> RADRetrieve<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        RADRetrieve {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args RADRetrieveArgs<'args>) -> flatbuffers::WIPOffset<RADRetrieve<'bldr>> {
+      let mut builder = RADRetrieveBuilder::new(_fbb);
+      if let Some(x) = args.script { builder.add_script(x); }
+      if let Some(x) = args.url { builder.add_url(x); }
+      if let Some(x) = args.kind { builder.add_kind(x); }
+      builder.add_kind_type(args.kind_type);
+      builder.finish()
+    }
+
+    pub const VT_KIND_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_KIND: flatbuffers::VOffsetT = 6;
+    pub const VT_URL: flatbuffers::VOffsetT = 8;
+    pub const VT_SCRIPT: flatbuffers::VOffsetT = 10;
+
+  #[inline]
+  pub fn kind_type(&self) -> RADType {
+    self._tab.get::<RADType>(RADRetrieve::VT_KIND_TYPE, Some(RADType::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn kind(&self) -> flatbuffers::Table<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(RADRetrieve::VT_KIND, None).unwrap()
+  }
+  #[inline]
+  pub fn url(&self) -> &'a str {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(RADRetrieve::VT_URL, None).unwrap()
+  }
+  #[inline]
+  pub fn script(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(RADRetrieve::VT_SCRIPT, None).map(|v| v.safe_slice()).unwrap()
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn kind_as_http_get(&'a self) -> Option<HttpGet> {
+    if self.kind_type() == RADType::HttpGet {
+      Some(HttpGet::init_from_table(self.kind()))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct RADRetrieveArgs<'a> {
+    pub kind_type: RADType,
+    pub kind: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+    pub url: Option<flatbuffers::WIPOffset<&'a  str>>,
+    pub script: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+}
+impl<'a> Default for RADRetrieveArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        RADRetrieveArgs {
+            kind_type: RADType::NONE,
+            kind: None, // required field
+            url: None, // required field
+            script: None, // required field
+        }
+    }
+}
+pub struct RADRetrieveBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> RADRetrieveBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_kind_type(&mut self, kind_type: RADType) {
+    self.fbb_.push_slot::<RADType>(RADRetrieve::VT_KIND_TYPE, kind_type, RADType::NONE);
+  }
+  #[inline]
+  pub fn add_kind(&mut self, kind: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RADRetrieve::VT_KIND, kind);
+  }
+  #[inline]
+  pub fn add_url(&mut self, url: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RADRetrieve::VT_URL, url);
+  }
+  #[inline]
+  pub fn add_script(&mut self, script: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RADRetrieve::VT_SCRIPT, script);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> RADRetrieveBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    RADRetrieveBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<RADRetrieve<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, RADRetrieve::VT_KIND,"kind");
+    self.fbb_.required(o, RADRetrieve::VT_URL,"url");
+    self.fbb_.required(o, RADRetrieve::VT_SCRIPT,"script");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum RADAggregateOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct RADAggregate<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for RADAggregate<'a> {
+    type Inner = RADAggregate<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> RADAggregate<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        RADAggregate {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args RADAggregateArgs<'args>) -> flatbuffers::WIPOffset<RADAggregate<'bldr>> {
+      let mut builder = RADAggregateBuilder::new(_fbb);
+      if let Some(x) = args.script { builder.add_script(x); }
+      builder.finish()
+    }
+
+    pub const VT_SCRIPT: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn script(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(RADAggregate::VT_SCRIPT, None).map(|v| v.safe_slice()).unwrap()
+  }
+}
+
+pub struct RADAggregateArgs<'a> {
+    pub script: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+}
+impl<'a> Default for RADAggregateArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        RADAggregateArgs {
+            script: None, // required field
+        }
+    }
+}
+pub struct RADAggregateBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> RADAggregateBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_script(&mut self, script: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RADAggregate::VT_SCRIPT, script);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> RADAggregateBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    RADAggregateBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<RADAggregate<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, RADAggregate::VT_SCRIPT,"script");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum RADConsensusOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct RADConsensus<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for RADConsensus<'a> {
+    type Inner = RADConsensus<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> RADConsensus<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        RADConsensus {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args RADConsensusArgs<'args>) -> flatbuffers::WIPOffset<RADConsensus<'bldr>> {
+      let mut builder = RADConsensusBuilder::new(_fbb);
+      if let Some(x) = args.script { builder.add_script(x); }
+      builder.finish()
+    }
+
+    pub const VT_SCRIPT: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn script(&self) -> &'a [u8] {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(RADConsensus::VT_SCRIPT, None).map(|v| v.safe_slice()).unwrap()
+  }
+}
+
+pub struct RADConsensusArgs<'a> {
+    pub script: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+}
+impl<'a> Default for RADConsensusArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        RADConsensusArgs {
+            script: None, // required field
+        }
+    }
+}
+pub struct RADConsensusBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> RADConsensusBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_script(&mut self, script: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RADConsensus::VT_SCRIPT, script);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> RADConsensusBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    RADConsensusBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<RADConsensus<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, RADConsensus::VT_SCRIPT,"script");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum RADDeliverOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct RADDeliver<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for RADDeliver<'a> {
+    type Inner = RADDeliver<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> RADDeliver<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        RADDeliver {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args RADDeliverArgs<'args>) -> flatbuffers::WIPOffset<RADDeliver<'bldr>> {
+      let mut builder = RADDeliverBuilder::new(_fbb);
+      if let Some(x) = args.url { builder.add_url(x); }
+      if let Some(x) = args.kind { builder.add_kind(x); }
+      builder.add_kind_type(args.kind_type);
+      builder.finish()
+    }
+
+    pub const VT_KIND_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_KIND: flatbuffers::VOffsetT = 6;
+    pub const VT_URL: flatbuffers::VOffsetT = 8;
+
+  #[inline]
+  pub fn kind_type(&self) -> RADType {
+    self._tab.get::<RADType>(RADDeliver::VT_KIND_TYPE, Some(RADType::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn kind(&self) -> flatbuffers::Table<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(RADDeliver::VT_KIND, None).unwrap()
+  }
+  #[inline]
+  pub fn url(&self) -> &'a str {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(RADDeliver::VT_URL, None).unwrap()
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn kind_as_http_get(&'a self) -> Option<HttpGet> {
+    if self.kind_type() == RADType::HttpGet {
+      Some(HttpGet::init_from_table(self.kind()))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct RADDeliverArgs<'a> {
+    pub kind_type: RADType,
+    pub kind: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+    pub url: Option<flatbuffers::WIPOffset<&'a  str>>,
+}
+impl<'a> Default for RADDeliverArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        RADDeliverArgs {
+            kind_type: RADType::NONE,
+            kind: None, // required field
+            url: None, // required field
+        }
+    }
+}
+pub struct RADDeliverBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> RADDeliverBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_kind_type(&mut self, kind_type: RADType) {
+    self.fbb_.push_slot::<RADType>(RADDeliver::VT_KIND_TYPE, kind_type, RADType::NONE);
+  }
+  #[inline]
+  pub fn add_kind(&mut self, kind: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RADDeliver::VT_KIND, kind);
+  }
+  #[inline]
+  pub fn add_url(&mut self, url: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RADDeliver::VT_URL, url);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> RADDeliverBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    RADDeliverBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<RADDeliver<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, RADDeliver::VT_KIND,"kind");
+    self.fbb_.required(o, RADDeliver::VT_URL,"url");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum RADRequestOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct RADRequest<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for RADRequest<'a> {
+    type Inner = RADRequest<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> RADRequest<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        RADRequest {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args RADRequestArgs<'args>) -> flatbuffers::WIPOffset<RADRequest<'bldr>> {
+      let mut builder = RADRequestBuilder::new(_fbb);
+      builder.add_not_before(args.not_before);
+      if let Some(x) = args.deliver { builder.add_deliver(x); }
+      if let Some(x) = args.consensus { builder.add_consensus(x); }
+      if let Some(x) = args.aggregate { builder.add_aggregate(x); }
+      if let Some(x) = args.retrieve { builder.add_retrieve(x); }
+      builder.finish()
+    }
+
+    pub const VT_NOT_BEFORE: flatbuffers::VOffsetT = 4;
+    pub const VT_RETRIEVE: flatbuffers::VOffsetT = 6;
+    pub const VT_AGGREGATE: flatbuffers::VOffsetT = 8;
+    pub const VT_CONSENSUS: flatbuffers::VOffsetT = 10;
+    pub const VT_DELIVER: flatbuffers::VOffsetT = 12;
+
+  #[inline]
+  pub fn not_before(&self) -> u64 {
+    self._tab.get::<u64>(RADRequest::VT_NOT_BEFORE, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn retrieve(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<RADRetrieve<'a>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<RADRetrieve<'a>>>>>(RADRequest::VT_RETRIEVE, None).unwrap()
+  }
+  #[inline]
+  pub fn aggregate(&self) -> RADAggregate<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<RADAggregate<'a>>>(RADRequest::VT_AGGREGATE, None).unwrap()
+  }
+  #[inline]
+  pub fn consensus(&self) -> RADConsensus<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<RADConsensus<'a>>>(RADRequest::VT_CONSENSUS, None).unwrap()
+  }
+  #[inline]
+  pub fn deliver(&self) -> flatbuffers::Vector<flatbuffers::ForwardsUOffset<RADDeliver<'a>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<RADDeliver<'a>>>>>(RADRequest::VT_DELIVER, None).unwrap()
+  }
+}
+
+pub struct RADRequestArgs<'a> {
+    pub not_before: u64,
+    pub retrieve: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<RADRetrieve<'a >>>>>,
+    pub aggregate: Option<flatbuffers::WIPOffset<RADAggregate<'a >>>,
+    pub consensus: Option<flatbuffers::WIPOffset<RADConsensus<'a >>>,
+    pub deliver: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<RADDeliver<'a >>>>>,
+}
+impl<'a> Default for RADRequestArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        RADRequestArgs {
+            not_before: 0,
+            retrieve: None, // required field
+            aggregate: None, // required field
+            consensus: None, // required field
+            deliver: None, // required field
+        }
+    }
+}
+pub struct RADRequestBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> RADRequestBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_not_before(&mut self, not_before: u64) {
+    self.fbb_.push_slot::<u64>(RADRequest::VT_NOT_BEFORE, not_before, 0);
+  }
+  #[inline]
+  pub fn add_retrieve(&mut self, retrieve: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<RADRetrieve<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RADRequest::VT_RETRIEVE, retrieve);
+  }
+  #[inline]
+  pub fn add_aggregate(&mut self, aggregate: flatbuffers::WIPOffset<RADAggregate<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<RADAggregate>>(RADRequest::VT_AGGREGATE, aggregate);
+  }
+  #[inline]
+  pub fn add_consensus(&mut self, consensus: flatbuffers::WIPOffset<RADConsensus<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<RADConsensus>>(RADRequest::VT_CONSENSUS, consensus);
+  }
+  #[inline]
+  pub fn add_deliver(&mut self, deliver: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<RADDeliver<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(RADRequest::VT_DELIVER, deliver);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> RADRequestBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    RADRequestBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<RADRequest<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    self.fbb_.required(o, RADRequest::VT_RETRIEVE,"retrieve");
+    self.fbb_.required(o, RADRequest::VT_AGGREGATE,"aggregate");
+    self.fbb_.required(o, RADRequest::VT_CONSENSUS,"consensus");
+    self.fbb_.required(o, RADRequest::VT_DELIVER,"deliver");
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
 pub enum DataRequestOutputOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -3171,15 +3814,15 @@ impl<'a> DataRequestOutput<'a> {
       builder.add_reveal_fee(args.reveal_fee);
       builder.add_commit_fee(args.commit_fee);
       builder.add_value(args.value);
-      if let Some(x) = args.pkh { builder.add_pkh(x); }
       if let Some(x) = args.data_request { builder.add_data_request(x); }
+      if let Some(x) = args.pkh { builder.add_pkh(x); }
       builder.add_backup_witnesses(args.backup_witnesses);
       builder.add_witnesses(args.witnesses);
       builder.finish()
     }
 
-    pub const VT_DATA_REQUEST: flatbuffers::VOffsetT = 4;
-    pub const VT_PKH: flatbuffers::VOffsetT = 6;
+    pub const VT_PKH: flatbuffers::VOffsetT = 4;
+    pub const VT_DATA_REQUEST: flatbuffers::VOffsetT = 6;
     pub const VT_VALUE: flatbuffers::VOffsetT = 8;
     pub const VT_WITNESSES: flatbuffers::VOffsetT = 10;
     pub const VT_BACKUP_WITNESSES: flatbuffers::VOffsetT = 12;
@@ -3189,12 +3832,12 @@ impl<'a> DataRequestOutput<'a> {
     pub const VT_TIME_LOCK: flatbuffers::VOffsetT = 20;
 
   #[inline]
-  pub fn data_request(&self) -> &'a [u8] {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(DataRequestOutput::VT_DATA_REQUEST, None).map(|v| v.safe_slice()).unwrap()
-  }
-  #[inline]
   pub fn pkh(&self) -> &'a [u8] {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(DataRequestOutput::VT_PKH, None).map(|v| v.safe_slice()).unwrap()
+  }
+  #[inline]
+  pub fn data_request(&self) -> RADRequest<'a> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<RADRequest<'a>>>(DataRequestOutput::VT_DATA_REQUEST, None).unwrap()
   }
   #[inline]
   pub fn value(&self) -> u64 {
@@ -3227,8 +3870,8 @@ impl<'a> DataRequestOutput<'a> {
 }
 
 pub struct DataRequestOutputArgs<'a> {
-    pub data_request: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
     pub pkh: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+    pub data_request: Option<flatbuffers::WIPOffset<RADRequest<'a >>>,
     pub value: u64,
     pub witnesses: u8,
     pub backup_witnesses: u8,
@@ -3241,8 +3884,8 @@ impl<'a> Default for DataRequestOutputArgs<'a> {
     #[inline]
     fn default() -> Self {
         DataRequestOutputArgs {
-            data_request: None, // required field
             pkh: None, // required field
+            data_request: None, // required field
             value: 0,
             witnesses: 0,
             backup_witnesses: 0,
@@ -3259,12 +3902,12 @@ pub struct DataRequestOutputBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> DataRequestOutputBuilder<'a, 'b> {
   #[inline]
-  pub fn add_data_request(&mut self, data_request: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(DataRequestOutput::VT_DATA_REQUEST, data_request);
-  }
-  #[inline]
   pub fn add_pkh(&mut self, pkh: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(DataRequestOutput::VT_PKH, pkh);
+  }
+  #[inline]
+  pub fn add_data_request(&mut self, data_request: flatbuffers::WIPOffset<RADRequest<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<RADRequest>>(DataRequestOutput::VT_DATA_REQUEST, data_request);
   }
   #[inline]
   pub fn add_value(&mut self, value: u64) {
@@ -3305,8 +3948,8 @@ impl<'a: 'b, 'b> DataRequestOutputBuilder<'a, 'b> {
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<DataRequestOutput<'a>> {
     let o = self.fbb_.end_table(self.start_);
-    self.fbb_.required(o, DataRequestOutput::VT_DATA_REQUEST,"data_request");
     self.fbb_.required(o, DataRequestOutput::VT_PKH,"pkh");
+    self.fbb_.required(o, DataRequestOutput::VT_DATA_REQUEST,"data_request");
     flatbuffers::WIPOffset::new(o.value())
   }
 }

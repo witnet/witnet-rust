@@ -111,9 +111,9 @@ impl Hashable for Block {
         let block_ftb = build_block_flatbuffer(
             None,
             &BlockArgs {
-                block_header: self.block_header,
-                proof: self.proof,
-                txns: self.txns.clone(),
+                block_header: self.block_header.clone(),
+                proof: self.proof.clone(),
+                txns: &self.txns,
             },
         );
         calculate_sha256(&block_ftb).into()
@@ -141,9 +141,9 @@ impl Hashable for Transaction {
             None,
             &TransactionArgs {
                 version: self.version,
-                inputs: self.inputs.clone(),
-                outputs: self.outputs.clone(),
-                signatures: self.signatures.clone(),
+                inputs: &self.inputs,
+                outputs: &self.outputs,
+                signatures: &self.signatures,
             },
         );
 
@@ -152,7 +152,7 @@ impl Hashable for Transaction {
 }
 
 /// Block header structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BlockHeader {
     /// The block version number indicating the block validation rules
     pub version: u32,
@@ -163,7 +163,7 @@ pub struct BlockHeader {
 }
 
 /// Proof of leadership structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct LeadershipProof {
     /// An enveloped signature of the block header except the `proof` part
     pub block_sig: Option<Signature>,
@@ -172,14 +172,14 @@ pub struct LeadershipProof {
 }
 
 /// Digital signatures structure (based on supported cryptosystems)
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Signature {
     /// ECDSA over secp256k1
     Secp256k1(Secp256k1Signature),
 }
 
 /// ECDSA (over secp256k1) signature
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Secp256k1Signature {
     /// The signature value R
     pub r: [u8; 32],
@@ -244,9 +244,9 @@ impl Transaction {
             None,
             &TransactionArgs {
                 version: self.version,
-                inputs: self.inputs.clone(),
-                outputs: self.outputs.clone(),
-                signatures: self.signatures.clone(),
+                inputs: &self.inputs,
+                outputs: &self.outputs,
+                signatures: &self.signatures,
             },
         )
         .len() as u32
@@ -326,8 +326,8 @@ pub struct ValueTransferOutput {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct DataRequestOutput {
     pub pkh: PublicKeyHash,
+    pub data_request: RADRequest,
     pub value: u64,
-    pub data_request: Vec<u8>,
     pub witnesses: u8,
     pub backup_witnesses: u8,
     pub commit_fee: u64,
@@ -359,10 +359,49 @@ pub struct TallyOutput {
 }
 
 /// Keyed signature data structure
-#[derive(Copy, Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct KeyedSignature {
     pub signature: Signature,
     pub public_key: [u8; 32],
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub enum RADType {
+    #[serde(rename = "HTTP-GET")]
+    HttpGet,
+}
+
+/// RAD request data structure
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct RADRequest {
+    pub not_before: u64,
+    pub retrieve: Vec<RADRetrieve>,
+    pub aggregate: RADAggregate,
+    pub consensus: RADConsensus,
+    pub deliver: Vec<RADDeliver>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct RADRetrieve {
+    pub kind: RADType,
+    pub url: String,
+    pub script: Vec<u8>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct RADAggregate {
+    pub script: Vec<u8>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct RADConsensus {
+    pub script: Vec<u8>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct RADDeliver {
+    pub kind: RADType,
+    pub url: String,
 }
 
 type WeightedHash = (u64, Hash);
@@ -670,7 +709,7 @@ mod tests {
             v: 0,
         });
         let proof = LeadershipProof {
-            block_sig: Some(signature),
+            block_sig: Some(signature.clone()),
             influence: 0,
         };
         let keyed_signatures = vec![KeyedSignature {

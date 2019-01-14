@@ -184,9 +184,40 @@ table ValueTransferOutput {
     value: uint64;
 }
 
+table HttpGet {}
+
+union RADType (required) { HttpGet } 
+
+table RADRetrieve {
+    kind: RADType (required);
+    url: string (required);
+    script: [ubyte] (required);
+}
+
+table RADAggregate {
+    script: [ubyte] (required);
+}
+
+table RADConsensus {
+    script: [ubyte] (required);
+}
+
+table RADDeliver {
+    kind: RADType (required);
+    url: string (required);
+}
+
+table RADRequest {
+    not_before: uint64;
+    retrieve: [RADRetrieve] (required); 
+    aggregate: RADAggregate (required);
+    consensus: RADConsensus (required);
+    deliver: [RADDeliver] (required);
+}
+
 table DataRequestOutput {
-    data_request: [ubyte] (required);
     pkh: [ubyte] (required);
+    data_request: RADRequest (required);
     value: uint64;
     witnesses: uint8;
     backup_witnesses: uint8;
