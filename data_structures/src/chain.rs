@@ -735,10 +735,45 @@ mod tests {
             pkh: [0; 20],
             value: 0,
         });
+
+        let rad_aggregate = RADAggregate { script: vec![0] };
+
+        let rad_retrieve_1 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+        let rad_retrieve_2 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+        let rad_consensus = RADConsensus { script: vec![0] };
+
+        let rad_deliver_1 = RADDeliver {
+            kind: RADType::HttpGet,
+            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
+        };
+
+        let rad_deliver_2 = RADDeliver {
+            kind: RADType::HttpGet,
+            url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
+        };
+
+        let rad_request = RADRequest {
+            aggregate: rad_aggregate,
+            not_before: 0,
+            retrieve: vec![rad_retrieve_1, rad_retrieve_2],
+            consensus: rad_consensus,
+            deliver: vec![rad_deliver_1, rad_deliver_2],
+        };
+
         let data_request_output = Output::DataRequest(DataRequestOutput {
             backup_witnesses: 0,
             commit_fee: 0,
-            data_request: [0; 32].to_vec(),
+            data_request: rad_request,
             pkh: [0; 20],
             reveal_fee: 0,
             tally_fee: 0,
@@ -757,7 +792,7 @@ mod tests {
         });
         let consensus_output = Output::Tally(TallyOutput {
             pkh: [0; 20],
-            result: [0; 32].to_vec(),
+            result: vec![0],
             value: 0,
         });
         let inputs = vec![commit_input, data_request_input, reveal_input];
@@ -780,8 +815,8 @@ mod tests {
             txns,
         };
         let expected = Hash::SHA256([
-            125, 62, 180, 29, 196, 66, 125, 28, 84, 72, 208, 43, 35, 111, 6, 138, 189, 65, 142, 45,
-            73, 205, 7, 242, 21, 229, 239, 194, 9, 247, 116, 155,
+            204, 111, 204, 123, 50, 100, 176, 227, 102, 35, 195, 223, 178, 106, 185, 156, 160, 24,
+            18, 210, 236, 116, 217, 170, 103, 95, 92, 236, 208, 52, 134, 63,
         ]);
         assert_eq!(block.hash(), expected);
     }
@@ -816,10 +851,43 @@ mod tests {
             pkh: [0; 20],
             value: 0,
         });
+
+        let rad_aggregate = RADAggregate { script: vec![0] };
+
+        let rad_retrieve_1 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+        let rad_retrieve_2 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+        let rad_consensus = RADConsensus { script: vec![0] };
+        let rad_deliver_1 = RADDeliver {
+            kind: RADType::HttpGet,
+            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
+        };
+
+        let rad_deliver_2 = RADDeliver {
+            kind: RADType::HttpGet,
+            url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
+        };
+
+        let rad_request = RADRequest {
+            aggregate: rad_aggregate,
+            not_before: 0,
+            retrieve: vec![rad_retrieve_1, rad_retrieve_2],
+            consensus: rad_consensus,
+            deliver: vec![rad_deliver_1, rad_deliver_2],
+        };
         let data_request_output = Output::DataRequest(DataRequestOutput {
             backup_witnesses: 0,
             commit_fee: 0,
-            data_request: [0; 32].to_vec(),
+            data_request: rad_request,
             pkh: [0; 20],
             reveal_fee: 0,
             tally_fee: 0,
@@ -856,8 +924,8 @@ mod tests {
             version: 0,
         };
         let expected = Hash::SHA256([
-            226, 59, 163, 40, 104, 109, 31, 90, 209, 34, 237, 205, 37, 115, 7, 118, 41, 88, 8, 99,
-            195, 50, 49, 21, 139, 120, 85, 151, 204, 137, 206, 38,
+            10, 241, 147, 199, 165, 174, 93, 237, 233, 213, 202, 27, 217, 126, 244, 196, 189, 74,
+            84, 243, 4, 214, 2, 34, 22, 0, 118, 115, 137, 32, 203, 237,
         ]);
         assert_eq!(transaction.hash(), expected);
     }

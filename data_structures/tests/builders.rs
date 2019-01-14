@@ -45,7 +45,7 @@ fn builders_build_block() {
     };
     let keyed_signatures = vec![KeyedSignature {
         public_key: [0; 32],
-        signature,
+        signature: signature.clone(),
     }];
     let reveal_input = Input::Reveal(RevealInput {
         output_index: 0,
@@ -66,10 +66,44 @@ fn builders_build_block() {
         pkh: [0; 20],
         value: 0,
     });
+
+    let rad_aggregate = RADAggregate { script: vec![0] };
+
+    let rad_retrieve_1 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+    let rad_retrieve_2 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+    let rad_consensus = RADConsensus { script: vec![0] };
+
+    let rad_deliver_1 = RADDeliver {
+        kind: RADType::HttpGet,
+        url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
+    };
+
+    let rad_deliver_2 = RADDeliver {
+        kind: RADType::HttpGet,
+        url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
+    };
+
+    let rad_request = RADRequest {
+        aggregate: rad_aggregate,
+        not_before: 0,
+        retrieve: vec![rad_retrieve_1, rad_retrieve_2],
+        consensus: rad_consensus,
+        deliver: vec![rad_deliver_1, rad_deliver_2],
+    };
     let data_request_output = Output::DataRequest(DataRequestOutput {
         backup_witnesses: 0,
         commit_fee: 0,
-        data_request: [0; 32].to_vec(),
+        data_request: rad_request,
         pkh: [0; 20],
         reveal_fee: 0,
         tally_fee: 0,
@@ -154,10 +188,45 @@ fn builders_build_transaction() {
         pkh: [0; 20],
         value: 0,
     });
+
+    let rad_aggregate = RADAggregate { script: vec![0] };
+
+    let rad_retrieve_1 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+    let rad_retrieve_2 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+    let rad_consensus = RADConsensus { script: vec![0] };
+
+    let rad_deliver_1 = RADDeliver {
+        kind: RADType::HttpGet,
+        url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
+    };
+
+    let rad_deliver_2 = RADDeliver {
+        kind: RADType::HttpGet,
+        url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
+    };
+
+    let rad_request = RADRequest {
+        aggregate: rad_aggregate,
+        not_before: 0,
+        retrieve: vec![rad_retrieve_1, rad_retrieve_2],
+        consensus: rad_consensus,
+        deliver: vec![rad_deliver_1, rad_deliver_2],
+    };
+
     let data_request_output = Output::DataRequest(DataRequestOutput {
         backup_witnesses: 0,
         commit_fee: 0,
-        data_request: [0; 32].to_vec(),
+        data_request: rad_request,
         pkh: [0; 20],
         reveal_fee: 0,
         tally_fee: 0,
