@@ -3,8 +3,9 @@ extern crate flatbuffers;
 use crate::chain::{
     Block, BlockHeader, CheckpointBeacon, CommitInput, CommitOutput, DataRequestInput,
     DataRequestOutput, Hash, Input, InventoryEntry, KeyedSignature, LeadershipProof, Output,
-    PublicKeyHash, RevealInput, RevealOutput, Secp256k1Signature, Signature, TallyOutput,
-    Transaction, ValueTransferInput, ValueTransferOutput, SHA256,
+    PublicKeyHash, RADAggregate, RADConsensus, RADDeliver, RADRequest, RADRetrieve, RADType,
+    RevealInput, RevealOutput, Secp256k1Signature, Signature, TallyOutput, Transaction,
+    ValueTransferInput, ValueTransferOutput, SHA256,
 };
 use crate::flatbuffers::protocol_generated::protocol;
 
@@ -22,6 +23,10 @@ type FlatbufferKeyedSignatureVector<'a> =
     flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::KeyedSignature<'a>>>;
 type FlatbufferOutputVector<'a> =
     flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::Output<'a>>>;
+type FlatbufferRADDeliverVector<'a> =
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::RADDeliver<'a>>>;
+type FlatbufferRADRetrieveVector<'a> =
+    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<protocol::RADRetrieve<'a>>>;
 
 ////////////////////////////////////////////////////////
 // ARGS
@@ -441,12 +446,7 @@ fn create_output(ftb_output: protocol::Output) -> Output {
                     commit_fee: data_request_output.commit_fee(),
                     pkh: create_pkh(data_request_output.pkh()),
                     reveal_fee: data_request_output.reveal_fee(),
-                    data_request: {
-                        let mut arr = [0; 32];
-                        arr.copy_from_slice(data_request_output.data_request());
-
-                        arr.to_vec()
-                    },
+                    data_request: create_rad_request(data_request_output.data_request()),
                     tally_fee: data_request_output.tally_fee(),
                     time_lock: data_request_output.time_lock(),
                     value: data_request_output.value(),
@@ -755,5 +755,85 @@ fn create_ipv6_address(ip0: u32, ip1: u32, ip2: u32, ip3: u32, port: u16) -> Add
     Address {
         ip: Ipv6 { ip0, ip1, ip2, ip3 },
         port,
+    }
+}
+
+fn create_rad_request(rad_request: protocol::RADRequest) -> RADRequest {
+    let aggregate = create_rad_aggregate(rad_request.aggregate());
+    let consensus = create_rad_consensus(rad_request.consensus());
+    let deliver_vector = create_rad_request_deliver_vector(&rad_request.deliver());
+    let retrieve_vector = create_rad_request_retrieve_vector(&rad_request.retrieve());
+
+    RADRequest {
+        aggregate,
+        consensus,
+        deliver: deliver_vector,
+        retrieve: retrieve_vector,
+        not_before: rad_request.not_before(),
+    }
+}
+
+fn create_rad_request_deliver_vector(
+    deliver_vector_ftb: &FlatbufferRADDeliverVector,
+) -> Vec<RADDeliver> {
+    let rad_request_deliver_len = deliver_vector_ftb.len();
+    let mut counter = 0;
+    let mut deliver_wipoffset;
+    let mut deliver_vector = vec![];
+    while counter < rad_request_deliver_len {
+        deliver_wipoffset = deliver_vector_ftb.get(counter);
+        deliver_vector.push(create_rad_deliver(deliver_wipoffset));
+        counter += 1;
+    }
+
+    deliver_vector
+}
+
+fn create_rad_request_retrieve_vector(
+    retrieve_vector_ftb: &FlatbufferRADRetrieveVector,
+) -> Vec<RADRetrieve> {
+    let rad_request_retrieve_len = retrieve_vector_ftb.len();
+    let mut counter = 0;
+    let mut retrieve_wipoffset;
+    let mut retrieve_vector = vec![];
+    while counter < rad_request_retrieve_len {
+        retrieve_wipoffset = retrieve_vector_ftb.get(counter);
+        retrieve_vector.push(create_rad_retrieve(retrieve_wipoffset));
+        counter += 1;
+    }
+
+    retrieve_vector
+}
+
+fn create_rad_aggregate(rad_aggregate: protocol::RADAggregate) -> RADAggregate {
+    RADAggregate {
+        script: rad_aggregate.script().to_vec(),
+    }
+}
+
+fn create_rad_consensus(rad_consensus: protocol::RADConsensus) -> RADConsensus {
+    RADConsensus {
+        script: rad_consensus.script().to_vec(),
+    }
+}
+
+fn create_rad_deliver(rad_deliver: protocol::RADDeliver) -> RADDeliver {
+    match rad_deliver.kind_type() {
+        protocol::RADType::HttpGet => RADDeliver {
+            kind: RADType::HttpGet,
+            url: rad_deliver.url().to_string(),
+        },
+        _ => unreachable!(), // All RAD types are covered
+    }
+}
+
+fn create_rad_retrieve(rad_retrieve: protocol::RADRetrieve) -> RADRetrieve {
+    match rad_retrieve.kind_type() {
+        protocol::RADType::HttpGet => RADRetrieve {
+            kind: RADType::HttpGet,
+            url: rad_retrieve.url().to_string(),
+            script: rad_retrieve.script().to_vec(),
+        },
+        _ => unreachable!(), // All RAD types are covered
     }
 }
