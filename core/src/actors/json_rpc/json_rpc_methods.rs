@@ -1,7 +1,7 @@
 #[cfg(test)]
 use self::mock_actix::System;
 use crate::actors::chain_manager::{
-    messages::{AddNewBlock, GetBlocksEpochRange},
+    messages::{AddNewBlock, AddTransaction, GetBlocksEpochRange},
     ChainManager,
 };
 #[cfg(not(test))]
@@ -12,7 +12,7 @@ use jsonrpc_core::futures::Future;
 use jsonrpc_core::{IoHandler, Params, Value};
 use log::info;
 use serde::{Deserialize, Serialize};
-use witnet_data_structures::chain::{Block, InventoryEntry};
+use witnet_data_structures::chain::{Block, InventoryEntry, Transaction};
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 
@@ -27,24 +27,18 @@ pub fn jsonrpc_io_handler() -> IoHandler<()> {
     io
 }
 
-/// Inventory element: block, tx, etc
+/// Inventory element: block, transaction, etc
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum InventoryItem {
     /// Error
     #[serde(rename = "error")]
     Error,
     /// Transaction
-    #[serde(rename = "tx")]
-    Tx,
+    #[serde(rename = "transaction")]
+    Transaction(Transaction),
     /// Block
     #[serde(rename = "block")]
     Block(Block),
-    /// Data request
-    #[serde(rename = "data_request")]
-    DataRequest,
-    /// Data result
-    #[serde(rename = "data_result")]
-    DataResult,
 }
 
 /// Make the node process, validate and potentially broadcast a new inventory entry.
@@ -69,6 +63,20 @@ pub fn inventory(inv_elem: InventoryItem) -> JsonRpcResult {
             // Returns a boolean indicating success
             Ok(Value::Bool(true))
         }
+
+        InventoryItem::Transaction(transaction) => {
+            info!("Got transaction from JSON-RPC. Sending AnnounceItems message.");
+
+            // Get SessionsManager's address
+            let chain_manager_addr = System::current().registry().get::<ChainManager>();
+            // If this function was called asynchronously, it could wait for the result
+            // But it's not so we just assume success
+            chain_manager_addr.do_send(AddTransaction { transaction });
+
+            // Returns a boolean indicating success
+            Ok(Value::Bool(true))
+        }
+
         inv_elem => {
             info!(
                 "Invalid type of inventory item from JSON-RPC: {:?}",
@@ -333,7 +341,7 @@ mod tests {
     #[test]
     fn inventory_unimplemented_type() {
         // What happens when the inventory method is called with an unimplemented type?
-        let msg = r#"{"jsonrpc":"2.0","method":"inventory","params":{ "tx": null },"id":1}"#;
+        let msg = r#"{"jsonrpc":"2.0","method":"inventory","params":{ "error": null },"id":1}"#;
         let expected =
             r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Item type not implemented"#
                 .to_string();
@@ -470,5 +478,91 @@ mod tests {
         let s = serde_json::to_string(&inv_elem);
         let expected = r#"{"block":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":{"SHA256":[4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig":null,"influence":99999},"txns":[{"version":0,"inputs":[{"Commit":{"transaction_id":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"output_index":0,"reveal":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"nonce":0}},{"DataRequest":{"transaction_id":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"output_index":0,"poe":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}},{"Reveal":{"transaction_id":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"output_index":0}}],"outputs":[{"ValueTransfer":{"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"value":0}},{"DataRequest":{"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]}],"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}},{"Commit":{"commitment":{"SHA256":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"value":0}},{"Reveal":{"reveal":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"value":0}},{"Tally":{"result":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"value":0}}],"signatures":[{"signature":{"Secp256k1":{"r":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"s":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"v":0}},"public_key":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]}]}}"#;
         assert_eq!(s.unwrap(), expected);
+    }
+
+    #[test]
+    fn serialize_transaction() {
+        use witnet_data_structures::chain::*;
+        let rad_aggregate = RADAggregate { script: vec![0] };
+
+        let rad_retrieve_1 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+        let rad_retrieve_2 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+        let rad_consensus = RADConsensus { script: vec![0] };
+
+        let rad_deliver_1 = RADDeliver {
+            kind: RADType::HttpGet,
+            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
+        };
+
+        let rad_deliver_2 = RADDeliver {
+            kind: RADType::HttpGet,
+            url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
+        };
+
+        let rad_request = RADRequest {
+            aggregate: rad_aggregate,
+            not_before: 0,
+            retrieve: vec![rad_retrieve_1, rad_retrieve_2],
+            consensus: rad_consensus,
+            deliver: vec![rad_deliver_1, rad_deliver_2],
+        };
+        // Check that the serialization of `Transaction` doesn't change
+        let transaction = build_hardcoded_transaction(rad_request);
+
+        let inv_elem = InventoryItem::Transaction(transaction);
+        let s = serde_json::to_string(&inv_elem);
+        let expected = r#"{"transaction":{"version":0,"inputs":[{"ValueTransfer":{"transaction_id":{"SHA256":[9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9]},"output_index":0}}],"outputs":[{"DataRequest":{"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]}],"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}}],"signatures":[{"signature":{"Secp256k1":{"r":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"s":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"v":0}},"public_key":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]}}"#;
+        assert_eq!(s.unwrap(), expected);
+    }
+
+    #[cfg(test)]
+    use witnet_data_structures::chain::RADRequest;
+    fn build_hardcoded_transaction(data_request: RADRequest) -> Transaction {
+        use witnet_data_structures::chain::*;
+        let signature = Signature::Secp256k1(Secp256k1Signature {
+            r: [0; 32],
+            s: [0; 32],
+            v: 0,
+        });
+        let keyed_signatures = vec![KeyedSignature {
+            public_key: [0; 32],
+            signature,
+        }];
+
+        let value_transfer_input = Input::ValueTransfer(ValueTransferInput {
+            transaction_id: Hash::SHA256([9; 32]),
+            output_index: 0,
+        });
+
+        let data_request_output = Output::DataRequest(DataRequestOutput {
+            backup_witnesses: 0,
+            commit_fee: 0,
+            data_request,
+            pkh: [0; 20],
+            reveal_fee: 0,
+            tally_fee: 0,
+            time_lock: 0,
+            value: 0,
+            witnesses: 0,
+        });
+
+        let inputs = vec![value_transfer_input];
+        let outputs = vec![data_request_output];
+        Transaction {
+            inputs,
+            signatures: keyed_signatures,
+            outputs,
+            version: 0,
+        }
     }
 }

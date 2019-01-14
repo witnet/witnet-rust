@@ -37,6 +37,21 @@ details.
 Make the node process, validate and potentially broadcast a new inventory item.
 
 @params: `InventoryItem`
+```rust
+/// Inventory element: block, transaction, etc
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub enum InventoryItem {
+    /// Error
+    #[serde(rename = "error")]
+    Error,
+    /// Transaction
+    #[serde(rename = "transaction")]
+    Transaction(Transaction),
+    /// Block
+    #[serde(rename = "block")]
+    Block(Block),
+}
+```
 
 @returns: boolean indicating success, or parse error
 

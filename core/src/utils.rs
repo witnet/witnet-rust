@@ -14,13 +14,13 @@ pub fn find_unspent_outputs<S: ::std::hash::BuildHasher>(
 }
 
 /// get output pointed for input
-pub fn get_output_from_input<S: ::std::hash::BuildHasher>(
-    unspent_outputs: &HashMap<OutputPointer, Output, S>,
+pub fn get_output_from_input<'a, S: ::std::hash::BuildHasher>(
+    unspent_outputs: &'a HashMap<OutputPointer, Output, S>,
     input: &Input,
-) -> Output {
+) -> Option<&'a Output> {
     let output_pointer = get_output_pointer_from_input(input);
 
-    unspent_outputs[&output_pointer].clone()
+    unspent_outputs.get(&output_pointer)
 }
 
 /// get OutputPointer from input

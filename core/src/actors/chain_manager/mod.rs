@@ -139,7 +139,7 @@ impl ChainManager {
         find_unspent_outputs(&self.unspent_outputs_pool, inputs)
     }
     /// calculate output pointed from input
-    fn get_output_from_input(&self, input: &Input) -> Output {
+    fn get_output_from_input(&self, input: &Input) -> Option<&Output> {
         get_output_from_input(&self.unspent_outputs_pool, input)
     }
 
