@@ -79,7 +79,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     self.unspent_outputs_pool = candidate.utxo_set;
                     self.transactions_pool = candidate.txn_mempool;
 
-                    // Add DataRequests from the block into the data request pool
+                    // Add DataRequests from the block into the data_request_pool
                     let reveals = self
                         .data_request_pool
                         .add_data_requests_from_block(&candidate, self.current_epoch.unwrap());

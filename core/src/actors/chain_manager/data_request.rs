@@ -158,7 +158,8 @@ impl DataRequestPool {
                 // output pointer and retry the validation. Since this function should
                 // not depend on the storage, maybe a list of pending transactions similar
                 // to "to_be_stored" would be useful: we need to store pending transactions
-                // and missing output pointers.
+                // and missing output pointers. However that's currently unnecessary because
+                // we will always persist the cache
                 panic!(
                     "Block contains a reveal for a commitment not in the cache:\n\
                      Block hash: {b}\n\
@@ -317,9 +318,9 @@ impl DataRequestPool {
     }
 
     /// Process a transaction from a block and update the data request pool accordingly:
-    /// * New data requests are inserted and wait for
+    /// * New data requests are inserted and wait for commitments
     /// * New commitments are added to their respective data requests, updating the stage to reveal
-    /// * New reveals are added to their respecitive data requests, updating the stage to tally
+    /// * New reveals are added to their respective data requests, updating the stage to tally
     /// The epoch is needed as the key to the available data requests map
     /// The block hash is only used for debugging purposes
     pub fn process_transaction(&mut self, t: &Transaction, epoch: Epoch, block_hash: &Hash) {
@@ -1174,6 +1175,7 @@ mod tests {
     }
     #[test]
     fn update_multiple_times() {
+        // Only the first consecutive call to update_data_request_stages should change the state
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
         let data_request = empty_data_request();
