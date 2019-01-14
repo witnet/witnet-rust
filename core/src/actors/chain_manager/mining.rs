@@ -1,21 +1,21 @@
 use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, System, WrapFuture};
-
 use ansi_term::Color::Yellow;
+use log::{debug, error, info};
 
-use super::messages::{AddNewBlock, BuildBlock, GetHighestCheckpointBeacon};
+use super::messages::{AddNewBlock, GetHighestCheckpointBeacon};
 use super::ChainManager;
-use crate::actors::epoch_manager::messages::EpochNotification;
-use crate::actors::reputation_manager::messages::ValidatePoE;
-use crate::actors::reputation_manager::ReputationManager;
+use crate::actors::{
+    epoch_manager::messages::EpochNotification,
+    reputation_manager::{messages::ValidatePoE, ReputationManager},
+};
+use crate::validations::{block_reward, merkle_tree_root};
 
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{
-    Hash, LeadershipProof, Output, PublicKeyHash, Secp256k1Signature, Signature, Transaction,
-    ValueTransferOutput,
+    Block, BlockHeader, CheckpointBeacon, Hash, LeadershipProof, Output, PublicKeyHash,
+    Secp256k1Signature, Signature, Transaction, TransactionsPool, ValueTransferOutput,
 };
 use witnet_storage::storage::Storable;
-
-use log::{debug, error, info};
 
 /// Payload for the notification for all epochs
 #[derive(Clone, Debug)]
@@ -93,10 +93,12 @@ impl Handler<EpochNotification<MiningNotification>> for ChainManager {
                     // which will construct and broadcast the block
 
                     // Build the block using the supplied beacon and eligibility proof
-                    let block = act.build_block(&BuildBlock {
+                    let block = build_block(
+                        &act.transactions_pool,
+                        act.max_block_weight,
                         beacon,
                         leadership_proof,
-                    });
+                    );
 
                     // Send AddNewBlock message to self
                     // This will run all the validations again
@@ -108,12 +110,66 @@ impl Handler<EpochNotification<MiningNotification>> for ChainManager {
     }
 }
 
-/// Build Mint Transaction
-pub fn build_mint_transaction(pkh: PublicKeyHash, value: u64) -> Transaction {
-    Transaction {
+/// Build a new Block using the supplied leadership proof and by filling transactions from the
+/// `transaction_pool`
+fn build_block(
+    transactions_pool: &TransactionsPool,
+    max_block_weight: u32,
+    beacon: CheckpointBeacon,
+    proof: LeadershipProof,
+) -> Block {
+    // Get all the unspent transactions and calculate the sum of their fees
+    let mut transaction_fees = 0;
+    let mut block_weight = 0;
+    let mut transactions = Vec::new();
+
+    // Insert empty Transaction (future Mint Transaction)
+    transactions.push(Transaction::default());
+
+    // Push transactions from pool until `max_block_weight` is reached
+    // TODO: refactor this statement into a functional `try_fold`
+    for transaction in transactions_pool.iter() {
+        // Currently, 1 weight unit is equivalent to 1 byte
+        let transaction_weight = transaction.size();
+        let transaction_fee = transaction.fee();
+        let new_block_weight = block_weight + transaction_weight;
+
+        if new_block_weight <= max_block_weight {
+            transactions.push(transaction.clone());
+            transaction_fees += transaction_fee;
+            block_weight += transaction_weight;
+
+            if new_block_weight == max_block_weight {
+                break;
+            }
+        }
+    }
+
+    // Include Mint Transaction by miner
+    // TODO: Include Witnet's node PKH (keyed signature is not needed as there is no input)
+    let pkh = PublicKeyHash::default();
+    let epoch = beacon.checkpoint;
+    let reward = block_reward(epoch) + transaction_fees;
+
+    // Build Mint Transaction
+    transactions[0]
+        .outputs
+        .push(Output::ValueTransfer(ValueTransferOutput {
+            pkh,
+            value: reward,
+        }));
+
+    // Compute `hash_merkle_root` and build block header
+    let hash_merkle_root = merkle_tree_root(&transactions);
+    let block_header = BlockHeader {
         version: 0,
-        inputs: Vec::new(),
-        outputs: vec![Output::ValueTransfer(ValueTransferOutput { pkh, value })],
-        signatures: Vec::new(),
+        beacon,
+        hash_merkle_root,
+    };
+
+    Block {
+        block_header,
+        proof,
+        txns: transactions,
     }
 }

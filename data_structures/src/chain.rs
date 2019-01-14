@@ -229,7 +229,7 @@ pub type SHA256 = [u8; 32];
 pub type PublicKeyHash = [u8; 20];
 
 /// Transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct Transaction {
     pub version: u32,
     pub inputs: Vec<Input>,

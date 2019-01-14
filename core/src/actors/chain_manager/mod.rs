@@ -33,8 +33,7 @@ use ansi_term::Color::Purple;
 use log::{debug, error, info, warn};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use self::messages::{BuildBlock, InventoryEntriesResult};
-use self::mining::build_mint_transaction;
+use self::messages::InventoryEntriesResult;
 
 use crate::actors::{
     inventory_manager::{messages::AddItem, InventoryManager},
@@ -47,13 +46,11 @@ use crate::actors::{
 use crate::utils::{find_unspent_outputs, get_output_from_input};
 
 use witnet_data_structures::chain::{
-    Block, BlockHeader, ChainInfo, Epoch, Hash, Hashable, Input, InventoryEntry, InventoryItem,
-    Output, OutputPointer, PublicKeyHash, Transaction, TransactionsPool,
+    Block, ChainInfo, Epoch, Hash, Hashable, Input, InventoryEntry, InventoryItem, Output,
+    OutputPointer, TransactionsPool,
 };
 
-use crate::validations::{
-    block_reward, merkle_tree_root, validate_merkle_tree, validate_mint, validate_transactions,
-};
+use crate::validations::{validate_merkle_tree, validate_mint, validate_transactions};
 
 use self::data_request::DataRequestPool;
 use witnet_storage::error::StorageError;
@@ -327,62 +324,6 @@ impl ChainManager {
             || Err(ChainManagerError::BlockDoesNotExist),
             |block| Ok(block.clone()),
         )
-    }
-
-    fn build_block(&self, msg: &BuildBlock) -> Block {
-        // Get all the unspent transactions and calculate the sum of their fees
-        let max_block_weight = self.max_block_weight;
-        let mut transaction_fees = 0;
-        let mut block_weight = 0;
-        let mut transactions = Vec::new();
-
-        // Insert fake mint transaction to be replaced after collecting block transaction fees
-        transactions.push(Transaction {
-            version: 0,
-            inputs: Vec::new(),
-            outputs: Vec::new(),
-            signatures: Vec::new(),
-        });
-        // Push transactions from pool
-        for transaction in self.transactions_pool.iter() {
-            // Currently, 1 weight unit is equivalent to 1 byte
-            let transaction_weight = transaction.size();
-            let transaction_fee = transaction.fee();
-            let new_block_weight = block_weight + transaction_weight;
-
-            if new_block_weight <= max_block_weight {
-                transactions.push(transaction.clone());
-                transaction_fees += transaction_fee;
-                block_weight += transaction_weight;
-
-                if new_block_weight == max_block_weight {
-                    break;
-                }
-            }
-        }
-
-        // Include Mint Transaction by miner
-        // TODO: Include Witnet's node PKH (keyed signature is not needed as there is no input)
-        let pkh = PublicKeyHash::default();
-        let epoch = msg.beacon.checkpoint;
-        let reward = block_reward(epoch) + transaction_fees;
-        transactions[0] = build_mint_transaction(pkh, reward);
-
-        // Additional Block fields
-        let beacon = msg.beacon;
-        let hash_merkle_root = merkle_tree_root(&transactions);
-        let block_header = BlockHeader {
-            version: 0,
-            beacon,
-            hash_merkle_root,
-        };
-        let proof = msg.leadership_proof.clone();
-
-        Block {
-            block_header,
-            proof,
-            txns: transactions,
-        }
     }
 
     fn discard_existing_inventory_entries(
