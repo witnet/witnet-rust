@@ -238,6 +238,31 @@ pub struct Transaction {
 }
 
 impl Transaction {
+    /// Creates a new transaction from inputs and outputs.
+    // TODO: Transaction::new is missing the signatures which depend
+    // on a sign key that needs to be implemented first in
+    // witnet_crypto.
+    pub fn new(version: u32, inputs: Vec<Input>, outputs: Vec<Output>, _sign_key: ()) -> Self {
+        let signatures = inputs
+            .iter()
+            .map(|_input| KeyedSignature {
+                signature: Signature::Secp256k1(Secp256k1Signature {
+                    r: [0; 32],
+                    s: [0; 32],
+                    v: 0,
+                }),
+                public_key: [0; 32],
+            })
+            .collect();
+
+        Transaction {
+            version,
+            inputs,
+            outputs,
+            signatures,
+        }
+    }
+
     /// Returns the size a transaction will have on the wire in bytes
     pub fn size(&self) -> u32 {
         build_transaction_flatbuffer(
