@@ -4,7 +4,8 @@ use std::convert::Into;
 
 use crate::chain::{
     Block, BlockHeader, CheckpointBeacon, Epoch, Hash, Input, InventoryEntry, KeyedSignature,
-    LeadershipProof, Output, Signature, Transaction,
+    LeadershipProof, Output, RADAggregate, RADConsensus, RADDeliver, RADRetrieve, RADType,
+    Signature, Transaction,
 };
 use crate::flatbuffers::protocol_generated::protocol;
 
@@ -66,17 +67,17 @@ type WOIPOffsetKeyedSignatureVector<'a> = flatbuffers::WIPOffset<
 // ARGS
 ////////////////////////////////////////////////////////
 #[derive(Debug, Clone)]
-pub struct BlockArgs {
+pub struct BlockArgs<'a> {
     pub block_header: BlockHeader,
     pub proof: LeadershipProof,
-    pub txns: Vec<Transaction>,
+    pub txns: &'a [Transaction],
 }
 
-pub struct TransactionArgs {
+pub struct TransactionArgs<'a> {
     pub version: u32,
-    pub inputs: Vec<Input>,
-    pub outputs: Vec<Output>,
-    pub signatures: Vec<KeyedSignature>,
+    pub inputs: &'a [Input],
+    pub outputs: &'a [Output],
+    pub signatures: &'a [KeyedSignature],
 }
 
 // COMMAND ARGS
@@ -264,6 +265,14 @@ pub struct AddressArgs {
     port: u16,
 }
 
+pub struct RADRequestWipoffsetArgs<'a> {
+    not_before: u64,
+    retrieve: &'a [RADRetrieve],
+    aggregate: RADAggregate,
+    consensus: RADConsensus,
+    deliver: &'a [RADDeliver],
+}
+
 ////////////////////////////////////////////////////////
 // INTO TRAIT (Message ----> Vec<u8>)
 ////////////////////////////////////////////////////////
@@ -405,9 +414,9 @@ impl Into<Vec<u8>> for Message {
 /////////////////////
 
 // Build a Block flatbuffer (used for block id based on digest)
-pub fn build_block_flatbuffer(
-    builder: Option<&mut FlatBufferBuilder>,
-    block_args: &BlockArgs,
+pub fn build_block_flatbuffer<'a>(
+    builder: Option<&mut FlatBufferBuilder<'a>>,
+    block_args: &'a BlockArgs,
 ) -> Vec<u8> {
     let aux_builder: &mut FlatBufferBuilder =
         &mut flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
@@ -420,7 +429,7 @@ pub fn build_block_flatbuffer(
             checkpoint: block_args.block_header.beacon.checkpoint,
             hash_prev_block: block_args.block_header.beacon.hash_prev_block,
             hash: block_args.block_header.hash_merkle_root,
-            block_sig: block_args.proof.block_sig,
+            block_sig: block_args.proof.block_sig.clone(),
             influence: block_args.proof.influence,
         },
     );
@@ -430,9 +439,9 @@ pub fn build_block_flatbuffer(
 }
 
 // Build a Transaction flatbuffer (used for transaction id based on digest)
-pub fn build_transaction_flatbuffer(
-    builder: Option<&mut FlatBufferBuilder>,
-    transaction_args: &TransactionArgs,
+pub fn build_transaction_flatbuffer<'a>(
+    builder: Option<&mut FlatBufferBuilder<'a>>,
+    transaction_args: &'a TransactionArgs,
 ) -> Vec<u8> {
     let aux_builder: &mut FlatBufferBuilder =
         &mut flatbuffers::FlatBufferBuilder::new_with_capacity(FTB_SIZE);
@@ -470,7 +479,7 @@ fn build_block_message_flatbuffer<'a>(
             checkpoint: block_args.block_header.beacon.checkpoint,
             hash_prev_block: block_args.block_header.beacon.hash_prev_block,
             hash: block_args.block_header.hash_merkle_root,
-            block_sig: block_args.proof.block_sig,
+            block_sig: block_args.proof.block_sig.clone(),
             influence: block_args.proof.influence,
             txns: block_args.txns,
         },
@@ -494,11 +503,11 @@ fn build_transaction_message_flatbuffer<'a>(
 ) -> Vec<u8> {
     let transaction_command_wipoffset = build_transaction_wipoffset(
         builder,
-        &Transaction {
+        &TransactionArgs {
             version: transaction_args.version,
-            inputs: transaction_args.inputs.to_vec(),
-            outputs: transaction_args.outputs.to_vec(),
-            signatures: transaction_args.signatures.to_vec(),
+            inputs: transaction_args.inputs,
+            outputs: transaction_args.outputs,
+            signatures: transaction_args.signatures,
         },
     );
     let transaction_message_wipoffset = build_message_wipoffset(
@@ -824,7 +833,7 @@ pub fn build_block_command_wipoffset<'a>(
     let proof_wipoffset = build_leadership_proof_wipoffset(
         builder,
         &LeadershipProofArgs {
-            block_sig: block_message_args.block_sig,
+            block_sig: block_message_args.block_sig.clone(),
             influence: block_message_args.influence,
         },
     );
@@ -867,12 +876,12 @@ pub fn build_block_header_wipoffset<'a>(
 
 pub fn build_block_wipoffset<'a>(
     builder: &mut FlatBufferBuilder<'a>,
-    block_args: &BlockWipoffsetArgs,
+    block_args: &BlockWipoffsetArgs<'a>,
 ) -> WIPOffsetBlock<'a> {
     let proof_wipoffset = Some(build_leadership_proof_wipoffset(
         builder,
         &LeadershipProofArgs {
-            block_sig: block_args.block_sig,
+            block_sig: block_args.block_sig.clone(),
             influence: block_args.influence,
         },
     ));
@@ -919,6 +928,98 @@ pub fn build_checkpoint_beacon_wipoffset<'a>(
         &protocol::CheckpointBeaconArgs {
             checkpoint: beacon_args.checkpoint,
             hash_prev_block: hash_prev_block_wipoffset,
+        },
+    )
+}
+
+pub fn build_rad_request_wipoffset<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
+    rad_request_args: &RADRequestWipoffsetArgs,
+) -> flatbuffers::WIPOffset<protocol::RADRequest<'a>> {
+    let aggregate_script = builder.create_vector(&rad_request_args.aggregate.script);
+    let aggregate_wipoffset = protocol::RADAggregate::create(
+        builder,
+        &protocol::RADAggregateArgs {
+            script: Some(aggregate_script),
+        },
+    );
+
+    let retrieves_wipoffset_vector: Vec<flatbuffers::WIPOffset<protocol::RADRetrieve>> =
+        rad_request_args
+            .retrieve
+            .iter()
+            .map(|retrieve: &RADRetrieve| {
+                let script = builder.create_vector(&retrieve.script);
+                let kind = match retrieve.kind {
+                    RADType::HttpGet => {
+                        protocol::HttpGet::create(builder, &protocol::HttpGetArgs {})
+                    }
+                };
+                let kind_type = match retrieve.kind {
+                    RADType::HttpGet => protocol::RADType::HttpGet,
+                };
+
+                let url = builder.create_string(&retrieve.url);
+
+                protocol::RADRetrieve::create(
+                    builder,
+                    &protocol::RADRetrieveArgs {
+                        script: Some(script),
+                        kind_type,
+                        kind: Some(kind.as_union_value()),
+                        url: Some(url),
+                    },
+                )
+            })
+            .collect();
+
+    let retrieve_vector_wipoffset = builder.create_vector(&retrieves_wipoffset_vector);
+
+    let deliver_wipoffset_vector: Vec<flatbuffers::WIPOffset<protocol::RADDeliver>> =
+        rad_request_args
+            .deliver
+            .iter()
+            .map(|deliver: &RADDeliver| {
+                let kind = match deliver.kind {
+                    RADType::HttpGet => {
+                        protocol::HttpGet::create(builder, &protocol::HttpGetArgs {})
+                    }
+                };
+                let kind_type = match deliver.kind {
+                    RADType::HttpGet => protocol::RADType::HttpGet,
+                };
+
+                let deliver_url = builder.create_string(&deliver.url);
+
+                protocol::RADDeliver::create(
+                    builder,
+                    &protocol::RADDeliverArgs {
+                        kind: Some(kind.as_union_value()),
+                        kind_type,
+                        url: Some(deliver_url),
+                    },
+                )
+            })
+            .collect();
+
+    let deliver_vector_wipoffset = builder.create_vector(&deliver_wipoffset_vector);
+
+    let consensus_script_wipoffset = builder.create_vector(&rad_request_args.consensus.script);
+    let consensus_wipoffset = protocol::RADConsensus::create(
+        builder,
+        &protocol::RADConsensusArgs {
+            script: Some(consensus_script_wipoffset),
+        },
+    );
+
+    protocol::RADRequest::create(
+        builder,
+        &protocol::RADRequestArgs {
+            aggregate: Some(aggregate_wipoffset),
+            retrieve: Some(retrieve_vector_wipoffset),
+            consensus: Some(consensus_wipoffset),
+            deliver: Some(deliver_vector_wipoffset),
+            not_before: rad_request_args.not_before,
         },
     )
 }
@@ -1079,11 +1180,13 @@ pub fn build_leadership_proof_wipoffset<'a>(
 ) -> WIPOffsetLeadershipProof<'a> {
     let block_sig_type = leadership_proof_args
         .block_sig
+        .clone()
         .map(|signature| match signature {
             Signature::Secp256k1(_) => protocol::Signature::Secp256k1Signature,
         });
     let block_sig = leadership_proof_args
         .block_sig
+        .clone()
         .map(|signature| match signature {
             Signature::Secp256k1(secp256k1) => {
                 let mut s = secp256k1.s.to_vec();
@@ -1167,12 +1270,22 @@ pub fn build_pong_command_wipoffset<'a>(
 
 pub fn build_transactions_vector_wipoffset<'a>(
     builder: &mut FlatBufferBuilder<'a>,
-    transactions_vector_args: &TransactionsVectorArgs,
+    transactions_vector_args: &TransactionsVectorArgs<'a>,
 ) -> WIPOffsetTransactionVector<'a> {
     let txns: Vec<WIPOffsetTransaction> = transactions_vector_args
         .txns
         .iter()
-        .map(|tx: &Transaction| build_transaction_wipoffset(builder, tx))
+        .map(|tx: &Transaction| {
+            build_transaction_wipoffset(
+                builder,
+                &TransactionArgs {
+                    version: tx.version,
+                    inputs: &tx.inputs,
+                    outputs: &tx.outputs,
+                    signatures: &tx.signatures,
+                },
+            )
+        })
         .collect();
 
     Some(builder.create_vector(&txns))
@@ -1180,7 +1293,7 @@ pub fn build_transactions_vector_wipoffset<'a>(
 
 pub fn build_transaction_wipoffset<'a>(
     builder: &mut FlatBufferBuilder<'a>,
-    transaction_args: &Transaction,
+    transaction_args: &TransactionArgs<'a>,
 ) -> WIPOffsetTransaction<'a> {
     let input_vector_wipoffset = build_input_vector_wipoffset(builder, &transaction_args.inputs);
     let output_vector_wipoffset = build_output_vector_wipoffset(builder, &transaction_args.outputs);
@@ -1209,7 +1322,7 @@ fn build_keyed_signature_vector_wipoffset<'a>(
                 let signature_type = match keyed_signature.signature {
                     Signature::Secp256k1(_) => protocol::Signature::Secp256k1Signature,
                 };
-                let signature_wipoffset = match keyed_signature.signature {
+                let signature_wipoffset = match keyed_signature.signature.clone() {
                     Signature::Secp256k1(secp256k1) => {
                         let mut s = secp256k1.s.to_vec();
                         s.push(secp256k1.v);
@@ -1242,7 +1355,7 @@ fn build_keyed_signature_vector_wipoffset<'a>(
 
 fn build_output_vector_wipoffset<'a>(
     builder: &mut FlatBufferBuilder<'a>,
-    output_vector: &[Output],
+    output_vector: &'a [Output],
 ) -> WIPOffsetOutputVector<'a> {
     let output_vector_wipoffset: Vec<flatbuffers::WIPOffset<protocol::Output>> = output_vector
         .iter()
@@ -1291,7 +1404,16 @@ fn build_output_vector_wipoffset<'a>(
                 )
             }
             Output::DataRequest(data_request) => {
-                let data_request_wipoffset = builder.create_vector(&data_request.data_request);
+                let data_request_wipoffset = build_rad_request_wipoffset(
+                    builder,
+                    &RADRequestWipoffsetArgs {
+                        not_before: data_request.data_request.not_before,
+                        retrieve: &data_request.data_request.retrieve,
+                        aggregate: data_request.data_request.aggregate.clone(),
+                        consensus: data_request.data_request.consensus.clone(),
+                        deliver: &data_request.data_request.deliver,
+                    },
+                );
                 let pkh_wipoffset = builder.create_vector(&data_request.pkh);
 
                 let data_request_output_wipoffset = protocol::DataRequestOutput::create(
