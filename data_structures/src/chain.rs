@@ -100,7 +100,7 @@ pub struct Block {
 }
 
 /// The error type for operations on a [`Block`](Block)
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BlockError {
     /// Indicates the block has no transactions in it.
     Empty,
@@ -276,7 +276,7 @@ pub struct Transaction {
 }
 
 /// The error type for operations on a [`Transaction`](Transaction)
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TransactionError {
     /// Error indicating the transaction creates value
     NegativeFee,
@@ -315,7 +315,7 @@ impl Transaction {
     }
 
     /// Return the value of the output with index `index`.
-    pub fn output_value(&self, index: usize) -> Option<u64> {
+    pub fn get_output_value(&self, index: usize) -> Option<u64> {
         self.outputs.get(index).map(Output::value)
     }
 
@@ -336,7 +336,7 @@ impl Transaction {
                 .get(&transaction_id)
                 .ok_or_else(|| TransactionError::PoolMiss(transaction_id))?;
             let pointed_value = pointed_transaction
-                .output_value(index)
+                .get_output_value(index)
                 .ok_or_else(|| TransactionError::OutputNotFound(transaction_id, index))?;
             total_value += pointed_value;
         }
@@ -367,7 +367,7 @@ impl Transaction {
     /// transaction_.  A mint transaction is one that has no inputs,
     /// only outputs, thus, is allowed to create new wits.
     pub fn is_mint(&self) -> bool {
-        self.inputs.len() == 0
+        self.inputs.is_empty()
     }
 
     /// Returns the fee of a transaction.
@@ -382,12 +382,10 @@ impl Transaction {
 
         if self.is_mint() {
             Ok(out_value)
+        } else if out_value > in_value {
+            Err(TransactionError::NegativeFee)
         } else {
-            if out_value > in_value {
-                Err(TransactionError::NegativeFee)
-            } else {
-                Ok(in_value - out_value)
-            }
+            Ok(in_value - out_value)
         }
     }
 }
@@ -926,246 +924,4 @@ pub enum InventoryItem {
     Transaction(Transaction),
     #[serde(rename = "block")]
     Block(Block),
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_block_hashable_trait() {
-        let block_header = BlockHeader {
-            version: 0,
-            beacon: CheckpointBeacon {
-                checkpoint: 0,
-                hash_prev_block: Hash::SHA256([0; 32]),
-            },
-            hash_merkle_root: Hash::SHA256([0; 32]),
-        };
-        let signature = Signature::Secp256k1(Secp256k1Signature {
-            r: [0; 32],
-            s: [0; 32],
-            v: 0,
-        });
-        let proof = LeadershipProof {
-            block_sig: Some(signature.clone()),
-            influence: 0,
-        };
-        let keyed_signatures = vec![KeyedSignature {
-            public_key: [0; 32],
-            signature,
-        }];
-        let commit_input = Input::Commit(CommitInput {
-            nonce: 0,
-            output_index: 0,
-            reveal: [0; 32].to_vec(),
-            transaction_id: Hash::SHA256([0; 32]),
-        });
-        let reveal_input = Input::Reveal(RevealInput {
-            output_index: 0,
-            transaction_id: Hash::SHA256([0; 32]),
-        });
-        let data_request_input = Input::DataRequest(DataRequestInput {
-            output_index: 0,
-            poe: [0; 32],
-            transaction_id: Hash::SHA256([0; 32]),
-        });
-        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-            pkh: [0; 20],
-            value: 0,
-        });
-
-        let rad_aggregate = RADAggregate { script: vec![0] };
-
-        let rad_retrieve_1 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_retrieve_2 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_consensus = RADConsensus { script: vec![0] };
-
-        let rad_deliver_1 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-        };
-
-        let rad_deliver_2 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-        };
-
-        let rad_request = RADRequest {
-            aggregate: rad_aggregate,
-            not_before: 0,
-            retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-            consensus: rad_consensus,
-            deliver: vec![rad_deliver_1, rad_deliver_2],
-        };
-
-        let data_request_output = Output::DataRequest(DataRequestOutput {
-            backup_witnesses: 0,
-            commit_fee: 0,
-            data_request: rad_request,
-            pkh: [0; 20],
-            reveal_fee: 0,
-            tally_fee: 0,
-            time_lock: 0,
-            value: 0,
-            witnesses: 0,
-        });
-        let commit_output = Output::Commit(CommitOutput {
-            commitment: Hash::SHA256([0; 32]),
-            value: 0,
-        });
-        let reveal_output = Output::Reveal(RevealOutput {
-            pkh: [0; 20],
-            reveal: [0; 32].to_vec(),
-            value: 0,
-        });
-        let consensus_output = Output::Tally(TallyOutput {
-            pkh: [0; 20],
-            result: vec![0],
-            value: 0,
-        });
-        let inputs = vec![commit_input, data_request_input, reveal_input];
-        let outputs = vec![
-            value_transfer_output,
-            data_request_output,
-            commit_output,
-            reveal_output,
-            consensus_output,
-        ];
-        let txns: Vec<Transaction> = vec![Transaction {
-            inputs,
-            signatures: keyed_signatures,
-            outputs,
-            version: 0,
-        }];
-        let block = Block {
-            block_header,
-            proof,
-            txns,
-        };
-        let expected = Hash::SHA256([
-            204, 111, 204, 123, 50, 100, 176, 227, 102, 35, 195, 223, 178, 106, 185, 156, 160, 24,
-            18, 210, 236, 116, 217, 170, 103, 95, 92, 236, 208, 52, 134, 63,
-        ]);
-        assert_eq!(block.hash(), expected);
-    }
-
-    #[test]
-    fn test_transaction_hashable_trait() {
-        let signature = Signature::Secp256k1(Secp256k1Signature {
-            r: [0; 32],
-            s: [0; 32],
-            v: 0,
-        });
-        let signatures = vec![KeyedSignature {
-            public_key: [0; 32],
-            signature,
-        }];
-        let commit_input = Input::Commit(CommitInput {
-            nonce: 0,
-            output_index: 0,
-            reveal: [0; 32].to_vec(),
-            transaction_id: Hash::SHA256([0; 32]),
-        });
-        let reveal_input = Input::Reveal(RevealInput {
-            output_index: 0,
-            transaction_id: Hash::SHA256([0; 32]),
-        });
-        let data_request_input = Input::DataRequest(DataRequestInput {
-            output_index: 0,
-            poe: [0; 32],
-            transaction_id: Hash::SHA256([0; 32]),
-        });
-        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-            pkh: [0; 20],
-            value: 0,
-        });
-
-        let rad_aggregate = RADAggregate { script: vec![0] };
-
-        let rad_retrieve_1 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_retrieve_2 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_consensus = RADConsensus { script: vec![0] };
-        let rad_deliver_1 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-        };
-
-        let rad_deliver_2 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-        };
-
-        let rad_request = RADRequest {
-            aggregate: rad_aggregate,
-            not_before: 0,
-            retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-            consensus: rad_consensus,
-            deliver: vec![rad_deliver_1, rad_deliver_2],
-        };
-        let data_request_output = Output::DataRequest(DataRequestOutput {
-            backup_witnesses: 0,
-            commit_fee: 0,
-            data_request: rad_request,
-            pkh: [0; 20],
-            reveal_fee: 0,
-            tally_fee: 0,
-            time_lock: 0,
-            value: 0,
-            witnesses: 0,
-        });
-        let commit_output = Output::Commit(CommitOutput {
-            commitment: Hash::SHA256([0; 32]),
-            value: 0,
-        });
-        let reveal_output = Output::Reveal(RevealOutput {
-            pkh: [0; 20],
-            reveal: [0; 32].to_vec(),
-            value: 0,
-        });
-        let consensus_output = Output::Tally(TallyOutput {
-            pkh: [0; 20],
-            result: [0; 32].to_vec(),
-            value: 0,
-        });
-        let inputs = vec![commit_input, data_request_input, reveal_input];
-        let outputs = vec![
-            value_transfer_output,
-            data_request_output,
-            commit_output,
-            reveal_output,
-            consensus_output,
-        ];
-        let transaction: Transaction = Transaction {
-            inputs,
-            outputs,
-            signatures,
-            version: 0,
-        };
-        let expected = Hash::SHA256([
-            10, 241, 147, 199, 165, 174, 93, 237, 233, 213, 202, 27, 217, 126, 244, 196, 189, 74,
-            84, 243, 4, 214, 2, 34, 22, 0, 118, 115, 137, 32, 203, 237,
-        ]);
-        assert_eq!(transaction.hash(), expected);
-    }
 }

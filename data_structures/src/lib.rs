@@ -23,3 +23,6 @@ pub mod types;
 
 /// Module containing error definitions
 pub mod error;
+
+#[cfg(test)]
+pub mod tests;
