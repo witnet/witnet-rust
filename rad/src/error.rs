@@ -5,7 +5,7 @@ use std::fmt;
 pub use witnet_util::error::{WitnetError, WitnetResult};
 
 /// RAD Error
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, Fail)]
 #[fail(display = "{} : {}", kind, msg)]
 pub struct RadError {
     /// Error kind.
@@ -22,7 +22,7 @@ impl RadError {
 }
 
 /// RAD errors.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum RadErrorKind {
     /// Failed to encode or decode a RADON type into / from bytes
     EncodeDecode,
