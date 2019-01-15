@@ -5,7 +5,7 @@ use std::fmt;
 pub use witnet_util::error::{WitnetError, WitnetResult};
 
 /// RAD Error
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, Fail)]
 #[fail(display = "{} : {}", kind, msg)]
 pub struct RadError {
     /// Error kind.
@@ -22,7 +22,7 @@ impl RadError {
 }
 
 /// RAD errors.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum RadErrorKind {
     /// Failed to encode or decode a RADON type into / from bytes
     EncodeDecode,
@@ -44,10 +44,6 @@ pub enum RadErrorKind {
     UnknownOperator,
     /// The given operator is not implemented for the input type
     UnsupportedOperator,
-    /// Failed to retrieve key from Map
-    MapKeyNotFound,
-    /// Map key not provided
-    MapKeyNotProvided,
 }
 
 impl fmt::Display for RadErrorKind {
