@@ -2,8 +2,8 @@ use log::{debug, info};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use witnet_data_structures::{
     chain::{
-        Block, CommitOutput, DataRequestOutput, Epoch, Hash, Hashable, Input, Output,
-        OutputPointer, RevealInput, RevealOutput, TallyOutput, Transaction,
+        Block, DataRequestOutput, Epoch, Hash, Hashable, Input, Output, OutputPointer, RevealInput,
+        Transaction,
     },
     serializers::decoders::TryFrom,
 };
@@ -70,13 +70,7 @@ impl DataRequestPool {
     }
 
     /// Add a commit to the corresponding data request
-    pub fn add_commit(
-        &mut self,
-        z: &Input,
-        pointer: OutputPointer,
-        commit: CommitOutput,
-        block_hash: &Hash,
-    ) {
+    pub fn add_commit(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a commit output, we need to get the corresponding data request input
         if let Input::DataRequest(dri) = z {
@@ -85,7 +79,7 @@ impl DataRequestPool {
             // The data request must be from a previous block, and must not be timelocked.
             // This is not checked here, as it should have made the block invalid.
             if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-                dr.add_commit(pointer.clone(), commit);
+                dr.add_commit(pointer.clone());
                 // Save the commit output pointer into a cache, to be able to
                 // retrieve data requests when we have the commit output pointer
                 // but no data request output pointer
@@ -122,20 +116,14 @@ impl DataRequestPool {
         }
     }
 
-    pub fn add_reveal(
-        &mut self,
-        z: &Input,
-        pointer: OutputPointer,
-        reveal: RevealOutput,
-        block_hash: &Hash,
-    ) {
+    pub fn add_reveal(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a reveal output, we need to get the corresponding commit input
         if let Input::Commit(commit_input) = z {
             let commit_pointer = commit_input.output_pointer();
             if let Some(dr_pointer) = self.dr_pointer_cache.get(&commit_pointer) {
                 if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-                    dr.add_reveal(pointer.clone(), reveal);
+                    dr.add_reveal(pointer.clone());
                     // Save the reveal output pointer into a cache
                     self.dr_pointer_cache.insert(pointer, dr_pointer.clone());
                 } else {
@@ -188,13 +176,7 @@ impl DataRequestPool {
     }
 
     #[allow(clippy::needless_pass_by_value)]
-    pub fn add_tally(
-        &mut self,
-        reveal: &RevealInput,
-        pointer: OutputPointer,
-        tally: TallyOutput,
-        block_hash: &Hash,
-    ) {
+    pub fn add_tally(&mut self, reveal: &RevealInput, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a tally output, we need to get the corresponding reveal input
         // Which is the previous transaction in the list
@@ -205,7 +187,7 @@ impl DataRequestPool {
             if let Ok((_dr, dr_info)) = Self::resolve_data_request(
                 &mut self.data_request_pool,
                 &dr_pointer,
-                (pointer.clone(), tally),
+                pointer.clone(),
             ) {
                 // Since this method does not have access to the storage, we save the
                 // "to be stored" inside a vector and provide another method to store them
@@ -233,12 +215,10 @@ impl DataRequestPool {
                 "Block contains a tally for a reveal not in the cache:\n\
                  Block hash: {b}\n\
                  Transaction hash: {t}\n\
-                 Reveal output pointer: {r:?}\n\
-                 Tally: {tally:?}",
+                 Reveal output pointer: {r:?}",
                 b = block_hash,
                 t = transaction_id,
                 r = reveal_pointer,
-                tally = tally,
             );
         }
     }
@@ -248,10 +228,10 @@ impl DataRequestPool {
     pub fn resolve_data_request(
         data_request_pool: &mut HashMap<OutputPointer, DataRequestState>,
         dr_pointer: &OutputPointer,
-        (tally_pointer, tally): (OutputPointer, TallyOutput),
+        tally_pointer: OutputPointer,
     ) -> Result<(DataRequestOutput, DataRequestInfoStorage), ()> {
         let dr_state = data_request_pool.remove(dr_pointer).ok_or(())?;
-        let (dr, dr_info) = dr_state.add_tally(tally_pointer, tally);
+        let (dr, dr_info) = dr_state.add_tally(tally_pointer);
 
         Ok((dr, dr_info))
     }
@@ -278,7 +258,7 @@ impl DataRequestPool {
                                 Input::Commit(commit) => commit.output_pointer(),
                                 _ => panic!("Invalid format for reveal transaction"),
                             };
-                            if dr_state.info.commits.contains_key(&commit_pointer) {
+                            if dr_state.info.commits.contains(&commit_pointer) {
                                 // We found our commit, return the reveal transaction to be sent
                                 return Some(transaction);
                             } else {
@@ -345,11 +325,11 @@ impl DataRequestPool {
                     let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
                     self.add_data_request(dr_epoch, pointer.clone(), dr.clone());
                 }
-                Output::Commit(commit) => {
-                    self.add_commit(z, pointer, commit.clone(), block_hash);
+                Output::Commit(_commit) => {
+                    self.add_commit(z, pointer, block_hash);
                 }
-                Output::Reveal(reveal) => {
-                    self.add_reveal(z, pointer, reveal.clone(), block_hash);
+                Output::Reveal(_reveal) => {
+                    self.add_reveal(z, pointer, block_hash);
                 }
                 Output::Tally(tally) => {
                     // It is impossible to have a tally in this iterator, because we are
@@ -380,7 +360,7 @@ impl DataRequestPool {
         if possibly_tally {
             let tally_index = t.outputs.len() - 1;
             match (&t.inputs[tally_index - 1], &t.outputs[tally_index]) {
-                (Input::Reveal(reveal), Output::Tally(tally)) => {
+                (Input::Reveal(reveal), Output::Tally(_tally)) => {
                     // Assume that all the reveal inputs point to the same data request
                     // (as that should have been already validated)
                     // And assume that the tally transaction contains as many reveal inputs
@@ -389,7 +369,7 @@ impl DataRequestPool {
                         transaction_id,
                         output_index: tally_index as u32,
                     };
-                    self.add_tally(reveal, pointer, tally.clone(), block_hash);
+                    self.add_tally(reveal, pointer, block_hash);
                 }
                 (_, Output::Tally(_)) => {
                     // This panic implies a logic error in the block validation
@@ -473,23 +453,22 @@ impl DataRequestState {
         }
     }
 
-    pub fn add_commit(&mut self, output_pointer: OutputPointer, commit: CommitOutput) {
+    pub fn add_commit(&mut self, output_pointer: OutputPointer) {
         assert_eq!(self.stage, DataRequestStage::COMMIT);
-        self.info.commits.insert(output_pointer, commit);
+        self.info.commits.insert(output_pointer);
     }
 
-    pub fn add_reveal(&mut self, output_pointer: OutputPointer, reveal: RevealOutput) {
+    pub fn add_reveal(&mut self, output_pointer: OutputPointer) {
         assert_eq!(self.stage, DataRequestStage::REVEAL);
-        self.info.reveals.insert(output_pointer, reveal);
+        self.info.reveals.insert(output_pointer);
     }
 
     pub fn add_tally(
         mut self,
         output_pointer: OutputPointer,
-        tally: TallyOutput,
     ) -> (DataRequestOutput, DataRequestInfoStorage) {
         assert_eq!(self.stage, DataRequestStage::TALLY);
-        self.info.tally = Some((output_pointer, tally));
+        self.info.tally = Some(output_pointer);
         // This try_from can only fail if the tally is None, and we have just set it to Some
         (
             self.data_request,
@@ -535,11 +514,11 @@ impl DataRequestState {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct DataRequestInfo {
     /// List of commitments to resolve the data request
-    pub commits: HashMap<OutputPointer, CommitOutput>,
+    pub commits: HashSet<OutputPointer>,
     /// List of reveals to the commitments (contains the data request witnet result)
-    pub reveals: HashMap<OutputPointer, RevealOutput>,
+    pub reveals: HashSet<OutputPointer>,
     /// Tally of data request (contains final result)
-    pub tally: Option<(OutputPointer, TallyOutput)>,
+    pub tally: Option<OutputPointer>,
 }
 
 /// Data request information to be persisted into Storage (only for resolved data requests) and
@@ -560,9 +539,9 @@ impl TryFrom<DataRequestInfo> for DataRequestInfoStorage {
     fn try_from(x: DataRequestInfo) -> Result<Self, &'static str> {
         if let Some(tally) = x.tally {
             Ok(DataRequestInfoStorage {
-                commits: x.commits.keys().cloned().collect(),
-                reveals: x.reveals.keys().cloned().collect(),
-                tally: tally.0,
+                commits: x.commits.into_iter().collect(),
+                reveals: x.reveals.into_iter().collect(),
+                tally,
             })
         } else {
             Err("Cannot persist unfinished data request (with no Tally)")
@@ -584,9 +563,7 @@ pub enum DataRequestStage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use witnet_data_structures::chain::{
-        CommitInput, DataRequestInput, Hash, ValueTransferInput, ValueTransferOutput,
-    };
+    use witnet_data_structures::chain::*;
 
     fn empty_data_request() -> DataRequestOutput {
         DataRequestOutput {
@@ -743,7 +720,7 @@ mod tests {
             p.data_request_pool[&dr_pointer]
                 .info
                 .commits
-                .keys()
+                .iter()
                 .collect::<Vec<_>>(),
             vec![&commit_pointer],
         );
@@ -860,7 +837,7 @@ mod tests {
             p.data_request_pool[&dr_pointer]
                 .info
                 .commits
-                .keys()
+                .iter()
                 .collect::<Vec<_>>(),
             vec![&commit_pointer],
         );
@@ -868,7 +845,7 @@ mod tests {
             p.data_request_pool[&dr_pointer]
                 .info
                 .reveals
-                .keys()
+                .iter()
                 .collect::<Vec<_>>(),
             vec![&reveal_pointer],
         );
@@ -1005,7 +982,7 @@ mod tests {
             p.data_request_pool[&dr_pointer]
                 .info
                 .commits
-                .keys()
+                .iter()
                 .collect::<Vec<_>>(),
             vec![&commit_pointer],
         );
@@ -1013,7 +990,7 @@ mod tests {
             p.data_request_pool[&dr_pointer]
                 .info
                 .reveals
-                .keys()
+                .iter()
                 .collect::<Vec<_>>(),
             vec![&reveal_pointer],
         );
@@ -1145,7 +1122,7 @@ mod tests {
             p.data_request_pool[&dr_pointer]
                 .info
                 .commits
-                .keys()
+                .iter()
                 .collect::<Vec<_>>(),
             vec![&commit_pointer],
         );
@@ -1153,7 +1130,7 @@ mod tests {
             p.data_request_pool[&dr_pointer]
                 .info
                 .reveals
-                .keys()
+                .iter()
                 .collect::<Vec<_>>(),
             vec![&reveal_pointer],
         );
@@ -1315,7 +1292,7 @@ mod tests {
             p.data_request_pool[&dr_pointer]
                 .info
                 .commits
-                .keys()
+                .iter()
                 .collect::<Vec<_>>(),
             vec![&commit_pointer],
         );
@@ -1323,7 +1300,7 @@ mod tests {
             p.data_request_pool[&dr_pointer]
                 .info
                 .reveals
-                .keys()
+                .iter()
                 .collect::<Vec<_>>(),
             vec![&reveal_pointer],
         );
