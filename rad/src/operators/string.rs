@@ -3,17 +3,23 @@ use crate::types::{mixed::RadonMixed, string::RadonString, RadonType};
 
 use json;
 use rmpv;
-use std::error::Error;
+use std::{error::Error, str};
 
 pub fn parse_json(input: &RadonString) -> RadResult<RadonMixed> {
-    match json::parse(&input.value()) {
-        Ok(json_value) => {
-            let value = json_to_rmp(&json_value);
-            Ok(RadonMixed::from(value.to_owned()))
-        }
-        Err(json_error) => Err(WitnetError::from(RadError::new(
+    match str::from_utf8(input.value()) {
+        Ok(string) => match json::parse(string) {
+            Ok(json_value) => {
+                let value = json_to_rmp(&json_value);
+                Ok(RadonMixed::from(value.to_owned()))
+            }
+            Err(json_error) => Err(WitnetError::from(RadError::new(
+                RadErrorKind::JsonParse,
+                json_error.description().to_owned(),
+            ))),
+        },
+        Err(_utf8_error) => Err(WitnetError::from(RadError::new(
             RadErrorKind::JsonParse,
-            json_error.description().to_owned(),
+            String::from("Failed to parse an object from a JSON buffer"),
         ))),
     }
 }
@@ -21,7 +27,7 @@ pub fn parse_json(input: &RadonString) -> RadResult<RadonMixed> {
 fn json_to_rmp(value: &json::JsonValue) -> rmpv::ValueRef {
     match value {
         json::JsonValue::Array(value) => {
-            rmpv::ValueRef::Array(value.iter().map(json_to_rmp).collect())
+            rmpv::ValueRef::Array(value.into_iter().map(json_to_rmp).collect())
         }
         json::JsonValue::Object(value) => {
             let entries = value
