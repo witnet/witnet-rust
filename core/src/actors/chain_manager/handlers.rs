@@ -154,8 +154,8 @@ impl Handler<AddTransaction> for ChainManager {
                 // Check that all inputs point to unspent outputs
                 if self.find_unspent_outputs(&msg.transaction.inputs) {
                     // Validate transaction
-                    // DRO RULE 1. Multiple data request outputs can be included into a single transaction
-                    // as long as the inputs are greater than outputs rule still hold true. The difference
+                    // DRO RULE 1. Multiple data request outputs can be included into a single transaction.
+                    // As long as the inputs are greater than the outputs, the rule still hold true. The difference
                     // with VTOs is that the total output value for data request outputs also includes the
                     // commit fee, reveal fee and tally fee.
                     let inputs_sum = outputs_from_inputs.iter().map(Output::value).sum();
