@@ -53,7 +53,7 @@ use witnet_data_structures::chain::{
     OutputPointer, TransactionsPool,
 };
 
-use crate::validations::{validate_merkle_tree, validate_mint, validate_transactions};
+use crate::validations::{validate_merkle_tree, validate_transactions};
 
 use self::data_request::DataRequestPool;
 use witnet_data_structures::chain::CheckpointBeacon;
@@ -426,8 +426,8 @@ impl ChainManager {
                             error!("Unexpected error");
                         }
                     }
-                } else if !validate_mint(&block) {
-                    warn!("Block mint not valid");
+                } else if block.validate(0, &self.transactions_pool).is_err() {
+                    warn!("Block's mint transaction is not valid");
                 } else {
                     if block_epoch < current_epoch {
                         // FIXME(#235): check proof of eligibility from the past

@@ -99,6 +99,44 @@ pub struct Block {
     pub txns: Vec<Transaction>,
 }
 
+/// The error type for operations on a [`Block`](Block)
+#[derive(Debug)]
+pub enum BlockError {
+    /// Indicates the block has no transactions in it.
+    Empty,
+    /// Indicates the first transaction of the block is no mint.
+    NoMint,
+    /// Indicates there was an error validating the transactions.
+    Transaction(TransactionError),
+    /// Indicates that the total value created by the mint transaction
+    /// of the block, and the output value of the rest of the
+    /// transactions, plus the block reward, don't add up
+    MismatchedMintValue,
+}
+
+impl Block {
+    /// Check if the block is valid.
+    pub fn validate(&self, block_reward: u64, pool: &TransactionsPool) -> Result<(), BlockError> {
+        let mint_transaction = self.txns.first().ok_or_else(|| BlockError::Empty)?;
+
+        if !mint_transaction.is_mint() {
+            Err(BlockError::NoMint)?
+        }
+
+        let mut total_fees = 0;
+        for transaction in self.txns.iter().skip(1) {
+            total_fees += transaction.fee(pool).map_err(BlockError::Transaction)?;
+        }
+
+        let mint_fee = mint_transaction.outputs_sum();
+        if mint_fee != total_fees + block_reward {
+            Err(BlockError::MismatchedMintValue)?
+        }
+
+        Ok(())
+    }
+}
+
 /// Any reference to a Hashable type is also Hashable
 impl<'a, T: Hashable> Hashable for &'a T {
     fn hash(&self) -> Hash {
@@ -237,6 +275,19 @@ pub struct Transaction {
     pub signatures: Vec<KeyedSignature>,
 }
 
+/// The error type for operations on a [`Transaction`](Transaction)
+#[derive(Debug)]
+pub enum TransactionError {
+    /// Error indicating the transaction creates value
+    NegativeFee,
+    /// Error indicating that a transaction with the given hash wasn't
+    /// found in a pool.
+    PoolMiss(Hash),
+    /// Error indicating that an output with the given index wasn't
+    /// found in a transaction.
+    OutputNotFound(Hash, usize),
+}
+
 impl Transaction {
     /// Creates a new transaction from inputs and outputs.
     // TODO: Transaction::new is missing the signatures which depend
@@ -263,6 +314,41 @@ impl Transaction {
         }
     }
 
+    /// Return the value of the output with index `index`.
+    pub fn output_value(&self, index: usize) -> Option<u64> {
+        self.outputs.get(index).map(Output::value)
+    }
+
+    /// Calculate the sum of the values of the outputs pointed by the
+    /// inputs of a transaction. If an input pointed-output is not
+    /// found in `pool`, then an error is returned instead indicating
+    /// it.
+    pub fn inputs_sum(&self, pool: &TransactionsPool) -> Result<u64, TransactionError> {
+        let mut total_value = 0;
+
+        for input in &self.inputs {
+            let OutputPointer {
+                transaction_id,
+                output_index,
+            } = input.output_pointer();
+            let index = output_index as usize;
+            let pointed_transaction = pool
+                .get(&transaction_id)
+                .ok_or_else(|| TransactionError::PoolMiss(transaction_id))?;
+            let pointed_value = pointed_transaction
+                .output_value(index)
+                .ok_or_else(|| TransactionError::OutputNotFound(transaction_id, index))?;
+            total_value += pointed_value;
+        }
+
+        Ok(total_value)
+    }
+
+    /// Calculate the sum of the values of the outputs of a transaction.
+    pub fn outputs_sum(&self) -> u64 {
+        self.outputs.iter().map(Output::value).sum()
+    }
+
     /// Returns the size a transaction will have on the wire in bytes
     pub fn size(&self) -> u32 {
         build_transaction_flatbuffer(
@@ -277,10 +363,32 @@ impl Transaction {
         .len() as u32
     }
 
-    /// Returns the fee of a transaction
-    pub fn fee(&self) -> u64 {
-        // TODO: Calculate fee of the transaction
-        1
+    /// Returns `true` if the transaction classifies as a _mint
+    /// transaction_.  A mint transaction is one that has no inputs,
+    /// only outputs, thus, is allowed to create new wits.
+    pub fn is_mint(&self) -> bool {
+        self.inputs.len() == 0
+    }
+
+    /// Returns the fee of a transaction.
+    ///
+    /// The fee is the difference between the outputs and the inputs
+    /// of the transaction. The pool parameter is used to find the
+    /// outputs pointed by the inputs and that contain the actual
+    /// their value.
+    pub fn fee(&self, pool: &TransactionsPool) -> Result<u64, TransactionError> {
+        let in_value = self.inputs_sum(pool)?;
+        let out_value = self.outputs_sum();
+
+        if self.is_mint() {
+            Ok(out_value)
+        } else {
+            if out_value > in_value {
+                Err(TransactionError::NegativeFee)
+            } else {
+                Ok(in_value - out_value)
+            }
+        }
     }
 }
 
@@ -297,6 +405,30 @@ pub enum Input {
     DataRequest(DataRequestInput),
     Reveal(RevealInput),
     ValueTransfer(ValueTransferInput),
+}
+
+impl Input {
+    /// Return the [`OutputPointer`](OutputPointer) of an input.
+    pub fn output_pointer(&self) -> OutputPointer {
+        match self {
+            Input::Commit(input) => OutputPointer {
+                transaction_id: input.transaction_id,
+                output_index: input.output_index,
+            },
+            Input::DataRequest(input) => OutputPointer {
+                transaction_id: input.transaction_id,
+                output_index: input.output_index,
+            },
+            Input::Reveal(input) => OutputPointer {
+                transaction_id: input.transaction_id,
+                output_index: input.output_index,
+            },
+            Input::ValueTransfer(input) => OutputPointer {
+                transaction_id: input.transaction_id,
+                output_index: input.output_index,
+            },
+        }
+    }
 }
 
 /// Value transfer input transaction data structure
@@ -338,6 +470,21 @@ pub enum Output {
     Commit(CommitOutput),
     Reveal(RevealOutput),
     Tally(TallyOutput),
+}
+
+impl Output {
+    /// Return the value of an output.
+    pub fn value(&self) -> u64 {
+        match self {
+            Output::Commit(output) => output.value,
+            Output::Tally(output) => output.value,
+            Output::DataRequest(output) => {
+                output.value + output.commit_fee + output.reveal_fee + output.tally_fee
+            }
+            Output::Reveal(output) => output.value,
+            Output::ValueTransfer(output) => output.value,
+        }
+    }
 }
 
 /// Value transfer output transaction data structure
@@ -478,36 +625,6 @@ impl ValueTransferInput {
 pub struct TransactionsPool {
     transactions: HashMap<Hash, WeightedTransaction>,
     sorted_index: BTreeSet<WeightedHash>,
-}
-
-impl Transaction {
-    /// Method to calculate outputs sum value of self transaction ouputs
-    pub fn calculate_outputs_sum(&self) -> u64 {
-        self.sum_outputs(&self.outputs)
-    }
-
-    /// Method to calculate outputs sum value of given outputs
-    pub fn calculate_outputs_sum_of(&self, outputs: &[Output]) -> u64 {
-        self.sum_outputs(outputs)
-    }
-
-    /// Method to calculate outputs sum value
-    fn sum_outputs(&self, outputs: &[Output]) -> u64 {
-        outputs.iter().fold(0, |mut sum, output| {
-            let output_value = match output {
-                Output::Commit(output) => output.value,
-                Output::Tally(output) => output.value,
-                Output::DataRequest(output) => {
-                    output.value + output.commit_fee + output.reveal_fee + output.tally_fee
-                }
-                Output::Reveal(output) => output.value,
-                Output::ValueTransfer(output) => output.value,
-            };
-            sum += output_value;
-
-            sum
-        })
-    }
 }
 
 impl TransactionsPool {
@@ -677,6 +794,33 @@ impl TransactionsPool {
         let weight = 0; // TODO: weight = transaction-fee / transaction-weight
         self.transactions.insert(key, (weight, transaction));
         self.sorted_index.insert((weight, key));
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    ///
+    /// Examples:
+    ///
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Transaction, Hash};
+    /// let mut pool = TransactionsPool::new();
+    /// let hash = Hash::SHA256([0 as u8; 32]);
+    /// let transaction = Transaction {
+    ///     inputs: [].to_vec(),
+    ///     signatures: [].to_vec(),
+    ///     outputs: [].to_vec(),
+    ///     version: 0
+    /// };
+    ///
+    /// assert!(pool.get(&hash).is_none());
+    ///
+    /// pool.insert(hash, transaction);
+    ///
+    /// assert!(pool.get(&hash).is_some());
+    /// ```
+    pub fn get(&self, key: &Hash) -> Option<&Transaction> {
+        self.transactions
+            .get(key)
+            .map(|(_, transaction)| transaction)
     }
 
     /// An iterator visiting all the transactions in the pool in

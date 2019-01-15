@@ -6,12 +6,6 @@ use witnet_data_structures::chain::{
     Block, Epoch, Hash, Hashable, Output, OutputPointer, Transaction, TransactionsPool,
 };
 
-/// Function to validate block's mint
-pub fn validate_mint(_block: &Block) -> bool {
-    // TODO Implement validate mint algorithm
-    true
-}
-
 /// Function to validate a transaction
 pub fn validate_transaction<S: ::std::hash::BuildHasher>(
     _transaction: &Transaction,
