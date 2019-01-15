@@ -25,7 +25,7 @@ use crate::actors::{
 };
 
 use super::{
-    messages::{AnnounceItems, GetPeers, SendBlock, SessionUnitResult},
+    messages::{AnnounceItems, GetPeers, RequestBlock, SendBlock, SessionUnitResult},
     Session,
 };
 use witnet_data_structures::{
@@ -208,7 +208,20 @@ impl Handler<SendBlock> for Session {
             "Sending SendBlock message to peer at {:?}",
             self.remote_addr
         );
-        send_block_msg(self, &msg.block)
+        send_block_msg(self, msg.block)
+    }
+}
+
+/// Handler for RequestBlock message (sent by other actors)
+impl Handler<RequestBlock> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, msg: RequestBlock, _: &mut Context<Self>) {
+        debug!(
+            "Sending RequestBlock message to peer at {:?}",
+            self.remote_addr
+        );
+        request_block_msg(self, msg.block_entry)
     }
 }
 
@@ -530,7 +543,7 @@ fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash)
     send_get_item_request(session, ctx, hash, |act, _ctx, item| {
         match item {
             InventoryItem::Block(block_from_inventory) => {
-                send_block_msg(act, &block_from_inventory);
+                send_block_msg(act, block_from_inventory);
             }
             InventoryItem::Transaction(transaction_from_inventory) => {
                 // Build Transaction msg
@@ -542,14 +555,30 @@ fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash)
     });
 }
 
-fn send_block_msg(session: &mut Session, block: &Block) {
-    let block_header = block.block_header.clone();
-    let proof = block.proof.clone();
-    let txns = block.txns.clone();
+fn send_block_msg(session: &mut Session, block: Block) {
+    let block_header = block.block_header;
+    let proof = block.proof;
+    let txns = block.txns;
     // Build Block msg
     let block_msg = WitnetMessage::build_block(block_header, proof, txns);
     // Send Block msg
     session.send_message(block_msg);
+}
+
+fn request_block_msg(session: &mut Session, block_entry: InventoryEntry) {
+    // Initialize a new inventory entries vector with the given block entry as its sole member
+    let inv_entries: Vec<InventoryEntry> = vec![block_entry];
+
+    match WitnetMessage::build_inventory_request(inv_entries) {
+        Ok(inv_req_msg) => {
+            // Send InventoryRequest message through the session network connection
+            session.send_message(inv_req_msg);
+        }
+        Err(e) => {
+            // BuildersErrorKind error
+            warn!("Error creating and inventory request message: {}", e);
+        }
+    }
 }
 
 fn todo_inbound_session_getblocks(

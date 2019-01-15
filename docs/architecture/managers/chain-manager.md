@@ -136,7 +136,9 @@ These are the messages sent by the Chain Manager:
 | `Put`                      | `StorageManager`    | `&'static [u8]`, `Vec<u8>`                  | `StorageResult<()>`                 | Wrapper to Storage `put()` method              |
 | `Broadcast<AnnounceItems>` | `SessionsManager`   | `Vec<InventoryEntry>`                       | `()`                                | Announce new inventory entries to the sessions |
 | `ValidatePoE`              | `ReputationManager` | `CheckpointBeacon`,`LeadershipProof`        | `bool`                              | Request Proof of Eligibility validation        |
-| `AddItem`                  | `InventoryManager`  | `InventoryItem`                             | `Result<(), InventoryManagerError>` | Persist the `block_candidate`                  |
+| `AddItem`                  | `InventoryManager`  | `InventoryItem`                             | `Result<(), InventoryManagerError>` | Persist the `best_candidate.block`             |
+| `Broadcast<SendBlock>`     | `SessionsManager`   | `Block`                                     | `()`                                | Send a new block to the sessions               |
+| `Anycast<RequestBlock>`    | `SessionsManager`   | `InventoryEntry`                            | `()`                                | Request a lost block to a random session       |
 
 #### SubscribeEpoch
 

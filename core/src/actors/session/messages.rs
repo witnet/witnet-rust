@@ -45,3 +45,16 @@ impl fmt::Display for SendBlock {
         write!(f, "SendBlock")
     }
 }
+
+/// Message to request blocks through the network
+#[derive(Clone, Debug, Message)]
+pub struct RequestBlock {
+    /// Block
+    pub block_entry: InventoryEntry,
+}
+
+impl fmt::Display for RequestBlock {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "RequestBlock")
+    }
+}

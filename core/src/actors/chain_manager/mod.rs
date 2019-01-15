@@ -38,8 +38,11 @@ use self::messages::InventoryEntriesResult;
 use crate::actors::{
     inventory_manager::{messages::AddItem, InventoryManager},
     reputation_manager::{messages::ValidatePoE, ReputationManager},
-    session::messages::{AnnounceItems, SendBlock},
-    sessions_manager::{messages::Broadcast, SessionsManager},
+    session::messages::{AnnounceItems, RequestBlock, SendBlock},
+    sessions_manager::{
+        messages::{Anycast, Broadcast},
+        SessionsManager,
+    },
     storage_keys::{BLOCK_CHAIN_KEY, CHAIN_KEY},
     storage_manager::{messages::Put, StorageManager},
 };
@@ -53,6 +56,7 @@ use witnet_data_structures::chain::{
 use crate::validations::{validate_merkle_tree, validate_mint, validate_transactions};
 
 use self::data_request::DataRequestPool;
+use witnet_data_structures::chain::CheckpointBeacon;
 use witnet_storage::error::StorageError;
 use witnet_util::error::WitnetError;
 
@@ -299,7 +303,7 @@ impl ChainManager {
     }
 
     fn broadcast_announce_items(&mut self, hash: Hash) {
-        // Get SessionsManager's address
+        // Get SessionsManager address
         let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
         // Tell SessionsManager to announce the new block through every consolidated Session
@@ -310,11 +314,21 @@ impl ChainManager {
     }
 
     fn broadcast_block(&mut self, block: Block) {
-        // Get SessionsManager's address
+        // Get SessionsManager address
         let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
         sessions_manager_addr.do_send(Broadcast {
             command: SendBlock { block },
+        });
+    }
+
+    fn request_block(&mut self, block_hash: Hash) {
+        // Get SessionsManager address
+        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+
+        let block_entry = InventoryEntry::Block(block_hash);
+        sessions_manager_addr.do_send(Anycast {
+            command: RequestBlock { block_entry },
         });
     }
 
@@ -382,6 +396,11 @@ impl ChainManager {
                         "Block epoch from the future: current: {}, block: {}",
                         current_epoch, block_epoch
                     );
+                } else if self.chain_info.is_some() && self.chain_info.as_ref().unwrap().highest_block_checkpoint.checkpoint >= block_epoch {
+                    warn!(
+                        "Block epoch {} older than highest block checkpoint {}",
+                        block_epoch, self.chain_info.as_ref().unwrap().highest_block_checkpoint.checkpoint
+                    );
                 } else if our_candidate_is_better {
                     if let Some(candidate) = self.best_candidate.as_ref() {
                         debug!(
@@ -391,7 +410,10 @@ impl ChainManager {
                         );
                     }
                 } else if !self.blocks.contains_key(&hash_prev_block) {
-                    //TODO Request this lost block to our peers
+                    // TODO handle genesis block case
+                    // Request the lost block with the hash_prev_block indicated in this block
+                    self.request_block(hash_prev_block);
+
                     match self.keep_block_without_validation(block) {
                         Ok(hash) => warn!(
                             "Block [{}] has a previous hash [{}] not known",
@@ -469,6 +491,8 @@ impl ChainManager {
                                 //Broadcast blocks in current epoch
                                 self.broadcast_block(block);
                             } else {
+                                //TODO: Now we assume there are no forked older blocks
+
                                 //Announce and persist older blocks
                                 self.broadcast_announce_items(hash);
                                 self.persist_item(ctx, InventoryItem::Block(block));
@@ -476,6 +500,22 @@ impl ChainManager {
                                 // Update UTXO set with older block transactions
                                 self.unspent_outputs_pool = utxo_set;
                                 self.transactions_pool = txn_mempool;
+
+                                // Update chain_info
+                                match self.chain_info.as_mut() {
+                                    Some(chain_info) => {
+                                        let beacon = CheckpointBeacon {
+                                            checkpoint: block_epoch,
+                                            hash_prev_block: hash,
+                                        };
+
+                                        chain_info.highest_block_checkpoint = beacon;
+                                    }
+
+                                    None => {
+                                        error!("No ChainInfo loaded in ChainManager");
+                                    }
+                                }
                             }
                         }
                         Err(ChainManagerError::BlockAlreadyExists) => {

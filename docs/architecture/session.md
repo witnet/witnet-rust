@@ -43,10 +43,12 @@ Session::create(move |ctx| {
 
 These are the messages supported by the Session handlers:
 
-| Message         | Input type              | Output type | Description                    |
-| --------------- | ----------------------- | ----------- | ------------------------------ |
-| `GetPeers`      | `()`                    | `()`        | Request peers from a session   |
-| `AnnounceItems` | `Vec<InventoryEntry>` | `()`        | Announce new inventory entries |
+| Message         | Input type              | Output type | Description                       |
+| --------------- | ----------------------- | ----------- | ------------------------------    |
+| `GetPeers`      | `()`                    | `()`        | Request peers from a session      |
+| `AnnounceItems` | `Vec<InventoryEntry>`   | `()`        | Announce new inventory entries    |
+| `SendBlock`     | `Block`                 | `()`        | Send a `Block` to a session       |
+| `RequestBlock`  | `InventoryEntry`        | `()`        | `Request a `Block` from a session |
 
 #### GetPeers
 
