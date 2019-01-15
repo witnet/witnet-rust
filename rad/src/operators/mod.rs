@@ -37,16 +37,14 @@ impl fmt::Display for RadonOpCodes {
     }
 }
 
-pub trait Operable {
-    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes>;
+pub trait Operable<'a> {
+    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes<'a>>;
 }
 
-pub fn operate(input: RadonTypes, call: &RadonCall) -> RadResult<RadonTypes> {
+pub fn operate<'a>(input: RadonTypes<'a>, call: &'a RadonCall) -> RadResult<RadonTypes<'a>> {
     match input {
         RadonTypes::String(radon_string) => radon_string.operate(call),
         RadonTypes::Mixed(radon_mixed) => radon_mixed.operate(call),
-        RadonTypes::Array(radon_array) => radon_array.operate(call),
-        RadonTypes::Float(radon_float) => radon_float.operate(call),
     }
 }
 
