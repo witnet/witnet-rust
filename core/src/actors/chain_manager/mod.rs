@@ -144,11 +144,18 @@ impl ChainManager {
     }
 
     /// calculate output vector from inputs vector
-    fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Vec<Output> {
-        inputs
-            .iter()
-            .map(|input| get_output_from_input(&self.unspent_outputs_pool, input))
-            .collect()
+    fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Result<Vec<Output>, Input> {
+        let mut v: Vec<Output> = Vec::new();
+        for input in inputs {
+            match get_output_from_input(&self.unspent_outputs_pool, input) {
+                None => {
+                    return Err(input.clone());
+                }
+                Some(output) => v.push(output.clone()),
+            }
+        }
+
+        Ok(v)
     }
 
     /// Method to persist chain_info into storage
