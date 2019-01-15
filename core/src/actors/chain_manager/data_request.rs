@@ -566,8 +566,16 @@ mod tests {
     use witnet_data_structures::chain::*;
 
     fn empty_data_request() -> DataRequestOutput {
+        let data_request = RADRequest {
+            not_before: 0,
+            retrieve: vec![],
+            aggregate: RADAggregate { script: vec![] },
+            consensus: RADConsensus { script: vec![] },
+            deliver: vec![],
+        };
+
         DataRequestOutput {
-            data_request: vec![],
+            data_request,
             value: 0,
             witnesses: 0,
             backup_witnesses: 0,

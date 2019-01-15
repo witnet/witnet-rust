@@ -80,9 +80,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     self.transactions_pool = candidate.txn_mempool;
 
                     // Add DataRequests from the block into the data_request_pool
-                    let reveals = self
-                        .data_request_pool
-                        .add_data_requests_from_block(&candidate, self.current_epoch.unwrap());
+                    let reveals = self.data_request_pool.add_data_requests_from_block(
+                        &candidate.block,
+                        self.current_epoch.unwrap(),
+                    );
 
                     for _reveal in reveals {
                         // FIXME(#337): broadcast transaction
