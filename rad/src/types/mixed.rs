@@ -7,7 +7,7 @@ use rmpv::{decode, encode, Value};
 use std::{fmt, io::Cursor};
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct RadonMixed {
     value: Value,
 }
@@ -24,28 +24,13 @@ impl From<Value> for RadonMixed {
     }
 }
 
-impl<'a> TryFrom<Value> for RadonMixed {
-    type Error = RadError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        Ok(Self::from(value))
-    }
-}
-
-impl<'a> TryInto<Value> for RadonMixed {
-    type Error = RadError;
-
-    fn try_into(self) -> Result<Value, Self::Error> {
-        Ok(self.value())
-    }
-}
-
 impl<'a> TryFrom<&'a [u8]> for RadonMixed {
     type Error = RadError;
 
-    fn try_from(vector: &'a [u8]) -> Result<Self, Self::Error> {
-        let mut cursor = Cursor::new(vector);
-        let result = decode::read_value(&mut cursor);
+    fn try_from(slice: &'a [u8]) -> Result<Self, Self::Error> {
+        let mut cursor = Cursor::new(slice);
+        let buffer = cursor.get_mut();
+        let result = decode::read_value(buffer);
 
         match result {
             Ok(value) => Ok(Self::from(value)),
@@ -57,16 +42,15 @@ impl<'a> TryFrom<&'a [u8]> for RadonMixed {
     }
 }
 
-impl<'a> TryInto<Vec<u8>> for RadonMixed {
+impl<'a> TryInto<&'a [u8]> for RadonMixed {
     type Error = RadError;
 
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        let mut cursor = Cursor::new(Vec::new());
-        let result = encode::write_value(&mut cursor, &self.value);
-        let vector = cursor.into_inner();
+    fn try_into(self) -> Result<&'a [u8], Self::Error> {
+        let mut buffer: &mut [u8] = &mut [];
+        let result = encode::write_value(&mut buffer, &self.value);
 
         match result {
-            Ok(()) => Ok(vector),
+            Ok(()) => Ok(buffer),
             Err(_) => Err(RadError::new(
                 RadErrorKind::EncodeDecode,
                 String::from("Failed to decode a RadonMixed from bytes"),
@@ -75,8 +59,8 @@ impl<'a> TryInto<Vec<u8>> for RadonMixed {
     }
 }
 
-impl Operable for RadonMixed {
-    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes> {
+impl<'a> Operable<'a> for RadonMixed {
+    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes<'a>> {
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Mixed(self)),
