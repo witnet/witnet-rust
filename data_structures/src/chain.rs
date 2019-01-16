@@ -289,15 +289,13 @@ pub struct Transaction {
 /// The error type for operations on a [`Transaction`](Transaction)
 #[derive(Debug, Fail)]
 pub enum TransactionError {
-    /// Error indicating the transaction creates value
+    /// The transaction creates value
     #[fail(display = "Transaction creates value (its fee is negative)")]
     NegativeFee,
-    /// Error indicating that a transaction with the given hash wasn't
-    /// found in a pool.
+    /// A transaction with the given hash wasn't found in a pool.
     #[fail(display = "A hash is missing in the pool {}", 0)]
     PoolMiss(Hash),
-    /// Error indicating that an output with the given index wasn't
-    /// found in a transaction.
+    /// An output with the given index wasn't found in a transaction.
     #[fail(
         display = "An output with index {} was not found in transaction {}",
         1, 0
