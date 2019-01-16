@@ -3,6 +3,7 @@ use super::serializers::encoders::{
     BlockArgs, CheckpointBeaconArgs, TransactionArgs,
 };
 use crate::serializers::decoders::TryFrom;
+use failure::Fail;
 use partial_struct::PartialStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -12,8 +13,6 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 use witnet_util::parser::parse_hex;
-
-use failure::Fail;
 
 pub trait Hashable {
     fn hash(&self) -> Hash;
@@ -1549,12 +1548,14 @@ mod tests {
             "1111111111111111111111111111111111111111111111111111111111111111111:1",
         );
 
-        let result_error_format_1 = OutputPointer::from_str(":");
-
+        let result_error_format_1 = OutputPointer::from_str(
+            ":"
+        );
+        
         let result_error_format_2 = OutputPointer::from_str(
             "1111111111111111111111111111111111111111111111111111111111111111:b",
         );
-
+        
         let result_error_format_3 = OutputPointer::from_str(
             "1111111111111111111111111111111111111111111111111111111111111111:1a",
         );
