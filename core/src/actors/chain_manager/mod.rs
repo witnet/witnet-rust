@@ -38,7 +38,7 @@ use self::messages::InventoryEntriesResult;
 use crate::actors::{
     inventory_manager::{messages::AddItem, InventoryManager},
     reputation_manager::{messages::ValidatePoE, ReputationManager},
-    session::messages::{AnnounceItems, RequestBlock, SendBlock},
+    session::messages::{AnnounceItems, RequestBlock, SendInventoryItem},
     sessions_manager::{
         messages::{Anycast, Broadcast},
         SessionsManager,
@@ -321,12 +321,12 @@ impl ChainManager {
         });
     }
 
-    fn broadcast_block(&mut self, block: Block) {
+    fn broadcast_item(&self, item: InventoryItem) {
         // Get SessionsManager address
         let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
         sessions_manager_addr.do_send(Broadcast {
-            command: SendBlock { block },
+            command: SendInventoryItem { item },
         });
     }
 
@@ -504,7 +504,7 @@ impl ChainManager {
                                     data_request_pool,
                                 });
                                 //Broadcast blocks in current epoch
-                                self.broadcast_block(block);
+                                self.broadcast_item(InventoryItem::Block(block));
                             } else {
                                 //TODO: Now we assume there are no forked older blocks
 

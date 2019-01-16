@@ -1,7 +1,7 @@
 use std::fmt;
 
 use actix::Message;
-use witnet_data_structures::chain::{Block, InventoryEntry};
+use witnet_data_structures::chain::{InventoryEntry, InventoryItem};
 
 /// Message result of unit
 pub type SessionUnitResult = ();
@@ -33,16 +33,16 @@ impl fmt::Display for AnnounceItems {
     }
 }
 
-/// Message to send blocks through the network
+/// Message to send inventory items through the network
 #[derive(Clone, Debug, Message)]
-pub struct SendBlock {
-    /// Block
-    pub block: Block,
+pub struct SendInventoryItem {
+    /// InventoryItem
+    pub item: InventoryItem,
 }
 
-impl fmt::Display for SendBlock {
+impl fmt::Display for SendInventoryItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SendBlock")
+        write!(f, "SendInventoryItem")
     }
 }
 

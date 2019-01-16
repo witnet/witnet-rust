@@ -25,7 +25,7 @@ use crate::actors::{
 };
 
 use super::{
-    messages::{AnnounceItems, GetPeers, RequestBlock, SendBlock, SessionUnitResult},
+    messages::{AnnounceItems, GetPeers, RequestBlock, SendInventoryItem, SessionUnitResult},
     Session,
 };
 use witnet_data_structures::{
@@ -100,7 +100,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                         for elem in inventory {
                             match elem {
                                 InventoryEntry::Block(hash) | InventoryEntry::Tx(hash) => {
-                                    send_item_msg(self, ctx, &hash);
+                                    send_inventory_item(self, ctx, &hash);
                                 }
                                 InventoryEntry::DataRequest(_) | InventoryEntry::DataResult(_) => {
                                     warn!("No block or transaction requested");
@@ -199,16 +199,16 @@ impl Handler<AnnounceItems> for Session {
     }
 }
 
-/// Handler for SendBlock message (sent by other actors)
-impl Handler<SendBlock> for Session {
+/// Handler for SendInventoryItem message (sent by other actors)
+impl Handler<SendInventoryItem> for Session {
     type Result = SessionUnitResult;
 
-    fn handle(&mut self, msg: SendBlock, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: SendInventoryItem, _: &mut Context<Self>) {
         debug!(
-            "Sending SendBlock message to peer at {:?}",
+            "Sending SendInventoryItem message to peer at {:?}",
             self.remote_addr
         );
-        send_block_msg(self, msg.block)
+        send_inventory_item_msg(self, msg.item)
     }
 }
 
@@ -536,33 +536,33 @@ fn send_get_item_request<T, U: 'static>(
 }
 
 /// Method to send a GetItem message to the InventoryManager
-fn send_item_msg(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash) {
+fn send_inventory_item(session: &mut Session, ctx: &mut Context<Session>, hash: &Hash) {
     let hash = *hash;
 
     // Send message to config manager and process response
     send_get_item_request(session, ctx, hash, |act, _ctx, item| {
-        match item {
-            InventoryItem::Block(block_from_inventory) => {
-                send_block_msg(act, block_from_inventory);
-            }
-            InventoryItem::Transaction(transaction_from_inventory) => {
-                // Build Transaction msg
-                let transaction_msg = WitnetMessage::build_transaction(transaction_from_inventory);
-                // Send Transaction msg
-                act.send_message(transaction_msg);
-            }
-        }
+        send_inventory_item_msg(act, item);
     });
 }
 
-fn send_block_msg(session: &mut Session, block: Block) {
-    let block_header = block.block_header;
-    let proof = block.proof;
-    let txns = block.txns;
-    // Build Block msg
-    let block_msg = WitnetMessage::build_block(block_header, proof, txns);
-    // Send Block msg
-    session.send_message(block_msg);
+fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
+    match item {
+        InventoryItem::Block(block) => {
+            let block_header = block.block_header;
+            let proof = block.proof;
+            let txns = block.txns;
+            // Build Block msg
+            let block_msg = WitnetMessage::build_block(block_header, proof, txns);
+            // Send Block msg
+            session.send_message(block_msg);
+        }
+        InventoryItem::Transaction(transaction) => {
+            // Build Transaction msg
+            let transaction_msg = WitnetMessage::build_transaction(transaction);
+            // Send Transaction msg
+            session.send_message(transaction_msg);
+        }
+    }
 }
 
 fn request_block_msg(session: &mut Session, block_entry: InventoryEntry) {
