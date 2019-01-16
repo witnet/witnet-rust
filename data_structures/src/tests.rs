@@ -306,7 +306,7 @@ mod transaction {
             },
         );
 
-        assert_eq!(transaction.inputs_sum(&pool), Ok(124));
+        assert_eq!(transaction.inputs_sum(&pool).unwrap(), 124);
     }
 
     #[test]
@@ -352,7 +352,7 @@ mod transaction {
             })],
         };
 
-        assert_eq!(transaction.fee(&pool), Ok(123));
+        assert_eq!(transaction.fee(&pool).unwrap(), 123);
     }
 }
 
@@ -391,7 +391,7 @@ mod block {
             }],
         };
 
-        assert_eq!(block.validate(reward, &pool), Ok(()));
+        assert_eq!(block.validate(reward, &pool).unwrap(), ());
     }
 }
 

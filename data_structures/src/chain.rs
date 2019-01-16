@@ -8,6 +8,8 @@ use std::convert::AsRef;
 use std::fmt;
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 
+use failure::Fail;
+
 pub trait Hashable {
     fn hash(&self) -> Hash;
 }
@@ -100,23 +102,32 @@ pub struct Block {
 }
 
 /// The error type for operations on a [`Block`](Block)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Fail)]
 pub enum BlockError {
-    /// Indicates the block has no transactions in it.
+    /// The block has no transactions in it.
+    #[fail(display = "The block has no transactions")]
     Empty,
-    /// Indicates the first transaction of the block is no mint.
+    /// The first transaction of the block is no mint.
+    #[fail(display = "The block first transaction is not a mint transactions")]
     NoMint,
-    /// Indicates there was an error validating the transactions.
-    Transaction(TransactionError),
-    /// Indicates that the total value created by the mint transaction
-    /// of the block, and the output value of the rest of the
-    /// transactions, plus the block reward, don't add up
+    /// There was an error validating the transactions.
+    // Transaction(TransactionError),
+    /// The total value created by the mint transaction of the block,
+    /// and the output value of the rest of the transactions, plus the
+    /// block reward, don't add up
+    #[fail(
+        display = "The value of the mint transaction does not match the fess + reward of the blok"
+    )]
     MismatchedMintValue,
 }
 
 impl Block {
     /// Check if the block is valid.
-    pub fn validate(&self, block_reward: u64, pool: &TransactionsPool) -> Result<(), BlockError> {
+    pub fn validate(
+        &self,
+        block_reward: u64,
+        pool: &TransactionsPool,
+    ) -> Result<(), failure::Error> {
         let mint_transaction = self.txns.first().ok_or_else(|| BlockError::Empty)?;
 
         if !mint_transaction.is_mint() {
@@ -125,7 +136,7 @@ impl Block {
 
         let mut total_fees = 0;
         for transaction in self.txns.iter().skip(1) {
-            total_fees += transaction.fee(pool).map_err(BlockError::Transaction)?;
+            total_fees += transaction.fee(pool)?;
         }
 
         let mint_fee = mint_transaction.outputs_sum();
@@ -276,15 +287,21 @@ pub struct Transaction {
 }
 
 /// The error type for operations on a [`Transaction`](Transaction)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Fail)]
 pub enum TransactionError {
     /// Error indicating the transaction creates value
+    #[fail(display = "Transaction creates value (its fee is negative)")]
     NegativeFee,
     /// Error indicating that a transaction with the given hash wasn't
     /// found in a pool.
+    #[fail(display = "A hash is missing in the pool {}", 0)]
     PoolMiss(Hash),
     /// Error indicating that an output with the given index wasn't
     /// found in a transaction.
+    #[fail(
+        display = "An output with index {} was not found in transaction {}",
+        1, 0
+    )]
     OutputNotFound(Hash, usize),
 }
 
@@ -383,7 +400,7 @@ impl Transaction {
         if self.is_mint() {
             Ok(out_value)
         } else if out_value > in_value {
-            Err(TransactionError::NegativeFee)
+            Err(TransactionError::NegativeFee)?
         } else {
             Ok(in_value - out_value)
         }

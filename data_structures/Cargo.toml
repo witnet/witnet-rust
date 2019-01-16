@@ -1,18 +1,24 @@
 [package]
-name = "witnet_data_structures"
-version = "0.1.0"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
-workspace = ".."
 description = "data structures component"
 edition = "2018"
+name = "witnet_data_structures"
+version = "0.1.0"
+workspace = ".."
 
 [dependencies]
+failure = "0.1.5"
 flatbuffers = "0.5.0"
-failure = "0.1.2"
 rand = "0.5.5"
-witnet_crypto = { path = "../crypto" }
-witnet_util = { path = "../util" }
 serde = "1.0.79"
 serde_derive = "1.0.79"
 toml = "0.4.6"
-partial_struct = { path = "../partial_struct" }
+
+[dependencies.partial_struct]
+path = "../partial_struct"
+
+[dependencies.witnet_crypto]
+path = "../crypto"
+
+[dependencies.witnet_util]
+path = "../util"
