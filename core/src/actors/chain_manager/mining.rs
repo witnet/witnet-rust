@@ -100,7 +100,6 @@ impl ChainManager {
                     );
 
                     // Send AddNewBlock message to self
-                    // This will run all the validations again
                     act.handle(AddNewBlock { block }, ctx);
                 }
                 actix::fut::ok(())

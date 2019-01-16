@@ -90,8 +90,16 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     self.data_request_pool = candidate.data_request_pool;
 
                     let reveals = self.data_request_pool.update_data_request_stages();
-                    for _reveal in reveals {
-                        // FIXME(#337): broadcast transaction
+
+                    for reveal in reveals {
+                        // Send AddTransaction message to self
+                        // And broadcast it to all of peers
+                        self.handle(
+                            AddTransaction {
+                                transaction: reveal,
+                            },
+                            ctx,
+                        );
                     }
 
                     // Persist finished data requests into storage
@@ -278,6 +286,11 @@ impl Handler<AddTransaction> for ChainManager {
                             && is_valid_vto_position
                             && !consensus_output_overflow
                         {
+                            // Broadcast valid transaction
+                            self.broadcast_item(InventoryItem::Transaction(
+                                msg.transaction.clone(),
+                            ));
+
                             // Add valid transaction to transactions_pool
                             self.transactions_pool
                                 .insert(msg.transaction.hash(), msg.transaction);
