@@ -3,7 +3,6 @@
 
 #![cfg_attr(test, allow(dead_code, unused_macros, unused_imports))]
 
-#[macro_use]
 extern crate serde_derive;
 
 /// Module containing functions to generate Witnet's protocol messages

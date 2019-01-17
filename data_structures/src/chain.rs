@@ -3,7 +3,7 @@ use super::serializers::encoders::{
     BlockArgs, CheckpointBeaconArgs, TransactionArgs,
 };
 use partial_struct::PartialStruct;
-use std::collections::{BTreeSet, HashMap};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::AsRef;
 use std::fmt;
 use std::num::ParseIntError;
@@ -930,7 +930,7 @@ impl TransactionsPool {
 
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
-#[derive(Debug, Default, Hash, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Hash, Clone, Eq, PartialEq)]
 pub struct OutputPointer {
     pub transaction_id: Hash,
     pub output_index: u32,
@@ -981,6 +981,27 @@ impl FromStr for OutputPointer {
                 Hash::SHA256(sha256)
             },
         })
+    }
+}
+
+impl Serialize for OutputPointer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for OutputPointer {
+    fn deserialize<D>(deserializer: D) -> Result<OutputPointer, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let output_pointer_as_str = String::deserialize(deserializer)?;
+
+        // TODO: handle unwrap
+        Ok(Self::from_str(&output_pointer_as_str).unwrap())
     }
 }
 
