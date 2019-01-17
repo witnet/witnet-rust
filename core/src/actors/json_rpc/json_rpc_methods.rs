@@ -12,6 +12,7 @@ use jsonrpc_core::futures::Future;
 use jsonrpc_core::{IoHandler, Params, Value};
 use log::info;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use witnet_data_structures::chain::{Block, InventoryEntry, OutputPointer, Transaction};
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
@@ -24,11 +25,7 @@ pub fn jsonrpc_io_handler() -> IoHandler<()> {
 
     io.add_method("inventory", |params: Params| inventory(params.parse()?));
     io.add_method("getBlockChain", |_params| get_block_chain());
-    io.add_method("getOutput", |params: Params| {
-        let parsed_params = params.parse();
-
-        get_output(parsed_params)
-    });
+    io.add_method("getOutput", |params: Params| get_output(params.parse()));
 
     io
 }
@@ -151,11 +148,19 @@ pub fn get_block_chain() -> impl Future<Item = Value, Error = jsonrpc_core::Erro
 }
 
 /// get output
-pub fn get_output(
-    output_pointer: Result<OutputPointer, jsonrpc_core::Error>,
-) -> JsonRpcResultAsync {
+pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
     let output_pointer = match output_pointer {
-        Ok(x) => x,
+        Ok(x) => match OutputPointer::from_str(&x.0) {
+            Ok(x) => x,
+            Err(e) => {
+                let err = jsonrpc_core::Error {
+                    code: jsonrpc_core::ErrorCode::InternalError,
+                    message: format!("{:?}", e),
+                    data: None,
+                };
+                return Box::new(futures::failed(err));
+            }
+        },
         Err(e) => {
             return Box::new(futures::failed(e));
         }

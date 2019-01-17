@@ -26,6 +26,7 @@ use super::messages::{
     AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
     GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult,
 };
+use crate::actors::chain_manager::data_request::DataRequestPool;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -324,11 +325,20 @@ impl Handler<DiscardExistingInventoryEntries> for ChainManager {
 impl Handler<GetOutput> for ChainManager {
     type Result = GetOutputResult;
 
-    fn handle(&mut self, msg: GetOutput, _ctx: &mut Context<Self>) -> GetOutputResult {
-        let output_pointer = OutputPointer {
-            transaction_id: msg.output_pointer.transaction_id,
-            output_index: msg.output_pointer.output_index,
-        };
-        self.find_output_from_pointer_dummy(&output_pointer)
+    fn handle(&mut self, GetOutput { output_pointer }: GetOutput, _ctx: &mut Context<Self>) -> GetOutputResult {
+        find_output_from_pointer(&self.data_request_pool, &output_pointer)
+    }
+}
+
+fn find_output_from_pointer(
+    d: &DataRequestPool,
+    pointer: &OutputPointer,
+) -> Result<Output, ChainManagerError> {
+    if let Some(dr) = d.data_request_state(pointer) {
+        // This pointer is already in our DataRequestPool
+        Ok(Output::DataRequest(dr.data_request.clone()))
+    } else {
+        // FIXME: retrieve Output from Storage
+        Err(ChainManagerError::BlockDoesNotExist)
     }
 }

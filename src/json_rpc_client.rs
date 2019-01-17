@@ -65,7 +65,7 @@ pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), f
                 serde_json::to_string(&OutputPointer::from_str(&output_index).unwrap()).unwrap();
 
             let a = format!(
-                r#"{{"jsonrpc": "2.0","method": "getOutput", "params": {}, "id": "1"}}"#,
+                r#"{{"jsonrpc": "2.0","method": "getOutput", "params": [{}], "id": "1"}}"#,
                 output_pointer_formated,
             );
 
