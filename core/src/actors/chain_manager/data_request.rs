@@ -1,27 +1,25 @@
 use log::{debug, info};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use witnet_data_structures::{
-    chain::{
-        Block, DataRequestOutput, Epoch, Hash, Hashable, Input, Output, OutputPointer, RevealInput,
-        Transaction,
-    },
-    serializers::decoders::TryFrom,
+use witnet_data_structures::chain::{
+    DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch, Hash,
+    Hashable, Input, Output, OutputPointer, RevealInput, Transaction,
 };
 
+/// Pool of active data requests
 #[derive(Clone, Debug, Default)]
 pub struct DataRequestPool {
     /// Current active data request, in which this node has announced commitments.
     /// Key: Data Request Pointer, Value: Reveal Transaction
-    waiting_for_reveal: HashMap<OutputPointer, Transaction>,
+    pub waiting_for_reveal: HashMap<OutputPointer, Transaction>,
     /// List of active data request output pointers ordered by epoch (for mining purposes)
-    data_requests_by_epoch: BTreeMap<Epoch, HashSet<OutputPointer>>,
+    pub data_requests_by_epoch: BTreeMap<Epoch, HashSet<OutputPointer>>,
     /// List of active data requests indexed by output pointer
-    data_request_pool: HashMap<OutputPointer, DataRequestState>,
+    pub data_request_pool: HashMap<OutputPointer, DataRequestState>,
     /// List of data requests that should be persisted into storage
-    to_be_stored: Vec<(OutputPointer, DataRequestInfoStorage)>,
+    pub to_be_stored: Vec<(OutputPointer, DataRequestReport)>,
     /// Cache which maps commit_pointer to data_request_pointer
     /// and reveal_pointer to data_request_pointer
-    dr_pointer_cache: HashMap<OutputPointer, OutputPointer>,
+    pub dr_pointer_cache: HashMap<OutputPointer, OutputPointer>,
 }
 
 impl DataRequestPool {
@@ -70,7 +68,7 @@ impl DataRequestPool {
     }
 
     /// Add a commit to the corresponding data request
-    pub fn add_commit(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
+    fn add_commit(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a commit output, we need to get the corresponding data request input
         if let Input::DataRequest(dri) = z {
@@ -116,7 +114,8 @@ impl DataRequestPool {
         }
     }
 
-    pub fn add_reveal(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
+    /// Add a reveal transaction
+    fn add_reveal(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a reveal output, we need to get the corresponding commit input
         if let Input::Commit(commit_input) = z {
@@ -175,8 +174,9 @@ impl DataRequestPool {
         }
     }
 
+    /// Add a tally transaction
     #[allow(clippy::needless_pass_by_value)]
-    pub fn add_tally(&mut self, reveal: &RevealInput, pointer: OutputPointer, block_hash: &Hash) {
+    fn add_tally(&mut self, reveal: &RevealInput, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a tally output, we need to get the corresponding reveal input
         // Which is the previous transaction in the list
@@ -225,11 +225,11 @@ impl DataRequestPool {
 
     /// Removes a resolved data request from the data request pool, returning the `DataRequestOutput`
     /// and a `DataRequestInfoStorage` which should be persisted into storage.
-    pub fn resolve_data_request(
+    fn resolve_data_request(
         data_request_pool: &mut HashMap<OutputPointer, DataRequestState>,
         dr_pointer: &OutputPointer,
         tally_pointer: OutputPointer,
-    ) -> Result<(DataRequestOutput, DataRequestInfoStorage), ()> {
+    ) -> Result<(DataRequestOutput, DataRequestReport), ()> {
         let dr_state = data_request_pool.remove(dr_pointer).ok_or(())?;
         let (dr, dr_info) = dr_state.add_tally(tally_pointer);
 
@@ -393,23 +393,6 @@ impl DataRequestPool {
         }
     }
 
-    /// Add all the data request-related transactions into the data request pool.
-    /// This includes new data requests, commitments, reveals and tallys.
-    /// Return the list of data requests in which this node has participated and are ready
-    /// for reveal (the node should send a reveal transaction).
-    pub fn add_data_requests_from_block(
-        &mut self,
-        block: &Block,
-        epoch: Epoch,
-    ) -> Vec<Transaction> {
-        let block_hash = block.hash();
-        for t in &block.txns {
-            self.process_transaction(t, epoch, &block_hash);
-        }
-
-        self.update_data_request_stages()
-    }
-
     /// Get the detailed state of a data request.
     #[allow(unused)]
     pub fn data_request_state(
@@ -421,143 +404,9 @@ impl DataRequestPool {
 
     /// Get the data request info of the finished data requests, to be persisted to the storage
     #[allow(unused)]
-    pub fn finished_data_requests(&mut self) -> Vec<(OutputPointer, DataRequestInfoStorage)> {
+    pub fn finished_data_requests(&mut self) -> Vec<(OutputPointer, DataRequestReport)> {
         std::mem::replace(&mut self.to_be_stored, vec![])
     }
-}
-
-/// State of data requests in progress (stored in memory)
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DataRequestState {
-    /// Data request output (contains all required information to process it)
-    pub data_request: DataRequestOutput,
-    /// List of outputs related to this data request
-    pub info: DataRequestInfo,
-    /// Current stage of this data request
-    pub stage: DataRequestStage,
-    /// The epoch on which this data request has been or will be unlocked
-    // (necessary for removing from the data_requests_by_epoch map)
-    pub epoch: Epoch,
-}
-
-impl DataRequestState {
-    pub fn new(data_request: DataRequestOutput, epoch: Epoch) -> Self {
-        let info = DataRequestInfo::default();
-        let stage = DataRequestStage::COMMIT;
-
-        Self {
-            data_request,
-            info,
-            stage,
-            epoch,
-        }
-    }
-
-    pub fn add_commit(&mut self, output_pointer: OutputPointer) {
-        assert_eq!(self.stage, DataRequestStage::COMMIT);
-        self.info.commits.insert(output_pointer);
-    }
-
-    pub fn add_reveal(&mut self, output_pointer: OutputPointer) {
-        assert_eq!(self.stage, DataRequestStage::REVEAL);
-        self.info.reveals.insert(output_pointer);
-    }
-
-    pub fn add_tally(
-        mut self,
-        output_pointer: OutputPointer,
-    ) -> (DataRequestOutput, DataRequestInfoStorage) {
-        assert_eq!(self.stage, DataRequestStage::TALLY);
-        self.info.tally = Some(output_pointer);
-        // This try_from can only fail if the tally is None, and we have just set it to Some
-        (
-            self.data_request,
-            DataRequestInfoStorage::try_from(self.info).unwrap(),
-        )
-    }
-
-    /// Advance to the next stage, returning true on success.
-    /// Since the data requests are updated by looking at the transactions from a valid block,
-    /// the only issue would be that there were no commits in that block.
-    pub fn update_stage(&mut self) -> bool {
-        let old_stage = self.stage;
-
-        self.stage = match self.stage {
-            DataRequestStage::COMMIT => {
-                if self.info.commits.is_empty() {
-                    DataRequestStage::COMMIT
-                } else {
-                    DataRequestStage::REVEAL
-                }
-            }
-            DataRequestStage::REVEAL => {
-                if self.info.reveals.is_empty() {
-                    DataRequestStage::REVEAL
-                } else {
-                    DataRequestStage::TALLY
-                }
-            }
-            DataRequestStage::TALLY => {
-                if self.info.tally.is_none() {
-                    DataRequestStage::TALLY
-                } else {
-                    panic!("Data request in tally stage should have been removed from the pool");
-                }
-            }
-        };
-
-        self.stage != old_stage
-    }
-}
-
-/// List of outputs related to a data request
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct DataRequestInfo {
-    /// List of commitments to resolve the data request
-    pub commits: HashSet<OutputPointer>,
-    /// List of reveals to the commitments (contains the data request witnet result)
-    pub reveals: HashSet<OutputPointer>,
-    /// Tally of data request (contains final result)
-    pub tally: Option<OutputPointer>,
-}
-
-/// Data request information to be persisted into Storage (only for resolved data requests) and
-/// using as index the Data Request OutputPointer
-#[derive(Clone, Debug)]
-pub struct DataRequestInfoStorage {
-    /// List of commitment output pointers to resolve the data request
-    pub commits: Vec<OutputPointer>,
-    /// List of reveal output pointers to the commitments (contains the data request result of the witnet)
-    pub reveals: Vec<OutputPointer>,
-    /// Tally output pointer (contains final result)
-    pub tally: OutputPointer,
-}
-
-impl TryFrom<DataRequestInfo> for DataRequestInfoStorage {
-    type Error = &'static str;
-
-    fn try_from(x: DataRequestInfo) -> Result<Self, &'static str> {
-        if let Some(tally) = x.tally {
-            Ok(DataRequestInfoStorage {
-                commits: x.commits.into_iter().collect(),
-                reveals: x.reveals.into_iter().collect(),
-                tally,
-            })
-        } else {
-            Err("Cannot persist unfinished data request (with no Tally)")
-        }
-    }
-}
-
-/// Data request current stage
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum DataRequestStage {
-    /// Expecting commitments for data request
-    COMMIT,
-    /// Expecting reveals to previously published commitments
-    REVEAL,
-    /// Expecting tally to be included in block
-    TALLY,
 }
 
 #[cfg(test)]
@@ -1158,6 +1007,7 @@ mod tests {
             DataRequestStage::TALLY
         );
     }
+
     #[test]
     fn update_multiple_times() {
         // Only the first consecutive call to update_data_request_stages should change the state

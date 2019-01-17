@@ -6,16 +6,21 @@ use crate::actors::epoch_manager::{
     EpochManagerError::CheckpointZeroInTheFuture,
 };
 
-use super::{handlers::*, mining::MiningNotification, ChainManager};
+use super::{
+    handlers::{EpochPayload, EveryEpochPayload},
+    ChainManager,
+};
 
 use crate::actors::{
+    chain_manager::{data_request::DataRequestPool, Blockchain},
     config_manager::send_get_config_request,
-    storage_keys::CHAIN_KEY,
+    storage_keys::{BLOCK_CHAIN_KEY, CHAIN_STATE_KEY},
     storage_manager::{messages::Get, StorageManager},
 };
 
-use witnet_data_structures::chain::{ChainInfo, CheckpointBeacon};
-
+use witnet_data_structures::chain::{
+    ActiveDataRequestPool, ChainInfo, ChainState, CheckpointBeacon, UnspentOutputsPool,
+};
 use witnet_util::timestamp::{get_timestamp, pretty_print};
 
 use log::{debug, error, warn};
@@ -87,7 +92,7 @@ impl Actor for ChainManager {
             let storage_manager_addr = System::current().registry().get::<StorageManager>();
             storage_manager_addr
                 // Send a message to read the chain_info from the storage
-                .send(Get::<ChainInfo>::new(CHAIN_KEY))
+                .send(Get::<ChainState>::new(CHAIN_STATE_KEY))
                 .into_actor(act)
                 // Process the response
                 .then(|res, _act, _ctx| match res {
@@ -99,25 +104,58 @@ impl Actor for ChainManager {
                     Ok(res) => match res {
                         Err(e) => {
                             // Storage error
-                            error!("Error while getting ChainInfo from storage: {}", e);
+                            error!("Error while getting chain state from storage: {}", e);
                             actix::fut::err(())
                         }
                         Ok(res) => actix::fut::ok(res),
                     },
                 })
-                .and_then(move |chain_info_from_storage, act, _ctx| {
+                .and_then(move |chain_state_from_storage, act, _ctx| {
                     // chain_info_from_storage can be None if the storage does not contain that key
-                    if let Some(chain_info_from_storage) = chain_info_from_storage {
+                    if chain_state_from_storage.is_some()
+                        && chain_state_from_storage
+                            .as_ref()
+                            .unwrap()
+                            .chain_info
+                            .is_some()
+                    {
+                        let chain_state_from_storage = chain_state_from_storage.unwrap();
+                        let chain_info_from_storage =
+                            chain_state_from_storage.chain_info.as_ref().unwrap();
+
                         if environment == chain_info_from_storage.environment {
                             if consensus_constants == chain_info_from_storage.consensus_constants {
                                 // Update Chain Info from storage
-                                let chain_info = ChainInfo {
-                                    environment,
-                                    consensus_constants,
-                                    highest_block_checkpoint: chain_info_from_storage
-                                        .highest_block_checkpoint,
+                                act.chain_state = chain_state_from_storage;
+                                // Restore Data Request Pool
+                                // FIXME: Revisit how to avoid data redundancies
+                                act.data_request_pool = DataRequestPool {
+                                    waiting_for_reveal: act
+                                        .chain_state
+                                        .data_request_pool
+                                        .waiting_for_reveal
+                                        .clone(),
+                                    data_requests_by_epoch: act
+                                        .chain_state
+                                        .data_request_pool
+                                        .data_requests_by_epoch
+                                        .clone(),
+                                    data_request_pool: act
+                                        .chain_state
+                                        .data_request_pool
+                                        .data_request_pool
+                                        .clone(),
+                                    to_be_stored: act
+                                        .chain_state
+                                        .data_request_pool
+                                        .to_be_stored
+                                        .clone(),
+                                    dr_pointer_cache: act
+                                        .chain_state
+                                        .data_request_pool
+                                        .dr_pointer_cache
+                                        .clone(),
                                 };
-                                act.chain_info = Some(chain_info);
                                 debug!("ChainInfo successfully obtained from storage");
                             } else {
                                 // Mismatching environment names between config and storage
@@ -153,24 +191,56 @@ impl Actor for ChainManager {
                                 hash_prev_block: genesis_hash,
                             },
                         };
-                        act.chain_info = Some(chain_info);
+                        act.chain_state = ChainState {
+                            chain_info: Some(chain_info),
+                            unspent_outputs_pool: UnspentOutputsPool::default(),
+                            data_request_pool: ActiveDataRequestPool::default(),
+                        };
                     }
                     actix::fut::ok(())
                 })
                 .wait(ctx);
 
+            storage_manager_addr
+                // Send a message to read block_chain from the storage
+                .send(Get::<Blockchain>::new(BLOCK_CHAIN_KEY))
+                .into_actor(act)
+                // Process the response
+                .then(|res, _act, _ctx| match res {
+                    Err(e) => {
+                        // Error when sending message
+                        error!("Unsuccessful communication with storage manager: {}", e);
+                        actix::fut::err(())
+                    }
+                    Ok(res) => match res {
+                        Err(e) => {
+                            // Storage error
+                            error!("Error while getting block chain from storage: {}", e);
+                            actix::fut::err(())
+                        }
+                        Ok(res) => actix::fut::ok(res),
+                    },
+                })
+                .and_then(move |block_chain_from_storage, act, _ctx| {
+                    // block_chain_from_storage can be None if the storage does not contain that key
+                    if let Some(block_chain_from_storage) = block_chain_from_storage {
+                        act.block_chain = block_chain_from_storage;
+                        debug!("Blockchain (blocks index) successfully obtained from storage");
+                    }
+                    actix::fut::ok(())
+                })
+                .wait(ctx);
+
+            // Store the genesis block hash
+            act.genesis_block_hash = config.consensus_constants.genesis_hash;
+
             // Do not start the MiningManager if the configuration disables it
-            if config.mining.enabled {
-                debug!("MiningManager actor has been started!");
+            act.mining_enabled = config.mining.enabled;
 
-                // Subscribe to epoch manager
-                // Get EpochManager address from registry
-                let epoch_manager_addr = System::current().registry().get::<EpochManager>();
-
-                // Subscribe to all epochs with an EveryEpochPayload
-                epoch_manager_addr.do_send(Subscribe::to_all(ctx.address(), MiningNotification));
+            if act.mining_enabled {
+                debug!("Mining enabled!");
             } else {
-                debug!("MiningManager explicitly disabled by configuration.");
+                debug!("Mining explicitly disabled by configuration.");
             }
         });
     }

@@ -31,7 +31,7 @@ use actix::{
 };
 use ansi_term::Color::Purple;
 use log::{debug, error, info, warn};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use self::messages::InventoryEntriesResult;
 
@@ -43,28 +43,26 @@ use crate::actors::{
         messages::{Anycast, Broadcast},
         SessionsManager,
     },
-    storage_keys::{BLOCK_CHAIN_KEY, CHAIN_KEY},
+    storage_keys::{BLOCK_CHAIN_KEY, CHAIN_STATE_KEY},
     storage_manager::{messages::Put, StorageManager},
 };
-use crate::utils::{find_unspent_outputs, get_output_from_input};
-
-use witnet_data_structures::chain::{
-    Block, ChainInfo, DataRequestOutput, Epoch, Hash, Hashable, Input, InventoryEntry,
-    InventoryItem, Output, OutputPointer, RADAggregate, RADConsensus, RADDeliver, RADRequest,
-    RADRetrieve, RADType, TransactionsPool,
-};
-
-use crate::validations::{validate_merkle_tree, validate_transactions};
 
 use self::data_request::DataRequestPool;
-use witnet_data_structures::chain::CheckpointBeacon;
-use witnet_storage::error::StorageError;
+use self::validations::{validate_merkle_tree, validate_transactions};
+
+use witnet_data_structures::chain::{
+    Block, Blockchain, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable,
+    InventoryEntry, InventoryItem, OutputPointer, TransactionsPool, UnspentOutputsPool,
+};
+
+use witnet_storage::{error::StorageError, storage::Storable};
 use witnet_util::error::WitnetError;
 
 mod actor;
 mod data_request;
 mod handlers;
 mod mining;
+mod validations;
 
 /// Messages for ChainManager
 pub mod messages;
@@ -92,11 +90,11 @@ impl From<WitnetError<StorageError>> for ChainManagerError {
 /// ChainManager actor
 #[derive(Default)]
 pub struct ChainManager {
-    /// Blockchain information data structure
-    chain_info: Option<ChainInfo>,
+    /// Blockchain state data structure
+    chain_state: ChainState,
     /// Map that relates an epoch with the hashes of the blocks for that epoch (blocks index)
     // One epoch can have more than one block
-    block_chain: BTreeMap<Epoch, HashSet<Hash>>,
+    block_chain: Blockchain,
     /// Map that stores blocks by their hash
     blocks: HashMap<Hash, Block>,
     /// Map that stores blocks without validation by their hash
@@ -109,22 +107,26 @@ pub struct ChainManager {
     best_candidate: Option<Candidate>,
     /// Maximum weight each block can have
     max_block_weight: u32,
-    /// Unspent Outputs Pool
-    unspent_outputs_pool: HashMap<OutputPointer, Output>,
     // Random value to help with debugging because there is no signature
     // and all the mined blocks have the same hash.
     // This random value helps to distinguish blocks mined on different nodes
     // To be removed when we implement real signing.
     random: u64,
+    /// Mining enabled
+    mining_enabled: bool,
+    /// Hash of the genesis block
+    genesis_block_hash: Hash,
     /// Pool of active data requests
     data_request_pool: DataRequestPool,
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
+#[derive(Debug)]
 pub struct Candidate {
     block: Block,
-    utxo_set: HashMap<OutputPointer, Output>,
+    utxo_set: UnspentOutputsPool,
     txn_mempool: TransactionsPool,
+    data_request_pool: DataRequestPool,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -135,39 +137,15 @@ impl SystemService for ChainManager {}
 
 /// Auxiliary methods for ChainManager actor
 impl ChainManager {
-    /// Method to check that all inpunts point to unspend output
-    fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
-        find_unspent_outputs(&self.unspent_outputs_pool, inputs)
-    }
-    /// calculate output pointed from input
-    fn get_output_from_input(&self, input: &Input) -> Option<&Output> {
-        get_output_from_input(&self.unspent_outputs_pool, input)
-    }
-
-    /// calculate output vector from inputs vector
-    fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Result<Vec<Output>, Input> {
-        let mut v: Vec<Output> = Vec::new();
-        for input in inputs {
-            match get_output_from_input(&self.unspent_outputs_pool, input) {
-                None => {
-                    return Err(input.clone());
-                }
-                Some(output) => v.push(output.clone()),
-            }
-        }
-
-        Ok(v)
-    }
-
     /// Method to persist chain_info into storage
-    fn persist_chain_info(&self, ctx: &mut Context<Self>) {
+    fn persist_chain_state(&self, ctx: &mut Context<Self>) {
         // Get StorageManager address
         let storage_manager_addr = System::current().registry().get::<StorageManager>();
 
-        let chain_info = match self.chain_info.as_ref() {
+        match self.chain_state.chain_info.as_ref() {
             Some(x) => x,
             None => {
-                error!("Trying to persist a None value");
+                error!("Trying to persist an empty chain state value");
                 return;
             }
         };
@@ -175,7 +153,7 @@ impl ChainManager {
         // Persist chain_info into storage. `AsyncContext::wait` registers
         // future within context, but context waits until this future resolves
         // before processing any other events.
-        let msg = Put::from_value(CHAIN_KEY, chain_info).unwrap();
+        let msg = Put::from_value(CHAIN_STATE_KEY, &self.chain_state).unwrap();
         storage_manager_addr
             .send(msg)
             .into_actor(self)
@@ -245,6 +223,35 @@ impl ChainManager {
                 },
             })
             .wait(ctx)
+    }
+
+    /// Method to Send an Item to Inventory Manager
+    fn persist_data_request(
+        &self,
+        ctx: &mut Context<Self>,
+        data_request: &(OutputPointer, DataRequestReport),
+    ) {
+        // Get StorageManager address
+        let storage_manager_addr = System::current().registry().get::<StorageManager>();
+
+        // Persist block_chain into storage. `AsyncContext::wait` registers
+        // future within context, but context waits until this future resolves
+        // before processing any other events.
+        let msg = Put::from_value(data_request.0.to_bytes().unwrap(), &data_request.1).unwrap();
+        storage_manager_addr
+            .send(msg)
+            .into_actor(self)
+            .then(|res, _act, _ctx| {
+                match res {
+                    Ok(Ok(_)) => debug!("Successfully persisted block_chain into storage"),
+                    _ => {
+                        error!("Failed to persist block_chain into storage");
+                        // FIXME(#72): handle errors
+                    }
+                }
+                actix::fut::ok(())
+            })
+            .wait(ctx);
     }
 
     fn accept_block(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
@@ -397,10 +404,10 @@ impl ChainManager {
                         "Block epoch from the future: current: {}, block: {}",
                         current_epoch, block_epoch
                     );
-                } else if self.chain_info.is_some() && self.chain_info.as_ref().unwrap().highest_block_checkpoint.checkpoint >= block_epoch {
+                } else if self.chain_state.chain_info.is_some() && self.chain_state.chain_info.as_ref().unwrap().highest_block_checkpoint.checkpoint > block_epoch {
                     warn!(
                         "Block epoch {} older than highest block checkpoint {}",
-                        block_epoch, self.chain_info.as_ref().unwrap().highest_block_checkpoint.checkpoint
+                        block_epoch, self.chain_state.chain_info.as_ref().unwrap().highest_block_checkpoint.checkpoint
                     );
                 } else if our_candidate_is_better {
                     if let Some(candidate) = self.best_candidate.as_ref() {
@@ -410,9 +417,9 @@ impl ChainManager {
                             block.hash()
                         );
                     }
-                } else if !self.blocks.contains_key(&hash_prev_block) {
-                    // TODO handle genesis block case
+                } else if hash_prev_block != self.genesis_block_hash && !self.blocks.contains_key(&hash_prev_block) {
                     // Request the lost block with the hash_prev_block indicated in this block
+                    // Except when that block is the genesis block
                     self.request_block(hash_prev_block);
 
                     match self.keep_block_without_validation(block) {
@@ -473,21 +480,28 @@ impl ChainManager {
                 warn!("Block PoE not valid");
             }
             Ok(true) => {
-                let mut utxo_set = self.unspent_outputs_pool.clone();
+                let mut utxo_set = self.chain_state.unspent_outputs_pool.clone();
                 let mut txn_mempool = self.transactions_pool.clone();
+                let mut data_request_pool = self.data_request_pool.clone();
 
-                if validate_transactions(&mut utxo_set, &mut txn_mempool, &block) {
+                if validate_transactions(
+                    &mut utxo_set,
+                    &mut txn_mempool,
+                    &mut data_request_pool,
+                    &block,
+                ) {
                     // Insert in blocks mempool
                     let res = self.accept_block(block.clone());
                     match res {
                         Ok(hash) => {
                             let block_epoch = block.block_header.beacon.checkpoint;
                             if Some(block_epoch) == self.current_epoch {
-                                // Update candidate
+                                // Update block candidate
                                 self.best_candidate = Some(Candidate {
                                     block: block.clone(),
                                     utxo_set,
                                     txn_mempool,
+                                    data_request_pool,
                                 });
                                 //Broadcast blocks in current epoch
                                 self.broadcast_block(block);
@@ -496,14 +510,17 @@ impl ChainManager {
 
                                 //Announce and persist older blocks
                                 self.broadcast_announce_items(hash);
-                                self.persist_item(ctx, InventoryItem::Block(block));
 
-                                // Update UTXO set with older block transactions
-                                self.unspent_outputs_pool = utxo_set;
+                                //
+                                self.persist_item(ctx, InventoryItem::Block(block.clone()));
+
+                                // Update utxo set with an older block transactions
+                                self.chain_state.unspent_outputs_pool =
+                                    self.chain_state.generate_unspent_outputs_pool(&block);
                                 self.transactions_pool = txn_mempool;
 
                                 // Update chain_info
-                                match self.chain_info.as_mut() {
+                                match self.chain_state.chain_info.as_mut() {
                                     Some(chain_info) => {
                                         let beacon = CheckpointBeacon {
                                             checkpoint: block_epoch,
@@ -1032,5 +1049,177 @@ mod tests {
         let a = Some(Some(1u8));
         let msp = a.to_bytes().unwrap();
         assert_eq!(Option::<Option<u8>>::from_bytes(&msp).unwrap(), a);
+    }
+
+    #[test]
+    fn empty_chain_state_to_bytes() {
+        use witnet_storage::storage::Storable;
+
+        let chain_state = ChainState::default();
+
+        assert!(chain_state.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn chain_state_to_bytes() {
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+
+        let chain_state = ChainState {
+            chain_info: Some(ChainInfo {
+                environment: Environment::Mainnet,
+                consensus_constants: ConsensusConstants {
+                    checkpoint_zero_timestamp: 0,
+                    checkpoints_period: 0,
+                    genesis_hash: Hash::default(),
+                    reputation_demurrage: 0.0,
+                    reputation_punishment: 0.0,
+                    max_block_weight: 0,
+                },
+                highest_block_checkpoint: CheckpointBeacon {
+                    checkpoint: 0,
+                    hash_prev_block: Hash::default(),
+                },
+            }),
+            unspent_outputs_pool: UnspentOutputsPool::default(),
+            data_request_pool: ActiveDataRequestPool::default(),
+        };
+
+        assert!(chain_state.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn chain_state_with_chain_info_to_bytes() {
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+
+        let chain_state = ChainState {
+            chain_info: Some(ChainInfo {
+                environment: Environment::Testnet1,
+                consensus_constants: ConsensusConstants {
+                    checkpoint_zero_timestamp: 1546427376,
+                    checkpoints_period: 10,
+                    genesis_hash: Hash::SHA256([
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0,
+                    ]),
+                    reputation_demurrage: 0.0,
+                    reputation_punishment: 0.0,
+                    max_block_weight: 10000,
+                },
+                highest_block_checkpoint: CheckpointBeacon {
+                    checkpoint: 122533,
+                    hash_prev_block: Hash::SHA256([
+                        239, 173, 3, 247, 9, 44, 43, 68, 13, 51, 67, 110, 79, 191, 165, 135, 157,
+                        167, 155, 126, 49, 39, 120, 119, 206, 75, 15, 74, 97, 167, 220, 214,
+                    ]),
+                },
+            }),
+            unspent_outputs_pool: UnspentOutputsPool::default(),
+            data_request_pool: ActiveDataRequestPool::default(),
+        };
+
+        assert!(chain_state.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn chain_state_with_utxo_to_bytes() {
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+
+        let mut utxo = UnspentOutputsPool::default();
+        utxo.insert(
+            OutputPointer {
+                transaction_id: Hash::SHA256([
+                    191, 75, 125, 95, 27, 78, 216, 89, 168, 222, 88, 21, 171, 139, 44, 170, 127,
+                    120, 139, 142, 98, 209, 129, 129, 16, 52, 0, 62, 43, 116, 67, 245,
+                ]),
+                output_index: 0,
+            },
+            Output::ValueTransfer(ValueTransferOutput {
+                pkh: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                value: 50000000000,
+            }),
+        );
+
+        let chain_state = ChainState {
+            chain_info: Some(ChainInfo {
+                environment: Environment::Testnet1,
+                consensus_constants: ConsensusConstants {
+                    checkpoint_zero_timestamp: 1546427376,
+                    checkpoints_period: 10,
+                    genesis_hash: Hash::SHA256([
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0,
+                    ]),
+                    reputation_demurrage: 0.0,
+                    reputation_punishment: 0.0,
+                    max_block_weight: 10000,
+                },
+                highest_block_checkpoint: CheckpointBeacon {
+                    checkpoint: 122533,
+                    hash_prev_block: Hash::SHA256([
+                        239, 173, 3, 247, 9, 44, 43, 68, 13, 51, 67, 110, 79, 191, 165, 135, 157,
+                        167, 155, 126, 49, 39, 120, 119, 206, 75, 15, 74, 97, 167, 220, 214,
+                    ]),
+                },
+            }),
+            unspent_outputs_pool: utxo,
+            data_request_pool: ActiveDataRequestPool::default(),
+        };
+
+        assert!(chain_state.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn utxo_to_bytes() {
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+
+        let mut utxo = UnspentOutputsPool::default();
+        utxo.insert(
+            OutputPointer {
+                transaction_id: Hash::SHA256([
+                    191, 75, 125, 95, 27, 78, 216, 89, 168, 222, 88, 21, 171, 139, 44, 170, 127,
+                    120, 139, 142, 98, 209, 129, 129, 16, 52, 0, 62, 43, 116, 67, 245,
+                ]),
+                output_index: 0,
+            },
+            Output::ValueTransfer(ValueTransferOutput {
+                pkh: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                value: 50000000000,
+            }),
+        );
+
+        assert!(utxo.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn output_pointer_to_bytes() {
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+
+        let output_pointer = OutputPointer {
+            transaction_id: Hash::SHA256([
+                191, 75, 125, 95, 27, 78, 216, 89, 168, 222, 88, 21, 171, 139, 44, 170, 127, 120,
+                139, 142, 98, 209, 129, 129, 16, 52, 0, 62, 43, 116, 67, 245,
+            ]),
+            output_index: 0,
+        };
+
+        assert!(output_pointer.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn output_to_bytes() {
+        use witnet_data_structures::chain::*;
+        use witnet_storage::storage::Storable;
+
+        let output = Output::ValueTransfer(ValueTransferOutput {
+            pkh: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            value: 50000000000,
+        });
+
+        assert!(output.to_bytes().is_ok());
     }
 }

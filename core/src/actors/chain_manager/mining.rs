@@ -1,14 +1,11 @@
 use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, System, WrapFuture};
 use ansi_term::Color::Yellow;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 use super::messages::{AddNewBlock, GetHighestCheckpointBeacon};
+use super::validations::{block_reward, merkle_tree_root};
 use super::ChainManager;
-use crate::actors::{
-    epoch_manager::messages::EpochNotification,
-    reputation_manager::{messages::ValidatePoE, ReputationManager},
-};
-use crate::validations::{block_reward, merkle_tree_root};
+use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
 
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{
@@ -17,16 +14,18 @@ use witnet_data_structures::chain::{
 };
 use witnet_storage::storage::Storable;
 
-/// Payload for the notification for all epochs
-#[derive(Clone, Debug)]
-pub struct MiningNotification;
+impl ChainManager {
+    /// Try to mine a block
+    pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) {
+        if self.current_epoch.is_none() {
+            warn!("Cannot mine a block because current epoch is unknown");
 
-/// Handler for EpochNotification<MiningNotification>
-impl Handler<EpochNotification<MiningNotification>> for ChainManager {
-    type Result = ();
+            return;
+        }
 
-    fn handle(&mut self, msg: EpochNotification<MiningNotification>, ctx: &mut Context<Self>) {
-        debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        let current_epoch = self.current_epoch.unwrap();
+
+        debug!("Periodic epoch notification received {:?}", current_epoch);
 
         // Check eligibility
         // S(H(beacon))
@@ -35,20 +34,20 @@ impl Handler<EpochNotification<MiningNotification>> for ChainManager {
             _ => return,
         };
 
-        if beacon.checkpoint > msg.checkpoint {
+        if beacon.checkpoint > current_epoch {
             // We got a block from the future
             error!(
                 "The current highest checkpoint beacon is from the future ({:?} > {:?})",
-                beacon.checkpoint, msg.checkpoint
+                beacon.checkpoint, current_epoch
             );
             return;
         }
-        if beacon.checkpoint == msg.checkpoint {
+        if beacon.checkpoint == current_epoch {
             // For some reason we already got a valid block for this epoch
             // TODO: Check eligibility anyway?
         }
         // The highest checkpoint beacon should contain the current epoch
-        beacon.checkpoint = msg.checkpoint;
+        beacon.checkpoint = current_epoch;
         let beacon_hash = Hash::from(calculate_sha256(&beacon.to_bytes().unwrap()));
         let private_key = 1;
 

@@ -1,5 +1,7 @@
-use crate::utils::get_output_pointer_from_input;
 use std::collections::HashMap;
+
+use super::data_request::DataRequestPool;
+
 use witnet_crypto::hash::Sha256;
 use witnet_crypto::merkle::merkle_tree_root as crypto_merkle_tree_root;
 use witnet_data_structures::chain::{
@@ -19,18 +21,19 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
 pub fn validate_transactions<S: ::std::hash::BuildHasher>(
     utxo_set: &mut HashMap<OutputPointer, Output, S>,
     txn_pool: &mut TransactionsPool,
+    data_request_pool: &mut DataRequestPool,
     block: &Block,
 ) -> bool {
     let mut valid_transactions = true;
     let transactions = block.txns.clone();
 
-    for transaction in transactions {
+    for transaction in &transactions {
         if validate_transaction(&transaction, utxo_set) {
             let txn_hash = transaction.hash();
 
-            for input in transaction.inputs {
+            for input in &transaction.inputs {
                 // Obtain the OuputPointer of each input and remove it from the utxo_set
-                let output_pointer = get_output_pointer_from_input(&input);
+                let output_pointer = input.output_pointer();
 
                 utxo_set.remove(&output_pointer);
             }
@@ -46,6 +49,13 @@ pub fn validate_transactions<S: ::std::hash::BuildHasher>(
             }
 
             txn_pool.remove(&txn_hash);
+
+            // Add DataRequests from the block into the data_request_pool
+            data_request_pool.process_transaction(
+                transaction,
+                block.block_header.beacon.checkpoint,
+                &block.hash(),
+            );
         } else {
             valid_transactions = false;
             break;
@@ -91,5 +101,28 @@ pub fn block_reward(epoch: Epoch) -> u64 {
         initial_reward >> halvings
     } else {
         0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_block_reward() {
+        // Satowits per wit
+        let spw = 100_000_000;
+
+        assert_eq!(block_reward(0), 500 * spw);
+        assert_eq!(block_reward(1), 500 * spw);
+        assert_eq!(block_reward(1_749_999), 500 * spw);
+        assert_eq!(block_reward(1_750_000), 250 * spw);
+        assert_eq!(block_reward(3_499_999), 250 * spw);
+        assert_eq!(block_reward(3_500_000), 125 * spw);
+        assert_eq!(block_reward(1_750_000 * 35), 1);
+        assert_eq!(block_reward(1_750_000 * 36), 0);
+        assert_eq!(block_reward(1_750_000 * 63), 0);
+        assert_eq!(block_reward(1_750_000 * 64), 0);
+        assert_eq!(block_reward(1_750_000 * 100), 0);
     }
 }

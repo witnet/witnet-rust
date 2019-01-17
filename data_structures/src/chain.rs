@@ -2,8 +2,10 @@ use super::serializers::encoders::{
     build_block_flatbuffer, build_checkpoint_beacon_flatbuffer, build_transaction_flatbuffer,
     BlockArgs, CheckpointBeaconArgs, TransactionArgs,
 };
+use crate::serializers::decoders::TryFrom;
 use partial_struct::PartialStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::AsRef;
 use std::fmt;
 use std::num::ParseIntError;
@@ -1024,6 +1026,236 @@ pub enum InventoryItem {
     Block(Block),
 }
 
+/// Data request report to be persisted into Storage and
+/// using as index the Data Request OutputPointer
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DataRequestReport {
+    /// List of commitment output pointers to resolve the data request
+    pub commits: Vec<OutputPointer>,
+    /// List of reveal output pointers to the commitments (contains the data request result of the witnet)
+    pub reveals: Vec<OutputPointer>,
+    /// Tally output pointer (contains final result)
+    pub tally: OutputPointer,
+}
+
+impl TryFrom<DataRequestInfo> for DataRequestReport {
+    type Error = &'static str;
+
+    fn try_from(x: DataRequestInfo) -> Result<Self, &'static str> {
+        if let Some(tally) = x.tally {
+            Ok(DataRequestReport {
+                commits: x.commits.into_iter().collect(),
+                reveals: x.reveals.into_iter().collect(),
+                tally,
+            })
+        } else {
+            Err("Cannot persist unfinished data request (with no Tally)")
+        }
+    }
+}
+
+/// List of outputs related to a data request
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DataRequestInfo {
+    /// List of commitments to resolve the data request
+    pub commits: HashSet<OutputPointer>,
+    /// List of reveals to the commitments (contains the data request witnet result)
+    pub reveals: HashSet<OutputPointer>,
+    /// Tally of data request (contains final result)
+    pub tally: Option<OutputPointer>,
+}
+
+/// State of data requests in progress (stored in memory)
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DataRequestState {
+    /// Data request output (contains all required information to process it)
+    pub data_request: DataRequestOutput,
+    /// List of outputs related to this data request
+    pub info: DataRequestInfo,
+    /// Current stage of this data request
+    pub stage: DataRequestStage,
+    /// The epoch on which this data request has been or will be unlocked
+    // (necessary for removing from the data_requests_by_epoch map)
+    pub epoch: Epoch,
+}
+
+impl DataRequestState {
+    /// Add a new data request state
+    pub fn new(data_request: DataRequestOutput, epoch: Epoch) -> Self {
+        let info = DataRequestInfo::default();
+        let stage = DataRequestStage::COMMIT;
+
+        Self {
+            data_request,
+            info,
+            stage,
+            epoch,
+        }
+    }
+
+    /// Add commit
+    pub fn add_commit(&mut self, output_pointer: OutputPointer) {
+        assert_eq!(self.stage, DataRequestStage::COMMIT);
+        self.info.commits.insert(output_pointer);
+    }
+
+    /// Add reveal
+    pub fn add_reveal(&mut self, output_pointer: OutputPointer) {
+        assert_eq!(self.stage, DataRequestStage::REVEAL);
+        self.info.reveals.insert(output_pointer);
+    }
+
+    /// Add tally and return the data request report
+    pub fn add_tally(
+        mut self,
+        output_pointer: OutputPointer,
+    ) -> (DataRequestOutput, DataRequestReport) {
+        assert_eq!(self.stage, DataRequestStage::TALLY);
+        self.info.tally = Some(output_pointer);
+        // This try_from can only fail if the tally is None, and we have just set it to Some
+        (
+            self.data_request,
+            DataRequestReport::try_from(self.info).unwrap(),
+        )
+    }
+
+    /// Advance to the next stage, returning true on success.
+    /// Since the data requests are updated by looking at the transactions from a valid block,
+    /// the only issue would be that there were no commits in that block.
+    pub fn update_stage(&mut self) -> bool {
+        let old_stage = self.stage;
+
+        self.stage = match self.stage {
+            DataRequestStage::COMMIT => {
+                if self.info.commits.is_empty() {
+                    DataRequestStage::COMMIT
+                } else {
+                    DataRequestStage::REVEAL
+                }
+            }
+            DataRequestStage::REVEAL => {
+                if self.info.reveals.is_empty() {
+                    DataRequestStage::REVEAL
+                } else {
+                    DataRequestStage::TALLY
+                }
+            }
+            DataRequestStage::TALLY => {
+                if self.info.tally.is_none() {
+                    DataRequestStage::TALLY
+                } else {
+                    panic!("Data request in tally stage should have been removed from the pool");
+                }
+            }
+        };
+
+        self.stage != old_stage
+    }
+}
+
+/// Data request current stage
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum DataRequestStage {
+    /// Expecting commitments for data request
+    COMMIT,
+    /// Expecting reveals to previously published commitments
+    REVEAL,
+    /// Expecting tally to be included in block
+    TALLY,
+}
+
+/// Pool of active data requests
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ActiveDataRequestPool {
+    /// Current active data request, in which this node has announced commitments.
+    /// Key: Data Request Pointer, Value: Reveal Transaction
+    pub waiting_for_reveal: HashMap<OutputPointer, Transaction>,
+    /// List of active data request output pointers ordered by epoch (for mining purposes)
+    pub data_requests_by_epoch: BTreeMap<Epoch, HashSet<OutputPointer>>,
+    /// List of active data requests indexed by output pointer
+    pub data_request_pool: HashMap<OutputPointer, DataRequestState>,
+    /// List of data requests that should be persisted into storage
+    pub to_be_stored: Vec<(OutputPointer, DataRequestReport)>,
+    /// Cache which maps commit_pointer to data_request_pointer
+    /// and reveal_pointer to data_request_pointer
+    pub dr_pointer_cache: HashMap<OutputPointer, OutputPointer>,
+}
+
+pub type UnspentOutputsPool = HashMap<OutputPointer, Output>;
+
+pub type Blockchain = BTreeMap<Epoch, HashSet<Hash>>;
+
+/// Blockchain state (valid at a certain epoch)
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
+pub struct ChainState {
+    /// Blockchain information data structure
+    pub chain_info: Option<ChainInfo>,
+    /// Unspent Outputs Pool
+    pub unspent_outputs_pool: UnspentOutputsPool,
+    /// Data request pool
+    pub data_request_pool: ActiveDataRequestPool,
+}
+
+impl ChainState {
+    /// Method to check that all inpunts point to unspend output
+    pub fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
+        inputs.iter().all(|tx_input| {
+            let output_pointer = tx_input.output_pointer();
+
+            self.unspent_outputs_pool.contains_key(&output_pointer)
+        })
+    }
+    /// calculate output pointed from input
+    pub fn get_output_from_input(&self, input: &Input) -> Option<&Output> {
+        let output_pointer = input.output_pointer();
+
+        self.unspent_outputs_pool.get(&output_pointer)
+    }
+    /// calculate output vector from inputs vector
+    pub fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Result<Vec<Output>, Input> {
+        let mut v: Vec<Output> = Vec::new();
+        for input in inputs {
+            match self.get_output_from_input(input) {
+                None => {
+                    return Err(input.clone());
+                }
+                Some(output) => v.push(output.clone()),
+            }
+        }
+
+        Ok(v)
+    }
+    /// Method to update the unspent outputs pool
+    pub fn generate_unspent_outputs_pool(&self, block: &Block) -> UnspentOutputsPool {
+        // Create a copy of the state "unspent_outputs_pool"
+        let mut unspent_outputs = self.unspent_outputs_pool.clone();
+
+        let transactions = &block.txns;
+
+        for transaction in transactions {
+            let txn_hash = transaction.hash();
+            for input in &transaction.inputs {
+                // Obtain the OuputPointer of each input and remove it from the utxo_set
+                let output_pointer = input.output_pointer();
+
+                unspent_outputs.remove(&output_pointer);
+            }
+
+            for (index, output) in transaction.outputs.iter().enumerate() {
+                // Add the new outputs to the utxo_set
+                let output_pointer = OutputPointer {
+                    transaction_id: txn_hash,
+                    output_index: index as u32,
+                };
+
+                unspent_outputs.insert(output_pointer, output.clone());
+            }
+        }
+
+        unspent_outputs
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1276,14 +1508,12 @@ mod tests {
             "1111111111111111111111111111111111111111111111111111111111111111111:1",
         );
 
-        let result_error_format_1 = OutputPointer::from_str(
-            ":"
-        );
-        
+        let result_error_format_1 = OutputPointer::from_str(":");
+
         let result_error_format_2 = OutputPointer::from_str(
             "1111111111111111111111111111111111111111111111111111111111111111:b",
         );
-        
+
         let result_error_format_3 = OutputPointer::from_str(
             "1111111111111111111111111111111111111111111111111111111111111111:1a",
         );

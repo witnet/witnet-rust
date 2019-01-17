@@ -27,6 +27,7 @@ use super::messages::{
     GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult,
 };
 use crate::actors::chain_manager::data_request::DataRequestPool;
+use witnet_data_structures::chain::ActiveDataRequestPool;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -64,7 +65,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
         if let Some(candidate) = self.best_candidate.take() {
             // Update chain_info
-            match self.chain_info.as_mut() {
+            match self.chain_state.chain_info.as_mut() {
                 Some(chain_info) => {
                     let beacon = CheckpointBeacon {
                         checkpoint: msg.checkpoint,
@@ -81,27 +82,42 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     );
 
                     // Update utxo_set and transactions_pool with block_candidate transactions
-                    self.unspent_outputs_pool = candidate.utxo_set;
+                    self.chain_state.unspent_outputs_pool = candidate.utxo_set;
+                    // FIXME: The transactions pool should not be overwritten with the candidate
+                    // because new transactions are stored in self.transactions_pool and not in
+                    // candidate.txn_mempool
                     self.transactions_pool = candidate.txn_mempool;
+                    self.data_request_pool = candidate.data_request_pool;
 
-                    // Add DataRequests from the block into the data_request_pool
-                    let reveals = self.data_request_pool.add_data_requests_from_block(
-                        &candidate.block,
-                        self.current_epoch.unwrap(),
-                    );
-
+                    let reveals = self.data_request_pool.update_data_request_stages();
                     for _reveal in reveals {
                         // FIXME(#337): broadcast transaction
                     }
 
-                    // TODO: store finished data requests into storage
-                    let _to_be_stored = self.data_request_pool.finished_data_requests();
+                    // Persist finished data requests into storage
+                    let to_be_stored = self.data_request_pool.finished_data_requests();
+                    to_be_stored.into_iter().for_each(|dr| {
+                        self.persist_data_request(ctx, &dr);
+                    });
+
+                    // FIXME: Revisit to avoid data redundancies
+                    // Store active data requests
+                    self.chain_state.data_request_pool = ActiveDataRequestPool {
+                        waiting_for_reveal: self.data_request_pool.waiting_for_reveal.clone(),
+                        data_requests_by_epoch: self
+                            .data_request_pool
+                            .data_requests_by_epoch
+                            .clone(),
+                        data_request_pool: self.data_request_pool.data_request_pool.clone(),
+                        to_be_stored: self.data_request_pool.to_be_stored.clone(),
+                        dr_pointer_cache: self.data_request_pool.dr_pointer_cache.clone(),
+                    };
 
                     // Send block to Inventory Manager
                     self.persist_item(ctx, InventoryItem::Block(candidate.block));
 
                     // Persist chain_info into storage
-                    self.persist_chain_info(ctx);
+                    self.persist_chain_state(ctx);
 
                     // Persist block_chain into storage
                     self.persist_block_chain(ctx);
@@ -110,6 +126,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     error!("No ChainInfo loaded in ChainManager");
                 }
             }
+        }
+
+        if self.mining_enabled {
+            self.try_mine_block(ctx);
         }
     }
 }
@@ -123,7 +143,7 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
         _msg: GetHighestCheckpointBeacon,
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
-        if let Some(chain_info) = &self.chain_info {
+        if let Some(chain_info) = &self.chain_state.chain_info {
             Ok(chain_info.highest_block_checkpoint)
         } else {
             error!("No ChainInfo loaded in ChainManager");
@@ -152,12 +172,15 @@ impl Handler<AddTransaction> for ChainManager {
         let outputs = &msg.transaction.outputs;
         let inputs = &msg.transaction.inputs;
 
-        match self.get_outputs_from_inputs(inputs) {
+        match self.chain_state.get_outputs_from_inputs(inputs) {
             Ok(outputs_from_inputs) => {
                 let outputs_from_inputs = &outputs_from_inputs;
 
                 // Check that all inputs point to unspent outputs
-                if self.find_unspent_outputs(&msg.transaction.inputs) {
+                if self
+                    .chain_state
+                    .find_unspent_outputs(&msg.transaction.inputs)
+                {
                     // Validate transaction
                     // DRO RULE 1. Multiple data request outputs can be included into a single transaction.
                     // As long as the inputs are greater than the outputs, the rule still hold true. The difference
@@ -182,36 +205,37 @@ impl Handler<AddTransaction> for ChainManager {
                         let is_valid_transaction = iter
                             .take_while(|(output, input)| {
                                 // Validate input
-                                is_valid_input = match &self.get_output_from_input(input) {
-                                    // VTO RULE 4. The value brought into a transaction by an input pointing
-                                    // to a VTO can be freely assigned to any output of any type unless otherwise
-                                    // restricted by the specific validation rules for such output type.
-                                    Some(Output::ValueTransfer(_)) => true,
+                                is_valid_input =
+                                    match &self.chain_state.get_output_from_input(input) {
+                                        // VTO RULE 4. The value brought into a transaction by an input pointing
+                                        // to a VTO can be freely assigned to any output of any type unless otherwise
+                                        // restricted by the specific validation rules for such output type.
+                                        Some(Output::ValueTransfer(_)) => true,
 
-                                    // DRO RULE 2. The value brought into a transaction by an input pointing
-                                    // to a data request output can only be spent by commit outputs.
-                                    Some(Output::DataRequest(_)) => is_commit_output(output),
+                                        // DRO RULE 2. The value brought into a transaction by an input pointing
+                                        // to a data request output can only be spent by commit outputs.
+                                        Some(Output::DataRequest(_)) => is_commit_output(output),
 
-                                    // CO RULE 3. The value brought into a transaction by an input pointing
-                                    // to a commit output can only be spent by reveal or tally outputs.
-                                    Some(Output::Commit(_)) => {
-                                        is_reveal_output(output) && is_tally_output(output)
-                                    }
+                                        // CO RULE 3. The value brought into a transaction by an input pointing
+                                        // to a commit output can only be spent by reveal or tally outputs.
+                                        Some(Output::Commit(_)) => {
+                                            is_reveal_output(output) && is_tally_output(output)
+                                        }
 
-                                    // RO 3. The value brought into a transaction by an input pointing to a
-                                    // reveal output can only be spent by value transfer outputs.
-                                    Some(Output::Reveal(_)) => match output {
-                                        Output::ValueTransfer(_) => true,
-                                        _ => false,
-                                    },
-                                    // TO RULE 4. The value brought into a transaction by an input pointing
-                                    // to a tally output can be freely assigned to any output of any type
-                                    // unless otherwise restricted by the specific validation rules for such
-                                    // output type.
-                                    Some(Output::Tally(_)) => true,
+                                        // RO 3. The value brought into a transaction by an input pointing to a
+                                        // reveal output can only be spent by value transfer outputs.
+                                        Some(Output::Reveal(_)) => match output {
+                                            Output::ValueTransfer(_) => true,
+                                            _ => false,
+                                        },
+                                        // TO RULE 4. The value brought into a transaction by an input pointing
+                                        // to a tally output can be freely assigned to any output of any type
+                                        // unless otherwise restricted by the specific validation rules for such
+                                        // output type.
+                                        Some(Output::Tally(_)) => true,
 
-                                    None => false,
-                                };
+                                        None => false,
+                                    };
 
                                 is_valid_output = match output {
                                     Output::ValueTransfer(_) => true,
@@ -230,18 +254,18 @@ impl Handler<AddTransaction> for ChainManager {
                                         // RO RULE 3. The value brought into a transaction by an input pointing
                                         // to a reveal output can only be spent by value transfer outputs.
                                         is_value_transfer_output(output)
-                                            // RO RULE 1. Reveal outputs can only take value from commit inputs
-                                            // whose index in the inputs list is the same as their own index in the outputs list.
-                                            // RO RULE 2. Multiple reveal outputs can exist in a single transaction,
-                                            // but each of them needs to be coupled with a commit input occupying
-                                            // the same index in the inputs list as their own in the outputs list.
-                                            // Predictably, as a result of the previous rule, each of the multiple
-                                            // reveal outputs only takes value from the commit input with the same index.
-                                            && is_commit_input(input)
-                                            // TODO: validate only once
-                                            // RO RULE 4. Any transaction including an input pointing to a
-                                            // reveal output must also include exactly only one tally output.
-                                            && validate_tally_output_uniqueness(outputs)
+                                        // RO RULE 1. Reveal outputs can only take value from commit inputs
+                                        // whose index in the inputs list is the same as their own index in the outputs list.
+                                        // RO RULE 2. Multiple reveal outputs can exist in a single transaction,
+                                        // but each of them needs to be coupled with a commit input occupying
+                                        // the same index in the inputs list as their own in the outputs list.
+                                        // Predictably, as a result of the previous rule, each of the multiple
+                                        // reveal outputs only takes value from the commit input with the same index.
+                                        && is_commit_input(input)
+                                        // TODO: validate only once
+                                        // RO RULE 4. Any transaction including an input pointing to a
+                                        // reveal output must also include exactly only one tally output.
+                                        && validate_tally_output_uniqueness(outputs)
                                     }
                                     Output::Tally(_) => true,
                                 };
@@ -325,7 +349,11 @@ impl Handler<DiscardExistingInventoryEntries> for ChainManager {
 impl Handler<GetOutput> for ChainManager {
     type Result = GetOutputResult;
 
-    fn handle(&mut self, GetOutput { output_pointer }: GetOutput, _ctx: &mut Context<Self>) -> GetOutputResult {
+    fn handle(
+        &mut self,
+        GetOutput { output_pointer }: GetOutput,
+        _ctx: &mut Context<Self>,
+    ) -> GetOutputResult {
         find_output_from_pointer(&self.data_request_pool, &output_pointer)
     }
 }
