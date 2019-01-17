@@ -18,5 +18,6 @@ pub struct RunConsensus;
 pub type SessionUnitResult = ();
 
 impl Message for ResolveRA {
-    type Result = SessionUnitResult;
+    // TODO: Use RAD error
+    type Result = Result<Vec<u8>, String>;
 }

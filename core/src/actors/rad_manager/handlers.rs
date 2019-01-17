@@ -1,16 +1,18 @@
 //! Message handlers for `RadManager`
 use super::{messages, RadManager};
-use actix::Handler;
+use actix::{Handler, Message};
 use log;
 use witnet_radon as radon;
 
 impl Handler<messages::ResolveRA> for RadManager {
-    type Result = ();
+    type Result = <messages::ResolveRA as Message>::Result;
 
-    fn handle(&mut self, _msg: messages::ResolveRA, _ctx: &mut Self::Context) {
+    fn handle(&mut self, _msg: messages::ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
         log::warn!("ResolveRA: unimplemented handler!");
         radon::run_retrieval();
         radon::run_aggregate();
+
+        Ok(Vec::new())
     }
 }
 

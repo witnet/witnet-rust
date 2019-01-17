@@ -4,8 +4,7 @@ use log::{debug, error, info, warn};
 
 use super::messages::{AddNewBlock, GetHighestCheckpointBeacon};
 use super::validations::{block_reward, merkle_tree_root, verify_poe_data_request};
-use super::ChainManager;
-
+use super::{messages::AddTransaction, ChainManager};
 use crate::actors::{
     rad_manager::{messages::ResolveRA, RadManager},
     reputation_manager::{messages::ValidatePoE, ReputationManager},
@@ -112,6 +111,7 @@ impl ChainManager {
     }
 
     /// Try to mine a data_request
+    // TODO: refactor this procedure into multiple functions that can be tested separately.
     pub fn try_mine_data_request(&mut self, ctx: &mut Context<Self>) {
         if self.current_epoch.is_none() {
             warn!("Cannot mine a data request because current epoch is unknown");
@@ -122,12 +122,17 @@ impl ChainManager {
         let current_epoch = self.current_epoch.unwrap();
 
         // Data Request mining
-        let data_requests = self
+        let dr_output_pointers = self
             .data_request_pool
-            .get_data_requests_by_epoch(current_epoch);
-        for dr in data_requests {
-            let rad_request = dr.data_request.data_request.clone();
-            if verify_poe_data_request() {
+            .get_dr_output_pointers_by_epoch(current_epoch);
+
+        for dr_output_pointer in dr_output_pointers {
+            let data_request_output = self.data_request_pool.get_dr_output(&dr_output_pointer);
+
+            if data_request_output.is_some() && verify_poe_data_request() {
+                let data_request_output = data_request_output.unwrap();
+                let rad_request = data_request_output.data_request.clone();
+
                 // Send ResolveRA message to RADManager
                 let rad_manager_addr = System::current().registry().get::<RadManager>();
                 rad_manager_addr
@@ -135,17 +140,48 @@ impl ChainManager {
                         script: rad_request,
                     })
                     .into_actor(self)
-                    .then(|res, _act, _ctx| match res {
+                    .then(move |res, act, ctx| match res {
                         // Process the response from RADManager
                         Err(e) => {
                             // Error when sending message
                             error!("Unsuccessful communication with RADManager: {}", e);
                             actix::fut::err(())
                         }
-                        Ok(_res) => {
-                            // TODO: Handle ResolveRA response
-                            actix::fut::ok(())
-                        }
+                        Ok(res) => match res {
+                            Err(e) => {
+                                // Error executing the rad_request
+                                error!("RadManager error: {}", e);
+                                actix::fut::err(())
+                            }
+
+                            Ok(reveal_value) => {
+                                // Create commit transaction
+                                let commit_transaction =
+                                    act.data_request_pool.create_commit_and_reveal(
+                                        &dr_output_pointer,
+                                        &data_request_output,
+                                        reveal_value,
+                                    );
+
+                                info!(
+                                    "{} Discovered eligibility for mining a data request {} for epoch #{}",
+                                    Yellow.bold().paint("[Mining]"),
+                                    Yellow.bold().paint(dr_output_pointer.to_string()),
+                                    Yellow.bold().paint(current_epoch.to_string())
+                                );
+
+                                // Send AddTransaction message to self
+                                // And broadcast it to all of peers
+                                act.handle(
+                                    AddTransaction {
+                                        transaction: commit_transaction,
+                                    },
+                                    ctx,
+                                );
+
+                                actix::fut::ok(())
+                            }
+                        },
                     })
                     .wait(ctx)
             }

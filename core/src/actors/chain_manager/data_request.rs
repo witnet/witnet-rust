@@ -1,8 +1,11 @@
 use log::{debug, info};
 use std::collections::{BTreeMap, HashMap, HashSet};
+
+use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{
-    DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch, Hash,
-    Hashable, Input, Output, OutputPointer, RevealInput, Transaction,
+    CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
+    DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
+    RevealInput, RevealOutput, Transaction,
 };
 
 /// Pool of active data requests
@@ -23,17 +26,100 @@ pub struct DataRequestPool {
 }
 
 impl DataRequestPool {
-    /// Get all available data requests for an epoch
-    pub fn get_data_requests_by_epoch(&self, epoch: Epoch) -> Vec<&DataRequestState> {
+    /// Get all available data requests output pointers for an epoch
+    pub fn get_dr_output_pointers_by_epoch(&self, epoch: Epoch) -> Vec<OutputPointer> {
         let range = 0..=epoch;
         self.data_requests_by_epoch
             .range(range)
-            .flat_map(|(_epoch, hashset)| {
-                hashset
-                    .iter()
-                    .flat_map(|output_pointer| self.data_request_pool.get(output_pointer))
-            })
+            .flat_map(|(_epoch, hashset)| hashset.iter().cloned())
             .collect()
+    }
+
+    /// Get a `DataRequestOuput` for a `OutputPointer`
+    pub fn get_dr_output(&self, output_pointer: &OutputPointer) -> Option<DataRequestOutput> {
+        self.data_request_pool
+            .get(output_pointer)
+            .map(|dr_state| dr_state.data_request.clone())
+    }
+
+    /// Create data request commitment
+    pub fn create_commit(
+        &mut self,
+        dr_output_pointer: &OutputPointer,
+        dr_output: &DataRequestOutput,
+        reveal: &[u8],
+    ) -> Transaction {
+        // Create input
+        let dr_input = Input::DataRequest(DataRequestInput {
+            transaction_id: dr_output_pointer.transaction_id,
+            output_index: dr_output_pointer.output_index,
+            // TODO: create a proper poe
+            poe: [0; 32],
+        });
+
+        // Calculate reveal_value
+        let commit_value = dr_output.value / u64::from(dr_output.witnesses) - dr_output.commit_fee;
+
+        let reveal_hash = calculate_sha256(reveal).into();
+
+        // Create output
+        let commit_output = Output::Commit(CommitOutput {
+            commitment: reveal_hash,
+            value: commit_value,
+        });
+
+        // TODO: use a proper signature
+        Transaction::new(0, vec![dr_input], vec![commit_output], ())
+    }
+
+    /// Create data request reveal
+    pub fn create_reveal(
+        &mut self,
+        dr_output_pointer: &OutputPointer,
+        dr_output: &DataRequestOutput,
+        reveal: Vec<u8>,
+    ) {
+        // Create input
+        let commit_input = Input::Commit(CommitInput {
+            transaction_id: dr_output_pointer.transaction_id,
+            output_index: dr_output_pointer.output_index,
+            reveal: reveal.clone(),
+            nonce: 0,
+        });
+
+        // Calculate reveal_value
+        let reveal_value = dr_output.value / u64::from(dr_output.witnesses)
+            - dr_output.commit_fee
+            - dr_output.reveal_fee;
+
+        // Create output
+        let reveal_output = Output::Reveal(RevealOutput {
+            reveal,
+            // TODO: use a proper pkh
+            pkh: [0; 20],
+            value: reveal_value,
+        });
+
+        // TODO: use a proper signature
+        let reveal_transaction = Transaction::new(0, vec![commit_input], vec![reveal_output], ());
+
+        // This function can only fail when reveal transactions is not valid,
+        // It can not be due to we are creating just before.
+        self.add_own_reveal(dr_output_pointer.clone(), reveal_transaction.clone())
+            .unwrap();
+    }
+
+    /// Create data request commit and reveal
+    pub fn create_commit_and_reveal(
+        &mut self,
+        dr_output_pointer: &OutputPointer,
+        dr_output: &DataRequestOutput,
+        reveal: Vec<u8>,
+    ) -> Transaction {
+        let commit_transaction = self.create_commit(dr_output_pointer, dr_output, &reveal);
+        self.create_reveal(dr_output_pointer, dr_output, reveal);
+
+        commit_transaction
     }
 
     /// Add a data request to the data request pool
