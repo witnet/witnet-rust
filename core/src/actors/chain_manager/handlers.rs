@@ -138,6 +138,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
         if self.mining_enabled {
             self.try_mine_block(ctx);
+            self.try_mine_data_request(ctx);
         }
     }
 }

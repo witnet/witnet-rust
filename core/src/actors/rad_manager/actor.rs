@@ -1,5 +1,5 @@
 use super::RadManager;
-use actix::{Actor, Context};
+use actix::{Actor, Context, Supervised, SystemService};
 use log;
 
 /// Implement Actor trait for `RadManager`
@@ -12,3 +12,7 @@ impl Actor for RadManager {
         log::debug!("RadManager actor has been started!");
     }
 }
+
+impl Supervised for RadManager {}
+
+impl SystemService for RadManager {}

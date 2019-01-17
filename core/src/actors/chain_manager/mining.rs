@@ -3,9 +3,13 @@ use ansi_term::Color::Yellow;
 use log::{debug, error, info, warn};
 
 use super::messages::{AddNewBlock, GetHighestCheckpointBeacon};
-use super::validations::{block_reward, merkle_tree_root};
+use super::validations::{block_reward, merkle_tree_root, verify_poe_data_request};
 use super::ChainManager;
-use crate::actors::reputation_manager::{messages::ValidatePoE, ReputationManager};
+
+use crate::actors::{
+    rad_manager::{messages::ResolveRA, RadManager},
+    reputation_manager::{messages::ValidatePoE, ReputationManager},
+};
 
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{
@@ -105,6 +109,47 @@ impl ChainManager {
                 actix::fut::ok(())
             })
             .wait(ctx);
+    }
+
+    /// Try to mine a data_request
+    pub fn try_mine_data_request(&mut self, ctx: &mut Context<Self>) {
+        if self.current_epoch.is_none() {
+            warn!("Cannot mine a data request because current epoch is unknown");
+
+            return;
+        }
+
+        let current_epoch = self.current_epoch.unwrap();
+
+        // Data Request mining
+        let data_requests = self
+            .data_request_pool
+            .get_data_requests_by_epoch(current_epoch);
+        for dr in data_requests {
+            let rad_request = dr.data_request.data_request.clone();
+            if verify_poe_data_request() {
+                // Send ResolveRA message to RADManager
+                let rad_manager_addr = System::current().registry().get::<RadManager>();
+                rad_manager_addr
+                    .send(ResolveRA {
+                        script: rad_request,
+                    })
+                    .into_actor(self)
+                    .then(|res, _act, _ctx| match res {
+                        // Process the response from RADManager
+                        Err(e) => {
+                            // Error when sending message
+                            error!("Unsuccessful communication with RADManager: {}", e);
+                            actix::fut::err(())
+                        }
+                        Ok(_res) => {
+                            // TODO: Handle ResolveRA response
+                            actix::fut::ok(())
+                        }
+                    })
+                    .wait(ctx)
+            }
+        }
     }
 }
 

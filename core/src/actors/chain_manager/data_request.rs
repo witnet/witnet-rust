@@ -23,6 +23,19 @@ pub struct DataRequestPool {
 }
 
 impl DataRequestPool {
+    /// Get all available data requests for an epoch
+    pub fn get_data_requests_by_epoch(&self, epoch: Epoch) -> Vec<&DataRequestState> {
+        let range = 0..=epoch;
+        self.data_requests_by_epoch
+            .range(range)
+            .flat_map(|(_epoch, hashset)| {
+                hashset
+                    .iter()
+                    .flat_map(|output_pointer| self.data_request_pool.get(output_pointer))
+            })
+            .collect()
+    }
+
     /// Add a data request to the data request pool
     pub fn add_data_request(
         &mut self,

@@ -104,6 +104,11 @@ pub fn block_reward(epoch: Epoch) -> u64 {
         0
     }
 }
+/// Function to check poe validation for data requests
+// TODO: Implement logic for this function
+pub fn verify_poe_data_request() -> bool {
+    true
+}
 
 #[cfg(test)]
 mod tests {
