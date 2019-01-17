@@ -18,3 +18,11 @@ pub fn parse_hex(hex_asm: &str) -> Vec<u8> {
 
     bytes
 }
+
+#[test]
+fn parse_hex_test() {
+    let result = parse_hex("0123456789abcdefABCDEF");
+    let expected = vec![1, 35, 69, 103, 137, 171, 205, 239, 171, 205, 239];
+
+    assert_eq!(result, expected);
+}
