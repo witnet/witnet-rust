@@ -49,8 +49,9 @@ use crate::actors::{
 use crate::utils::{find_unspent_outputs, get_output_from_input};
 
 use witnet_data_structures::chain::{
-    Block, ChainInfo, Epoch, Hash, Hashable, Input, InventoryEntry, InventoryItem, Output,
-    OutputPointer, TransactionsPool,
+    Block, ChainInfo, DataRequestOutput, Epoch, Hash, Hashable, Input, InventoryEntry,
+    InventoryItem, Output, OutputPointer, RADAggregate, RADConsensus, RADDeliver, RADRequest,
+    RADRetrieve, RADType, TransactionsPool,
 };
 
 use crate::validations::{validate_merkle_tree, validate_transactions};
@@ -134,6 +135,45 @@ impl SystemService for ChainManager {}
 
 /// Auxiliary methods for ChainManager actor
 impl ChainManager {
+    // WIP: implement a function that search output pointer
+    fn find_output_from_pointer_dummy(
+        &self,
+        _pointer: &OutputPointer,
+    ) -> Result<Output, ChainManagerError> {
+        let rad_aggregate = RADAggregate { script: vec![0] };
+
+        let rad_retrieve_1 = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+            script: vec![0],
+        };
+
+        let rad_consensus = RADConsensus { script: vec![0] };
+
+        let rad_deliver_1 = RADDeliver {
+            kind: RADType::HttpGet,
+            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
+        };
+
+        let rad_request = RADRequest {
+            aggregate: rad_aggregate,
+            not_before: 0,
+            retrieve: vec![rad_retrieve_1],
+            consensus: rad_consensus,
+            deliver: vec![rad_deliver_1],
+        };
+        Ok(Output::DataRequest(DataRequestOutput {
+            backup_witnesses: 0,
+            commit_fee: 0,
+            data_request: rad_request,
+            pkh: [0; 20],
+            reveal_fee: 0,
+            tally_fee: 0,
+            time_lock: 0,
+            value: 0,
+            witnesses: 0,
+        }))
+    }
     /// Method to check that all inpunts point to unspend output
     fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
         find_unspent_outputs(&self.unspent_outputs_pool, inputs)

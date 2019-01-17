@@ -93,6 +93,25 @@ pub(crate) enum CliCommand {
         #[structopt(parse(from_os_str))]
         config: Option<PathBuf>,
     },
+    #[structopt(name = "getDataRequest", about = "Get data request state")]
+    GetDataRequest {
+        // Config file path
+        #[structopt(
+            name = "config",
+            long = "config",
+            short = "c",
+            help = "Path to the configuration file"
+        )]
+        #[structopt(parse(from_os_str))]
+        config: Option<PathBuf>,
+        #[structopt(
+            name = "outputPointer",
+            long = "outputPointer",
+            short = "p",
+            help = "Index of the output in the transaction"
+        )]
+        output_index: String,
+    },
 }
 
 pub(crate) fn exec(command: Command) -> Result<(), failure::Error> {

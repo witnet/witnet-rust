@@ -2,6 +2,7 @@ use crate::cli::CliCommand;
 use failure::Fail;
 use log::{info, warn};
 use serde::Deserialize;
+use std::str::FromStr;
 use std::{
     fmt,
     io::{self, BufRead, BufReader, Read, Write},
@@ -11,6 +12,7 @@ use std::{
 use witnet_config::config::Config;
 use witnet_config::loaders::toml;
 use witnet_core::actors::config_manager::CONFIG_DEFAULT_FILENAME;
+use witnet_data_structures::chain::OutputPointer;
 
 pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), failure::Error> {
     match cmd {
@@ -50,6 +52,26 @@ pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), f
                 println!("Block for epoch #{} had digest {}", epoch, hash);
             }
 
+            Ok(())
+        }
+        CliCommand::GetDataRequest {
+            config,
+            output_index,
+        } => {
+            let config = config.or(last_config);
+            let mut stream = start_client(config)?;
+            // FIXME handle wrong input format
+            let output_pointer_formated: String =
+                serde_json::to_string(&OutputPointer::from_str(&output_index).unwrap()).unwrap();
+
+            let a = format!(
+                r#"{{"jsonrpc": "2.0","method": "getOutput", "params": {}, "id": "1"}}"#,
+                output_pointer_formated,
+            );
+
+            let response = send_request(&mut stream, &a);
+
+            println!("{}", response.unwrap());
             Ok(())
         }
     }

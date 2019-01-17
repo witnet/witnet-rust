@@ -1,3 +1,4 @@
+use crate::actors::chain_manager::messages::GetOutputResult;
 use crate::utils::{
     count_tally_outputs, is_commit_input, is_commit_output, is_data_request_input,
     is_reveal_output, is_tally_output, is_value_transfer_output, validate_tally_output_uniqueness,
@@ -10,7 +11,10 @@ use crate::actors::chain_manager::{messages::SessionUnitResult, ChainManager, Ch
 use crate::actors::epoch_manager::messages::EpochNotification;
 
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, Output},
+    chain::{
+        Block, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, Output,
+        OutputPointer,
+    },
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 
@@ -20,7 +24,7 @@ use log::{debug, error, info, warn};
 
 use super::messages::{
     AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
-    GetHighestCheckpointBeacon, InventoryEntriesResult,
+    GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult,
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -313,5 +317,18 @@ impl Handler<DiscardExistingInventoryEntries> for ChainManager {
     ) -> InventoryEntriesResult {
         // Discard existing inventory vectors
         self.discard_existing_inventory_entries(msg.inv_entries)
+    }
+}
+
+/// Handler for GetDataRequest message
+impl Handler<GetOutput> for ChainManager {
+    type Result = GetOutputResult;
+
+    fn handle(&mut self, msg: GetOutput, _ctx: &mut Context<Self>) -> GetOutputResult {
+        let output_pointer = OutputPointer {
+            transaction_id: msg.output_pointer.transaction_id,
+            output_index: msg.output_pointer.output_index,
+        };
+        self.find_output_from_pointer_dummy(&output_pointer)
     }
 }

@@ -1,7 +1,7 @@
 #[cfg(test)]
 use self::mock_actix::System;
 use crate::actors::chain_manager::{
-    messages::{AddNewBlock, AddTransaction, GetBlocksEpochRange},
+    messages::{AddNewBlock, AddTransaction, GetBlocksEpochRange, GetOutput},
     ChainManager,
 };
 #[cfg(not(test))]
@@ -12,9 +12,10 @@ use jsonrpc_core::futures::Future;
 use jsonrpc_core::{IoHandler, Params, Value};
 use log::info;
 use serde::{Deserialize, Serialize};
-use witnet_data_structures::chain::{Block, InventoryEntry, Transaction};
+use witnet_data_structures::chain::{Block, InventoryEntry, OutputPointer, Transaction};
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
+type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
 
 /// Define the JSON-RPC interface:
 /// All the methods available through JSON-RPC
@@ -23,6 +24,11 @@ pub fn jsonrpc_io_handler() -> IoHandler<()> {
 
     io.add_method("inventory", |params: Params| inventory(params.parse()?));
     io.add_method("getBlockChain", |_params| get_block_chain());
+    io.add_method("getOutput", |params: Params| {
+        let parsed_params = params.parse();
+
+        get_output(parsed_params)
+    });
 
     io
 }
@@ -142,6 +148,55 @@ pub fn get_block_chain() -> impl Future<Item = Value, Error = jsonrpc_core::Erro
                 futures::failed(err)
             }
         })
+}
+
+/// get output
+pub fn get_output(
+    output_pointer: Result<OutputPointer, jsonrpc_core::Error>,
+) -> JsonRpcResultAsync {
+    let output_pointer = match output_pointer {
+        Ok(x) => x,
+        Err(e) => {
+            return Box::new(futures::failed(e));
+        }
+    };
+    let chain_manager_addr = ChainManager::from_registry();
+    Box::new(
+        chain_manager_addr
+            .send(GetOutput { output_pointer })
+            .then(|res| match res {
+                Ok(Ok(output)) => {
+                    let value = match serde_json::to_value(output) {
+                        Ok(x) => x,
+                        Err(e) => {
+                            let err = jsonrpc_core::Error {
+                                code: jsonrpc_core::ErrorCode::InternalError,
+                                message: format!("{}", e),
+                                data: None,
+                            };
+                            return futures::failed(err);
+                        }
+                    };
+                    futures::finished(value)
+                }
+                Ok(Err(e)) => {
+                    let err = jsonrpc_core::Error {
+                        code: jsonrpc_core::ErrorCode::InternalError,
+                        message: format!("{:?}", e),
+                        data: None,
+                    };
+                    futures::failed(err)
+                }
+                Err(e) => {
+                    let err = jsonrpc_core::Error {
+                        code: jsonrpc_core::ErrorCode::InternalError,
+                        message: format!("{:?}", e),
+                        data: None,
+                    };
+                    futures::failed(err)
+                }
+            }),
+    )
 }
 
 #[cfg(test)]

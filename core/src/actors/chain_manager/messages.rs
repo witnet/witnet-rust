@@ -3,7 +3,9 @@ use actix::Message;
 use crate::actors::chain_manager::ChainManagerError;
 use std::ops::{Bound, RangeBounds};
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, Transaction},
+    chain::{
+        Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, Output, OutputPointer, Transaction,
+    },
     error::ChainInfoResult,
 };
 
@@ -94,4 +96,17 @@ pub type InventoryEntriesResult = Result<Vec<InventoryEntry>, ChainManagerError>
 
 impl Message for DiscardExistingInventoryEntries {
     type Result = InventoryEntriesResult;
+}
+
+/// Ask for an output
+pub struct GetOutput {
+    /// Output pointer
+    pub output_pointer: OutputPointer,
+}
+
+/// Result of the GetOutput message handling
+pub type GetOutputResult = Result<Output, ChainManagerError>;
+
+impl Message for GetOutput {
+    type Result = GetOutputResult;
 }
