@@ -10,5 +10,8 @@
 
 pub mod error;
 
+/// Parse utilities
+pub mod parser;
+
 /// Timestamp as UTC
 pub mod timestamp;

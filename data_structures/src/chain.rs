@@ -6,7 +6,10 @@ use partial_struct::PartialStruct;
 use std::collections::{BTreeSet, HashMap};
 use std::convert::AsRef;
 use std::fmt;
+use std::num::ParseIntError;
+use std::str::FromStr;
 use witnet_crypto::hash::{calculate_sha256, Sha256};
+use witnet_util::parser::parse_hex;
 
 use failure::Fail;
 
@@ -927,10 +930,54 @@ impl TransactionsPool {
 
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
-#[derive(Debug, Default, Hash, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, Hash, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct OutputPointer {
     pub transaction_id: Hash,
     pub output_index: u32,
+}
+
+#[derive(Debug)]
+pub enum OutputPointerParseError {
+    InvalidHashLength,
+    MissingColon,
+    ParseIntError(ParseIntError),
+    ParseHex(ParseIntError),
+}
+
+impl fmt::Display for OutputPointer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(&format!("{}:{}", &self.transaction_id, &self.output_index))
+    }
+}
+
+impl FromStr for OutputPointer {
+    type Err = OutputPointerParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut tokens = s.trim().split(':');
+
+        let transaction_id: &str = tokens
+            .next()
+            .ok_or(OutputPointerParseError::InvalidHashLength)?;
+        let output_index = tokens
+            .next()
+            .ok_or(OutputPointerParseError::MissingColon)?
+            .parse::<u32>()
+            .map_err(OutputPointerParseError::ParseIntError)?;
+
+        Ok(OutputPointer {
+            output_index,
+            transaction_id: {
+                let mut sha256: SHA256 = [0; 32];
+                let sha256_bytes = parse_hex(&transaction_id);
+                if sha256_bytes.len() != 32 {
+                    return Err(OutputPointerParseError::InvalidHashLength);
+                }
+                sha256.copy_from_slice(&sha256_bytes);
+
+                Hash::SHA256(sha256)
+            },
+        })
+    }
 }
 
 /// Inventory entry data structure
