@@ -393,6 +393,108 @@ mod block {
 
         assert_eq!(block.validate(reward, &pool).unwrap(), ());
     }
+
+    #[test]
+    fn test_validate_empty_block() {
+        let pool = TransactionsPool::new();
+        let reward = 123;
+        let block = Block {
+            block_header: HEADER,
+            proof: PROOF,
+            txns: vec![],
+        };
+
+        let error = block.validate(reward, &pool).unwrap_err();
+
+        assert!(match error.downcast::<BlockError>() {
+            Ok(BlockError::Empty) => true,
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn test_validate_block_with_no_mint() {
+        let pool = TransactionsPool::new();
+        let reward = 123;
+        let block = Block {
+            block_header: HEADER,
+            proof: PROOF,
+            txns: vec![Transaction {
+                version: 0,
+                signatures: Vec::new(),
+                inputs: vec![Input::Commit(CommitInput {
+                    transaction_id: HASH,
+                    output_index: 0,
+                    reveal: vec![],
+                    nonce: 0,
+                })],
+                outputs: vec![Output::Commit(CommitOutput {
+                    commitment: HASH,
+                    value: reward,
+                })],
+            }],
+        };
+
+        let error = block.validate(reward, &pool).unwrap_err();
+
+        assert!(match error.downcast::<BlockError>() {
+            Ok(BlockError::NoMint) => true,
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn test_validate_block_with_multiple_mint() {
+        let pool = TransactionsPool::new();
+        let reward = 123;
+        let mint = Transaction {
+            version: 0,
+            signatures: Vec::new(),
+            inputs: Vec::new(),
+            outputs: vec![Output::Commit(CommitOutput {
+                commitment: HASH,
+                value: reward,
+            })],
+        };
+        let block = Block {
+            block_header: HEADER,
+            proof: PROOF,
+            txns: vec![mint.clone(), mint.clone()],
+        };
+
+        let error = block.validate(reward, &pool).unwrap_err();
+
+        assert!(match error.downcast::<BlockError>() {
+            Ok(BlockError::MultipleMint) => true,
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn test_validate_block_with_mismatched_mint_value() {
+        let pool = TransactionsPool::new();
+        let reward = 123;
+        let block = Block {
+            block_header: HEADER,
+            proof: PROOF,
+            txns: vec![Transaction {
+                version: 0,
+                signatures: Vec::new(),
+                inputs: Vec::new(),
+                outputs: vec![Output::Commit(CommitOutput {
+                    commitment: HASH,
+                    value: reward,
+                })],
+            }],
+        };
+
+        let error = block.validate(reward - 10, &pool).unwrap_err();
+
+        assert!(match error.downcast::<BlockError>() {
+            Ok(BlockError::MismatchedMintValue) => true,
+            _ => false,
+        });
+    }
 }
 
 #[test]

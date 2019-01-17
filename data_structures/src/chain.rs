@@ -102,7 +102,7 @@ pub struct Block {
 }
 
 /// The error type for operations on a [`Block`](Block)
-#[derive(Debug, Fail)]
+#[derive(Debug, PartialEq, Fail)]
 pub enum BlockError {
     /// The block has no transactions in it.
     #[fail(display = "The block has no transactions")]
@@ -110,8 +110,9 @@ pub enum BlockError {
     /// The first transaction of the block is no mint.
     #[fail(display = "The block first transaction is not a mint transactions")]
     NoMint,
-    /// There was an error validating the transactions.
-    // Transaction(TransactionError),
+    /// There are multiple mint transactions in the block.
+    #[fail(display = "The block has more than one mint transaction")]
+    MultipleMint,
     /// The total value created by the mint transaction of the block,
     /// and the output value of the rest of the transactions, plus the
     /// block reward, don't add up
@@ -123,6 +124,13 @@ pub enum BlockError {
 
 impl Block {
     /// Check if the block is valid.
+    ///
+    /// The conditions for a block being valid are:
+    /// * First transaction is a mint transaction
+    /// * Rest of transactions in the block are valid and are not mint
+    /// * The output of the mint transaction must be equal to the sum
+    /// of the fees of the rest of the transactions in the block plus
+    /// the block reward
     pub fn validate(
         &self,
         block_reward: u64,
@@ -136,6 +144,9 @@ impl Block {
 
         let mut total_fees = 0;
         for transaction in self.txns.iter().skip(1) {
+            if transaction.is_mint() {
+                Err(BlockError::MultipleMint)?;
+            }
             total_fees += transaction.fee(pool)?;
         }
 
