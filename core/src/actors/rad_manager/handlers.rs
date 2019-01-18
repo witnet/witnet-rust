@@ -17,10 +17,12 @@ impl Handler<messages::ResolveRA> for RadManager {
 }
 
 impl Handler<messages::RunConsensus> for RadManager {
-    type Result = ();
+    type Result = <messages::RunConsensus as Message>::Result;
 
-    fn handle(&mut self, _msg: messages::RunConsensus, _ctx: &mut Self::Context) {
+    fn handle(&mut self, _msg: messages::RunConsensus, _ctx: &mut Self::Context) -> Self::Result {
         log::warn!("RunConsensus: unimplemented handler!");
         radon::run_consensus();
+
+        Ok(Vec::new())
     }
 }

@@ -2,11 +2,17 @@ use log::{debug, info};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use witnet_crypto::hash::calculate_sha256;
+
 use witnet_data_structures::chain::{
     CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
     DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
-    RevealInput, RevealOutput, Transaction,
+    RevealInput, RevealOutput, Transaction, UnspentOutputsPool,
 };
+
+type DataRequestsWithReveals = Vec<(
+    (OutputPointer, DataRequestOutput),
+    Vec<(OutputPointer, RevealOutput)>,
+)>;
 
 /// Pool of active data requests
 #[derive(Clone, Debug, Default)]
@@ -120,6 +126,34 @@ impl DataRequestPool {
         self.create_reveal(dr_output_pointer, dr_output, reveal);
 
         commit_transaction
+    }
+
+    /// Get all the reveals
+    pub fn get_all_reveals(&self, utxo: &UnspentOutputsPool) -> DataRequestsWithReveals {
+        self.data_request_pool
+            .iter()
+            .filter_map(|(dr_pointer, dr_state)| {
+                if let DataRequestStage::TALLY = dr_state.stage {
+                    let reveals = dr_state
+                        .info
+                        .reveals
+                        .iter()
+                        .map(|reveal_pointer| {
+                            (
+                                reveal_pointer.clone(),
+                                match utxo.get(reveal_pointer) {
+                                    Some(Output::Reveal(reveal_output)) => reveal_output.clone(),
+                                    _ => panic!("Reveal not in utxo"), // TODO: remove panic
+                                },
+                            )
+                        })
+                        .collect();
+                    Some(((dr_pointer.clone(), dr_state.data_request.clone()), reveals))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     /// Add a data request to the data request pool
@@ -380,7 +414,7 @@ impl DataRequestPool {
                         if let Some(hs) = data_requests_by_epoch.get_mut(&dr_state.epoch) {
                             let present = hs.remove(dr_pointer);
                             if !present {
-                                // This could be a warn! or a debug! instead of a panic
+                                // FIXME: This could be a warn! or a debug! instead of a panic
                                 panic!(
                                     "Data request {:?} was not present in the \
                                      data_requests_by_epoch map (epoch #{})",

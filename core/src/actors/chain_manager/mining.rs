@@ -2,20 +2,28 @@ use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, System, WrapFut
 use ansi_term::Color::Yellow;
 use log::{debug, error, info, warn};
 
-use super::messages::{AddNewBlock, GetHighestCheckpointBeacon};
 use super::validations::{block_reward, merkle_tree_root, verify_poe_data_request};
-use super::{messages::AddTransaction, ChainManager};
+use super::{
+    messages::{AddNewBlock, AddTransaction, GetHighestCheckpointBeacon},
+    ChainManager,
+};
 use crate::actors::{
-    rad_manager::{messages::ResolveRA, RadManager},
+    rad_manager::{
+        messages::{ResolveRA, RunConsensus},
+        RadManager,
+    },
     reputation_manager::{messages::ValidatePoE, ReputationManager},
 };
 
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{
-    Block, BlockHeader, CheckpointBeacon, Hash, LeadershipProof, Output, PublicKeyHash,
-    Secp256k1Signature, Signature, Transaction, TransactionsPool, ValueTransferOutput,
+    Block, BlockHeader, CheckpointBeacon, Hash, Input, LeadershipProof, Output, PublicKeyHash,
+    RevealInput, Secp256k1Signature, Signature, TallyOutput, Transaction, TransactionsPool,
+    ValueTransferOutput,
 };
 use witnet_storage::storage::Storable;
+
+use futures::future::{join_all, Future};
 
 impl ChainManager {
     /// Try to mine a block
@@ -94,16 +102,24 @@ impl ChainManager {
                     // Send proof of eligibility to chain manager,
                     // which will construct and broadcast the block
 
-                    // Build the block using the supplied beacon and eligibility proof
-                    let block = build_block(
-                        &act.transactions_pool,
-                        act.max_block_weight,
-                        beacon,
-                        leadership_proof,
-                    );
+                    act.create_tally_transactions()
+                        .into_actor(act)
+                        .and_then(move |tally_transactions, act, ctx| {
+                            // Build the block using the supplied beacon and eligibility proof
+                            let block = build_block(
+                                &act.transactions_pool,
+                                act.max_block_weight,
+                                beacon,
+                                leadership_proof,
+                                &tally_transactions,
+                            );
 
-                    // Send AddNewBlock message to self
-                    act.handle(AddNewBlock { block }, ctx);
+                            // Send AddNewBlock message to self
+                            // This will run all the validations again
+                            act.handle(AddNewBlock { block }, ctx);
+                            actix::fut::ok(())
+                        })
+                        .wait(ctx);
                 }
                 actix::fut::ok(())
             })
@@ -187,6 +203,83 @@ impl ChainManager {
             }
         }
     }
+
+    // TODO: Refactor to move logic to small functions
+    fn create_tally_transactions(&mut self) -> impl Future<Item = Vec<Transaction>, Error = ()> {
+        let data_request_pool = &self.data_request_pool;
+        let utxo = &self.chain_state.unspent_outputs_pool;
+
+        // Include Tally transactions, one for each data request in tally stage
+        let mut future_tally_transactions = vec![];
+        let dr_reveals = data_request_pool.get_all_reveals(&utxo);
+        for ((dr_pointer, dr_output), reveals) in dr_reveals {
+            debug!("Building tally for data request {}", dr_pointer);
+            let mut inputs = vec![];
+            let mut outputs = vec![];
+            let mut results = vec![];
+            // TODO: Do not reward dishonest witnesses
+            let reveal_reward = dr_output.value / u64::from(dr_output.witnesses)
+                - dr_output.commit_fee
+                - dr_output.reveal_fee
+                - dr_output.tally_fee;
+
+            for (reveal_pointer, reveal) in reveals {
+                let reveal_input = RevealInput {
+                    transaction_id: reveal_pointer.transaction_id,
+                    output_index: reveal_pointer.output_index,
+                };
+                inputs.push(Input::Reveal(reveal_input));
+
+                let vt_output = ValueTransferOutput {
+                    pkh: reveal.pkh,
+                    value: reveal_reward,
+                };
+                outputs.push(Output::ValueTransfer(vt_output));
+
+                results.push(reveal.reveal);
+            }
+
+            let change = reveal_reward * (u64::from(dr_output.witnesses) - (results.len() as u64));
+            let pkh = dr_output.pkh;
+
+            let rad_manager_addr = System::current().registry().get::<RadManager>();
+            let fut = rad_manager_addr
+                .send(RunConsensus {
+                    script: dr_output.data_request.consensus,
+                    reveals: results,
+                })
+                .then(move |res| match res {
+                    // Process the response from RADManager
+                    Err(e) => {
+                        // Error when sending message
+                        error!("Unsuccessful communication with RADManager: {}", e);
+                        futures::future::err(())
+                    }
+                    Ok(res) => match res {
+                        Err(e) => {
+                            // Error executing the RAD consensus
+                            error!("RadManager error: {}", e);
+                            futures::future::err(())
+                        }
+
+                        Ok(consensus) => {
+                            let tally_output = TallyOutput {
+                                result: consensus,
+                                pkh,
+                                value: change,
+                            };
+                            outputs.push(Output::Tally(tally_output));
+                            let tally = Transaction::new(0, inputs, outputs, ());
+
+                            futures::future::ok(tally)
+                        }
+                    },
+                });
+            future_tally_transactions.push(fut);
+        }
+
+        join_all(future_tally_transactions)
+    }
 }
 
 /// Build a new Block using the supplied leadership proof and by filling transactions from the
@@ -196,6 +289,7 @@ fn build_block(
     max_block_weight: u32,
     beacon: CheckpointBeacon,
     proof: LeadershipProof,
+    tally_transactions: &[Transaction],
 ) -> Block {
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
@@ -207,7 +301,7 @@ fn build_block(
 
     // Push transactions from pool until `max_block_weight` is reached
     // TODO: refactor this statement into a functional `try_fold`
-    for transaction in transactions_pool.iter() {
+    for transaction in tally_transactions.iter().chain(transactions_pool.iter()) {
         // Currently, 1 weight unit is equivalent to 1 byte
         let transaction_weight = transaction.size();
         // FIXME (anler): Remove unwrap and handle error correctly
@@ -287,6 +381,7 @@ mod tests {
             max_block_weight,
             block_beacon,
             block_proof,
+            &[],
         );
 
         // Check if block only contains the Mint Transaction
@@ -387,6 +482,7 @@ mod tests {
             max_block_weight,
             block_beacon,
             block_proof,
+            &[],
         );
 
         // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
