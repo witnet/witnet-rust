@@ -18,6 +18,7 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
 }
 
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
+// TODO: Add verifications related to data requests (e.g. enough commitment transactions for a data request)
 pub fn validate_transactions<S: ::std::hash::BuildHasher>(
     utxo_set: &mut HashMap<OutputPointer, Output, S>,
     txn_pool: &mut TransactionsPool,

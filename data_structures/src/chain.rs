@@ -278,7 +278,7 @@ impl fmt::Display for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Hash::SHA256(h) => f.write_str(
-                &h.into_iter()
+                &h.iter()
                     .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x)),
             )?,
         };
@@ -439,6 +439,7 @@ pub enum Input {
 impl Input {
     /// Return the [`OutputPointer`](OutputPointer) of an input.
     pub fn output_pointer(&self) -> OutputPointer {
+        // TODO: Potential refactor (redundant `match`)
         match self {
             Input::Commit(input) => OutputPointer {
                 transaction_id: input.transaction_id,
@@ -1167,17 +1168,16 @@ pub enum DataRequestStage {
 /// Pool of active data requests
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ActiveDataRequestPool {
-    /// Current active data request, in which this node has announced commitments.
+    /// Currently active data requests for which this node has announced commitments
     /// Key: Data Request Pointer, Value: Reveal Transaction
     pub waiting_for_reveal: HashMap<OutputPointer, Transaction>,
-    /// List of active data request output pointers ordered by epoch (for mining purposes)
+    /// Indexes the output pointers of every active data request by epoch (only for mining purposes)
     pub data_requests_by_epoch: BTreeMap<Epoch, HashSet<OutputPointer>>,
-    /// List of active data requests indexed by output pointer
+    /// Indexes every active data request by its original output pointer
     pub data_request_pool: HashMap<OutputPointer, DataRequestState>,
-    /// List of data requests that should be persisted into storage
+    /// Lists data request reports that need to be persisted into storage
     pub to_be_stored: Vec<(OutputPointer, DataRequestReport)>,
-    /// Cache which maps commit_pointer to data_request_pointer
-    /// and reveal_pointer to data_request_pointer
+    /// Maps `commit_pointer` and `reveal_pointer` to `data_request_pointer`
     pub dr_pointer_cache: HashMap<OutputPointer, OutputPointer>,
 }
 
@@ -1192,12 +1192,12 @@ pub struct ChainState {
     pub chain_info: Option<ChainInfo>,
     /// Unspent Outputs Pool
     pub unspent_outputs_pool: UnspentOutputsPool,
-    /// Data request pool
+    /// Collection of state structures for active data requests
     pub data_request_pool: ActiveDataRequestPool,
 }
 
 impl ChainState {
-    /// Method to check that all inpunts point to unspend output
+    /// Method to check that all inputs point to unspent outputs
     pub fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
         inputs.iter().all(|tx_input| {
             let output_pointer = tx_input.output_pointer();
@@ -1205,23 +1205,21 @@ impl ChainState {
             self.unspent_outputs_pool.contains_key(&output_pointer)
         })
     }
-    /// calculate output pointed from input
+    /// Retrieve the output pointed by the output pointer in an input
     pub fn get_output_from_input(&self, input: &Input) -> Option<&Output> {
         let output_pointer = input.output_pointer();
 
         self.unspent_outputs_pool.get(&output_pointer)
     }
-    /// calculate output vector from inputs vector
+    /// Map a vector of inputs to a the vector of outputs pointed by the inputs' output pointers
     pub fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Result<Vec<Output>, Input> {
-        let mut v: Vec<Output> = Vec::new();
-        for input in inputs {
-            match self.get_output_from_input(input) {
-                None => {
-                    return Err(input.clone());
-                }
-                Some(output) => v.push(output.clone()),
-            }
-        }
+        let v = inputs
+            .iter()
+            .map(|i| self.get_output_from_input(i))
+            .fuse()
+            .flatten()
+            .cloned()
+            .collect();
 
         Ok(v)
     }

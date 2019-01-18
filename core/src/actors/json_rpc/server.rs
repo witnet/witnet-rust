@@ -7,7 +7,6 @@ use actix::{
     io::FramedWrite, Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message,
     StreamHandler,
 };
-use bytes;
 use futures::Stream;
 use jsonrpc_core::IoHandler;
 use log::*;

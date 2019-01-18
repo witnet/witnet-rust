@@ -31,6 +31,7 @@ impl Actor for ChainManager {
     type Context = Context<Self>;
 
     /// Method to be executed when the actor is started
+    // FIXME: Remove all `unwrap()`s
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("ChainManager actor has been started!");
 

@@ -225,11 +225,11 @@ impl ChainManager {
             .wait(ctx)
     }
 
-    /// Method to Send an Item to Inventory Manager
+    /// Method to persist a Data Request into the Storage
     fn persist_data_request(
         &self,
         ctx: &mut Context<Self>,
-        data_request: &(OutputPointer, DataRequestReport),
+        (output_pointer, data_request_report): &(OutputPointer, DataRequestReport),
     ) {
         // Get StorageManager address
         let storage_manager_addr = System::current().registry().get::<StorageManager>();
@@ -237,7 +237,7 @@ impl ChainManager {
         // Persist block_chain into storage. `AsyncContext::wait` registers
         // future within context, but context waits until this future resolves
         // before processing any other events.
-        let msg = Put::from_value(data_request.0.to_bytes().unwrap(), &data_request.1).unwrap();
+        let msg = Put::from_value(output_pointer.to_bytes().unwrap(), data_request_report).unwrap();
         storage_manager_addr
             .send(msg)
             .into_actor(self)
@@ -508,13 +508,13 @@ impl ChainManager {
                             } else {
                                 //TODO: Now we assume there are no forked older blocks
 
-                                //Announce and persist older blocks
+                                // Announce and persist older blocks
                                 self.broadcast_announce_items(hash);
 
-                                //
+                                // Persist block item
                                 self.persist_item(ctx, InventoryItem::Block(block.clone()));
 
-                                // Update utxo set with an older block transactions
+                                // Update utxo set with block's transactions
                                 self.chain_state.unspent_outputs_pool =
                                     self.chain_state.generate_unspent_outputs_pool(&block);
                                 self.transactions_pool = txn_mempool;
