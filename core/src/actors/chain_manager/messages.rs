@@ -12,6 +12,16 @@ use witnet_data_structures::{
 /// Message result of unit
 pub type SessionUnitResult = ();
 
+/// Set `network_ready` flag
+pub struct SetNetworkReady {
+    /// Block
+    pub network_ready: bool,
+}
+
+impl Message for SetNetworkReady {
+    type Result = SessionUnitResult;
+}
+
 /// Message to obtain the highest block checkpoint managed by the `ChainManager`
 /// actor.
 pub struct GetHighestCheckpointBeacon;

@@ -24,7 +24,7 @@ use log::{debug, error, info, warn};
 
 use super::messages::{
     AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
-    GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult,
+    GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult, SetNetworkReady,
 };
 use crate::actors::chain_manager::data_request::DataRequestPool;
 use witnet_data_structures::chain::ActiveDataRequestPool;
@@ -39,6 +39,15 @@ pub struct EpochPayload;
 /// Payload for the notification for all epochs
 #[derive(Clone, Debug)]
 pub struct EveryEpochPayload;
+
+/// Handler for SetNetworkReady message
+impl Handler<SetNetworkReady> for ChainManager {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, msg: SetNetworkReady, _ctx: &mut Context<Self>) {
+        self.network_ready = msg.network_ready;
+    }
+}
 
 /// Handler for EpochNotification<EpochPayload>
 impl Handler<EpochNotification<EpochPayload>> for ChainManager {
@@ -62,6 +71,14 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         self.current_epoch = Some(msg.checkpoint);
+
+        if !self.network_ready {
+            warn!(
+                "Node is not connected to enough peers. Delaying chain bootstrapping until then."
+            );
+
+            return;
+        }
 
         if let Some(candidate) = self.best_candidate.take() {
             // Update chain_info
@@ -262,18 +279,18 @@ impl Handler<AddTransaction> for ChainManager {
                                         // RO RULE 3. The value brought into a transaction by an input pointing
                                         // to a reveal output can only be spent by value transfer outputs.
                                         is_value_transfer_output(output)
-                                        // RO RULE 1. Reveal outputs can only take value from commit inputs
-                                        // whose index in the inputs list is the same as their own index in the outputs list.
-                                        // RO RULE 2. Multiple reveal outputs can exist in a single transaction,
-                                        // but each of them needs to be coupled with a commit input occupying
-                                        // the same index in the inputs list as their own in the outputs list.
-                                        // Predictably, as a result of the previous rule, each of the multiple
-                                        // reveal outputs only takes value from the commit input with the same index.
-                                        && is_commit_input(input)
-                                        // TODO: validate only once
-                                        // RO RULE 4. Any transaction including an input pointing to a
-                                        // reveal output must also include exactly only one tally output.
-                                        && validate_tally_output_uniqueness(outputs)
+                                            // RO RULE 1. Reveal outputs can only take value from commit inputs
+                                            // whose index in the inputs list is the same as their own index in the outputs list.
+                                            // RO RULE 2. Multiple reveal outputs can exist in a single transaction,
+                                            // but each of them needs to be coupled with a commit input occupying
+                                            // the same index in the inputs list as their own in the outputs list.
+                                            // Predictably, as a result of the previous rule, each of the multiple
+                                            // reveal outputs only takes value from the commit input with the same index.
+                                            && is_commit_input(input)
+                                            // TODO: validate only once
+                                            // RO RULE 4. Any transaction including an input pointing to a
+                                            // reveal output must also include exactly only one tally output.
+                                            && validate_tally_output_uniqueness(outputs)
                                     }
                                     Output::Tally(_) => true,
                                 };
