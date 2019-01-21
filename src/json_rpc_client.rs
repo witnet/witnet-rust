@@ -68,7 +68,6 @@ pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), f
                 r#"{{"jsonrpc": "2.0","method": "getOutput", "params": [{}], "id": "1"}}"#,
                 output_pointer_formated,
             );
-
             let response = send_request(&mut stream, &a);
 
             println!("{}", response.unwrap());

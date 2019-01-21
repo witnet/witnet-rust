@@ -91,5 +91,18 @@ Block for epoch #46924 had digest e706995269bfc4fb5f4ab9082765a1bdb48fc6e58cdf5f
 Block for epoch #46925 had digest 2dc469691916a862154eb92473278ea8591ace910ec7ecb560797cbb91fdc01e
 ```
 
+#### getDataRequest
+
+Returns the data request that matches with the provided output pointer.
+
+```text
+$ witnet cli getDataRequest --outputPointer 1234567890abcdef111111111111111111111111111111111111111111111111:1
+```
+```js
+{"jsonrpc":"2.0","result":{"DataRequest":{"backup_witnesses":0,"commit_fee":0,"data_request":{"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"}],"not_before":0,"retrieve":[{"kind":"HTTP-GET","script":[0],"url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}]},"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"reveal_fee":0,"tally_fee":0,"time_lock":0,"value":0,"witnesses":0}},"id":"1"}
+```
+
+The way to provide a valid outputPointer the format is: a 32 hex digits for transaction_id, a semicolon and the output index: `{transaction_id}:{output_index}` 
+
 [jsonrpc]: json-rpc/
 [configuration]: ../configuration/toml-file/
