@@ -83,10 +83,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                     // Update utxo_set and transactions_pool with block_candidate transactions
                     self.chain_state.unspent_outputs_pool = candidate.utxo_set;
-                    // FIXME: The transactions pool should not be overwritten with the candidate
-                    // because new transactions are stored in self.transactions_pool and not in
-                    // candidate.txn_mempool
-                    self.transactions_pool = candidate.txn_mempool;
+                    self.update_transaction_pool(candidate.block.txns.as_ref());
                     self.data_request_pool = candidate.data_request_pool;
 
                     let reveals = self.data_request_pool.update_data_request_stages();

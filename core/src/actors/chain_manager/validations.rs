@@ -21,7 +21,7 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
 // TODO: Add verifications related to data requests (e.g. enough commitment transactions for a data request)
 pub fn validate_transactions<S: ::std::hash::BuildHasher>(
     utxo_set: &mut HashMap<OutputPointer, Output, S>,
-    txn_pool: &mut TransactionsPool,
+    _txn_pool: &TransactionsPool,
     data_request_pool: &mut DataRequestPool,
     block: &Block,
 ) -> bool {
@@ -48,8 +48,6 @@ pub fn validate_transactions<S: ::std::hash::BuildHasher>(
 
                 utxo_set.insert(output_pointer, output.clone());
             }
-
-            txn_pool.remove(&txn_hash);
 
             // Add DataRequests from the block into the data_request_pool
             data_request_pool.process_transaction(
