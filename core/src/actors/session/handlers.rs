@@ -25,7 +25,10 @@ use crate::actors::{
 };
 
 use super::{
-    messages::{AnnounceItems, GetPeers, RequestBlock, SendInventoryItem, SessionUnitResult},
+    messages::{
+        AnnounceItems, GetPeers, InventoryExchange, RequestBlock, SendInventoryItem,
+        SessionUnitResult,
+    },
     Session,
 };
 use witnet_data_structures::{
@@ -225,17 +228,25 @@ impl Handler<RequestBlock> for Session {
     }
 }
 
+/// Handler for InventoryExchange message (sent by other actors)
+impl Handler<InventoryExchange> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, _: InventoryExchange, ctx: &mut Context<Self>) {
+        debug!(
+            "Starting Inventory Exchange with peer at {:?}",
+            self.remote_addr
+        );
+        inventory_get_blocks(self, ctx)
+    }
+}
+
 /// Function to try to consolidate session if handshake conditions are met
 fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
     // Check if HandshakeFlags are all set to true
     if session.handshake_flags.all_true() && session.remote_sender_addr.is_some() {
         // Update session to consolidate status
         update_consolidate(session, ctx);
-
-        // If session type is Outbound, start initial block synchronization
-        if let SessionType::Outbound = session.session_type {
-            inventory_get_blocks(session, ctx);
-        }
     }
 }
 
