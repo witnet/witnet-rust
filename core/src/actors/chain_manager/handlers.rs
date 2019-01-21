@@ -80,14 +80,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     debug!("{:?}", candidate.block);
                     debug!("Mint transaction hash: {:?}", candidate.block.txns[0].hash());
 
-                    // FIXME: The transactions pool should not be overwritten with the candidate
-                    // because new transactions are stored in self.transactions_pool and not in
-                    // candidate.txn_mempool
-                    self.transactions_pool.retain(|k, _v| {
-                        !candidate.utxo_set.contains_key(&OutputPointer { transaction_id: *k, output_index: 0})
-                    });//candidate.txn_mempool;
                     // Update utxo_set and transactions_pool with block_candidate transactions
                     self.chain_state.unspent_outputs_pool = candidate.utxo_set;
+                    self.update_transaction_pool(candidate.block.txns.as_ref());
                     self.data_request_pool = candidate.data_request_pool;
 
                     let reveals = self.data_request_pool.update_data_request_stages();

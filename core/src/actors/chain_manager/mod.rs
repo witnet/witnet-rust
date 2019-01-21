@@ -52,7 +52,7 @@ use self::validations::{validate_merkle_tree, validate_transactions};
 
 use witnet_data_structures::chain::{
     Block, Blockchain, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable,
-    InventoryEntry, InventoryItem, OutputPointer, TransactionsPool, UnspentOutputsPool,
+    InventoryEntry, InventoryItem, OutputPointer, Transaction, TransactionsPool, UnspentOutputsPool,
 };
 
 use witnet_storage::{error::StorageError, storage::Storable};
@@ -126,7 +126,6 @@ pub struct ChainManager {
 pub struct Candidate {
     block: Block,
     utxo_set: UnspentOutputsPool,
-    txn_mempool: TransactionsPool,
     data_request_pool: DataRequestPool,
 }
 
@@ -466,6 +465,12 @@ impl ChainManager {
             });
     }
 
+    fn update_transaction_pool(&mut self, transactions: &Vec<Transaction>) {
+        for transaction in transactions {
+            self.transactions_pool.remove(&transaction.hash());
+        }
+    }
+
     fn process_poe_validation_response(
         &mut self,
         res: Result<bool, MailboxError>,
@@ -482,12 +487,11 @@ impl ChainManager {
             }
             Ok(true) => {
                 let mut utxo_set = self.chain_state.unspent_outputs_pool.clone();
-                let mut txn_mempool = self.transactions_pool.clone();
                 let mut data_request_pool = self.data_request_pool.clone();
 
                 if validate_transactions(
                     &mut utxo_set,
-                    &mut txn_mempool,
+                    &self.transactions_pool,
                     &mut data_request_pool,
                     &block,
                 ) {
@@ -501,7 +505,6 @@ impl ChainManager {
                                 self.best_candidate = Some(Candidate {
                                     block: block.clone(),
                                     utxo_set,
-                                    txn_mempool,
                                     data_request_pool,
                                 });
                                 //Broadcast blocks in current epoch
@@ -518,7 +521,7 @@ impl ChainManager {
                                 // Update utxo set with block's transactions
                                 self.chain_state.unspent_outputs_pool =
                                     self.chain_state.generate_unspent_outputs_pool(&block);
-                                self.transactions_pool = txn_mempool;
+                                self.update_transaction_pool(block.txns.as_ref());
 
                                 // Update chain_info
                                 match self.chain_state.chain_info.as_mut() {
