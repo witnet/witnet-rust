@@ -58,3 +58,13 @@ impl fmt::Display for RequestBlock {
         write!(f, "RequestBlock")
     }
 }
+
+/// Message to indicate that the session needs start an inventory exchange
+#[derive(Clone, Debug, Message)]
+pub struct InventoryExchange;
+
+impl fmt::Display for InventoryExchange {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "InventoryExchange")
+    }
+}
