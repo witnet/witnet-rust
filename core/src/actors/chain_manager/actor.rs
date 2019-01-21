@@ -39,48 +39,16 @@ impl Actor for ChainManager {
         // Make sure to wait at least 1 second before starting each node
         self.random = get_timestamp() as u64;
 
-        // Get EpochManager address from registry
-        let epoch_manager_addr = System::current().registry().get::<EpochManager>();
+        self.initialize_from_storage(ctx);
 
-        // Start chain of actions
-        epoch_manager_addr
-            // Send GetEpoch message to epoch manager actor
-            // This returns a RequestFuture, representing an asynchronous message sending process
-            .send(GetEpoch)
-            // Convert a normal future into an ActorFuture
-            .into_actor(self)
-            // Process the response from the EpochManager
-            // This returns a FutureResult containing the socket address if present
-            .then(move |res, act, ctx| {
-                // Get ChainManager address
-                let chain_manager_addr = ctx.address();
+        self.subscribe_to_epoch_manager(ctx);
+    }
+}
 
-                // Check GetEpoch result
-                match res {
-                    Ok(Ok(epoch)) => {
-                        // Subscribe to all epochs with an EveryEpochPayload
-                        epoch_manager_addr
-                            .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
-
-                        // Set current_epoch
-                        act.current_epoch = Some(epoch);
-                    }
-                    Ok(Err(CheckpointZeroInTheFuture(zero))) => {
-                        let date = pretty_print(zero, 0);
-                        warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
-                        // Subscribe to first epoch
-                        epoch_manager_addr
-                            .do_send(Subscribe::to_epoch(0, chain_manager_addr, EpochPayload))
-                    }
-                    error => {
-                        error!("Current epoch could not be retrieved from EpochManager: {:?}", error);
-                    }
-                }
-
-                actix::fut::ok(())
-            })
-            .wait(ctx);
-
+impl ChainManager {
+    /// Get configuration from ConfigManager and try to initialize ChainManager state from Storage
+    /// (initialize to Default values if empty)
+    fn initialize_from_storage(&mut self, ctx: &mut Context<ChainManager>) {
         // Query ConfigManager for initial configuration and process response
         send_get_config_request(self, ctx, |act, ctx, config| {
             // Get environment and consensus_constants parameters from config
@@ -244,5 +212,50 @@ impl Actor for ChainManager {
                 debug!("Mining explicitly disabled by configuration.");
             }
         });
+    }
+
+    /// Get epoch from EpochManager and subscribe to future epochs
+    fn subscribe_to_epoch_manager(&mut self, ctx: &mut Context<ChainManager>) {
+        // Get EpochManager address from registry
+        let epoch_manager_addr = System::current().registry().get::<EpochManager>();
+
+        // Start chain of actions
+        epoch_manager_addr
+            // Send GetEpoch message to epoch manager actor
+            // This returns a RequestFuture, representing an asynchronous message sending process
+            .send(GetEpoch)
+            // Convert a normal future into an ActorFuture
+            .into_actor(self)
+            // Process the response from the EpochManager
+            // This returns a FutureResult containing the socket address if present
+            .then(move |res, act, ctx| {
+                // Get ChainManager address
+                let chain_manager_addr = ctx.address();
+
+                // Check GetEpoch result
+                match res {
+                    Ok(Ok(epoch)) => {
+                        // Subscribe to all epochs with an EveryEpochPayload
+                        epoch_manager_addr
+                            .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
+
+                        // Set current_epoch
+                        act.current_epoch = Some(epoch);
+                    }
+                    Ok(Err(CheckpointZeroInTheFuture(zero))) => {
+                        let date = pretty_print(zero, 0);
+                        warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
+                        // Subscribe to first epoch
+                        epoch_manager_addr
+                            .do_send(Subscribe::to_epoch(0, chain_manager_addr, EpochPayload))
+                    }
+                    error => {
+                        error!("Current epoch could not be retrieved from EpochManager: {:?}", error);
+                    }
+                }
+
+                actix::fut::ok(())
+            })
+            .wait(ctx);
     }
 }

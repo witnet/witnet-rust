@@ -20,7 +20,7 @@ use log::{debug, error, info, warn};
 
 use super::messages::{
     AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
-    GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult,
+    GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult, SetNetworkReady,
 };
 use crate::actors::chain_manager::data_request::DataRequestPool;
 use witnet_data_structures::chain::ActiveDataRequestPool;
@@ -35,6 +35,15 @@ pub struct EpochPayload;
 /// Payload for the notification for all epochs
 #[derive(Clone, Debug)]
 pub struct EveryEpochPayload;
+
+/// Handler for SetNetworkReady message
+impl Handler<SetNetworkReady> for ChainManager {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, msg: SetNetworkReady, _ctx: &mut Context<Self>) {
+        self.network_ready = msg.network_ready;
+    }
+}
 
 /// Handler for EpochNotification<EpochPayload>
 impl Handler<EpochNotification<EpochPayload>> for ChainManager {
@@ -58,6 +67,14 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         self.current_epoch = Some(msg.checkpoint);
+
+        if !self.network_ready {
+            warn!(
+                "Node is not connected to enough peers. Delaying chain bootstrapping until then."
+            );
+
+            return;
+        }
 
         if let Some(candidate) = self.best_candidate.take() {
             // Update chain_info

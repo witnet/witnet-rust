@@ -92,6 +92,8 @@ impl From<WitnetError<StorageError>> for ChainManagerError {
 /// ChainManager actor
 #[derive(Default)]
 pub struct ChainManager {
+    /// Flag indicating if network is ready
+    network_ready: bool,
     /// Blockchain state data structure
     chain_state: ChainState,
     /// Map that relates an epoch with the hashes of the blocks for that epoch (blocks index)
