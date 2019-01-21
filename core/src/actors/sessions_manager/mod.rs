@@ -9,14 +9,18 @@ use actix::{
 use ansi_term::Color::Cyan;
 
 use crate::actors::{
+    chain_manager::{messages::SetNetworkReady, ChainManager},
     connections_manager::{messages::OutboundTcpConnect, ConnectionsManager},
     peers_manager::{
         messages::{GetRandomPeer, PeersSocketAddrResult},
         PeersManager,
     },
-    session::{messages::GetPeers, Session},
+    session::{
+        messages::{GetPeers, InventoryExchange},
+        Session,
+    },
+    sessions_manager::messages::Broadcast,
 };
-
 use witnet_p2p::sessions::Sessions;
 
 mod actor;
@@ -29,6 +33,8 @@ pub mod messages;
 pub struct SessionsManager {
     // Registered Sessions
     sessions: Sessions<Addr<Session>>,
+    // Flag indicating if network is ready, i.e. enough outbound peers are connected
+    network_ready: bool,
 }
 
 impl SessionsManager {
@@ -76,6 +82,21 @@ impl SessionsManager {
                         actix::fut::ok(())
                     })
                     .wait(ctx);
+            } else if !act.network_ready {
+                debug!(
+                    "Network is now ready to start Inventory exchanges with consolidated sessions"
+                );
+                act.network_ready = true;
+
+                // Get ChainManager address and send `SetNetworkReady` message
+                let chain_manager_addr = System::current().registry().get::<ChainManager>();
+                chain_manager_addr.do_send(SetNetworkReady {
+                    network_ready: true,
+                });
+                // Broadcast `InventoryExchange` messages to consolidated sessions
+                ctx.address().do_send(Broadcast {
+                    command: InventoryExchange,
+                });
             }
 
             // Reschedule the bootstrap peers task
