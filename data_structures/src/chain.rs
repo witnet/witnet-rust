@@ -139,7 +139,7 @@ impl Block {
     pub fn validate(
         &self,
         block_reward: u64,
-        pool: &TransactionsPool,
+        pool: &UnspentOutputsPool,
     ) -> Result<(), failure::Error> {
         let mint_transaction = self.txns.first().ok_or_else(|| BlockError::Empty)?;
 
@@ -354,10 +354,11 @@ impl Transaction {
     /// inputs of a transaction. If an input pointed-output is not
     /// found in `pool`, then an error is returned instead indicating
     /// it.
-    pub fn inputs_sum(&self, pool: &TransactionsPool) -> Result<u64, TransactionError> {
+    pub fn inputs_sum(&self, pool: &UnspentOutputsPool) -> Result<u64, TransactionError> {
         let mut total_value = 0;
 
         for input in &self.inputs {
+            /*
             let OutputPointer {
                 transaction_id,
                 output_index,
@@ -369,6 +370,10 @@ impl Transaction {
             let pointed_value = pointed_transaction
                 .get_output_value(index)
                 .ok_or_else(|| TransactionError::OutputNotFound(transaction_id, index))?;
+                */
+            let pointed_value = pool.get(&input.output_pointer()).ok_or_else(
+                || TransactionError::OutputNotFound(input.output_pointer().transaction_id, input.output_pointer().output_index as usize)
+            )?.value();
             total_value += pointed_value;
         }
 
@@ -407,7 +412,7 @@ impl Transaction {
     /// of the transaction. The pool parameter is used to find the
     /// outputs pointed by the inputs and that contain the actual
     /// their value.
-    pub fn fee(&self, pool: &TransactionsPool) -> Result<u64, TransactionError> {
+    pub fn fee(&self, pool: &UnspentOutputsPool) -> Result<u64, TransactionError> {
         let in_value = self.inputs_sum(pool)?;
         let out_value = self.outputs_sum();
 

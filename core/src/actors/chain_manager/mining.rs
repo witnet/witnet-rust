@@ -22,6 +22,7 @@ use witnet_data_structures::chain::{
     ValueTransferOutput,
 };
 use witnet_storage::storage::Storable;
+use witnet_data_structures::chain::UnspentOutputsPool;
 
 use futures::future::{join_all, Future};
 
@@ -108,6 +109,7 @@ impl ChainManager {
                             // Build the block using the supplied beacon and eligibility proof
                             let block = build_block(
                                 &act.transactions_pool,
+                                &act.chain_state.unspent_outputs_pool,
                                 act.max_block_weight,
                                 beacon,
                                 leadership_proof,
@@ -286,6 +288,7 @@ impl ChainManager {
 /// `transaction_pool`
 fn build_block(
     transactions_pool: &TransactionsPool,
+    unspent_outputs_pool: &UnspentOutputsPool,
     max_block_weight: u32,
     beacon: CheckpointBeacon,
     proof: LeadershipProof,
@@ -302,10 +305,11 @@ fn build_block(
     // Push transactions from pool until `max_block_weight` is reached
     // TODO: refactor this statement into a functional `try_fold`
     for transaction in tally_transactions.iter().chain(transactions_pool.iter()) {
+        info!("Pushing transaction into block: {:?}", transaction);
         // Currently, 1 weight unit is equivalent to 1 byte
         let transaction_weight = transaction.size();
         // FIXME (anler): Remove unwrap and handle error correctly
-        let transaction_fee = transaction.fee(transactions_pool).unwrap();
+        let transaction_fee = transaction.fee(unspent_outputs_pool).unwrap();
         let new_block_weight = block_weight + transaction_weight;
 
         if new_block_weight <= max_block_weight {

@@ -57,6 +57,7 @@ use witnet_data_structures::chain::{
 
 use witnet_storage::{error::StorageError, storage::Storable};
 use witnet_util::error::WitnetError;
+use crate::actors::chain_manager::validations::block_reward;
 
 mod actor;
 mod data_request;
@@ -434,8 +435,8 @@ impl ChainManager {
                             error!("Unexpected error");
                         }
                     }
-                } else if block.validate(0, &self.transactions_pool).is_err() {
-                    warn!("Block's mint transaction is not valid");
+                } else if let Err(e) = block.validate(block_reward(block_epoch), &self.chain_state.unspent_outputs_pool) {
+                    warn!("Block's mint transaction is not valid: {:?}", e);
                 } else {
                     if block_epoch < current_epoch {
                         // FIXME(#235): check proof of eligibility from the past

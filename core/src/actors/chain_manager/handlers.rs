@@ -1,9 +1,5 @@
 use crate::actors::chain_manager::messages::GetOutputResult;
-use crate::utils::{
-    count_tally_outputs, is_commit_input, is_commit_output, is_data_request_input,
-    is_reveal_output, is_tally_output, is_value_transfer_output, validate_tally_output_uniqueness,
-    validate_value_transfer_output_position,
-};
+
 use actix::{Actor, Context, Handler};
 use ansi_term::Color::Purple;
 
@@ -81,12 +77,17 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         Purple.bold().paint(beacon.checkpoint.to_string()),
                     );
 
-                    // Update utxo_set and transactions_pool with block_candidate transactions
-                    self.chain_state.unspent_outputs_pool = candidate.utxo_set;
+                    debug!("{:?}", candidate.block);
+                    debug!("Mint transaction hash: {:?}", candidate.block.txns[0].hash());
+
                     // FIXME: The transactions pool should not be overwritten with the candidate
                     // because new transactions are stored in self.transactions_pool and not in
                     // candidate.txn_mempool
-                    self.transactions_pool = candidate.txn_mempool;
+                    self.transactions_pool.retain(|k, _v| {
+                        !candidate.utxo_set.contains_key(&OutputPointer { transaction_id: *k, output_index: 0})
+                    });//candidate.txn_mempool;
+                    // Update utxo_set and transactions_pool with block_candidate transactions
+                    self.chain_state.unspent_outputs_pool = candidate.utxo_set;
                     self.data_request_pool = candidate.data_request_pool;
 
                     let reveals = self.data_request_pool.update_data_request_stages();
@@ -178,18 +179,26 @@ impl Handler<AddTransaction> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) {
-        let outputs = &msg.transaction.outputs;
+        debug!("Adding transaction: {:?}", msg.transaction);
+        // FIXME: transaction validation is broken
+        //let outputs = &msg.transaction.outputs;
         let inputs = &msg.transaction.inputs;
 
         match self.chain_state.get_outputs_from_inputs(inputs) {
-            Ok(outputs_from_inputs) => {
-                let outputs_from_inputs = &outputs_from_inputs;
+            Ok(_outputs_from_inputs) => {
+                //let outputs_from_inputs = &outputs_from_inputs;
 
                 // Check that all inputs point to unspent outputs
                 if self
                     .chain_state
                     .find_unspent_outputs(&msg.transaction.inputs)
                 {
+                    /*
+use crate::utils::{
+    count_tally_outputs, is_commit_input, is_commit_output, is_data_request_input,
+    is_reveal_output, is_tally_output, is_value_transfer_output, validate_tally_output_uniqueness,
+    validate_value_transfer_output_position,
+};
                     // Validate transaction
                     // DRO RULE 1. Multiple data request outputs can be included into a single transaction.
                     // As long as the inputs are greater than the outputs, the rule still hold true. The difference
@@ -228,7 +237,7 @@ impl Handler<AddTransaction> for ChainManager {
                                         // CO RULE 3. The value brought into a transaction by an input pointing
                                         // to a commit output can only be spent by reveal or tally outputs.
                                         Some(Output::Commit(_)) => {
-                                            is_reveal_output(output) && is_tally_output(output)
+                                            is_reveal_output(output) || is_tally_output(output)
                                         }
 
                                         // RO 3. The value brought into a transaction by an input pointing to a
@@ -286,7 +295,8 @@ impl Handler<AddTransaction> for ChainManager {
                         if is_valid_transaction.is_some()
                             && is_valid_vto_position
                             && !consensus_output_overflow
-                        {
+                        {*/
+                            info!("Transaction added successfully");
                             // Broadcast valid transaction
                             self.broadcast_item(InventoryItem::Transaction(
                                 msg.transaction.clone(),
@@ -294,9 +304,12 @@ impl Handler<AddTransaction> for ChainManager {
 
                             // Add valid transaction to transactions_pool
                             self.transactions_pool
-                                .insert(msg.transaction.hash(), msg.transaction);
+                                .insert(msg.transaction.hash(), msg.transaction);/*
                         }
                     }
+                    */
+                } else {
+                    warn!("Input OutputPointer not in pool");
                 }
             }
             Err(_) => {
