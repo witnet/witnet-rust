@@ -85,6 +85,23 @@ Response:
 {"jsonrpc":"2.0","result":[[0,"ed28899af8c3148a4162736af942bc68c4466da93c5124dabfaa7c582af49e30"],[1,"9c9038cfb31a7050796920f91b17f4a68c7e9a795ee8962916b35d39fc1efefc"]],"id":1}
 ```
 
+#### getOutputPointer
+Get the outputPointer that matches with the input provided.
+
+Returns an `OuputPointer`.
+
+Example:
+
+```
+{"jsonrpc": "2.0","method": "getOutput", "params": {"transaction_id":{"SHA256":[17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17]},"output_index":1}, "id": "1"}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":{"DataRequest":{"backup_witnesses":0,"commit_fee":0,"data_request":{"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"}],"not_before":0,"retrieve":[{"kind":"HTTP-GET","script":[0],"url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}]},"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"reveal_fee":0,"tally_fee":0,"time_lock":0,"value":0,"witnesses":0}},"id":"1"}
+```
+
 [json_rpc_server]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/server.rs
 [noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
 [json_rpc_methods]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/json_rpc_methods.rs
