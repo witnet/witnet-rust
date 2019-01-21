@@ -259,7 +259,7 @@ mod transaction {
 
     #[test]
     fn test_inputs_sum() {
-        let mut pool = TransactionsPool::new();
+        let mut pool = UnspentOutputsPool::new();
         let hash = HASH;
         let transaction = Transaction {
             version: 0,
@@ -284,26 +284,34 @@ mod transaction {
         assert!(transaction.inputs_sum(&pool).is_err());
 
         pool.insert(
-            hash,
-            Transaction {
-                version: 0,
-                signatures: Vec::new(),
-                inputs: Vec::new(),
-                outputs: vec![
-                    Output::Commit(CommitOutput {
-                        commitment: hash,
-                        value: 123,
-                    }),
-                    Output::Commit(CommitOutput {
-                        commitment: hash,
-                        value: 10,
-                    }),
-                    Output::Commit(CommitOutput {
-                        commitment: hash,
-                        value: 1,
-                    }),
-                ],
+            OutputPointer {
+                transaction_id: hash,
+                output_index: 0,
             },
+            Output::Commit(CommitOutput {
+                commitment: hash,
+                value: 123,
+            }),
+        );
+        pool.insert(
+            OutputPointer {
+                transaction_id: hash,
+                output_index: 1,
+            },
+            Output::Commit(CommitOutput {
+                commitment: hash,
+                value: 10,
+            }),
+        );
+        pool.insert(
+            OutputPointer {
+                transaction_id: hash,
+                output_index: 2,
+            },
+            Output::Commit(CommitOutput {
+                commitment: hash,
+                value: 1,
+            }),
         );
 
         assert_eq!(transaction.inputs_sum(&pool).unwrap(), 124);
@@ -341,7 +349,7 @@ mod transaction {
 
     #[test]
     fn test_fee() {
-        let pool = TransactionsPool::new();
+        let pool = UnspentOutputsPool::new();
         let transaction = Transaction {
             version: 0,
             signatures: Vec::new(),
@@ -375,7 +383,7 @@ mod block {
 
     #[test]
     fn test_validate_correct_block() {
-        let pool = TransactionsPool::new();
+        let pool = UnspentOutputsPool::new();
         let reward = 123;
         let block = Block {
             block_header: HEADER,
@@ -396,7 +404,7 @@ mod block {
 
     #[test]
     fn test_validate_empty_block() {
-        let pool = TransactionsPool::new();
+        let pool = UnspentOutputsPool::new();
         let reward = 123;
         let block = Block {
             block_header: HEADER,
@@ -414,7 +422,7 @@ mod block {
 
     #[test]
     fn test_validate_block_with_no_mint() {
-        let pool = TransactionsPool::new();
+        let pool = UnspentOutputsPool::new();
         let reward = 123;
         let block = Block {
             block_header: HEADER,
@@ -445,7 +453,7 @@ mod block {
 
     #[test]
     fn test_validate_block_with_multiple_mint() {
-        let pool = TransactionsPool::new();
+        let pool = UnspentOutputsPool::new();
         let reward = 123;
         let mint = Transaction {
             version: 0,
@@ -472,7 +480,7 @@ mod block {
 
     #[test]
     fn test_validate_block_with_mismatched_mint_value() {
-        let pool = TransactionsPool::new();
+        let pool = UnspentOutputsPool::new();
         let reward = 123;
         let block = Block {
             block_header: HEADER,

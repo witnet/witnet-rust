@@ -371,9 +371,15 @@ impl Transaction {
                 .get_output_value(index)
                 .ok_or_else(|| TransactionError::OutputNotFound(transaction_id, index))?;
                 */
-            let pointed_value = pool.get(&input.output_pointer()).ok_or_else(
-                || TransactionError::OutputNotFound(input.output_pointer().transaction_id, input.output_pointer().output_index as usize)
-            )?.value();
+            let pointed_value = pool
+                .get(&input.output_pointer())
+                .ok_or_else(|| {
+                    TransactionError::OutputNotFound(
+                        input.output_pointer().transaction_id,
+                        input.output_pointer().output_index as usize,
+                    )
+                })?
+                .value();
             total_value += pointed_value;
         }
 

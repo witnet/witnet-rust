@@ -16,13 +16,13 @@ use crate::actors::{
 };
 
 use witnet_crypto::hash::calculate_sha256;
+use witnet_data_structures::chain::UnspentOutputsPool;
 use witnet_data_structures::chain::{
     Block, BlockHeader, CheckpointBeacon, Hash, Input, LeadershipProof, Output, PublicKeyHash,
     RevealInput, Secp256k1Signature, Signature, TallyOutput, Transaction, TransactionsPool,
     ValueTransferOutput,
 };
 use witnet_storage::storage::Storable;
-use witnet_data_structures::chain::UnspentOutputsPool;
 
 use futures::future::{join_all, Future};
 
@@ -369,6 +369,8 @@ mod tests {
         };
         transaction_pool.insert(transaction.hash(), transaction.clone());
 
+        let unspent_outputs_pool = UnspentOutputsPool::default();
+
         // Set `max_block_weight` to zero (no transaction should be included)
         let max_block_weight = 0;
 
@@ -382,6 +384,7 @@ mod tests {
         // Build empty block (because max weight is zero)
         let block = build_block(
             &transaction_pool,
+            &unspent_outputs_pool,
             max_block_weight,
             block_beacon,
             block_proof,
@@ -470,6 +473,8 @@ mod tests {
         transaction_pool.insert(transaction_2.hash(), transaction_2.clone());
         transaction_pool.insert(transaction_3.hash(), transaction_3.clone());
 
+        let unspent_outputs_pool = UnspentOutputsPool::default();
+
         // Set `max_block_weight` to fit only `transaction_1` size
         let max_block_weight = transaction_1.size();
 
@@ -483,6 +488,7 @@ mod tests {
         // Build block with
         let block = build_block(
             &transaction_pool,
+            &unspent_outputs_pool,
             max_block_weight,
             block_beacon,
             block_proof,

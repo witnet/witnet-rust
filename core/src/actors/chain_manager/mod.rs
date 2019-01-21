@@ -52,12 +52,13 @@ use self::validations::{validate_merkle_tree, validate_transactions};
 
 use witnet_data_structures::chain::{
     Block, Blockchain, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable,
-    InventoryEntry, InventoryItem, OutputPointer, Transaction, TransactionsPool, UnspentOutputsPool,
+    InventoryEntry, InventoryItem, OutputPointer, Transaction, TransactionsPool,
+    UnspentOutputsPool,
 };
 
+use crate::actors::chain_manager::validations::block_reward;
 use witnet_storage::{error::StorageError, storage::Storable};
 use witnet_util::error::WitnetError;
-use crate::actors::chain_manager::validations::block_reward;
 
 mod actor;
 mod data_request;
@@ -465,7 +466,7 @@ impl ChainManager {
             });
     }
 
-    fn update_transaction_pool(&mut self, transactions: &Vec<Transaction>) {
+    fn update_transaction_pool(&mut self, transactions: &[Transaction]) {
         for transaction in transactions {
             self.transactions_pool.remove(&transaction.hash());
         }
