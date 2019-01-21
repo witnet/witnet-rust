@@ -13,7 +13,8 @@ fn p2p_sessions_default() {
     assert!(sessions.server_address.is_none());
 
     // Check that sessions collections are empty
-    assert_eq!(sessions.inbound.collection.len(), 0);
+    assert_eq!(sessions.inbound_consolidated.collection.len(), 0);
+    assert_eq!(sessions.inbound_unconsolidated.collection.len(), 0);
     assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
     assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
 }
@@ -43,24 +44,28 @@ fn p2p_sessions_set_limits() {
     let mut sessions = Sessions::<String>::default();
 
     // Check sessions limits are set to none
-    assert!(sessions.inbound.limit.is_none());
+    assert!(sessions.inbound_consolidated.limit.is_none());
+    assert!(sessions.inbound_unconsolidated.limit.is_none());
     assert!(sessions.outbound_consolidated.limit.is_none());
     assert!(sessions.outbound_unconsolidated.limit.is_none());
 
     // Set sessions limits
-    let limit_inbound = 2;
+    let limit_inbound_consolidated = 2;
     let limit_outbound_consolidated = 3;
-    sessions.set_limits(limit_inbound, limit_outbound_consolidated);
+    sessions.set_limits(limit_inbound_consolidated, limit_outbound_consolidated);
 
     // Check sessions limits have been set (except unconsolidated limit)
-    assert!(sessions.inbound.limit.is_some());
-    assert_eq!(sessions.inbound.limit.unwrap(), limit_inbound);
-    assert!(sessions.outbound_consolidated.limit.is_some());
-    assert_eq!(
-        sessions.outbound_consolidated.limit.unwrap(),
-        limit_outbound_consolidated
-    );
+    assert!(sessions.inbound_unconsolidated.limit.is_none());
     assert!(sessions.outbound_unconsolidated.limit.is_none());
+
+    assert_eq!(
+        sessions.inbound_consolidated.limit,
+        Some(limit_inbound_consolidated)
+    );
+    assert_eq!(
+        sessions.outbound_consolidated.limit,
+        Some(limit_outbound_consolidated)
+    );
 }
 
 /// Check setting the handshake timeout
@@ -327,7 +332,10 @@ fn p2p_sessions_register() {
         .is_ok());
 
     // Check if inbound session was registered successfully
-    assert!(sessions.inbound.collection.contains_key(&inbound_address));
+    assert!(sessions
+        .inbound_unconsolidated
+        .collection
+        .contains_key(&inbound_address));
 }
 
 /// Check the unregistration of sessions
@@ -372,7 +380,7 @@ fn p2p_sessions_unregister() {
 
     // Check that both sessions are removed from collections
     assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
-    assert_eq!(sessions.inbound.collection.len(), 0);
+    assert_eq!(sessions.inbound_unconsolidated.collection.len(), 0);
 }
 
 /// Check the consolidation of sessions
@@ -406,7 +414,12 @@ fn p2p_sessions_consolidate() {
         .get(&outbound_address)
         .is_some());
     assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
-    assert!(sessions.inbound.collection.get(&inbound_address).is_some());
+    assert_eq!(sessions.inbound_consolidated.collection.len(), 0);
+    assert!(sessions
+        .inbound_unconsolidated
+        .collection
+        .get(&inbound_address)
+        .is_some());
 
     // Consolidate session
     assert!(sessions
@@ -423,5 +436,9 @@ fn p2p_sessions_consolidate() {
         .get(&outbound_address)
         .is_some());
     assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
-    assert!(sessions.inbound.collection.get(&inbound_address).is_some());
+    assert!(sessions
+        .inbound_consolidated
+        .collection
+        .get(&inbound_address)
+        .is_some());
 }

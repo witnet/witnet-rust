@@ -43,8 +43,10 @@ where
 {
     /// Server address listening to incoming connections
     pub server_address: Option<SocketAddr>,
+    /// Inbound consolidated sessions: __known__ peers sessions that connect to the server
+    pub inbound_consolidated: BoundedSessions<T>,
     /// Inbound sessions: __untrusted__ peers that connect to the server
-    pub inbound: BoundedSessions<T>,
+    pub inbound_unconsolidated: BoundedSessions<T>,
     /// Outbound consolidated sessions: __known__ peer sessions that the node is connected to (in
     /// consolidated status)
     pub outbound_consolidated: BoundedSessions<T>,
@@ -63,7 +65,8 @@ where
     fn default() -> Self {
         Self {
             server_address: None,
-            inbound: BoundedSessions::default(),
+            inbound_consolidated: BoundedSessions::default(),
+            inbound_unconsolidated: BoundedSessions::default(),
             outbound_consolidated: BoundedSessions::default(),
             outbound_unconsolidated: BoundedSessions::default(),
             handshake_timeout: Duration::default(),
@@ -82,7 +85,10 @@ where
         status: SessionStatus,
     ) -> &mut BoundedSessions<T> {
         match session_type {
-            SessionType::Inbound => &mut self.inbound,
+            SessionType::Inbound => match status {
+                SessionStatus::Unconsolidated => &mut self.inbound_unconsolidated,
+                SessionStatus::Consolidated => &mut self.inbound_consolidated,
+            },
             SessionType::Outbound => match status {
                 SessionStatus::Unconsolidated => &mut self.outbound_unconsolidated,
                 SessionStatus::Consolidated => &mut self.outbound_consolidated,
@@ -95,7 +101,7 @@ where
     }
     /// Method to set the sessions limits
     pub fn set_limits(&mut self, inbound_limit: u16, outbound_consolidated_limit: u16) {
-        self.inbound.set_limit(inbound_limit);
+        self.inbound_consolidated.set_limit(inbound_limit);
         self.outbound_consolidated
             .set_limit(outbound_consolidated_limit);
     }
@@ -130,7 +136,7 @@ where
     }
     /// Method to get number of inbound peers
     pub fn get_num_inbound_sessions(&self) -> usize {
-        self.inbound.collection.len()
+        self.inbound_consolidated.collection.len()
     }
     /// Method to check if outbound bootstrap is needed
     pub fn is_outbound_bootstrap_needed(&self) -> bool {
@@ -161,11 +167,12 @@ where
             .nth(index)
             .map(|info| info.reference.clone())
     }
-    /// Method to get all the consolidated outbound sessions
-    pub fn get_all_consolidated_outbound_sessions<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+    /// Method to get all the consolidated sessions (inbound and outbound)
+    pub fn get_all_consolidated_sessions<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         self.outbound_consolidated
             .collection
             .values()
+            .chain(self.inbound_consolidated.collection.values())
             .map(|info| &info.reference)
     }
     /// Method to insert a new session
