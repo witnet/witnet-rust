@@ -1,52 +1,94 @@
 use crate::error::*;
 use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
-use crate::types::{RadonType, RadonTypes};
+use crate::types::{mixed::RadonMixed, RadonType, RadonTypes};
 
+use rmpv::Value;
 use std::fmt;
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
-#[derive(Debug, PartialEq)]
-pub struct RadonString<'a> {
-    value: &'a [u8],
+#[derive(Clone, Debug, PartialEq)]
+pub struct RadonString {
+    value: String,
 }
 
-impl<'a> RadonType<'a, &'a [u8]> for RadonString<'a> {
-    fn value(&self) -> &'a [u8] {
-        self.value
+impl<'a> RadonType<'a, String> for RadonString {
+    fn value(&self) -> String {
+        self.value.clone()
     }
 }
 
-impl<'a> From<&'a [u8]> for RadonString<'a> {
-    fn from(value: &'a [u8]) -> Self {
+impl TryFrom<Value> for RadonString {
+    type Error = RadError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        value.as_str().map(Self::from).ok_or_else(|| {
+            RadError::new(
+                RadErrorKind::EncodeDecode,
+                String::from("Error creating a RadonString from a MessagePack value"),
+            )
+        })
+    }
+}
+
+impl TryInto<Value> for RadonString {
+    type Error = RadError;
+
+    fn try_into(self) -> Result<Value, Self::Error> {
+        Ok(Value::from(self.value()))
+    }
+}
+
+impl From<String> for RadonString {
+    fn from(value: String) -> Self {
         RadonString { value }
     }
 }
 
-impl<'a> From<&'a str> for RadonString<'a> {
+impl<'a> From<&'a str> for RadonString {
     fn from(value: &'a str) -> Self {
-        Self::from(value.as_bytes())
+        Self::from(String::from(value))
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for RadonString<'a> {
+impl<'a> TryFrom<&'a [u8]> for RadonString {
     type Error = RadError;
 
-    fn try_from(slice: &'a [u8]) -> Result<Self, Self::Error> {
-        Ok(Self::from(slice))
+    fn try_from(vector: &'a [u8]) -> Result<Self, Self::Error> {
+        let mixed = RadonMixed::try_from(vector);
+        let value = mixed.map(|mixed| mixed.value());
+        let radon = value.map(Self::try_from);
+
+        match radon {
+            Ok(res) => res,
+            _ => Err(RadError::new(
+                RadErrorKind::EncodeDecode,
+                String::from("Failed to decode a RadonString from bytes"),
+            )),
+        }
     }
 }
 
-impl<'a> TryInto<&'a [u8]> for RadonString<'a> {
+impl<'a> TryInto<Vec<u8>> for RadonString {
     type Error = RadError;
 
-    fn try_into(self) -> Result<&'a [u8], Self::Error> {
-        Ok(self.value)
+    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+        let value: Result<Value, Self::Error> = self.try_into();
+        let vector: Result<Result<Result<Vec<u8>, Self::Error>, Self::Error>, Self::Error> =
+            value.map(|value| RadonMixed::try_from(value).map(RadonMixed::try_into));
+
+        match vector {
+            Ok(Ok(res)) => res,
+            _ => Err(RadError::new(
+                RadErrorKind::EncodeDecode,
+                String::from("Failed to encode a RadonString into bytes"),
+            )),
+        }
     }
 }
 
-impl<'a> Operable<'a> for RadonString<'a> {
-    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes<'a>> {
+impl Operable for RadonString {
+    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes> {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::String(self)),
             (RadonOpCodes::ParseJson, None) => {
@@ -63,7 +105,7 @@ impl<'a> Operable<'a> for RadonString<'a> {
     }
 }
 
-impl<'a> fmt::Display for RadonString<'a> {
+impl<'a> fmt::Display for RadonString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "RadonString")
     }
