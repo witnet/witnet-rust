@@ -312,11 +312,8 @@ pub enum TransactionError {
     #[fail(display = "A hash is missing in the pool {}", 0)]
     PoolMiss(Hash),
     /// An output with the given index wasn't found in a transaction.
-    #[fail(
-        display = "An output with index {} was not found in transaction {}",
-        1, 0
-    )]
-    OutputNotFound(Hash, usize),
+    #[fail(display = "Output not found: {}", 0)]
+    OutputNotFound(OutputPointer),
 }
 
 impl Transaction {
@@ -358,27 +355,9 @@ impl Transaction {
         let mut total_value = 0;
 
         for input in &self.inputs {
-            /*
-            let OutputPointer {
-                transaction_id,
-                output_index,
-            } = input.output_pointer();
-            let index = output_index as usize;
-            let pointed_transaction = pool
-                .get(&transaction_id)
-                .ok_or_else(|| TransactionError::PoolMiss(transaction_id))?;
-            let pointed_value = pointed_transaction
-                .get_output_value(index)
-                .ok_or_else(|| TransactionError::OutputNotFound(transaction_id, index))?;
-                */
             let pointed_value = pool
                 .get(&input.output_pointer())
-                .ok_or_else(|| {
-                    TransactionError::OutputNotFound(
-                        input.output_pointer().transaction_id,
-                        input.output_pointer().output_index as usize,
-                    )
-                })?
+                .ok_or_else(|| TransactionError::OutputNotFound(input.output_pointer()))?
                 .value();
             total_value += pointed_value;
         }
