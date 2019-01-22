@@ -86,12 +86,13 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     };
 
                     chain_info.highest_block_checkpoint = beacon;
+                    let previous_epoch = candidate.block.block_header.beacon.checkpoint;
 
                     info!(
                         "{} Block {} consolidated for epoch #{}",
                         Purple.bold().paint("[Chain]"),
                         Purple.bold().paint(candidate.block.hash().to_string()),
-                        Purple.bold().paint(beacon.checkpoint.to_string()),
+                        Purple.bold().paint(previous_epoch.to_string()),
                     );
 
                     debug!("{:?}", candidate.block);
