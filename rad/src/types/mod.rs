@@ -1,5 +1,6 @@
 use crate::error::*;
 use crate::types::array::RadonArray;
+use crate::types::float::RadonFloat;
 use crate::types::mixed::RadonMixed;
 use crate::types::string::RadonString;
 
@@ -12,6 +13,7 @@ use witnet_data_structures::{
 };
 
 pub mod array;
+pub mod float;
 pub mod mixed;
 pub mod string;
 
@@ -44,8 +46,15 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub enum RadonTypes {
     Array(RadonArray),
+    Float(RadonFloat),
     Mixed(RadonMixed),
     String(RadonString),
+}
+
+impl<'a> From<RadonFloat> for RadonTypes<'a> {
+    fn from(float: RadonFloat) -> Self {
+        RadonTypes::Float(float)
+    }
 }
 
 impl From<RadonMixed> for RadonTypes {
