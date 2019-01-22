@@ -13,10 +13,7 @@ pub type RadonCall = (RadonOpCodes, Option<Vec<Value>>);
 pub type RadonScript = Vec<RadonCall>;
 
 /// Run any RADON script on given input data.
-pub fn execute_radon_script<'a>(
-    input: RadonTypes<'a>,
-    script: &'a [RadonCall],
-) -> RadResult<RadonTypes<'a>> {
+pub fn execute_radon_script(input: RadonTypes, script: &'_ [RadonCall]) -> RadResult<RadonTypes> {
     script.iter().try_fold(input, operate)
 }
 
