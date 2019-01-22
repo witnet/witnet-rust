@@ -31,7 +31,7 @@ use actix::{
 };
 use ansi_term::Color::Purple;
 use log::{debug, error, info, warn};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use self::messages::InventoryEntriesResult;
 
@@ -43,7 +43,7 @@ use crate::actors::{
         messages::{Anycast, Broadcast},
         SessionsManager,
     },
-    storage_keys::{BLOCK_CHAIN_KEY, CHAIN_STATE_KEY},
+    storage_keys::CHAIN_STATE_KEY,
     storage_manager::{messages::Put, StorageManager},
 };
 
@@ -51,9 +51,8 @@ use self::data_request::DataRequestPool;
 use self::validations::{validate_merkle_tree, validate_transactions};
 
 use witnet_data_structures::chain::{
-    Block, Blockchain, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable,
-    InventoryEntry, InventoryItem, OutputPointer, Transaction, TransactionsPool,
-    UnspentOutputsPool,
+    Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable, InventoryEntry,
+    InventoryItem, OutputPointer, Transaction, TransactionsPool, UnspentOutputsPool,
 };
 
 use crate::actors::chain_manager::validations::block_reward;
@@ -96,9 +95,6 @@ pub struct ChainManager {
     network_ready: bool,
     /// Blockchain state data structure
     chain_state: ChainState,
-    /// Map that relates an epoch with the hashes of the blocks for that epoch (blocks index)
-    // One epoch can have more than one block
-    block_chain: Blockchain,
     /// Map that stores blocks by their hash
     blocks: HashMap<Hash, Block>,
     /// Map that stores blocks without validation by their hash
@@ -165,31 +161,6 @@ impl ChainManager {
                     Ok(Ok(_)) => debug!("Successfully persisted chain_info into storage"),
                     _ => {
                         error!("Failed to persist chain_info into storage");
-                        // FIXME(#72): handle errors
-                    }
-                }
-                actix::fut::ok(())
-            })
-            .wait(ctx);
-    }
-
-    /// Method to persist `block_chain` into Storage
-    fn persist_block_chain(&self, ctx: &mut Context<Self>) {
-        // Get StorageManager address
-        let storage_manager_addr = System::current().registry().get::<StorageManager>();
-
-        // Persist block_chain into storage. `AsyncContext::wait` registers
-        // future within context, but context waits until this future resolves
-        // before processing any other events.
-        let msg = Put::from_value(BLOCK_CHAIN_KEY, &self.block_chain).unwrap();
-        storage_manager_addr
-            .send(msg)
-            .into_actor(self)
-            .then(|res, _act, _ctx| {
-                match res {
-                    Ok(Ok(_)) => debug!("Successfully persisted block_chain into storage"),
-                    _ => {
-                        error!("Failed to persist block_chain into storage");
                         // FIXME(#72): handle errors
                     }
                 }
@@ -267,19 +238,11 @@ impl ChainManager {
         } else {
             // This is a new block, insert it into the internal maps
             {
-                // Insert the new block into the map that relates epochs to block hashes
                 let beacon = &block.block_header.beacon;
-                let hash_set = &mut self
-                    .block_chain
-                    .entry(beacon.checkpoint)
-                    .or_insert_with(HashSet::new);
-                hash_set.insert(hash);
-
                 info!(
-                    "{} Epoch #{} has {} block candidates now",
+                    "{} Epoch #{} has a new block candidate",
                     Purple.bold().paint("[Chain]"),
                     Purple.bold().paint(beacon.checkpoint.to_string()),
-                    Purple.bold().paint(hash_set.len().to_string())
                 );
             }
 
@@ -564,6 +527,7 @@ impl ChainManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[test]
     fn add_block() {
@@ -580,17 +544,8 @@ mod tests {
         assert_eq!(bm.blocks.len(), 1);
         assert_eq!(bm.blocks.get(&hash_a).unwrap(), &block_a);
 
-        // Check the block is added into the epoch-to-hash map
-        assert_eq!(bm.block_chain.get(&checkpoint).unwrap().len(), 1);
-        assert_eq!(
-            bm.block_chain
-                .get(&checkpoint)
-                .unwrap()
-                .iter()
-                .next()
-                .unwrap(),
-            &hash_a
-        );
+        // The block should not be added into the epoch-to-hash map until it is consolidated
+        assert!(bm.chain_state.block_chain.get(&checkpoint).is_none());
     }
 
     #[test]
@@ -604,26 +559,6 @@ mod tests {
         assert!(bm.accept_block(block.clone()).is_ok());
         assert!(bm.accept_block(block).is_err());
         assert_eq!(bm.blocks.len(), 1);
-    }
-
-    #[test]
-    fn add_blocks_same_epoch() {
-        let mut bm = ChainManager::default();
-
-        // Build hardcoded blocks
-        let checkpoint = 2;
-        let block_a = build_hardcoded_block(checkpoint, 99999, Hash::SHA256([111; 32]));
-        let block_b = build_hardcoded_block(checkpoint, 12345, Hash::SHA256([112; 32]));
-
-        // Add blocks to the ChainManager
-        let hash_a = bm.accept_block(block_a).unwrap();
-        let hash_b = bm.accept_block(block_b).unwrap();
-        assert_ne!(hash_a, hash_b);
-
-        // Check that both blocks are stored in the same epoch
-        assert_eq!(bm.block_chain.get(&checkpoint).unwrap().len(), 2);
-        assert!(bm.block_chain.get(&checkpoint).unwrap().contains(&hash_a));
-        assert!(bm.block_chain.get(&checkpoint).unwrap().contains(&hash_b));
     }
 
     #[test]
@@ -1093,6 +1028,7 @@ mod tests {
             }),
             unspent_outputs_pool: UnspentOutputsPool::default(),
             data_request_pool: ActiveDataRequestPool::default(),
+            block_chain: BTreeMap::default(),
         };
 
         assert!(chain_state.to_bytes().is_ok());
@@ -1127,6 +1063,7 @@ mod tests {
             }),
             unspent_outputs_pool: UnspentOutputsPool::default(),
             data_request_pool: ActiveDataRequestPool::default(),
+            block_chain: BTreeMap::default(),
         };
 
         assert!(chain_state.to_bytes().is_ok());
@@ -1176,6 +1113,7 @@ mod tests {
             }),
             unspent_outputs_pool: utxo,
             data_request_pool: ActiveDataRequestPool::default(),
+            block_chain: BTreeMap::default(),
         };
 
         assert!(chain_state.to_bytes().is_ok());

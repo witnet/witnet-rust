@@ -12,9 +12,9 @@ use super::{
 };
 
 use crate::actors::{
-    chain_manager::{data_request::DataRequestPool, Blockchain},
+    chain_manager::data_request::DataRequestPool,
     config_manager::send_get_config_request,
-    storage_keys::{BLOCK_CHAIN_KEY, CHAIN_STATE_KEY},
+    storage_keys::CHAIN_STATE_KEY,
     storage_manager::{messages::Get, StorageManager},
 };
 
@@ -24,6 +24,7 @@ use witnet_data_structures::chain::{
 use witnet_util::timestamp::{get_timestamp, pretty_print};
 
 use log::{debug, error, warn};
+use std::collections::BTreeMap;
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -164,37 +165,8 @@ impl ChainManager {
                             chain_info: Some(chain_info),
                             unspent_outputs_pool: UnspentOutputsPool::default(),
                             data_request_pool: ActiveDataRequestPool::default(),
+                            block_chain: BTreeMap::default(),
                         };
-                    }
-                    actix::fut::ok(())
-                })
-                .wait(ctx);
-
-            storage_manager_addr
-                // Send a message to read block_chain from the storage
-                .send(Get::<Blockchain>::new(BLOCK_CHAIN_KEY))
-                .into_actor(act)
-                // Process the response
-                .then(|res, _act, _ctx| match res {
-                    Err(e) => {
-                        // Error when sending message
-                        error!("Unsuccessful communication with storage manager: {}", e);
-                        actix::fut::err(())
-                    }
-                    Ok(res) => match res {
-                        Err(e) => {
-                            // Storage error
-                            error!("Error while getting block chain from storage: {}", e);
-                            actix::fut::err(())
-                        }
-                        Ok(res) => actix::fut::ok(res),
-                    },
-                })
-                .and_then(move |block_chain_from_storage, act, _ctx| {
-                    // block_chain_from_storage can be None if the storage does not contain that key
-                    if let Some(block_chain_from_storage) = block_chain_from_storage {
-                        act.block_chain = block_chain_from_storage;
-                        debug!("Blockchain (blocks index) successfully obtained from storage");
                     }
                     actix::fut::ok(())
                 })

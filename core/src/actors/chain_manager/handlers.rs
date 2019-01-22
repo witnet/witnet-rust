@@ -80,19 +80,22 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             // Update chain_info
             match self.chain_state.chain_info.as_mut() {
                 Some(chain_info) => {
+                    let block_hash = candidate.block.hash();
+                    let block_epoch = candidate.block.block_header.beacon.checkpoint;
+
                     let beacon = CheckpointBeacon {
                         checkpoint: msg.checkpoint,
-                        hash_prev_block: candidate.block.hash(),
+                        hash_prev_block: block_hash,
                     };
 
                     chain_info.highest_block_checkpoint = beacon;
-                    let previous_epoch = candidate.block.block_header.beacon.checkpoint;
+                    self.chain_state.block_chain.insert(block_epoch, block_hash);
 
                     info!(
                         "{} Block {} consolidated for epoch #{}",
                         Purple.bold().paint("[Chain]"),
                         Purple.bold().paint(candidate.block.hash().to_string()),
-                        Purple.bold().paint(previous_epoch.to_string()),
+                        Purple.bold().paint(block_epoch.to_string()),
                     );
 
                     debug!("{:?}", candidate.block);
@@ -143,9 +146,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                     // Persist chain_info into storage
                     self.persist_chain_state(ctx);
-
-                    // Persist block_chain into storage
-                    self.persist_block_chain(ctx);
                 }
                 None => {
                     error!("No ChainInfo loaded in ChainManager");
@@ -365,13 +365,10 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
     ) -> Self::Result {
         debug!("GetBlocksEpochRange received {:?}", range);
         let hashes = self
+            .chain_state
             .block_chain
             .range(range)
-            .flat_map(|(epoch, hashset)| {
-                hashset
-                    .iter()
-                    .map(move |hash| (*epoch, InventoryEntry::Block(*hash)))
-            })
+            .map(|(k, v)| (*k, InventoryEntry::Block(*v)))
             .collect();
 
         Ok(hashes)
