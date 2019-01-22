@@ -51,7 +51,7 @@ pub enum RadonTypes {
     String(RadonString),
 }
 
-impl<'a> From<RadonFloat> for RadonTypes<'a> {
+impl<'a> From<RadonFloat> for RadonTypes {
     fn from(float: RadonFloat) -> Self {
         RadonTypes::Float(float)
     }
@@ -95,6 +95,7 @@ impl TryInto<Value> for RadonTypes {
             RadonTypes::Mixed(radon_mixed) => radon_mixed.try_into(),
             RadonTypes::String(radon_string) => radon_string.try_into(),
             RadonTypes::Array(radon_array) => radon_array.try_into(),
+            RadonTypes::Float(radon_float) => radon_float.try_into(),
         }
     }
 }
