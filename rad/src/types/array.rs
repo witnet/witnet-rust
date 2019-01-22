@@ -102,3 +102,47 @@ impl Operable for RadonArray {
         }
     }
 }
+
+#[test]
+fn test_operate_identity() {
+    use crate::types::string::RadonString;
+
+    let input = RadonArray::from(vec![RadonString::from("Hello world!").into()]);
+    let expected = RadonArray::from(vec![RadonString::from("Hello world!").into()]).into();
+
+    let call = (RadonOpCodes::Identity, None);
+    let output = input.operate(&call).unwrap();
+
+    assert_eq!(output, expected);
+}
+
+#[test]
+fn test_operate_unimplemented() {
+    let input = RadonArray::from(vec![]);
+
+    let call = (RadonOpCodes::Fail, None);
+    let result = input.operate(&call);
+
+    assert!(if let Err(_error) = result {
+        true
+    } else {
+        false
+    });
+}
+
+#[test]
+fn test_serialize_radon_array() {
+    use crate::types::string::RadonString;
+
+    let input = RadonArray::from(vec![
+        RadonString::from("Hello").into(),
+        RadonString::from("world!").into(),
+    ]);
+    let expected: Vec<u8> = vec![
+        146, 165, 72, 101, 108, 108, 111, 166, 119, 111, 114, 108, 100, 33,
+    ];
+
+    let output: Vec<u8> = input.try_into().unwrap();
+
+    assert_eq!(output, expected);
+}
