@@ -18,12 +18,12 @@ use crate::actors::{
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::UnspentOutputsPool;
 use witnet_data_structures::chain::{
-    Block, BlockHeader, CheckpointBeacon, Hash, Input, LeadershipProof, Output, PublicKeyHash,
-    RevealInput, Secp256k1Signature, Signature, TallyOutput, Transaction, TransactionsPool,
-    ValueTransferOutput,
+    Block, BlockHeader, CheckpointBeacon, Hash, LeadershipProof, Output, PublicKeyHash,
+    Secp256k1Signature, Signature, Transaction, TransactionsPool, ValueTransferOutput,
 };
 use witnet_storage::storage::Storable;
 
+use crate::actors::chain_manager::data_request::{create_tally, create_vt_tally};
 use futures::future::{join_all, Future};
 
 impl ChainManager {
@@ -206,7 +206,6 @@ impl ChainManager {
         }
     }
 
-    // TODO: Refactor to move logic to small functions
     fn create_tally_transactions(&mut self) -> impl Future<Item = Vec<Transaction>, Error = ()> {
         let data_request_pool = &self.data_request_pool;
         let utxo = &self.chain_state.unspent_outputs_pool;
@@ -216,38 +215,13 @@ impl ChainManager {
         let dr_reveals = data_request_pool.get_all_reveals(&utxo);
         for ((dr_pointer, dr_output), reveals) in dr_reveals {
             debug!("Building tally for data request {}", dr_pointer);
-            let mut inputs = vec![];
-            let mut outputs = vec![];
-            let mut results = vec![];
-            // TODO: Do not reward dishonest witnesses
-            let reveal_reward = dr_output.value / u64::from(dr_output.witnesses)
-                - dr_output.commit_fee
-                - dr_output.reveal_fee
-                - dr_output.tally_fee;
 
-            for (reveal_pointer, reveal) in reveals {
-                let reveal_input = RevealInput {
-                    transaction_id: reveal_pointer.transaction_id,
-                    output_index: reveal_pointer.output_index,
-                };
-                inputs.push(Input::Reveal(reveal_input));
-
-                let vt_output = ValueTransferOutput {
-                    pkh: reveal.pkh,
-                    value: reveal_reward,
-                };
-                outputs.push(Output::ValueTransfer(vt_output));
-
-                results.push(reveal.reveal);
-            }
-
-            let change = reveal_reward * (u64::from(dr_output.witnesses) - (results.len() as u64));
-            let pkh = dr_output.pkh;
+            let (inputs, outputs, results) = create_vt_tally(&dr_output, reveals);
 
             let rad_manager_addr = System::current().registry().get::<RadManager>();
             let fut = rad_manager_addr
                 .send(RunConsensus {
-                    script: dr_output.data_request.consensus,
+                    script: dr_output.data_request.consensus.clone(),
                     reveals: results,
                 })
                 .then(move |res| match res {
@@ -265,15 +239,10 @@ impl ChainManager {
                         }
 
                         Ok(consensus) => {
-                            let tally_output = TallyOutput {
-                                result: consensus,
-                                pkh,
-                                value: change,
-                            };
-                            outputs.push(Output::Tally(tally_output));
-                            let tally = Transaction::new(0, inputs, outputs, ());
+                            let tally_transaction =
+                                create_tally(&dr_output, inputs, outputs, consensus);
 
-                            futures::future::ok(tally)
+                            futures::future::ok(tally_transaction)
                         }
                     },
                 });

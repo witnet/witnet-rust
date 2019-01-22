@@ -3,10 +3,16 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use witnet_crypto::hash::calculate_sha256;
 
+use super::validations::{
+    calculate_commit_reward, calculate_dr_vt_reward, calculate_reveal_reward,
+    calculate_tally_change,
+};
+
+use witnet_data_structures::chain::TallyOutput;
 use witnet_data_structures::chain::{
     CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
     DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
-    RevealInput, RevealOutput, Transaction, UnspentOutputsPool,
+    RevealInput, RevealOutput, Transaction, UnspentOutputsPool, ValueTransferOutput,
 };
 
 type DataRequestsWithReveals = Vec<(
@@ -48,73 +54,6 @@ impl DataRequestPool {
             .map(|dr_state| dr_state.data_request.clone())
     }
 
-    /// Create data request commitment
-    pub fn create_commit(
-        &mut self,
-        dr_output_pointer: &OutputPointer,
-        dr_output: &DataRequestOutput,
-        reveal: &[u8],
-    ) -> Transaction {
-        // Create input
-        let dr_input = Input::DataRequest(DataRequestInput {
-            transaction_id: dr_output_pointer.transaction_id,
-            output_index: dr_output_pointer.output_index,
-            // TODO: create a proper poe
-            poe: [0; 32],
-        });
-
-        // Calculate reveal_value
-        let commit_value = dr_output.value / u64::from(dr_output.witnesses) - dr_output.commit_fee;
-
-        let reveal_hash = calculate_sha256(reveal).into();
-
-        // Create output
-        let commit_output = Output::Commit(CommitOutput {
-            commitment: reveal_hash,
-            value: commit_value,
-        });
-
-        // TODO: use a proper signature
-        Transaction::new(0, vec![dr_input], vec![commit_output], ())
-    }
-
-    /// Create data request reveal
-    pub fn create_reveal(
-        &mut self,
-        dr_output_pointer: &OutputPointer,
-        dr_output: &DataRequestOutput,
-        reveal: Vec<u8>,
-    ) {
-        // Create input
-        let commit_input = Input::Commit(CommitInput {
-            transaction_id: dr_output_pointer.transaction_id,
-            output_index: dr_output_pointer.output_index,
-            reveal: reveal.clone(),
-            nonce: 0,
-        });
-
-        // Calculate reveal_value
-        let reveal_value = dr_output.value / u64::from(dr_output.witnesses)
-            - dr_output.commit_fee
-            - dr_output.reveal_fee;
-
-        // Create output
-        let reveal_output = Output::Reveal(RevealOutput {
-            reveal,
-            // TODO: use a proper pkh
-            pkh: [0; 20],
-            value: reveal_value,
-        });
-
-        // TODO: use a proper signature
-        let reveal_transaction = Transaction::new(0, vec![commit_input], vec![reveal_output], ());
-
-        // This function can only fail when reveal transactions is not valid,
-        // It can not be due to we are creating just before.
-        self.add_own_reveal(dr_output_pointer.clone(), reveal_transaction.clone())
-            .unwrap();
-    }
-
     /// Create data request commit and reveal
     pub fn create_commit_and_reveal(
         &mut self,
@@ -122,8 +61,17 @@ impl DataRequestPool {
         dr_output: &DataRequestOutput,
         reveal: Vec<u8>,
     ) -> Transaction {
-        let commit_transaction = self.create_commit(dr_output_pointer, dr_output, &reveal);
-        self.create_reveal(dr_output_pointer, dr_output, reveal);
+        let commit_transaction = create_commit(dr_output_pointer, dr_output, &reveal);
+        let commit_pointer = OutputPointer {
+            transaction_id: commit_transaction.hash(),
+            output_index: 0,
+        };
+        let reveal_transaction = create_reveal(commit_pointer, dr_output, reveal);
+
+        // This function can only fail when reveal transactions is not valid,
+        // It can not be due to we are creating just before.
+        self.add_own_reveal(dr_output_pointer.clone(), reveal_transaction.clone())
+            .unwrap();
 
         commit_transaction
     }
@@ -540,6 +488,111 @@ impl DataRequestPool {
     pub fn finished_data_requests(&mut self) -> Vec<(OutputPointer, DataRequestReport)> {
         std::mem::replace(&mut self.to_be_stored, vec![])
     }
+}
+
+/// Create data request commitment
+pub fn create_commit(
+    dr_output_pointer: &OutputPointer,
+    dr_output: &DataRequestOutput,
+    reveal: &[u8],
+) -> Transaction {
+    // Create input
+    let dr_input = Input::DataRequest(DataRequestInput {
+        transaction_id: dr_output_pointer.transaction_id,
+        output_index: dr_output_pointer.output_index,
+        // TODO: create a proper poe
+        poe: [0; 32],
+    });
+
+    // Calculate reveal_value
+    let commit_value = calculate_commit_reward(&dr_output);
+
+    let reveal_hash = calculate_sha256(reveal).into();
+
+    // Create output
+    let commit_output = Output::Commit(CommitOutput {
+        commitment: reveal_hash,
+        value: commit_value,
+    });
+
+    // TODO: use a proper signature
+    Transaction::new(0, vec![dr_input], vec![commit_output], ())
+}
+
+/// Create data request reveal
+pub fn create_reveal(
+    commit_pointer: OutputPointer,
+    dr_output: &DataRequestOutput,
+    reveal: Vec<u8>,
+) -> Transaction {
+    // Create input
+    let commit_input = Input::Commit(CommitInput {
+        transaction_id: commit_pointer.transaction_id,
+        output_index: commit_pointer.output_index,
+        reveal: reveal.clone(),
+        nonce: 0,
+    });
+
+    // Calculate reveal_value
+    let reveal_value = calculate_reveal_reward(&dr_output);
+
+    // Create output
+    let reveal_output = Output::Reveal(RevealOutput {
+        reveal,
+        // TODO: use a proper pkh
+        pkh: [0; 20],
+        value: reveal_value,
+    });
+
+    // TODO: use a proper signature
+    Transaction::new(0, vec![commit_input], vec![reveal_output], ())
+}
+
+pub fn create_vt_tally(
+    dr_output: &DataRequestOutput,
+    reveals: Vec<(OutputPointer, RevealOutput)>,
+) -> (Vec<Input>, Vec<Output>, Vec<Vec<u8>>) {
+    let mut inputs = vec![];
+    let mut outputs = vec![];
+    let mut results = vec![];
+    // TODO: Do not reward dishonest witnesses
+    let reveal_reward = calculate_dr_vt_reward(dr_output);
+
+    for (reveal_pointer, reveal) in reveals {
+        let reveal_input = RevealInput {
+            transaction_id: reveal_pointer.transaction_id,
+            output_index: reveal_pointer.output_index,
+        };
+        inputs.push(Input::Reveal(reveal_input));
+
+        let vt_output = ValueTransferOutput {
+            pkh: reveal.pkh,
+            value: reveal_reward,
+        };
+        outputs.push(Output::ValueTransfer(vt_output));
+
+        results.push(reveal.reveal);
+    }
+
+    (inputs, outputs, results)
+}
+
+pub fn create_tally(
+    dr_output: &DataRequestOutput,
+    inputs: Vec<Input>,
+    mut outputs: Vec<Output>,
+    consensus: Vec<u8>,
+) -> Transaction {
+    let change = calculate_tally_change(dr_output, inputs.len() as u64);
+    let pkh = dr_output.pkh;
+
+    let tally_output = TallyOutput {
+        result: consensus,
+        pkh,
+        value: change,
+    };
+    outputs.push(Output::Tally(tally_output));
+    Transaction::new(0, inputs, outputs, ())
 }
 
 #[cfg(test)]
