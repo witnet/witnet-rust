@@ -11,6 +11,8 @@ impl Handler<messages::ResolveRA> for RadManager {
         log::warn!("ResolveRA: unimplemented handler!");
         rad::run_retrieval();
         rad::run_aggregation();
+        
+        Ok(Vec::new())
     }
 }
 
@@ -20,5 +22,7 @@ impl Handler<messages::RunConsensus> for RadManager {
     fn handle(&mut self, _msg: messages::RunConsensus, _ctx: &mut Self::Context) -> Self::Result {
         log::warn!("RunConsensus: unimplemented handler!");
         rad::run_consensus();
+
+        Ok(Vec::new())
     }
 }
