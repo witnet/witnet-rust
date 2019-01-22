@@ -1173,7 +1173,7 @@ pub struct ActiveDataRequestPool {
 
 pub type UnspentOutputsPool = HashMap<OutputPointer, Output>;
 
-pub type Blockchain = BTreeMap<Epoch, HashSet<Hash>>;
+pub type Blockchain = BTreeMap<Epoch, Hash>;
 
 /// Blockchain state (valid at a certain epoch)
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
@@ -1184,6 +1184,8 @@ pub struct ChainState {
     pub unspent_outputs_pool: UnspentOutputsPool,
     /// Collection of state structures for active data requests
     pub data_request_pool: ActiveDataRequestPool,
+    /// List of consolidated blocks by epoch
+    pub block_chain: Blockchain,
 }
 
 impl ChainState {

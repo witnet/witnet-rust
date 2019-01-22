@@ -16,11 +16,10 @@ use crate::actors::{
 };
 
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::UnspentOutputsPool;
 use witnet_data_structures::chain::{
     Block, BlockHeader, CheckpointBeacon, Hash, Input, LeadershipProof, Output, PublicKeyHash,
     RevealInput, Secp256k1Signature, Signature, TallyOutput, Transaction, TransactionsPool,
-    ValueTransferOutput,
+    UnspentOutputsPool, ValueTransferOutput,
 };
 use witnet_storage::storage::Storable;
 
