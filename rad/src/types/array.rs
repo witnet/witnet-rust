@@ -64,36 +64,21 @@ impl<'a> TryFrom<&'a [u8]> for RadonArray {
     type Error = RadError;
 
     fn try_from(slice: &'a [u8]) -> Result<Self, Self::Error> {
-        let mixed = RadonMixed::try_from(slice);
-        let value = mixed.map(|mixed| mixed.value());
-        let radon = value.map(Self::try_from);
+        let mixed = RadonMixed::try_from(slice)?;
+        let value: Value = RadonMixed::try_into(mixed)?;
 
-        match radon {
-            Ok(res) => res,
-            _ => Err(RadError::new(
-                RadErrorKind::EncodeDecode,
-                String::from("Failed to decode a RadonArray from bytes"),
-            )),
-        }
+        Self::try_from(value)
     }
 }
 
-/// FIXME: implement
 impl<'a> TryInto<Vec<u8>> for RadonArray {
     type Error = RadError;
 
     fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        let value: Result<Value, Self::Error> = self.try_into();
-        let slice: Result<Result<Result<Vec<u8>, Self::Error>, Self::Error>, Self::Error> =
-            value.map(|value| RadonMixed::try_from(value).map(RadonMixed::try_into));
+        let value: Value = Self::try_into(self)?;
+        let mixed = RadonMixed::try_from(value)?;
 
-        match slice {
-            Ok(Ok(res)) => res,
-            _ => Err(RadError::new(
-                RadErrorKind::EncodeDecode,
-                String::from("Failed to encode a RadonString into bytes"),
-            )),
-        }
+        RadonMixed::try_into(mixed)
     }
 }
 
