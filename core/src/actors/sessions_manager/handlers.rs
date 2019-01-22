@@ -203,7 +203,6 @@ where
             .get_all_consolidated_sessions()
             .for_each(|session_addr| {
                 // Send message to session and ignore errors
-                debug!("Broadcasting to peer {:?}", session_addr);
                 session_addr.do_send(msg.command.clone());
             });
     }

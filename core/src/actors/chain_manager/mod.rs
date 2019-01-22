@@ -421,13 +421,16 @@ impl ChainManager {
                         );
                     }
                 } else if hash_prev_block != self.genesis_block_hash && !self.blocks.contains_key(&hash_prev_block) {
+//                } else if hash_prev_block != self.genesis_block_hash &&
+//                    !self.block_chain.get(&block_epoch).map(|x| x.contains(&hash_prev_block)).unwrap_or(false) {
+
                     // Request the lost block with the hash_prev_block indicated in this block
                     // Except when that block is the genesis block
                     self.request_block(hash_prev_block);
 
                     match self.keep_block_without_validation(block) {
                         Ok(hash) => warn!(
-                            "Block [{}] has a previous hash [{}] not known",
+                            "Block [{:?}] has a previous hash [{:?}] not known",
                             hash, hash_prev_block
                         ),
                         Err(ChainManagerError::BlockAlreadyExists) => {
