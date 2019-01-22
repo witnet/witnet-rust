@@ -151,3 +151,13 @@ fn test_operate_unimplemented() {
         false
     });
 }
+
+#[test]
+fn test_serialize_radon_string() {
+    let input = RadonString::from("Hello world!");
+    let expected: Vec<u8> = vec![172, 72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33];
+
+    let output: Vec<u8> = input.try_into().unwrap();
+
+    assert_eq!(output, expected);
+}
