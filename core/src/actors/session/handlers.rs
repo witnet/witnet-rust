@@ -569,7 +569,7 @@ fn session_getblocks(
                     ..
                 })) => {
                     if highest_checkpoint > received_checkpoint {
-                        let range = (received_checkpoint + 1)..=highest_checkpoint;
+                        let range = (received_checkpoint + 1)..highest_checkpoint;
 
                         chain_manager_addr
                             .send(GetBlocksEpochRange::new(range))
