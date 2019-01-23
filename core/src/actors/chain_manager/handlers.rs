@@ -195,6 +195,12 @@ impl Handler<AddTransaction> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) {
+        let transaction_hash = &msg.transaction.hash();
+        if self.transactions_pool.contains(transaction_hash) {
+            debug!("Transaction is already in the pool: {}", transaction_hash);
+            return;
+        }
+
         debug!("Adding transaction: {:?}", msg.transaction);
         // FIXME: transaction validation is broken
         //let outputs = &msg.transaction.outputs;
@@ -318,10 +324,10 @@ impl Handler<AddTransaction> for ChainManager {
 
                     // Add valid transaction to transactions_pool
                     self.transactions_pool
-                        .insert(msg.transaction.hash(), msg.transaction); /*
-                                                                              }
-                                                                          }
-                                                                          */
+                        .insert(*transaction_hash, msg.transaction); /*
+                                                                         }
+                                                                     }
+                                                                     */
                 } else {
                     warn!("Input OutputPointer not in pool");
                 }
