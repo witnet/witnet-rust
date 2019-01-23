@@ -3,13 +3,15 @@ use crate::actors::chain_manager::messages::GetOutputResult;
 use actix::{Actor, Context, Handler};
 use ansi_term::Color::Purple;
 
-use crate::actors::chain_manager::{messages::SessionUnitResult, ChainManager, ChainManagerError};
+use crate::actors::chain_manager::{
+    messages::{SessionUnitResult, SetNetworkReady},
+    ChainManager, ChainManagerError,
+};
 use crate::actors::epoch_manager::messages::EpochNotification;
 
 use witnet_data_structures::{
     chain::{
-        Block, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, Output,
-        OutputPointer,
+        CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, Output, OutputPointer,
     },
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
@@ -19,8 +21,8 @@ use witnet_util::error::WitnetError;
 use log::{debug, error, info, warn};
 
 use super::messages::{
-    AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlock, GetBlocksEpochRange,
-    GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult, SetNetworkReady,
+    AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlocksEpochRange,
+    GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult,
 };
 use crate::actors::chain_manager::data_request::DataRequestPool;
 use witnet_data_structures::chain::ActiveDataRequestPool;
@@ -76,35 +78,24 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             return;
         }
 
+        // Consolidate the best known block candidate
         if let Some(candidate) = self.best_candidate.take() {
             // Update chain_info
             match self.chain_state.chain_info.as_mut() {
                 Some(chain_info) => {
+                    // Update `highest_block_checkpoint`
                     let block_hash = candidate.block.hash();
                     let block_epoch = candidate.block.block_header.beacon.checkpoint;
-
                     let beacon = CheckpointBeacon {
                         checkpoint: msg.checkpoint,
                         hash_prev_block: block_hash,
                     };
-
                     chain_info.highest_block_checkpoint = beacon;
+
+                    // Insert candidate block into `block_chain`
                     self.chain_state.block_chain.insert(block_epoch, block_hash);
 
-                    info!(
-                        "{} Block {} consolidated for epoch #{}",
-                        Purple.bold().paint("[Chain]"),
-                        Purple.bold().paint(candidate.block.hash().to_string()),
-                        Purple.bold().paint(block_epoch.to_string()),
-                    );
-
-                    debug!("{:?}", candidate.block);
-                    debug!(
-                        "Mint transaction hash: {:?}",
-                        candidate.block.txns[0].hash()
-                    );
-
-                    // Update utxo_set and transactions_pool with block_candidate transactions
+                    // Update utxo_set, transactions_pool and data_request_pool with block_candidate transactions
                     self.chain_state.unspent_outputs_pool = candidate.utxo_set;
                     self.update_transaction_pool(candidate.block.txns.as_ref());
                     self.data_request_pool = candidate.data_request_pool;
@@ -140,6 +131,19 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         to_be_stored: self.data_request_pool.to_be_stored.clone(),
                         dr_pointer_cache: self.data_request_pool.dr_pointer_cache.clone(),
                     };
+
+                    info!(
+                        "{} Block {} consolidated for epoch #{}",
+                        Purple.bold().paint("[Chain]"),
+                        Purple.bold().paint(candidate.block.hash().to_string()),
+                        Purple.bold().paint(block_epoch.to_string()),
+                    );
+
+                    debug!("{:?}", candidate.block);
+                    debug!(
+                        "Mint transaction hash: {:?}",
+                        candidate.block.txns[0].hash()
+                    );
 
                     // Send block to Inventory Manager
                     self.persist_item(ctx, InventoryItem::Block(candidate.block));
@@ -337,20 +341,6 @@ impl Handler<AddTransaction> for ChainManager {
                 warn!("Input with no output");
             }
         }
-    }
-}
-
-/// Handler for GetBlock message
-impl Handler<GetBlock> for ChainManager {
-    type Result = Result<Block, ChainManagerError>;
-
-    fn handle(
-        &mut self,
-        msg: GetBlock,
-        _ctx: &mut Context<Self>,
-    ) -> Result<Block, ChainManagerError> {
-        // Try to get block by hash
-        self.try_to_get_block(msg.hash)
     }
 }
 

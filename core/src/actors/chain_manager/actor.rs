@@ -19,12 +19,11 @@ use crate::actors::{
 };
 
 use witnet_data_structures::chain::{
-    ActiveDataRequestPool, ChainInfo, ChainState, CheckpointBeacon, UnspentOutputsPool,
+    ActiveDataRequestPool, Blockchain, ChainInfo, ChainState, CheckpointBeacon, UnspentOutputsPool,
 };
 use witnet_util::timestamp::{get_timestamp, pretty_print};
 
 use log::{debug, error, warn};
-use std::collections::BTreeMap;
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -165,7 +164,7 @@ impl ChainManager {
                             chain_info: Some(chain_info),
                             unspent_outputs_pool: UnspentOutputsPool::default(),
                             data_request_pool: ActiveDataRequestPool::default(),
-                            block_chain: BTreeMap::default(),
+                            block_chain: Blockchain::default(),
                         };
                     }
                     actix::fut::ok(())

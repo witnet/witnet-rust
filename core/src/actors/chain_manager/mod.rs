@@ -30,7 +30,7 @@ use actix::{
     WrapFuture,
 };
 use ansi_term::Color::Purple;
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 use std::collections::HashMap;
 
 use self::messages::InventoryEntriesResult;
@@ -95,8 +95,6 @@ pub struct ChainManager {
     network_ready: bool,
     /// Blockchain state data structure
     chain_state: ChainState,
-    /// Map that stores blocks by their hash
-    blocks: HashMap<Hash, Block>,
     /// Map that stores blocks without validation by their hash
     blocks_to_validate: HashMap<Hash, Block>,
     /// Current Epoch
@@ -228,31 +226,6 @@ impl ChainManager {
             .wait(ctx);
     }
 
-    fn accept_block(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
-        // Calculate the hash of the block
-        let hash: Hash = block.hash();
-
-        // Check if we already have a block with that hash
-        if let Some(_block) = self.blocks.get(&hash) {
-            Err(ChainManagerError::BlockAlreadyExists)
-        } else {
-            // This is a new block, insert it into the internal maps
-            {
-                let beacon = &block.block_header.beacon;
-                info!(
-                    "{} Epoch #{} has a new block candidate",
-                    Purple.bold().paint("[Chain]"),
-                    Purple.bold().paint(beacon.checkpoint.to_string()),
-                );
-            }
-
-            // Insert the new block into the map of known blocks
-            self.blocks.insert(hash, block);
-
-            Ok(hash)
-        }
-    }
-
     fn keep_block_without_validation(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
         // Calculate the hash of the block
         let hash: Hash = block.hash();
@@ -306,14 +279,6 @@ impl ChainManager {
         });
     }
 
-    fn try_to_get_block(&mut self, hash: Hash) -> Result<Block, ChainManagerError> {
-        // Check if we have a block with that hash
-        self.blocks.get(&hash).map_or_else(
-            || Err(ChainManagerError::BlockDoesNotExist),
-            |block| Ok(block.clone()),
-        )
-    }
-
     fn discard_existing_inventory_entries(
         &mut self,
         inv_entries: Vec<InventoryEntry>,
@@ -332,7 +297,7 @@ impl ChainManager {
                 };
 
                 // Add the inventory vector to the missing vectors if it is not found
-                self.blocks.get(&hash).is_none()
+                self.blocks_to_validate.get(&hash).is_none()
             })
             .collect();
 
@@ -353,6 +318,7 @@ impl ChainManager {
                 None => false,
             };
 
+        // TODO: Refactor block validation logic
         self.current_epoch
             .map(|current_epoch| {
                 // Remove from blocks_to_validate HashMap if it exists
@@ -383,10 +349,9 @@ impl ChainManager {
                             block.hash()
                         );
                     }
-                } else if hash_prev_block != self.genesis_block_hash && !self.blocks.contains_key(&hash_prev_block) {
-//                } else if hash_prev_block != self.genesis_block_hash &&
-//                    !self.block_chain.get(&block_epoch).map(|x| x.contains(&hash_prev_block)).unwrap_or(false) {
-
+                } else if hash_prev_block != self.genesis_block_hash
+                    && self.chain_state.chain_info.is_some()
+                    && self.chain_state.chain_info.as_ref().unwrap().highest_block_checkpoint.hash_prev_block != hash_prev_block {
                     // Request the lost block with the hash_prev_block indicated in this block
                     // Except when that block is the genesis block
                     self.request_block(hash_prev_block);
@@ -464,58 +429,47 @@ impl ChainManager {
                     &mut data_request_pool,
                     &block,
                 ) {
-                    // Insert in blocks mempool
-                    let res = self.accept_block(block.clone());
-                    match res {
-                        Ok(hash) => {
-                            let block_epoch = block.block_header.beacon.checkpoint;
-                            if Some(block_epoch) == self.current_epoch {
-                                // Update block candidate
-                                self.best_candidate = Some(Candidate {
-                                    block: block.clone(),
-                                    utxo_set,
-                                    data_request_pool,
-                                });
-                                //Broadcast blocks in current epoch
-                                self.broadcast_item(InventoryItem::Block(block));
-                            } else {
-                                //TODO: Now we assume there are no forked older blocks
+                    let block_hash: Hash = block.hash();
+                    let block_epoch = block.block_header.beacon.checkpoint;
+                    if Some(block_epoch) == self.current_epoch {
+                        // Update block candidate
+                        self.best_candidate = Some(Candidate {
+                            block: block.clone(),
+                            utxo_set,
+                            data_request_pool,
+                        });
+                        //Broadcast blocks in current epoch
+                        self.broadcast_item(InventoryItem::Block(block));
+                    } else {
+                        //TODO: Now we assume there are no forked older blocks
 
-                                // Announce and persist older blocks
-                                self.broadcast_announce_items(hash);
+                        // Announce and persist older blocks
+                        self.broadcast_announce_items(block_hash);
 
-                                // Persist block item
-                                self.persist_item(ctx, InventoryItem::Block(block.clone()));
+                        // Persist block item
+                        self.persist_item(ctx, InventoryItem::Block(block.clone()));
 
-                                // Update utxo set with block's transactions
-                                self.chain_state.unspent_outputs_pool =
-                                    self.chain_state.generate_unspent_outputs_pool(&block);
-                                self.update_transaction_pool(block.txns.as_ref());
+                        // Update utxo set with block's transactions
+                        self.chain_state.unspent_outputs_pool =
+                            self.chain_state.generate_unspent_outputs_pool(&block);
+                        self.update_transaction_pool(block.txns.as_ref());
 
-                                // Update chain_info
-                                match self.chain_state.chain_info.as_mut() {
-                                    Some(chain_info) => {
-                                        let beacon = CheckpointBeacon {
-                                            checkpoint: block_epoch,
-                                            hash_prev_block: hash,
-                                        };
+                        // Update chain_info
+                        match self.chain_state.chain_info.as_mut() {
+                            Some(chain_info) => {
+                                let beacon = CheckpointBeacon {
+                                    checkpoint: block_epoch,
+                                    hash_prev_block: block_hash,
+                                };
 
-                                        chain_info.highest_block_checkpoint = beacon;
-                                    }
+                                chain_info.highest_block_checkpoint = beacon;
+                            }
 
-                                    None => {
-                                        error!("No ChainInfo loaded in ChainManager");
-                                    }
-                                }
+                            None => {
+                                error!("No ChainInfo loaded in ChainManager");
                             }
                         }
-                        Err(ChainManagerError::BlockAlreadyExists) => {
-                            warn!("Block already exists");
-                        }
-                        Err(_) => {
-                            error!("Unexpected error");
-                        }
-                    };
+                    }
                 } else {
                     warn!("Transactions not valid")
                 }
@@ -528,67 +482,6 @@ impl ChainManager {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
-
-    #[test]
-    fn add_block() {
-        let mut bm = ChainManager::default();
-
-        // Build hardcoded block
-        let checkpoint = 2;
-        let block_a = build_hardcoded_block(checkpoint, 99999, Hash::SHA256([111; 32]));
-
-        // Add block to ChainManager
-        let hash_a = bm.accept_block(block_a.clone()).unwrap();
-
-        // Check the block is added into the blocks map
-        assert_eq!(bm.blocks.len(), 1);
-        assert_eq!(bm.blocks.get(&hash_a).unwrap(), &block_a);
-
-        // The block should not be added into the epoch-to-hash map until it is consolidated
-        assert!(bm.chain_state.block_chain.get(&checkpoint).is_none());
-    }
-
-    #[test]
-    fn add_same_block_twice() {
-        let mut bm = ChainManager::default();
-
-        // Build hardcoded block
-        let block = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
-
-        // Only the first block will be inserted
-        assert!(bm.accept_block(block.clone()).is_ok());
-        assert!(bm.accept_block(block).is_err());
-        assert_eq!(bm.blocks.len(), 1);
-    }
-
-    #[test]
-    fn get_existing_block() {
-        // Create empty ChainManager
-        let mut bm = ChainManager::default();
-
-        // Create a hardcoded block
-        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
-
-        // Add the block to the ChainManager
-        let hash_a = bm.accept_block(block_a.clone()).unwrap();
-
-        // Try to get the block from the ChainManager
-        let stored_block = bm.try_to_get_block(hash_a).unwrap();
-
-        assert_eq!(stored_block, block_a);
-    }
-
-    #[test]
-    fn get_non_existent_block() {
-        // Create empty ChainManager
-        let mut bm = ChainManager::default();
-
-        // Try to get a block with an invented hash
-        let result = bm.try_to_get_block(Hash::SHA256([1; 32]));
-
-        // Check that an error was obtained
-        assert!(result.is_err());
-    }
 
     #[test]
     fn add_block_to_validate() {
@@ -634,102 +527,6 @@ mod tests {
         let hash_a = bm.keep_block_without_validation(block_a).unwrap();
         let hash_b = bm.keep_block_without_validation(block_b).unwrap();
         assert_ne!(hash_a, hash_b);
-    }
-
-    #[test]
-    fn discard_all() {
-        // Create empty ChainManager
-        let mut bm = ChainManager::default();
-
-        // Build blocks
-        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
-        let block_b = build_hardcoded_block(1, 10000, Hash::SHA256([112; 32]));
-        let block_c = build_hardcoded_block(3, 72138, Hash::SHA256([113; 32]));
-
-        // Add blocks to the ChainManager
-        let hash_a = bm.accept_block(block_a.clone()).unwrap();
-        let hash_b = bm.accept_block(block_b.clone()).unwrap();
-        let hash_c = bm.accept_block(block_c.clone()).unwrap();
-
-        // Build vector of inventory entries from hashes
-        let mut inv_entries = Vec::new();
-        inv_entries.push(InventoryEntry::Block(hash_a));
-        inv_entries.push(InventoryEntry::Block(hash_b));
-        inv_entries.push(InventoryEntry::Block(hash_c));
-
-        // Filter inventory entries
-        let missing_inv_entries = bm.discard_existing_inventory_entries(inv_entries).unwrap();
-
-        // Check there is no missing inventory entry
-        assert!(missing_inv_entries.is_empty());
-    }
-
-    #[test]
-    fn discard_some() {
-        // Create empty ChainManager
-        let mut bm = ChainManager::default();
-
-        // Build blocks
-        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
-        let block_b = build_hardcoded_block(1, 10000, Hash::SHA256([112; 32]));
-        let block_c = build_hardcoded_block(3, 72138, Hash::SHA256([113; 32]));
-
-        // Add blocks to the ChainManager
-        let hash_a = bm.accept_block(block_a.clone()).unwrap();
-        let hash_b = bm.accept_block(block_b.clone()).unwrap();
-        let hash_c = bm.accept_block(block_c.clone()).unwrap();
-
-        // Missing inventory vector
-        let missing_inv_entries = InventoryEntry::Block(Hash::SHA256([1; 32]));
-
-        // Build vector of inventory vectors from hashes
-        let mut inv_entries = Vec::new();
-        inv_entries.push(InventoryEntry::Block(hash_a));
-        inv_entries.push(InventoryEntry::Block(hash_b));
-        inv_entries.push(InventoryEntry::Block(hash_c));
-        inv_entries.push(missing_inv_entries.clone());
-
-        // Filter inventory vectors
-        let expected_missing_inv_entries =
-            bm.discard_existing_inventory_entries(inv_entries).unwrap();
-
-        // Check the expected missing inventory vectors
-        assert_eq!(vec![missing_inv_entries], expected_missing_inv_entries);
-    }
-
-    #[test]
-    fn discard_none() {
-        // Create empty ChainManager
-        let mut bm = ChainManager::default();
-
-        // Build blocks
-        let block_a = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
-        let block_b = build_hardcoded_block(1, 10000, Hash::SHA256([112; 32]));
-        let block_c = build_hardcoded_block(3, 72138, Hash::SHA256([113; 32]));
-
-        // Add blocks to the ChainManager
-        bm.accept_block(block_a.clone()).unwrap();
-        bm.accept_block(block_b.clone()).unwrap();
-        bm.accept_block(block_c.clone()).unwrap();
-
-        // Missing inventory vector
-        let missing_inv_entries_1 = InventoryEntry::Block(Hash::SHA256([1; 32]));
-        let missing_inv_entries_2 = InventoryEntry::Block(Hash::SHA256([2; 32]));
-        let missing_inv_entries_3 = InventoryEntry::Block(Hash::SHA256([3; 32]));
-
-        // Build vector of missing inventory vectors from hashes
-        let mut inv_entries = Vec::new();
-        inv_entries.push(missing_inv_entries_1);
-        inv_entries.push(missing_inv_entries_2);
-        inv_entries.push(missing_inv_entries_3);
-
-        // Filter inventory vectors
-        let missing_inv_entries = bm
-            .discard_existing_inventory_entries(inv_entries.clone())
-            .unwrap();
-
-        // Check there is no missing inventory vector
-        assert_eq!(missing_inv_entries, inv_entries);
     }
 
     #[cfg(test)]
