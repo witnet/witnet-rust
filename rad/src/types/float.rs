@@ -1,11 +1,13 @@
+use std::fmt;
+
+use rmpv::Value;
+
+use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
+
 use crate::error::*;
 use crate::operators::{identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonMixed, RadonType, RadonTypes};
-
-use rmpv::{decode, encode, Value};
-use std::{fmt, io::Cursor};
-use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct RadonFloat {
@@ -92,7 +94,7 @@ impl fmt::Display for RadonFloat {
 
 #[test]
 fn test_operate_unimplemented() {
-    let input = RadonFloat::from(3.141592);
+    let input = RadonFloat::from(std::f64::consts::PI);
 
     let call = (RadonOpCodes::Fail, None);
     let result = input.operate(&call);
@@ -106,10 +108,10 @@ fn test_operate_unimplemented() {
 
 #[test]
 fn test_from_vector() {
-    let input: &[u8] = &[203, 64, 9, 33, 250, 252, 139, 0, 122]; // 3.141592
+    let input: &[u8] = &[203, 64, 9, 33, 251, 84, 68, 45, 24]; // 3.141592653589793
 
-    let expected = RadonFloat::from(3.141592);
-    let expected_wrong = RadonFloat::from(3.141593);
+    let expected = RadonFloat::from(std::f64::consts::PI);
+    let expected_wrong = RadonFloat::from(std::f64::consts::PI + 1f64);
     let result = RadonFloat::try_from(input);
     let wronw_result = RadonFloat::try_from(input);
 

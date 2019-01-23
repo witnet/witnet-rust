@@ -1,5 +1,6 @@
 use crate::error::*;
 use crate::types::array::RadonArray;
+use crate::types::float::RadonFloat;
 use crate::types::mixed::RadonMixed;
 use crate::types::string::RadonString;
 
@@ -12,6 +13,7 @@ use witnet_data_structures::{
 };
 
 pub mod array;
+pub mod float;
 pub mod mixed;
 pub mod string;
 
@@ -44,6 +46,7 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub enum RadonTypes {
     Array(RadonArray),
+    Float(RadonFloat),
     Mixed(RadonMixed),
     String(RadonString),
 }
@@ -66,14 +69,21 @@ impl From<RadonArray> for RadonTypes {
     }
 }
 
+impl From<RadonFloat> for RadonTypes {
+    fn from(float: RadonFloat) -> Self {
+        RadonTypes::Float(float)
+    }
+}
+
 impl TryFrom<Value> for RadonTypes {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<RadonTypes, Self::Error> {
         match value {
-            Value::String(_) => RadonString::try_from(value).map(RadonTypes::String),
-            Value::Array(_) => RadonArray::try_from(value).map(RadonTypes::Array),
-            _ => RadonMixed::try_from(value).map(RadonTypes::Mixed),
+            Value::Array(_) => RadonArray::try_from(value).map(Into::into),
+            Value::F64(_) => RadonFloat::try_from(value).map(Into::into),
+            Value::String(_) => RadonString::try_from(value).map(Into::into),
+            _ => RadonMixed::try_from(value).map(Into::into),
         }
     }
 }
@@ -83,9 +93,10 @@ impl TryInto<Value> for RadonTypes {
 
     fn try_into(self) -> Result<Value, Self::Error> {
         match self {
+            RadonTypes::Array(radon_array) => radon_array.try_into(),
+            RadonTypes::Float(radon_float) => radon_float.try_into(),
             RadonTypes::Mixed(radon_mixed) => radon_mixed.try_into(),
             RadonTypes::String(radon_string) => radon_string.try_into(),
-            RadonTypes::Array(radon_array) => radon_array.try_into(),
         }
     }
 }
