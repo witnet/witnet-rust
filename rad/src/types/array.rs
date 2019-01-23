@@ -8,10 +8,20 @@ use std::fmt;
 use std::mem::{discriminant, Discriminant};
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
+fn mixed_discriminant() -> Discriminant<RadonTypes> {
+    discriminant(&RadonTypes::from(RadonMixed::from(Value::Nil)))
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadonArray {
     value: Vec<RadonTypes>,
     inner_type: Discriminant<RadonTypes>,
+}
+
+impl RadonArray {
+    pub fn is_homogeneous(&self) -> bool {
+        self.inner_type != mixed_discriminant()
+    }
 }
 
 impl<'a> RadonType<'a, Vec<RadonTypes>> for RadonArray {
@@ -37,11 +47,7 @@ impl From<Vec<RadonTypes>> for RadonArray {
                     }
                 })
             })
-            .unwrap_or_else(|| {
-                let mixed = RadonMixed::from(Value::from(0));
-
-                discriminant(&RadonTypes::from(mixed))
-            });
+            .unwrap_or_else(mixed_discriminant);
 
         RadonArray { value, inner_type }
     }
