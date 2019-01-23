@@ -1,7 +1,7 @@
 use crate::actors::chain_manager::messages::GetOutputResult;
 
 use actix::{Actor, Context, Handler};
-use ansi_term::Color::Purple;
+use ansi_term::Color::{Purple, White};
 
 use crate::actors::chain_manager::{
     messages::{SessionUnitResult, SetNetworkReady},
@@ -101,6 +101,27 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     self.data_request_pool = candidate.data_request_pool;
 
                     let reveals = self.data_request_pool.update_data_request_stages();
+
+                    {
+                        let info = self.data_request_pool.data_request_pool.iter().fold(
+                            String::new(),
+                            |acc, (k, v)| {
+                                format!(
+                                    "{}\n* {} Stage: {}, Commits: {}, Reveals: {}",
+                                    acc,
+                                    White.bold().paint(k.to_string()),
+                                    White.bold().paint(format!("{:?}", v.stage)),
+                                    v.info.commits.len(),
+                                    v.info.reveals.len()
+                                )
+                            },
+                        );
+                        if info.is_empty() {
+                            debug!("No data requests")
+                        } else {
+                            info!("Data requests:{}", info);
+                        }
+                    }
 
                     for reveal in reveals {
                         // Send AddTransaction message to self
