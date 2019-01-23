@@ -2,6 +2,7 @@
 
 pub mod error;
 pub mod operators;
+pub mod reducers;
 pub mod script;
 pub mod types;
 

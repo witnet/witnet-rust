@@ -8,6 +8,7 @@ use crate::types::RadonTypes;
 use num_derive::FromPrimitive;
 use std::fmt;
 
+pub mod array;
 pub mod mixed;
 pub mod string;
 
@@ -26,6 +27,7 @@ pub enum RadonOpCodes {
     /// Parse Mixed from JSON string
     ParseJson = 0x53,
     // Array operator codes start at 0x60
+    Reduce = 0x66,
     // Map operator codes start at 0x70
     // Mixed operator codes start at 0x80
     // Result operator codes start at 0x90
