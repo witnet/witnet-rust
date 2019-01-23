@@ -5,7 +5,7 @@ use crate::types::{array::RadonArray, RadonTypes};
 use num_traits::FromPrimitive;
 use rmpv::Value;
 
-pub fn reduce(input: &RadonArray, args: & [Value]) -> RadResult<RadonTypes> {
+pub fn reduce(input: &RadonArray, args: &[Value]) -> RadResult<RadonTypes> {
     let none_error = || WitnetError::from(RadError::new(RadErrorKind::None, String::from("")));
 
     let reducer_integer = args

@@ -1,10 +1,13 @@
+// FIXME: https://github.com/rust-num/num-derive/issues/20
+#![allow(clippy::useless_attribute)]
+
 use crate::error::*;
 use crate::types::{array::RadonArray, RadonTypes};
 
 mod average;
 
-use std::fmt;
 use num_derive::FromPrimitive;
+use std::fmt;
 
 #[derive(Debug, FromPrimitive, PartialEq)]
 pub enum RadonReducers {
@@ -26,18 +29,18 @@ impl fmt::Display for RadonReducers {
 }
 
 pub fn reduce(input: &RadonArray, reducer_code: RadonReducers) -> RadResult<RadonTypes> {
-    match reducer_code {
-        RadonReducers::AverageMean => {
-            average::mean(input)
-        }
-        _ => {
-            Err(WitnetError::from(RadError::new(
+    if input.is_homogeneous() {
+        match reducer_code {
+            RadonReducers::AverageMean => average::mean(input),
+            _ => Err(WitnetError::from(RadError::new(
                 RadErrorKind::UnsupportedReducer,
-                format!(
-                    "Call to reducer {:} is not supported on the provided type of RadonArray",
-                    reducer_code
-                ),
-            )))
+                format!("Reducer {:} is not yet implemented", reducer_code),
+            ))),
         }
+    } else {
+        Err(WitnetError::from(RadError::new(
+            RadErrorKind::UnsupportedReducer,
+            String::from("Heterogeneous arrays (RadonArray<Mixed>) can not be reduced"),
+        )))
     }
 }
