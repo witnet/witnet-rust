@@ -44,6 +44,10 @@ pub enum RadErrorKind {
     UnknownOperator,
     /// The given operator is not implemented for the input type
     UnsupportedOperator,
+    /// Failed to retrieve key from Map
+    MapKeyNotFound,
+    /// Map key not provided
+    MapKeyNotProvided,
 }
 
 impl fmt::Display for RadErrorKind {

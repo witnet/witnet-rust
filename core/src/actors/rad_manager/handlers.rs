@@ -11,7 +11,7 @@ impl Handler<messages::ResolveRA> for RadManager {
         log::warn!("ResolveRA: unimplemented handler!");
         rad::run_retrieval();
         rad::run_aggregation();
-        
+
         Ok(Vec::new())
     }
 }
