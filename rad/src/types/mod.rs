@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::types::array::RadonArray;
 use crate::types::float::RadonFloat;
+use crate::types::map::RadonMap;
 use crate::types::mixed::RadonMixed;
 use crate::types::string::RadonString;
 
@@ -14,6 +15,7 @@ use witnet_data_structures::{
 
 pub mod array;
 pub mod float;
+pub mod map;
 pub mod mixed;
 pub mod string;
 
@@ -49,6 +51,7 @@ pub enum RadonTypes {
     Float(RadonFloat),
     Mixed(RadonMixed),
     String(RadonString),
+    Map(RadonMap),
 }
 
 impl<'a> From<RadonFloat> for RadonTypes {
@@ -75,6 +78,12 @@ impl From<RadonArray> for RadonTypes {
     }
 }
 
+impl From<RadonMap> for RadonTypes {
+    fn from(map: RadonMap) -> Self {
+        RadonTypes::Map(map)
+    }
+}
+
 impl TryFrom<Value> for RadonTypes {
     type Error = RadError;
 
@@ -95,7 +104,8 @@ impl TryInto<Value> for RadonTypes {
             RadonTypes::Mixed(radon_mixed) => radon_mixed.try_into(),
             RadonTypes::String(radon_string) => radon_string.try_into(),
             RadonTypes::Array(radon_array) => radon_array.try_into(),
-            RadonTypes::Float(radon_float) => radon_float.try_into(), 
+            RadonTypes::Float(radon_float) => radon_float.try_into(),
+            RadonTypes::Map(radon_map) => radon_map.try_into(),
         }
     }
 }

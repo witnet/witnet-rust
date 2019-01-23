@@ -8,6 +8,7 @@ use crate::types::RadonTypes;
 use num_derive::FromPrimitive;
 use std::fmt;
 
+pub mod map;
 pub mod mixed;
 pub mod string;
 
@@ -27,6 +28,7 @@ pub enum RadonOpCodes {
     ParseJson = 0x53,
     // Array operator codes start at 0x60
     // Map operator codes start at 0x70
+    MapGet = 0x71,
     // Mixed operator codes start at 0x80
     // Result operator codes start at 0x90
 }
@@ -47,6 +49,7 @@ pub fn operate(input: RadonTypes, call: &RadonCall) -> RadResult<RadonTypes> {
         RadonTypes::Mixed(radon_mixed) => radon_mixed.operate(call),
         RadonTypes::Array(radon_array) => radon_array.operate(call),
         RadonTypes::Float(radon_float) => radon_float.operate(call),
+        RadonTypes::Map(radon_map) => radon_map.operate(call),
     }
 }
 

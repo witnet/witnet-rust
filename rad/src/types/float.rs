@@ -107,12 +107,12 @@ fn test_operate_unimplemented() {
 #[test]
 fn test_from_vector() {
     let input: &[u8] = &[203, 64, 9, 33, 250, 252, 139, 0, 122]; // 3.141592
-    
+
     let expected = RadonFloat::from(3.141592);
     let expected_wrong = RadonFloat::from(3.141593);
     let result = RadonFloat::try_from(input);
     let wronw_result = RadonFloat::try_from(input);
-    
+
     assert_eq!(expected, result.unwrap());
     assert_ne!(expected_wrong, wronw_result.unwrap());
 }
