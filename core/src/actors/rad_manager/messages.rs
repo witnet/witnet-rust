@@ -1,6 +1,7 @@
 //! Messages for `RadManager`
 use actix::Message;
 use witnet_data_structures::chain::{RADConsensus, RADRequest};
+use witnet_rad::error::RadResult;
 
 /// Message for resolving the request-aggregate step of a data
 /// request.
@@ -19,15 +20,10 @@ pub struct RunConsensus {
     pub reveals: Vec<Vec<u8>>,
 }
 
-/// Message result of unit
-pub type SessionUnitResult = ();
-
 impl Message for ResolveRA {
-    // TODO: Use RAD error
-    type Result = Result<Vec<u8>, String>;
+    type Result = RadResult<Vec<u8>>;
 }
 
 impl Message for RunConsensus {
-    // TODO: Use RAD error
-    type Result = Result<Vec<u8>, String>;
+    type Result = RadResult<Vec<u8>>;
 }

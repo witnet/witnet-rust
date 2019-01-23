@@ -19,10 +19,10 @@ impl Handler<messages::ResolveRA> for RadManager {
 impl Handler<messages::RunConsensus> for RadManager {
     type Result = <messages::RunConsensus as Message>::Result;
 
-    fn handle(&mut self, _msg: messages::RunConsensus, _ctx: &mut Self::Context) -> Self::Result {
-        log::warn!("RunConsensus: unimplemented handler!");
-        rad::run_consensus();
+    fn handle(&mut self, msg: messages::RunConsensus, _ctx: &mut Self::Context) -> Self::Result {
+        let packed_script = msg.script.script;
+        let reveals = msg.reveals;
 
-        Ok(Vec::new())
+        rad::run_consensus(reveals, packed_script)
     }
 }
