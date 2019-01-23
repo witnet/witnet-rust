@@ -32,6 +32,8 @@ pub enum RadErrorKind {
     JsonParse,
     /// Failed to parse a Value from a MessagePack buffer
     MessagePack,
+    /// An Option turned out to be None
+    None,
     /// No operator found in compound call
     NoOperatorInCompoundCall,
     /// The given operator code is not a valid Integer
@@ -44,6 +46,8 @@ pub enum RadErrorKind {
     UnknownOperator,
     /// The given operator is not implemented for the input type
     UnsupportedOperator,
+    /// The given reducer is not implemented for the type of the input Array
+    UnsupportedReducer
 }
 
 impl fmt::Display for RadErrorKind {
@@ -55,3 +59,12 @@ impl fmt::Display for RadErrorKind {
 /// Result type for the RAD module.
 /// This is the only return type acceptable for any public method in a storage backend.
 pub type RadResult<T> = WitnetResult<T, RadError>;
+
+//impl From<std::option::NoneError> for WitnetError<RadError> {
+//    fn from(error: std::option::NoneError) -> WitnetError<RadError> {
+//        RadError::new(
+//            RadErrorKind::NoneError,
+//            String::from("An Option turned out to be None"),
+//        ).into()
+//    }
+//}

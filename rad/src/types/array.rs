@@ -1,15 +1,17 @@
 use crate::error::*;
-use crate::operators::{identity, Operable, RadonOpCodes};
+use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{mixed::RadonMixed, RadonType, RadonTypes};
 
 use rmpv::Value;
 use std::fmt;
+use std::mem::{discriminant, Discriminant};
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadonArray {
     value: Vec<RadonTypes>,
+    inner_type: Discriminant<RadonTypes>,
 }
 
 impl<'a> RadonType<'a, Vec<RadonTypes>> for RadonArray {
@@ -20,7 +22,28 @@ impl<'a> RadonType<'a, Vec<RadonTypes>> for RadonArray {
 
 impl From<Vec<RadonTypes>> for RadonArray {
     fn from(value: Vec<RadonTypes>) -> Self {
-        RadonArray { value }
+        let mut iter = value.iter();
+        let first_type = iter.nth(0).map(discriminant);
+
+        let inner_type = first_type
+            .map_or(first_type, |first_type| {
+                iter.try_fold(first_type, |previous_type, current| {
+                    let current_type = discriminant(current);
+
+                    if current_type == previous_type {
+                        Some(current_type)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or_else(|| {
+                let mixed = RadonMixed::from(Value::from(0));
+
+                discriminant(&RadonTypes::from(mixed))
+            });
+
+        RadonArray { value, inner_type }
     }
 }
 
@@ -92,6 +115,7 @@ impl Operable for RadonArray {
     fn operate(self, call: &RadonCall) -> RadResult<RadonTypes> {
         match call {
             (RadonOpCodes::Identity, None) => identity(self.into()),
+            (RadonOpCodes::Reduce, Some(args)) => array_operators::reduce(&self, args.as_slice()),
             (op_code, args) => Err(WitnetError::from(RadError::new(
                 RadErrorKind::UnsupportedOperator,
                 format!(
