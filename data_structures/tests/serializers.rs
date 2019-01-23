@@ -1085,3 +1085,116 @@ fn message_get_data_encode_decode() {
 
     assert_eq!(cloned_msg, Message::try_from(result).unwrap());
 }
+
+#[test]
+fn message_transaction_encode_decode() {
+    let signature = Signature::Secp256k1(Secp256k1Signature {
+        r: [0; 32],
+        s: [0; 32],
+        v: 0,
+    });
+    let keyed_signature = vec![KeyedSignature {
+        public_key: [0; 32],
+        signature,
+    }];
+
+    let commit_input = Input::Commit(CommitInput {
+        nonce: 0,
+        output_index: 0,
+        reveal: [0; 32].to_vec(),
+        transaction_id: Hash::SHA256([0; 32]),
+    });
+    let data_request_input = Input::DataRequest(DataRequestInput {
+        output_index: 0,
+        poe: [0; 32],
+        transaction_id: Hash::SHA256([0; 32]),
+    });
+    let reveal_input = Input::Reveal(RevealInput {
+        output_index: 0,
+        transaction_id: Hash::SHA256([0; 32]),
+    });
+    let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
+        pkh: [0; 20],
+        value: 0,
+    });
+
+    let rad_aggregate = RADAggregate { script: vec![0] };
+
+    let rad_retrieve_1 = RADRetrieve {
+kind: RADType::HttpGet,
+url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+script: vec![0],
+};
+
+    let rad_retrieve_2 = RADRetrieve {
+kind: RADType::HttpGet,
+url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+script: vec![0],
+};
+
+    let rad_consensus = RADConsensus { script: vec![0] };
+
+    let rad_deliver_1 = RADDeliver {
+        kind: RADType::HttpGet,
+        url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
+    };
+
+    let rad_deliver_2 = RADDeliver {
+        kind: RADType::HttpGet,
+        url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
+    };
+
+    let rad_request = RADRequest {
+        aggregate: rad_aggregate,
+        not_before: 0,
+        retrieve: vec![rad_retrieve_1, rad_retrieve_2],
+        consensus: rad_consensus,
+        deliver: vec![rad_deliver_1, rad_deliver_2],
+    };
+    let data_request_output = Output::DataRequest(DataRequestOutput {
+        backup_witnesses: 0,
+        commit_fee: 0,
+        data_request: rad_request,
+        pkh: [0; 20],
+        reveal_fee: 0,
+        tally_fee: 0,
+        time_lock: 0,
+        value: 0,
+        witnesses: 0,
+    });
+    let commit_output = Output::Commit(CommitOutput {
+        commitment: Hash::SHA256([0; 32]),
+        value: 0,
+    });
+    let reveal_output = Output::Reveal(RevealOutput {
+        pkh: [0; 20],
+        reveal: vec![],
+        value: 0,
+    });
+    let consensus_output = Output::Tally(TallyOutput {
+        pkh: [0; 20],
+        result: vec![0; 1024], // The maximum size is not defined
+        value: 0,
+    });
+    let inputs = vec![data_request_input, reveal_input, commit_input];
+    let outputs = vec![
+        value_transfer_output,
+        data_request_output,
+        commit_output,
+        reveal_output,
+        consensus_output,
+    ];
+    let msg = Message {
+        kind: Command::Transaction(Transaction {
+            version: 0,
+            inputs,
+            outputs,
+            signatures: keyed_signature,
+        }),
+        magic: 1,
+    };
+    let cloned_msg = msg.clone();
+    let result: Vec<u8> = msg.into();
+
+    assert_eq!(cloned_msg, Message::try_from(result).unwrap());
+}
