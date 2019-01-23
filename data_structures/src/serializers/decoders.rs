@@ -388,12 +388,7 @@ fn create_input(ftb_input: protocol::Input) -> Input {
                         Hash::SHA256(transaction_id)
                     },
                     output_index: commit_input.output_index(),
-                    reveal: {
-                        let mut reveal = [0; 32];
-                        reveal.copy_from_slice(&commit_input.reveal()[0..32]);
-
-                        reveal.to_vec()
-                    },
+                    reveal: commit_input.reveal().to_vec(),
                     nonce: commit_input.nonce(),
                 })
             })
@@ -487,12 +482,7 @@ fn create_output(ftb_output: protocol::Output) -> Output {
             .map(|reveal_output| {
                 Output::Reveal(RevealOutput {
                     pkh: create_pkh(reveal_output.pkh()),
-                    reveal: {
-                        let mut reveal = [0; 32];
-                        reveal.copy_from_slice(&reveal_output.reveal()[0..32]);
-
-                        reveal.to_vec()
-                    },
+                    reveal: reveal_output.reveal().to_vec(),
                     value: reveal_output.value(),
                 })
             })
@@ -503,12 +493,8 @@ fn create_output(ftb_output: protocol::Output) -> Output {
             .map(|tally_output| {
                 Output::Tally(TallyOutput {
                     pkh: create_pkh(tally_output.pkh()),
-                    result: {
-                        let mut result = [0; 32];
-                        result.copy_from_slice(&tally_output.result()[0..32]);
+                    result: tally_output.result().to_vec(),
 
-                        result.to_vec()
-                    },
                     value: tally_output.value(),
                 })
             })
