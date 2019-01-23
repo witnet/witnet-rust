@@ -1,7 +1,7 @@
 use crate::actors::chain_manager::messages::GetOutputResult;
 
 use actix::{Actor, Context, Handler};
-use ansi_term::Color::Purple;
+use ansi_term::Color::{Purple, White};
 
 use crate::actors::chain_manager::{
     messages::{SessionUnitResult, SetNetworkReady},
@@ -144,6 +144,27 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         "Mint transaction hash: {:?}",
                         candidate.block.txns[0].hash()
                     );
+
+                    {
+                        let info = self.data_request_pool.data_request_pool.iter().fold(
+                            String::new(),
+                            |acc, (k, v)| {
+                                format!(
+                                    "{}\n* {} Stage: {}, Commits: {}, Reveals: {}",
+                                    acc,
+                                    White.bold().paint(k.to_string()),
+                                    White.bold().paint(format!("{:?}", v.stage)),
+                                    v.info.commits.len(),
+                                    v.info.reveals.len()
+                                )
+                            },
+                        );
+                        if info.is_empty() {
+                            debug!("No data requests")
+                        } else {
+                            info!("Data requests:{}", info);
+                        }
+                    }
 
                     // Send block to Inventory Manager
                     self.persist_item(ctx, InventoryItem::Block(candidate.block));
