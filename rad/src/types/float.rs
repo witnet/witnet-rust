@@ -88,11 +88,8 @@ fn test_operate_unimplemented() {
 fn test_from_vector() {
     let input: &[u8] = &[203, 64, 9, 33, 251, 84, 68, 45, 24]; // 3.141592653589793
 
-    let expected = RadonFloat::from(std::f64::consts::PI);
-    let expected_wrong = RadonFloat::from(std::f64::consts::PI + 1f64);
-    let result = RadonFloat::decode(input);
-    let wrong_result = RadonFloat::decode(input);
+    let expected = RadonTypes::from(RadonFloat::from(std::f64::consts::PI));
+    let result = RadonTypes::try_from(input).unwrap();
 
-    assert_eq!(expected, result.unwrap());
-    assert_ne!(expected_wrong, wrong_result.unwrap());
+    assert_eq!(result, expected);
 }

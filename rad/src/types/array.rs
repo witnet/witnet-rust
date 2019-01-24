@@ -158,15 +158,15 @@ fn test_operate_unimplemented() {
 fn test_serialize_radon_array() {
     use crate::types::string::RadonString;
 
-    let input = RadonArray::from(vec![
+    let input = RadonTypes::from(RadonArray::from(vec![
         RadonString::from("Hello").into(),
         RadonString::from("world!").into(),
-    ]);
+    ]));
     let expected: Vec<u8> = vec![
         146, 165, 72, 101, 108, 108, 111, 166, 119, 111, 114, 108, 100, 33,
     ];
 
-    let output: Vec<u8> = input.encode().unwrap();
+    let output: Vec<u8> = input.try_into().unwrap();
 
     assert_eq!(output, expected);
 }

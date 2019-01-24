@@ -5,7 +5,7 @@ use std::fmt;
 pub use witnet_util::error::{WitnetError, WitnetResult};
 
 /// RAD Error
-#[derive(Debug, Fail)]
+#[derive(Debug, PartialEq, Fail)]
 #[fail(display = "{} : {}", kind, msg)]
 pub struct RadError {
     /// Error kind.

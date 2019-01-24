@@ -132,10 +132,10 @@ fn test_operate_unimplemented() {
 
 #[test]
 fn test_serialize_radon_string() {
-    let input = RadonString::from("Hello world!");
+    let input = RadonTypes::from(RadonString::from("Hello world!"));
     let expected: Vec<u8> = vec![172, 72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33];
 
-    let output: Vec<u8> = input.encode().unwrap();
+    let output: Vec<u8> = RadonTypes::try_into(input).unwrap();
 
     assert_eq!(output, expected);
 }

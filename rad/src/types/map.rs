@@ -137,27 +137,25 @@ fn test_try_into() {
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
-    let result: Result<Vec<u8>, _> = input.encode();
+    let result: Vec<u8> = RadonTypes::from(input).try_into().unwrap();
 
     let expected_vec: Vec<u8> = vec![129, 164, 90, 101, 114, 111, 0];
 
-    assert!(result.is_ok());
-    assert_eq!(expected_vec, result.unwrap());
+    assert_eq!(result, expected_vec);
 }
 
 #[test]
 fn test_try_from() {
     let slice: &[u8] = &[129, 164, 90, 101, 114, 111, 0];
 
-    let result = RadonMap::decode(slice);
+    let result = RadonTypes::try_from(slice).unwrap();
 
     let mut map = HashMap::new();
     let value = RadonMixed::from(rmpv::Value::from(0));
     map.insert("Zero".to_string(), value);
-    let expected_input = RadonMap::from(map);
+    let expected_input = RadonTypes::from(RadonMap::from(map));
 
-    assert!(result.is_ok());
-    assert_eq!(expected_input, result.unwrap());
+    assert_eq!(result, expected_input);
 }
 
 #[test]
@@ -168,12 +166,11 @@ fn test_operate_map_get() {
     let input = RadonMap::from(map);
 
     let call = (RadonOpCodes::Get, Some(vec![Value::from("Zero")]));
-    let result = input.operate(&call);
+    let result = input.operate(&call).unwrap();
 
     let expected_value = RadonTypes::Mixed(RadonMixed::from(rmpv::Value::from(0)));
 
-    assert!(result.is_ok());
-    assert_eq!(expected_value, result.unwrap());
+    assert_eq!(result, expected_value);
 }
 
 #[test]

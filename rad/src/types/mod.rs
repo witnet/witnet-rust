@@ -25,49 +25,6 @@ where
     T: fmt::Debug,
 {
     fn value(&self) -> T;
-
-    fn hash(self) -> RadResult<Hash> {
-        self.encode()
-            .map(|vector: Vec<u8>| calculate_sha256(&*vector))
-            .map(Hash::from)
-            .map_err(|_| {
-                WitnetError::from(RadError::new(
-                    RadErrorKind::Hash,
-                    String::from("Failed to hash RADON value or structure"),
-                ))
-            })
-    }
-
-    fn encode(self) -> RadResult<Vec<u8>> {
-        let mut cursor = Cursor::new(Vec::new());
-        let value_result = self.try_into();
-        let result = value_result.map(|value| encode::write_value(&mut cursor, &value));
-        let vector = cursor.into_inner();
-
-        match result {
-            Ok(Ok(())) => Ok(vector),
-            _ => Err(RadError::new(
-                RadErrorKind::EncodeDecode,
-                String::from("Failed to encode a RadonType into bytes"),
-            )
-            .into()),
-        }
-    }
-
-    fn decode(slice: &[u8]) -> RadResult<Self> {
-        let mut cursor = Cursor::new(slice);
-        let value_result = decode::read_value(&mut cursor);
-        let radon_result = value_result.map(Self::try_from);
-
-        match radon_result {
-            Ok(Ok(radon)) => Ok(radon),
-            _ => Err(RadError::new(
-                RadErrorKind::EncodeDecode,
-                String::from("Failed to decode a RadonType from bytes"),
-            )
-            .into()),
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,6 +34,20 @@ pub enum RadonTypes {
     Map(RadonMap),
     Mixed(RadonMixed),
     String(RadonString),
+}
+
+impl RadonTypes {
+    pub fn hash(self) -> RadResult<Hash> {
+        self.try_into()
+            .map(|vector: Vec<u8>| calculate_sha256(&*vector))
+            .map(Hash::from)
+            .map_err(|_| {
+                WitnetError::from(RadError::new(
+                    RadErrorKind::Hash,
+                    String::from("Failed to hash RADON value or structure"),
+                ))
+            })
+    }
 }
 
 impl From<RadonArray> for RadonTypes {
@@ -133,6 +104,43 @@ impl TryInto<Value> for RadonTypes {
             RadonTypes::Map(radon_map) => radon_map.try_into(),
             RadonTypes::Mixed(radon_mixed) => radon_mixed.try_into(),
             RadonTypes::String(radon_string) => radon_string.try_into(),
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for RadonTypes {
+    type Error = RadError;
+
+    fn try_from(slice: &[u8]) -> Result<RadonTypes, Self::Error> {
+        let mut cursor = Cursor::new(slice);
+        let value_result = decode::read_value(&mut cursor);
+        let radon_result = value_result.map(RadonTypes::try_from);
+
+        match radon_result {
+            Ok(Ok(radon)) => Ok(radon),
+            _ => Err(RadError::new(
+                RadErrorKind::EncodeDecode,
+                String::from("Failed to decode a RadonType from bytes"),
+            )),
+        }
+    }
+}
+
+impl TryInto<Vec<u8>> for RadonTypes {
+    type Error = RadError;
+
+    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+        let mut cursor = Cursor::new(Vec::new());
+        let value_result = self.try_into();
+        let result = value_result.map(|value| encode::write_value(&mut cursor, &value));
+        let vector = cursor.into_inner();
+
+        match result {
+            Ok(Ok(())) => Ok(vector),
+            _ => Err(RadError::new(
+                RadErrorKind::EncodeDecode,
+                String::from("Failed to encode a RadonType into bytes"),
+            )),
         }
     }
 }
