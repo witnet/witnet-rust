@@ -255,7 +255,7 @@ pub struct Secp256k1Signature {
 }
 
 /// Hash
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Serialize, Deserialize, Hash)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),
@@ -284,6 +284,12 @@ impl fmt::Display for Hash {
         };
 
         Ok(())
+    }
+}
+
+impl fmt::Debug for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
@@ -923,7 +929,7 @@ impl TransactionsPool {
 
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
-#[derive(Debug, Default, Hash, Clone, Eq, PartialEq)]
+#[derive(Default, Hash, Clone, Eq, PartialEq)]
 pub struct OutputPointer {
     pub transaction_id: Hash,
     pub output_index: u32,
@@ -940,6 +946,12 @@ pub enum OutputPointerParseError {
 impl fmt::Display for OutputPointer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(&format!("{}:{}", &self.transaction_id, &self.output_index))
+    }
+}
+
+impl fmt::Debug for OutputPointer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
