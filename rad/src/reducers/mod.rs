@@ -11,6 +11,7 @@ use std::fmt;
 
 #[derive(Debug, FromPrimitive, PartialEq)]
 pub enum RadonReducers {
+    Identity = 0x00,
     Mode = 0x10,
     AverageMean = 0x20,
     AverageMeanWeighted = 0x21,
