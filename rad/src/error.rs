@@ -19,10 +19,15 @@ impl RadError {
     pub fn new(kind: RadErrorKind, msg: String) -> Self {
         Self { kind, msg }
     }
+
+    /// Query the specific RadErrorKind case for a RadError
+    pub fn kind(&self) -> &RadErrorKind {
+        &self.kind
+    }
 }
 
 /// RAD errors.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RadErrorKind {
     /// Failed to encode or decode a RADON type into / from bytes
     EncodeDecode,
