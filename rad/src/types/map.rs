@@ -73,28 +73,6 @@ impl TryInto<Value> for RadonMap {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for RadonMap {
-    type Error = RadError;
-
-    fn try_from(slice: &'a [u8]) -> Result<Self, Self::Error> {
-        let mixed = RadonMixed::try_from(slice)?;
-        let value: Value = RadonMixed::try_into(mixed)?;
-
-        Self::try_from(value)
-    }
-}
-
-impl<'a> TryInto<Vec<u8>> for RadonMap {
-    type Error = RadError;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        let value: Value = Self::try_into(self)?;
-        let mixed = RadonMixed::try_from(value)?;
-
-        RadonMixed::try_into(mixed)
-    }
-}
-
 impl fmt::Display for RadonMap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "RadonMap")
