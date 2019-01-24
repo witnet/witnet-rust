@@ -165,7 +165,7 @@ impl ChainManager {
                 let rad_manager_addr = System::current().registry().get::<RadManager>();
                 rad_manager_addr
                     .send(ResolveRA {
-                        script: rad_request,
+                        rad_request,
                     })
                     .into_actor(self)
                     .then(move |res, act, ctx| match res {

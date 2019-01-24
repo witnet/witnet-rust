@@ -8,7 +8,7 @@ use witnet_rad::error::RadResult;
 #[derive(Debug)]
 pub struct ResolveRA {
     /// RAD request to be executed
-    pub script: RADRequest,
+    pub rad_request: RADRequest,
 }
 
 /// Message for running the consensus step of a data request.

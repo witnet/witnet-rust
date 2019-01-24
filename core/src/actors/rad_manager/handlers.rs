@@ -1,18 +1,21 @@
 //! Message handlers for `RadManager`
 use super::{messages, RadManager};
 use actix::{Handler, Message};
-use log;
 use witnet_rad as rad;
 
 impl Handler<messages::ResolveRA> for RadManager {
     type Result = <messages::ResolveRA as Message>::Result;
 
-    fn handle(&mut self, _msg: messages::ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
-        log::warn!("ResolveRA: unimplemented handler!");
-        rad::run_retrieval();
-        rad::run_aggregation();
+    fn handle(&mut self, msg: messages::ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
+        let retrieve_scripts = msg.rad_request.retrieve;
+        let aggregate_script = msg.rad_request.aggregate.script;
 
-        Ok(Vec::new())
+        let retrieve_responses = retrieve_scripts
+            .into_iter()
+            .filter_map(|retrieve| rad::run_retrieval(retrieve).ok())
+            .collect();
+
+        rad::run_aggregation(retrieve_responses, aggregate_script)
     }
 }
 
