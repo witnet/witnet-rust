@@ -255,7 +255,7 @@ pub struct Secp256k1Signature {
 }
 
 /// Hash
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Serialize, Deserialize, Hash)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Serialize, Hash)]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),
@@ -290,6 +290,45 @@ impl fmt::Display for Hash {
 impl fmt::Debug for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+/// Helper type to allow deserialization of hashes in string format:
+/// "01234abcd..." instead of [0x01, 0x23, 0x4a, 0xbc, ...]
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum HashSerializationHelper {
+    Normal {
+        #[serde(rename = "SHA256")]
+        hash: SHA256,
+    },
+    AsString(String),
+}
+
+impl<'de> Deserialize<'de> for Hash {
+    fn deserialize<D>(deserializer: D) -> Result<Hash, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hash_deser = HashSerializationHelper::deserialize(deserializer)?;
+
+        match hash_deser {
+            HashSerializationHelper::Normal { hash } => Ok(Hash::SHA256(hash)),
+            HashSerializationHelper::AsString(hash_str) => {
+                let mut sha256: SHA256 = [0; 32];
+                let sha256_bytes = parse_hex(&hash_str);
+                if sha256_bytes.len() != 32 {
+                    // TODO: error handling
+                    panic!(
+                        "Hash with invalid length: expected 32 got {}",
+                        sha256_bytes.len()
+                    );
+                }
+                sha256.copy_from_slice(&sha256_bytes);
+
+                Ok(Hash::SHA256(sha256))
+            }
+        }
     }
 }
 

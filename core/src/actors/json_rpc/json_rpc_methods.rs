@@ -625,4 +625,16 @@ mod tests {
             version: 0,
         }
     }
+
+    #[test]
+    fn hash_str_format() {
+        use witnet_data_structures::chain::Hash;
+        let h = Hash::SHA256([0; 32]);
+        let hash_array = serde_json::to_string(&h).unwrap();
+        let h2 = serde_json::from_str(&hash_array).unwrap();
+        assert_eq!(h, h2);
+        let hash_str = r#""0000000000000000000000000000000000000000000000000000000000000000""#;
+        let h3 = serde_json::from_str(hash_str).unwrap();
+        assert_eq!(h, h3);
+    }
 }
