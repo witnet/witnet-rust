@@ -9,6 +9,7 @@ use num_derive::FromPrimitive;
 use std::fmt;
 
 pub mod array;
+pub mod map;
 pub mod mixed;
 pub mod string;
 
@@ -19,6 +20,8 @@ pub enum RadonOpCodes {
     // Multi-type operator codes start at 0x00
     /// Identity operator code
     Identity = 0x00,
+    /// Array::get, Map::get, Result::get
+    Get = 0x01,
     // Boolean operator codes start at 0x10
     // Integer operator codes start at 0x20
     // Float operator codes start at 0x30
@@ -47,6 +50,7 @@ pub fn operate(input: RadonTypes, call: &RadonCall) -> RadResult<RadonTypes> {
     match input {
         RadonTypes::Array(radon_array) => radon_array.operate(call),
         RadonTypes::Float(radon_float) => radon_float.operate(call),
+        RadonTypes::Map(radon_map) => radon_map.operate(call),
         RadonTypes::String(radon_string) => radon_string.operate(call),
         RadonTypes::Mixed(radon_mixed) => radon_mixed.operate(call),
     }

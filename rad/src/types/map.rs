@@ -83,19 +83,8 @@ impl Operable for RadonMap {
     fn operate(self, call: &RadonCall) -> RadResult<RadonTypes> {
         match call {
             (RadonOpCodes::Identity, None) => identity(self.into()),
-            (RadonOpCodes::MapGet, Some(args)) => {
-                let key = args[0].as_str();
-                match key {
-                    Some(key_str) => map_operators::get(&self, key_str).map(RadonTypes::Mixed),
-                    None => Err(WitnetError::from(RadError::new(
-                        RadErrorKind::MapKeyNotProvided,
-                        format!(
-                            "Call to {:?} with args {:?} is not supported on type RadonString",
-                            RadonOpCodes::MapGet,
-                            args
-                        ),
-                    ))),
-                }
+            (RadonOpCodes::Get, Some(args)) => {
+                map_operators::get(&self, args.as_slice()).map(Into::into)
             }
             (op_code, args) => Err(WitnetError::from(RadError::new(
                 RadErrorKind::UnsupportedOperator,
@@ -148,7 +137,7 @@ fn test_try_into() {
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
-    let result: Result<Vec<u8>, _> = input.try_into();
+    let result: Result<Vec<u8>, _> = input.encode();
 
     let expected_vec: Vec<u8> = vec![129, 164, 90, 101, 114, 111, 0];
 
@@ -160,7 +149,7 @@ fn test_try_into() {
 fn test_try_from() {
     let slice: &[u8] = &[129, 164, 90, 101, 114, 111, 0];
 
-    let result = RadonMap::try_from(slice);
+    let result = RadonMap::decode(slice);
 
     let mut map = HashMap::new();
     let value = RadonMixed::from(rmpv::Value::from(0));
@@ -178,7 +167,7 @@ fn test_operate_map_get() {
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
-    let call = (RadonOpCodes::MapGet, Some(vec![Value::from("Zero")]));
+    let call = (RadonOpCodes::Get, Some(vec![Value::from("Zero")]));
     let result = input.operate(&call);
 
     let expected_value = RadonTypes::Mixed(RadonMixed::from(rmpv::Value::from(0)));
@@ -194,7 +183,7 @@ fn test_operate_map_get_error() {
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
-    let call = (RadonOpCodes::MapGet, Some(vec![Value::from("NotFound")]));
+    let call = (RadonOpCodes::Get, Some(vec![Value::from("NotFound")]));
     let result = input.operate(&call);
 
     assert!(result.is_err());

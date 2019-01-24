@@ -35,6 +35,8 @@ pub enum RadErrorKind {
     Hash,
     /// Failed to parse an object from a JSON buffer
     JsonParse,
+    /// The given key is not present in a RadonMap
+    MapKeyNotFound,
     /// Failed to parse a Value from a MessagePack buffer
     MessagePack,
     /// No operator found in compound call
@@ -51,8 +53,8 @@ pub enum RadErrorKind {
     UnsupportedOperator,
     /// The given reducer is not implemented for the type of the input Array
     UnsupportedReducer,
-    /// The given arguments for a reducer is not valid for the type of the input Array
-    WrongReducerArguments,
+    /// The given arguments are not valid for the given operator
+    WrongArguments,
 }
 
 impl fmt::Display for RadErrorKind {

@@ -8,7 +8,7 @@ use rmpv::Value;
 pub fn reduce(input: &RadonArray, args: &[Value]) -> RadResult<RadonTypes> {
     let error = || {
         WitnetError::from(RadError::new(
-            RadErrorKind::WrongReducerArguments,
+            RadErrorKind::WrongArguments,
             format!("Wrong RadonArray reducer arguments: {:?}", args),
         ))
     };
@@ -30,7 +30,7 @@ fn test_reduce_no_args() {
     let args = &[];
 
     let correctness = if let Err(err) = reduce(input, args) {
-        err.inner().kind() == &RadErrorKind::WrongReducerArguments
+        err.inner().kind() == &RadErrorKind::WrongArguments
     } else {
         false
     };
@@ -49,7 +49,7 @@ fn test_reduce_wrong_args() {
     let args = &[Value::from("wrong")]; // This is RadonReducers::AverageMean
 
     let correctness = if let Err(err) = reduce(input, args) {
-        err.inner().kind() == &RadErrorKind::WrongReducerArguments
+        err.inner().kind() == &RadErrorKind::WrongArguments
     } else {
         false
     };
@@ -68,7 +68,7 @@ fn test_reduce_unknown_reducer() {
     let args = &[Value::from(-1)]; // This doesn't match any reducer code in RadonReducers
 
     let correctness = if let Err(err) = reduce(input, args) {
-        err.inner().kind() == &RadErrorKind::WrongReducerArguments
+        err.inner().kind() == &RadErrorKind::WrongArguments
     } else {
         false
     };

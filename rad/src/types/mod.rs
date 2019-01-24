@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::types::array::RadonArray;
 use crate::types::float::RadonFloat;
+use crate::types::map::RadonMap;
 use crate::types::mixed::RadonMixed;
 use crate::types::string::RadonString;
 
@@ -14,6 +15,7 @@ use witnet_data_structures::{
 
 pub mod array;
 pub mod float;
+pub mod map;
 pub mod mixed;
 pub mod string;
 
@@ -72,20 +74,9 @@ where
 pub enum RadonTypes {
     Array(RadonArray),
     Float(RadonFloat),
+    Map(RadonMap),
     Mixed(RadonMixed),
     String(RadonString),
-}
-
-impl From<RadonMixed> for RadonTypes {
-    fn from(mixed: RadonMixed) -> Self {
-        RadonTypes::Mixed(mixed)
-    }
-}
-
-impl From<RadonString> for RadonTypes {
-    fn from(string: RadonString) -> Self {
-        RadonTypes::String(string)
-    }
 }
 
 impl From<RadonArray> for RadonTypes {
@@ -100,6 +91,24 @@ impl From<RadonFloat> for RadonTypes {
     }
 }
 
+impl From<RadonMap> for RadonTypes {
+    fn from(map: RadonMap) -> Self {
+        RadonTypes::Map(map)
+    }
+}
+
+impl From<RadonMixed> for RadonTypes {
+    fn from(mixed: RadonMixed) -> Self {
+        RadonTypes::Mixed(mixed)
+    }
+}
+
+impl From<RadonString> for RadonTypes {
+    fn from(string: RadonString) -> Self {
+        RadonTypes::String(string)
+    }
+}
+
 impl TryFrom<Value> for RadonTypes {
     type Error = RadError;
 
@@ -107,6 +116,7 @@ impl TryFrom<Value> for RadonTypes {
         match value {
             Value::Array(_) => RadonArray::try_from(value).map(Into::into),
             Value::F64(_) => RadonFloat::try_from(value).map(Into::into),
+            Value::Map(_) => RadonMap::try_from(value).map(Into::into),
             Value::String(_) => RadonString::try_from(value).map(Into::into),
             _ => RadonMixed::try_from(value).map(Into::into),
         }
@@ -120,6 +130,7 @@ impl TryInto<Value> for RadonTypes {
         match self {
             RadonTypes::Array(radon_array) => radon_array.try_into(),
             RadonTypes::Float(radon_float) => radon_float.try_into(),
+            RadonTypes::Map(radon_map) => radon_map.try_into(),
             RadonTypes::Mixed(radon_mixed) => radon_mixed.try_into(),
             RadonTypes::String(radon_string) => radon_string.try_into(),
         }
