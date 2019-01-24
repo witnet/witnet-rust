@@ -60,13 +60,16 @@ impl DataRequestPool {
         dr_output_pointer: &OutputPointer,
         dr_output: &DataRequestOutput,
         reveal: Vec<u8>,
+        random: u64,
     ) -> Transaction {
-        let commit_transaction = create_commit(dr_output_pointer, dr_output, &reveal);
+        let mut commit_transaction = create_commit(dr_output_pointer, dr_output, &reveal);
+        commit_transaction.signatures[0].public_key[0] = random as u8;
         let commit_pointer = OutputPointer {
             transaction_id: commit_transaction.hash(),
             output_index: 0,
         };
-        let reveal_transaction = create_reveal(commit_pointer, dr_output, reveal);
+        let mut reveal_transaction = create_reveal(commit_pointer, dr_output, reveal);
+        reveal_transaction.signatures[0].public_key[0] = random as u8;
 
         // This function can only fail when reveal transactions is not valid,
         // It can not be due to we are creating just before.

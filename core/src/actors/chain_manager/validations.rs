@@ -4,9 +4,9 @@ use super::data_request::DataRequestPool;
 
 use witnet_crypto::hash::Sha256;
 use witnet_crypto::merkle::merkle_tree_root as crypto_merkle_tree_root;
-use witnet_data_structures::chain::DataRequestOutput;
 use witnet_data_structures::chain::{
-    Block, Epoch, Hash, Hashable, Output, OutputPointer, Transaction, TransactionsPool,
+    Block, DataRequestOutput, Epoch, Hash, Hashable, Input, Output, OutputPointer, Transaction,
+    TransactionsPool,
 };
 
 /// Function to validate a transaction
@@ -29,6 +29,7 @@ pub fn validate_transactions<S: ::std::hash::BuildHasher>(
     let mut valid_transactions = true;
     let transactions = block.txns.clone();
 
+    let mut remove_later = vec![];
     for transaction in &transactions {
         if validate_transaction(&transaction, utxo_set) {
             let txn_hash = transaction.hash();
@@ -36,8 +37,14 @@ pub fn validate_transactions<S: ::std::hash::BuildHasher>(
             for input in &transaction.inputs {
                 // Obtain the OuputPointer of each input and remove it from the utxo_set
                 let output_pointer = input.output_pointer();
-
-                utxo_set.remove(&output_pointer);
+                match input {
+                    Input::DataRequest(..) => {
+                        remove_later.push(output_pointer);
+                    }
+                    _ => {
+                        utxo_set.remove(&output_pointer);
+                    }
+                }
             }
 
             for (index, output) in transaction.outputs.iter().enumerate() {
@@ -60,6 +67,10 @@ pub fn validate_transactions<S: ::std::hash::BuildHasher>(
             valid_transactions = false;
             break;
         }
+    }
+
+    for output_pointer in remove_later {
+        utxo_set.remove(&output_pointer);
     }
 
     valid_transactions

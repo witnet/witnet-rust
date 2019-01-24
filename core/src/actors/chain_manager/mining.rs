@@ -179,6 +179,7 @@ impl ChainManager {
                                         &dr_output_pointer,
                                         &data_request_output,
                                         reveal_value,
+                                        act.random,
                                     );
 
                                 info!(
