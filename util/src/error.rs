@@ -11,6 +11,13 @@ pub struct WitnetError<K: Fail> {
     inner: Context<K>,
 }
 
+impl<'a, K: Fail> WitnetError<K> {
+    /// Returns the inner error enclosed in the WitnetError
+    pub fn inner(&'a self) -> &'a K {
+        self.inner.get_context()
+    }
+}
+
 impl<K: Fail> From<K> for WitnetError<K> {
     fn from(err: K) -> Self {
         Self {
