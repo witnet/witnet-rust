@@ -89,28 +89,6 @@ impl TryInto<Value> for RadonArray {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for RadonArray {
-    type Error = RadError;
-
-    fn try_from(slice: &'a [u8]) -> Result<Self, Self::Error> {
-        let mixed = RadonMixed::try_from(slice)?;
-        let value: Value = RadonMixed::try_into(mixed)?;
-
-        Self::try_from(value)
-    }
-}
-
-impl<'a> TryInto<Vec<u8>> for RadonArray {
-    type Error = RadError;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        let value: Value = Self::try_into(self)?;
-        let mixed = RadonMixed::try_from(value)?;
-
-        RadonMixed::try_into(mixed)
-    }
-}
-
 impl fmt::Display for RadonArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "RadonArray")
@@ -188,7 +166,7 @@ fn test_serialize_radon_array() {
         146, 165, 72, 101, 108, 108, 111, 166, 119, 111, 114, 108, 100, 33,
     ];
 
-    let output: Vec<u8> = input.try_into().unwrap();
+    let output: Vec<u8> = input.encode().unwrap();
 
     assert_eq!(output, expected);
 }

@@ -4,8 +4,8 @@ use crate::types::float::RadonFloat;
 use crate::types::mixed::RadonMixed;
 use crate::types::string::RadonString;
 
-use rmpv::Value;
-use std::fmt;
+use rmpv::{decode, encode, Value};
+use std::{fmt, io::Cursor};
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::Hash,
@@ -18,20 +18,14 @@ pub mod mixed;
 pub mod string;
 
 pub trait RadonType<'a, T>:
-    fmt::Display
-    + From<T>
-    + PartialEq
-    + TryFrom<&'a [u8]>
-    + TryInto<Vec<u8>>
-    + TryFrom<Value>
-    + TryInto<Value>
+    fmt::Display + From<T> + PartialEq + TryFrom<Value> + TryInto<Value>
 where
     T: fmt::Debug,
 {
     fn value(&self) -> T;
 
     fn hash(self) -> RadResult<Hash> {
-        self.try_into()
+        self.encode()
             .map(|vector: Vec<u8>| calculate_sha256(&*vector))
             .map(Hash::from)
             .map_err(|_| {
@@ -40,6 +34,37 @@ where
                     String::from("Failed to hash RADON value or structure"),
                 ))
             })
+    }
+
+    fn encode(self) -> RadResult<Vec<u8>> {
+        let mut cursor = Cursor::new(Vec::new());
+        let value_result = self.try_into();
+        let result = value_result.map(|value| encode::write_value(&mut cursor, &value));
+        let vector = cursor.into_inner();
+
+        match result {
+            Ok(Ok(())) => Ok(vector),
+            _ => Err(RadError::new(
+                RadErrorKind::EncodeDecode,
+                String::from("Failed to encode a RadonType into bytes"),
+            )
+            .into()),
+        }
+    }
+
+    fn decode(slice: &[u8]) -> RadResult<Self> {
+        let mut cursor = Cursor::new(slice);
+        let value_result = decode::read_value(&mut cursor);
+        let radon_result = value_result.map(Self::try_from);
+
+        match radon_result {
+            Ok(Ok(radon)) => Ok(radon),
+            _ => Err(RadError::new(
+                RadErrorKind::EncodeDecode,
+                String::from("Failed to decode a RadonType from bytes"),
+            )
+            .into()),
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::error::*;
 use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
-use crate::types::{mixed::RadonMixed, RadonType, RadonTypes};
+use crate::types::{RadonType, RadonTypes};
 
 use rmpv::Value;
 use std::fmt;
@@ -48,28 +48,6 @@ impl From<String> for RadonString {
 impl<'a> From<&'a str> for RadonString {
     fn from(value: &'a str) -> Self {
         Self::from(String::from(value))
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for RadonString {
-    type Error = RadError;
-
-    fn try_from(vector: &'a [u8]) -> Result<Self, Self::Error> {
-        let mixed = RadonMixed::try_from(vector)?;
-        let value: Value = RadonMixed::try_into(mixed)?;
-
-        Self::try_from(value)
-    }
-}
-
-impl<'a> TryInto<Vec<u8>> for RadonString {
-    type Error = RadError;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        let value: Value = Self::try_into(self)?;
-        let mixed = RadonMixed::try_from(value)?;
-
-        RadonMixed::try_into(mixed)
     }
 }
 
@@ -157,7 +135,7 @@ fn test_serialize_radon_string() {
     let input = RadonString::from("Hello world!");
     let expected: Vec<u8> = vec![172, 72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33];
 
-    let output: Vec<u8> = input.try_into().unwrap();
+    let output: Vec<u8> = input.encode().unwrap();
 
     assert_eq!(output, expected);
 }

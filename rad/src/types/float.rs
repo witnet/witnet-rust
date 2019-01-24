@@ -7,9 +7,9 @@ use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 use crate::error::*;
 use crate::operators::{identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
-use crate::types::{RadonMixed, RadonType, RadonTypes};
+use crate::types::{RadonType, RadonTypes};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RadonFloat {
     value: f64,
 }
@@ -44,28 +44,6 @@ impl TryInto<Value> for RadonFloat {
 impl<'a> From<f64> for RadonFloat {
     fn from(value: f64) -> Self {
         RadonFloat { value }
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for RadonFloat {
-    type Error = RadError;
-
-    fn try_from(vector: &'a [u8]) -> Result<Self, Self::Error> {
-        let mixed = RadonMixed::try_from(vector)?;
-        let value: Value = RadonMixed::try_into(mixed)?;
-
-        Self::try_from(value)
-    }
-}
-
-impl<'a> TryInto<Vec<u8>> for RadonFloat {
-    type Error = RadError;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        let value: Value = Self::try_into(self)?;
-        let mixed = RadonMixed::try_from(value)?;
-
-        RadonMixed::try_into(mixed)
     }
 }
 
@@ -112,9 +90,9 @@ fn test_from_vector() {
 
     let expected = RadonFloat::from(std::f64::consts::PI);
     let expected_wrong = RadonFloat::from(std::f64::consts::PI + 1f64);
-    let result = RadonFloat::try_from(input);
-    let wronw_result = RadonFloat::try_from(input);
+    let result = RadonFloat::decode(input);
+    let wrong_result = RadonFloat::decode(input);
 
     assert_eq!(expected, result.unwrap());
-    assert_ne!(expected_wrong, wronw_result.unwrap());
+    assert_ne!(expected_wrong, wrong_result.unwrap());
 }

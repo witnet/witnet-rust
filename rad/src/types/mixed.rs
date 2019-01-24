@@ -3,8 +3,8 @@ use crate::operators::{identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
-use rmpv::{decode, encode, Value};
-use std::{fmt, io::Cursor};
+use rmpv::Value;
+use std::fmt;
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,41 +37,6 @@ impl<'a> TryInto<Value> for RadonMixed {
 
     fn try_into(self) -> Result<Value, Self::Error> {
         Ok(self.value())
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for RadonMixed {
-    type Error = RadError;
-
-    fn try_from(vector: &'a [u8]) -> Result<Self, Self::Error> {
-        let mut cursor = Cursor::new(vector);
-        let result = decode::read_value(&mut cursor);
-
-        match result {
-            Ok(value) => Ok(Self::from(value)),
-            Err(_) => Err(RadError::new(
-                RadErrorKind::EncodeDecode,
-                String::from("Failed to encode a RadonMixed from bytes"),
-            )),
-        }
-    }
-}
-
-impl<'a> TryInto<Vec<u8>> for RadonMixed {
-    type Error = RadError;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        let mut cursor = Cursor::new(Vec::new());
-        let result = encode::write_value(&mut cursor, &self.value);
-        let vector = cursor.into_inner();
-
-        match result {
-            Ok(()) => Ok(vector),
-            Err(_) => Err(RadError::new(
-                RadErrorKind::EncodeDecode,
-                String::from("Failed to decode a RadonMixed from bytes"),
-            )),
-        }
     }
 }
 
