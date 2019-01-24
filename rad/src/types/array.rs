@@ -147,6 +147,22 @@ fn test_operate_identity() {
 }
 
 #[test]
+fn test_operate_reduce_average_mean_float() {
+    use crate::types::float::RadonFloat;
+
+    let input = RadonArray::from(vec![
+        RadonFloat::from(1f64).into(),
+        RadonFloat::from(2f64).into(),
+    ]);
+    let call = (RadonOpCodes::Reduce, Some(vec![Value::from(0x20)]));
+    let expected = RadonTypes::from(RadonFloat::from(1.5f64));
+
+    let output = input.operate(&call).unwrap();
+
+    assert_eq!(output, expected);
+}
+
+#[test]
 fn test_operate_unimplemented() {
     let input = RadonArray::from(vec![]);
 
