@@ -291,8 +291,16 @@ fn build_block(
         info!("Pushing transaction into block: {:?}", transaction);
         // Currently, 1 weight unit is equivalent to 1 byte
         let transaction_weight = transaction.size();
-        // FIXME (anler): Remove unwrap and handle error correctly
-        let transaction_fee = transaction.fee(unspent_outputs_pool).unwrap();
+        let transaction_fee = match transaction.fee(unspent_outputs_pool) {
+            Ok(x) => x,
+            Err(e) => {
+                debug!(
+                    "Error when calculating transaction fee for transaction: {}",
+                    e
+                );
+                continue;
+            }
+        };
         let new_block_weight = block_weight + transaction_weight;
 
         if new_block_weight <= max_block_weight {
