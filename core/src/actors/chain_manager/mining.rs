@@ -19,7 +19,7 @@ use crate::actors::{
 
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{
-    Block, BlockHeader, CheckpointBeacon, Hash, LeadershipProof, Output, PublicKeyHash,
+    Block, BlockHeader, CheckpointBeacon, Hash, Input, LeadershipProof, Output, PublicKeyHash,
     Secp256k1Signature, Signature, Transaction, TransactionsPool, UnspentOutputsPool,
     ValueTransferOutput,
 };
@@ -27,6 +27,7 @@ use witnet_storage::storage::Storable;
 
 use crate::actors::chain_manager::data_request::{create_tally, create_vt_tally};
 use futures::future::{join_all, Future};
+use std::collections::HashMap;
 use std::time::Duration;
 
 impl ChainManager {
@@ -281,6 +282,9 @@ fn build_block(
     // Insert empty Transaction (future Mint Transaction)
     transactions.push(Transaction::default());
 
+    // Keep track of the commitments for each data request
+    let mut witnesses_per_dr = HashMap::new();
+
     // Push transactions from pool until `max_block_weight` is reached
     // TODO: refactor this statement into a functional `try_fold`
     for transaction in tally_transactions.iter().chain(transactions_pool.iter()) {
@@ -292,9 +296,26 @@ fn build_block(
         let new_block_weight = block_weight + transaction_weight;
 
         if new_block_weight <= max_block_weight {
-            transactions.push(transaction.clone());
-            transaction_fees += transaction_fee;
-            block_weight += transaction_weight;
+            if let Input::DataRequest(dri) = &transaction.inputs[0] {
+                let dri_pointer = dri.output_pointer();
+                if let Some(dr) = unspent_outputs_pool.get(&dri_pointer) {
+                    if let Output::DataRequest(dr) = dr {
+                        let w = dr.witnesses;
+                        let new_w = witnesses_per_dr.entry(dri_pointer).or_insert(0);
+                        if *new_w < w {
+                            // Ok, push commitment
+                            *new_w += 1;
+                            transactions.push(transaction.clone());
+                            transaction_fees += transaction_fee;
+                            block_weight += transaction_weight;
+                        }
+                    }
+                }
+            } else {
+                transactions.push(transaction.clone());
+                transaction_fees += transaction_fee;
+                block_weight += transaction_weight;
+            }
 
             if new_block_weight == max_block_weight {
                 break;
