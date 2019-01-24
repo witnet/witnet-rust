@@ -1,5 +1,5 @@
 use crate::error::*;
-use crate::operators::{identity, Operable, RadonOpCodes};
+use crate::operators::{identity, mixed as mixed_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
@@ -45,6 +45,14 @@ impl Operable for RadonMixed {
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Mixed(self)),
+            // To Float
+            (RadonOpCodes::ToFloat, None) => mixed_operators::to_float(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
+            // To Map
+            (RadonOpCodes::ToMap, None) => mixed_operators::to_map(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             // Unsupported / unimplemented
             (op_code, args) => Err(WitnetError::from(RadError::new(
                 RadErrorKind::UnsupportedOperator,

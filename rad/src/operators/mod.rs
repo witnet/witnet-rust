@@ -33,6 +33,8 @@ pub enum RadonOpCodes {
     Reduce = 0x66,
     // Map operator codes start at 0x70
     // Mixed operator codes start at 0x80
+    ToFloat = 0x82,
+    ToMap = 0x84,
     // Result operator codes start at 0x90
 }
 
