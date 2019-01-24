@@ -37,8 +37,6 @@ pub enum RadErrorKind {
     JsonParse,
     /// Failed to parse a Value from a MessagePack buffer
     MessagePack,
-    /// An Option turned out to be None
-    None,
     /// No operator found in compound call
     NoOperatorInCompoundCall,
     /// The given operator code is not a valid Integer
@@ -53,6 +51,8 @@ pub enum RadErrorKind {
     UnsupportedOperator,
     /// The given reducer is not implemented for the type of the input Array
     UnsupportedReducer,
+    /// The given arguments for a reducer is not valid for the type of the input Array
+    WrongReducerArguments,
 }
 
 impl fmt::Display for RadErrorKind {
