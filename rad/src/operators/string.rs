@@ -36,6 +36,7 @@ fn json_to_rmp(value: &json::JsonValue) -> rmpv::ValueRef {
         json::JsonValue::String(value) => {
             rmpv::ValueRef::String(rmpv::Utf8StringRef::from(value.as_str()))
         }
+        json::JsonValue::Number(value) => rmpv::ValueRef::F64((*value).into()),
         _ => rmpv::ValueRef::Nil,
     }
 }
