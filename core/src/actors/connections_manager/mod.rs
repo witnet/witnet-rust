@@ -68,7 +68,7 @@ impl ConnectionsManager {
                     Ok(stream) => {
                         stream
                             .peer_addr()
-                            .map(|ip| info!("Connected to peer {:?}", ip))
+                            .map(|ip| debug!("Connected to peer {:?}", ip))
                             .unwrap_or_else(|err| error!("Peer address error in stream: {}", err));
 
                         // Request the creation of a new session actor from connection

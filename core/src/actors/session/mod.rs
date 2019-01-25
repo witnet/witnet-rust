@@ -5,7 +5,7 @@ use actix::io::FramedWrite;
 
 use ansi_term::Color::Green;
 
-use log::{debug, info};
+use log::debug;
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
 
@@ -90,7 +90,7 @@ impl Session {
     }
     /// Method to send a Witnet message to the remote peer
     fn send_message(&mut self, msg: WitnetMessage) {
-        info!(
+        debug!(
             "{} Sending {} message to session {:?}",
             Green.bold().paint("[>]"),
             Green.bold().paint(msg.kind.to_string()),

@@ -1,7 +1,7 @@
 use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture,
 };
-use ansi_term::Color::Yellow;
+use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
 
 use super::validations::{block_reward, merkle_tree_root, verify_poe_data_request};
@@ -23,6 +23,8 @@ use witnet_data_structures::chain::{
     Secp256k1Signature, Signature, Transaction, TransactionsPool, UnspentOutputsPool,
     ValueTransferOutput,
 };
+use witnet_data_structures::serializers::decoders::TryFrom;
+use witnet_rad::types::RadonTypes;
 use witnet_storage::storage::Storable;
 
 use crate::actors::chain_manager::data_request::{create_tally, create_vt_tally};
@@ -233,7 +235,7 @@ impl ChainManager {
             let fut = rad_manager_addr
                 .send(RunConsensus {
                     script: dr_output.data_request.consensus.clone(),
-                    reveals: results,
+                    reveals: results.clone(),
                 })
                 .then(move |res| match res {
                     // Process the response from RADManager
@@ -251,7 +253,33 @@ impl ChainManager {
 
                         Ok(consensus) => {
                             let tally_transaction =
-                                create_tally(&dr_output, inputs, outputs, consensus);
+                                create_tally(&dr_output, inputs, outputs, consensus.clone());
+
+                            let print_results: Vec<_> = results
+                                .into_iter()
+                                .map(|result| RadonTypes::try_from(result.as_slice()))
+                                .collect();
+                            info!(
+                                "{} Created Tally for Data Request {} with result: {}\n{}",
+                                Yellow.bold().paint("[Data Request]"),
+                                Yellow.bold().paint(&dr_pointer.to_string()),
+                                Yellow.bold().paint(
+                                    RadonTypes::try_from(consensus.as_slice())
+                                        .map(|x| x.to_string())
+                                        .unwrap_or_else(|_| "RADError".to_string())
+                                ),
+                                White.bold().paint(
+                                    print_results
+                                        .into_iter()
+                                        .map(|result| result
+                                            .map(|x| x.to_string())
+                                            .unwrap_or_else(|_| "RADError".to_string()))
+                                        .fold("Reveals:".to_string(), |acc, item| format!(
+                                            "{}\n\t* {}",
+                                            acc, item
+                                        ))
+                                ),
+                            );
 
                             futures::future::ok(tally_transaction)
                         }
@@ -288,7 +316,7 @@ fn build_block(
     // Push transactions from pool until `max_block_weight` is reached
     // TODO: refactor this statement into a functional `try_fold`
     for transaction in tally_transactions.iter().chain(transactions_pool.iter()) {
-        info!("Pushing transaction into block: {:?}", transaction);
+        debug!("Pushing transaction into block: {:?}", transaction);
         // Currently, 1 weight unit is equivalent to 1 byte
         let transaction_weight = transaction.size();
         let transaction_fee = match transaction.fee(unspent_outputs_pool) {

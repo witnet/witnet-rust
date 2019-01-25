@@ -7,7 +7,7 @@ use actix::{
     io::FramedWrite, Actor, ActorFuture, Context, ContextFutureSpawner, Handler, Message,
     StreamHandler, System, WrapFuture,
 };
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use crate::actors::{
@@ -130,8 +130,8 @@ impl Handler<Consolidate> for SessionsManager {
         });
 
         match &result {
-            Ok(_) => info!(
-                "Stablished a consolidated {:?} session with the peer at {}",
+            Ok(_) => debug!(
+                "Established a consolidated {:?} session with the peer at {}",
                 msg.session_type, msg.address
             ),
             Err(error) => error!(

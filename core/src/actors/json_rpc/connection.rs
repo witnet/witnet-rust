@@ -45,7 +45,7 @@ impl WriteHandler<io::Error> for JsonRpc {}
 impl StreamHandler<BytesMut, io::Error> for JsonRpc {
     /// This is main event loop for client requests
     fn handle(&mut self, bytes: BytesMut, ctx: &mut Self::Context) {
-        info!("Got JSON-RPC message");
+        debug!("Got JSON-RPC message");
         let msg = match String::from_utf8(bytes.to_vec()) {
             Ok(msg) => {
                 // A valid utf8 string is forwarded to the JSON-RPC parser

@@ -143,7 +143,7 @@ impl SessionsManager {
             })
             // Check if there is a peer after filter
             .or_else(|| {
-                warn!(
+                debug!(
                     "The peer address obtained from PeersManager is not eligible for a new session"
                 );
                 None

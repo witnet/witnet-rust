@@ -10,7 +10,7 @@ use actix::SystemService;
 use jsonrpc_core::futures;
 use jsonrpc_core::futures::Future;
 use jsonrpc_core::{IoHandler, Params, Value};
-use log::info;
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use witnet_data_structures::chain::{Block, InventoryEntry, OutputPointer, Transaction};
@@ -55,7 +55,7 @@ pub enum InventoryItem {
 pub fn inventory(inv_elem: InventoryItem) -> JsonRpcResult {
     match inv_elem {
         InventoryItem::Block(block) => {
-            info!("Got block from JSON-RPC. Sending AnnounceItems message.");
+            debug!("Got block from JSON-RPC. Sending AnnounceItems message.");
 
             // Get SessionsManager's address
             let chain_manager_addr = System::current().registry().get::<ChainManager>();
@@ -68,7 +68,7 @@ pub fn inventory(inv_elem: InventoryItem) -> JsonRpcResult {
         }
 
         InventoryItem::Transaction(transaction) => {
-            info!("Got transaction from JSON-RPC. Sending AnnounceItems message.");
+            debug!("Got transaction from JSON-RPC. Sending AnnounceItems message.");
 
             // Get SessionsManager's address
             let chain_manager_addr = System::current().registry().get::<ChainManager>();

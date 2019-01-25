@@ -1,7 +1,7 @@
 use crate::actors::chain_manager::messages::GetOutputResult;
 
 use actix::{Actor, Context, Handler};
-use ansi_term::Color::{Purple, White};
+use ansi_term::Color::{Purple, White, Yellow};
 
 use crate::actors::chain_manager::{
     messages::{SessionUnitResult, SetNetworkReady},
@@ -15,6 +15,7 @@ use witnet_data_structures::{
     },
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
+use witnet_rad::types::RadonTypes;
 
 use witnet_util::error::WitnetError;
 
@@ -26,6 +27,7 @@ use super::messages::{
 };
 use crate::actors::chain_manager::data_request::DataRequestPool;
 use witnet_data_structures::chain::ActiveDataRequestPool;
+use witnet_data_structures::serializers::decoders::TryFrom;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -117,6 +119,24 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     let to_be_stored = self.data_request_pool.finished_data_requests();
                     to_be_stored.into_iter().for_each(|dr| {
                         self.persist_data_request(ctx, &dr);
+
+                        let tally_output_pointer = dr.1.tally;
+                        let tr = self
+                            .chain_state
+                            .unspent_outputs_pool
+                            .get(&tally_output_pointer);
+                        if let Some(Output::Tally(tally_output)) = tr {
+                            let result = RadonTypes::try_from(tally_output.result.as_slice())
+                                .map(|x| x.to_string())
+                                .unwrap_or_else(|_| "RADError".to_string());
+                            info!(
+                                "{} {} completed at epoch #{} with result: {}",
+                                Yellow.bold().paint("[Data Request]"),
+                                Yellow.bold().paint(&dr.0.to_string()),
+                                Yellow.bold().paint(block_epoch.to_string()),
+                                Yellow.bold().paint(result),
+                            );
+                        }
                     });
 
                     // FIXME: Revisit to avoid data redundancies
@@ -132,25 +152,12 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         dr_pointer_cache: self.data_request_pool.dr_pointer_cache.clone(),
                     };
 
-                    info!(
-                        "{} Block {} consolidated for epoch #{}",
-                        Purple.bold().paint("[Chain]"),
-                        Purple.bold().paint(candidate.block.hash().to_string()),
-                        Purple.bold().paint(block_epoch.to_string()),
-                    );
-
-                    debug!("{:?}", candidate.block);
-                    debug!(
-                        "Mint transaction hash: {:?}",
-                        candidate.block.txns[0].hash()
-                    );
-
                     {
                         let info = self.data_request_pool.data_request_pool.iter().fold(
                             String::new(),
                             |acc, (k, v)| {
                                 format!(
-                                    "{}\n* {} Stage: {}, Commits: {}, Reveals: {}",
+                                    "{}\n\t* {} Stage: {}, Commits: {}, Reveals: {}",
                                     acc,
                                     White.bold().paint(k.to_string()),
                                     White.bold().paint(format!("{:?}", v.stage)),
@@ -159,12 +166,32 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 )
                             },
                         );
+
                         if info.is_empty() {
-                            debug!("No data requests")
+                            info!(
+                                "{} Block {} consolidated for epoch #{} {}",
+                                Purple.bold().paint("[Chain]"),
+                                Purple.bold().paint(candidate.block.hash().to_string()),
+                                Purple.bold().paint(block_epoch.to_string()),
+                                White.paint("with no data requests".to_string()),
+                            );
                         } else {
-                            info!("Data requests:{}", info);
+                            info!(
+                                "{} Block {} consolidated for epoch #{}\n{}{}",
+                                Purple.bold().paint("[Chain]"),
+                                Purple.bold().paint(candidate.block.hash().to_string()),
+                                Purple.bold().paint(block_epoch.to_string()),
+                                White.bold().paint("Data Requests: "),
+                                White.bold().paint(info),
+                            );
                         }
                     }
+
+                    debug!("{:?}", candidate.block);
+                    debug!(
+                        "Mint transaction hash: {:?}",
+                        candidate.block.txns[0].hash()
+                    );
 
                     // Send block to Inventory Manager
                     self.persist_item(ctx, InventoryItem::Block(candidate.block));
@@ -348,7 +375,7 @@ impl Handler<AddTransaction> for ChainManager {
                                                 && is_valid_vto_position
                                                 && !consensus_output_overflow
                                             {*/
-                    info!("Transaction added successfully");
+                    debug!("Transaction added successfully");
                     // Broadcast valid transaction
                     self.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
 

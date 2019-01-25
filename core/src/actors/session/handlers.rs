@@ -9,7 +9,7 @@ use std::io::Error;
 
 use ansi_term::Color::Green;
 
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 
 use crate::actors::{
     chain_manager::{
@@ -54,13 +54,13 @@ impl StreamHandler<BytesMut, Error> for Session {
         match result {
             Err(err) => error!("Error decoding message: {:?}", err),
             Ok(msg) => {
-                info!(
+                debug!(
                     "{} Received {} message from session {:?}",
                     Green.bold().paint("[<]"),
                     Green.bold().paint(msg.kind.to_string()),
                     self.remote_addr,
                 );
-                debug!("\t{:?}", msg);
+                trace!("\t{:?}", msg);
                 match (self.session_type, self.status, msg.kind) {
                     ////////////////////
                     //   HANDSHAKE    //
@@ -358,7 +358,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
         .then(|res, act, ctx| {
             match res {
                 Ok(Ok(addresses)) => {
-                    info!(
+                    debug!(
                         "Received {} peer addresses from PeersManager",
                         addresses.len()
                     );
