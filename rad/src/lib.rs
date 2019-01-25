@@ -39,20 +39,15 @@ pub fn run_aggregation(radon_types_vec: Vec<RadonTypes>, script: Vec<u8>) -> Rad
 
     let radon_array = RadonArray::from(radon_types_vec);
 
-    let rad_consensus: RadonTypes =
+    let rad_aggregation: RadonTypes =
         execute_radon_script(RadonTypes::from(radon_array), &radon_script)?;
 
-    rad_consensus.try_into().map_err(Into::into)
+    rad_aggregation.try_into().map_err(Into::into)
 }
 
 /// Run consensus stage of a data request.
-pub fn run_consensus(inputs: Vec<Vec<u8>>, script: Vec<u8>) -> RadResult<Vec<u8>> {
+pub fn run_consensus(radon_types_vec: Vec<RadonTypes>, script: Vec<u8>) -> RadResult<Vec<u8>> {
     let radon_script = unpack_radon_script(&script)?;
-
-    let radon_types_vec: Vec<RadonTypes> = inputs
-        .iter()
-        .filter_map(|input| RadonTypes::try_from(input.as_slice()).ok())
-        .collect();
 
     let radon_array = RadonArray::from(radon_types_vec);
 

@@ -1,7 +1,9 @@
 //! Message handlers for `RadManager`
 use super::{messages, RadManager};
 use actix::{Handler, Message};
+use witnet_data_structures::serializers::decoders::TryFrom;
 use witnet_rad as rad;
+use witnet_rad::types::RadonTypes;
 
 impl Handler<messages::ResolveRA> for RadManager {
     type Result = <messages::ResolveRA as Message>::Result;
@@ -26,6 +28,11 @@ impl Handler<messages::RunConsensus> for RadManager {
         let packed_script = msg.script.script;
         let reveals = msg.reveals;
 
-        rad::run_consensus(reveals, packed_script)
+        let radon_types_vec: Vec<RadonTypes> = reveals
+            .iter()
+            .filter_map(|input| RadonTypes::try_from(input.as_slice()).ok())
+            .collect();
+
+        rad::run_consensus(radon_types_vec, packed_script)
     }
 }
