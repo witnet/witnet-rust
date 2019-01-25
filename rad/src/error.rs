@@ -1,5 +1,7 @@
 //! Error type definitions for the RAD module.
 
+use reqwest;
+
 use failure::Fail;
 use std::fmt;
 pub use witnet_util::error::{WitnetError, WitnetResult};
@@ -23,6 +25,12 @@ impl RadError {
     /// Query the specific RadErrorKind case for a RadError
     pub fn kind(&self) -> &RadErrorKind {
         &self.kind
+    }
+}
+
+impl From<reqwest::Error> for RadError {
+    fn from(x: reqwest::Error) -> RadError {
+        RadError::new(RadErrorKind::Http, x.to_string())
     }
 }
 
@@ -55,6 +63,8 @@ pub enum RadErrorKind {
     UnsupportedReducer,
     /// The given arguments are not valid for the given operator
     WrongArguments,
+    /// Failed to execute HTTP request
+    Http,
 }
 
 impl fmt::Display for RadErrorKind {
