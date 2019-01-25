@@ -463,6 +463,9 @@ impl ChainManager {
                                 };
 
                                 chain_info.highest_block_checkpoint = beacon;
+
+                                // Insert candidate block into `block_chain`
+                                self.chain_state.block_chain.insert(block_epoch, block_hash);
                             }
 
                             None => {
