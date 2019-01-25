@@ -1,21 +1,30 @@
+use std::io::Error;
+
 use actix::io::WriteHandler;
 use actix::{
     ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler, StreamHandler, System,
-    WrapFuture,
+    SystemService, WrapFuture,
 };
-
-use futures::future;
-use std::io::Error;
-
 use ansi_term::Color::Green;
-
+use futures::future;
 use log::{debug, error, info, trace, warn};
+
+use witnet_data_structures::{
+    builders::from_address,
+    chain::{Block, CheckpointBeacon, InventoryEntry, InventoryItem, Transaction},
+    serializers::decoders::TryFrom,
+    types::{
+        Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
+        Message as WitnetMessage, Peers, Version,
+    },
+};
+use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use crate::actors::{
     chain_manager::{
         messages::{
             AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlocksEpochRange,
-            GetHighestCheckpointBeacon,
+            GetHighestCheckpointBeacon, PeerLastEpoch,
         },
         ChainManager,
     },
@@ -32,16 +41,6 @@ use super::{
     },
     Session,
 };
-use witnet_data_structures::{
-    builders::from_address,
-    chain::{Block, CheckpointBeacon, InventoryEntry, InventoryItem, Transaction},
-    serializers::decoders::TryFrom,
-    types::{
-        Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
-        Message as WitnetMessage, Peers, Version,
-    },
-};
-use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 /// Implement WriteHandler for Session
 impl WriteHandler<Error> for Session {}
@@ -595,7 +594,7 @@ fn session_getblocks(
                             })
                             .wait(ctx);
                     } else if highest_checkpoint == received_checkpoint {
-                        info!("Our chain is on par with our peer's",)
+                        info!("Our chain is on par with our peer's",);
                     } else {
                         warn!(
                             "Received a checkpoint beacon that is ahead of ours ({} > {})",
@@ -607,6 +606,9 @@ fn session_getblocks(
 
                     // Write get blocks message in session
                     // act.send_message(get_blocks_msg);
+                    ChainManager::from_registry().do_send(PeerLastEpoch {
+                        epoch: received_checkpoint,
+                    });
 
                     actix::fut::ok(())
                 }

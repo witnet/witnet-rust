@@ -120,3 +120,10 @@ pub type GetOutputResult = Result<Output, ChainManagerError>;
 impl Message for GetOutput {
     type Result = GetOutputResult;
 }
+
+#[derive(Message)]
+/// FIXME: rename
+pub struct PeerLastEpoch {
+    /// A beacon from another peer
+    pub epoch: Epoch,
+}

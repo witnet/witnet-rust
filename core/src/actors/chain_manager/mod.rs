@@ -116,6 +116,8 @@ pub struct ChainManager {
     genesis_block_hash: Hash,
     /// Pool of active data requests
     data_request_pool: DataRequestPool,
+    /// Are we actually synchronized with our peers?
+    mine: bool,
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain

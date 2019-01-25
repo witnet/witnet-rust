@@ -1,33 +1,31 @@
-use crate::actors::chain_manager::messages::GetOutputResult;
-
-use actix::{Actor, Context, Handler};
+use actix::{Actor, Context, Handler, System};
 use ansi_term::Color::{Purple, White, Yellow};
-
-use crate::actors::chain_manager::{
-    messages::{SessionUnitResult, SetNetworkReady},
-    ChainManager, ChainManagerError,
-};
-use crate::actors::epoch_manager::messages::EpochNotification;
+use log::{debug, error, info, warn};
 
 use witnet_data_structures::{
     chain::{
-        CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, Output, OutputPointer,
+        ActiveDataRequestPool, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem,
+        Output, OutputPointer,
     },
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
+    serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;
-
 use witnet_util::error::WitnetError;
 
-use log::{debug, error, info, warn};
+use crate::actors::chain_manager::{
+    data_request::DataRequestPool,
+    messages::{GetOutputResult, PeerLastEpoch, SessionUnitResult, SetNetworkReady},
+    ChainManager, ChainManagerError,
+};
+use crate::actors::epoch_manager::messages::EpochNotification;
+use crate::actors::session::messages::InventoryExchange;
+use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
 use super::messages::{
     AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlocksEpochRange,
     GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult,
 };
-use crate::actors::chain_manager::data_request::DataRequestPool;
-use witnet_data_structures::chain::ActiveDataRequestPool;
-use witnet_data_structures::serializers::decoders::TryFrom;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -79,6 +77,13 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
             return;
         }
+
+        // Get SessionsManager address
+        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+
+        sessions_manager_addr.do_send(Broadcast {
+            command: InventoryExchange,
+        });
 
         // Consolidate the best known block candidate
         if let Some(candidate) = self.best_candidate.take() {
@@ -205,7 +210,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             }
         }
 
-        if self.mining_enabled {
+        if self.mining_enabled && self.mine {
             // Data race: the data requests should be sent after mining the block, otherwise
             // it takes 2 epochs to move from one stage to the next one
             self.try_mine_block(ctx);
@@ -456,5 +461,22 @@ fn find_output_from_pointer(
     } else {
         // FIXME: retrieve Output from Storage
         Err(ChainManagerError::BlockDoesNotExist)
+    }
+}
+
+impl Handler<PeerLastEpoch> for ChainManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: PeerLastEpoch, _ctx: &mut Context<Self>) {
+        if msg.epoch
+            == self
+                .chain_state
+                .chain_info
+                .as_ref()
+                .map(|x| x.highest_block_checkpoint.checkpoint)
+                .unwrap_or(0)
+        {
+            self.mine = true;
+        }
     }
 }
