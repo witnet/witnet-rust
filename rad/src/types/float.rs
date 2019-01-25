@@ -26,17 +26,19 @@ impl<'a> TryFrom<Value> for RadonFloat {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
             Value::F64(f64_value) => Some(Self::from(f64_value)),
-            Value::F32(f32_value) => Some(Self::from(f32_value as f64)),
+            Value::F32(f32_value) => Some(Self::from(f64::from(f32_value))),
             Value::Integer(integer_value) => integer_value.as_f64().map(Self::from),
             _ => None,
         }
-        .ok_or(RadError::new(
-            RadErrorKind::EncodeDecode,
-            format!(
-                "Error creating a RadonFloat from MessagePack value \"{:?}\"",
-                value
-            ),
-        ))
+        .ok_or_else(|| {
+            RadError::new(
+                RadErrorKind::EncodeDecode,
+                format!(
+                    "Error creating a RadonFloat from MessagePack value \"{:?}\"",
+                    value
+                ),
+            )
+        })
     }
 }
 
