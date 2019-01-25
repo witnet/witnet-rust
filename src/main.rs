@@ -9,7 +9,6 @@ use std::result::Result;
 
 use env_logger::Builder;
 use failure;
-use log::error;
 use structopt::StructOpt;
 
 use witnet_core as core;
@@ -26,9 +25,9 @@ fn main() {
         .init();
 
     if let Err(e) = run() {
-        error!("Error: {}", e);
+        eprintln!("Error: {}", e);
         for cause in e.iter_causes() {
-            error!("Cause: {}", cause);
+            eprintln!("Cause: {}", cause);
         }
         exit(1);
     }
