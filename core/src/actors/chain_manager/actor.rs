@@ -21,7 +21,7 @@ use crate::actors::{
 use witnet_data_structures::chain::{
     ActiveDataRequestPool, Blockchain, ChainInfo, ChainState, CheckpointBeacon, UnspentOutputsPool,
 };
-use witnet_util::timestamp::{get_timestamp, pretty_print};
+use witnet_util::timestamp::{get_timestamp_nanos, pretty_print};
 
 use log::{debug, error, warn};
 
@@ -37,7 +37,7 @@ impl Actor for ChainManager {
 
         // Use the current timestamp as a random value to modify the signature
         // Make sure to wait at least 1 second before starting each node
-        self.random = get_timestamp() as u64;
+        self.random = get_timestamp_nanos().1 as u64;
 
         self.initialize_from_storage(ctx);
 
