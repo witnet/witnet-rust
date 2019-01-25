@@ -2,9 +2,10 @@
 
 use reqwest;
 
-use witnet_data_structures::chain::RADRetrieve;
-use witnet_data_structures::chain::RADType;
-use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
+use witnet_data_structures::{
+    chain::{RADRetrieve, RADType},
+    serializers::decoders::TryInto,
+};
 
 use crate::error::{RadError, RadResult, WitnetError};
 use crate::script::{execute_radon_script, unpack_radon_script};
@@ -79,4 +80,24 @@ fn test_run_retrieval() {
         RadonTypes::Float(_) => {}
         err => panic!("Error in run_retrieval: {:?}", err),
     }
+}
+
+#[test]
+fn test_run_consensus_and_aggregation() {
+    use crate::types::float::RadonFloat;
+
+    let f_1 = RadonTypes::Float(RadonFloat::from(1f64).into());
+    let f_3 = RadonTypes::Float(RadonFloat::from(3f64).into());
+
+    let radon_types_vec = vec![f_1, f_3];
+
+    let packed_script = [145, 146, 102, 32].to_vec();
+
+    let expected = RadonTypes::Float(RadonFloat::from(2f64)).try_into().ok();
+
+    let output_consensus = run_consensus(radon_types_vec.clone(), packed_script.clone()).ok();
+    let output_aggregate = run_aggregation(radon_types_vec, packed_script).ok();
+
+    assert_eq!(output_consensus, expected);
+    assert_eq!(output_aggregate, expected);
 }
