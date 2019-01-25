@@ -37,7 +37,7 @@ impl Actor for ChainManager {
 
         // Use the current timestamp as a random value to modify the signature
         // Make sure to wait at least 1 second before starting each node
-        self.random = get_timestamp_nanos().1 as u64;
+        self.random = u64::from(get_timestamp_nanos().1);
 
         self.initialize_from_storage(ctx);
 
