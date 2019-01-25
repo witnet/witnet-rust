@@ -54,7 +54,7 @@ pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), f
 
             Ok(())
         }
-        CliCommand::GetDataRequest {
+        CliCommand::GetOutput {
             config,
             output_index,
         } => {

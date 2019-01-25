@@ -1,4 +1,4 @@
-use actix::{Actor, Context, Handler};
+use actix::{Actor, AsyncContext, Context, Handler};
 use ansi_term::Color::{Purple, White, Yellow};
 use log::{debug, error, info, warn};
 
@@ -103,12 +103,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     for reveal in reveals {
                         // Send AddTransaction message to self
                         // And broadcast it to all of peers
-                        self.handle(
-                            AddTransaction {
-                                transaction: reveal,
-                            },
-                            ctx,
-                        );
+                        ctx.address().do_send(AddTransaction {
+                            transaction: reveal,
+                        })
                     }
 
                     // Persist finished data requests into storage
@@ -431,7 +428,6 @@ impl Handler<DiscardExistingInventoryEntries> for ChainManager {
     }
 }
 
-/// Handler for GetDataRequest message
 impl Handler<GetOutput> for ChainManager {
     type Result = GetOutputResult;
 
