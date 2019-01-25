@@ -60,17 +60,16 @@ pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), f
         } => {
             let config = config.or(last_config);
             let mut stream = start_client(config)?;
-            // FIXME handle wrong input format
-            let output_pointer_formated: String =
-                serde_json::to_string(&OutputPointer::from_str(&output_index).unwrap()).unwrap();
-
-            let a = format!(
+            let output_pointer = OutputPointer::from_str(&output_index)?;
+            let request_payload = serde_json::to_string(&output_pointer)?;
+            let request = format!(
                 r#"{{"jsonrpc": "2.0","method": "getOutput", "params": [{}], "id": "1"}}"#,
-                output_pointer_formated,
+                request_payload,
             );
-            let response = send_request(&mut stream, &a);
+            let response = send_request(&mut stream, &request)?;
 
-            println!("{}", response.unwrap());
+            println!("{}", response);
+
             Ok(())
         }
     }

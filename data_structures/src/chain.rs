@@ -973,12 +973,16 @@ pub struct OutputPointer {
     pub output_index: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub enum OutputPointerParseError {
+    #[fail(display = "output pointer has an invalid length")]
     InvalidHashLength,
+    #[fail(
+        display = "output pointer has the wrong format, expected '<transaction id>:<output index>'"
+    )]
     MissingColon,
+    #[fail(display = "could not parse output index as an integer")]
     ParseIntError(ParseIntError),
-    ParseHex(ParseIntError),
 }
 
 impl fmt::Display for OutputPointer {
@@ -1548,14 +1552,12 @@ mod tests {
             "1111111111111111111111111111111111111111111111111111111111111111111:1",
         );
 
-        let result_error_format_1 = OutputPointer::from_str(
-            ":"
-        );
-        
+        let result_error_format_1 = OutputPointer::from_str(":");
+
         let result_error_format_2 = OutputPointer::from_str(
             "1111111111111111111111111111111111111111111111111111111111111111:b",
         );
-        
+
         let result_error_format_3 = OutputPointer::from_str(
             "1111111111111111111111111111111111111111111111111111111111111111:1a",
         );
