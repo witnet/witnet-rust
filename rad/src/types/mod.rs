@@ -50,6 +50,15 @@ impl RadonTypes {
     }
 }
 
+impl fmt::Display for RadonTypes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RadonTypes::Float(float) => write!(f, "RadonFloat: {}", float.value()),
+            _ => write!(f, "RadonType: {:?}", self),
+        }
+    }
+}
+
 impl From<RadonArray> for RadonTypes {
     fn from(array: RadonArray) -> Self {
         RadonTypes::Array(array)
