@@ -51,8 +51,9 @@ use self::data_request::DataRequestPool;
 use self::validations::{validate_merkle_tree, validate_transactions};
 
 use witnet_data_structures::chain::{
-    Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable, InventoryEntry,
-    InventoryItem, OutputPointer, Transaction, TransactionsPool, UnspentOutputsPool,
+    ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
+    Hashable, InventoryEntry, InventoryItem, OutputPointer, Transaction, TransactionsPool,
+    UnspentOutputsPool,
 };
 
 use crate::actors::chain_manager::validations::block_reward;
@@ -455,6 +456,28 @@ impl ChainManager {
                         self.chain_state.unspent_outputs_pool =
                             self.chain_state.generate_unspent_outputs_pool(&block);
                         self.update_transaction_pool(block.txns.as_ref());
+
+                        // FIXME: Revisit for potential refactor
+                        // Update data requests pool
+                        self.data_request_pool = data_request_pool;
+                        self.data_request_pool.update_data_request_stages();
+                        // Persist finished data requests into storage
+                        let to_be_stored = self.data_request_pool.finished_data_requests();
+                        to_be_stored.into_iter().for_each(|dr| {
+                            self.persist_data_request(ctx, &dr);
+                        });
+                        // Store active data requests
+                        self.chain_state.data_request_pool = ActiveDataRequestPool {
+                            waiting_for_reveal: self.data_request_pool.waiting_for_reveal.clone(),
+                            data_requests_by_epoch: self
+                                .data_request_pool
+                                .data_requests_by_epoch
+                                .clone(),
+                            data_request_pool: self.data_request_pool.data_request_pool.clone(),
+                            to_be_stored: self.data_request_pool.to_be_stored.clone(),
+                            dr_pointer_cache: self.data_request_pool.dr_pointer_cache.clone(),
+                        };
+                        // End of FIX ME
 
                         // Update chain_info
                         match self.chain_state.chain_info.as_mut() {
