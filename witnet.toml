@@ -2,12 +2,15 @@
 # https://docs.witnet.io/configuration/toml-file/
 [connections]
 server_addr = "127.0.0.1:21337"
+known_peers = ["40.121.131.135:21337"]
+outbound_limit = 1
+bootstrap_peers_period_seconds = 15
 
 [storage]
 db_path = ".wit"
 
 [consensus_constants]
-checkpoint_zero_timestamp = 1542203073
+checkpoint_zero_timestamp = 1548855420
 
 #########################################
 ### LOGGING CONFIGURATION             ###
@@ -19,13 +22,13 @@ checkpoint_zero_timestamp = 1542203073
 log_to_stdout = true
 
 # Log level for stdout: Critical, Error, Warning, Info, Debug, Trace
-stdout_log_level = "Debug"
+stdout_log_level = "Info"
 
 # Whether to log to a file
 log_to_file = true
 
 # Log level for file: Critical, Error, Warning, Info, Debug, Trace
-file_log_level = "Debug"
+file_log_level = "Info"
 
 # Log file path
 log_file_path = "wit.log"
