@@ -5,7 +5,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use actix::Message;
 use bytes;
-use log::debug;
+use log::{debug, error};
 use tokio::codec::{Decoder, Encoder};
 
 const HEADER_SIZE: usize = 2; // bytes
@@ -73,6 +73,7 @@ impl Encoder for P2PCodec {
         let mut encoded_msg = vec![];
 
         if bytes.len() > u16::max_value() as usize {
+            error!("Maximum message size exceeded");
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("Message size {} bytes too big for u16", bytes.len()),

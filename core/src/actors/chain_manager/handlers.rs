@@ -16,7 +16,7 @@ use witnet_util::error::WitnetError;
 use crate::actors::chain_manager::{
     data_request::DataRequestPool,
     messages::{GetOutputResult, PeerLastEpoch, SessionUnitResult, SetNetworkReady},
-    ChainManager, ChainManagerError,
+    ChainManager, ChainManagerError, MAX_BLOCKS_SYNC,
 };
 use crate::actors::epoch_manager::messages::EpochNotification;
 use crate::actors::session::messages::InventoryExchange;
@@ -413,12 +413,15 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
         debug!("GetBlocksEpochRange received {:?}", range);
-        let hashes = self
+        let mut hashes: Vec<(Epoch, InventoryEntry)> = self
             .chain_state
             .block_chain
             .range(range)
             .map(|(k, v)| (*k, InventoryEntry::Block(*v)))
             .collect();
+
+        // Hashes Vec has not to be bigger than MAX_BLOCKS_SYNC
+        hashes.truncate(MAX_BLOCKS_SYNC);
 
         Ok(hashes)
     }

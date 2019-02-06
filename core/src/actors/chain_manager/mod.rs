@@ -66,6 +66,9 @@ mod handlers;
 mod mining;
 mod validations;
 
+/// Maximum blocks number to be sent during synchronization process
+const MAX_BLOCKS_SYNC: usize = 250;
+
 /// Messages for ChainManager
 pub mod messages;
 
