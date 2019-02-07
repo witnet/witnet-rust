@@ -571,7 +571,7 @@ fn session_getblocks(
                         let range = (received_checkpoint + 1)..=highest_checkpoint;
 
                         chain_manager_addr
-                            .send(GetBlocksEpochRange::new(range))
+                            .send(GetBlocksEpochRange::new_with_const_limit(range))
                             .into_actor(act)
                             .then(|res, act, _ctx| match res {
                                 Ok(Ok(blocks)) => {

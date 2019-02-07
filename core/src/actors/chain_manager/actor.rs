@@ -1,5 +1,7 @@
 use actix::{Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, System, WrapFuture};
 
+use std::time::Duration;
+
 use crate::actors::epoch_manager::{
     messages::{GetEpoch, Subscribe},
     EpochManager,
@@ -42,6 +44,8 @@ impl Actor for ChainManager {
         self.initialize_from_storage(ctx);
 
         self.subscribe_to_epoch_manager(ctx);
+
+        self.synchronize(ctx, Duration::from_secs(5));
     }
 }
 

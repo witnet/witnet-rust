@@ -25,20 +25,27 @@
 //! * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
-use actix::{
-    ActorFuture, Context, ContextFutureSpawner, MailboxError, Supervised, System, SystemService,
-    WrapFuture,
-};
-use ansi_term::Color::Purple;
-use log::{debug, error, warn};
 use std::collections::HashMap;
+use std::time::Duration;
 
-use self::messages::InventoryEntriesResult;
+use actix::{
+    ActorFuture, AsyncContext, Context, ContextFutureSpawner, MailboxError, Supervised, System,
+    SystemService, WrapFuture,
+};
+use log::{debug, error, warn};
+
+use witnet_data_structures::chain::{
+    ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
+    Hashable, InventoryEntry, InventoryItem, OutputPointer, Transaction, TransactionsPool,
+    UnspentOutputsPool,
+};
+use witnet_storage::{error::StorageError, storage::Storable};
+use witnet_util::error::WitnetError;
 
 use crate::actors::{
     inventory_manager::{messages::AddItem, InventoryManager},
     reputation_manager::{messages::ValidatePoE, ReputationManager},
-    session::messages::{AnnounceItems, RequestBlock, SendInventoryItem},
+    session::messages::{InventoryExchange, SendInventoryItem},
     sessions_manager::{
         messages::{Anycast, Broadcast},
         SessionsManager,
@@ -48,17 +55,8 @@ use crate::actors::{
 };
 
 use self::data_request::DataRequestPool;
-use self::validations::{validate_merkle_tree, validate_transactions};
-
-use witnet_data_structures::chain::{
-    ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
-    Hashable, InventoryEntry, InventoryItem, OutputPointer, Transaction, TransactionsPool,
-    UnspentOutputsPool,
-};
-
-use crate::actors::chain_manager::validations::block_reward;
-use witnet_storage::{error::StorageError, storage::Storable};
-use witnet_util::error::WitnetError;
+use self::messages::InventoryEntriesResult;
+use self::validations::{block_reward, validate_merkle_tree, validate_transactions};
 
 mod actor;
 mod data_request;
@@ -67,7 +65,13 @@ mod mining;
 mod validations;
 
 /// Maximum blocks number to be sent during synchronization process
-const MAX_BLOCKS_SYNC: usize = 250;
+const MAX_BLOCKS_SYNC: usize = 3;
+
+/// Maximum blocks number to be sent during synchronization process
+const SYNCHRONIZING_INTERVAL: Duration = Duration::from_secs(5);
+
+/// Maximum blocks number to be sent during synchronization process
+const SYNCED_INTERVAL: Duration = Duration::from_secs(301);
 
 /// Messages for ChainManager
 pub mod messages;
@@ -232,56 +236,12 @@ impl ChainManager {
             .wait(ctx);
     }
 
-    fn keep_block_without_validation(&mut self, block: Block) -> Result<Hash, ChainManagerError> {
-        // Calculate the hash of the block
-        let hash: Hash = block.hash();
-
-        // Check if we already have a block with that hash
-        if let Some(_block) = self.blocks_to_validate.get(&hash) {
-            Err(ChainManagerError::BlockAlreadyExists)
-        } else {
-            // Insert the new block into the map of blocks to validate
-            self.blocks_to_validate.insert(hash, block);
-
-            debug!(
-                "{} There are {} blocks to validate now",
-                Purple.bold().paint("[Chain]"),
-                Purple
-                    .bold()
-                    .paint(self.blocks_to_validate.len().to_string())
-            );
-
-            Ok(hash)
-        }
-    }
-
-    fn broadcast_announce_items(&mut self, hash: Hash) {
-        // Get SessionsManager address
-        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
-
-        // Tell SessionsManager to announce the new block through every consolidated Session
-        let items = vec![InventoryEntry::Block(hash)];
-        sessions_manager_addr.do_send(Broadcast {
-            command: AnnounceItems { items },
-        });
-    }
-
     fn broadcast_item(&self, item: InventoryItem) {
         // Get SessionsManager address
         let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
         sessions_manager_addr.do_send(Broadcast {
             command: SendInventoryItem { item },
-        });
-    }
-
-    fn request_block(&mut self, block_hash: Hash) {
-        // Get SessionsManager address
-        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
-
-        let block_entry = InventoryEntry::Block(block_hash);
-        sessions_manager_addr.do_send(Anycast {
-            command: RequestBlock { block_entry },
         });
     }
 
@@ -342,10 +302,25 @@ impl ChainManager {
                         "Block epoch from the future: current: {}, block: {}",
                         current_epoch, block_epoch
                     );
-                } else if self.chain_state.chain_info.is_some() && self.chain_state.chain_info.as_ref().unwrap().highest_block_checkpoint.checkpoint > block_epoch {
-                    warn!(
-                        "Block epoch {} older than highest block checkpoint {}",
-                        block_epoch, self.chain_state.chain_info.as_ref().unwrap().highest_block_checkpoint.checkpoint
+                } else if self.chain_state.chain_info.is_some()
+                    && self
+                        .chain_state
+                        .chain_info
+                        .as_ref()
+                        .unwrap()
+                        .highest_block_checkpoint
+                        .checkpoint
+                        > block_epoch
+                {
+                    debug!(
+                        "Ignoring block from epoch {} (older than highest block checkpoint {})",
+                        block_epoch,
+                        self.chain_state
+                            .chain_info
+                            .as_ref()
+                            .unwrap()
+                            .highest_block_checkpoint
+                            .checkpoint
                     );
                 } else if our_candidate_is_better {
                     if let Some(candidate) = self.best_candidate.as_ref() {
@@ -357,31 +332,30 @@ impl ChainManager {
                     }
                 } else if hash_prev_block != self.genesis_block_hash
                     && self.chain_state.chain_info.is_some()
-                    && self.chain_state.chain_info.as_ref().unwrap().highest_block_checkpoint.hash_prev_block != hash_prev_block {
-                    // Request the lost block with the hash_prev_block indicated in this block
-                    // Except when that block is the genesis block
-                    self.request_block(hash_prev_block);
-
-                    match self.keep_block_without_validation(block) {
-                        Ok(hash) => warn!(
-                            "Block [{:?}] has a previous hash [{:?}] not known",
-                            hash, hash_prev_block
-                        ),
-                        Err(ChainManagerError::BlockAlreadyExists) => {
-                            warn!("Block without previous hash known already exists in blocks_to_validate");
-                        }
-                        Err(_) => {
-                            error!("Unexpected error");
-                        }
-                    }
-                } else if let Err(e) = block.validate(block_reward(block_epoch), &self.chain_state.unspent_outputs_pool) {
+                    && self
+                        .chain_state
+                        .chain_info
+                        .as_ref()
+                        .unwrap()
+                        .highest_block_checkpoint
+                        .hash_prev_block
+                        != hash_prev_block
+                {
+                    warn!(
+                        "Ignoring block because previous hash [{:?}]is not known",
+                        hash_prev_block
+                    )
+                } else if let Err(e) = block.validate(
+                    block_reward(block_epoch),
+                    &self.chain_state.unspent_outputs_pool,
+                ) {
                     warn!("Block's mint transaction is not valid: {:?}", e);
                 } else {
                     if block_epoch < current_epoch {
                         // FIXME(#235): check proof of eligibility from the past
                         // ReputationManager should have a method to validate PoE from a past epoch
-                        warn!(
-                            "Block epoch from the past: current: {}, block: {}",
+                        debug!(
+                            "Received Block with an epoch from the past: current: {}, block: {}",
                             current_epoch, block_epoch
                         );
                     }
@@ -449,9 +423,6 @@ impl ChainManager {
                     } else {
                         //TODO: Now we assume there are no forked older blocks
 
-                        // Announce and persist older blocks
-                        self.broadcast_announce_items(block_hash);
-
                         // Persist block item
                         self.persist_item(ctx, InventoryItem::Block(block.clone()));
 
@@ -507,58 +478,45 @@ impl ChainManager {
             }
         };
     }
+
+    /// Method to periodically synchronize inventory items with our peers
+    fn synchronize(&self, ctx: &mut Context<Self>, sync_interval: std::time::Duration) {
+        // Schedule the bootstrap with a given period
+        ctx.run_later(sync_interval, move |act, ctx| {
+            debug!("Triggering synchronization routine");
+
+            // Get SessionsManager address
+            let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+            // Trigger inventory exchange
+            sessions_manager_addr.do_send(Anycast {
+                command: InventoryExchange,
+            });
+
+            // Reschedule the bootstrap peers task
+            let current_synced_epoch = act
+                .chain_state
+                .chain_info
+                .as_ref()
+                .map_or(0, |info| info.highest_block_checkpoint.checkpoint);
+
+            if act.current_epoch.is_some() && act.current_epoch.unwrap() == current_synced_epoch + 1
+            {
+                debug!(
+                    "Our blockchain seems to be synced (slowing down the synchronization routine)"
+                );
+                act.synchronize(ctx, SYNCED_INTERVAL);
+            } else {
+                act.synchronize(ctx, SYNCHRONIZING_INTERVAL);
+            }
+        });
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::BTreeMap;
 
-    #[test]
-    fn add_block_to_validate() {
-        let mut bm = ChainManager::default();
-
-        // Build hardcoded block
-        let checkpoint = 2;
-        let hash_prev_block = Hash::SHA256([111; 32]);
-        let block_a = build_hardcoded_block(checkpoint, 99999, hash_prev_block);
-
-        // Add block to ChainManager without complete validation
-        let hash_a = bm.keep_block_without_validation(block_a.clone()).unwrap();
-
-        // Check the block is added into the blocks_to_validate map
-        assert_eq!(bm.blocks_to_validate.len(), 1);
-        assert_eq!(bm.blocks_to_validate.get(&hash_a).unwrap(), &block_a);
-    }
-
-    #[test]
-    fn add_same_block_to_validate_twice() {
-        let mut bm = ChainManager::default();
-
-        // Build hardcoded block
-        let block = build_hardcoded_block(2, 99999, Hash::SHA256([111; 32]));
-
-        // Only the first block will be inserted
-        assert!(bm.keep_block_without_validation(block.clone()).is_ok());
-        assert!(bm.keep_block_without_validation(block).is_err());
-        assert_eq!(bm.blocks_to_validate.len(), 1);
-    }
-
-    #[test]
-    fn add_blocks_to_validate_same_previous_hash() {
-        let mut bm = ChainManager::default();
-
-        // Build hardcoded blocks
-        let checkpoint = 2;
-        let hash_prev_block = Hash::SHA256([111; 32]);
-        let block_a = build_hardcoded_block(checkpoint, 99999, hash_prev_block);
-        let block_b = build_hardcoded_block(checkpoint, 12345, hash_prev_block);
-
-        // Add blocks to the ChainManager without complete validation
-        let hash_a = bm.keep_block_without_validation(block_a).unwrap();
-        let hash_b = bm.keep_block_without_validation(block_b).unwrap();
-        assert_ne!(hash_a, hash_b);
-    }
+    use super::*;
 
     #[cfg(test)]
     fn build_hardcoded_block(checkpoint: u32, influence: u64, hash_prev_block: Hash) -> Block {

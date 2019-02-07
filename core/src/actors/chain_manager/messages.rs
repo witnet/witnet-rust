@@ -1,6 +1,6 @@
 use actix::Message;
 
-use crate::actors::chain_manager::ChainManagerError;
+use crate::actors::chain_manager::{ChainManagerError, MAX_BLOCKS_SYNC};
 use std::ops::{Bound, RangeBounds};
 use witnet_data_structures::{
     chain::{
@@ -64,6 +64,8 @@ impl Message for GetBlock {
 pub struct GetBlocksEpochRange {
     /// Range of Epochs (prefer using the new method to create a range)
     pub range: (Bound<Epoch>, Bound<Epoch>),
+    /// Maximum blocks limit
+    pub limit: usize,
 }
 
 impl GetBlocksEpochRange {
@@ -78,6 +80,14 @@ impl GetBlocksEpochRange {
     /// GetBlocksEpochRange::new(4..=4); // Only epoch 4
     /// ```
     pub fn new<R: RangeBounds<Epoch>>(r: R) -> Self {
+        Self::new_with_limit(r, 0)
+    }
+    /// new method with a constant limit
+    pub fn new_with_const_limit<R: RangeBounds<Epoch>>(r: R) -> Self {
+        Self::new_with_limit(r, MAX_BLOCKS_SYNC)
+    }
+    /// new method with a specified limit
+    pub fn new_with_limit<R: RangeBounds<Epoch>>(r: R, limit: usize) -> Self {
         // Manually implement `cloned` method
         let cloned = |b: Bound<&Epoch>| match b {
             Bound::Included(x) => Bound::Included(*x),
@@ -87,6 +97,7 @@ impl GetBlocksEpochRange {
 
         Self {
             range: (cloned(r.start_bound()), cloned(r.end_bound())),
+            limit,
         }
     }
 }

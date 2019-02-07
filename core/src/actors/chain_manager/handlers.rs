@@ -1,4 +1,4 @@
-use actix::{Actor, Context, Handler, System};
+use actix::{Actor, Context, Handler};
 use ansi_term::Color::{Purple, White, Yellow};
 use log::{debug, error, info, warn};
 
@@ -16,11 +16,9 @@ use witnet_util::error::WitnetError;
 use crate::actors::chain_manager::{
     data_request::DataRequestPool,
     messages::{GetOutputResult, PeerLastEpoch, SessionUnitResult, SetNetworkReady},
-    ChainManager, ChainManagerError, MAX_BLOCKS_SYNC,
+    ChainManager, ChainManagerError,
 };
 use crate::actors::epoch_manager::messages::EpochNotification;
-use crate::actors::session::messages::InventoryExchange;
-use crate::actors::sessions_manager::{messages::Broadcast, SessionsManager};
 
 use super::messages::{
     AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlocksEpochRange,
@@ -78,13 +76,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             return;
         }
 
-        // Get SessionsManager address
-        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
-
-        sessions_manager_addr.do_send(Broadcast {
-            command: InventoryExchange,
-        });
-
         // Consolidate the best known block candidate
         if let Some(candidate) = self.best_candidate.take() {
             // Update chain_info
@@ -94,7 +85,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     let block_hash = candidate.block.hash();
                     let block_epoch = candidate.block.block_header.beacon.checkpoint;
                     let beacon = CheckpointBeacon {
-                        checkpoint: msg.checkpoint,
+                        checkpoint: block_epoch,
                         hash_prev_block: block_hash,
                     };
                     chain_info.highest_block_checkpoint = beacon;
@@ -387,10 +378,7 @@ impl Handler<AddTransaction> for ChainManager {
 
                     // Add valid transaction to transactions_pool
                     self.transactions_pool
-                        .insert(*transaction_hash, msg.transaction); /*
-                                                                         }
-                                                                     }
-                                                                     */
+                        .insert(*transaction_hash, msg.transaction);
                 } else {
                     warn!("Input OutputPointer not in pool");
                 }
@@ -409,7 +397,7 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
 
     fn handle(
         &mut self,
-        GetBlocksEpochRange { range }: GetBlocksEpochRange,
+        GetBlocksEpochRange { range, limit }: GetBlocksEpochRange,
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
         debug!("GetBlocksEpochRange received {:?}", range);
@@ -421,7 +409,9 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
             .collect();
 
         // Hashes Vec has not to be bigger than MAX_BLOCKS_SYNC
-        hashes.truncate(MAX_BLOCKS_SYNC);
+        if limit != 0 {
+            hashes.truncate(limit);
+        }
 
         Ok(hashes)
     }
