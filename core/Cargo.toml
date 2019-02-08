@@ -7,7 +7,6 @@ description = "core component"
 edition = "2018"
 
 [dependencies]
-actix = "0.7.4"
 ansi_term = "0.11.0"
 
 byteorder = "1.2.6"
@@ -29,4 +28,6 @@ witnet_util = { path = "../util" }
 witnet_crypto = { path = "../crypto" }
 witnet_rad = { path = "../rad" }
 
-
+[dependencies.actix]
+git = "https://github.com/actix/actix.git"
+rev = "d28d286ac652f81e72c2aa413e7c0d3fc6c6099c"

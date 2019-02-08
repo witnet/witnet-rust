@@ -65,13 +65,13 @@ mod mining;
 mod validations;
 
 /// Maximum blocks number to be sent during synchronization process
-const MAX_BLOCKS_SYNC: usize = 3;
+const MAX_BLOCKS_SYNC: usize = 500;
 
-/// Maximum blocks number to be sent during synchronization process
-const SYNCHRONIZING_INTERVAL: Duration = Duration::from_secs(5);
+/// Synchronization interval while our blockchain is being synchronized
+const SYNCHRONIZING_INTERVAL: Duration = Duration::from_secs(10);
 
-/// Maximum blocks number to be sent during synchronization process
-const SYNCED_INTERVAL: Duration = Duration::from_secs(301);
+/// Synchronization interval once our blokchain is considered to be synced
+const SYNCED_INTERVAL: Duration = Duration::from_secs(45);
 
 /// Messages for ChainManager
 pub mod messages;
