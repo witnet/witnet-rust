@@ -1,7 +1,5 @@
 use actix::{Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, System, WrapFuture};
 
-use std::time::Duration;
-
 use crate::actors::epoch_manager::{
     messages::{GetEpoch, Subscribe},
     EpochManager,
@@ -45,7 +43,7 @@ impl Actor for ChainManager {
 
         self.subscribe_to_epoch_manager(ctx);
 
-        self.synchronize(ctx, Duration::from_secs(5));
+        self.synchronize(ctx, self.synchronizing_period);
     }
 }
 
@@ -58,10 +56,13 @@ impl ChainManager {
             // Get environment and consensus_constants parameters from config
             let environment = (&config.environment).clone();
             let consensus_constants = (&config.consensus_constants).clone();
+            let connections = (&config.connections).clone();
 
             act.max_block_weight = consensus_constants.max_block_weight;
+            act.synchronizing_period = connections.synchronizing_period;
+            act.synced_period = connections.synced_period;
 
-            // Get storage manager actor address
+            // Get StorageManager actor address
             let storage_manager_addr = System::current().registry().get::<StorageManager>();
             storage_manager_addr
                 // Send a message to read the chain_info from the storage

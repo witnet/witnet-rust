@@ -67,13 +67,6 @@ mod validations;
 /// Maximum blocks number to be sent during synchronization process
 const MAX_BLOCKS_SYNC: usize = 500;
 
-/// Synchronization period while our blockchain is being synchronized
-const SYNCHRONIZING_INTERVAL: Duration = Duration::from_secs(10);
-
-/// Synchronization period once our blockchain is considered to be synced
-/// It has to be at least more than 2 epochs to ensure synchronization
-const SYNCED_INTERVAL: Duration = Duration::from_secs(181);
-
 /// Messages for ChainManager
 pub mod messages;
 
@@ -131,6 +124,10 @@ pub struct ChainManager {
     mine: bool,
     /// Are we actually synchronized with our peers?
     synced: bool,
+    /// Synchronization period while the blockchain is being synchronized
+    synchronizing_period: Duration,
+    /// Synchronization period once the blockchain is considered to be synced
+    synced_period: Duration,
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
@@ -490,20 +487,20 @@ impl ChainManager {
 
             if act.synced {
                 debug!(
-                    "Our blockchain seems to be synced (slowing down the synchronization routine)"
+                    "The blockchain seems to be synced (slowing down the synchronization routine)"
                 );
 
                 // Enable or disabled mine flag if the blockchain is synced during a SYNCED_INTERVAL (at least two epochs)
-                act.mine = sync_interval == SYNCED_INTERVAL;
+                act.mine = sync_interval == act.synced_period;
                 if act.mine {
                     info!("Blockchain ready to mine");
                 } else {
                     warn!("Blockchain disabled to mine");
                 }
 
-                act.synchronize(ctx, SYNCED_INTERVAL);
+                act.synchronize(ctx, act.synced_period);
             } else {
-                act.synchronize(ctx, SYNCHRONIZING_INTERVAL);
+                act.synchronize(ctx, act.synchronizing_period);
             }
         });
     }

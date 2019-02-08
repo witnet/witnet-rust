@@ -141,6 +141,22 @@ pub struct Connections {
         rename = "handshake_timeout_seconds"
     ))]
     pub handshake_timeout: Duration,
+
+    /// Synchronization period while the blockchain is being synchronized
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "synchronizing_period_seconds"
+    ))]
+    pub synchronizing_period: Duration,
+
+    /// Synchronization period once the blockchain is considered to be synced
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "synced_period_seconds"
+    ))]
+    pub synced_period: Duration,
 }
 
 fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
@@ -291,6 +307,14 @@ impl Connections {
             handshake_timeout: config
                 .handshake_timeout
                 .unwrap_or_else(|| defaults.connections_handshake_timeout()),
+            synchronizing_period: config
+                .synchronizing_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_synchronizing_period()),
+            synced_period: config
+                .synced_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_synced_period()),
         }
     }
 }
@@ -393,6 +417,8 @@ mod tests {
             storage_peers_period: Some(Duration::from_secs(60)),
             discovery_peers_period: Some(Duration::from_secs(100)),
             handshake_timeout: Some(Duration::from_secs(3)),
+            synchronizing_period: Some(Duration::from_secs(105)),
+            synced_period: Some(Duration::from_secs(110)),
         };
         let config = Connections::from_partial(&partial_config, &Testnet1);
 
@@ -404,6 +430,8 @@ mod tests {
         assert_eq!(config.storage_peers_period, Duration::from_secs(60));
         assert_eq!(config.discovery_peers_period, Duration::from_secs(100));
         assert_eq!(config.handshake_timeout, Duration::from_secs(3));
+        assert_eq!(config.synchronizing_period, Duration::from_secs(105));
+        assert_eq!(config.synced_period, Duration::from_secs(110));
     }
 
     #[test]
@@ -468,6 +496,14 @@ mod tests {
         assert_eq!(
             config.jsonrpc.server_address,
             Testnet1.jsonrpc_server_address()
+        );
+        assert_eq!(
+            config.connections.synchronizing_period,
+            Testnet1.connections_synchronizing_period()
+        );
+        assert_eq!(
+            config.connections.synced_period,
+            Testnet1.connections_synced_period()
         );
     }
 }

@@ -101,6 +101,14 @@ pub trait Defaults {
         // TODO: Replace  with real max_block_weight value used in mainnet
         10_000
     }
+    /// Default synchronization period while the blockchain is being synchronized
+    fn connections_synchronizing_period(&self) -> Duration {
+        Duration::from_secs(10)
+    }
+    /// Default synchronization period once the blockchain is considered to be synced
+    fn connections_synced_period(&self) -> Duration {
+        Duration::from_secs(181)
+    }
 }
 
 /// Struct that will implement all the mainnet defaults
