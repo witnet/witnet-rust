@@ -4,6 +4,8 @@
 #![cfg_attr(test, allow(dead_code, unused_macros, unused_imports))]
 
 extern crate serde_derive;
+#[macro_use]
+extern crate protobuf_convert;
 
 /// Module containing functions to generate Witnet's protocol messages
 pub mod builders;

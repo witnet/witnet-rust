@@ -2,6 +2,7 @@ use super::serializers::encoders::{
     build_block_flatbuffer, build_checkpoint_beacon_flatbuffer, build_transaction_flatbuffer,
     BlockArgs, CheckpointBeaconArgs, TransactionArgs,
 };
+use crate::proto::schema::witnet;
 use crate::serializers::decoders::TryFrom;
 use failure::Fail;
 use partial_struct::PartialStruct;
@@ -83,7 +84,8 @@ pub struct ConsensusConstants {
 }
 
 /// Checkpoint beacon structure
-#[derive(Debug, Default, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::CheckpointBeacon")]
 pub struct CheckpointBeacon {
     /// The serial number for an epoch
     pub checkpoint: Epoch,
@@ -95,7 +97,8 @@ pub struct CheckpointBeacon {
 pub type Epoch = u32;
 
 /// Block data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Block")]
 pub struct Block {
     /// The header of the block
     pub block_header: BlockHeader,
@@ -216,7 +219,8 @@ impl Hashable for Transaction {
 }
 
 /// Block header structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Block_BlockHeader")]
 pub struct BlockHeader {
     /// The block version number indicating the block validation rules
     pub version: u32,
@@ -254,7 +258,8 @@ pub struct Secp256k1Signature {
 }
 
 /// Hash
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Serialize, Hash)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Serialize, Hash, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Hash")]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),
@@ -338,7 +343,8 @@ pub type SHA256 = [u8; 32];
 pub type PublicKeyHash = [u8; 20];
 
 /// Transaction data structure
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction")]
 pub struct Transaction {
     pub version: u32,
     pub inputs: Vec<Input>,
@@ -462,7 +468,8 @@ impl AsRef<Transaction> for Transaction {
 }
 
 /// Input data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Input")]
 pub enum Input {
     Commit(CommitInput),
     DataRequest(DataRequestInput),
@@ -496,14 +503,16 @@ impl Input {
 }
 
 /// Value transfer input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Input_ValueTransferInput")]
 pub struct ValueTransferInput {
     pub transaction_id: Hash,
     pub output_index: u32,
 }
 
 /// Commit input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Input_CommitInput")]
 pub struct CommitInput {
     pub transaction_id: Hash,
     pub output_index: u32,
@@ -512,7 +521,8 @@ pub struct CommitInput {
 }
 
 /// Commit input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Input_DataRequestInput")]
 pub struct DataRequestInput {
     pub transaction_id: Hash,
     pub output_index: u32,
@@ -520,14 +530,16 @@ pub struct DataRequestInput {
 }
 
 /// Reveal input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Input_RevealInput")]
 pub struct RevealInput {
     pub transaction_id: Hash,
     pub output_index: u32,
 }
 
 /// Output data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Output")]
 pub enum Output {
     ValueTransfer(ValueTransferOutput),
     DataRequest(DataRequestOutput),
@@ -552,14 +564,16 @@ impl Output {
 }
 
 /// Value transfer output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Output_ValueTransferOutput")]
 pub struct ValueTransferOutput {
     pub pkh: PublicKeyHash,
     pub value: u64,
 }
 
 /// Data request output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Output_DataRequestOutput")]
 pub struct DataRequestOutput {
     pub pkh: PublicKeyHash,
     pub data_request: RADRequest,
@@ -573,21 +587,24 @@ pub struct DataRequestOutput {
 }
 
 /// Commit output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Output_CommitOutput")]
 pub struct CommitOutput {
     pub commitment: Hash,
     pub value: u64,
 }
 
 /// Reveal output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Output_RevealOutput")]
 pub struct RevealOutput {
     pub reveal: Vec<u8>,
     pub pkh: PublicKeyHash,
     pub value: u64,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Transaction_Output_TallyOutput")]
 pub struct TallyOutput {
     pub result: Vec<u8>,
     pub pkh: PublicKeyHash,
@@ -595,7 +612,8 @@ pub struct TallyOutput {
 }
 
 /// Keyed signature data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::KeyedSignature")]
 pub struct KeyedSignature {
     pub signature: Signature,
     pub public_key: [u8; 32],
@@ -608,7 +626,11 @@ pub enum RADType {
 }
 
 /// RAD request data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(
+    pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest",
+    crate = "crate"
+)]
 pub struct RADRequest {
     pub not_before: u64,
     pub retrieve: Vec<RADRetrieve>,
@@ -617,24 +639,40 @@ pub struct RADRequest {
     pub deliver: Vec<RADDeliver>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(
+    pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest_RADRetrieve",
+    crate = "crate"
+)]
 pub struct RADRetrieve {
     pub kind: RADType,
     pub url: String,
     pub script: Vec<u8>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(
+    pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest_RADAggregate",
+    crate = "crate"
+)]
 pub struct RADAggregate {
     pub script: Vec<u8>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(
+    pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest_RADConsensus",
+    crate = "crate"
+)]
 pub struct RADConsensus {
     pub script: Vec<u8>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(
+    pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest_RADDeliver",
+    crate = "crate"
+)]
 pub struct RADDeliver {
     pub kind: RADType,
     pub url: String,
@@ -1053,7 +1091,8 @@ impl<'de> Deserialize<'de> for OutputPointer {
 }
 
 /// Inventory entry data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::InventoryEntry")]
 pub enum InventoryEntry {
     Error(Hash),
     Tx(Hash),

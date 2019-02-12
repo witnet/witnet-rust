@@ -1,16 +1,19 @@
 use std::fmt;
 
 use crate::chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, Transaction};
+use crate::proto::{schema::witnet, ProtobufConvert};
 
 /// Witnet's protocol messages
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Message")]
 pub struct Message {
     pub kind: Command,
     pub magic: u16,
 }
 
 /// Commands for the Witnet's protocol messages
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Message_Command")]
 pub enum Command {
     // Peer discovery messages
     GetPeers(GetPeers),
@@ -53,10 +56,12 @@ impl fmt::Display for Command {
 ///////////////////////////////////////////////////////////
 // PEER DISCOVERY MESSAGES
 ///////////////////////////////////////////////////////////
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::GetPeers")]
 pub struct GetPeers;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Peers")]
 pub struct Peers {
     pub peers: Vec<Address>,
 }
@@ -64,12 +69,14 @@ pub struct Peers {
 ///////////////////////////////////////////////////////////
 // HEARTBEAT MESSAGES
 ///////////////////////////////////////////////////////////
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Ping")]
 pub struct Ping {
     pub nonce: u64,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Pong")]
 pub struct Pong {
     pub nonce: u64,
 }
@@ -77,10 +84,12 @@ pub struct Pong {
 ///////////////////////////////////////////////////////////
 // HANDSHAKE MESSAGES
 ///////////////////////////////////////////////////////////
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Verack")]
 pub struct Verack;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Version")]
 pub struct Version {
     pub version: u32,
     pub timestamp: i64,
@@ -96,17 +105,20 @@ pub struct Version {
 ///////////////////////////////////////////////////////////
 // INVENTORY MESSAGES
 ///////////////////////////////////////////////////////////
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::InventoryAnnouncement")]
 pub struct InventoryAnnouncement {
     pub inventory: Vec<InventoryEntry>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::InventoryRequest")]
 pub struct InventoryRequest {
     pub inventory: Vec<InventoryEntry>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::LastBeacon")]
 pub struct LastBeacon {
     pub highest_block_checkpoint: CheckpointBeacon,
 }
