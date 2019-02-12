@@ -383,8 +383,11 @@ mod tests {
     fn build_empty_block() {
         // Initialize transaction_pool with 1 transaction
         let mut transaction_pool = TransactionsPool::default();
+        // In protocol buffers, when version is 0 and all the other fields are empty vectors, the
+        // transaction size is 0 bytes (since missing fields are initialized with the default
+        // values). Therefore version cannot be 0.
         let transaction = Transaction {
-            version: 0,
+            version: 1,
             inputs: vec![],
             outputs: vec![],
             signatures: vec![],
