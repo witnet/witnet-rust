@@ -123,11 +123,8 @@ fn test_block_hashable_trait() {
         proof,
         txns,
     };
-    let expected = Hash::SHA256([
-        204, 111, 204, 123, 50, 100, 176, 227, 102, 35, 195, 223, 178, 106, 185, 156, 160, 24, 18,
-        210, 236, 116, 217, 170, 103, 95, 92, 236, 208, 52, 134, 63,
-    ]);
-    assert_eq!(block.hash(), expected);
+    let expected = "2972d0fb3e40ecfc8c771aadfb68070b4b1f7f2c2b371b628d58b5634d1ce2c4";
+    assert_eq!(block.hash().to_string(), expected);
 }
 
 #[test]
@@ -232,11 +229,8 @@ fn test_transaction_hashable_trait() {
         signatures,
         version: 0,
     };
-    let expected = Hash::SHA256([
-        10, 241, 147, 199, 165, 174, 93, 237, 233, 213, 202, 27, 217, 126, 244, 196, 189, 74, 84,
-        243, 4, 214, 2, 34, 22, 0, 118, 115, 137, 32, 203, 237,
-    ]);
-    assert_eq!(transaction.hash(), expected);
+    let expected = "4931d8cefc65f3becbed17b0132b67d11efe426b03f6dba6cf0a1d6855409def";
+    assert_eq!(transaction.hash().to_string(), expected);
 }
 
 mod transaction {

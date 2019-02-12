@@ -1,11 +1,8 @@
-use super::serializers::encoders::{
-    build_block_flatbuffer, build_checkpoint_beacon_flatbuffer, build_transaction_flatbuffer,
-    BlockArgs, CheckpointBeaconArgs, TransactionArgs,
-};
-use crate::proto::schema::witnet;
+use crate::proto::{schema::witnet, ProtobufConvert};
 use crate::serializers::decoders::TryFrom;
 use failure::Fail;
 use partial_struct::PartialStruct;
+use protobuf::Message;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::AsRef;
@@ -175,46 +172,19 @@ impl<'a, T: Hashable> Hashable for &'a T {
 
 impl Hashable for Block {
     fn hash(&self) -> Hash {
-        let block_ftb = build_block_flatbuffer(
-            None,
-            &BlockArgs {
-                block_header: self.block_header.clone(),
-                proof: self.proof.clone(),
-                txns: &self.txns,
-            },
-        );
-        calculate_sha256(&block_ftb).into()
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
     }
 }
 
 impl Hashable for CheckpointBeacon {
     fn hash(&self) -> Hash {
-        let CheckpointBeacon {
-            checkpoint,
-            hash_prev_block,
-        } = *self;
-        let args = CheckpointBeaconArgs {
-            checkpoint,
-            hash_prev_block,
-        };
-        let beacon_ftb = build_checkpoint_beacon_flatbuffer(None, &args);
-        calculate_sha256(&beacon_ftb).into()
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
     }
 }
 
 impl Hashable for Transaction {
     fn hash(&self) -> Hash {
-        let transaction_ftb = build_transaction_flatbuffer(
-            None,
-            &TransactionArgs {
-                version: self.version,
-                inputs: &self.inputs,
-                outputs: &self.outputs,
-                signatures: &self.signatures,
-            },
-        );
-
-        calculate_sha256(&transaction_ftb).into()
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
     }
 }
 
@@ -422,16 +392,7 @@ impl Transaction {
 
     /// Returns the size a transaction will have on the wire in bytes
     pub fn size(&self) -> u32 {
-        build_transaction_flatbuffer(
-            None,
-            &TransactionArgs {
-                version: self.version,
-                inputs: &self.inputs,
-                outputs: &self.outputs,
-                signatures: &self.signatures,
-            },
-        )
-        .len() as u32
+        self.to_pb().write_to_bytes().unwrap().len() as u32
     }
 
     /// Returns `true` if the transaction classifies as a _mint
@@ -1464,11 +1425,8 @@ mod tests {
             proof,
             txns,
         };
-        let expected = Hash::SHA256([
-            204, 111, 204, 123, 50, 100, 176, 227, 102, 35, 195, 223, 178, 106, 185, 156, 160, 24,
-            18, 210, 236, 116, 217, 170, 103, 95, 92, 236, 208, 52, 134, 63,
-        ]);
-        assert_eq!(block.hash(), expected);
+        let expected = "2972d0fb3e40ecfc8c771aadfb68070b4b1f7f2c2b371b628d58b5634d1ce2c4";
+        assert_eq!(block.hash().to_string(), expected);
     }
 
     #[test]
@@ -1573,11 +1531,8 @@ mod tests {
             signatures,
             version: 0,
         };
-        let expected = Hash::SHA256([
-            10, 241, 147, 199, 165, 174, 93, 237, 233, 213, 202, 27, 217, 126, 244, 196, 189, 74,
-            84, 243, 4, 214, 2, 34, 22, 0, 118, 115, 137, 32, 203, 237,
-        ]);
-        assert_eq!(transaction.hash(), expected);
+        let expected = "4931d8cefc65f3becbed17b0132b67d11efe426b03f6dba6cf0a1d6855409def";
+        assert_eq!(transaction.hash().to_string(), expected);
     }
 
     #[test]

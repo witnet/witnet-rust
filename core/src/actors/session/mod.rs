@@ -5,11 +5,12 @@ use actix::io::FramedWrite;
 
 use ansi_term::Color::Green;
 
-use log::debug;
+use log::{debug, error};
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
 
 use crate::actors::codec::P2PCodec;
+use witnet_data_structures::proto::ProtobufConvert;
 use witnet_data_structures::types::Message as WitnetMessage;
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
@@ -98,8 +99,12 @@ impl Session {
         );
         debug!("\t{:?}", msg);
         // Convert WitnetMessage into a vector of bytes
-        let bytes: Vec<u8> = msg.into();
+        match ProtobufConvert::to_pb_bytes(&msg) {
+            Ok(bytes) => self.framed.write(bytes.into()),
+            Err(e) => {
+                error!("Error encoding message: {}", e);
+            }
+        }
         // Convert bytes into BytestMut and send them
-        self.framed.write(bytes.into());
     }
 }

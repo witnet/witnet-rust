@@ -12,7 +12,7 @@ use log::{debug, error, info, trace, warn};
 use witnet_data_structures::{
     builders::from_address,
     chain::{Block, CheckpointBeacon, InventoryEntry, InventoryItem, Transaction},
-    serializers::decoders::TryFrom,
+    proto::ProtobufConvert,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
         Message as WitnetMessage, Peers, Version,
@@ -49,7 +49,7 @@ impl WriteHandler<Error> for Session {}
 impl StreamHandler<BytesMut, Error> for Session {
     /// This is main event loop for client requests
     fn handle(&mut self, bytes: BytesMut, ctx: &mut Self::Context) {
-        let result = WitnetMessage::try_from(bytes.to_vec());
+        let result = WitnetMessage::from_pb_bytes(&bytes);
         match result {
             Err(err) => error!("Error decoding message: {:?}", err),
             Ok(msg) => {
