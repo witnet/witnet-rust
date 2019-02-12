@@ -9,6 +9,7 @@ workspace = ".."
 [dependencies]
 failure = "0.1.5"
 flatbuffers = "0.5.0"
+protobuf = { version = "2.2.0", features = ["with-serde"] }
 rand = "0.5.5"
 serde = "1.0.79"
 serde_derive = "1.0.79"
@@ -22,3 +23,6 @@ path = "../crypto"
 
 [dependencies.witnet_util]
 path = "../util"
+
+[build-dependencies]
+exonum-build = "0.10.0"

@@ -1,0 +1,236 @@
+syntax = "proto3";
+
+package witnet;
+
+message Message {
+    message Command {
+        oneof kind {
+            Version Version = 1;
+            Verack Verack = 2;
+            GetPeers GetPeers = 3;
+            Peers Peers = 4;
+            Ping Ping = 5;
+            Pong Pong = 6;
+            Block Block = 7;
+            InventoryAnnouncement InventoryAnnouncement = 8;
+            InventoryRequest InventoryRequest = 9;
+            LastBeacon LastBeacon = 10;
+            Transaction Transaction = 11;
+        }
+    }
+
+    // uint32 is not a fixed-size 32 bit integer: it uses variable length encoding
+    uint32 magic = 1;
+    Command kind = 2;
+}
+
+message Version {
+    uint32 version = 1;
+    int64 timestamp = 2;
+    fixed64 capabilities = 3;
+    Address sender_address = 4;
+    Address receiver_address = 5;
+    string user_agent = 6;
+    fixed32 last_epoch = 7;
+    fixed64 genesis = 8;
+    fixed64 nonce = 9;
+}
+
+message Verack {
+    // Intentionally empty
+}
+
+message GetPeers {
+    // Intentionally empty
+}
+
+message Peers {
+    repeated Address peers = 1;
+}
+
+message Ping {
+    fixed64 nonce = 1;
+}
+
+message Pong {
+    fixed64 nonce = 1;
+}
+
+message Block {
+    message BlockHeader {
+        uint32 version = 1;
+        CheckpointBeacon beacon = 2;
+        Hash hash_merkle_root = 3;
+    }
+    message LeadershipProof {
+        // Option<Signature>
+        oneof optional_block_sig {
+            Signature block_sig = 1;
+        }
+        uint64 influence = 2;
+    }
+    BlockHeader block_header = 1;
+    LeadershipProof proof = 2;
+    repeated Transaction txns = 3;
+}
+
+message InventoryAnnouncement {
+    repeated InventoryEntry inventory = 1;
+}
+
+message InventoryRequest {
+    repeated InventoryEntry inventory = 1;
+}
+
+message LastBeacon {
+    CheckpointBeacon highest_block_checkpoint = 1;
+}
+
+message Transaction {
+    message Input {
+        message ValueTransferInput {
+            Hash transaction_id = 1;
+            uint32 output_index = 2;
+        }
+        message DataRequestInput {
+            Hash transaction_id = 1;
+            uint32 output_index = 2;
+            bytes poe = 3;
+        }
+        message CommitInput {
+            Hash transaction_id = 1;
+            uint32 output_index = 2;
+            bytes reveal = 3;
+            fixed64 nonce = 4;
+        }
+        message RevealInput {
+            Hash transaction_id = 1;
+            uint32 output_index = 2;
+        }
+
+        oneof kind {
+            ValueTransferInput ValueTransfer = 1;
+            DataRequestInput DataRequest = 2;
+            CommitInput Commit = 3;
+            RevealInput Reveal = 4;
+        }
+    }
+    message Output {
+        message ValueTransferOutput {
+            // TODO: PublicKeyHash should be its own type
+            bytes pkh = 1;
+            uint64 value = 2;
+        }
+        message DataRequestOutput {
+            message RADRequest {
+                enum RADType {
+                    HttpGet = 0;
+                }
+                message RADRetrieve {
+                    RADType kind = 1;
+                    string url = 2;
+                    // TODO: RADScript should maybe be a type?
+                    bytes script = 3;
+                }
+                message RADAggregate {
+                    bytes script = 1;
+                }
+                message RADConsensus {
+                    bytes script = 1;
+                }
+                message RADDeliver {
+                     RADType kind = 1;
+                     string url = 2;
+                }
+
+                uint64 not_before = 1;
+                repeated RADRetrieve retrieve = 2;
+                RADAggregate aggregate = 3;
+                RADConsensus consensus = 4;
+                repeated RADDeliver deliver = 5;
+            }
+
+            bytes pkh = 1;
+            RADRequest data_request = 2;
+            uint64 value = 3;
+            uint32 witnesses = 4;
+            uint32 backup_witnesses = 5;
+            uint64 commit_fee = 6;
+            uint64 reveal_fee = 7;
+            uint64 tally_fee = 8;
+            uint64 time_lock = 9;
+        }
+        message CommitOutput {
+            Hash commitment = 1;
+            uint64 value = 2;
+        }
+        message RevealOutput {
+            bytes reveal = 1;
+            bytes pkh = 2;
+            uint64 value = 3;
+        }
+
+        message TallyOutput {
+            bytes result = 1;
+            bytes pkh = 2;
+            uint64 value = 3;
+        }
+
+        oneof kind {
+            ValueTransferOutput ValueTransfer = 1;
+            DataRequestOutput DataRequest = 2;
+            CommitOutput Commit = 3;
+            RevealOutput Reveal = 4;
+            TallyOutput Tally = 5;
+        }
+    }
+
+    uint32 version = 1;
+    repeated Input inputs = 2;
+    repeated Output outputs = 3;
+    repeated KeyedSignature signatures = 4;
+}
+
+// Helper structures (not meant to be sent directly as messages)
+message Hash {
+    oneof kind {
+        bytes SHA256 = 1;
+    }
+}
+
+message Secp256k1Signature {
+    bytes r = 1;
+    bytes s = 2;
+}
+
+message Signature {
+    oneof kind {
+        Secp256k1Signature s = 1;
+    }
+}
+
+message KeyedSignature {
+    Signature signature = 1;
+    // TODO: PublicKey type?
+    bytes public_key = 2;
+}
+
+message Address {
+    bytes address = 1;
+}
+
+message CheckpointBeacon {
+    fixed32 checkpoint = 1;
+    Hash hash_prev_block = 2;
+}
+
+message InventoryEntry {
+    oneof kind {
+        Hash Error = 1;
+        Hash Tx = 2;
+        Hash Block = 3;
+        // TODO: these are unused
+        Hash DataRequest = 4;
+        Hash DataResult = 5;
+    }
+}
