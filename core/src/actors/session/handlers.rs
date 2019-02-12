@@ -141,9 +141,9 @@ impl StreamHandler<BytesMut, Error> for Session {
                         inventory_process_block(self, ctx, block);
                     }
 
-                    ////////////////
-                    // GET BLOCKS //
-                    ////////////////
+                    /////////////////
+                    // LAST BEACON //
+                    /////////////////
                     (
                         SessionType::Inbound,
                         SessionStatus::Consolidated,
@@ -151,7 +151,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                             highest_block_checkpoint,
                         }),
                     ) => {
-                        session_getblocks(self, ctx, highest_block_checkpoint);
+                        session_last_beacon_inbound(self, ctx, highest_block_checkpoint);
                     }
                     (
                         SessionType::Outbound,
@@ -160,7 +160,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                             highest_block_checkpoint,
                         }),
                     ) => {
-                        session_getblocks(self, ctx, highest_block_checkpoint);
+                        session_last_beacon_outbound(self, ctx, highest_block_checkpoint);
                     }
 
                     ////////////////////
@@ -547,7 +547,7 @@ fn request_block_msg(session: &mut Session, block_entry: InventoryEntry) {
     }
 }
 
-fn session_getblocks(
+fn session_last_beacon_inbound(
     session: &Session,
     ctx: &mut Context<Session>,
     CheckpointBeacon {
@@ -563,12 +563,9 @@ fn session_getblocks(
         .into_actor(session)
         .then(move |res, act, ctx| {
             match res {
-                Ok(Ok(CheckpointBeacon {
-                    checkpoint: highest_checkpoint,
-                    ..
-                })) => {
-                    if highest_checkpoint > received_checkpoint {
-                        let range = (received_checkpoint + 1)..=highest_checkpoint;
+                Ok(Ok(chain_beacon)) => {
+                    if chain_beacon.checkpoint > received_checkpoint {
+                        let range = (received_checkpoint + 1)..=chain_beacon.checkpoint;
 
                         chain_manager_addr
                             .send(GetBlocksEpochRange::new_with_const_limit(range))
@@ -593,19 +590,66 @@ fn session_getblocks(
                                 }
                             })
                             .wait(ctx);
-                    } else if highest_checkpoint == received_checkpoint {
+                    } else if chain_beacon.checkpoint == received_checkpoint {
                         info!("Our chain is on par with our peer's",);
+                        // Create a last_beacon message
+                        let last_beacon_msg = WitnetMessage::build_last_beacon(chain_beacon);
+                        // Write a last_beacon message in session
+                        act.send_message(last_beacon_msg);
                     } else {
                         warn!(
                             "Received a checkpoint beacon that is ahead of ours ({} > {})",
-                            received_checkpoint, highest_checkpoint
+                            received_checkpoint, chain_beacon.checkpoint
                         );
                     }
-                    // Create get blocks message
-                    // let get_blocks_msg = WitnetMessage::build_last_beacon(beacon);
 
-                    // Write get blocks message in session
-                    // act.send_message(get_blocks_msg);
+                    actix::fut::ok(())
+                }
+                _ => {
+                    warn!("Failed to get highest checkpoint beacon from ChainManager");
+                    // FIXME(#72): a full stop of the session is not correct (unregister should
+                    // be skipped)
+                    ctx.stop();
+
+                    actix::fut::err(())
+                }
+            }
+        })
+        .wait(ctx);
+}
+
+fn session_last_beacon_outbound(
+    session: &Session,
+    ctx: &mut Context<Session>,
+    CheckpointBeacon {
+        checkpoint: received_checkpoint,
+        ..
+    }: CheckpointBeacon,
+) {
+    // Get ChainManager address from registry
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    // Send GetHighestCheckpointBeacon message to ChainManager
+    chain_manager_addr
+        .send(GetHighestCheckpointBeacon)
+        .into_actor(session)
+        .then(move |res, _act, ctx| {
+            match res {
+                Ok(Ok(chain_beacon)) => {
+                    if chain_beacon.checkpoint > received_checkpoint {
+                        warn!(
+                            "My outbound peer is behind me (Outbound checkpoint:{} < Chain checkpoint:{})",
+                            received_checkpoint, chain_beacon.checkpoint
+                        );
+                    } else if chain_beacon.checkpoint == received_checkpoint {
+                        info!("Our chain is on par with our peer's",);
+                    } else {
+                        debug!(
+                            "Received a checkpoint beacon that is ahead of ours ({} > {})",
+                            received_checkpoint, chain_beacon.checkpoint
+                        );
+                    }
+
+                    // Handle mine boolean
                     ChainManager::from_registry().do_send(PeerLastEpoch {
                         epoch: received_checkpoint,
                     });
