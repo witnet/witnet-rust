@@ -32,7 +32,7 @@ use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, MailboxError, Supervised, System,
     SystemService, WrapFuture,
 };
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 
 use witnet_data_structures::chain::{
     ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
@@ -57,6 +57,7 @@ use crate::actors::{
 use self::data_request::DataRequestPool;
 use self::messages::InventoryEntriesResult;
 use self::validations::{block_reward, validate_merkle_tree, validate_transactions};
+use crate::actors::session::messages::RequestBlock;
 
 mod actor;
 mod data_request;
@@ -67,11 +68,12 @@ mod validations;
 /// Maximum blocks number to be sent during synchronization process
 const MAX_BLOCKS_SYNC: usize = 500;
 
-/// Synchronization interval while our blockchain is being synchronized
+/// Synchronization period while our blockchain is being synchronized
 const SYNCHRONIZING_INTERVAL: Duration = Duration::from_secs(10);
 
-/// Synchronization interval once our blokchain is considered to be synced
-const SYNCED_INTERVAL: Duration = Duration::from_secs(45);
+/// Synchronization period once our blockchain is considered to be synced
+/// It has to be at least more than 2 epochs to ensure synchronization
+const SYNCED_INTERVAL: Duration = Duration::from_secs(181);
 
 /// Messages for ChainManager
 pub mod messages;
@@ -105,6 +107,8 @@ pub struct ChainManager {
     chain_state: ChainState,
     /// Map that stores blocks without validation by their hash
     blocks_to_validate: HashMap<Hash, Block>,
+    /// Block candidate that it can not be validate because not previous block
+    candidate_to_validate: Option<Block>,
     /// Current Epoch
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
@@ -126,6 +130,8 @@ pub struct ChainManager {
     data_request_pool: DataRequestPool,
     /// Are we actually synchronized with our peers?
     mine: bool,
+    /// Are we actually synchronized with our peers?
+    synced: bool,
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
@@ -245,6 +251,15 @@ impl ChainManager {
         });
     }
 
+    fn request_block(&self, item: InventoryEntry) {
+        // Get SessionsManager address
+        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+
+        sessions_manager_addr.do_send(Anycast {
+            command: RequestBlock { block_entry: item },
+        });
+    }
+
     fn discard_existing_inventory_entries(
         &mut self,
         inv_entries: Vec<InventoryEntry>,
@@ -287,12 +302,13 @@ impl ChainManager {
         // TODO: Refactor block validation logic
         self.current_epoch
             .map(|current_epoch| {
-                // Remove from blocks_to_validate HashMap if it exists
-                self.blocks_to_validate.remove(&block.hash());
-
-                // Check beforehand if a block exists to validate
-                if let Some(previous_block) = self.blocks_to_validate.remove(&hash_prev_block) {
-                    self.process_block(ctx, previous_block);
+                // Check beforehand if a previous block candidate exists to validate
+                if let Some(candidate_to_validate) = self.candidate_to_validate.take() {
+                    if candidate_to_validate.hash() == hash_prev_block {
+                        self.process_block(ctx, candidate_to_validate);
+                    } else {
+                        self.candidate_to_validate = Some(candidate_to_validate);
+                    }
                 }
 
                 if !validate_merkle_tree(&block) {
@@ -341,10 +357,17 @@ impl ChainManager {
                         .hash_prev_block
                         != hash_prev_block
                 {
-                    warn!(
-                        "Ignoring block because previous hash [{:?}]is not known",
-                        hash_prev_block
-                    )
+                    if current_epoch == block_epoch && self.synced {
+                        // Keep possible block_candidate
+                        self.candidate_to_validate = Some(block);
+                        self.request_block(InventoryEntry::Block(hash_prev_block));
+                        debug!("Requesting previous block: {}", hash_prev_block)
+                    } else {
+                        warn!(
+                            "Ignoring block because previous hash [{:?}]is not known",
+                            hash_prev_block
+                        );
+                    }
                 } else if let Err(e) = block.validate(
                     block_reward(block_epoch),
                     &self.chain_state.unspent_outputs_pool,
@@ -492,18 +515,19 @@ impl ChainManager {
                 command: InventoryExchange,
             });
 
-            // Reschedule the bootstrap peers task
-            let current_synced_epoch = act
-                .chain_state
-                .chain_info
-                .as_ref()
-                .map_or(0, |info| info.highest_block_checkpoint.checkpoint);
-
-            if act.current_epoch.is_some() && act.current_epoch.unwrap() == current_synced_epoch + 1
-            {
+            if act.synced {
                 debug!(
                     "Our blockchain seems to be synced (slowing down the synchronization routine)"
                 );
+
+                // Enable or disabled mine flag if the blockchain is synced during a SYNCED_INTERVAL (at least two epochs)
+                act.mine = sync_interval == SYNCED_INTERVAL;
+                if act.mine {
+                    info!("Blockchain ready to mine");
+                } else {
+                    warn!("Blockchain disabled to mine");
+                }
+
                 act.synchronize(ctx, SYNCED_INTERVAL);
             } else {
                 act.synchronize(ctx, SYNCHRONIZING_INTERVAL);

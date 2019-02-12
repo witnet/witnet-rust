@@ -8,6 +8,7 @@ use actix::{
 
 use ansi_term::Color::Cyan;
 
+use crate::actors::chain_manager::messages::PeerLastEpoch;
 use crate::actors::{
     chain_manager::{messages::SetNetworkReady, ChainManager},
     connections_manager::{messages::OutboundTcpConnect, ConnectionsManager},
@@ -53,6 +54,11 @@ impl SessionsManager {
 
             // Check if bootstrap is needed
             if act.sessions.is_outbound_bootstrap_needed() {
+                // TODO: Use a properly synchronization process
+                // Disable mining if we lost the minimum outbounds required
+                act.network_ready = false;
+                ChainManager::from_registry().do_send(PeerLastEpoch { epoch: 0 });
+
                 // Get peers manager address
                 let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
