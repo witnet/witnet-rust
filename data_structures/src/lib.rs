@@ -17,6 +17,9 @@ pub mod flatbuffers;
 /// Module containing functions to cast Witnet's protocol messages to flatbuffers and vice versa
 pub mod serializers;
 
+/// Module containing functions to convert between Witnet's protocol messages and Protocol Buffers
+pub mod proto;
+
 /// Module containing Witnet's protocol messages types
 pub mod types;
 
