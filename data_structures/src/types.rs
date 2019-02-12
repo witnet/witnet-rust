@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::chain::{Block, CheckpointBeacon, InventoryEntry, Transaction};
+use crate::chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, Transaction};
 
 /// Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -34,23 +34,19 @@ pub enum Command {
 
 impl fmt::Display for Command {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Command::GetPeers(_) => "GET_PEERS",
-                Command::Peers(_) => "PEERS",
-                Command::Ping(_) => "PING",
-                Command::Pong(_) => "PONG",
-                Command::Verack(_) => "VERACK",
-                Command::Version(_) => "VERSION",
-                Command::Block(_) => "BLOCK",
-                Command::InventoryAnnouncement(_) => "INVENTORY_ANNOUNCEMENT",
-                Command::InventoryRequest(_) => "INVENTORY_REQUEST",
-                Command::LastBeacon(_) => "LAST_BEACON",
-                Command::Transaction(_) => "TRANSACTION",
-            }
-        )
+        match self {
+            Command::GetPeers(_) => f.write_str(&"GET_PEERS".to_string()),
+            Command::Peers(_) => f.write_str(&"PEERS".to_string()),
+            Command::Ping(_) => f.write_str(&"PING".to_string()),
+            Command::Pong(_) => f.write_str(&"PONG".to_string()),
+            Command::Verack(_) => f.write_str(&"VERACK".to_string()),
+            Command::Version(_) => f.write_str(&"VERSION".to_string()),
+            Command::Block(block) => f.write_str(&format!("BLOCK: {}", block.hash())),
+            Command::InventoryAnnouncement(_) => f.write_str(&"INVENTORY_ANNOUNCEMENT".to_string()),
+            Command::InventoryRequest(_) => f.write_str(&"INVENTORY_REQUEST".to_string()),
+            Command::LastBeacon(_) => f.write_str(&"LAST_BEACON".to_string()),
+            Command::Transaction(_) => f.write_str(&"TRANSACTION".to_string()),
+        }
     }
 }
 
