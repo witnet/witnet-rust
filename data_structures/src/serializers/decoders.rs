@@ -454,7 +454,7 @@ fn create_output(ftb_output: protocol::Output) -> Output {
             .output_as_data_request_output()
             .map(|data_request_output| {
                 Output::DataRequest(DataRequestOutput {
-                    backup_witnesses: data_request_output.backup_witnesses(),
+                    backup_witnesses: u16::from(data_request_output.backup_witnesses()),
                     commit_fee: data_request_output.commit_fee(),
                     pkh: create_pkh(data_request_output.pkh()),
                     reveal_fee: data_request_output.reveal_fee(),
@@ -462,7 +462,7 @@ fn create_output(ftb_output: protocol::Output) -> Output {
                     tally_fee: data_request_output.tally_fee(),
                     time_lock: data_request_output.time_lock(),
                     value: data_request_output.value(),
-                    witnesses: data_request_output.witnesses(),
+                    witnesses: u16::from(data_request_output.witnesses()),
                 })
             })
             .unwrap(),
