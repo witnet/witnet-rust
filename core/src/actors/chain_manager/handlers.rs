@@ -465,7 +465,6 @@ impl Handler<PeerLastEpoch> for ChainManager {
                 .map(|x| x.highest_block_checkpoint.checkpoint)
                 .unwrap_or(0)
         {
-            info!("Blockchain synced");
             self.synced = true;
         } else {
             warn!("Mine flag disabled");
