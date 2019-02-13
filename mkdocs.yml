@@ -52,8 +52,9 @@ nav:
       - Introduction: protocol/transactions.md
       - WitScript: protocol/witscript.md
     - Blocks: protocol/blocks.md
-    - Reputation: protocol/reputation.md
     - Mining: protocol/mining.md
+    - Reputation: protocol/reputation.md
+    - Serialization: protocol/serialization.md
     - Task assignment: protocol/task-assignment.md
   - Architecture:
     - Overview: architecture/overview.md
