@@ -9,12 +9,9 @@ use super::{
     messages::{AddNewBlock, AddTransaction, GetHighestCheckpointBeacon},
     ChainManager,
 };
-use crate::actors::{
-    rad_manager::{
-        messages::{ResolveRA, RunConsensus},
-        RadManager,
-    },
-    reputation_manager::{messages::ValidatePoE, ReputationManager},
+use crate::actors::rad_manager::{
+    messages::{ResolveRA, RunConsensus},
+    RadManager,
 };
 
 use witnet_crypto::hash::calculate_sha256;
@@ -90,54 +87,43 @@ impl ChainManager {
             influence: 0,
         };
 
-        // Send ValidatePoE message to ReputationManager
-        let reputation_manager_addr = System::current().registry().get::<ReputationManager>();
-        reputation_manager_addr
-            .send(ValidatePoE {
-                beacon,
-                proof: leadership_proof.clone(),
-            })
-            .into_actor(self)
-            .drop_err()
-            .and_then(move |eligible, _act, ctx| {
-                if eligible {
-                    // FIXME (tmpolaczyk): block creation must happen after data request mining
-                    // (we must wait for all the potential nodes to sent their transactions)
-                    // The best way would be to start mining a few seconds _before_ the epoch
-                    // checkpoint, but for simplicity we just wait for 5 seconds after the checkpoint
-                    ctx.run_later(Duration::from_secs(5), move |act, ctx| {
-                        info!(
-                            "{} Discovered eligibility for mining a block for epoch #{}",
-                            Yellow.bold().paint("[Mining]"),
-                            Yellow.bold().paint(beacon.checkpoint.to_string())
+        // TODO: Use a real PoE
+        let poe = true;
+        if poe {
+            // FIXME (tmpolaczyk): block creation must happen after data request mining
+            // (we must wait for all the potential nodes to sent their transactions)
+            // The best way would be to start mining a few seconds _before_ the epoch
+            // checkpoint, but for simplicity we just wait for 5 seconds after the checkpoint
+            ctx.run_later(Duration::from_secs(5), move |act, ctx| {
+                info!(
+                    "{} Discovered eligibility for mining a block for epoch #{}",
+                    Yellow.bold().paint("[Mining]"),
+                    Yellow.bold().paint(beacon.checkpoint.to_string())
+                );
+                // Send proof of eligibility to chain manager,
+                // which will construct and broadcast the block
+
+                act.create_tally_transactions()
+                    .into_actor(act)
+                    .and_then(move |tally_transactions, act, ctx| {
+                        // Build the block using the supplied beacon and eligibility proof
+                        let block = build_block(
+                            &act.transactions_pool,
+                            &act.chain_state.unspent_outputs_pool,
+                            act.max_block_weight,
+                            beacon,
+                            leadership_proof,
+                            &tally_transactions,
                         );
-                        // Send proof of eligibility to chain manager,
-                        // which will construct and broadcast the block
 
-                        act.create_tally_transactions()
-                            .into_actor(act)
-                            .and_then(move |tally_transactions, act, ctx| {
-                                // Build the block using the supplied beacon and eligibility proof
-                                let block = build_block(
-                                    &act.transactions_pool,
-                                    &act.chain_state.unspent_outputs_pool,
-                                    act.max_block_weight,
-                                    beacon,
-                                    leadership_proof,
-                                    &tally_transactions,
-                                );
-
-                                // Send AddNewBlock message to self
-                                // This will run all the validations again
-                                act.handle(AddNewBlock { block }, ctx);
-                                actix::fut::ok(())
-                            })
-                            .wait(ctx);
-                    });
-                }
-                actix::fut::ok(())
-            })
-            .wait(ctx);
+                        // Send AddNewBlock message to self
+                        // This will run all the validations again
+                        act.handle(AddNewBlock { block }, ctx);
+                        actix::fut::ok(())
+                    })
+                    .wait(ctx);
+            });
+        }
     }
 
     /// Try to mine a data_request

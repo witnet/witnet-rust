@@ -71,7 +71,6 @@ nav:
       - Inventory Manager: architecture/managers/inventory-manager.md
       - Peers Manager: architecture/managers/peers-manager.md
       - RAD Manager: architecture/managers/rad-manager.md
-      - Reputation Manager: architecture/managers/reputation-manager.md
       - Sessions Manager: architecture/managers/sessions-manager.md
       - Storage Manager: architecture/managers/storage-manager.md
     - Session: architecture/session.md

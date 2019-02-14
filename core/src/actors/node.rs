@@ -7,8 +7,7 @@ use crate::actors::{
     chain_manager::ChainManager, config_manager::ConfigManager,
     connections_manager::ConnectionsManager, epoch_manager::EpochManager,
     inventory_manager::InventoryManager, json_rpc::JsonRpcServer, peers_manager::PeersManager,
-    rad_manager::RadManager, reputation_manager::ReputationManager,
-    sessions_manager::SessionsManager, storage_manager::StorageManager,
+    rad_manager::RadManager, sessions_manager::SessionsManager, storage_manager::StorageManager,
 };
 
 /// Function to run the main system
@@ -50,10 +49,6 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Start InventoryManager actor
     let inventory_manager_addr = InventoryManager::default().start();
     System::current().registry().set(inventory_manager_addr);
-
-    // Start ReputationManager actor
-    let reputation_manager_addr = ReputationManager::start_default();
-    System::current().registry().set(reputation_manager_addr);
 
     // Start RadManager actor
     let rad_manager_addr = RadManager::default().start();

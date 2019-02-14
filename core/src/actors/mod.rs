@@ -34,9 +34,6 @@ pub mod chain_manager;
 /// InventoryManager actor module
 pub mod inventory_manager;
 
-/// ReputationManager actor module
-pub mod reputation_manager;
-
 /// RadManager actor module
 pub mod rad_manager;
 

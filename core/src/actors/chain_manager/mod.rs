@@ -371,7 +371,7 @@ impl ChainManager {
                 } else {
                     if block_epoch < current_epoch {
                         // FIXME(#235): check proof of eligibility from the past
-                        // ReputationManager should have a method to validate PoE from a past epoch
+                        // There should be a method to validate PoE from a past epoch
                         debug!(
                             "Received Block with an epoch from the past: current: {}, block: {}",
                             current_epoch, block_epoch
