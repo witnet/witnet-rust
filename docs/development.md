@@ -14,9 +14,9 @@ Witnet-rust is build using [The Rust Programming language](https://rust-lang-nur
     ```
     $ apt-get install clang
     ```
-    - `flatc` FlatBuffers compiler (optional, only if recompiling schemas)
+    - `protoc` Protocol Buffers compiler
     ```
-    $ pip install FoLiA-Linguistic-Annotation-Tool
+    $ apt-get install protobuf-compiler
     ```
     - `mkdocs`, `pymdown-extensions`, `mkdocs-material` python packages (optional, only if generating documentation)
     ```
