@@ -161,19 +161,19 @@ impl ProtobufConvert for types::Address {
         match bytes.len() {
             6 => {
                 // Ipv4
-                let ip = bytes.read_u32::<BigEndian>().unwrap();
+                let ip = bytes.read_u32::<BigEndian>()?;
                 let ip = types::IpAddress::Ipv4 { ip };
-                let port = bytes.read_u16::<BigEndian>().unwrap();
+                let port = bytes.read_u16::<BigEndian>()?;
 
                 Ok(types::Address { ip, port })
             }
             18 => {
                 // Ipv6
-                let ip0 = bytes.read_u32::<BigEndian>().unwrap();
-                let ip1 = bytes.read_u32::<BigEndian>().unwrap();
-                let ip2 = bytes.read_u32::<BigEndian>().unwrap();
-                let ip3 = bytes.read_u32::<BigEndian>().unwrap();
-                let port = bytes.read_u16::<BigEndian>().unwrap();
+                let ip0 = bytes.read_u32::<BigEndian>()?;
+                let ip1 = bytes.read_u32::<BigEndian>()?;
+                let ip2 = bytes.read_u32::<BigEndian>()?;
+                let ip3 = bytes.read_u32::<BigEndian>()?;
+                let port = bytes.read_u16::<BigEndian>()?;
                 let ip = types::IpAddress::Ipv6 { ip0, ip1, ip2, ip3 };
 
                 Ok(types::Address { ip, port })
