@@ -18,9 +18,6 @@ use witnet_util::timestamp::get_timestamp;
 ////////////////////////////////////////////////////////////////////////////////////////
 // PROTOCOL MESSAGES CONSTANTS
 ////////////////////////////////////////////////////////////////////////////////////////
-/// Magic number
-pub const MAGIC: u16 = 0xABCD;
-
 /// Protocol version (used in handshake)
 pub const PROTOCOL_VERSION: u32 = 0x0000_0001;
 
@@ -47,61 +44,71 @@ const BUILD_GET_DATA_ERR_MSG: &str = "No inventory vectors to be added to GetDat
 ////////////////////////////////////////////////////////////////////////////////////////
 impl Message {
     /// Function to build Ping messages
-    pub fn build_ping() -> Message {
-        Message::build_message(Command::Ping(Ping {
-            nonce: random_nonce(),
-        }))
+    pub fn build_ping(magic: u16) -> Message {
+        Message::build_message(
+            magic,
+            Command::Ping(Ping {
+                nonce: random_nonce(),
+            }),
+        )
     }
 
     /// Function to build Pong messages
-    pub fn build_pong(nonce: u64) -> Message {
-        Message::build_message(Command::Pong(Pong { nonce }))
+    pub fn build_pong(magic: u16, nonce: u64) -> Message {
+        Message::build_message(magic, Command::Pong(Pong { nonce }))
     }
 
     /// Function to build GetPeers messages
-    pub fn build_get_peers() -> Message {
-        Message::build_message(Command::GetPeers(GetPeers))
+    pub fn build_get_peers(magic: u16) -> Message {
+        Message::build_message(magic, Command::GetPeers(GetPeers))
     }
 
     /// Function to build Peers messages
-    pub fn build_peers(peers: &[SocketAddr]) -> Message {
+    pub fn build_peers(magic: u16, peers: &[SocketAddr]) -> Message {
         // Cast all peers to witnet's address struct
         let mut casted_peers = Vec::new();
         peers.iter().for_each(|peer| {
             casted_peers.push(to_address(*peer));
         });
 
-        Message::build_message(Command::Peers(Peers {
-            peers: casted_peers,
-        }))
+        Message::build_message(
+            magic,
+            Command::Peers(Peers {
+                peers: casted_peers,
+            }),
+        )
     }
 
     /// Function to build Version messages
     pub fn build_version(
+        magic: u16,
         sender_addr: SocketAddr,
         receiver_addr: SocketAddr,
         last_epoch: u32,
     ) -> Message {
-        Message::build_message(Command::Version(Version {
-            version: PROTOCOL_VERSION,
-            timestamp: get_timestamp(),
-            capabilities: CAPABILITIES,
-            sender_address: to_address(sender_addr),
-            receiver_address: to_address(receiver_addr),
-            user_agent: USER_AGENT.to_string(),
-            last_epoch,
-            genesis: GENESIS,
-            nonce: random_nonce(),
-        }))
+        Message::build_message(
+            magic,
+            Command::Version(Version {
+                version: PROTOCOL_VERSION,
+                timestamp: get_timestamp(),
+                capabilities: CAPABILITIES,
+                sender_address: to_address(sender_addr),
+                receiver_address: to_address(receiver_addr),
+                user_agent: USER_AGENT.to_string(),
+                last_epoch,
+                nonce: random_nonce(),
+            }),
+        )
     }
 
     /// Function to build Verack messages
-    pub fn build_verack() -> Message {
-        Message::build_message(Command::Verack(Verack))
+    pub fn build_verack(magic: u16) -> Message {
+        Message::build_message(magic, Command::Verack(Verack))
     }
 
     /// Function to build InventoryAnnouncement messages
     pub fn build_inventory_announcement(
+        magic: u16,
         inv_entries: Vec<InventoryEntry>,
     ) -> BuildersResult<Message> {
         // Check there are some inventory vectors to be added to the message
@@ -113,15 +120,19 @@ impl Message {
         }
 
         // Build the message
-        Ok(Message::build_message(Command::InventoryAnnouncement(
-            InventoryAnnouncement {
+        Ok(Message::build_message(
+            magic,
+            Command::InventoryAnnouncement(InventoryAnnouncement {
                 inventory: inv_entries,
-            },
-        )))
+            }),
+        ))
     }
 
     /// Function to build GetData messages
-    pub fn build_inventory_request(inv_entries: Vec<InventoryEntry>) -> BuildersResult<Message> {
+    pub fn build_inventory_request(
+        magic: u16,
+        inv_entries: Vec<InventoryEntry>,
+    ) -> BuildersResult<Message> {
         // Check there are some inventory vectors to be added to the message
         if inv_entries.is_empty() {
             return Err(WitnetError::from(BuildersError::new(
@@ -131,43 +142,51 @@ impl Message {
         }
 
         // Build the message
-        Ok(Message::build_message(Command::InventoryRequest(
-            InventoryRequest {
+        Ok(Message::build_message(
+            magic,
+            Command::InventoryRequest(InventoryRequest {
                 inventory: inv_entries,
-            },
-        )))
+            }),
+        ))
     }
 
     /// Function to build Block message
     pub fn build_block(
+        magic: u16,
         block_header: BlockHeader,
         proof: LeadershipProof,
         txns: Vec<Transaction>,
     ) -> Message {
-        Message::build_message(Command::Block(Block {
-            block_header,
-            proof,
-            txns,
-        }))
+        Message::build_message(
+            magic,
+            Command::Block(Block {
+                block_header,
+                proof,
+                txns,
+            }),
+        )
     }
 
     /// Function to build Block message
-    pub fn build_transaction(transaction: Transaction) -> Message {
-        Message::build_message(Command::Transaction(transaction))
+    pub fn build_transaction(magic: u16, transaction: Transaction) -> Message {
+        Message::build_message(magic, Command::Transaction(transaction))
     }
 
     /// Function to build LastBeacon messages
-    pub fn build_last_beacon(highest_block_checkpoint: CheckpointBeacon) -> Message {
-        Message::build_message(Command::LastBeacon(LastBeacon {
-            highest_block_checkpoint,
-        }))
+    pub fn build_last_beacon(magic: u16, highest_block_checkpoint: CheckpointBeacon) -> Message {
+        Message::build_message(
+            magic,
+            Command::LastBeacon(LastBeacon {
+                highest_block_checkpoint,
+            }),
+        )
     }
 
     /// Function to build a message from a command
-    fn build_message(command: Command) -> Message {
+    fn build_message(magic: u16, command: Command) -> Message {
         Message {
             kind: command,
-            magic: MAGIC,
+            magic,
         }
     }
 }

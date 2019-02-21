@@ -98,7 +98,6 @@ pub struct Version {
     pub receiver_address: Address,
     pub user_agent: String,
     pub last_epoch: u32,
-    pub genesis: u64,
     pub nonce: u64,
 }
 
