@@ -60,6 +60,20 @@ impl StreamHandler<BytesMut, Error> for Session {
                     self.remote_addr,
                 );
                 trace!("\t{:?}", msg);
+
+                // Consensus constants validation between nodes
+                if msg.magic != self.magic_number {
+                    error!(
+                        "Mismatching consensus constants. \
+                         Magic number received: {}, Ours: {}",
+                        msg.magic, self.magic_number
+                    );
+
+                    // Stop this session
+                    ctx.stop();
+                    return;
+                }
+
                 match (self.session_type, self.status, msg.kind) {
                     ////////////////////
                     //   HANDSHAKE    //
