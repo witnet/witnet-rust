@@ -47,8 +47,9 @@ impl Default for Environment {
 }
 
 /// Consensus-critical configuration
-#[derive(PartialStruct, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(PartialStruct, Debug, Clone, PartialEq, Serialize, Deserialize, ProtobufConvert)]
 #[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+#[protobuf_convert(pb = "witnet::ConsensusConstants")]
 pub struct ConsensusConstants {
     /// Timestamp at checkpoint 0 (the start of epoch 0)
     pub checkpoint_zero_timestamp: i64,

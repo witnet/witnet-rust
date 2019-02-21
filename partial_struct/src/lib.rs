@@ -154,6 +154,9 @@ fn get_attributes(orig: &[syn::Attribute]) -> (Vec<syn::Attribute>, Action) {
                     }
                 }
             }
+            Ok(syn::Meta::List(ref meta)) if meta.ident.to_string() == "protobuf_convert" => {
+                // Avoid error that appears when ProtoBuf and PartialStruct are used together
+            }
             _ => attrs.push(attr.clone()),
         }
     }
