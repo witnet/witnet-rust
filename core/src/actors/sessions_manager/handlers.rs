@@ -32,6 +32,9 @@ impl Handler<Create> for SessionsManager {
         // Get server address
         let server_addr = self.sessions.server_address;
 
+        // Get magic number
+        let magic_number = self.sessions.magic_number;
+
         // Create a Session actor
         Session::create(move |ctx| {
             // Get server address (if not present, send local address instead)
@@ -53,6 +56,7 @@ impl Handler<Create> for SessionsManager {
                 msg.session_type,
                 FramedWrite::new(w, P2PCodec, ctx),
                 handshake_timeout,
+                magic_number,
             )
         });
     }

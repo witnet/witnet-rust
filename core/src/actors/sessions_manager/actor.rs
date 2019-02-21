@@ -4,6 +4,8 @@ use log::debug;
 use crate::actors::config_manager::send_get_config_request;
 
 use super::SessionsManager;
+use witnet_crypto::hash::calculate_sha256;
+use witnet_data_structures::proto::ProtobufConvert;
 
 /// Make actor from `SessionsManager`
 impl Actor for SessionsManager {
@@ -19,6 +21,7 @@ impl Actor for SessionsManager {
             // Get periods for peers bootstrapping and discovery tasks
             let bootstrap_peers_period = config.connections.bootstrap_peers_period;
             let discovery_peers_period = config.connections.discovery_peers_period;
+            let consensus_constants = config.consensus_constants.clone();
 
             // Set server address, connections limits and handshake timeout
             act.sessions
@@ -29,6 +32,10 @@ impl Actor for SessionsManager {
             );
             act.sessions
                 .set_handshake_timeout(config.connections.handshake_timeout);
+
+            let magic = calculate_sha256(&consensus_constants.to_pb_bytes().unwrap());
+            let magic = u16::from(magic.0[0]) << 8 | (u16::from(magic.0[1]));
+            act.sessions.set_magic_number(magic);
 
             // The peers bootstrapping process begins upon SessionsManager's start
             act.bootstrap_peers(ctx, bootstrap_peers_period);
