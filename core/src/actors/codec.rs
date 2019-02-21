@@ -8,7 +8,7 @@ use bytes;
 use log::{debug, error};
 use tokio::codec::{Decoder, Encoder};
 
-const HEADER_SIZE: usize = 2; // bytes
+const HEADER_SIZE: usize = 4; // bytes
 
 /// Type alias for BytesMut
 pub type BytesMut = bytes::BytesMut;
@@ -25,7 +25,7 @@ pub type BytesMut = bytes::BytesMut;
 ///
 /// Format:
 /// ```norun
-/// Message size: u16
+/// Message size: u32
 /// Message: [u8; Message size]
 /// ```
 ///
@@ -46,7 +46,7 @@ impl Decoder for P2PCodec {
         let msg_len = src.len();
         if msg_len >= HEADER_SIZE {
             let mut header_vec = Cursor::new(&src[0..HEADER_SIZE]);
-            let msg_size = header_vec.read_u16::<BigEndian>().unwrap() as usize;
+            let msg_size = header_vec.read_u32::<BigEndian>().unwrap() as usize;
             if msg_len >= msg_size + HEADER_SIZE {
                 src.split_to(HEADER_SIZE);
                 ftb = Some(src.split_to(msg_size));
@@ -72,16 +72,16 @@ impl Encoder for P2PCodec {
 
         let mut encoded_msg = vec![];
 
-        if bytes.len() > u16::max_value() as usize {
+        if bytes.len() > u32::max_value() as usize {
             error!("Maximum message size exceeded");
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("Message size {} bytes too big for u16", bytes.len()),
+                format!("Message size {} bytes too big for u32", bytes.len()),
             ));
         }
-        let header: u16 = bytes.len() as u16;
+        let header: u32 = bytes.len() as u32;
         // push header with msg len
-        encoded_msg.write_u16::<BigEndian>(header).unwrap();
+        encoded_msg.write_u32::<BigEndian>(header).unwrap();
         // push message
         encoded_msg.append(&mut bytes.to_vec());
         // push message to destination
