@@ -7,14 +7,14 @@ version = "0.1.0"
 workspace = ".."
 
 [dependencies]
-failure = "0.1.2"
-log = "0.4"
-toml = "0.4.6"
+failure = "0.1.5"
+log = "0.4.6"
+toml = "0.4.10"
 partial_struct = { path = "../partial_struct" }
 
 [dependencies.serde]
 features = ["derive"]
-version = "1.0.82"
+version = "1.0.88"
 
 [dependencies.witnet_data_structures]
 path = "../data_structures"

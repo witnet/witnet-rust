@@ -7,4 +7,4 @@ workspace = ".."
 
 [dependencies]
 chrono = "0.4.6"
-failure = "0.1.2"
+failure = "0.1.5"

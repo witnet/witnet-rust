@@ -7,12 +7,12 @@ version = "0.1.0"
 workspace = ".."
 
 [dependencies]
-quote = "0.6.10"
-syn = "0.15.23"
+quote = "0.6.11"
+syn = "0.15.26"
 
 [dev-dependencies]
-syn = { version = "0.15.23", features = ["extra-traits"] }
-serde = { version = "1.0", features = ["derive"] }
+syn = { version = "0.15.26", features = ["extra-traits"] }
+serde = { version = "1.0.88", features = ["derive"] }
 
 [lib]
 proc-macro = true
