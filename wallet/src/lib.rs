@@ -1,0 +1,1 @@
+//! Wallet implementation for Witnet

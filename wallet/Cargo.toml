@@ -1,0 +1,10 @@
+[package]
+authors = ["Witnet Foundation <info@witnet.foundation>"]
+edition = "2018"
+name = "witnet_wallet"
+version = "0.1.0"
+workspace = ".."
+
+[dependencies]
+bip39 = "*"
+tiny-hderive = "*"
