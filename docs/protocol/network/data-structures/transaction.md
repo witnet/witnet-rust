@@ -2,12 +2,12 @@
 
 In the Witnet network protocol, a `transaction` is formatted as follows:
 
-| Field        | Type                | Description                                    |
-|--------------|---------------------|------------------------------------------------|
-| `version`    | `u32`               | The transaction data format version number     |
-| `inputs`     | `[input]`           | A list of transaction inputs                   |
-| `outputs`    | `[output]`          | A list of 1 or more transaction outputs        |
-| `signatures` | `[keyed_signature]` | A list of keyed signatures (as many as inputs) |
+| Field        | Type                      | Description                                    |
+|:-------------|:--------------------------|:-----------------------------------------------|
+| `version`    | `uint32`                  | The transaction data format version number     |
+| `inputs`     | `repeated Input`          | A list of transaction inputs                   |
+| `outputs`    | `repeated Output`         | A list of 1 or more transaction outputs        |
+| `signatures` | `repeated KeyedSignature` | A list of keyed signatures (as many as inputs) |
 
 Long story short, _inputs_ contain data that proves ability to "pull" value from past transactions into a new transaction, while _outputs_ redistribute such value and lock them under new spending conditions. Signatures ensure integrity of the transaction and complement input's function when it comes to prove ability to unlock funds from past transactions.
 
@@ -41,11 +41,11 @@ VTOs can be time locked so as to prevent further transactions from spending thei
 
 #### Data structure
 
-| Field       | Type   | Description                                                     |
-|-------------|--------|-----------------------------------------------------------------|
-| `pkh`       | `[u8]` | Slice of the digest of a public key (20 bytes)                  |
-| `value`     | `u64`  | Transaction value                                               |
-| `time_lock` | `u64`  | The UTC Unix timestamp before which the output can not be spent |
+| Field       | Type     | Description                                                     |
+|:------------|:---------|:----------------------------------------------------------------|
+| `pkh`       | `bytes`  | Slice of the digest of a public key (20 bytes)                  |
+| `value`     | `uint64` | Transaction value                                               |
+| `time_lock` | `uint64` | The UTC Unix timestamp before which the output can not be spent |
 
 
 #### Specific validation rules
@@ -69,17 +69,17 @@ This type of output also provides the digest of the public key to which the requ
 
 #### Data structure
 
-| Field              | Type   | Description                                                                                                                    |
-|--------------------|--------|--------------------------------------------------------------------------------------------------------------------------------|
-| `data_request`     | `[u8]` | Data request scripts as a byte array                                                                                           |
-| `pkh`              | `[u8]` | Slice of the digest of a public key (20 bytes)                                                                                 |
-| `value`            | `u64`  | Transaction value that will be used as reward to be distributed after consensus has been reached and fees have been subtracted |
-| `witnesses`        | `u8`   | Minimum amount of witness nodes that will be employed for resolving this data request                                          |
-| `backup_witnesses` | `u8`   | Number of backup witnesses that will be employed for resolving this data request                                               |
-| `commit_fee`       | `u64`  | Miner fee for each valid _commit_ output included in the block during the _commit stage_                                       |
-| `reveal_fee`       | `u64`  | Miner fee for each valid _reveal_ output included in the block during the _reveal stage_                                       |
-| `tally_fee`        | `u64`  | Miner fee for each valid _value_ transfer output included in the block during the _tally stage_                                |
-| `time_lock`        | `u64`  | The UTC Unix timestamp after which data request shall be executed                                                              |
+| Field              | Type         | Description                                                                                                                    |
+|:-------------------|:-------------|:-------------------------------------------------------------------------------------------------------------------------------|
+| `pkh`              | `bytes`      | Slice of the digest of a public key (20 bytes)                                                                                 |
+| `data_request`     | `RadRequest` | Data request scripts as a byte array                                                                                           |
+| `value`            | `uint64`     | Transaction value that will be used as reward to be distributed after consensus has been reached and fees have been subtracted |
+| `witnesses`        | `uint32`     | Minimum amount of witness nodes that will be employed for resolving this data request (max 65535)                              |
+| `backup_witnesses` | `uint32`     | Number of backup witnesses that will be employed for resolving this data request (max 65535)                                   |
+| `commit_fee`       | `uint64`     | Miner fee for each valid _commit_ output included in the block during the _commit stage_                                       |
+| `reveal_fee`       | `uint64`     | Miner fee for each valid _reveal_ output included in the block during the _reveal stage_                                       |
+| `tally_fee`        | `uint64`     | Miner fee for each valid _value_ transfer output included in the block during the _tally stage_                                |
+| `time_lock`        | `uint64`     | The UTC Unix timestamp after which data request shall be executed                                                              |
 
 #### Values, rewards and fees
 
@@ -109,10 +109,10 @@ SHA256(result || nonce || beacon)
 ```
 #### Data structure
 
-| Field        | Type   | Description                                                                                                |
-|--------------|--------|------------------------------------------------------------------------------------------------------------|
-| `commitment` | `[u8]` | Digest of the data request's aggregation stage, salted by a nonce and the previous checkpoint beacon       |
-| `value`      | `u64`  | Remaining transaction value that will be used as reward to be distributed after consensus has been reached |
+| Field        | Type     | Description                                                                                                |
+|:-------------|:---------|:-----------------------------------------------------------------------------------------------------------|
+| `commitment` | `bytes`  | Digest of the data request's aggregation stage, salted by a nonce and the previous checkpoint beacon       |
+| `value`      | `uint64` | Remaining transaction value that will be used as reward to be distributed after consensus has been reached |
 
 #### Values, rewards and fees
 
@@ -136,11 +136,11 @@ This type of output contains the result of executing the retrieval and aggregati
 
 #### Data structure
 
-| Field    | Type   | Description                                                                                                |
-|----------|--------|------------------------------------------------------------------------------------------------------------|
-| `reveal` | `[u8]` | The result of executing the retrieval and aggregation stage scripts of a data inputs can onrequest         |
-| `pkh`    | `[u8]` | Slice of the digest of a public key (20 bytes)                                                             |
-| `value`  | `u64`  | Remaining transaction value that will be used as reward to be distributed after consensus has been reached |
+| Field    | Type     | Description                                                                                                |
+|:---------|:---------|:-----------------------------------------------------------------------------------------------------------|
+| `reveal` | `bytes`  | The result of executing the retrieval and aggregation stage scripts of a data inputs can onrequest         |
+| `pkh`    | `bytes`  | Slice of the digest of a public key (20 bytes)                                                             |
+| `value`  | `uint64` | Remaining transaction value that will be used as reward to be distributed after consensus has been reached |
 
 #### Values, rewards and fees
 
@@ -165,11 +165,11 @@ Singularly, the `pkh` found in tally outputs is not the digest of the public key
 
 #### Data structure
 
-| Field    | Type   | Description                                                                                                                                                              |
-|----------|--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `result` | `[u8]` | Data request result as computed by applying the consensus stage function as specified by the data request on every _reveal_ input in the same transaction as this output |
-| `pkh`    | `[u8]` | Slice of the digest of the public key of the data request creator (20 bytes)                                                                                             |
-| `value`  | `u64`  | Remaining transaction value that has not been used as reward or fee of the data request                                                                                  |
+| Field    | Type     | Description                                                                                                                                                              |
+|:---------|:---------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `result` | `bytes`  | Data request result as computed by applying the consensus stage function as specified by the data request on every _reveal_ input in the same transaction as this output |
+| `pkh`    | `bytes`  | Slice of the digest of the public key of the data request creator (20 bytes)                                                                                             |
+| `value`  | `uint64` | Remaining transaction value that has not been used as reward or fee of the data request                                                                                  |
 
 #### Values, rewards and fees
 
@@ -198,10 +198,10 @@ Different output types require their spending inputs to provide specific claims 
 
 All input structures consist at least of the following fields:
 
-| Field            | Type   | Description                                       |
-|------------------|--------|---------------------------------------------------|
-| `transaction_id` | `[u8]` | A transaction identifier                          |
-| `output_index`   | `u32`  | The index of a specific output in the transaction |
+| Field            | Type     | Description                                       |
+|:-----------------|:---------|:--------------------------------------------------|
+| `transaction_id` | `Hash`   | A transaction identifier                          |
+| `output_index`   | `uint32` | The index of a specific output in the transaction |
 
 Inputs trying to spend outputs of type _data request_ and _commit_ have additional fields for their specific claims, as described below.
 
@@ -211,11 +211,11 @@ Every _data request_ output can be spent by as many _data request_ inputs as def
 
 Thus, the _data request_ input structure consists of the following fields:
 
-| Field            | Type   | Description                                                                  |
-|------------------|--------|------------------------------------------------------------------------------|
-| `transaction_id` | `[u8]` | A transaction identifier                                                     |
-| `output_index`   | `u32`  | The index of a specific output in the transaction                            |
-| `poe`            | `[u8]` | Proof of Eligibility produced with same keypair as the transaction signature |
+| Field            | Type     | Description                                                                  |
+|:-----------------|:---------|:-----------------------------------------------------------------------------|
+| `transaction_id` | `Hash`   | A transaction identifier                                                     |
+| `output_index`   | `uint32` | The index of a specific output in the transaction                            |
+| `poe`            | `bytes`  | Proof of Eligibility produced with same keypair as the transaction signature |
 
 ### Commit input
 
@@ -223,12 +223,12 @@ _Commit_ inputs are used by witness nodes for proving that they actually execute
 
 Thus, the _commit_ input structure consists of the following fields:
 
-| Field            | Type   | Description                                                                      |
-|------------------|--------|----------------------------------------------------------------------------------|
-| `transaction_id` | `[u8]` | A transaction identifier                                                         |
-| `output_index`   | `u32`  | The index of a specific output in the transaction                                |
-| `reveal`         | `[u8]` | The result of executing the retrieval and aggregation stages of the data request |
-| `nonce`          | `u64`  | The nonce used for generating the previously published commitment                |
+| Field            | Type      | Description                                                                      |
+|:-----------------|:----------|:---------------------------------------------------------------------------------|
+| `transaction_id` | `Hash`    | A transaction identifier                                                         |
+| `output_index`   | `uint32`  | The index of a specific output in the transaction                                |
+| `reveal`         | `bytes`   | The result of executing the retrieval and aggregation stages of the data request |
+| `nonce`          | `fixed64` | The nonce used for generating the previously published commitment                |
 
 ### Reveal input
 

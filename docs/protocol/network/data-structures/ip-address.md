@@ -1,17 +1,15 @@
 # IP Address
 
-IP addresses in Witnet protocol may be IPv4 or IPv6 and they are formatted as follows:
+IP addresses in Witnet protocol may be IPv4 or IPv6 and they are encoded
+as bytes, as a concatenation of ip and port.
 
-- IPv4:
+The kind is inferred based on the length: 6 bytes for IPv4 and
+18 bytes for IPv6. The fields are encoded using Big-Endian
+representation.
 
-    | Field  | Type  | Description                                |
-    | ------ | :---: | ------------------------------------------ |
-    | `ipv4` | `u32` | IPv4 address of the peer                   |
-    | `port` | `u16` | Port number in which the peer is listening |
+(`||` denotes concatenation)
 
-- IPv6:
-
-    | Field  | Type       | Description                                |
-    | ------ | :--------: | ------------------------------------------ |
-    | `ipv6` | `[u32; 4]` | IPv6 address of the peer                   |
-    | `port` | `u16`      | Port number in which the peer is listening |
+```
+[u8; 6]  => (Ipv4) ip || port 
+[u8; 18] => (Ipv6) ip0 || ip1 || ip2 || ip3 || port
+```
