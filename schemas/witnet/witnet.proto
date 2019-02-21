@@ -32,8 +32,7 @@ message Version {
     Address receiver_address = 5;
     string user_agent = 6;
     fixed32 last_epoch = 7;
-    fixed64 genesis = 8;
-    fixed64 nonce = 9;
+    fixed64 nonce = 8;
 }
 
 message Verack {

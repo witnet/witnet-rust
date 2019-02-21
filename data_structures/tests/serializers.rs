@@ -270,15 +270,14 @@ fn message_version_to_bytes() {
             receiver_address: receiver_address,
             user_agent: "asdf".to_string(),
             last_epoch: 8,
-            genesis: 2,
             nonce: 1,
         }),
         magic: 1,
     };
     let expected_buf: Vec<u8> = [
-        8, 1, 18, 64, 10, 62, 8, 2, 16, 123, 25, 4, 0, 0, 0, 0, 0, 0, 0, 34, 8, 10, 6, 192, 168, 1,
+        8, 1, 18, 55, 10, 53, 8, 2, 16, 123, 25, 4, 0, 0, 0, 0, 0, 0, 0, 34, 8, 10, 6, 192, 168, 1,
         1, 31, 64, 42, 8, 10, 6, 192, 168, 1, 2, 31, 65, 50, 4, 97, 115, 100, 102, 61, 8, 0, 0, 0,
-        65, 2, 0, 0, 0, 0, 0, 0, 0, 73, 1, 0, 0, 0, 0, 0, 0, 0,
+        65, 1, 0, 0, 0, 0, 0, 0, 0,
     ]
     .to_vec();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
@@ -305,15 +304,15 @@ fn message_version_from_bytes() {
             receiver_address: receiver_address,
             user_agent: "asdf".to_string(),
             last_epoch: 8,
-            genesis: 2,
             nonce: 1,
         }),
         magic: 1,
     };
+
     let buf: Vec<u8> = [
-        8, 1, 18, 64, 10, 62, 8, 2, 16, 123, 25, 4, 0, 0, 0, 0, 0, 0, 0, 34, 8, 10, 6, 192, 168, 1,
+        8, 1, 18, 55, 10, 53, 8, 2, 16, 123, 25, 4, 0, 0, 0, 0, 0, 0, 0, 34, 8, 10, 6, 192, 168, 1,
         1, 31, 64, 42, 8, 10, 6, 192, 168, 1, 2, 31, 65, 50, 4, 97, 115, 100, 102, 61, 8, 0, 0, 0,
-        65, 2, 0, 0, 0, 0, 0, 0, 0, 73, 1, 0, 0, 0, 0, 0, 0, 0,
+        65, 1, 0, 0, 0, 0, 0, 0, 0,
     ]
     .to_vec();
 
@@ -339,7 +338,6 @@ fn message_version_encode_decode() {
             receiver_address: receiver_address,
             user_agent: "asdf".to_string(),
             last_epoch: 8,
-            genesis: 2,
             nonce: 1,
         }),
         magic: 1,
