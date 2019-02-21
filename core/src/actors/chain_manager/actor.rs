@@ -132,22 +132,22 @@ impl ChainManager {
                                 };
                                 debug!("ChainInfo successfully obtained from storage");
                             } else {
-                                // Mismatching environment names between config and storage
+                                // Mismatching consensus constants between config and storage
                                 panic!(
-                                    "Mismatching environments: tried to run a node on environment \
-                                     \"{:?}\" with a chain that was initialized with environment \
-                                     \"{:?}\".",
-                                    environment, chain_info_from_storage.environment
-                                );
-                            }
-                        } else {
-                            // Mismatching consensus constants between config and storage
-                            panic!(
-                                "Mismatching consensus constants: tried to run a node using \
+                                    "Mismatching consensus constants: tried to run a node using \
                                  different consensus constants than the ones that were used when \
                                  the local chain was initialized.\nNode constants: {:#?}\nChain \
                                  constants: {:#?}",
-                                consensus_constants, chain_info_from_storage.consensus_constants
+                                    consensus_constants, chain_info_from_storage.consensus_constants
+                                );
+                            }
+                        } else {
+                            // Mismatching environment names between config and storage
+                            panic!(
+                                "Mismatching environments: tried to run a node on environment \
+                                 \"{:?}\" with a chain that was initialized with environment \
+                                 \"{:?}\".",
+                                environment, chain_info_from_storage.environment
                             );
                         }
                     } else {
