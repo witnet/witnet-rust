@@ -71,8 +71,12 @@ impl Actor for Session {
                 // Send version if outbound session
                 if let SessionType::Outbound = act.session_type {
                     // FIXME(#142): include the checkpoint of the current tip of the local blockchain
-                    let version_msg =
-                        WitnetMessage::build_version(act.server_addr, act.remote_addr, 0);
+                    let version_msg = WitnetMessage::build_version(
+                        act.magic_number,
+                        act.server_addr,
+                        act.remote_addr,
+                        0,
+                    );
                     act.send_message(version_msg);
                     // Set HandshakeFlag of sent version message
                     act.handshake_flags.version_tx = true;

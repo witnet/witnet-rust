@@ -193,7 +193,7 @@ impl Handler<GetPeers> for Session {
     fn handle(&mut self, _msg: GetPeers, _: &mut Context<Self>) {
         debug!("Sending GetPeers message to peer at {:?}", self.remote_addr);
         // Create get peers message
-        let get_peers_msg = WitnetMessage::build_get_peers();
+        let get_peers_msg = WitnetMessage::build_get_peers(self.magic_number);
         // Write get peers message in session
         self.send_message(get_peers_msg);
     }
@@ -209,7 +209,9 @@ impl Handler<AnnounceItems> for Session {
             self.remote_addr
         );
         // Try to create AnnounceItems message with items to be announced
-        if let Ok(announce_items_msg) = WitnetMessage::build_inventory_announcement(msg.items) {
+        if let Ok(announce_items_msg) =
+            WitnetMessage::build_inventory_announcement(self.magic_number, msg.items)
+        {
             // Send message through the session network connection
             self.send_message(announce_items_msg);
         };
@@ -276,7 +278,7 @@ fn inventory_get_blocks(session: &Session, ctx: &mut Context<Session>) {
             match res {
                 Ok(Ok(beacon)) => {
                     // Create get blocks message
-                    let get_blocks_msg = WitnetMessage::build_last_beacon(beacon);
+                    let get_blocks_msg = WitnetMessage::build_last_beacon(act.magic_number, beacon);
                     // Write get blocks message in session
                     act.send_message(get_blocks_msg);
 
@@ -361,7 +363,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
                         "Received {} peer addresses from PeersManager",
                         addresses.len()
                     );
-                    let peers_msg = WitnetMessage::build_peers(&addresses);
+                    let peers_msg = WitnetMessage::build_peers(act.magic_number, &addresses);
                     act.send_message(peers_msg);
                 }
                 _ => {
@@ -458,9 +460,10 @@ fn inventory_process_inv(
         // This returns a FutureResult containing a success
         .and_then(|missing_inv_entries, act, _ctx| {
             // Try to create InventoryRequest protocol message to request missing inventory vectors
-            if let Ok(inv_req_msg) =
-                WitnetMessage::build_inventory_request(missing_inv_entries.to_vec())
-            {
+            if let Ok(inv_req_msg) = WitnetMessage::build_inventory_request(
+                act.magic_number,
+                missing_inv_entries.to_vec(),
+            ) {
                 // Send InventoryRequest message through the session network connection
                 act.send_message(inv_req_msg);
             }
@@ -499,12 +502,17 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
     let mut responses: Vec<WitnetMessage> = vec![];
     if !flags.verack_tx {
         flags.verack_tx = true;
-        let verack = WitnetMessage::build_verack();
+        let verack = WitnetMessage::build_verack(session.magic_number);
         responses.push(verack);
     }
     if !flags.version_tx {
         flags.version_tx = true;
-        let version = WitnetMessage::build_version(session.server_addr, session.remote_addr, 0);
+        let version = WitnetMessage::build_version(
+            session.magic_number,
+            session.server_addr,
+            session.remote_addr,
+            0,
+        );
         responses.push(version);
     }
 
@@ -518,13 +526,15 @@ fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
             let proof = block.proof;
             let txns = block.txns;
             // Build Block msg
-            let block_msg = WitnetMessage::build_block(block_header, proof, txns);
+            let block_msg =
+                WitnetMessage::build_block(session.magic_number, block_header, proof, txns);
             // Send Block msg
             session.send_message(block_msg);
         }
         InventoryItem::Transaction(transaction) => {
             // Build Transaction msg
-            let transaction_msg = WitnetMessage::build_transaction(transaction);
+            let transaction_msg =
+                WitnetMessage::build_transaction(session.magic_number, transaction);
             // Send Transaction msg
             session.send_message(transaction_msg);
         }
@@ -535,7 +545,7 @@ fn request_block_msg(session: &mut Session, block_entry: InventoryEntry) {
     // Initialize a new inventory entries vector with the given block entry as its sole member
     let inv_entries: Vec<InventoryEntry> = vec![block_entry];
 
-    match WitnetMessage::build_inventory_request(inv_entries) {
+    match WitnetMessage::build_inventory_request(session.magic_number, inv_entries) {
         Ok(inv_req_msg) => {
             // Send InventoryRequest message through the session network connection
             session.send_message(inv_req_msg);
@@ -575,7 +585,7 @@ fn session_last_beacon_inbound(
                                     // Try to create an Inv protocol message with the items to
                                     // be announced
                                     if let Ok(inv_msg) =
-                                        WitnetMessage::build_inventory_announcement(blocks.into_iter().map(|(_epoch, hash)| hash).collect())
+                                        WitnetMessage::build_inventory_announcement(act.magic_number, blocks.into_iter().map(|(_epoch, hash)| hash).collect())
                                     {
                                         // Send Inv message through the session network connection
                                         act.send_message(inv_msg);
@@ -593,7 +603,7 @@ fn session_last_beacon_inbound(
                     } else if chain_beacon.checkpoint == received_checkpoint {
                         info!("Our chain is on par with our peer's",);
                         // Create a last_beacon message
-                        let last_beacon_msg = WitnetMessage::build_last_beacon(chain_beacon);
+                        let last_beacon_msg = WitnetMessage::build_last_beacon(act.magic_number, chain_beacon);
                         // Write a last_beacon message in session
                         act.send_message(last_beacon_msg);
                     } else {

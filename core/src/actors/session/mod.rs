@@ -66,6 +66,9 @@ pub struct Session {
 
     /// Remote sender address
     remote_sender_addr: Option<SocketAddr>,
+
+    /// Magic number
+    magic_number: u16,
 }
 
 /// Session helper methods
@@ -77,6 +80,7 @@ impl Session {
         session_type: SessionType,
         framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
         handshake_timeout: Duration,
+        magic_number: u16,
     ) -> Session {
         Session {
             server_addr,
@@ -87,6 +91,7 @@ impl Session {
             status: SessionStatus::Unconsolidated,
             handshake_flags: HandshakeFlags::default(),
             remote_sender_addr: None,
+            magic_number,
         }
     }
     /// Method to send a Witnet message to the remote peer
