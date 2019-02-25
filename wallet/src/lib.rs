@@ -2,3 +2,4 @@
 
 pub mod key;
 pub mod mnemonic;
+pub mod server;
