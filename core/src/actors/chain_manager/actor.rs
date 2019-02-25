@@ -1,21 +1,16 @@
 use actix::{Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, System, WrapFuture};
 
-use crate::actors::epoch_manager::{
-    messages::{GetEpoch, Subscribe},
-    EpochManager,
-    EpochManagerError::CheckpointZeroInTheFuture,
-};
-
 use super::{
+    data_request::DataRequestPool,
     handlers::{EpochPayload, EveryEpochPayload},
     ChainManager,
 };
-
 use crate::actors::{
-    chain_manager::data_request::DataRequestPool,
     config_manager::send_get_config_request,
+    epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
+    messages::{Get, GetEpoch, Subscribe},
     storage_keys::CHAIN_STATE_KEY,
-    storage_manager::{messages::Get, StorageManager},
+    storage_manager::StorageManager,
 };
 
 use witnet_data_structures::chain::{

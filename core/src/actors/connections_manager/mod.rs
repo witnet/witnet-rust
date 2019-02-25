@@ -5,7 +5,8 @@ use tokio::net::{TcpListener, TcpStream};
 
 use crate::actors::{
     config_manager::send_get_config_request,
-    sessions_manager::{messages::Create, SessionsManager},
+    messages::{Create, InboundTcpConnect, ResolverResult},
+    sessions_manager::SessionsManager,
 };
 
 use witnet_config::config::Config;
@@ -13,8 +14,6 @@ use witnet_p2p::sessions::SessionType;
 
 mod actor;
 mod handlers;
-/// Messages to hold the TCP stream from an inbound TCP connection
-pub mod messages;
 
 /// Connections manager actor
 #[derive(Default)]
@@ -50,7 +49,7 @@ impl ConnectionsManager {
 
     /// Method to process resolver ConnectAddr response
     fn process_connect_addr_response(
-        response: Result<messages::ResolverResult, MailboxError>,
+        response: Result<ResolverResult, MailboxError>,
     ) -> FutureResult<(), (), Self> {
         // Process the Result<ResolverResult, MailboxError>
         match response {
@@ -92,7 +91,7 @@ impl ConnectionsManager {
             listener
                 .incoming()
                 .map_err(|_| ())
-                .map(messages::InboundTcpConnect::new),
+                .map(InboundTcpConnect::new),
         );
 
         info!(

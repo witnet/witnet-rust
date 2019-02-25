@@ -1,15 +1,13 @@
 #[cfg(test)]
 use self::mock_actix::System;
-use crate::actors::chain_manager::{
+use crate::actors::{
+    chain_manager::ChainManager,
     messages::{AddNewBlock, AddTransaction, GetBlocksEpochRange, GetOutput},
-    ChainManager,
 };
 #[cfg(not(test))]
 use actix::System;
 use actix::SystemService;
-use jsonrpc_core::futures;
-use jsonrpc_core::futures::Future;
-use jsonrpc_core::{IoHandler, Params, Value};
+use jsonrpc_core::{futures, futures::Future, IoHandler, Params, Value};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;

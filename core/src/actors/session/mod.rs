@@ -1,24 +1,21 @@
-use std::net::SocketAddr;
-use std::time::Duration;
+use std::{net::SocketAddr, time::Duration};
 
 use actix::io::FramedWrite;
 
 use ansi_term::Color::Green;
 
 use log::{debug, error};
-use tokio::io::WriteHalf;
-use tokio::net::TcpStream;
+
+use tokio::{io::WriteHalf, net::TcpStream};
+
+use witnet_data_structures::{proto::ProtobufConvert, types::Message as WitnetMessage};
+use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use crate::actors::codec::P2PCodec;
-use witnet_data_structures::proto::ProtobufConvert;
-use witnet_data_structures::types::Message as WitnetMessage;
-use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 mod actor;
 
 mod handlers;
-/// Messages for session
-pub mod messages;
 
 /// HandshakeFlags
 #[derive(Default)]

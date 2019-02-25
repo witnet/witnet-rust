@@ -3,6 +3,7 @@ use actix::{
     Supervised, System, SystemService, WrapFuture,
 };
 
+use crate::actors::messages::{ConfigResult, GetConfig};
 use log::error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -13,9 +14,6 @@ mod actor;
 
 /// Handlers to manage ConfigManager messages
 mod handlers;
-
-/// Messages for ConfigManager
-pub mod messages;
 
 /// Default configuration filename
 pub const CONFIG_DEFAULT_FILENAME: &str = "witnet.toml";
@@ -78,7 +76,7 @@ where
     config_manager_addr
         // Send GetConfig message to config manager actor
         // This returns a Request Future, representing an asynchronous message sending process
-        .send(messages::GetConfig)
+        .send(GetConfig)
         // Convert a normal future into an ActorFuture
         .into_actor(act)
         // Process the response from the config manager
@@ -100,7 +98,7 @@ where
 
 /// Method to process ConfigManager GetConfig response
 pub fn process_get_config_response<T>(
-    response: Result<messages::ConfigResult, MailboxError>,
+    response: Result<ConfigResult, MailboxError>,
 ) -> FutureResult<Arc<Config>, (), T> {
     // Process the Result<ConfigResult, MailboxError>
     match response {

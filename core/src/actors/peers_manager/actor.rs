@@ -2,9 +2,8 @@ use actix::{Actor, ActorFuture, Context, ContextFutureSpawner, System, WrapFutur
 use log::{debug, error, info};
 
 use crate::actors::{
-    config_manager::send_get_config_request,
-    storage_keys::PEERS_KEY,
-    storage_manager::{messages::Get, StorageManager},
+    config_manager::send_get_config_request, messages::Get, storage_keys::PEERS_KEY,
+    storage_manager::StorageManager,
 };
 
 use witnet_p2p::peers::Peers;

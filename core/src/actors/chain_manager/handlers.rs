@@ -13,16 +13,11 @@ use witnet_data_structures::{
 use witnet_rad::types::RadonTypes;
 use witnet_util::error::WitnetError;
 
-use crate::actors::chain_manager::{
-    data_request::DataRequestPool,
-    messages::{GetOutputResult, PeerLastEpoch, SessionUnitResult, SetNetworkReady},
-    ChainManager, ChainManagerError,
-};
-use crate::actors::epoch_manager::messages::EpochNotification;
-
-use super::messages::{
-    AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlocksEpochRange,
-    GetHighestCheckpointBeacon, GetOutput, InventoryEntriesResult,
+use super::{data_request::DataRequestPool, ChainManager, ChainManagerError};
+use crate::actors::messages::{
+    AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, EpochNotification,
+    GetBlocksEpochRange, GetHighestCheckpointBeacon, GetOutput, GetOutputResult,
+    InventoryEntriesResult, PeerLastEpoch, SessionUnitResult, SetNetworkReady,
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////

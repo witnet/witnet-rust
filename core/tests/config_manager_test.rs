@@ -5,14 +5,14 @@ extern crate witnet_core;
 
 use actix::*;
 use futures::{future, Future};
-use witnet_core::actors::config_manager::*;
+use witnet_core::actors::{config_manager::ConfigManager, messages::GetConfig};
 
 #[test]
 fn test_config_manager_load_config() {
     use std::path::PathBuf;
     let sys = System::new("test");
     let addr = ConfigManager::new(Some(PathBuf::from("tests/fixtures/config.toml"))).start();
-    let res = addr.send(messages::GetConfig);
+    let res = addr.send(GetConfig);
 
     Arbiter::spawn(res.then(|fut| {
         let config = fut.unwrap().unwrap();

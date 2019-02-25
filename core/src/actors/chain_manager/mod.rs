@@ -42,21 +42,20 @@ use witnet_data_structures::chain::{
 use witnet_storage::{error::StorageError, storage::Storable};
 use witnet_util::error::WitnetError;
 
-use crate::actors::{
-    inventory_manager::{messages::AddItem, InventoryManager},
-    session::messages::{InventoryExchange, SendInventoryItem},
-    sessions_manager::{
-        messages::{Anycast, Broadcast},
-        SessionsManager,
-    },
-    storage_keys::CHAIN_STATE_KEY,
-    storage_manager::{messages::Put, StorageManager},
+use self::{
+    data_request::DataRequestPool,
+    validations::{block_reward, validate_merkle_tree, validate_transactions},
 };
-
-use self::data_request::DataRequestPool;
-use self::messages::InventoryEntriesResult;
-use self::validations::{block_reward, validate_merkle_tree, validate_transactions};
-use crate::actors::session::messages::RequestBlock;
+use crate::actors::{
+    inventory_manager::InventoryManager,
+    messages::{
+        AddItem, Anycast, Broadcast, InventoryEntriesResult, InventoryExchange, Put, RequestBlock,
+        SendInventoryItem,
+    },
+    sessions_manager::SessionsManager,
+    storage_keys::CHAIN_STATE_KEY,
+    storage_manager::StorageManager,
+};
 
 mod actor;
 mod data_request;
@@ -65,10 +64,7 @@ mod mining;
 mod validations;
 
 /// Maximum blocks number to be sent during synchronization process
-const MAX_BLOCKS_SYNC: usize = 500;
-
-/// Messages for ChainManager
-pub mod messages;
+pub const MAX_BLOCKS_SYNC: usize = 500;
 
 /// Possible errors when interacting with ChainManager
 #[derive(Debug)]

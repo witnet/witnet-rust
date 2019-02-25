@@ -9,9 +9,6 @@ use witnet_util::error::WitnetError;
 mod actor;
 mod handlers;
 
-/// Messages for InventoryManager
-pub mod messages;
-
 /// InventoryManager actor
 #[derive(Default)]
 pub struct InventoryManager;

@@ -1,16 +1,15 @@
 use std::time::Duration;
 
-use crate::actors::{
-    storage_keys::PEERS_KEY,
-    storage_manager::{messages::Put, StorageManager},
-};
 use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System, SystemService,
     WrapFuture,
 };
+
 use log::{debug, error};
 
 use witnet_p2p::peers::Peers;
+
+use crate::actors::{messages::Put, storage_keys::PEERS_KEY, storage_manager::StorageManager};
 
 // Internal Actor implementation for PeersManager
 mod actor;
@@ -21,13 +20,6 @@ mod actor;
 /// * Get random peer
 /// * Get all peers
 mod handlers;
-
-/// Messages for peer management:
-/// * Add peers
-/// * Remove peers
-/// * Get random peer
-/// * Get all peers
-pub mod messages;
 
 /// Peers manager actor: manages a list of available peers to connect
 ///

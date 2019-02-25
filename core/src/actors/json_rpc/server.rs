@@ -1,21 +1,24 @@
-use super::connection::JsonRpc;
-use super::json_rpc_methods::jsonrpc_io_handler;
-use super::newline_codec::NewLineCodec;
-use crate::actors::config_manager::send_get_config_request;
-use crate::actors::connections_manager::messages::InboundTcpConnect;
 use actix::{
     io::FramedWrite, Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message,
     StreamHandler,
 };
+use tokio::{
+    codec::FramedRead,
+    io::AsyncRead,
+    net::{TcpListener, TcpStream},
+};
+
 use futures::Stream;
 use jsonrpc_core::IoHandler;
 use log::*;
-use std::collections::HashSet;
-use std::net::SocketAddr;
-use std::rc::Rc;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::{codec::FramedRead, io::AsyncRead};
+use std::{collections::HashSet, net::SocketAddr, rc::Rc};
+
 use witnet_config::config::Config;
+
+use super::{
+    connection::JsonRpc, json_rpc_methods::jsonrpc_io_handler, newline_codec::NewLineCodec,
+};
+use crate::actors::{config_manager::send_get_config_request, messages::InboundTcpConnect};
 
 /// JSON RPC server
 #[derive(Default)]

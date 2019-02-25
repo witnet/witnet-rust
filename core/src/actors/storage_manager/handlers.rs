@@ -1,13 +1,17 @@
 use actix::{Context, Handler};
 
-use witnet_storage::error::{StorageError, StorageErrorKind};
-use witnet_storage::storage::{Storable, Storage, StorageHelper};
+use witnet_storage::{
+    error::{StorageError, StorageErrorKind, StorageResult},
+    storage::{Storable, Storage, StorageHelper},
+};
 use witnet_util::error::WitnetError;
 
-use super::{
-    messages::{Delete, Get, Put},
-    StorageManager, UnitStorageResult, ValueStorageResult,
-};
+use super::StorageManager;
+use crate::actors::messages::{Delete, Get, Put};
+
+/// Type aliases for the storage manager results returned
+type ValueStorageResult<T> = StorageResult<Option<T>>;
+type UnitStorageResult = StorageResult<()>;
 
 /// Handler for Get message.
 impl<T: Storable + 'static> Handler<Get<T>> for StorageManager {

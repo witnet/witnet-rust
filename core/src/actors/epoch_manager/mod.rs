@@ -4,21 +4,16 @@ use ansi_term::Color::Purple;
 
 use log::{debug, error, info, warn};
 
-use std::collections::BTreeMap;
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
 use witnet_config::config::Config;
+use witnet_data_structures::chain::Epoch;
 use witnet_util::timestamp::{get_timestamp, get_timestamp_nanos};
 
-use crate::actors::epoch_manager::messages::{EpochNotification, EpochResult};
-
-use witnet_data_structures::chain::Epoch;
+use crate::actors::messages::{EpochNotification, EpochResult};
 
 mod actor;
 mod handlers;
-
-/// Messages that are handled by the EpochManager
-pub mod messages;
 
 /// Possible errors when getting the current epoch
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -79,7 +74,7 @@ impl EpochManager {
         self.checkpoints_period = Some(period);
     }
     /// Calculate the last checkpoint (current epoch) at the supplied timestamp
-    pub fn epoch_at(&self, timestamp: i64) -> messages::EpochResult<Epoch> {
+    pub fn epoch_at(&self, timestamp: i64) -> EpochResult<Epoch> {
         match (self.checkpoint_zero_timestamp, self.checkpoints_period) {
             (Some(zero), Some(period)) => {
                 let elapsed = timestamp - zero;
@@ -95,12 +90,12 @@ impl EpochManager {
         }
     }
     /// Calculate the last checkpoint (current epoch)
-    pub fn current_epoch(&self) -> messages::EpochResult<Epoch> {
+    pub fn current_epoch(&self) -> EpochResult<Epoch> {
         let now = get_timestamp();
         self.epoch_at(now)
     }
     /// Calculate the timestamp for a checkpoint (the start of an epoch)
-    pub fn epoch_timestamp(&self, epoch: Epoch) -> messages::EpochResult<i64> {
+    pub fn epoch_timestamp(&self, epoch: Epoch) -> EpochResult<i64> {
         match (self.checkpoint_zero_timestamp, self.checkpoints_period) {
             // Calculate (period * epoch + zero) with overflow checks
             (Some(zero), Some(period)) => Epoch::from(period)
@@ -221,10 +216,10 @@ pub trait SendableNotification: Send {
 /// epoch. Stored in the SubscribeEpoch struct and in the EpochManager as SendableNotification
 pub struct SingleEpochSubscription<T: Send> {
     /// Actor recipient, required to send a message back to the subscriber actor
-    recipient: Recipient<EpochNotification<T>>,
+    pub recipient: Recipient<EpochNotification<T>>,
 
     /// Payload to be sent back to the subscriber actor
-    payload: Option<T>,
+    pub payload: Option<T>,
 }
 
 /// Implementation of the SendableNotification trait for the SingleEpochSubscription
@@ -259,10 +254,10 @@ impl<T: Send> SendableNotification for SingleEpochSubscription<T> {
 /// cloned as this notification is to be sent many times
 pub struct AllEpochSubscription<T: Clone + Send> {
     /// Actor recipient, required to send a message back to the subscriber actor
-    recipient: Recipient<EpochNotification<T>>,
+    pub recipient: Recipient<EpochNotification<T>>,
 
     /// Payload to be sent back to the subscriber actor
-    payload: T,
+    pub payload: T,
 }
 
 /// Implementation of the SendableNotification trait for the AllEpochSubscription

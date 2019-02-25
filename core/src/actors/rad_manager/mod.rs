@@ -8,7 +8,6 @@
 
 mod actor;
 mod handlers;
-pub mod messages;
 
 /// RadManager actor
 #[derive(Default)]

@@ -8,25 +8,21 @@ use actix::{
 
 use ansi_term::Color::Cyan;
 
-use crate::actors::{
-    chain_manager::{messages::SetNetworkReady, ChainManager},
-    connections_manager::{messages::OutboundTcpConnect, ConnectionsManager},
-    peers_manager::{
-        messages::{GetRandomPeer, PeersSocketAddrResult},
-        PeersManager,
-    },
-    session::{
-        messages::{GetPeers, InventoryExchange},
-        Session,
-    },
-    sessions_manager::messages::Broadcast,
-};
 use witnet_p2p::sessions::Sessions;
+
+use crate::actors::{
+    chain_manager::ChainManager,
+    connections_manager::ConnectionsManager,
+    messages::{
+        Anycast, Broadcast, GetRandomPeer, InventoryExchange, OutboundTcpConnect,
+        PeersSocketAddrResult, SendGetPeers, SetNetworkReady,
+    },
+    peers_manager::PeersManager,
+    session::Session,
+};
 
 mod actor;
 mod handlers;
-/// Messages for sessions manager
-pub mod messages;
 
 /// SessionsManager actor
 #[derive(Default)]
@@ -108,9 +104,9 @@ impl SessionsManager {
     fn discovery_peers(&self, ctx: &mut Context<Self>, discovery_peers_period: Duration) {
         // Schedule the discovery_peers with a given period
         ctx.run_later(discovery_peers_period, move |act, ctx| {
-            // Send Anycast(GetPeers) message
-            ctx.notify(messages::Anycast {
-                command: GetPeers {},
+            // Send Anycast(SendGetPeers) message
+            ctx.notify(Anycast {
+                command: SendGetPeers {},
             });
             act.discovery_peers(ctx, discovery_peers_period);
         });

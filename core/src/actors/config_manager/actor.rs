@@ -2,8 +2,7 @@ use super::ConfigManager;
 use actix::{Actor, Context};
 use log::{debug, info};
 use std::sync::Arc;
-use witnet_config::config::Config;
-use witnet_config::loaders::toml;
+use witnet_config::{config::Config, loaders::toml};
 
 impl Actor for ConfigManager {
     type Context = Context<Self>;

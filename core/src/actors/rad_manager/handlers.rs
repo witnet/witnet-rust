@@ -1,14 +1,16 @@
 //! Message handlers for `RadManager`
-use super::{messages, RadManager};
 use actix::{Handler, Message};
 use witnet_data_structures::serializers::decoders::TryFrom;
 use witnet_rad as rad;
 use witnet_rad::types::RadonTypes;
 
-impl Handler<messages::ResolveRA> for RadManager {
-    type Result = <messages::ResolveRA as Message>::Result;
+use super::RadManager;
+use crate::actors::messages::{ResolveRA, RunConsensus};
 
-    fn handle(&mut self, msg: messages::ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
+impl Handler<ResolveRA> for RadManager {
+    type Result = <ResolveRA as Message>::Result;
+
+    fn handle(&mut self, msg: ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
         let retrieve_scripts = msg.rad_request.retrieve;
         let aggregate_script = msg.rad_request.aggregate.script;
 
@@ -21,10 +23,10 @@ impl Handler<messages::ResolveRA> for RadManager {
     }
 }
 
-impl Handler<messages::RunConsensus> for RadManager {
-    type Result = <messages::RunConsensus as Message>::Result;
+impl Handler<RunConsensus> for RadManager {
+    type Result = <RunConsensus as Message>::Result;
 
-    fn handle(&mut self, msg: messages::RunConsensus, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: RunConsensus, _ctx: &mut Self::Context) -> Self::Result {
         let packed_script = msg.script.script;
         let reveals = msg.reveals;
 

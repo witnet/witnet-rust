@@ -20,26 +20,19 @@ use witnet_data_structures::{
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
+use super::Session;
 use crate::actors::{
-    chain_manager::{
-        messages::{
-            AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, GetBlocksEpochRange,
-            GetHighestCheckpointBeacon, PeerLastEpoch,
-        },
-        ChainManager,
-    },
+    chain_manager::ChainManager,
     codec::BytesMut,
-    inventory_manager::{messages::GetItem, InventoryManager},
-    peers_manager,
-    sessions_manager::{messages::Consolidate, SessionsManager},
-};
-
-use super::{
+    inventory_manager::InventoryManager,
     messages::{
-        AnnounceItems, GetPeers, InventoryExchange, RequestBlock, SendInventoryItem,
+        AddNewBlock, AddPeers, AddTransaction, AnnounceItems, Consolidate,
+        DiscardExistingInventoryEntries, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem,
+        GetPeers, InventoryExchange, PeerLastEpoch, RequestBlock, SendGetPeers, SendInventoryItem,
         SessionUnitResult,
     },
-    Session,
+    peers_manager::PeersManager,
+    sessions_manager::SessionsManager,
 };
 
 /// Implement WriteHandler for Session
@@ -98,8 +91,8 @@ impl StreamHandler<BytesMut, Error> for Session {
                     ////////////////////
                     // PEER DISCOVERY //
                     ////////////////////
-                    // Handle GetPeers message
-                    (_, SessionStatus::Consolidated, Command::GetPeers(_)) => {
+                    // Handle SendGetPeers message
+                    (_, SessionStatus::Consolidated, Command::SendGetPeers(_)) => {
                         peer_discovery_get_peers(self, ctx);
                     }
                     // Handle Peers message
@@ -200,14 +193,17 @@ impl StreamHandler<BytesMut, Error> for Session {
     }
 }
 
-/// Handler for GetPeers message (sent by other actors)
-impl Handler<GetPeers> for Session {
+/// Handler for SendGetPeers message (sent by other actors)
+impl Handler<SendGetPeers> for Session {
     type Result = SessionUnitResult;
 
-    fn handle(&mut self, _msg: GetPeers, _: &mut Context<Self>) {
-        debug!("Sending GetPeers message to peer at {:?}", self.remote_addr);
+    fn handle(&mut self, _msg: SendGetPeers, _: &mut Context<Self>) {
+        debug!(
+            "Sending SendGetPeers message to peer at {:?}",
+            self.remote_addr
+        );
         // Create get peers message
-        let get_peers_msg = WitnetMessage::build_get_peers(self.magic_number);
+        let get_peers_msg = WitnetMessage::build_send_get_peers(self.magic_number);
         // Write get peers message in session
         self.send_message(get_peers_msg);
     }
@@ -357,15 +353,13 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
 /// Function called when GetPeers message is received
 fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
     // Get the address of PeersManager actor
-    let peers_manager_addr = System::current()
-        .registry()
-        .get::<peers_manager::PeersManager>();
+    let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
     // Start chain of actions
     peers_manager_addr
         // Send GetPeer message to PeersManager actor
         // This returns a Request Future, representing an asynchronous message sending process
-        .send(peers_manager::messages::GetPeers)
+        .send(GetPeers)
         // Convert a normal future into an ActorFuture
         .into_actor(session)
         // Process the response from PeersManager
@@ -395,15 +389,13 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
 /// Function called when Peers message is received
 fn peer_discovery_peers(peers: &[Address]) {
     // Get peers manager address
-    let peers_manager_addr = System::current()
-        .registry()
-        .get::<peers_manager::PeersManager>();
+    let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
     // Convert array of address to vector of socket addresses
     let addresses = peers.iter().map(from_address).collect();
 
     // Send AddPeers message to the peers manager
-    peers_manager_addr.do_send(peers_manager::messages::AddPeers {
+    peers_manager_addr.do_send(AddPeers {
         // TODO: convert Vec<Address> to Vec<SocketAddr>
         addresses,
     });

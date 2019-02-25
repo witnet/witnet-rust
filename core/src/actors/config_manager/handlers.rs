@@ -1,9 +1,7 @@
 use actix::{Context, Handler};
 
-use super::{
-    messages::{ConfigResult, GetConfig},
-    ConfigManager,
-};
+use super::ConfigManager;
+use crate::actors::messages::{ConfigResult, GetConfig};
 
 impl Handler<GetConfig> for ConfigManager {
     type Result = ConfigResult;

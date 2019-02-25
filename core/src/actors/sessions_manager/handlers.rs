@@ -10,15 +10,14 @@ use actix::{
 use log::{debug, error, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
+use super::SessionsManager;
 use crate::actors::{
     codec::P2PCodec,
-    peers_manager::{messages::AddPeers, PeersManager},
+    messages::{
+        AddPeers, Anycast, Broadcast, Consolidate, Create, Register, SessionsUnitResult, Unregister,
+    },
+    peers_manager::PeersManager,
     session::Session,
-};
-
-use super::{
-    messages::{Anycast, Broadcast, Consolidate, Create, Register, SessionsUnitResult, Unregister},
-    SessionsManager,
 };
 
 /// Handler for Create message.

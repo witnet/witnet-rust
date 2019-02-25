@@ -4,6 +4,9 @@ pub mod codec;
 /// Module running system actor
 pub mod node;
 
+/// Actor messages module
+pub mod messages;
+
 /// Peers manager actor module
 pub mod peers_manager;
 

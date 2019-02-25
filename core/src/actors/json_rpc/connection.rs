@@ -1,18 +1,19 @@
-use super::newline_codec::NewLineCodec;
-use super::server::JsonRpcServer;
-use super::server::Unregister;
 use actix::{
     io::FramedWrite, io::WriteHandler, Actor, ActorFuture, Addr, AsyncContext, Context,
     ContextFutureSpawner, Running, StreamHandler, WrapFuture,
 };
+use tokio::{io::WriteHalf, net::TcpStream};
+
 use bytes;
 use bytes::BytesMut;
 use jsonrpc_core::IoHandler;
 use log::*;
-use std::io;
-use std::rc::Rc;
-use tokio::io::WriteHalf;
-use tokio::net::TcpStream;
+use std::{io, rc::Rc};
+
+use super::{
+    newline_codec::NewLineCodec,
+    server::{JsonRpcServer, Unregister},
+};
 
 /// A single JSON-RPC connection
 pub struct JsonRpc {

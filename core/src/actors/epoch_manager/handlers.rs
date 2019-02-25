@@ -2,12 +2,10 @@ use actix::Handler;
 
 use log::{debug, error};
 
-use super::{
-    messages::{EpochResult, GetEpoch, SubscribeAll, SubscribeEpoch},
-    EpochManager,
-};
-
 use witnet_data_structures::chain::Epoch;
+
+use super::EpochManager;
+use crate::actors::messages::{EpochResult, GetEpoch, SubscribeAll, SubscribeEpoch};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS

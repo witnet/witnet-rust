@@ -1,11 +1,11 @@
-use crate::actors::inventory_manager::{
-    messages::{AddItem, GetItem},
-    InventoryManager, InventoryManagerError,
-};
 use actix::{ActorFuture, Context, Handler, ResponseActFuture, System, WrapFuture};
 use witnet_data_structures::chain::{Hash, Hashable, InventoryItem};
 
-use crate::actors::storage_manager::{messages::Get, messages::Put, StorageManager};
+use super::{InventoryManager, InventoryManagerError};
+use crate::actors::{
+    messages::{AddItem, Get, GetItem, Put},
+    storage_manager::StorageManager,
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS

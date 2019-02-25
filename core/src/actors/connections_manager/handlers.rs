@@ -5,10 +5,8 @@ use actix::{
 
 use witnet_p2p::sessions::SessionType;
 
-use super::{
-    messages::{InboundTcpConnect, OutboundTcpConnect},
-    ConnectionsManager,
-};
+use super::ConnectionsManager;
+use crate::actors::messages::{InboundTcpConnect, OutboundTcpConnect};
 
 /// Handler for InboundTcpConnect messages (built from inbound connections)
 impl Handler<InboundTcpConnect> for ConnectionsManager {

@@ -1,11 +1,10 @@
 use actix::{Context, Handler};
 use log::{debug, error, warn};
 
-use super::messages::{
+use super::PeersManager;
+use crate::actors::messages::{
     AddPeers, GetPeers, GetRandomPeer, PeersSocketAddrResult, PeersSocketAddrsResult, RemovePeers,
 };
-
-use super::PeersManager;
 
 /// Handler for AddPeers message
 impl Handler<AddPeers> for PeersManager {

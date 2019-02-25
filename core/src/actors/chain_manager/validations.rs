@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use super::data_request::DataRequestPool;
 
-use witnet_crypto::hash::Sha256;
-use witnet_crypto::merkle::merkle_tree_root as crypto_merkle_tree_root;
+use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree_root};
+
 use witnet_data_structures::chain::{
     Block, DataRequestOutput, Epoch, Hash, Hashable, Input, Output, OutputPointer, Transaction,
     TransactionsPool,

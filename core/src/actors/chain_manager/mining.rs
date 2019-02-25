@@ -4,30 +4,30 @@ use actix::{
 use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
 
-use super::validations::{block_reward, merkle_tree_root, verify_poe_data_request};
+use futures::future::{join_all, Future};
+use std::{collections::HashMap, time::Duration};
+
 use super::{
-    messages::{AddNewBlock, AddTransaction, GetHighestCheckpointBeacon},
+    data_request::{create_tally, create_vt_tally},
+    validations::{block_reward, merkle_tree_root, verify_poe_data_request},
     ChainManager,
 };
-use crate::actors::rad_manager::{
-    messages::{ResolveRA, RunConsensus},
-    RadManager,
+use crate::actors::{
+    messages::{AddNewBlock, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunConsensus},
+    rad_manager::RadManager,
 };
 
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::{
-    Block, BlockHeader, CheckpointBeacon, Hash, Input, LeadershipProof, Output, PublicKeyHash,
-    Secp256k1Signature, Signature, Transaction, TransactionsPool, UnspentOutputsPool,
-    ValueTransferOutput,
+use witnet_data_structures::{
+    chain::{
+        Block, BlockHeader, CheckpointBeacon, Hash, Input, LeadershipProof, Output, PublicKeyHash,
+        Secp256k1Signature, Signature, Transaction, TransactionsPool, UnspentOutputsPool,
+        ValueTransferOutput,
+    },
+    serializers::decoders::TryFrom,
 };
-use witnet_data_structures::serializers::decoders::TryFrom;
 use witnet_rad::types::RadonTypes;
 use witnet_storage::storage::Storable;
-
-use crate::actors::chain_manager::data_request::{create_tally, create_vt_tally};
-use futures::future::{join_all, Future};
-use std::collections::HashMap;
-use std::time::Duration;
 
 impl ChainManager {
     /// Try to mine a block

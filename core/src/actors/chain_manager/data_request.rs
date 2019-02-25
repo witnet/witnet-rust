@@ -8,11 +8,10 @@ use super::validations::{
     calculate_tally_change,
 };
 
-use witnet_data_structures::chain::TallyOutput;
 use witnet_data_structures::chain::{
     CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
     DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
-    RevealInput, RevealOutput, Transaction, UnspentOutputsPool, ValueTransferOutput,
+    RevealInput, RevealOutput, TallyOutput, Transaction, UnspentOutputsPool, ValueTransferOutput,
 };
 
 type DataRequestsWithReveals = Vec<(
