@@ -6,5 +6,8 @@ version = "0.1.2"
 workspace = ".."
 
 [dependencies]
-bip39 = "*"
-tiny-hderive = "*"
+bip39 = "0.6.0-beta.1"
+failure = "*"
+hmac = "*"
+secp256k1 = "*"
+sha2 = "*"
