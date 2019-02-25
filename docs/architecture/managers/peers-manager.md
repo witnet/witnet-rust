@@ -37,7 +37,7 @@ These are the messages supported by the peers manager handlers:
 | AddPeers       | `address: SocketAddr` | `PeersResult<Vec<SocketAddr>>`    | Add peers to list      |
 | RemovePeers    | `address: SocketAddr` | `PeersResult<Vec<SocketAddr>>`    | Remove peers from list |
 | GetRandomPeer  | `()`                  | `PeersResult<Option<SocketAddr>>` | Get random peer        |
-| GetPeers       | `()`                  | `PeersResult<Vec<SocketAddr>>`    | Get all peers          |
+| RequestPeers   | `()`                  | `PeersResult<Vec<SocketAddr>>`    | Get all peers          |
 
 The handling of these messages is basically just calling the corresponding methods from the
 [`Peers`][peers] library that is implemented by [`peers.rs`][peers].

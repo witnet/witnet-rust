@@ -359,9 +359,9 @@ impl Message for GetRandomPeer {
 }
 
 /// Message to get all the peer addresses from the list
-pub struct GetPeers;
+pub struct RequestPeers;
 
-impl Message for GetPeers {
+impl Message for RequestPeers {
     type Result = PeersSocketAddrsResult;
 }
 
@@ -398,17 +398,17 @@ impl Message for RunConsensus {
 // MESSAGES FROM SESSION
 ////////////////////////////////////////////////////////////////////////////////////////
 
-/// Message to indicate that the session needs to send a SendGetPeers message through the network
+/// Message to indicate that the session needs to send a GetPeers message through the network
 #[derive(Debug)]
-pub struct SendGetPeers;
+pub struct GetPeers;
 
-impl Message for SendGetPeers {
+impl Message for GetPeers {
     type Result = SessionUnitResult;
 }
 
-impl fmt::Display for SendGetPeers {
+impl fmt::Display for GetPeers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SendGetPeers")
+        write!(f, "GetPeers")
     }
 }
 

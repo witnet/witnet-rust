@@ -3,7 +3,8 @@ use log::{debug, error, warn};
 
 use super::PeersManager;
 use crate::actors::messages::{
-    AddPeers, GetPeers, GetRandomPeer, PeersSocketAddrResult, PeersSocketAddrsResult, RemovePeers,
+    AddPeers, GetRandomPeer, PeersSocketAddrResult, PeersSocketAddrsResult, RemovePeers,
+    RequestPeers,
 };
 
 /// Handler for AddPeers message
@@ -52,11 +53,11 @@ impl Handler<GetRandomPeer> for PeersManager {
     }
 }
 
-/// Handler for GetPeers message
-impl Handler<GetPeers> for PeersManager {
+/// Handler for RequestPeers message
+impl Handler<RequestPeers> for PeersManager {
     type Result = PeersSocketAddrsResult;
 
-    fn handle(&mut self, _msg: GetPeers, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _msg: RequestPeers, _: &mut Context<Self>) -> Self::Result {
         debug!("Get all peers");
         self.peers.get_all()
     }

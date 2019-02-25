@@ -28,7 +28,7 @@ use crate::actors::{
     messages::{
         AddNewBlock, AddPeers, AddTransaction, AnnounceItems, Consolidate,
         DiscardExistingInventoryEntries, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem,
-        GetPeers, InventoryExchange, PeerLastEpoch, RequestBlock, SendGetPeers, SendInventoryItem,
+        GetPeers, InventoryExchange, PeerLastEpoch, RequestBlock, RequestPeers, SendInventoryItem,
         SessionUnitResult,
     },
     peers_manager::PeersManager,
@@ -91,8 +91,8 @@ impl StreamHandler<BytesMut, Error> for Session {
                     ////////////////////
                     // PEER DISCOVERY //
                     ////////////////////
-                    // Handle SendGetPeers message
-                    (_, SessionStatus::Consolidated, Command::SendGetPeers(_)) => {
+                    // Handle GetPeers message
+                    (_, SessionStatus::Consolidated, Command::GetPeers(_)) => {
                         peer_discovery_get_peers(self, ctx);
                     }
                     // Handle Peers message
@@ -193,17 +193,14 @@ impl StreamHandler<BytesMut, Error> for Session {
     }
 }
 
-/// Handler for SendGetPeers message (sent by other actors)
-impl Handler<SendGetPeers> for Session {
+/// Handler for GetPeers message (sent by other actors)
+impl Handler<GetPeers> for Session {
     type Result = SessionUnitResult;
 
-    fn handle(&mut self, _msg: SendGetPeers, _: &mut Context<Self>) {
-        debug!(
-            "Sending SendGetPeers message to peer at {:?}",
-            self.remote_addr
-        );
+    fn handle(&mut self, _msg: GetPeers, _: &mut Context<Self>) {
+        debug!("Sending GetPeers message to peer at {:?}", self.remote_addr);
         // Create get peers message
-        let get_peers_msg = WitnetMessage::build_send_get_peers(self.magic_number);
+        let get_peers_msg = WitnetMessage::build_get_peers(self.magic_number);
         // Write get peers message in session
         self.send_message(get_peers_msg);
     }
@@ -357,9 +354,9 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
 
     // Start chain of actions
     peers_manager_addr
-        // Send GetPeer message to PeersManager actor
+        // Send RequestPeers message to PeersManager actor
         // This returns a Request Future, representing an asynchronous message sending process
-        .send(GetPeers)
+        .send(RequestPeers)
         // Convert a normal future into an ActorFuture
         .into_actor(session)
         // Process the response from PeersManager

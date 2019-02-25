@@ -142,12 +142,12 @@ successfully sent.
 
 These are the messages sent by the sessions manager:
 
-| Message              | Destination          | Input type   | Output type                       | Description                                                              |
-| -------------------- | -------------------- | ------------ | --------------------------------- | ------------------------------------------------------------------------ |
-| `GetConfig`          | `ConfigManager`      | `()`         | `Result<Config, io::Error>`       | Request the configuration                                                |
-| `GetRandomPeer`      | `PeersManager`       | `()`         | `PeersResult<Option<SocketAddr>>` | Request the address of a peer                                            |
-| `OutboundTcpConnect` | `ConnectionsManager` | `SocketAddr` | `()`                              | Request a TCP conn to an address                                         |
-| `Anycast<GetPeers>`  | `SessionsManager`    | `()`         | `()`                              | Request to forward a GetPeers message to one randomly selected `Session` |
+| Message                  | Destination          | Input type   | Output type                       | Description                                                                  |
+| ------------------------ | -------------------- | ------------ | --------------------------------- | ---------------------------------------------------------------------------- |
+| `GetConfig`              | `ConfigManager`      | `()`         | `Result<Config, io::Error>`       | Request the configuration                                                    |
+| `GetRandomPeer`          | `PeersManager`       | `()`         | `PeersResult<Option<SocketAddr>>` | Request the address of a peer                                                |
+| `OutboundTcpConnect`     | `ConnectionsManager` | `SocketAddr` | `()`                              | Request a TCP conn to an address                                             |
+| `Anycast<GetPeers>`      | `SessionsManager`    | `()`         | `()`                              | Request to forward a GetPeers message to one randomly selected `Session` |
 
 #### GetConfig
 

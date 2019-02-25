@@ -14,8 +14,8 @@ use crate::actors::{
     chain_manager::ChainManager,
     connections_manager::ConnectionsManager,
     messages::{
-        Anycast, Broadcast, GetRandomPeer, InventoryExchange, OutboundTcpConnect,
-        PeersSocketAddrResult, SendGetPeers, SetNetworkReady,
+        Anycast, Broadcast, GetPeers, GetRandomPeer, InventoryExchange, OutboundTcpConnect,
+        PeersSocketAddrResult, SetNetworkReady,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -104,15 +104,15 @@ impl SessionsManager {
     fn discovery_peers(&self, ctx: &mut Context<Self>, discovery_peers_period: Duration) {
         // Schedule the discovery_peers with a given period
         ctx.run_later(discovery_peers_period, move |act, ctx| {
-            // Send Anycast(SendGetPeers) message
+            // Send Anycast(GetPeers) message
             ctx.notify(Anycast {
-                command: SendGetPeers {},
+                command: GetPeers {},
             });
             act.discovery_peers(ctx, discovery_peers_period);
         });
     }
 
-    /// Method to process peers manager GetPeer response
+    /// Method to process peers manager RequestPeer response
     fn process_get_peer_response(
         &mut self,
         response: Result<PeersSocketAddrResult, MailboxError>,
