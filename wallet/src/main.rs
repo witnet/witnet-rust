@@ -8,6 +8,5 @@ fn main() {
         //.default_format_timestamp(false)
         //.default_format_module_path(false)
         .init();
-    println!("Witnet wallet");
     server::websockets_actix_poc();
 }

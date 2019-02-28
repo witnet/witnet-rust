@@ -10,6 +10,7 @@ use async_jsonrpc_client::Transport;
 use futures::future::Future;
 use jsonrpc_ws_server::jsonrpc_core::{IoHandler, Params, Value};
 use jsonrpc_ws_server::{Server, ServerBuilder};
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
@@ -515,7 +516,7 @@ fn say_hello(
                 Err(err)
             }
             Ok(s) => {
-                println!("(1): JSON-RPC reply: {}", s);
+                debug!("(1): JSON-RPC reply: {}", s);
                 Ok(Value::String(s))
             }
         })
@@ -531,7 +532,7 @@ impl Actor for HiActor {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, _ctx: &mut Self::Context) {
-        println!("HiActor actor has been started!");
+        debug!("HiActor actor has been started!");
     }
 }
 
@@ -552,7 +553,7 @@ impl Handler<Greeting> for HiActor {
     type Result = String;
 
     fn handle(&mut self, msg: Greeting, _ctx: &mut Context<Self>) -> String {
-        println!("Got greeting from {}!", msg.name);
+        debug!("Got greeting from {}!", msg.name);
         format!("Hi, {}!", msg.name)
     }
 }
@@ -581,7 +582,7 @@ pub fn websockets_actix_poc() {
 
     // Because system.run() blocks
     let code = system.run();
-    println!("Done, system exited with code {}", code);
+    info!("Done, system exited with code {}", code);
 }
 
 // JavaScript code to send a request:
@@ -623,7 +624,7 @@ impl Actor for JsonRpcClient {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, _ctx: &mut Self::Context) {
-        println!(
+        debug!(
             "JsonRpcClient actor has been started at address {}",
             self.s.addr()
         );
@@ -656,7 +657,10 @@ impl Handler<JsonRpcMsg> for JsonRpcClient {
     type Result = ResponseActFuture<Self, String, String>;
 
     fn handle(&mut self, msg: JsonRpcMsg, _ctx: &mut Context<Self>) -> Self::Result {
-        println!("Calling {} with params {}", msg.method, msg.params);
+        debug!(
+            "Calling node method {} with params {}",
+            msg.method, msg.params
+        );
         let fut = self
             .s
             .execute(&msg.method, msg.params)
@@ -665,7 +669,7 @@ impl Handler<JsonRpcMsg> for JsonRpcClient {
                 actix::fut::result(match x {
                     Ok(x) => serde_json::to_string(&x).map_err(|e| e.to_string()),
                     Err(e) => {
-                        println!("Error: {}", e);
+                        warn!("Error: {}", e);
                         Err(e.to_string())
                     }
                 })
