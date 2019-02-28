@@ -1,16 +1,17 @@
 //! Websockets JSON-RPC server
 
-use actix::{Actor, ActorFuture, Arbiter, Context, Handler, Message, ResponseActFuture, Supervised, System, SystemRegistry, SystemService, WrapFuture};
+use actix::{
+    Actor, ActorFuture, Context, Handler, Message, ResponseActFuture, Supervised, System,
+    SystemRegistry, SystemService, WrapFuture,
+};
+use async_jsonrpc_client::transports::shared::EventLoopHandle;
+use async_jsonrpc_client::transports::tcp::TcpSocket;
+use async_jsonrpc_client::Transport;
 use futures::future::Future;
 use jsonrpc_ws_server::jsonrpc_core::{IoHandler, Params, Value};
 use jsonrpc_ws_server::{Server, ServerBuilder};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use async_jsonrpc_client::Transport;
-use async_jsonrpc_client::transports::tcp::TcpSocket;
-use async_jsonrpc_client::transports::shared::EventLoopHandle;
-use serde_json::json;
-use async_jsonrpc_client::BatchTransport;
 
 /// Start a WebSockets JSON-RPC server in a new thread and bind to address "addr".
 /// Returns a handle which will close the server when dropped.
@@ -31,15 +32,15 @@ fn start_ws_jsonrpc_server(
     });
     let reg = registry.clone();
     io.add_method("getBlockChain", move |params: Params| {
-        forward_call("getBlockChain",&reg, params.parse())
+        forward_call("getBlockChain", &reg, params.parse())
     });
     let reg = registry.clone();
     io.add_method("inventory", move |params: Params| {
-        forward_call("inventory",&reg, params.parse())
+        forward_call("inventory", &reg, params.parse())
     });
     let reg = registry.clone();
     io.add_method("getOutput", move |params: Params| {
-        forward_call("getOutput",&reg, params.parse())
+        forward_call("getOutput", &reg, params.parse())
     });
     let reg = registry.clone();
     io.add_method("getWalletInfos", move |params: Params| {
@@ -94,7 +95,7 @@ fn start_ws_jsonrpc_server(
     ServerBuilder::new(io).start(addr)
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct LockWalletParams {
     wallet_id: String,
     #[serde(default)] // default to false
@@ -102,12 +103,12 @@ struct LockWalletParams {
 }
 
 fn lock_wallet(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<LockWalletParams>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
     let x = true;
@@ -119,15 +120,15 @@ fn lock_wallet(
 }
 
 fn send_data_request(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<DataRequest>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let x = RadonValue{};
+    let x = RadonValue {};
     Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
         let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
         err.message = e.to_string();
@@ -140,15 +141,15 @@ fn send_data_request(
 struct RadonValue {}
 
 fn run_data_request(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<DataRequest>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let x = RadonValue{};
+    let x = RadonValue {};
     Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
         let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
         err.message = e.to_string();
@@ -197,15 +198,15 @@ struct RADDeliverArgs {
 struct DataRequest {}
 
 fn create_data_request(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<CreateDataRequestParams>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let x = DataRequest{};
+    let x = DataRequest {};
     Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
         let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
         err.message = e.to_string();
@@ -218,15 +219,15 @@ fn create_data_request(
 struct Address {}
 
 fn generate_address(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<()>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let x = Address{};
+    let x = Address {};
     Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
         let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
         err.message = e.to_string();
@@ -234,7 +235,7 @@ fn generate_address(
     })))
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct SendVttParams {
     wallet_id: String,
     to_address: Vec<u8>,
@@ -244,15 +245,15 @@ struct SendVttParams {
 }
 
 fn send_vtt(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<SendVttParams>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let x = Transaction{};
+    let x = Transaction {};
     Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
         let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
         err.message = e.to_string();
@@ -260,7 +261,7 @@ fn send_vtt(
     })))
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct GetTransactionsParams {
     wallet_id: String,
     limit: u32,
@@ -272,12 +273,12 @@ struct GetTransactionsParams {
 struct Transaction {}
 
 fn get_transactions(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<GetTransactionsParams>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
     let x: Vec<Transaction> = vec![];
@@ -295,12 +296,12 @@ struct UnlockWalletParams {
 }
 
 fn unlock_wallet(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<UnlockWalletParams>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
     let x = Wallet::for_test();
@@ -325,11 +326,14 @@ impl Wallet {
     fn for_test() -> Self {
         Wallet {
             version: 0,
-            info: WalletInfo { id: "".to_string(), caption: "".to_string() },
+            info: WalletInfo {
+                id: "".to_string(),
+                caption: "".to_string(),
+            },
             seed: SeedInfo::Wip3(Seed(vec![])),
             epochs: EpochsInfo { last: 0, born: 0 },
             purpose: DerivationPath(format!("m/44'/60'/0'/0")),
-            accounts: vec![]
+            accounts: vec![],
         }
     }
 }
@@ -371,19 +375,19 @@ enum KeyChain {
     RadKeyChain,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct CreateWalletParams {
     name: String,
     password: String,
 }
 
 fn create_wallet(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<CreateWalletParams>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
     let x = Wallet::for_test();
@@ -402,12 +406,12 @@ enum ImportSeedParams {
 }
 
 fn import_seed(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<ImportSeedParams>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
     let x = true;
@@ -423,22 +427,21 @@ fn import_seed(
 struct Mnemonics {}
 
 fn create_mnemonics(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<()>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let x = Mnemonics{};
+    let x = Mnemonics {};
     Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
         let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
         err.message = e.to_string();
         err
     })))
 }
-
 
 #[derive(Debug, Deserialize, Serialize)]
 struct WalletInfo {
@@ -447,12 +450,12 @@ struct WalletInfo {
 }
 
 fn get_wallet_infos(
-    registry: &SystemRegistry,
+    _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<()>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let params = match params {
+    let _params = match params {
         Ok(x) => x,
-        Err(e) => return Box::new(futures::failed(e))
+        Err(e) => return Box::new(futures::failed(e)),
     };
 
     let x: Vec<WalletInfo> = vec![];
@@ -464,7 +467,11 @@ fn get_wallet_infos(
 }
 
 /// Forwards a JSON-RPC call to the node
-fn forward_call(method: &str, registry: &SystemRegistry, params: jsonrpc_ws_server::jsonrpc_core::Result<Value>) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
+fn forward_call(
+    method: &str,
+    registry: &SystemRegistry,
+    params: jsonrpc_ws_server::jsonrpc_core::Result<Value>,
+) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
     registry
         .get::<JsonRpcClient>()
         .send(JsonRpcMsg::new(method, params.unwrap_or(Value::Null)))
@@ -473,19 +480,15 @@ fn forward_call(method: &str, registry: &SystemRegistry, params: jsonrpc_ws_serv
                 let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
                 err.message = e.to_string();
                 Err(err)
-            },
-            Ok(s) => {
-                match s {
-                    Ok(s) => {
-                        Ok(Value::from(s))
-                    }
-                    Err(e) => {
-                        let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
-                        err.message = e;
-                        Err(err)
-                    }
-                }
             }
+            Ok(s) => match s {
+                Ok(s) => Ok(Value::from(s)),
+                Err(e) => {
+                    let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
+                    err.message = e;
+                    Err(err)
+                }
+            },
         })
 }
 
@@ -510,7 +513,7 @@ fn say_hello(
                 let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
                 err.message = e.to_string();
                 Err(err)
-            },
+            }
             Ok(s) => {
                 println!("(1): JSON-RPC reply: {}", s);
                 Ok(Value::String(s))
@@ -595,6 +598,7 @@ socket.addEventListener('open', function (event) {
 
 */
 
+#[derive(Debug)]
 struct JsonRpcClient {
     handle: EventLoopHandle,
     s: TcpSocket,
@@ -603,10 +607,7 @@ struct JsonRpcClient {
 impl JsonRpcClient {
     fn new(url: &str) -> Self {
         let (handle, s) = TcpSocket::new(url).unwrap();
-        Self {
-            handle,
-            s,
-        }
+        Self { handle, s }
     }
 }
 
@@ -622,15 +623,16 @@ impl Actor for JsonRpcClient {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, _ctx: &mut Self::Context) {
-        println!("JsonRpcClient actor has been started at address {}", self.s.addr());
+        println!(
+            "JsonRpcClient actor has been started at address {}",
+            self.s.addr()
+        );
     }
 }
 
 /// Required traits for being able to retrieve actor address from registry
 impl Supervised for JsonRpcClient {}
 impl SystemService for JsonRpcClient {}
-
-
 
 struct JsonRpcMsg {
     method: String,
@@ -655,13 +657,19 @@ impl Handler<JsonRpcMsg> for JsonRpcClient {
 
     fn handle(&mut self, msg: JsonRpcMsg, _ctx: &mut Context<Self>) -> Self::Result {
         println!("Calling {} with params {}", msg.method, msg.params);
-        let fut = self.s.execute(&msg.method, msg.params).into_actor(self).then(|x, act, ctx| actix::fut::result(match x {
-            Ok(x) => serde_json::to_string(&x).map_err(|e| e.to_string()),
-            Err(e) => {
-                println!("Error: {}", e);
-                Err(e.to_string())
-            },
-        }));
+        let fut = self
+            .s
+            .execute(&msg.method, msg.params)
+            .into_actor(self)
+            .then(|x, _act, _ctx| {
+                actix::fut::result(match x {
+                    Ok(x) => serde_json::to_string(&x).map_err(|e| e.to_string()),
+                    Err(e) => {
+                        println!("Error: {}", e);
+                        Err(e.to_string())
+                    }
+                })
+            });
 
         Box::new(fut)
     }
