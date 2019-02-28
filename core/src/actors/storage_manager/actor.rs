@@ -1,9 +1,7 @@
-use actix::{Actor, ActorContext, Context};
-use log::{debug, error};
-
-use crate::actors::config_manager::send_get_config_request;
-
 use super::StorageManager;
+use crate::config_mngr;
+use actix::prelude::*;
+use log::{debug, error};
 
 /// Make actor from `StorageManager`
 impl Actor for StorageManager {
@@ -15,19 +13,25 @@ impl Actor for StorageManager {
         debug!("Storage Manager actor has been started!");
 
         // Send message to config manager and process response
-        send_get_config_request(self, ctx, |s, ctx, config| {
-            // Get db path from configuration
-            let db_path = &config.storage.db_path;
+        config_mngr::get()
+            .into_actor(self)
+            .and_then(|config, actor, ctx| {
+                // Get db path from configuration
+                let db_path = &config.storage.db_path;
 
-            // Override actor
-            *s = Self::new(&db_path.to_string_lossy());
+                // Override actor
+                *actor = Self::new(&db_path.to_string_lossy());
 
-            // Stop context if the storage is not properly initialized
-            // FIXME(#72): check error handling
-            if s.storage.is_none() {
-                error!("Error initializing storage");
-                ctx.stop();
-            }
-        });
+                // Stop context if the storage is not properly initialized
+                // FIXME(#72): check error handling
+                if actor.storage.is_none() {
+                    error!("Error initializing storage");
+                    ctx.stop();
+                }
+
+                fut::ok(())
+            })
+            .map_err(|err, _, _| log::error!("Storage initialization failed: {}", err))
+            .wait(ctx);
     }
 }

@@ -5,14 +5,11 @@ use std::{
     borrow::Cow,
     fmt,
     fmt::Debug,
-    io,
     marker::{PhantomData, Send},
     net::SocketAddr,
     ops::{Bound, RangeBounds},
-    sync::Arc,
 };
 
-use witnet_config::config::Config;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, InventoryItem, Output, OutputPointer,
@@ -168,21 +165,6 @@ impl Message for GetOutput {
 pub struct PeerLastEpoch {
     /// A beacon from another peer
     pub epoch: Epoch,
-}
-
-////////////////////////////////////////////////////////////////////////////////////////
-// MESSAGES FROM CONFIG MANAGER
-////////////////////////////////////////////////////////////////////////////////////////
-
-/// Message to obtain the configuration managed by the `ConfigManager`
-/// actor.
-pub struct GetConfig;
-
-/// Result of the GetConfig message handling
-pub type ConfigResult = Result<Arc<Config>, io::Error>;
-
-impl Message for GetConfig {
-    type Result = ConfigResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

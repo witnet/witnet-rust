@@ -1,4 +1,5 @@
-use actix::{Actor, AsyncContext, Context, Recipient, SystemService};
+use actix::prelude::*;
+// use actix::{Actor, AsyncContext, Context, Recipient, SystemService};
 
 use ansi_term::Color::Purple;
 
@@ -6,11 +7,11 @@ use log::{debug, error, info, warn};
 
 use std::{collections::BTreeMap, time::Duration};
 
-use witnet_config::config::Config;
 use witnet_data_structures::chain::Epoch;
 use witnet_util::timestamp::{get_timestamp, get_timestamp_nanos};
 
 use crate::actors::messages::{EpochNotification, EpochResult};
+use crate::config_mngr;
 
 mod actor;
 mod handlers;
@@ -109,17 +110,27 @@ impl EpochManager {
         }
     }
     /// Method to process the configuration received from the config manager
-    fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
-        self.set_checkpoint_zero(config.consensus_constants.checkpoint_zero_timestamp);
-        self.set_period(config.consensus_constants.checkpoints_period);
-        info!(
-            "Checkpoint zero timestamp: {}, checkpoints period: {}",
-            self.checkpoint_zero_timestamp.unwrap(),
-            self.checkpoints_period.unwrap()
-        );
+    fn process_config(&mut self, ctx: &mut <Self as Actor>::Context) {
+        config_mngr::get()
+            .into_actor(self)
+            .and_then(|config, actor, ctx| {
+                actor.set_checkpoint_zero(config.consensus_constants.checkpoint_zero_timestamp);
+                actor.set_period(config.consensus_constants.checkpoints_period);
+                info!(
+                    "Checkpoint zero timestamp: {}, checkpoints period: {}",
+                    actor.checkpoint_zero_timestamp.unwrap(),
+                    actor.checkpoints_period.unwrap()
+                );
 
-        // Start checkpoint monitoring process
-        self.checkpoint_monitor(ctx);
+                // Start checkpoint monitoring process
+                actor.checkpoint_monitor(ctx);
+
+                fut::ok(())
+            })
+            .map_err(|err, _, _| {
+                log::error!("Couldn't process config: {}", err);
+            })
+            .spawn(ctx);
     }
     /// Method to compute time remaining to next checkpoint
     fn time_to_next_checkpoint(&self) -> EpochResult<Duration> {

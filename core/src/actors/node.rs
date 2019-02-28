@@ -1,17 +1,19 @@
 use std::{io, path::PathBuf, process::exit, result::Result};
 
 use actix::{Actor, System};
+use futures::future::Future;
 use log::info;
 
 use crate::actors::{
-    chain_manager::ChainManager, config_manager::ConfigManager,
-    connections_manager::ConnectionsManager, epoch_manager::EpochManager,
-    inventory_manager::InventoryManager, json_rpc::JsonRpcServer, peers_manager::PeersManager,
-    rad_manager::RadManager, sessions_manager::SessionsManager, storage_manager::StorageManager,
+    chain_manager::ChainManager, connections_manager::ConnectionsManager,
+    epoch_manager::EpochManager, inventory_manager::InventoryManager, json_rpc::JsonRpcServer,
+    peers_manager::PeersManager, rad_manager::RadManager, sessions_manager::SessionsManager,
+    storage_manager::StorageManager,
 };
+use crate::config_mngr;
 
 /// Function to run the main system
-pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
+pub fn run(config_filename: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     // Init system
     let system = System::new("node");
 
@@ -19,8 +21,12 @@ pub fn run(config: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
     callback();
 
     // Start ConfigManager actor
-    let config_manager_addr = ConfigManager::new(config).start();
-    System::current().registry().set(config_manager_addr);
+    config_mngr::start();
+    if let Some(filename) = config_filename {
+        actix::Arbiter::spawn(
+            config_mngr::load_from_file(filename).map_err(|_| System::current().stop()),
+        );
+    }
 
     // Start StorageManager actor
     let storage_manager_addr = StorageManager::default().start();

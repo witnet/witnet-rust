@@ -1,7 +1,8 @@
-use actix::{
-    io::FramedWrite, Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message,
-    StreamHandler,
-};
+use actix::prelude::*;
+// use actix::{
+//     io::FramedWrite, Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message,
+//     StreamHandler,
+// };
 use tokio::{
     codec::FramedRead,
     io::AsyncRead,
@@ -13,12 +14,11 @@ use jsonrpc_core::IoHandler;
 use log::*;
 use std::{collections::HashSet, net::SocketAddr, rc::Rc};
 
-use witnet_config::config::Config;
-
 use super::{
     connection::JsonRpc, json_rpc_methods::jsonrpc_io_handler, newline_codec::NewLineCodec,
 };
-use crate::actors::{config_manager::send_get_config_request, messages::InboundTcpConnect};
+use crate::actors::messages::InboundTcpConnect;
+use crate::config_mngr;
 
 /// JSON RPC server
 #[derive(Default)]
@@ -34,45 +34,53 @@ pub struct JsonRpcServer {
 
 impl JsonRpcServer {
     /// Method to process the configuration received from ConfigManager
-    fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
-        let enabled = config.jsonrpc.enabled;
+    fn process_config(&mut self, ctx: &mut <Self as Actor>::Context) {
+        config_mngr::get()
+            .into_actor(self)
+            .and_then(|config, actor, ctx| {
+                let enabled = config.jsonrpc.enabled;
 
-        // Do not start the server if enabled = false
-        if !enabled {
-            debug!("JSON-RPC interface explicitly disabled by configuration.");
-            ctx.stop();
-            return;
-        }
+                // Do not start the server if enabled = false
+                if !enabled {
+                    debug!("JSON-RPC interface explicitly disabled by configuration.");
+                    ctx.stop();
+                    return fut::ok(());
+                }
 
-        debug!("Starting JSON-RPC interface.");
-        let server_addr = config.jsonrpc.server_address;
-        self.server_addr = Some(server_addr);
-        // Create and store the JSON-RPC method handler
-        let jsonrpc_io = jsonrpc_io_handler();
-        self.jsonrpc_io = Some(Rc::new(jsonrpc_io));
+                debug!("Starting JSON-RPC interface.");
+                let server_addr = config.jsonrpc.server_address;
+                actor.server_addr = Some(server_addr);
+                // Create and store the JSON-RPC method handler
+                let jsonrpc_io = jsonrpc_io_handler();
+                actor.jsonrpc_io = Some(Rc::new(jsonrpc_io));
 
-        // Bind TCP listener to this address
-        // FIXME(#176): running `yes | nc 127.0.0.1 1234` freezes the entire actor system
-        let listener = match TcpListener::bind(&server_addr) {
-            Ok(listener) => listener,
-            Err(e) => {
-                // Shutdown the entire system on error
-                // For example, when the server_addr is already in use
-                // FIXME(#72): gracefully stop the system?
-                error!("Could not start JSON-RPC server: {:?}", e);
-                panic!("Could not start JSON-RPC server: {:?}", e);
-            }
-        };
+                // Bind TCP listener to this address
+                // FIXME(#176): running `yes | nc 127.0.0.1 1234` freezes the entire actor system
+                let listener = match TcpListener::bind(&server_addr) {
+                    Ok(listener) => listener,
+                    Err(e) => {
+                        // Shutdown the entire system on error
+                        // For example, when the server_addr is already in use
+                        // FIXME(#72): gracefully stop the system?
+                        error!("Could not start JSON-RPC server: {:?}", e);
+                        panic!("Could not start JSON-RPC server: {:?}", e);
+                    }
+                };
 
-        // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
-        ctx.add_message_stream(
-            listener
-                .incoming()
-                .map_err(|_| ())
-                .map(InboundTcpConnect::new),
-        );
+                // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
+                ctx.add_message_stream(
+                    listener
+                        .incoming()
+                        .map_err(|_| ())
+                        .map(InboundTcpConnect::new),
+                );
 
-        debug!("JSON-RPC interface is now running at {}", server_addr);
+                debug!("JSON-RPC interface is now running at {}", server_addr);
+
+                fut::ok(())
+            })
+            .map_err(|err, _, _| log::error!("JsonRpcServer config failed: {}", err))
+            .spawn(ctx);
     }
 
     fn add_connection(&mut self, parent: Addr<JsonRpcServer>, stream: TcpStream) {
@@ -89,7 +97,7 @@ impl JsonRpcServer {
             let (r, w) = stream.split();
             JsonRpc::add_stream(FramedRead::new(r, NewLineCodec), ctx);
             JsonRpc {
-                framed: FramedWrite::new(w, NewLineCodec, ctx),
+                framed: io::FramedWrite::new(w, NewLineCodec, ctx),
                 parent,
                 jsonrpc_io,
             }
@@ -110,7 +118,7 @@ impl Actor for JsonRpcServer {
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
         // Send message to config manager and process its response
-        send_get_config_request(self, ctx, JsonRpcServer::process_config);
+        self.process_config(ctx);
     }
 }
 

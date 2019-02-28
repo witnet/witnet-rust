@@ -1,4 +1,5 @@
-use actix::{Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, System, WrapFuture};
+// use actix::{Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, System, WrapFuture};
+use actix::prelude::*;
 
 use super::{
     data_request::DataRequestPool,
@@ -6,16 +7,17 @@ use super::{
     ChainManager,
 };
 use crate::actors::{
-    config_manager::send_get_config_request,
     epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
     messages::{Get, GetEpoch, Subscribe},
     storage_keys::CHAIN_STATE_KEY,
     storage_manager::StorageManager,
 };
+use crate::config_mngr;
 
 use witnet_data_structures::chain::{
     ActiveDataRequestPool, Blockchain, ChainInfo, ChainState, CheckpointBeacon, UnspentOutputsPool,
 };
+
 use witnet_util::timestamp::{get_timestamp_nanos, pretty_print};
 
 use log::{debug, error, warn};
@@ -46,8 +48,7 @@ impl ChainManager {
     /// Get configuration from ConfigManager and try to initialize ChainManager state from Storage
     /// (initialize to Default values if empty)
     fn initialize_from_storage(&mut self, ctx: &mut Context<ChainManager>) {
-        // Query ConfigManager for initial configuration and process response
-        send_get_config_request(self, ctx, |act, ctx, config| {
+        config_mngr::get().into_actor(self).and_then(|config, act, ctx| {
             // Get environment and consensus_constants parameters from config
             let environment = (&config.environment).clone();
             let consensus_constants = (&config.consensus_constants).clone();
@@ -60,10 +61,10 @@ impl ChainManager {
             // Get StorageManager actor address
             let storage_manager_addr = System::current().registry().get::<StorageManager>();
             storage_manager_addr
-                // Send a message to read the chain_info from the storage
+            // Send a message to read the chain_info from the storage
                 .send(Get::<ChainState>::new(CHAIN_STATE_KEY))
                 .into_actor(act)
-                // Process the response
+            // Process the response
                 .then(|res, _act, _ctx| match res {
                     Err(e) => {
                         // Error when sending message
@@ -83,10 +84,10 @@ impl ChainManager {
                     // chain_info_from_storage can be None if the storage does not contain that key
                     if chain_state_from_storage.is_some()
                         && chain_state_from_storage
-                            .as_ref()
-                            .unwrap()
-                            .chain_info
-                            .is_some()
+                        .as_ref()
+                        .unwrap()
+                        .chain_info
+                        .is_some()
                     {
                         let chain_state_from_storage = chain_state_from_storage.unwrap();
                         let chain_info_from_storage =
@@ -130,9 +131,9 @@ impl ChainManager {
                                 // Mismatching consensus constants between config and storage
                                 panic!(
                                     "Mismatching consensus constants: tried to run a node using \
-                                 different consensus constants than the ones that were used when \
-                                 the local chain was initialized.\nNode constants: {:#?}\nChain \
-                                 constants: {:#?}",
+                                     different consensus constants than the ones that were used when \
+                                     the local chain was initialized.\nNode constants: {:#?}\nChain \
+                                     constants: {:#?}",
                                     consensus_constants, chain_info_from_storage.consensus_constants
                                 );
                             }
@@ -182,7 +183,11 @@ impl ChainManager {
             } else {
                 debug!("Mining explicitly disabled by configuration.");
             }
-        });
+
+            fut::ok(())
+        }).map_err(|err,_,_| {
+            log::error!("Couldn't initialize from storage: {}", err);
+        }).spawn(ctx);
     }
 
     /// Get epoch from EpochManager and subscribe to future epochs

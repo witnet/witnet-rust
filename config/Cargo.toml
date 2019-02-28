@@ -18,6 +18,3 @@ version = "1.0.88"
 
 [dependencies.witnet_data_structures]
 path = "../data_structures"
-
-[dependencies.witnet_util]
-path = "../util"

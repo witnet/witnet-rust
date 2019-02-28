@@ -2,11 +2,9 @@
 
 use crate::config::PartialConfig;
 use failure::Fail;
-use std::fmt;
 use std::io;
 use std::path::Path;
 use toml;
-use witnet_util::error::{WitnetError, WitnetResult};
 
 #[cfg(test)]
 use std::cell::Cell;
@@ -15,34 +13,20 @@ use std::cell::Cell;
 /// might also fail with a `std::io::Error`.
 #[derive(Debug, Fail)]
 pub enum Error {
-    /// Indicates there was an error when trying to load configuration from a file.
+    /// There was an error when trying to load configuration from a file.
+    #[fail(display = "Error reading config file: {}", _0)]
     IOError(io::Error),
     /// Indicates there was an error when trying to build a
     /// `witnet_config::config::PartialConfig` instance out of the Toml string given.
+    #[fail(display = "Error parsing config file: {}", _0)]
     ParseError(toml::de::Error),
 }
 
-/// Formats the error in a user-friendly manners. Suitable for telling
-/// the user what error happened when loading/parsing the
-/// configuration.
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::IOError(e) => e.fmt(f),
-            Error::ParseError(e) => e.fmt(f),
-        }
-    }
-}
-
-/// Just like `std::result::Result` but withe error param fixed to
-/// `Error` type in this module.
-pub type Result<T> = WitnetResult<T, Error>;
-
 /// Load configuration from a file written in Toml format.
-pub fn from_file(file: &Path) -> Result<PartialConfig> {
+pub fn from_file(file: &Path) -> Result<PartialConfig, Error> {
     let mut contents = String::new();
     read_file_contents(file, &mut contents).map_err(Error::IOError)?;
-    from_str(&contents)
+    from_str(&contents).map_err(Error::ParseError)
 }
 
 #[cfg(not(test))]
@@ -52,6 +36,11 @@ fn read_file_contents(file: &Path, contents: &mut String) -> io::Result<usize> {
 
     let mut file = File::open(file)?;
     file.read_to_string(contents)
+}
+
+/// Load configuration from a string written in Toml format.
+pub fn from_str(contents: &str) -> Result<PartialConfig, toml::de::Error> {
+    toml::from_str(contents)
 }
 
 #[cfg(test)]
@@ -64,11 +53,6 @@ fn read_file_contents(_filename: &Path, contents: &mut String) -> io::Result<usi
         contents.insert_str(0, value);
         Ok(value.len())
     })
-}
-
-/// Load configuration from a string written in Toml format.
-pub fn from_str(contents: &str) -> Result<PartialConfig> {
-    toml::from_str(contents).map_err(|e| WitnetError::from(Error::ParseError(e)))
 }
 
 #[cfg(test)]

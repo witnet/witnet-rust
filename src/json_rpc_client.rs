@@ -11,7 +11,6 @@ use std::{
 };
 use witnet_config::config::Config;
 use witnet_config::loaders::toml;
-use witnet_core::actors::config_manager::CONFIG_DEFAULT_FILENAME;
 use witnet_data_structures::chain::OutputPointer;
 
 pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), failure::Error> {
@@ -148,7 +147,7 @@ impl fmt::Display for ProtocolError {
 }
 
 fn start_client(config_path: Option<PathBuf>) -> Result<TcpStream, failure::Error> {
-    let config_file = config_path.unwrap_or_else(|| PathBuf::from(CONFIG_DEFAULT_FILENAME));
+    let config_file = config_path.unwrap_or_else(|| PathBuf::from("witnet.toml"));
     let config = Config::from_partial(&toml::from_file(&config_file)?);
     if !config.jsonrpc.enabled {
         return Err(ServerDisabled.into());

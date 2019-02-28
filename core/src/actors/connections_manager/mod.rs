@@ -1,15 +1,15 @@
-use actix::{fut::FutureResult, Actor, AsyncContext, MailboxError, System, SystemService};
+use actix::prelude::*;
 use futures::Stream;
-use log::{debug, error, info, warn};
+use log;
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::actors::{
-    config_manager::send_get_config_request,
     messages::{Create, InboundTcpConnect, ResolverResult},
     sessions_manager::SessionsManager,
 };
 
-use witnet_config::config::Config;
+use crate::config_mngr;
+
 use witnet_p2p::sessions::SessionType;
 
 mod actor;
@@ -27,12 +27,54 @@ impl SystemService for ConnectionsManager {}
 
 /// Auxiliary methods for ConnectionsManager actor
 impl ConnectionsManager {
-    /// Method to start a server
     fn start_server(&mut self, ctx: &mut <Self as Actor>::Context) {
-        debug!("Trying to start P2P server...");
+        config_mngr::get()
+            .into_actor(self)
+            .and_then(|config, _, ctx| {
+                // Bind TCP listener to this address
+                // FIXME(#72): decide what to do with actor when server cannot be started
+                let listener = TcpListener::bind(&config.connections.server_addr).unwrap();
 
-        // Send message to ConfigManager and process response
-        send_get_config_request(self, ctx, ConnectionsManager::process_config);
+                ctx.add_message_stream(
+                    listener
+                        .incoming()
+                        .map_err(|err| {
+                            log::error!("Error incoming listener: {}", err);
+                        })
+                        .map(InboundTcpConnect::new),
+                );
+
+                log::info!(
+                    "P2P server has been started at {:?}",
+                    &config.connections.server_addr
+                );
+
+                fut::ok(())
+            })
+            .map_err(|err, _, _| log::error!("P2P server failed to start: {}", err))
+            .spawn(ctx);
+
+        // ctx.spawn(server);
+        // /// Method to process the configuration received from the ConfigManager
+        // fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
+        //     // Bind TCP listener to this address
+        //     // FIXME(#72): decide what to do with actor when server cannot be started
+        //     let listener = TcpListener::bind(&config.connections.server_addr).unwrap();
+
+        //     // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
+        //     ctx.add_message_stream(
+        //         listener
+        //             .incoming()
+        //             .map_err(|_| ())
+        //             .map(InboundTcpConnect::new),
+        //     );
+
+        //     info!(
+        //         "P2P server has been started at {:?}",
+        //         &config.connections.server_addr
+        //     );
+        // }
+        // send_get_config_request(self, ctx, ConnectionsManager::process_config);
     }
 
     /// Method to request the creation of a session actor from a TCP stream
@@ -50,25 +92,27 @@ impl ConnectionsManager {
     /// Method to process resolver ConnectAddr response
     fn process_connect_addr_response(
         response: Result<ResolverResult, MailboxError>,
-    ) -> FutureResult<(), (), Self> {
+    ) -> actix::fut::FutureResult<(), (), Self> {
         // Process the Result<ResolverResult, MailboxError>
         match response {
             Err(error) => {
-                error!("Unsuccessful communication with resolver: {}", error);
+                log::error!("Unsuccessful communication with resolver: {}", error);
                 actix::fut::err(())
             }
             Ok(res) => {
                 // Process the ResolverResult
                 match res {
                     Err(error) => {
-                        warn!("Failed to connect to a peer with error: {:?}", error);
+                        log::warn!("Failed to connect to a peer with error: {:?}", error);
                         actix::fut::err(())
                     }
                     Ok(stream) => {
                         stream
                             .peer_addr()
-                            .map(|ip| debug!("Connected to peer {:?}", ip))
-                            .unwrap_or_else(|err| error!("Peer address error in stream: {}", err));
+                            .map(|ip| log::debug!("Connected to peer {:?}", ip))
+                            .unwrap_or_else(|err| {
+                                log::error!("Peer address error in stream: {}", err)
+                            });
 
                         // Request the creation of a new session actor from connection
                         ConnectionsManager::request_session_creation(stream, SessionType::Outbound);
@@ -78,25 +122,5 @@ impl ConnectionsManager {
                 }
             }
         }
-    }
-
-    /// Method to process the configuration received from the ConfigManager
-    fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
-        // Bind TCP listener to this address
-        // FIXME(#72): decide what to do with actor when server cannot be started
-        let listener = TcpListener::bind(&config.connections.server_addr).unwrap();
-
-        // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
-        ctx.add_message_stream(
-            listener
-                .incoming()
-                .map_err(|_| ())
-                .map(InboundTcpConnect::new),
-        );
-
-        info!(
-            "P2P server has been started at {:?}",
-            &config.connections.server_addr
-        );
     }
 }
