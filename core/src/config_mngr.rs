@@ -95,7 +95,7 @@ impl actix::Handler<Load> for ConfigManager {
     fn handle(&mut self, Load(source): Load, _ctx: &mut Self::Context) -> Self::Result {
         self.load_config(&source)
             .map(|r| {
-                log::debug!("Loaded new configuration from source: {:?}", source);
+                log::info!("Loaded new configuration from source: {:?}", source);
                 r
             })
             .map_err(|e| {

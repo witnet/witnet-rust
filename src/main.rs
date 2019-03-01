@@ -7,7 +7,7 @@
 use std::process::exit;
 use std::result::Result;
 
-use env_logger::Builder;
+use env_logger;
 use failure;
 use structopt::StructOpt;
 
@@ -17,12 +17,7 @@ mod cli;
 mod json_rpc_client;
 
 fn main() {
-    // Init app logger
-    Builder::from_default_env()
-        // Remove comments to sprint demo
-        //.default_format_timestamp(false)
-        //.default_format_module_path(false)
-        .init();
+    init_logger();
 
     if let Err(e) = run() {
         eprintln!("Error: {}", e);
@@ -37,4 +32,11 @@ fn run() -> Result<(), failure::Error> {
     let cli_args = cli::Cli::from_args();
     cli::exec(cli_args.cmd)?;
     Ok(())
+}
+
+fn init_logger() {
+    let env = env_logger::Env::default().default_filter_or("info");
+    let mut logger = env_logger::Builder::from_env(env);
+
+    logger.init();
 }
