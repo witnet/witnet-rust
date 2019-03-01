@@ -18,6 +18,7 @@ travis-ci = { repository = "https://github.com/witnet/witnet-rust", branch = "ma
 
 [dependencies]
 bytecount = "0.5.1"
+directories = "*"
 ctrlc = "3.1.1"
 env_logger = "0.6.0"
 failure = "0.1.5"

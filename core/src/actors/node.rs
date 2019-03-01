@@ -1,6 +1,7 @@
-use std::{io, path::PathBuf, process::exit, result::Result};
+use std::{path::PathBuf, process::exit, result::Result};
 
 use actix::{Actor, System};
+use failure;
 use futures::future::Future;
 use log::info;
 
@@ -13,7 +14,11 @@ use crate::actors::{
 use crate::config_mngr;
 
 /// Function to run the main system
-pub fn run(config_filename: Option<PathBuf>, callback: fn()) -> Result<(), io::Error> {
+pub fn run(
+    config: Option<PathBuf>,
+    fallback_config: Option<PathBuf>,
+    callback: fn(),
+) -> Result<(), failure::Error> {
     // Init system
     let system = System::new("node");
 
@@ -22,10 +27,14 @@ pub fn run(config_filename: Option<PathBuf>, callback: fn()) -> Result<(), io::E
 
     // Start ConfigManager actor
     config_mngr::start();
-    if let Some(filename) = config_filename {
-        actix::Arbiter::spawn(
+    match (config, fallback_config) {
+        (Some(filename), _) => actix::Arbiter::spawn(
             config_mngr::load_from_file(filename).map_err(|_| System::current().stop()),
-        );
+        ),
+        (_, Some(filename)) => {
+            actix::Arbiter::spawn(config_mngr::load_from_file(filename).map_err(|_| ()))
+        }
+        _ => (),
     }
 
     // Start StorageManager actor

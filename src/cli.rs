@@ -4,15 +4,17 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 #![deny(missing_docs)]
-
-use crate::core::actors;
-use ctrlc;
-use failure;
-
-use super::json_rpc_client;
+use std::env;
 use std::path::PathBuf;
 use std::result::Result;
+
+use ctrlc;
+use directories;
+use failure;
 use structopt::StructOpt;
+
+use super::json_rpc_client;
+use crate::core::actors;
 
 /// Witnet network
 #[derive(Debug, StructOpt)]
@@ -115,7 +117,8 @@ pub(crate) enum CliCommand {
 pub(crate) fn exec(command: Command) -> Result<(), failure::Error> {
     match command {
         Command::Node { config } => {
-            actors::node::run(config, || {
+            let fallback_config = find_config_file();
+            actors::node::run(config, fallback_config, || {
                 // FIXME(#72): decide what to do when interrupt signals are received
                 ctrlc::set_handler(move || {
                     actors::node::close();
@@ -128,4 +131,28 @@ pub(crate) fn exec(command: Command) -> Result<(), failure::Error> {
         }
     }
     Ok(())
+}
+
+/// Tries to find a config file in the current working directory or in
+/// the platform-specific user-accessible config location
+/// (e.g.: `~/.config/witnet/witnet.toml` in Linux)
+fn find_config_file() -> Option<PathBuf> {
+    let mut config_dirs = Vec::with_capacity(2);
+
+    if let Ok(cwd) = env::current_dir() {
+        config_dirs.push(cwd);
+    }
+
+    if let Some(dirs) = directories::ProjectDirs::from("io", "witnet", "witnet") {
+        config_dirs.push(dirs.config_dir().into());
+    }
+
+    for path in config_dirs {
+        let config_path = path.join("witnet.toml");
+        if config_path.exists() {
+            return Some(config_path);
+        }
+    }
+
+    None
 }
