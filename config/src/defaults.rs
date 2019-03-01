@@ -150,9 +150,13 @@ impl Defaults for Testnet1 {
         PathBuf::from(".witnet-rust-testnet-1")
     }
 
+    fn connections_bootstrap_peers_period(&self) -> Duration {
+        Duration::from_secs(15)
+    }
+
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
         // A point far in the future, so the `EpochManager` will return an error
         // `EpochZeroInTheFuture`
-        9_999_999_999_999
+        1_548_855_420
     }
 }
