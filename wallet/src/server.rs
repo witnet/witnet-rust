@@ -14,6 +14,24 @@ use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
+// Helper macro to add multiple JSON-RPC methods at once
+macro_rules! add_methods {
+    // No args: do nothing
+    ($io:expr, $reg:expr $(,)*) => {};
+    // add_methods!(io, reg, ("getBlockChain", get_block_chain))
+    ($io:expr, $reg:expr, ($method_jsonrpc:expr, $method_rust:expr $(,)*), $($args:tt)*) => {
+        // Base case:
+        {
+            let reg = $reg.clone();
+            $io.add_method($method_jsonrpc, move |params: Params| {
+                $method_rust(&reg, params.parse())
+            });
+        }
+        // Recursion!
+        add_methods!($io, $reg, $($args)*);
+    };
+}
+
 /// Start a WebSockets JSON-RPC server in a new thread and bind to address "addr".
 /// Returns a handle which will close the server when dropped.
 ///
@@ -27,70 +45,27 @@ fn start_ws_jsonrpc_server(
 ) -> Result<Server, jsonrpc_ws_server::Error> {
     // JSON-RPC supported methods
     let mut io = IoHandler::new();
-    let reg = registry.clone();
-    io.add_method("say_hello", move |params: Params| {
-        say_hello(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("getBlockChain", move |params: Params| {
-        forward_call("getBlockChain", &reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("inventory", move |params: Params| {
-        forward_call("inventory", &reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("getOutput", move |params: Params| {
-        forward_call("getOutput", &reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("getWalletInfos", move |params: Params| {
-        get_wallet_infos(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("createMnemonics", move |params: Params| {
-        create_mnemonics(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("importSeed", move |params: Params| {
-        import_seed(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("createWallet", move |params: Params| {
-        create_wallet(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("unlockWallet", move |params: Params| {
-        unlock_wallet(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("getTransactions", move |params: Params| {
-        get_transactions(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("sendVTT", move |params: Params| {
-        send_vtt(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("generateAddress", move |params: Params| {
-        generate_address(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("createDataRequest", move |params: Params| {
-        create_data_request(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("runDataRequest", move |params: Params| {
-        run_data_request(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("sendDataRequest", move |params: Params| {
-        send_data_request(&reg, params.parse())
-    });
-    let reg = registry.clone();
-    io.add_method("lockWallet", move |params: Params| {
-        lock_wallet(&reg, params.parse())
-    });
+
+    add_methods!(
+        io,
+        registry,
+        ("say_hello", say_hello),
+        ("getBlockChain", |r, p| forward_call("getBlockChain", r, p)),
+        ("inventory", |r, p| forward_call("inventory", r, p)),
+        ("getOutput", |r, p| forward_call("getOutput", r, p)),
+        ("getWalletInfos", get_wallet_infos),
+        ("createMnemonics", create_mnemonics),
+        ("importSeed", import_seed),
+        ("createWallet", create_wallet),
+        ("unlockWallet", unlock_wallet),
+        ("getTransactions", get_transactions),
+        ("sendVTT", send_vtt),
+        ("generateAddress", generate_address),
+        ("createDataRequest", create_data_request),
+        ("runDataRequest", run_data_request),
+        ("sendDataRequest", send_data_request),
+        ("lockWallet", lock_wallet),
+    );
 
     // Start the WebSockets JSON-RPC server in a new thread and bind to address "addr"
     ServerBuilder::new(io).start(addr)
