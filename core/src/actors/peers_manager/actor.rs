@@ -84,6 +84,6 @@ impl Actor for PeersManager {
                 fut::ok(())
             })
             .map_err(|err, _, _| log::error!("Peer discovery failed: {}", err))
-            .spawn(ctx);
+            .wait(ctx);
     }
 }

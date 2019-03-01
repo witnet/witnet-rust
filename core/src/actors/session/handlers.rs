@@ -131,7 +131,7 @@ impl StreamHandler<BytesMut, Error> for Session {
 
                                 actix::fut::ok(())
                             })
-                            .spawn(ctx);
+                            .wait(ctx);
                     }
                     //////////////////////////
                     // TRANSACTION RECEIVED //

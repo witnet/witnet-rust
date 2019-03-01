@@ -80,7 +80,7 @@ impl JsonRpcServer {
                 fut::ok(())
             })
             .map_err(|err, _, _| log::error!("JsonRpcServer config failed: {}", err))
-            .spawn(ctx);
+            .wait(ctx);
     }
 
     fn add_connection(&mut self, parent: Addr<JsonRpcServer>, stream: TcpStream) {

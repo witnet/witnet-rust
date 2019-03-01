@@ -130,7 +130,7 @@ impl EpochManager {
             .map_err(|err, _, _| {
                 log::error!("Couldn't process config: {}", err);
             })
-            .spawn(ctx);
+            .wait(ctx);
     }
     /// Method to compute time remaining to next checkpoint
     fn time_to_next_checkpoint(&self) -> EpochResult<Duration> {

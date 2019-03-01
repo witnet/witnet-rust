@@ -52,29 +52,7 @@ impl ConnectionsManager {
                 fut::ok(())
             })
             .map_err(|err, _, _| log::error!("P2P server failed to start: {}", err))
-            .spawn(ctx);
-
-        // ctx.spawn(server);
-        // /// Method to process the configuration received from the ConfigManager
-        // fn process_config(&mut self, ctx: &mut <Self as Actor>::Context, config: &Config) {
-        //     // Bind TCP listener to this address
-        //     // FIXME(#72): decide what to do with actor when server cannot be started
-        //     let listener = TcpListener::bind(&config.connections.server_addr).unwrap();
-
-        //     // Add message stream which will return a InboundTcpConnect for each incoming TCP connection
-        //     ctx.add_message_stream(
-        //         listener
-        //             .incoming()
-        //             .map_err(|_| ())
-        //             .map(InboundTcpConnect::new),
-        //     );
-
-        //     info!(
-        //         "P2P server has been started at {:?}",
-        //         &config.connections.server_addr
-        //     );
-        // }
-        // send_get_config_request(self, ctx, ConnectionsManager::process_config);
+            .wait(ctx);
     }
 
     /// Method to request the creation of a session actor from a TCP stream

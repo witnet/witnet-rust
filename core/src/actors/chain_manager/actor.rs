@@ -187,7 +187,7 @@ impl ChainManager {
             fut::ok(())
         }).map_err(|err,_,_| {
             log::error!("Couldn't initialize from storage: {}", err);
-        }).spawn(ctx);
+        }).wait(ctx);
     }
 
     /// Get epoch from EpochManager and subscribe to future epochs
