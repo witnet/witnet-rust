@@ -12,6 +12,7 @@ use crate::script::{execute_radon_script, unpack_radon_script};
 use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
 
 pub mod error;
+pub mod hash_functions;
 pub mod operators;
 pub mod reducers;
 pub mod script;
