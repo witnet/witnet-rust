@@ -1,6 +1,6 @@
 [package]
 name = "witnet_storage"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 edition = "2018"
