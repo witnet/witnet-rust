@@ -57,6 +57,8 @@ pub enum RadErrorKind {
     ScriptNotArray,
     /// The given operator code is unknown
     UnknownOperator,
+    /// The given hash function is not implemented
+    UnsupportedHashFunction,
     /// The given operator is not implemented for the input type
     UnsupportedOperator,
     /// The given reducer is not implemented for the type of the input Array
