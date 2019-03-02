@@ -1,8 +1,10 @@
 use crate::error::*;
+use crate::hash_functions::{self, RadonHashFunctions};
 use crate::types::{mixed::RadonMixed, string::RadonString, RadonType};
 
 use json;
-use rmpv;
+use num_traits::FromPrimitive;
+use rmpv::{self, Value};
 use std::error::Error;
 
 pub fn parse_json(input: &RadonString) -> RadResult<RadonMixed> {
@@ -16,6 +18,26 @@ pub fn parse_json(input: &RadonString) -> RadResult<RadonMixed> {
             json_error.description().to_owned(),
         ))),
     }
+}
+
+pub fn hash(input: &RadonString, args: &[Value]) -> RadResult<RadonString> {
+    let error = || {
+        WitnetError::from(RadError::new(
+            RadErrorKind::WrongArguments,
+            format!("Wrong RadonString::hash arguments: {:?}", args),
+        ))
+    };
+
+    let string = input.value();
+    let bytes = string.as_bytes();
+    let hash_function_integer = args.first().ok_or_else(error)?.as_i64().ok_or_else(error)?;
+    let hash_function_code =
+        RadonHashFunctions::from_i64(hash_function_integer).ok_or_else(error)?;
+
+    let digest = hash_functions::hash(bytes, hash_function_code)?;
+    let hex_string = hex::encode(digest);
+
+    Ok(RadonString::from(hex_string))
 }
 
 fn json_to_rmp(value: &json::JsonValue) -> rmpv::ValueRef {
@@ -61,6 +83,35 @@ fn test_parse_json() {
 
     assert!(if let Err(_error) = invalid_object {
         true
+    } else {
+        false
+    });
+}
+
+#[test]
+fn test_hash() {
+    let input = RadonString::from("Hello, World!");
+    let valid_args = [Value::from(0x0A)]; // 0x0A is RadonHashFunctions::SHA_256
+    let wrong_args = [Value::from(0xFF)]; // 0xFF is not a member of RadonHashFunctions
+    let unsupported_args = [Value::from(-1)]; // -1 is RadonHashFunctions::Fail (unsupported)
+
+    let valid_output = hash(&input, &valid_args).unwrap();
+    let wrong_output = hash(&input, &wrong_args);
+    let unsupported_output = hash(&input, &unsupported_args);
+
+    let valid_expected =
+        RadonString::from("dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f");
+
+    assert_eq!(valid_output, valid_expected);
+
+    assert!(if let Err(err) = wrong_output {
+        err.inner().kind() == &RadErrorKind::WrongArguments
+    } else {
+        false
+    });
+
+    assert!(if let Err(err) = unsupported_output {
+        err.inner().kind() == &RadErrorKind::UnsupportedHashFunction
     } else {
         false
     });
