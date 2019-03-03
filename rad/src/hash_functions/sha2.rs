@@ -1,8 +1,8 @@
-use crate::error::RadResult;
+use crate::error::RadError;
 
 use crypto::{digest::Digest, sha2};
 
-pub fn sha2_256(input: &[u8]) -> RadResult<Vec<u8>> {
+pub fn sha2_256(input: &[u8]) -> Result<Vec<u8>, RadError> {
     let mut hash_function = sha2::Sha256::new();
     hash_function.input(input);
     let mut digest = [0; 32];

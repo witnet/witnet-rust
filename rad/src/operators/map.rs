@@ -1,28 +1,22 @@
-use crate::error::*;
-use crate::operators::RadonOpCodes;
-use crate::types::map::RadonMap;
-use crate::types::{mixed::RadonMixed, RadonType};
+use crate::error::RadError;
+use crate::types::{map::RadonMap, mixed::RadonMixed, RadonType};
 
 use rmpv::Value;
 
-pub fn get(input: &RadonMap, args: &[Value]) -> RadResult<RadonMixed> {
+pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonMixed, RadError> {
     let key = args.first().map(|ref value| value.as_str()).unwrap_or(None);
     match key {
         Some(key_str) => match input.value().get(key_str) {
             Some(value) => Ok(value.clone()),
-            None => Err(WitnetError::from(RadError::new(
-                RadErrorKind::MapKeyNotFound,
-                String::from("Failed to get key from RadonMap"),
-            ))),
+            None => Err(RadError::MapKeyNotFound {
+                key: key_str.to_string(),
+            }),
         },
-        None => Err(WitnetError::from(RadError::new(
-            RadErrorKind::WrongArguments,
-            format!(
-                "Call to {:?} with args {:?} is not supported on type RadonString",
-                RadonOpCodes::Get,
-                args
-            ),
-        ))),
+        None => Err(RadError::WrongArguments {
+            input_type: input.to_string(),
+            operator: "Get".to_string(),
+            args: args.to_vec(),
+        }),
     }
 }
 

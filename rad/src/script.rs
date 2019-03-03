@@ -1,4 +1,4 @@
-use crate::error::*;
+use crate::error::RadError;
 use crate::operators::{operate, RadonOpCodes};
 use crate::types::RadonTypes;
 
@@ -6,96 +6,76 @@ use log::error;
 use num_traits::FromPrimitive;
 use rmpv::{self, Value};
 use std::{error::Error, io::Cursor};
-use witnet_util::error::WitnetError;
 
 pub type RadonCall = (RadonOpCodes, Option<Vec<Value>>);
 
 pub type RadonScript = Vec<RadonCall>;
 
 /// Run any RADON script on given input data.
-pub fn execute_radon_script(input: RadonTypes, script: &'_ [RadonCall]) -> RadResult<RadonTypes> {
+pub fn execute_radon_script(
+    input: RadonTypes,
+    script: &[RadonCall],
+) -> Result<RadonTypes, RadError> {
     script.iter().try_fold(input, operate)
 }
 
-pub fn unpack_radon_script(packed: &[u8]) -> RadResult<RadonScript> {
+pub fn unpack_radon_script(packed: &[u8]) -> Result<RadonScript, RadError> {
     let reader = &mut Cursor::new(packed);
 
     match rmpv::decode::value::read_value(reader) {
         Ok(Value::Array(array)) => array
             .iter()
             .map(unpack_radon_call)
-            .collect::<RadResult<RadonScript>>(),
-        Ok(other) => Err(errorify(
-            RadErrorKind::ScriptNotArray,
-            &format!("Script is not Array but {:}", other),
-        )),
-        Err(error) => Err(errorify(RadErrorKind::MessagePack, error.description())),
+            .collect::<Result<RadonScript, RadError>>(),
+        Ok(other) => Err(errorify(RadError::ScriptNotArray {
+            input_type: other.to_string(),
+        })),
+        Err(error) => Err(errorify(RadError::MessagePack {
+            description: error.description().to_string(),
+        })),
     }
 }
 
-fn unpack_radon_call(packed_call: &Value) -> RadResult<RadonCall> {
+fn unpack_radon_call(packed_call: &Value) -> Result<RadonCall, RadError> {
     match packed_call {
         Value::Array(array) => unpack_compound_call(array),
         Value::Integer(integer) => integer.as_u64().map_or_else(
-            || {
-                Err(errorify(
-                    RadErrorKind::NotNaturalOperator,
-                    &format!(
-                        "The given operator code ({:?}) is not a natural Integer",
-                        integer
-                    ),
-                ))
-            },
+            || Err(errorify(RadError::NotNaturalOperator { code: *integer })),
             |natural| {
                 RadonOpCodes::from_u64(natural).map_or_else(
-                    || {
-                        Err(errorify(
-                            RadErrorKind::UnknownOperator,
-                            &format!("The given operator code ({:?}) is unknown", natural),
-                        ))
-                    },
+                    || Err(errorify(RadError::UnknownOperator { code: natural })),
                     |op_code| Ok((op_code, None)),
                 )
             },
         ),
-        code => Err(errorify(
-            RadErrorKind::NotIntegerOperator,
-            &format!(
-                "The given operator code ({:?}) is not a valid Integer",
-                code
-            ),
-        )),
+        code => Err(errorify(RadError::NotIntegerOperator {
+            code: Box::new(code.clone()),
+        })),
     }
 }
 
-fn unpack_compound_call(array: &[Value]) -> RadResult<RadonCall> {
+fn unpack_compound_call(array: &[Value]) -> Result<RadonCall, RadError> {
     array
         .split_first()
-        .ok_or_else(|| {
-            errorify(
-                RadErrorKind::NoOperatorInCompoundCall,
-                "No operator found in compound call",
-            )
-        })
+        .ok_or_else(|| errorify(RadError::NoOperatorInCompoundCall))
         .map(|(head, tail)| {
             head.as_u64()
                 .map(RadonOpCodes::from_u64)
                 .unwrap_or(None)
                 .map(|op_code| (op_code, Some(tail.to_vec())))
                 .ok_or_else(|| {
-                    errorify(
-                        RadErrorKind::NotIntegerOperator,
-                        "The given operator code is not a valid Integer",
-                    )
+                    errorify(RadError::NotIntegerOperator {
+                        code: Box::new(head.clone()),
+                    })
                 })
         })
         .unwrap_or_else(Err)
 }
 
-fn errorify(kind: RadErrorKind, message: &str) -> WitnetError<RadError> {
-    error!("{} while unpacking a RADON script: {}", kind, message);
+fn errorify(kind: RadError) -> RadError {
+    error!("Error unpacking a RADON script: {:?}", kind);
 
-    WitnetError::from(RadError::new(kind, String::from(message)))
+    kind
 }
 
 #[test]

@@ -5,7 +5,7 @@ use rmpv::Value;
 
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
-use crate::error::*;
+use crate::error::RadError;
 use crate::operators::{identity, map as map_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
@@ -51,11 +51,9 @@ impl TryFrom<Value> for RadonMap {
             })
             .unwrap_or(None)
             .map(Self::from)
-            .ok_or_else(|| {
-                RadError::new(
-                    RadErrorKind::EncodeDecode,
-                    String::from("Error creating a RadonMap from a MessagePack value"),
-                )
+            .ok_or_else(|| RadError::Decode {
+                from: "rmpv::Value",
+                to: "RadonMap",
             })
     }
 }
@@ -80,19 +78,17 @@ impl fmt::Display for RadonMap {
 }
 
 impl Operable for RadonMap {
-    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes> {
+    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(self.into()),
             (RadonOpCodes::Get, Some(args)) => {
                 map_operators::get(&self, args.as_slice()).map(Into::into)
             }
-            (op_code, args) => Err(WitnetError::from(RadError::new(
-                RadErrorKind::UnsupportedOperator,
-                format!(
-                    "Call to {:?} with args {:?} is not supported on type RadonString",
-                    op_code, args
-                ),
-            ))),
+            (op_code, args) => Err(RadError::UnsupportedOperator {
+                input_type: self.to_string(),
+                operator: op_code.to_string(),
+                args: args.to_owned(),
+            }),
         }
     }
 }

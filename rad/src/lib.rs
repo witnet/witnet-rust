@@ -7,7 +7,7 @@ use witnet_data_structures::{
     serializers::decoders::TryInto,
 };
 
-use crate::error::{RadError, RadResult, WitnetError};
+use crate::error::RadError;
 use crate::script::{execute_radon_script, unpack_radon_script};
 use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
 
@@ -19,13 +19,13 @@ pub mod script;
 pub mod types;
 
 /// Run retrieval stage of a data request.
-pub fn run_retrieval(retrieve: RADRetrieve) -> RadResult<RadonTypes> {
+pub fn run_retrieval(retrieve: RADRetrieve) -> Result<RadonTypes, RadError> {
     match retrieve.kind {
         RADType::HttpGet => {
             let response = reqwest::get(&retrieve.url)
-                .map_err(|err| WitnetError::from(RadError::from(err)))?
+                .map_err(RadError::from)?
                 .text()
-                .map_err(|err| WitnetError::from(RadError::from(err)))?;
+                .map_err(RadError::from)?;
 
             let input = RadonTypes::from(RadonString::from(response));
             let radon_script = unpack_radon_script(&retrieve.script)?;
@@ -36,7 +36,10 @@ pub fn run_retrieval(retrieve: RADRetrieve) -> RadResult<RadonTypes> {
 }
 
 /// Run aggregate stage of a data request.
-pub fn run_aggregation(radon_types_vec: Vec<RadonTypes>, script: Vec<u8>) -> RadResult<Vec<u8>> {
+pub fn run_aggregation(
+    radon_types_vec: Vec<RadonTypes>,
+    script: Vec<u8>,
+) -> Result<Vec<u8>, RadError> {
     let radon_script = unpack_radon_script(&script)?;
 
     let radon_array = RadonArray::from(radon_types_vec);
@@ -48,7 +51,10 @@ pub fn run_aggregation(radon_types_vec: Vec<RadonTypes>, script: Vec<u8>) -> Rad
 }
 
 /// Run consensus stage of a data request.
-pub fn run_consensus(radon_types_vec: Vec<RadonTypes>, script: Vec<u8>) -> RadResult<Vec<u8>> {
+pub fn run_consensus(
+    radon_types_vec: Vec<RadonTypes>,
+    script: Vec<u8>,
+) -> Result<Vec<u8>, RadError> {
     let radon_script = unpack_radon_script(&script)?;
 
     let radon_array = RadonArray::from(radon_types_vec);

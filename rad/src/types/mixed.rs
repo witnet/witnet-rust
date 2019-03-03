@@ -1,4 +1,4 @@
-use crate::error::*;
+use crate::error::RadError;
 use crate::operators::{identity, mixed as mixed_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
@@ -24,7 +24,7 @@ impl From<Value> for RadonMixed {
     }
 }
 
-impl<'a> TryFrom<Value> for RadonMixed {
+impl TryFrom<Value> for RadonMixed {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -32,7 +32,7 @@ impl<'a> TryFrom<Value> for RadonMixed {
     }
 }
 
-impl<'a> TryInto<Value> for RadonMixed {
+impl TryInto<Value> for RadonMixed {
     type Error = RadError;
 
     fn try_into(self) -> Result<Value, Self::Error> {
@@ -41,7 +41,7 @@ impl<'a> TryInto<Value> for RadonMixed {
 }
 
 impl Operable for RadonMixed {
-    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes> {
+    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Mixed(self)),
@@ -54,13 +54,11 @@ impl Operable for RadonMixed {
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // Unsupported / unimplemented
-            (op_code, args) => Err(WitnetError::from(RadError::new(
-                RadErrorKind::UnsupportedOperator,
-                format!(
-                    "Call to {:?} with args {:?} is not supported on type RadonString",
-                    op_code, args
-                ),
-            ))),
+            (op_code, args) => Err(RadError::UnsupportedOperator {
+                input_type: self.to_string(),
+                operator: op_code.to_string(),
+                args: args.to_owned(),
+            }),
         }
     }
 }

@@ -1,16 +1,15 @@
-use crate::error::*;
+use crate::error::RadError;
 use crate::reducers::{self, RadonReducers};
 use crate::types::{array::RadonArray, RadonTypes};
 
 use num_traits::FromPrimitive;
 use rmpv::Value;
 
-pub fn reduce(input: &RadonArray, args: &[Value]) -> RadResult<RadonTypes> {
-    let error = || {
-        WitnetError::from(RadError::new(
-            RadErrorKind::WrongArguments,
-            format!("Wrong RadonArray reducer arguments: {:?}", args),
-        ))
+pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
+    let error = || RadError::WrongArguments {
+        input_type: input.to_string(),
+        operator: "Reduce".to_string(),
+        args: args.to_vec(),
     };
 
     let reducer_integer = args.first().ok_or_else(error)?.as_i64().ok_or_else(error)?;
@@ -30,7 +29,7 @@ fn test_reduce_no_args() {
     let args = &[];
 
     let correctness = if let Err(err) = reduce(input, args) {
-        err.inner().kind() == &RadErrorKind::WrongArguments
+        err.inner().kind() == &RadError::WrongArguments
     } else {
         false
     };
@@ -49,7 +48,7 @@ fn test_reduce_wrong_args() {
     let args = &[Value::from("wrong")]; // This is RadonReducers::AverageMean
 
     let correctness = if let Err(err) = reduce(input, args) {
-        err.inner().kind() == &RadErrorKind::WrongArguments
+        err.inner().kind() == &RadError::WrongArguments
     } else {
         false
     };
@@ -68,7 +67,7 @@ fn test_reduce_unknown_reducer() {
     let args = &[Value::from(-1)]; // This doesn't match any reducer code in RadonReducers
 
     let correctness = if let Err(err) = reduce(input, args) {
-        err.inner().kind() == &RadErrorKind::WrongArguments
+        err.inner().kind() == &RadError::WrongArguments
     } else {
         false
     };

@@ -1,4 +1,4 @@
-use crate::error::*;
+use crate::error::RadError;
 use crate::types::array::RadonArray;
 use crate::types::float::RadonFloat;
 use crate::types::map::RadonMap;
@@ -37,24 +37,23 @@ pub enum RadonTypes {
 }
 
 impl RadonTypes {
-    pub fn hash(self) -> RadResult<Hash> {
+    pub fn hash<'a>(self) -> Result<Hash, RadError> {
         self.try_into()
             .map(|vector: Vec<u8>| calculate_sha256(&*vector))
             .map(Hash::from)
-            .map_err(|_| {
-                WitnetError::from(RadError::new(
-                    RadErrorKind::Hash,
-                    String::from("Failed to hash RADON value or structure"),
-                ))
-            })
+            .map_err(|_| RadError::Hash)
     }
 }
 
 impl fmt::Display for RadonTypes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RadonTypes::Float(float) => write!(f, "RadonFloat: {}", float.value()),
-            _ => write!(f, "RadonType: {:?}", self),
+            RadonTypes::Array(_array) => write!(f, "RadonArray"),
+            RadonTypes::Float(_float) => write!(f, "RadonFloat"),
+            RadonTypes::Map(_map) => write!(f, "RadonMap"),
+            RadonTypes::Mixed(_mixed) => write!(f, "RadonMixed"),
+            RadonTypes::String(_string) => write!(f, "RadonString"),
+            //_ => write!(f, "RadonTypes::{:?}", self),
         }
     }
 }
@@ -127,10 +126,10 @@ impl TryFrom<&[u8]> for RadonTypes {
 
         match radon_result {
             Ok(Ok(radon)) => Ok(radon),
-            _ => Err(RadError::new(
-                RadErrorKind::EncodeDecode,
-                String::from("Failed to decode a RadonType from bytes"),
-            )),
+            _ => Err(RadError::Decode {
+                from: "&[u8]",
+                to: "RadonType",
+            }),
         }
     }
 }
@@ -146,10 +145,10 @@ impl TryInto<Vec<u8>> for RadonTypes {
 
         match result {
             Ok(Ok(())) => Ok(vector),
-            _ => Err(RadError::new(
-                RadErrorKind::EncodeDecode,
-                String::from("Failed to encode a RadonType into bytes"),
-            )),
+            _ => Err(RadError::Decode {
+                from: "RadonType",
+                to: "Vec<u8>",
+            }),
         }
     }
 }

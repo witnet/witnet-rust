@@ -1,4 +1,4 @@
-use crate::error::*;
+use crate::error::RadError;
 use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{mixed::RadonMixed, RadonType, RadonTypes};
@@ -19,6 +19,10 @@ pub struct RadonArray {
 }
 
 impl RadonArray {
+    pub fn inner_type(&self) -> Discriminant<RadonTypes> {
+        self.inner_type
+    }
+
     pub fn is_homogeneous(&self) -> bool {
         self.inner_type != mixed_discriminant()
     }
@@ -67,11 +71,9 @@ impl TryFrom<Value> for RadonArray {
                     .flatten()
                     .collect::<Vec<RadonTypes>>()
             })
-            .ok_or_else(|| {
-                RadError::new(
-                    RadErrorKind::EncodeDecode,
-                    String::from("Error creating a RadonArray from a MessagePack value"),
-                )
+            .ok_or_else(|| RadError::Decode {
+                from: "rmpv::Value",
+                to: "RadonTypes::Array",
             })
             .map(Self::from)
     }
@@ -96,17 +98,15 @@ impl fmt::Display for RadonArray {
 }
 
 impl Operable for RadonArray {
-    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes> {
+    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(self.into()),
             (RadonOpCodes::Reduce, Some(args)) => array_operators::reduce(&self, args.as_slice()),
-            (op_code, args) => Err(WitnetError::from(RadError::new(
-                RadErrorKind::UnsupportedOperator,
-                format!(
-                    "Call to {:?} with args {:?} is not supported on type RadonString",
-                    op_code, args
-                ),
-            ))),
+            (op_code, args) => Err(RadError::UnsupportedOperator {
+                input_type: self.to_string(),
+                operator: op_code.to_string(),
+                args: args.to_owned(),
+            }),
         }
     }
 }

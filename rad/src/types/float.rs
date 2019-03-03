@@ -4,7 +4,7 @@ use rmpv::Value;
 
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
-use crate::error::*;
+use crate::error::RadError;
 use crate::operators::{identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
@@ -20,7 +20,7 @@ impl<'a> RadonType<'a, f64> for RadonFloat {
     }
 }
 
-impl<'a> TryFrom<Value> for RadonFloat {
+impl TryFrom<Value> for RadonFloat {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -30,14 +30,9 @@ impl<'a> TryFrom<Value> for RadonFloat {
             Value::Integer(integer_value) => integer_value.as_f64().map(Self::from),
             _ => None,
         }
-        .ok_or_else(|| {
-            RadError::new(
-                RadErrorKind::EncodeDecode,
-                format!(
-                    "Error creating a RadonFloat from MessagePack value \"{:?}\"",
-                    value
-                ),
-            )
+        .ok_or_else(|| RadError::Decode {
+            from: "rmpv::Value",
+            to: "RadonFloat",
         })
     }
 }
@@ -57,18 +52,16 @@ impl<'a> From<f64> for RadonFloat {
 }
 
 impl<'a> Operable for RadonFloat {
-    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes> {
+    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Float(self)),
             // Unsupported / unimplemented
-            (op_code, args) => Err(WitnetError::from(RadError::new(
-                RadErrorKind::UnsupportedOperator,
-                format!(
-                    "Call to {:?} with args {:?} is not supported on type RadonFloat",
-                    op_code, args
-                ),
-            ))),
+            (op_code, args) => Err(RadError::UnsupportedOperator {
+                input_type: self.to_string(),
+                operator: op_code.to_string(),
+                args: args.to_owned(),
+            }),
         }
     }
 }

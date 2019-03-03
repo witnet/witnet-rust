@@ -1,9 +1,9 @@
-use crate::error::RadResult;
+use crate::error::RadError;
 use crate::types::{array::RadonArray, float::RadonFloat, RadonType, RadonTypes};
 
 use std::ops::Div;
 
-pub fn mean(input: &RadonArray) -> RadResult<RadonTypes> {
+pub fn mean(input: &RadonArray) -> Result<RadonTypes, RadError> {
     let value = input.value();
 
     // Sum all numeric values

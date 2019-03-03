@@ -1,4 +1,4 @@
-use crate::error::*;
+use crate::error::RadError;
 use crate::hash_functions::{self, RadonHashFunctions};
 use crate::types::{mixed::RadonMixed, string::RadonString, RadonType};
 
@@ -7,25 +7,23 @@ use num_traits::FromPrimitive;
 use rmpv::{self, Value};
 use std::error::Error;
 
-pub fn parse_json(input: &RadonString) -> RadResult<RadonMixed> {
+pub fn parse_json(input: &RadonString) -> Result<RadonMixed, RadError> {
     match json::parse(&input.value()) {
         Ok(json_value) => {
             let value = json_to_rmp(&json_value);
             Ok(RadonMixed::from(value.to_owned()))
         }
-        Err(json_error) => Err(WitnetError::from(RadError::new(
-            RadErrorKind::JsonParse,
-            json_error.description().to_owned(),
-        ))),
+        Err(json_error) => Err(RadError::JsonParse {
+            description: json_error.description().to_owned(),
+        }),
     }
 }
 
-pub fn hash(input: &RadonString, args: &[Value]) -> RadResult<RadonString> {
-    let error = || {
-        WitnetError::from(RadError::new(
-            RadErrorKind::WrongArguments,
-            format!("Wrong RadonString::hash arguments: {:?}", args),
-        ))
+pub fn hash(input: &RadonString, args: &'static [Value]) -> Result<RadonString, RadError> {
+    let error = || RadError::WrongArguments {
+        input_type: input.to_string(),
+        operator: "Hash".to_string(),
+        args: args.to_vec(),
     };
 
     let string = input.value();
@@ -105,13 +103,13 @@ fn test_hash() {
     assert_eq!(valid_output, valid_expected);
 
     assert!(if let Err(err) = wrong_output {
-        err.inner().kind() == &RadErrorKind::WrongArguments
+        err.inner().kind() == &RadError::WrongArguments
     } else {
         false
     });
 
     assert!(if let Err(err) = unsupported_output {
-        err.inner().kind() == &RadErrorKind::UnsupportedHashFunction
+        err.inner().kind() == &RadError::UnsupportedHashFunction
     } else {
         false
     });

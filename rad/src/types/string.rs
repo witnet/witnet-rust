@@ -1,4 +1,4 @@
-use crate::error::*;
+use crate::error::RadError;
 use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
@@ -22,12 +22,13 @@ impl TryFrom<Value> for RadonString {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        value.as_str().map(Self::from).ok_or_else(|| {
-            RadError::new(
-                RadErrorKind::EncodeDecode,
-                String::from("Error creating a RadonString from a MessagePack value"),
-            )
-        })
+        value
+            .as_str()
+            .map(Self::from)
+            .ok_or_else(|| RadError::Decode {
+                from: "rmpv::Value",
+                to: "RadonString",
+            })
     }
 }
 
@@ -52,19 +53,17 @@ impl<'a> From<&'a str> for RadonString {
 }
 
 impl Operable for RadonString {
-    fn operate(self, call: &RadonCall) -> RadResult<RadonTypes> {
+    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::String(self)),
             (RadonOpCodes::ParseJson, None) => {
                 string_operators::parse_json(&self).map(RadonTypes::Mixed)
             }
-            (op_code, args) => Err(WitnetError::from(RadError::new(
-                RadErrorKind::UnsupportedOperator,
-                format!(
-                    "Call to {:?} with args {:?} is not supported on type RadonString",
-                    op_code, args
-                ),
-            ))),
+            (op_code, args) => Err(RadError::UnsupportedOperator {
+                input_type: self.to_string(),
+                operator: op_code.to_string(),
+                args: args.to_owned(),
+            }),
         }
     }
 }

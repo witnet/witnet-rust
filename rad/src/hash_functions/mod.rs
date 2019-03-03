@@ -3,7 +3,7 @@
 
 mod sha2;
 
-use crate::error::*;
+use crate::error::RadError;
 use crate::hash_functions::sha2::sha2_256;
 
 use num_derive::FromPrimitive;
@@ -38,16 +38,12 @@ impl fmt::Display for RadonHashFunctions {
     }
 }
 
-pub fn hash(input: &[u8], hash_function_code: RadonHashFunctions) -> RadResult<Vec<u8>> {
+pub fn hash(input: &[u8], hash_function_code: RadonHashFunctions) -> Result<Vec<u8>, RadError> {
     match hash_function_code {
         RadonHashFunctions::SHA2_256 => sha2_256(input),
-        _ => Err(WitnetError::from(RadError::new(
-            RadErrorKind::UnsupportedHashFunction,
-            format!(
-                "HashFunction {:} is not yet implemented",
-                hash_function_code
-            ),
-        ))),
+        _ => Err(RadError::UnsupportedHashFunction {
+            function: hash_function_code.to_string(),
+        }),
     }
 }
 
