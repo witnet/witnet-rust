@@ -14,16 +14,48 @@ use failure::Fail;
 use hmac::{Hmac, Mac};
 use secp256k1;
 use sha2;
+use tiny_hderive;
 
 /// Default HMAC key used when generating a Master Key with
 /// [generate_master](generate_master)
 pub static DEFAULT_HMAC_KEY: &str = "Witnet seed";
 
-/// secp256k1 Secret Key with Chain Code
-pub type ExtendedSK = ExtendedKey<secp256k1::SecretKey>;
+/// BIP32 Key
+pub trait Key {}
 
-/// secp256k1 Public Key with Chain Code
-pub type ExtendedPK = ExtendedKey<secp256k1::PublicKey>;
+/// BIP32 Secret Key
+pub struct SK(secp256k1::SecretKey);
+
+struct SKSlip32Serializer;
+
+/// BIP32 Public Key
+pub struct PK(secp256k1::PublicKey);
+
+/// BIP32 extended Secret Key
+pub type ExtendedSK = ExtendedKey<SK>;
+
+/// BIP32 extended Public Key
+pub type ExtendedPK = ExtendedKey<PK>;
+
+/// BIP32 chain code which is the entropy used in extended keys
+pub type ChainCode = [u8; 32];
+
+/// The path of a key inside an HD Wallet
+pub struct KeyPath(tiny_hderive::bip44::DerivationPath);
+
+/// A child number for a derived key
+pub type ChildNumber = tiny_hderive::bip44::ChildNumber;
+
+impl KeyPath {
+    /// Get the depth/level of the derived key
+    pub fn depth(&self) -> usize {
+        self.0.as_ref().len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ChildNumber> {
+        self.0.iter()
+    }
+}
 
 /// The error type for [generate_master](generate_master)
 #[derive(Debug, PartialEq, Fail)]
@@ -78,7 +110,8 @@ where
         let (sk_bytes, chain_code_bytes) = result.split_at(32);
 
         // secret/chain_code computation might panic if length returned by hmac is wrong
-        let secret = secp256k1::SecretKey::from_slice(sk_bytes).expect("Secret Key length error");
+        let secret =
+            SK(secp256k1::SecretKey::from_slice(sk_bytes).expect("Secret Key length error"));
         let mut chain_code = [0u8; 32];
         chain_code.copy_from_slice(chain_code_bytes);
 
@@ -89,7 +122,7 @@ where
 /// Extended Key is just a Key with a Chain Code
 pub struct ExtendedKey<K> {
     pub secret: K,
-    pub chain_code: [u8; 32],
+    pub chain_code: ChainCode,
 }
 
 #[cfg(test)]
