@@ -13,7 +13,7 @@ use witnet_data_structures::{
 use witnet_rad::types::RadonTypes;
 use witnet_util::error::WitnetError;
 
-use super::{data_request::DataRequestPool, ChainManager, ChainManagerError};
+use super::{data_request::DataRequestPool, ChainManager, ChainManagerError, StateMachine};
 use crate::actors::messages::{
     AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, EpochNotification,
     GetBlocksEpochRange, GetHighestCheckpointBeacon, GetOutput, GetOutputResult,
@@ -47,6 +47,18 @@ impl Handler<EpochNotification<EpochPayload>> for ChainManager {
     fn handle(&mut self, msg: EpochNotification<EpochPayload>, ctx: &mut Context<Self>) {
         debug!("Epoch notification received {:?}", msg.checkpoint);
 
+        match self.sm_state {
+            StateMachine::WaitingConsensus => {}
+            StateMachine::Synchronizing => {
+                unimplemented!();
+            }
+            StateMachine::Synced => {
+                unimplemented!();
+            }
+        };
+
+        //TODO: Refactor next code in StateMachin branches
+
         // Genesis checkpoint notification. We need to start building the chain.
         if msg.checkpoint == 0 {
             warn!("Genesis checkpoint is here! Starting to bootstrap the chain...");
@@ -61,6 +73,19 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+
+        match self.sm_state {
+            StateMachine::WaitingConsensus => {}
+            StateMachine::Synchronizing => {
+                unimplemented!();
+            }
+            StateMachine::Synced => {
+                unimplemented!();
+            }
+        };
+
+        //TODO: Refactor next code in StateMachine branches
+
         self.current_epoch = Some(msg.checkpoint);
 
         if !self.network_ready {
@@ -241,6 +266,18 @@ impl Handler<AddTransaction> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) {
+        match self.sm_state {
+            StateMachine::WaitingConsensus => {}
+            StateMachine::Synchronizing => {
+                unimplemented!();
+            }
+            StateMachine::Synced => {
+                unimplemented!();
+            }
+        };
+
+        //TODO: Refactor next code in StateMachine branches
+
         let transaction_hash = &msg.transaction.hash();
         if self.transactions_pool.contains(transaction_hash) {
             debug!("Transaction is already in the pool: {}", transaction_hash);
@@ -393,6 +430,19 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
         debug!("GetBlocksEpochRange received {:?}", range);
+
+        match self.sm_state {
+            StateMachine::WaitingConsensus => {}
+            StateMachine::Synchronizing => {
+                unimplemented!();
+            }
+            StateMachine::Synced => {
+                unimplemented!();
+            }
+        };
+
+        //TODO: Refactor next code in StateMachine branches
+
         let mut hashes: Vec<(Epoch, InventoryEntry)> = self
             .chain_state
             .block_chain
