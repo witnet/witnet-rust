@@ -83,6 +83,23 @@ impl From<WitnetError<StorageError>> for ChainManagerError {
     }
 }
 
+/// State Machine
+#[derive(Debug)]
+pub enum StateMachine {
+    /// First state, ChainManager is waiting to consensus between its peers
+    WaitingConsensus,
+    /// Second state, ChainManager synchronization process
+    Synchronizing,
+    /// Third state, ChainManager is ready to mine and consolidated blocks
+    Synced,
+}
+
+impl Default for StateMachine {
+    fn default() -> Self {
+        StateMachine::WaitingConsensus
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -124,6 +141,8 @@ pub struct ChainManager {
     synchronizing_period: Duration,
     /// Synchronization period once the blockchain is considered to be synced
     synced_period: Duration,
+    /// state of the state machine
+    sm_state: StateMachine,
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
