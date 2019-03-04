@@ -1,4 +1,4 @@
-//! core
+//! node
 
 #![deny(rust_2018_idioms)]
 #![deny(non_upper_case_globals)]

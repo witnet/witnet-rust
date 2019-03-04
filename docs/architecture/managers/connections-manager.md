@@ -155,7 +155,7 @@ For further information, see [`SessionsManager`][sessions_manager].
 ## Further information
 The full source code of the `ConnectionsManager` can be found at [`connections_manager.rs`][connections_manager].
 
-[connections_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager
-[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager
-[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager
+[connections_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/connections_manager
+[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager
 [resolver]: https://actix.rs/actix/actix/actors/resolver/index.html

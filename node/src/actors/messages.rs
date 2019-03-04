@@ -100,7 +100,7 @@ impl GetBlocksEpochRange {
     /// Create a GetBlockEpochRange message using range syntax:
     ///
     /// ```rust
-    /// # use witnet_core::actors::messages::GetBlocksEpochRange;
+    /// # use witnet_node::actors::messages::GetBlocksEpochRange;
     /// GetBlocksEpochRange::new(..); // Unbounded range: all items
     /// GetBlocksEpochRange::new(10..); // All items starting from epoch 10
     /// GetBlocksEpochRange::new(..10); // All items up to epoch 10 (10 excluded)

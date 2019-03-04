@@ -1,4 +1,4 @@
-use witnet_core::actors::epoch_manager::{EpochManager, EpochManagerError};
+use witnet_node::actors::epoch_manager::{EpochManager, EpochManagerError};
 
 #[test]
 fn epoch_zero_range() {

@@ -89,8 +89,8 @@ For further information, see [`SessionsManager`][sessions_manager].
 
 The full source code of the `Session` actor can be found at [`session.rs`][session].
 
-[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager
-[session]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/session
+[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager
+[session]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/session
 
 [network protocol]: /protocol/network/overview/
 [Handshake]: /protocol/network/messages/handshake/

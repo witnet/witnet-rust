@@ -11,7 +11,7 @@ description = "An in-progress open source implementation of the Witnet protocol 
 edition = "2018"
 
 [workspace]
-members = ["config", "core", "crypto", "data_structures", "p2p", "storage", "wallet"]
+members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet"]
 
 [badges]
 travis-ci = { repository = "https://github.com/witnet/witnet-rust", branch = "master" }
@@ -29,7 +29,7 @@ structopt = "0.2.14"
 toml = "0.4.10"
 
 witnet_config = { path = "./config" }
-witnet_core = { path = "./core" }
+witnet_node = { path = "./node" }
 witnet_crypto = { path = "./crypto" }
 witnet_data_structures = { path = "./data_structures" }
 witnet_p2p = { path = "./p2p" }

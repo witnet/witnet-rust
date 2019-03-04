@@ -102,9 +102,9 @@ Response:
 {"jsonrpc":"2.0","result":{"DataRequest":{"backup_witnesses":0,"commit_fee":0,"data_request":{"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"}],"not_before":0,"retrieve":[{"kind":"HTTP-GET","script":[0],"url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}]},"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"reveal_fee":0,"tally_fee":0,"time_lock":0,"value":0,"witnesses":0}},"id":"1"}
 ```
 
-[json_rpc_server]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/server.rs
-[noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
-[json_rpc_methods]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/json_rpc_methods.rs
+[json_rpc_server]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/server.rs
+[noders]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/node.rs
+[json_rpc_methods]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/json_rpc_methods.rs
 [json_rpc_specs]: https://www.jsonrpc.org/specification
 [json_rpc_docs]: ../../interface/json-rpc/
 [configuration]: ../../configuration/toml-file/

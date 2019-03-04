@@ -14,7 +14,7 @@ use failure;
 use structopt::StructOpt;
 
 use super::json_rpc_client;
-use crate::core::actors;
+use crate::node::actors;
 
 /// Witnet network
 #[derive(Debug, StructOpt)]

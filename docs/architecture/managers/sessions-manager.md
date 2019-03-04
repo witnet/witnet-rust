@@ -210,9 +210,9 @@ This message causes `SessionManager` to forward a `GetPeers` message to one rand
 
 The full source code of the `SessionsManager` can be found at [`sessions_manager.rs`][sessions_manager].
 
-[connections_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager
-[peers_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager
-[session]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/session
-[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager
-[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager
+[connections_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/connections_manager
+[peers_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/peers_manager
+[session]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/session
+[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager
 [sessions]: https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions

@@ -63,9 +63,9 @@ when the connection closes.
 
 The full source code of the `JsonRpcServer` can be found at [`server.rs`][json_rpc_server].
 
-[json_rpc_server]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/server.rs
-[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs
-[noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
-[json_rpc_methods]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/json_rpc_methods.rs
+[json_rpc_server]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/server.rs
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager.rs
+[noders]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/node.rs
+[json_rpc_methods]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/json_rpc_methods.rs
 [json_rpc_specs]: https://www.jsonrpc.org/specification
 [json_rpc_docs]: ../../interface/json-rpc/

@@ -1,8 +1,8 @@
 use tokio::codec::{Decoder, Encoder};
-use witnet_core::actors::codec::{BytesMut, P2PCodec};
+use witnet_node::actors::codec::{BytesMut, P2PCodec};
 
 #[test]
-fn core_actors_codec_p2p_decoder() {
+fn node_actors_codec_p2p_decoder() {
     let mut buf: BytesMut = BytesMut::from(
         [
             0, 0, 0, 48, 16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0,
@@ -27,7 +27,7 @@ fn core_actors_codec_p2p_decoder() {
 }
 
 #[test]
-fn core_actors_codec_p2p_encoder() {
+fn node_actors_codec_p2p_encoder() {
     let decoded: BytesMut = BytesMut::from(
         [
             16, 0, 0, 0, 0, 0, 10, 0, 14, 0, 0, 0, 7, 0, 8, 0, 10, 0, 0, 0, 0, 0, 0, 5, 12, 0, 0,

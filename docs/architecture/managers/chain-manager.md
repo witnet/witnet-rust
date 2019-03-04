@@ -194,11 +194,11 @@ to persist the `block_candidate` state.
 
 The full source code of the `ChainManager` can be found at [`chain_manager.rs`][chain_manager].
 
-[chain_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/chain_manager
-[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager
-[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager
-[epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager
-[inventory_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/inventory_manager
+[chain_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/chain_manager
+[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/storage_manager
+[sessions_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager
+[epoch_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/epoch_manager
+[inventory_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/inventory_manager
 
-[noders]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs
+[noders]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/node.rs
 [chain]: https://github.com/witnet/witnet-rust/tree/master/data_structures/src/chain.rs

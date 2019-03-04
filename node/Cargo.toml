@@ -1,9 +1,9 @@
 [package]
-name = "witnet_core"
+name = "witnet_node"
 version = "0.1.2"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
-description = "core component"
+description = "node component"
 edition = "2018"
 
 [dependencies]

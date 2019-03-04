@@ -122,6 +122,6 @@ The return value is used to check if the storage process has been successful.
 The full source code of the `PeersManager` can be found at [`peers_manager.rs`][peers_manager].
 
 [peers]: https://github.com/witnet/witnet-rust/blob/master/p2p/src/peers
-[peers_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager
-[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager
-[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager
+[peers_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/peers_manager
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager
+[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/storage_manager

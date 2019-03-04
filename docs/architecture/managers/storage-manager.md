@@ -129,7 +129,7 @@ The return value is used to launch the rocks db storage. For further information
 ## Further information
 The full source code of the `StorageManager` can be found at [`storage_manager.rs`][storage_manager].
 
-[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager
+[storage_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/storage_manager
 [storage]: https://github.com/witnet/witnet-rust/blob/master/storage/src/storage.rs
 [rocks]: https://github.com/witnet/witnet-rust/blob/master/storage/src/backends/rocks.rs
-[config_manager]: https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager
+[config_manager]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager
