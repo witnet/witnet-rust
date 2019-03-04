@@ -107,6 +107,7 @@ impl SessionsManager {
             // Send Anycast(GetPeers) message
             ctx.notify(Anycast {
                 command: GetPeers {},
+                safu: false,
             });
             act.discovery_peers(ctx, discovery_peers_period);
         });

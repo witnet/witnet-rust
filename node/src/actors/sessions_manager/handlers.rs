@@ -164,7 +164,7 @@ where
 
         // Request a random consolidated outbound session
         self.sessions
-            .get_random_anycast_session()
+            .get_random_anycast_session(msg.safu)
             .map(|session_addr| {
                 // Send message to session and await for response
                 session_addr

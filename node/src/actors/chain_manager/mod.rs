@@ -268,6 +268,7 @@ impl ChainManager {
 
         sessions_manager_addr.do_send(Anycast {
             command: RequestBlock { block_entry: item },
+            safu: false,
         });
     }
 
@@ -498,6 +499,7 @@ impl ChainManager {
             // Trigger inventory exchange
             sessions_manager_addr.do_send(Anycast {
                 command: InventoryExchange,
+                safu: false,
             });
 
             if act.synced {

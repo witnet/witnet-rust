@@ -234,7 +234,7 @@ fn p2p_sessions_get_random_anycast_session() {
     let mut sessions = Sessions::<String>::default();
 
     // Check that the function returns None when there are no sessions in the collection
-    assert_eq!(sessions.get_random_anycast_session(), None);
+    assert_eq!(sessions.get_random_anycast_session(false), None);
 
     // Register an outbound session and check if result is Ok(())
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
@@ -248,7 +248,7 @@ fn p2p_sessions_get_random_anycast_session() {
 
     // Check that the function returns None when there are no consolidated sessions in the
     // collection
-    assert_eq!(sessions.get_random_anycast_session(), None);
+    assert_eq!(sessions.get_random_anycast_session(false), None);
 
     // Consolidate outbound session
     assert!(sessions
@@ -257,7 +257,7 @@ fn p2p_sessions_get_random_anycast_session() {
 
     // Check that the function returns Some(T) when there is one valid session in the collection
     assert_eq!(
-        sessions.get_random_anycast_session(),
+        sessions.get_random_anycast_session(false),
         Some("reference1".to_string())
     );
 
@@ -278,7 +278,7 @@ fn p2p_sessions_get_random_anycast_session() {
     let mut diff: i16 = 0;
     for _ in 0..100000 {
         // Get a random anycast sessions (there are only 2)
-        match &sessions.get_random_anycast_session() {
+        match &sessions.get_random_anycast_session(false) {
             Some(reference) if reference == "reference1" => diff = diff + 1,
             Some(reference) if reference == "reference2" => diff = diff - 1,
             _ => assert!(

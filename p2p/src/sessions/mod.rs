@@ -12,7 +12,8 @@ use std::time::Duration;
 use rand::{thread_rng, Rng};
 
 use crate::sessions::bounded_sessions::BoundedSessions;
-use crate::sessions::error::SessionsResult;
+use crate::sessions::error::{SessionsError, SessionsErrorKind, SessionsResult};
+use witnet_util::error::WitnetError;
 
 /// Session type
 #[derive(Copy, Clone, Debug)]
@@ -50,6 +51,10 @@ where
     /// Outbound consolidated sessions: __known__ peer sessions that the node is connected to (in
     /// consolidated status)
     pub outbound_consolidated: BoundedSessions<T>,
+    /// Outbound consolidated sessions: __known__ peer sessions that the node is connected to, and
+    /// are in consensus about what is the tip of the chain (their last beacon is the same as ours)
+    /// Note: this is a subset of `outboud_consolidated`.
+    pub outbound_consolidated_consensus: BoundedSessions<T>,
     /// Outbound unconsolidated sessions: __known__ peer sessions that the node is connected to
     /// (in unconsolidated status)
     pub outbound_unconsolidated: BoundedSessions<T>,
@@ -70,6 +75,7 @@ where
             inbound_consolidated: BoundedSessions::default(),
             inbound_unconsolidated: BoundedSessions::default(),
             outbound_consolidated: BoundedSessions::default(),
+            outbound_consolidated_consensus: BoundedSessions::default(),
             outbound_unconsolidated: BoundedSessions::default(),
             handshake_timeout: Duration::default(),
             magic_number: 0 as u16,
@@ -106,6 +112,8 @@ where
     pub fn set_limits(&mut self, inbound_limit: u16, outbound_consolidated_limit: u16) {
         self.inbound_consolidated.set_limit(inbound_limit);
         self.outbound_consolidated
+            .set_limit(outbound_consolidated_limit);
+        self.outbound_consolidated_consensus
             .set_limit(outbound_consolidated_limit);
     }
     /// Method to set the handshake timeout
@@ -155,9 +163,15 @@ where
             .unwrap_or(true)
     }
     /// Method to get a random consolidated outbound session
-    pub fn get_random_anycast_session(&self) -> Option<T> {
+    pub fn get_random_anycast_session(&self, safu: bool) -> Option<T> {
         // Get iterator over the values of the hashmap
-        let mut outbound_sessions_iter = self.outbound_consolidated.collection.values();
+        let mut outbound_sessions_iter = if safu {
+            // Safu: use only peers with consensus
+            self.outbound_consolidated_consensus.collection.values()
+        } else {
+            // Not safu: use all peers
+            self.outbound_consolidated.collection.values()
+        };
 
         // Get the number of elements in the collection from the iterator
         let len = outbound_sessions_iter.len();
@@ -202,6 +216,15 @@ where
         status: SessionStatus,
         address: SocketAddr,
     ) -> SessionsResult<()> {
+        // If this is an outbound consolidated session, try to remove it from the consensus list
+        if let (SessionType::Outbound, SessionStatus::Consolidated) = (session_type, status) {
+            match self.unconsensus_session(address) {
+                // Explicitly ignore the result because we have no guarantees that this session was
+                // inside the consensus map
+                _ => {}
+            }
+        }
+
         // Get map to insert session to
         let sessions = self.get_sessions(session_type, status);
 
@@ -225,5 +248,29 @@ where
 
         // Register session into consolidated collection
         cons_sessions.register_session(address, session_info.reference)
+    }
+    /// Method to mark a session as consensus safe
+    pub fn consensus_session(&mut self, address: SocketAddr) -> SessionsResult<()> {
+        if let Some(session_info) = self.outbound_consolidated.collection.get(&address) {
+            let session_info = session_info.reference.clone();
+            // Get map to insert session to
+            let cons_sessions = &mut self.outbound_consolidated_consensus;
+            // Register session into consolidated collection
+            cons_sessions.register_session(address, session_info)
+        } else {
+            Err(WitnetError::from(SessionsError::new(
+                SessionsErrorKind::Update,
+                address.to_string(),
+                "Is not an outbound consolidated peer".to_string(),
+            )))
+        }
+    }
+    /// Method to mark a session as consensus unsafe
+    pub fn unconsensus_session(&mut self, address: SocketAddr) -> SessionsResult<()> {
+        // Get map to remove session from
+        let cons_sessions = &mut self.outbound_consolidated_consensus;
+
+        // Remove session from unconsolidated collection
+        cons_sessions.unregister_session(address).map(|_| ())
     }
 }

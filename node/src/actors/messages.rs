@@ -517,6 +517,8 @@ impl Message for Consolidate {
 pub struct Anycast<T> {
     /// Command to be sent to the session
     pub command: T,
+    /// Safu flag: use only outbound peers in consensus with us?
+    pub safu: bool,
 }
 
 impl<T> Message for Anycast<T>
