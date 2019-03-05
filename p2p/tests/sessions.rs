@@ -442,3 +442,80 @@ fn p2p_sessions_consolidate() {
         .get(&inbound_address)
         .is_some());
 }
+
+/// Check the consensus of outbound consolidated sessions
+#[test]
+fn p2p_sessions_consensus() {
+    // Create sessions struct
+    let mut sessions = Sessions::<String>::default();
+
+    // Register sessions and check if result is Ok(())
+    let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_address,
+            "reference1".to_string()
+        )
+        .is_ok());
+
+    // Consolidate session
+    assert!(sessions
+        .consolidate_session(SessionType::Outbound, outbound_address)
+        .is_ok());
+
+    // Check if sessions were consolidated
+    assert!(sessions
+        .outbound_consolidated
+        .collection
+        .get(&outbound_address)
+        .is_some());
+
+    assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 1);
+
+    // Mark as consensus-safe
+    assert!(sessions.consensus_session(outbound_address).is_ok());
+    assert_eq!(sessions.outbound_consolidated_consensus.collection.len(), 1);
+    // This does not remove the session from outbound_consolidated
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 1);
+
+    // Mark as consensus-safe again (error because it is already consensus-safe)
+    assert!(sessions.consensus_session(outbound_address).is_err());
+    assert_eq!(sessions.outbound_consolidated_consensus.collection.len(), 1);
+    // This does not remove the session from outbound_consolidated
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 1);
+
+    // Mark as consensus-unsafe
+    assert!(sessions.unconsensus_session(outbound_address).is_ok());
+    assert_eq!(sessions.outbound_consolidated_consensus.collection.len(), 0);
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 1);
+
+    // Mark as consensus-unsafe again (error because it is already consensus-unsafe)
+    assert!(sessions.unconsensus_session(outbound_address).is_err());
+    assert_eq!(sessions.outbound_consolidated_consensus.collection.len(), 0);
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 1);
+
+    // Mark as consensus-safe to test unregister
+    assert!(sessions.consensus_session(outbound_address).is_ok());
+    assert_eq!(sessions.outbound_consolidated_consensus.collection.len(), 1);
+    // This does not remove the session from outbound_consolidated
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 1);
+
+    // Unregister the session
+    assert!(sessions
+        .unregister_session(
+            SessionType::Outbound,
+            SessionStatus::Consolidated,
+            outbound_address
+        )
+        .is_ok());
+
+    assert_eq!(sessions.outbound_consolidated_consensus.collection.len(), 0);
+    // This does not remove the session from outbound_consolidated
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
+
+    // Any consensus-related operations will fail on non-existing sessions
+    assert!(sessions.consensus_session(outbound_address).is_err());
+    assert!(sessions.unconsensus_session(outbound_address).is_err());
+}
