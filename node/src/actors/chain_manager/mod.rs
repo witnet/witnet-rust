@@ -150,6 +150,8 @@ pub struct ChainManager {
     sm_state: StateMachine,
     /// Target beacon
     target_beacon: Option<CheckpointBeacon>,
+    /// Map that stores candidate blocks
+    candidates: HashMap<Hash, Block>,
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
