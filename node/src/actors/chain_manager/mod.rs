@@ -148,6 +148,8 @@ pub struct ChainManager {
     synced_period: Duration,
     /// state of the state machine
     sm_state: StateMachine,
+    /// Target beacon
+    target_beacon: Option<CheckpointBeacon>,
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
