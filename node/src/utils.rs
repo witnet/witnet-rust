@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::hash::Hash;
 use witnet_data_structures::chain::{Input, Output};
 
 /// Check if an output is a consensus output
@@ -70,4 +72,28 @@ pub fn count_tally_outputs(outputs: &[Output]) -> usize {
 /// Validate tally output uniqueness
 pub fn validate_tally_output_uniqueness(outputs: &[Output]) -> bool {
     count_tally_outputs(outputs) == 1
+}
+
+/// Given a list of elements, return the most common one. In case of tie, return `None`.
+pub fn mode_consensus<'a, I, V>(pb: I) -> Option<&'a V>
+where
+    I: Iterator<Item = &'a V>,
+    V: Eq + Hash,
+{
+    let mut bp = HashMap::new();
+    for k in pb {
+        *bp.entry(k).or_insert(0) += 1;
+    }
+
+    let mut bpv: Vec<_> = bp.into_iter().collect();
+    // Sort (beacon, peers) by number of peers
+    bpv.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+
+    if bpv.len() >= 2 && bpv[0].1 == bpv[1].1 {
+        // In case of tie, no consensus
+        None
+    } else {
+        // Otherwise, the first element is the most common
+        bpv.into_iter().map(|(k, _count)| k).next()
+    }
 }

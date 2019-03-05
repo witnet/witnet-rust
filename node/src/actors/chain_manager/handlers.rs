@@ -1,4 +1,4 @@
-use actix::{Actor, Context, Handler};
+use actix::{Actor, Context, Handler, Message};
 use log::{debug, error, warn};
 
 use witnet_data_structures::{
@@ -13,8 +13,9 @@ use super::{data_request::DataRequestPool, ChainManager, ChainManagerError, Stat
 use crate::actors::messages::{
     AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, EpochNotification,
     GetBlocksEpochRange, GetHighestCheckpointBeacon, GetOutput, GetOutputResult,
-    InventoryEntriesResult, PeerLastEpoch, SessionUnitResult, SetNetworkReady,
+    InventoryEntriesResult, PeerLastEpoch, PeersBeacons, SessionUnitResult, SetNetworkReady,
 };
+use crate::utils::mode_consensus;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -402,6 +403,107 @@ impl Handler<PeerLastEpoch> for ChainManager {
             self.synced = false;
             self.mine = false;
             self.best_candidate = None;
+        }
+    }
+}
+
+impl Handler<PeersBeacons> for ChainManager {
+    type Result = <PeersBeacons as Message>::Result;
+
+    fn handle(
+        &mut self,
+        PeersBeacons { pb }: PeersBeacons,
+        _ctx: &mut Context<Self>,
+    ) -> Self::Result {
+        debug!("PeersBeacons received");
+
+        match self.sm_state {
+            StateMachine::WaitingConsensus => {
+                // As soon as there is consensus, we set the target beacon to the consensus
+                // and set the state to Synchronizing
+
+                // Run the consensus on the beacons, will return the most common beacon
+                // In case of tie returns None
+                if let Some(beacon) = mode_consensus(pb.iter().map(|(_p, b)| b)).cloned() {
+                    // Consensus: unregister peers which have a different beacon
+                    let peers_out_of_consensus = pb
+                        .into_iter()
+                        .filter_map(|(p, b)| if b != beacon { Some(p) } else { None })
+                        .collect();
+                    self.target_beacon = Some(beacon);
+                    self.sm_state = StateMachine::Synchronizing;
+                    Ok(peers_out_of_consensus)
+                } else {
+                    // No consensus: unregister all peers
+                    let all_peers = pb.into_iter().map(|(p, _b)| p).collect();
+                    Ok(all_peers)
+                }
+            }
+            StateMachine::Synchronizing => {
+                // We are synchronizing, so ignore all the new beacons until we reach the target beacon
+
+                // Return error meaning unexpected message, because if we return Ok(vec![]), the
+                // SessionsManager will mark all the peers as safu and break our security assumptions
+                Err(())
+            }
+            StateMachine::Synced => {
+                // If we are synced and the consensus beacon is not the same as our beacon, then
+                // we need to rewind one epoch
+
+                if pb.is_empty() {
+                    // TODO: all other peers disconnected, return to WaitingConsensus state?
+                    warn!("[CONSENSUS]: We have zero outbound peers");
+                }
+
+                let our_beacon = self
+                    .chain_state
+                    .chain_info
+                    .as_ref()
+                    .unwrap()
+                    .highest_block_checkpoint;
+
+                // Now we also take into account our beacon to calculate the consensus
+                let consensus_beacon =
+                    mode_consensus(pb.iter().map(|(_p, b)| b).chain(&[our_beacon])).cloned();
+
+                match consensus_beacon {
+                    Some(a) if a == our_beacon => {
+                        // Consensus: unregister peers which have a different beacon
+                        let peers_out_of_consensus = pb
+                            .into_iter()
+                            .filter_map(|(p, b)| if b != our_beacon { Some(p) } else { None })
+                            .collect();
+                        // TODO: target_beacon is not used in this state, right?
+                        // TODO: target_beacon can be a field in the state machine enum:
+                        // Synchronizing { target_beacon }
+                        // We could do the same with chain_state.chain_info, to avoid all the unwraps
+                        //self.target_beacon = Some(beacon);
+                        Ok(peers_out_of_consensus)
+                    }
+                    Some(_a) => {
+                        // We are out of consensus!
+                        // TODO: We should probably rewind(1) to avoid a fork, but for simplicity
+                        // (rewind is not implemented yet) we just print a message and carry on
+                        warn!(
+                            "[CONSENSUS]: We are on {:?} but the network is on {:?}",
+                            our_beacon, consensus_beacon
+                        );
+
+                        // Return an empty vector indicating that we do not want to unregister any peer
+                        Ok(vec![])
+                    }
+                    None => {
+                        // There is no consensus because of a tie, do not rewind?
+                        // For example this could happen when each peer reports a different beacon...
+                        warn!(
+                            "[CONSENSUS]: We are on {:?} but the network has no consensus",
+                            our_beacon
+                        );
+                        // Return an empty vector indicating that we do not want to unregister any peer
+                        Ok(vec![])
+                    }
+                }
+            }
         }
     }
 }

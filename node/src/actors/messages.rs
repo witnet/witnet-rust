@@ -167,6 +167,17 @@ pub struct PeerLastEpoch {
     pub epoch: Epoch,
 }
 
+/// A list of peers and their respective last beacon, used to establish consensus
+pub struct PeersBeacons {
+    /// A list of peers and their respective last beacon
+    pub pb: Vec<(Addr<Session>, CheckpointBeacon)>,
+}
+
+impl Message for PeersBeacons {
+    /// Result: list of peers out of consensus which will be unregistered
+    type Result = Result<Vec<Addr<Session>>, ()>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////

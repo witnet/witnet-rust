@@ -82,7 +82,9 @@ pub struct ConsensusConstants {
 }
 
 /// Checkpoint beacon structure
-#[derive(Debug, Default, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(
+    Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize, ProtobufConvert,
+)]
 #[protobuf_convert(pb = "witnet::CheckpointBeacon")]
 pub struct CheckpointBeacon {
     /// The serial number for an epoch
