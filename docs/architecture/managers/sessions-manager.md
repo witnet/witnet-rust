@@ -44,14 +44,14 @@ System::current().registry().set(sessions_manager_addr);
 
 These are the messages supported by the sessions manager handlers:
 
-| Message        | Input type                               | Output type          | Description                                                          |
-| -------------- | ---------------------------------------- | -------------------- | -------------------------------------------------------------------- |
-| `Create`       | `TcpStream, SessionType`                 | `()`                 | Request to create a new session                                      |
-| `Register`     | `SocketAddr, Addr<Session>, SessionType` | `SessionsResult<()>` | Request to register a new session                                    |
-| `Unregister`   | `SocketAddr, SessionType, SessionStatus` | `SessionsResult<()>` | Request to unregister a session                                      |
-| `Consolidate`  | `SocketAddr, SessionType`                | `SessionsResult<()>` | Request to consolidate a session                                     |
-| `Anycast<T>`   | `T`                                      | `()`                 | Request to send a T message to a random Session                      |
-| `Broadcast<T>` | `T`                                      | `()`                 | Request to send a T message to all the consolidated outbound sesions |
+| Message        | Input type                               | Output type          | Description                                                                                                                                    |
+|:---------------|:-----------------------------------------|:---------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `Create`       | `TcpStream, SessionType`                 | `()`                 | Request to create a new session                                                                                                                |
+| `Register`     | `SocketAddr, Addr<Session>, SessionType` | `SessionsResult<()>` | Request to register a new session                                                                                                              |
+| `Unregister`   | `SocketAddr, SessionType, SessionStatus` | `SessionsResult<()>` | Request to unregister a session                                                                                                                |
+| `Consolidate`  | `SocketAddr, SessionType`                | `SessionsResult<()>` | Request to consolidate a session                                                                                                               |
+| `Anycast<T>`   | `T, bool`                                | `()`                 | Request to send a T message to a random consolidated outbound Session (when bool flag `safu` is true, use only outbound sessions in consensus) |
+| `Broadcast<T>` | `T`                                      | `()`                 | Request to send a T message to all the consolidated outbound sesions                                                                           |
 
 The handling of these messages is basically just calling the corresponding methods from the
 [`Sessions`][sessions] library. For example, the handler of the `Register` message would be
@@ -109,6 +109,8 @@ The way other actors will communicate with the sessions manager is:
 
 The handler for `Anycast<T>` messages is basically just calling the method `get_random_anycast_session` from the
 [`Sessions`][sessions] library to obtain a random `Session` and forward the `T` message to it.
+
+When bool flag `safu` is true, use only outbound consolidated sessions in consensus.
 
 The return value of the delegated call is processed by `act.process_command_response(&res)`
 
