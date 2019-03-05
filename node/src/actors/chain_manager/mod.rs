@@ -49,7 +49,10 @@ use witnet_util::error::WitnetError;
 
 use self::{
     data_request::DataRequestPool,
-    validations::{block_reward, validate_merkle_tree, validate_transactions},
+    validations::{
+        block_reward, validate_block, validate_candidate, validate_merkle_tree,
+        validate_transactions,
+    },
 };
 use crate::actors::{
     inventory_manager::InventoryManager,
@@ -124,7 +127,7 @@ pub struct ChainManager {
     /// Transactions Pool (_mempool_)
     transactions_pool: TransactionsPool,
     /// Candidate to update chain_info, unspent_outputs_pool and transactions_pool in the next epoch
-    best_candidate: Option<Candidate>,
+    best_candidate: Option<BlockInChain>,
     /// Maximum weight each block can have
     max_block_weight: u32,
     // Random value to help with debugging because there is no signature
@@ -155,8 +158,8 @@ pub struct ChainManager {
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
-#[derive(Debug)]
-pub struct Candidate {
+#[derive(Debug, Clone)]
+pub struct BlockInChain {
     block: Block,
     utxo_set: UnspentOutputsPool,
     data_request_pool: DataRequestPool,
@@ -425,28 +428,29 @@ impl ChainManager {
         let mut utxo_set = self.chain_state.unspent_outputs_pool.clone();
         let mut data_request_pool = self.data_request_pool.clone();
 
-        if validate_transactions(
+        let block_in_chain = validate_transactions(
             &mut utxo_set,
             &self.transactions_pool,
             &mut data_request_pool,
             &block,
-        ) {
-            let block_epoch = block.block_header.beacon.checkpoint;
+        );
+        if let Some(block_in_chain) = block_in_chain {
+            let block_epoch = block_in_chain.block.block_header.beacon.checkpoint;
             if Some(block_epoch) == self.current_epoch {
-                // Update block candidate
-                self.best_candidate = Some(Candidate {
-                    block: block.clone(),
-                    utxo_set,
-                    data_request_pool,
-                });
                 //Broadcast blocks in current epoch
-                self.broadcast_item(InventoryItem::Block(block));
+                self.broadcast_item(InventoryItem::Block(block_in_chain.block.clone()));
+                // Update block candidate
+                self.best_candidate = Some(block_in_chain);
             } else {
                 // Persist block and update ChainState
-                self.consolidate_block(ctx, block, utxo_set, data_request_pool, false);
+                self.consolidate_block(
+                    ctx,
+                    block_in_chain.block,
+                    block_in_chain.utxo_set,
+                    block_in_chain.data_request_pool,
+                    false,
+                );
             }
-        } else {
-            warn!("Transactions not valid")
         }
     }
 

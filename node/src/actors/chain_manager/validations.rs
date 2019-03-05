@@ -6,8 +6,12 @@ use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree
 
 use witnet_data_structures::chain::{
     Block, DataRequestOutput, Epoch, Hash, Hashable, Input, Output, OutputPointer, Transaction,
-    TransactionsPool,
+    TransactionsPool, UnspentOutputsPool,
 };
+
+use crate::actors::chain_manager::BlockInChain;
+use log::{debug, warn};
+use witnet_data_structures::chain::CheckpointBeacon;
 
 /// Function to validate a transaction
 pub fn validate_transaction<S: ::std::hash::BuildHasher>(
@@ -20,18 +24,24 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
 
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
 // TODO: Add verifications related to data requests (e.g. enough commitment transactions for a data request)
-pub fn validate_transactions<S: ::std::hash::BuildHasher>(
-    utxo_set: &mut HashMap<OutputPointer, Output, S>,
+pub fn validate_transactions(
+    utxo_set: &UnspentOutputsPool,
     _txn_pool: &TransactionsPool,
-    data_request_pool: &mut DataRequestPool,
+    data_request_pool: &DataRequestPool,
     block: &Block,
-) -> bool {
+) -> Option<BlockInChain> {
+    // TODO: Add validate_mint function
+
+    let mut utxo_set = utxo_set.clone();
+    let mut data_request_pool = data_request_pool.clone();
+
     let mut valid_transactions = true;
+
     let transactions = block.txns.clone();
 
     let mut remove_later = vec![];
     for transaction in &transactions {
-        if validate_transaction(&transaction, utxo_set) {
+        if validate_transaction(&transaction, &mut utxo_set) {
             let txn_hash = transaction.hash();
 
             for input in &transaction.inputs {
@@ -64,6 +74,7 @@ pub fn validate_transactions<S: ::std::hash::BuildHasher>(
                 &block.hash(),
             );
         } else {
+            warn!("Transaction not valid");
             valid_transactions = false;
             break;
         }
@@ -73,7 +84,76 @@ pub fn validate_transactions<S: ::std::hash::BuildHasher>(
         utxo_set.remove(&output_pointer);
     }
 
-    valid_transactions
+    if valid_transactions {
+        Some(BlockInChain {
+            block: block.clone(),
+            utxo_set,
+            data_request_pool,
+        })
+    } else {
+        None
+    }
+}
+
+/// Function to validate a block
+pub fn validate_block(
+    block: &Block,
+    current_epoch: Epoch,
+    chain_beacon: CheckpointBeacon,
+    genesis_block_hash: Hash,
+    utxo_set: &UnspentOutputsPool,
+    txn_pool: &TransactionsPool,
+    data_request_pool: &DataRequestPool,
+) -> Option<BlockInChain> {
+    let mut response = None;
+    let block_epoch = block.block_header.beacon.checkpoint;
+    let hash_prev_block = block.block_header.beacon.hash_prev_block;
+
+    if !verify_poe_block() {
+        warn!("Invalid PoE");
+    } else if !validate_merkle_tree(&block) {
+        warn!("Block merkle tree not valid");
+    } else if block_epoch > current_epoch {
+        warn!(
+            "Block epoch from the future: current: {}, block: {}",
+            current_epoch, block_epoch
+        );
+    } else if chain_beacon.checkpoint > block_epoch {
+        debug!(
+            "Ignoring block from epoch {} (older than highest block checkpoint {})",
+            block_epoch, chain_beacon.checkpoint
+        );
+    } else if hash_prev_block != genesis_block_hash
+        && chain_beacon.hash_prev_block != hash_prev_block
+    {
+        warn!(
+            "Ignoring block because previous hash [{:?}]is not known",
+            hash_prev_block
+        );
+    } else {
+        response = validate_transactions(&utxo_set, &txn_pool, &data_request_pool, &block)
+    }
+
+    response
+}
+
+/// Function to validate a block candidate
+pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> bool {
+    let mut valid_block = false;
+    let block_epoch = block.block_header.beacon.checkpoint;
+
+    if !verify_poe_block() {
+        warn!("Invalid PoE");
+    } else if block_epoch != current_epoch {
+        warn!(
+            "Block epoch from different epoch: current: {}, block: {}",
+            current_epoch, block_epoch
+        );
+    } else {
+        valid_block = true;
+    }
+
+    valid_block
 }
 
 /// Function to calculate a merkle tree from a transaction vector
@@ -114,6 +194,13 @@ pub fn block_reward(epoch: Epoch) -> u64 {
         0
     }
 }
+
+/// Function to check poe validation for blocks
+// TODO: Implement logic for this function
+pub fn verify_poe_block() -> bool {
+    true
+}
+
 /// Function to check poe validation for data requests
 // TODO: Implement logic for this function
 pub fn verify_poe_data_request() -> bool {
