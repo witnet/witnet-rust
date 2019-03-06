@@ -9,9 +9,12 @@ use witnet_data_structures::{
 };
 use witnet_util::error::WitnetError;
 
-use super::{data_request::DataRequestPool, ChainManager, ChainManagerError, StateMachine};
+use super::{
+    data_request::DataRequestPool, validations::validate_block, ChainManager, ChainManagerError,
+    StateMachine,
+};
 use crate::actors::messages::{
-    AddNewBlock, AddTransaction, DiscardExistingInventoryEntries, EpochNotification,
+    AddBlocks, AddCandidates, AddTransaction, DiscardExistingInventoryEntries, EpochNotification,
     GetBlocksEpochRange, GetHighestCheckpointBeacon, GetOutput, GetOutputResult,
     InventoryEntriesResult, PeerLastEpoch, PeersBeacons, SessionUnitResult, SetNetworkReady,
 };
@@ -72,49 +75,84 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
 
         match self.sm_state {
-            StateMachine::WaitingConsensus => {}
+            StateMachine::WaitingConsensus => {
+                debug!("EpochNotification handle: WaitingConsensus state");
+            }
             StateMachine::Synchronizing => {
-                unimplemented!();
+                debug!("EpochNotification handle: Synchronizing state");
             }
             StateMachine::Synced => {
-                unimplemented!();
+                debug!("EpochNotification handle: Synced state");
+
+                if self.current_epoch.is_none() {
+                    warn!("ChainManager doesn't have current epoch");
+                } else if self.chain_state.chain_info.is_none() {
+                    warn!("ChainManager doesn't have chain_info");
+                } else {
+                    let current_epoch = self.current_epoch.unwrap();
+                    let candidates = self.candidates.clone();
+
+                    // Decide the best candidate
+                    let mut chosen_candidate = None;
+                    for (key, block_candidate) in candidates {
+                        if chosen_candidate.is_some() {
+                            let (chosen_key, _) = chosen_candidate.clone().unwrap();
+                            if chosen_key < key {
+                                // Ignore candidates with bigger hashes
+                                continue;
+                            }
+                        }
+                        if let Some(block_in_chain) = validate_block(
+                            &block_candidate,
+                            current_epoch,
+                            self.chain_state
+                                .chain_info
+                                .as_ref()
+                                .unwrap()
+                                .highest_block_checkpoint,
+                            self.genesis_block_hash,
+                            &self.chain_state.unspent_outputs_pool,
+                            &self.transactions_pool,
+                            &self.data_request_pool,
+                        ) {
+                            chosen_candidate = Some((key, block_in_chain));
+                        }
+                    }
+
+                    // Consolidate the best candidate
+                    if let Some((_, block_in_chain)) = chosen_candidate {
+                        // Persist block and update ChainState
+                        self.consolidate_block(
+                            ctx,
+                            block_in_chain.block,
+                            block_in_chain.utxo_set,
+                            block_in_chain.data_request_pool,
+                            true,
+                        );
+                    } else {
+                        warn!(
+                            "There are not valid candidate to consolidate in epoch {}",
+                            msg.checkpoint
+                        );
+                    }
+
+                    // TODO: Send last_beacon
+
+                    // Mining
+                    if self.mining_enabled && self.mine {
+                        // Data race: the data requests should be sent after mining the block, otherwise
+                        // it takes 2 epochs to move from one stage to the next one
+                        self.try_mine_block(ctx);
+                    }
+                    // Data request mining MUST finish BEFORE the block has been mined!!!!
+                    // (The transactions must be included into this block, both the transactions from
+                    // our node and the transactions from other nodes
+                    self.try_mine_data_request(ctx);
+                }
             }
         };
-
-        //TODO: Refactor next code in StateMachine branches
-
-        self.current_epoch = Some(msg.checkpoint);
-
-        if !self.network_ready {
-            warn!(
-                "Node is not connected to enough peers. Delaying chain bootstrapping until then."
-            );
-
-            return;
-        }
-
-        // Consolidate the best known block candidate
-        if let Some(candidate) = self.best_candidate.take() {
-            // Persist block and update ChainState
-            self.consolidate_block(
-                ctx,
-                candidate.block,
-                candidate.utxo_set,
-                candidate.data_request_pool,
-                true,
-            );
-        }
-
-        if self.mining_enabled && self.mine {
-            // Data race: the data requests should be sent after mining the block, otherwise
-            // it takes 2 epochs to move from one stage to the next one
-            self.try_mine_block(ctx);
-        }
-
-        // Data request mining MUST finish BEFORE the block has been mined!!!!
-        // (The transactions must be included into this block, both the transactions from
-        // our node and the transactions from other nodes
-        self.try_mine_data_request(ctx);
+        // Clear candidates
+        self.candidates.clear();
     }
 }
 
@@ -139,12 +177,37 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
     }
 }
 
-/// Handler for AddNewBlock message
-impl Handler<AddNewBlock> for ChainManager {
+/// Handler for AddBlocks message
+impl Handler<AddBlocks> for ChainManager {
     type Result = SessionUnitResult;
 
-    fn handle(&mut self, msg: AddNewBlock, ctx: &mut Context<Self>) {
-        self.process_block(ctx, msg.block)
+    fn handle(&mut self, msg: AddBlocks, ctx: &mut Context<Self>) {
+        match self.sm_state {
+            StateMachine::WaitingConsensus => {
+                debug!("AddBlocks handle: WaitingConsensus state");
+            }
+            StateMachine::Synchronizing => {
+                debug!("AddBlocks handle: Synchronizing state");
+                for block in msg.blocks {
+                    self.process_requested_block(ctx, block)
+                }
+            }
+            StateMachine::Synced => {
+                debug!("AddBlocks handle: Synced state");
+            }
+        };
+    }
+}
+
+/// Handler for AddCandidates message
+impl Handler<AddCandidates> for ChainManager {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, msg: AddCandidates, _ctx: &mut Context<Self>) {
+        // AddCandidates is need in all states
+        for block in msg.blocks {
+            self.process_candidate(block)
+        }
     }
 }
 

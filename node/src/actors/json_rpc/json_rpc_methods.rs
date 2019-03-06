@@ -2,7 +2,7 @@
 use self::mock_actix::System;
 use crate::actors::{
     chain_manager::ChainManager,
-    messages::{AddNewBlock, AddTransaction, GetBlocksEpochRange, GetOutput},
+    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange, GetOutput},
 };
 #[cfg(not(test))]
 use actix::System;
@@ -59,7 +59,9 @@ pub fn inventory(inv_elem: InventoryItem) -> JsonRpcResult {
             let chain_manager_addr = System::current().registry().get::<ChainManager>();
             // If this function was called asynchronously, it could wait for the result
             // But it's not so we just assume success
-            chain_manager_addr.do_send(AddNewBlock { block });
+            chain_manager_addr.do_send(AddCandidates {
+                blocks: vec![block],
+            });
 
             // Returns a boolean indicating success
             Ok(Value::Bool(true))

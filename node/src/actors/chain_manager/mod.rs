@@ -49,16 +49,13 @@ use witnet_util::error::WitnetError;
 
 use self::{
     data_request::DataRequestPool,
-    validations::{
-        block_reward, validate_block, validate_candidate, validate_merkle_tree,
-        validate_transactions,
-    },
+    validations::{validate_block, validate_candidate},
 };
 use crate::actors::{
     inventory_manager::InventoryManager,
     messages::{
         AddItem, AddTransaction, Anycast, Broadcast, InventoryEntriesResult, InventoryExchange,
-        Put, RequestBlock, SendInventoryItem,
+        Put, SendInventoryItem,
     },
     sessions_manager::SessionsManager,
     storage_keys::CHAIN_STATE_KEY,
@@ -120,8 +117,6 @@ pub struct ChainManager {
     chain_state: ChainState,
     /// Map that stores blocks without validation by their hash
     blocks_to_validate: HashMap<Hash, Block>,
-    /// Block candidate that it can not be validate because not previous block
-    candidate_to_validate: Option<Block>,
     /// Current Epoch
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
@@ -274,16 +269,6 @@ impl ChainManager {
         });
     }
 
-    fn request_block(&self, item: InventoryEntry) {
-        // Get SessionsManager address
-        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
-
-        sessions_manager_addr.do_send(Anycast {
-            command: RequestBlock { block_entry: item },
-            safu: false,
-        });
-    }
-
     fn discard_existing_inventory_entries(
         &mut self,
         inv_entries: Vec<InventoryEntry>,
@@ -309,139 +294,33 @@ impl ChainManager {
         Ok(missing_inv_entries)
     }
 
-    fn process_block(&mut self, ctx: &mut Context<Self>, block: Block) {
-        let block_epoch = block.block_header.beacon.checkpoint;
-        let hash_prev_block = block.block_header.beacon.hash_prev_block;
+    fn process_requested_block(&mut self, ctx: &mut Context<Self>, block: Block) {
+        if self.current_epoch.is_none() {
+            warn!("ChainManager doesn't have current epoch");
+        } else if self.chain_state.chain_info.is_none() {
+            warn!("ChainManager doesn't have chain_info");
+        } else {
+            let current_epoch = self.current_epoch.unwrap();
+            let chain_beacon = self
+                .chain_state
+                .chain_info
+                .as_ref()
+                .unwrap()
+                .highest_block_checkpoint;
 
-        //Discard blocks whose hash is bigger or equal than the candidate
-        let our_candidate_is_better = Some(block_epoch) == self.current_epoch
-            && match self.best_candidate.as_ref() {
-                Some(candidate) => candidate.block.hash() <= block.hash(),
-                None => false,
-            };
+            let block_in_chain = validate_block(
+                &block,
+                current_epoch,
+                chain_beacon,
+                self.genesis_block_hash,
+                &self.chain_state.unspent_outputs_pool,
+                &self.transactions_pool,
+                &self.data_request_pool,
+            );
 
-        // TODO: Refactor block validation logic
-        self.current_epoch
-            .map(|current_epoch| {
-                // Check beforehand if a previous block candidate exists to validate
-                if let Some(candidate_to_validate) = self.candidate_to_validate.take() {
-                    if candidate_to_validate.hash() == hash_prev_block {
-                        debug!("Processing block in memory: {}", hash_prev_block);
-                        self.process_block(ctx, candidate_to_validate);
-                    } else {
-                        self.candidate_to_validate = Some(candidate_to_validate);
-                    }
-                }
+            if block_in_chain.is_some() {
+                let block_in_chain = block_in_chain.unwrap();
 
-                if !validate_merkle_tree(&block) {
-                    warn!("Block merkle tree not valid");
-                } else if block_epoch > current_epoch {
-                    warn!(
-                        "Block epoch from the future: current: {}, block: {}",
-                        current_epoch, block_epoch
-                    );
-                } else if self.chain_state.chain_info.is_some()
-                    && self
-                        .chain_state
-                        .chain_info
-                        .as_ref()
-                        .unwrap()
-                        .highest_block_checkpoint
-                        .checkpoint
-                        > block_epoch
-                {
-                    debug!(
-                        "Ignoring block from epoch {} (older than highest block checkpoint {})",
-                        block_epoch,
-                        self.chain_state
-                            .chain_info
-                            .as_ref()
-                            .unwrap()
-                            .highest_block_checkpoint
-                            .checkpoint
-                    );
-                } else if our_candidate_is_better {
-                    if let Some(candidate) = self.best_candidate.as_ref() {
-                        debug!(
-                            "We already had a better candidate ({:?} overpowers {:?})",
-                            candidate.block.hash(),
-                            block.hash()
-                        );
-                    }
-                } else if hash_prev_block != self.genesis_block_hash
-                    && self.chain_state.chain_info.is_some()
-                    && self
-                        .chain_state
-                        .chain_info
-                        .as_ref()
-                        .unwrap()
-                        .highest_block_checkpoint
-                        .hash_prev_block
-                        != hash_prev_block
-                {
-                    if current_epoch == block_epoch && self.synced {
-                        // Keep possible block_candidate
-                        debug!("Block to memory: {}", block.hash());
-                        self.candidate_to_validate = Some(block);
-                        self.request_block(InventoryEntry::Block(hash_prev_block));
-                        debug!("Requesting previous block: {}", hash_prev_block)
-                    } else {
-                        warn!(
-                            "Ignoring block because previous hash [{:?}]is not known",
-                            hash_prev_block
-                        );
-                    }
-                } else if let Err(e) = block.validate(
-                    block_reward(block_epoch),
-                    &self.chain_state.unspent_outputs_pool,
-                ) {
-                    warn!("Block's mint transaction is not valid: {:?}", e);
-                } else {
-                    if block_epoch < current_epoch {
-                        // FIXME(#235): check proof of eligibility from the past
-                        // There should be a method to validate PoE from a past epoch
-                        debug!(
-                            "Received Block with an epoch from the past: current: {}, block: {}",
-                            current_epoch, block_epoch
-                        );
-                    }
-
-                    // TODO: Use a real PoE
-                    let poe = true;
-                    if poe {
-                        self.process_poe_validation_response(ctx, block);
-                    }
-                }
-            })
-            .unwrap_or_else(|| {
-                warn!("ChainManager doesn't have current epoch");
-            });
-    }
-
-    fn update_transaction_pool(&mut self, transactions: &[Transaction]) {
-        for transaction in transactions {
-            self.transactions_pool.remove(&transaction.hash());
-        }
-    }
-
-    fn process_poe_validation_response(&mut self, ctx: &mut Context<Self>, block: Block) {
-        let mut utxo_set = self.chain_state.unspent_outputs_pool.clone();
-        let mut data_request_pool = self.data_request_pool.clone();
-
-        let block_in_chain = validate_transactions(
-            &mut utxo_set,
-            &self.transactions_pool,
-            &mut data_request_pool,
-            &block,
-        );
-        if let Some(block_in_chain) = block_in_chain {
-            let block_epoch = block_in_chain.block.block_header.beacon.checkpoint;
-            if Some(block_epoch) == self.current_epoch {
-                //Broadcast blocks in current epoch
-                self.broadcast_item(InventoryItem::Block(block_in_chain.block.clone()));
-                // Update block candidate
-                self.best_candidate = Some(block_in_chain);
-            } else {
                 // Persist block and update ChainState
                 self.consolidate_block(
                     ctx,
@@ -451,6 +330,29 @@ impl ChainManager {
                     false,
                 );
             }
+        }
+    }
+
+    fn process_candidate(&mut self, block: Block) {
+        if self.current_epoch.is_none() {
+            warn!("ChainManager doesn't have current epoch");
+        } else if self.chain_state.chain_info.is_none() {
+            warn!("ChainManager doesn't have chain_info");
+        } else {
+            let current_epoch = self.current_epoch.unwrap();
+            let hash_block = block.hash();
+
+            if !self.candidates.contains_key(&hash_block)
+                && validate_candidate(&block, current_epoch)
+            {
+                self.candidates.insert(hash_block, block);
+            }
+        }
+    }
+
+    fn update_transaction_pool(&mut self, transactions: &[Transaction]) {
+        for transaction in transactions {
+            self.transactions_pool.remove(&transaction.hash());
         }
     }
 
