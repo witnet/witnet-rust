@@ -32,12 +32,17 @@ use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System, SystemService,
     WrapFuture,
 };
+use ansi_term::Color::{Purple, White, Yellow};
 use log::{debug, error, info, warn};
+use witnet_rad::types::RadonTypes;
 
-use witnet_data_structures::chain::{
-    ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
-    Hashable, InventoryEntry, InventoryItem, OutputPointer, Transaction, TransactionsPool,
-    UnspentOutputsPool,
+use witnet_data_structures::{
+    chain::{
+        ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
+        Hashable, InventoryEntry, InventoryItem, Output, OutputPointer, Transaction,
+        TransactionsPool, UnspentOutputsPool,
+    },
+    serializers::decoders::TryFrom,
 };
 use witnet_storage::{error::StorageError, storage::Storable};
 use witnet_util::error::WitnetError;
@@ -49,8 +54,8 @@ use self::{
 use crate::actors::{
     inventory_manager::InventoryManager,
     messages::{
-        AddItem, Anycast, Broadcast, InventoryEntriesResult, InventoryExchange, Put, RequestBlock,
-        SendInventoryItem,
+        AddItem, AddTransaction, Anycast, Broadcast, InventoryEntriesResult, InventoryExchange,
+        Put, RequestBlock, SendInventoryItem,
     },
     sessions_manager::SessionsManager,
     storage_keys::CHAIN_STATE_KEY,
@@ -422,7 +427,6 @@ impl ChainManager {
             &mut data_request_pool,
             &block,
         ) {
-            let block_hash: Hash = block.hash();
             let block_epoch = block.block_header.beacon.checkpoint;
             if Some(block_epoch) == self.current_epoch {
                 // Update block candidate
@@ -434,54 +438,8 @@ impl ChainManager {
                 //Broadcast blocks in current epoch
                 self.broadcast_item(InventoryItem::Block(block));
             } else {
-                //TODO: Now we assume there are no forked older blocks
-
-                // Persist block item
-                self.persist_item(ctx, InventoryItem::Block(block.clone()));
-
-                // Update utxo set with block's transactions
-                self.chain_state.unspent_outputs_pool =
-                    self.chain_state.generate_unspent_outputs_pool(&block);
-                self.update_transaction_pool(block.txns.as_ref());
-
-                // FIXME: Revisit for potential refactor
-                // Update data requests pool
-                self.data_request_pool = data_request_pool;
-                self.data_request_pool.update_data_request_stages();
-                // Persist finished data requests into storage
-                let to_be_stored = self.data_request_pool.finished_data_requests();
-                to_be_stored.into_iter().for_each(|dr| {
-                    self.persist_data_request(ctx, &dr);
-                });
-                // Store active data requests
-                self.chain_state.data_request_pool = ActiveDataRequestPool {
-                    waiting_for_reveal: self.data_request_pool.waiting_for_reveal.clone(),
-                    data_requests_by_epoch: self.data_request_pool.data_requests_by_epoch.clone(),
-                    data_request_pool: self.data_request_pool.data_request_pool.clone(),
-                    to_be_stored: self.data_request_pool.to_be_stored.clone(),
-                    dr_pointer_cache: self.data_request_pool.dr_pointer_cache.clone(),
-                };
-                // End of FIX ME
-
-                // Update chain_info
-                match self.chain_state.chain_info.as_mut() {
-                    Some(chain_info) => {
-                        let beacon = CheckpointBeacon {
-                            checkpoint: block_epoch,
-                            hash_prev_block: block_hash,
-                        };
-
-                        chain_info.highest_block_checkpoint = beacon;
-
-                        // Insert candidate block into `block_chain`
-                        self.chain_state.block_chain.insert(block_epoch, block_hash);
-                        debug!("Chain Info updated");
-                    }
-
-                    None => {
-                        error!("No ChainInfo loaded in ChainManager");
-                    }
-                }
+                // Persist block and update ChainState
+                self.consolidate_block(ctx, block, utxo_set, data_request_pool, false);
             }
         } else {
             warn!("Transactions not valid")
@@ -520,6 +478,139 @@ impl ChainManager {
                 act.synchronize(ctx, act.synchronizing_period);
             }
         });
+    }
+
+    fn consolidate_block(
+        &mut self,
+        ctx: &mut Context<Self>,
+        block: Block,
+        utxo_set: UnspentOutputsPool,
+        dr_pool: DataRequestPool,
+        info_flag: bool,
+    ) {
+        // Update chain_info
+        match self.chain_state.chain_info.as_mut() {
+            Some(chain_info) => {
+                let block_hash = block.hash();
+                let block_epoch = block.block_header.beacon.checkpoint;
+
+                // Update `highest_block_checkpoint`
+                let beacon = CheckpointBeacon {
+                    checkpoint: block_epoch,
+                    hash_prev_block: block_hash,
+                };
+                chain_info.highest_block_checkpoint = beacon;
+
+                // Update UnspentOutputsPool
+                self.chain_state.unspent_outputs_pool = utxo_set;
+
+                // Update TransactionPool
+                self.update_transaction_pool(block.txns.as_ref());
+
+                // Update DataRequestPool
+                self.data_request_pool = dr_pool;
+                let reveals = self.data_request_pool.update_data_request_stages();
+                for reveal in reveals {
+                    // Send AddTransaction message to self
+                    // And broadcast it to all of peers
+                    ctx.address().do_send(AddTransaction {
+                        transaction: reveal,
+                    })
+                }
+                // Persist finished data requests into storage
+                let to_be_stored = self.data_request_pool.finished_data_requests();
+                to_be_stored.into_iter().for_each(|dr| {
+                    self.persist_data_request(ctx, &dr);
+                    if info_flag {
+                        self.show_info_tally(dr, block_epoch);
+                    }
+                });
+                // FIXME: Revisit to avoid data redundancies
+                // Store active data requests
+                self.chain_state.data_request_pool = ActiveDataRequestPool {
+                    waiting_for_reveal: self.data_request_pool.waiting_for_reveal.clone(),
+                    data_requests_by_epoch: self.data_request_pool.data_requests_by_epoch.clone(),
+                    data_request_pool: self.data_request_pool.data_request_pool.clone(),
+                    to_be_stored: self.data_request_pool.to_be_stored.clone(),
+                    dr_pointer_cache: self.data_request_pool.dr_pointer_cache.clone(),
+                };
+                if info_flag {
+                    self.show_info_dr(&block);
+
+                    debug!("{:?}", block);
+                    debug!("Mint transaction hash: {:?}", block.txns[0].hash());
+                }
+
+                // Insert candidate block into `block_chain` and persist it
+                self.chain_state.block_chain.insert(block_epoch, block_hash);
+                self.persist_item(ctx, InventoryItem::Block(block));
+
+                // Persist chain_info into storage
+                self.persist_chain_state(ctx);
+            }
+            None => {
+                error!("No ChainInfo loaded in ChainManager");
+            }
+        }
+    }
+
+    fn show_info_tally(&self, dr: (OutputPointer, DataRequestReport), block_epoch: Epoch) {
+        let tally_output_pointer = dr.1.tally;
+        let tr = self
+            .chain_state
+            .unspent_outputs_pool
+            .get(&tally_output_pointer);
+        if let Some(Output::Tally(tally_output)) = tr {
+            let result = RadonTypes::try_from(tally_output.result.as_slice())
+                .map(|x| x.to_string())
+                .unwrap_or_else(|_| "RADError".to_string());
+            info!(
+                "{} {} completed at epoch #{} with result: {}",
+                Yellow.bold().paint("[Data Request]"),
+                Yellow.bold().paint(&dr.0.to_string()),
+                Yellow.bold().paint(block_epoch.to_string()),
+                Yellow.bold().paint(result),
+            );
+        }
+    }
+
+    fn show_info_dr(&self, block: &Block) {
+        let block_hash = block.hash();
+        let block_epoch = block.block_header.beacon.checkpoint;
+
+        let info =
+            self.data_request_pool
+                .data_request_pool
+                .iter()
+                .fold(String::new(), |acc, (k, v)| {
+                    format!(
+                        "{}\n\t* {} Stage: {}, Commits: {}, Reveals: {}",
+                        acc,
+                        White.bold().paint(k.to_string()),
+                        White.bold().paint(format!("{:?}", v.stage)),
+                        v.info.commits.len(),
+                        v.info.reveals.len()
+                    )
+                });
+
+        if info.is_empty() {
+            info!(
+                "{} Block {} consolidated for epoch #{} {}",
+                Purple.bold().paint("[Chain]"),
+                Purple.bold().paint(block_hash.to_string()),
+                Purple.bold().paint(block_epoch.to_string()),
+                White.paint("with no data requests".to_string()),
+            );
+        } else {
+            info!(
+                "{} Block {} consolidated for epoch #{}\n{}{}",
+                Purple.bold().paint("[Chain]"),
+                Purple.bold().paint(block_hash.to_string()),
+                Purple.bold().paint(block_epoch.to_string()),
+                White.bold().paint("Data Requests: "),
+                White.bold().paint(info),
+            );
+        }
     }
 }
 

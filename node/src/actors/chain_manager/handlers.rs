@@ -1,16 +1,12 @@
-use actix::{Actor, AsyncContext, Context, Handler};
-use ansi_term::Color::{Purple, White, Yellow};
-use log::{debug, error, info, warn};
+use actix::{Actor, Context, Handler};
+use log::{debug, error, warn};
 
 use witnet_data_structures::{
     chain::{
-        ActiveDataRequestPool, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem,
-        Output, OutputPointer,
+        CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, Output, OutputPointer,
     },
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
-    serializers::decoders::TryFrom,
 };
-use witnet_rad::types::RadonTypes;
 use witnet_util::error::WitnetError;
 
 use super::{data_request::DataRequestPool, ChainManager, ChainManagerError, StateMachine};
@@ -98,124 +94,14 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
         // Consolidate the best known block candidate
         if let Some(candidate) = self.best_candidate.take() {
-            // Update chain_info
-            match self.chain_state.chain_info.as_mut() {
-                Some(chain_info) => {
-                    // Update `highest_block_checkpoint`
-                    let block_hash = candidate.block.hash();
-                    let block_epoch = candidate.block.block_header.beacon.checkpoint;
-                    let beacon = CheckpointBeacon {
-                        checkpoint: block_epoch,
-                        hash_prev_block: block_hash,
-                    };
-                    chain_info.highest_block_checkpoint = beacon;
-
-                    // Insert candidate block into `block_chain`
-                    self.chain_state.block_chain.insert(block_epoch, block_hash);
-
-                    // Update utxo_set, transactions_pool and data_request_pool with block_candidate transactions
-                    self.chain_state.unspent_outputs_pool = candidate.utxo_set;
-                    self.update_transaction_pool(candidate.block.txns.as_ref());
-                    self.data_request_pool = candidate.data_request_pool;
-
-                    let reveals = self.data_request_pool.update_data_request_stages();
-
-                    for reveal in reveals {
-                        // Send AddTransaction message to self
-                        // And broadcast it to all of peers
-                        ctx.address().do_send(AddTransaction {
-                            transaction: reveal,
-                        })
-                    }
-
-                    // Persist finished data requests into storage
-                    let to_be_stored = self.data_request_pool.finished_data_requests();
-                    to_be_stored.into_iter().for_each(|dr| {
-                        self.persist_data_request(ctx, &dr);
-
-                        let tally_output_pointer = dr.1.tally;
-                        let tr = self
-                            .chain_state
-                            .unspent_outputs_pool
-                            .get(&tally_output_pointer);
-                        if let Some(Output::Tally(tally_output)) = tr {
-                            let result = RadonTypes::try_from(tally_output.result.as_slice())
-                                .map(|x| x.to_string())
-                                .unwrap_or_else(|_| "RADError".to_string());
-                            info!(
-                                "{} {} completed at epoch #{} with result: {}",
-                                Yellow.bold().paint("[Data Request]"),
-                                Yellow.bold().paint(&dr.0.to_string()),
-                                Yellow.bold().paint(block_epoch.to_string()),
-                                Yellow.bold().paint(result),
-                            );
-                        }
-                    });
-
-                    // FIXME: Revisit to avoid data redundancies
-                    // Store active data requests
-                    self.chain_state.data_request_pool = ActiveDataRequestPool {
-                        waiting_for_reveal: self.data_request_pool.waiting_for_reveal.clone(),
-                        data_requests_by_epoch: self
-                            .data_request_pool
-                            .data_requests_by_epoch
-                            .clone(),
-                        data_request_pool: self.data_request_pool.data_request_pool.clone(),
-                        to_be_stored: self.data_request_pool.to_be_stored.clone(),
-                        dr_pointer_cache: self.data_request_pool.dr_pointer_cache.clone(),
-                    };
-
-                    {
-                        let info = self.data_request_pool.data_request_pool.iter().fold(
-                            String::new(),
-                            |acc, (k, v)| {
-                                format!(
-                                    "{}\n\t* {} Stage: {}, Commits: {}, Reveals: {}",
-                                    acc,
-                                    White.bold().paint(k.to_string()),
-                                    White.bold().paint(format!("{:?}", v.stage)),
-                                    v.info.commits.len(),
-                                    v.info.reveals.len()
-                                )
-                            },
-                        );
-
-                        if info.is_empty() {
-                            info!(
-                                "{} Block {} consolidated for epoch #{} {}",
-                                Purple.bold().paint("[Chain]"),
-                                Purple.bold().paint(candidate.block.hash().to_string()),
-                                Purple.bold().paint(block_epoch.to_string()),
-                                White.paint("with no data requests".to_string()),
-                            );
-                        } else {
-                            info!(
-                                "{} Block {} consolidated for epoch #{}\n{}{}",
-                                Purple.bold().paint("[Chain]"),
-                                Purple.bold().paint(candidate.block.hash().to_string()),
-                                Purple.bold().paint(block_epoch.to_string()),
-                                White.bold().paint("Data Requests: "),
-                                White.bold().paint(info),
-                            );
-                        }
-                    }
-
-                    debug!("{:?}", candidate.block);
-                    debug!(
-                        "Mint transaction hash: {:?}",
-                        candidate.block.txns[0].hash()
-                    );
-
-                    // Send block to Inventory Manager
-                    self.persist_item(ctx, InventoryItem::Block(candidate.block));
-
-                    // Persist chain_info into storage
-                    self.persist_chain_state(ctx);
-                }
-                None => {
-                    error!("No ChainInfo loaded in ChainManager");
-                }
-            }
+            // Persist block and update ChainState
+            self.consolidate_block(
+                ctx,
+                candidate.block,
+                candidate.utxo_set,
+                candidate.data_request_pool,
+                true,
+            );
         }
 
         if self.mining_enabled && self.mine {
