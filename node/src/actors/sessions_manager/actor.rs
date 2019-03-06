@@ -49,5 +49,7 @@ impl Actor for SessionsManager {
             })
             .map_err(|err, _, _| log::error!("Sessions manager startup error: {}", err))
             .wait(ctx);
+
+        self.subscribe_to_epoch_manager(ctx);
     }
 }

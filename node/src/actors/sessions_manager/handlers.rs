@@ -11,10 +11,12 @@ use log::{debug, error, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use super::SessionsManager;
+use crate::actors::messages::EpochNotification;
 use crate::actors::{
     codec::P2PCodec,
     messages::{
-        AddPeers, Anycast, Broadcast, Consolidate, Create, Register, SessionsUnitResult, Unregister,
+        AddPeers, Anycast, Broadcast, Consolidate, Create, PeerBeacon, Register,
+        SessionsUnitResult, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -212,5 +214,41 @@ where
                 // Send message to session and ignore errors
                 session_addr.do_send(msg.command.clone());
             });
+    }
+}
+
+impl Handler<EpochNotification<()>> for SessionsManager {
+    type Result = ();
+
+    fn handle(&mut self, _msg: EpochNotification<()>, ctx: &mut Context<Self>) {
+        let all_ready_before = self.beacons.iter().all(|(_k, v)| v.is_some());
+        if !all_ready_before {
+            // Some peers sent us beacons, but not all of them
+            self.send_peers_beacons(ctx);
+        }
+        // New epoch, new beacons
+        self.clear_beacons();
+    }
+}
+
+impl Handler<PeerBeacon> for SessionsManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: PeerBeacon, ctx: &mut Context<Self>) {
+        let all_ready_before = self.beacons.iter().all(|(_k, v)| v.is_some());
+        if all_ready_before {
+            // We already got all the beacons for this epoch, do nothing
+            return;
+        }
+
+        if let Some(x) = self.beacons.get_mut(&msg.address) {
+            *x = Some(msg.beacon);
+        }
+
+        let all_ready_after = self.beacons.iter().all(|(_k, v)| v.is_some());
+
+        if !all_ready_before && all_ready_after {
+            self.send_peers_beacons(ctx);
+        }
     }
 }

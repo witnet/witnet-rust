@@ -21,6 +21,7 @@ use witnet_data_structures::{
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use super::Session;
+use crate::actors::messages::PeerBeacon;
 use crate::actors::{
     chain_manager::ChainManager,
     codec::BytesMut,
@@ -28,7 +29,7 @@ use crate::actors::{
     messages::{
         AddBlocks, AddCandidates, AddPeers, AddTransaction, AnnounceItems, Consolidate,
         EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem, GetPeers,
-        InventoryExchange, PeerLastEpoch, RequestPeers, SendInventoryItem, SessionUnitResult,
+        InventoryExchange, RequestPeers, SendInventoryItem, SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -589,6 +590,7 @@ fn session_last_beacon_inbound(
         ..
     }: CheckpointBeacon,
 ) {
+    // TODO: LastBeacon on inbound peers?
     // Get ChainManager address from registry
     let chain_manager_addr = System::current().registry().get::<ChainManager>();
     // Send GetHighestCheckpointBeacon message to ChainManager
@@ -654,51 +656,11 @@ fn session_last_beacon_inbound(
 
 fn session_last_beacon_outbound(
     session: &Session,
-    ctx: &mut Context<Session>,
-    CheckpointBeacon {
-        checkpoint: received_checkpoint,
-        ..
-    }: CheckpointBeacon,
+    _ctx: &mut Context<Session>,
+    beacon: CheckpointBeacon,
 ) {
-    // Get ChainManager address from registry
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
-    // Send GetHighestCheckpointBeacon message to ChainManager
-    chain_manager_addr
-        .send(GetHighestCheckpointBeacon)
-        .into_actor(session)
-        .then(move |res, _act, ctx| {
-            match res {
-                Ok(Ok(chain_beacon)) => {
-                    if chain_beacon.checkpoint > received_checkpoint {
-                        warn!(
-                            "My outbound peer is behind me (Outbound checkpoint:{} < Chain checkpoint:{})",
-                            received_checkpoint, chain_beacon.checkpoint
-                        );
-                    } else if chain_beacon.checkpoint == received_checkpoint {
-                        info!("Our chain is on par with our peer's",);
-                    } else {
-                        debug!(
-                            "Received a checkpoint beacon that is ahead of ours ({} > {})",
-                            received_checkpoint, chain_beacon.checkpoint
-                        );
-                    }
-
-                    // Handle mine boolean
-                    ChainManager::from_registry().do_send(PeerLastEpoch {
-                        epoch: received_checkpoint,
-                    });
-
-                    actix::fut::ok(())
-                }
-                _ => {
-                    warn!("Failed to get highest checkpoint beacon from ChainManager");
-                    // FIXME(#72): a full stop of the session is not correct (unregister should
-                    // be skipped)
-                    ctx.stop();
-
-                    actix::fut::err(())
-                }
-            }
-        })
-        .wait(ctx);
+    SessionsManager::from_registry().do_send(PeerBeacon {
+        address: session.remote_addr,
+        beacon,
+    })
 }

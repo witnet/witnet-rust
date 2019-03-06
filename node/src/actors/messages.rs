@@ -167,12 +167,12 @@ pub struct PeerLastEpoch {
 /// A list of peers and their respective last beacon, used to establish consensus
 pub struct PeersBeacons {
     /// A list of peers and their respective last beacon
-    pub pb: Vec<(Addr<Session>, CheckpointBeacon)>,
+    pub pb: Vec<(SocketAddr, CheckpointBeacon)>,
 }
 
 impl Message for PeersBeacons {
     /// Result: list of peers out of consensus which will be unregistered
-    type Result = Result<Vec<Addr<Session>>, ()>;
+    type Result = Result<Vec<SocketAddr>, ()>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -538,6 +538,15 @@ where
     Session: Handler<T>,
 {
     type Result = ();
+}
+
+/// Message indicating the last beacon received from a peer
+#[derive(Clone, Debug, Message)]
+pub struct PeerBeacon {
+    /// Socket address which identifies the peer
+    pub address: SocketAddr,
+    /// Last beacon received from peer
+    pub beacon: CheckpointBeacon,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
