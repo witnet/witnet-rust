@@ -8,8 +8,10 @@ use actix::{
 
 use ansi_term::Color::Cyan;
 
-use witnet_p2p::sessions::Sessions;
+use witnet_p2p::sessions::{SessionStatus, SessionType, Sessions};
 
+use crate::actors::epoch_manager::EpochManager;
+use crate::actors::messages::{PeersBeacons, Subscribe};
 use crate::actors::{
     chain_manager::ChainManager,
     connections_manager::ConnectionsManager,
@@ -20,6 +22,8 @@ use crate::actors::{
     peers_manager::PeersManager,
     session::Session,
 };
+use std::collections::{HashMap, HashSet};
+use witnet_data_structures::chain::CheckpointBeacon;
 
 mod actor;
 mod handlers;
@@ -31,6 +35,8 @@ pub struct SessionsManager {
     sessions: Sessions<Addr<Session>>,
     // Flag indicating if network is ready, i.e. enough outbound peers are connected
     network_ready: bool,
+    // List of beacons of outbound sessions
+    beacons: HashMap<SocketAddr, Option<CheckpointBeacon>>,
 }
 
 impl SessionsManager {
@@ -162,6 +168,68 @@ impl SessionsManager {
         match response {
             Ok(_) => actix::fut::ok(()),
             Err(_) => actix::fut::err(()),
+        }
+    }
+
+    /// Subscribe to all future epochs
+    fn subscribe_to_epoch_manager(&mut self, ctx: &mut Context<Self>) {
+        // Get EpochManager address from registry
+        let epoch_manager_addr = System::current().registry().get::<EpochManager>();
+
+        // Subscribe to all epochs with an empty payload
+        epoch_manager_addr.do_send(Subscribe::to_all(ctx.address(), ()));
+    }
+
+    fn send_peers_beacons(&mut self, ctx: &mut Context<Self>) {
+        // Send message to peers manager
+        // Peers which did not send a beacon will be ignored: neither unregistered nor promoted to safu
+        let pb: Vec<_> = self
+            .beacons
+            .iter()
+            .filter_map(|(k, v)| v.map(|v| (*k, v)))
+            .collect();
+        let mut peers_to_keep: HashSet<_> = pb.iter().map(|(p, _b)| *p).collect();
+        ChainManager::from_registry()
+            .send(PeersBeacons { pb })
+            .into_actor(self)
+            .then(|res, act, _ctx| {
+                match res {
+                    Err(_e) => {
+                        // Actix error, ignore
+                    }
+                    Ok(Err(())) => {
+                        // Nothing to do, carry on
+                    }
+                    Ok(Ok(peers_to_unregister)) => {
+                        // Unregister peers out of consensus
+                        for peer in peers_to_unregister {
+                            match act.sessions.unregister_session(
+                                SessionType::Outbound,
+                                SessionStatus::Consolidated,
+                                peer,
+                            ) {
+                                _ => {}
+                            }
+                            peers_to_keep.remove(&peer);
+                        }
+                        // Mark remaining peers as safu
+                        for peer in peers_to_keep {
+                            match act.sessions.consensus_session(peer) {
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+
+                actix::fut::ok(())
+            })
+            .wait(ctx);
+    }
+
+    fn clear_beacons(&mut self) {
+        self.beacons.clear();
+        for socket_addr in self.sessions.outbound_consolidated.collection.keys() {
+            self.beacons.insert(*socket_addr, None);
         }
     }
 }
