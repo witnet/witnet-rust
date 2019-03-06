@@ -26,9 +26,9 @@ use crate::actors::{
     codec::BytesMut,
     inventory_manager::InventoryManager,
     messages::{
-        AddNewBlock, AddPeers, AddTransaction, AnnounceItems, Consolidate,
+        AddBlocks, AddPeers, AddTransaction, AnnounceItems, Consolidate,
         DiscardExistingInventoryEntries, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem,
-        GetPeers, InventoryExchange, PeerLastEpoch, RequestBlock, RequestPeers, SendInventoryItem,
+        GetPeers, InventoryExchange, PeerLastEpoch, RequestPeers, SendInventoryItem,
         SessionUnitResult,
     },
     peers_manager::PeersManager,
@@ -238,19 +238,6 @@ impl Handler<SendInventoryItem> for Session {
     }
 }
 
-/// Handler for RequestBlock message (sent by other actors)
-impl Handler<RequestBlock> for Session {
-    type Result = SessionUnitResult;
-
-    fn handle(&mut self, msg: RequestBlock, _: &mut Context<Self>) {
-        debug!(
-            "Sending RequestBlock message to peer at {:?}",
-            self.remote_addr
-        );
-        request_block_msg(self, msg.block_entry)
-    }
-}
-
 /// Handler for InventoryExchange message (sent by other actors)
 impl Handler<InventoryExchange> for Session {
     type Result = SessionUnitResult;
@@ -404,7 +391,9 @@ fn inventory_process_block(_session: &mut Session, _ctx: &mut Context<Session>, 
     let chain_manager_addr = System::current().registry().get::<ChainManager>();
 
     // Send a message to the ChainManager to try to add a new block
-    chain_manager_addr.do_send(AddNewBlock { block });
+    chain_manager_addr.do_send(AddBlocks {
+        blocks: vec![block],
+    });
 }
 
 /// Function called when Block message is received
@@ -540,22 +529,6 @@ fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
                 WitnetMessage::build_transaction(session.magic_number, transaction);
             // Send Transaction msg
             session.send_message(transaction_msg);
-        }
-    }
-}
-
-fn request_block_msg(session: &mut Session, block_entry: InventoryEntry) {
-    // Initialize a new inventory entries vector with the given block entry as its sole member
-    let inv_entries: Vec<InventoryEntry> = vec![block_entry];
-
-    match WitnetMessage::build_inventory_request(session.magic_number, inv_entries) {
-        Ok(inv_req_msg) => {
-            // Send InventoryRequest message through the session network connection
-            session.send_message(inv_req_msg);
-        }
-        Err(e) => {
-            // BuildersErrorKind error
-            warn!("Error creating and inventory request message: {}", e);
         }
     }
 }

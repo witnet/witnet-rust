@@ -59,12 +59,22 @@ impl Message for GetHighestCheckpointBeacon {
 }
 
 /// Add a new block
-pub struct AddNewBlock {
-    /// Block
-    pub block: Block,
+pub struct AddBlocks {
+    /// Blocks
+    pub blocks: Vec<Block>,
 }
 
-impl Message for AddNewBlock {
+impl Message for AddBlocks {
+    type Result = SessionUnitResult;
+}
+
+/// Add a new candidate
+pub struct AddCandidates {
+    /// Candidates
+    pub blocks: Vec<Block>,
+}
+
+impl Message for AddCandidates {
     type Result = SessionUnitResult;
 }
 
@@ -428,19 +438,6 @@ pub struct SendInventoryItem {
 impl fmt::Display for SendInventoryItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SendInventoryItem")
-    }
-}
-
-/// Message to request blocks through the network
-#[derive(Clone, Debug, Message)]
-pub struct RequestBlock {
-    /// Block
-    pub block_entry: InventoryEntry,
-}
-
-impl fmt::Display for RequestBlock {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RequestBlock")
     }
 }
 

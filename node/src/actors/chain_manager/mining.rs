@@ -13,7 +13,9 @@ use super::{
     ChainManager,
 };
 use crate::actors::{
-    messages::{AddNewBlock, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunConsensus},
+    messages::{
+        AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunConsensus,
+    },
     rad_manager::RadManager,
 };
 
@@ -118,7 +120,12 @@ impl ChainManager {
 
                         // Send AddNewBlock message to self
                         // This will run all the validations again
-                        act.handle(AddNewBlock { block }, ctx);
+                        act.handle(
+                            AddCandidates {
+                                blocks: vec![block],
+                            },
+                            ctx,
+                        );
                         actix::fut::ok(())
                     })
                     .wait(ctx);
