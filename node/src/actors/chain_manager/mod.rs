@@ -266,7 +266,9 @@ impl ChainManager {
         });
     }
 
-    fn process_requested_block(&mut self, ctx: &mut Context<Self>, block: Block) {
+    fn process_requested_block(&mut self, ctx: &mut Context<Self>, block: Block) -> bool {
+        let mut response = false;
+
         if self.current_epoch.is_none() {
             warn!("ChainManager doesn't have current epoch");
         } else if self.chain_state.chain_info.is_none() {
@@ -301,8 +303,11 @@ impl ChainManager {
                     block_in_chain.data_request_pool,
                     false,
                 );
+                response = true;
             }
         }
+
+        response
     }
 
     fn process_candidate(&mut self, block: Block) {
