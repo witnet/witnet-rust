@@ -80,6 +80,13 @@ pub struct Session {
 
     /// HashMap with requested blocks
     requested_blocks: HashMap<Hash, Block>,
+
+    /// Timeout for requested blocks
+
+    blocks_timeout: i64,
+
+    /// Timestamp for requested blocks
+    blocks_timestamp: i64,
 }
 
 /// Session helper methods
@@ -92,6 +99,7 @@ impl Session {
         framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
         handshake_timeout: Duration,
         magic_number: u16,
+        blocks_timeout: i64,
     ) -> Session {
         Session {
             server_addr,
@@ -106,6 +114,7 @@ impl Session {
             current_epoch: None,
             requested_block_hashes: vec![],
             requested_blocks: HashMap::new(),
+            blocks_timeout,
         }
     }
     /// Method to send a Witnet message to the remote peer

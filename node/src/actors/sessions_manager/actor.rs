@@ -32,6 +32,8 @@ impl Actor for SessionsManager {
                 );
                 act.sessions
                     .set_handshake_timeout(config.connections.handshake_timeout);
+                act.sessions
+                    .set_blocks_timeout(config.connections.blocks_timeout);
 
                 let magic = calculate_sha256(&consensus_constants.to_pb_bytes().unwrap());
                 let magic = u16::from(magic.0[0]) << 8 | (u16::from(magic.0[1]));

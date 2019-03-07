@@ -62,6 +62,8 @@ where
     pub handshake_timeout: Duration,
     /// Magic number
     pub magic_number: u16,
+    /// Timeout for requested blocks
+    pub blocks_timeout: i64,
 }
 
 /// Default trait implementation
@@ -79,6 +81,7 @@ where
             outbound_unconsolidated: BoundedSessions::default(),
             handshake_timeout: Duration::default(),
             magic_number: 0 as u16,
+            blocks_timeout: 0 as i64,
         }
     }
 }
@@ -123,6 +126,10 @@ where
     /// Method to set the magic number to build messages
     pub fn set_magic_number(&mut self, magic_number: u16) {
         self.magic_number = magic_number;
+    }
+    /// Method to set the timout for waiting requested blocks
+    pub fn set_blocks_timeout(&mut self, blocks_timeout: i64) {
+        self.blocks_timeout = blocks_timeout;
     }
     /// Method to check if a socket address is eligible as outbound peer
     pub fn is_outbound_address_eligible(&self, candidate_addr: SocketAddr) -> bool {
