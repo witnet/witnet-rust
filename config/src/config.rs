@@ -157,6 +157,9 @@ pub struct Connections {
         rename = "synced_period_seconds"
     ))]
     pub synced_period: Duration,
+
+    /// Waiting for requested blocks timeout
+    pub blocks_timeout: i64,
 }
 
 fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
@@ -315,6 +318,10 @@ impl Connections {
                 .synced_period
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_synced_period()),
+            blocks_timeout: config
+                .blocks_timeout
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_blocks_timeout()),
         }
     }
 }
@@ -403,6 +410,7 @@ mod tests {
             config.handshake_timeout,
             Testnet1.connections_handshake_timeout()
         );
+        assert_eq!(config.blocks_timeout, Testnet1.connections_blocks_timeout());
     }
 
     #[test]
@@ -419,6 +427,7 @@ mod tests {
             handshake_timeout: Some(Duration::from_secs(3)),
             synchronizing_period: Some(Duration::from_secs(105)),
             synced_period: Some(Duration::from_secs(110)),
+            blocks_timeout: Some(5),
         };
         let config = Connections::from_partial(&partial_config, &Testnet1);
 
@@ -432,6 +441,7 @@ mod tests {
         assert_eq!(config.handshake_timeout, Duration::from_secs(3));
         assert_eq!(config.synchronizing_period, Duration::from_secs(105));
         assert_eq!(config.synced_period, Duration::from_secs(110));
+        assert_eq!(config.blocks_timeout, 5);
     }
 
     #[test]
@@ -504,6 +514,10 @@ mod tests {
         assert_eq!(
             config.connections.synced_period,
             Testnet1.connections_synced_period()
+        );
+        assert_eq!(
+            config.connections.blocks_timeout,
+            Testnet1.connections_blocks_timeout()
         );
     }
 }
