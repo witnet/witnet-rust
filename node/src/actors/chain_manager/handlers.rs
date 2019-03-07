@@ -15,8 +15,8 @@ use super::{
 };
 use crate::actors::messages::{
     AddBlocks, AddCandidates, AddTransaction, Broadcast, EpochNotification, GetBlocksEpochRange,
-    GetHighestCheckpointBeacon, GetOutput, GetOutputResult, PeerLastEpoch, PeersBeacons,
-    SendLastBeacon, SessionUnitResult, SetNetworkReady,
+    GetHighestCheckpointBeacon, GetOutput, GetOutputResult, PeersBeacons, SendLastBeacon,
+    SessionUnitResult, SetNetworkReady,
 };
 use crate::actors::sessions_manager::SessionsManager;
 use crate::utils::mode_consensus;
@@ -160,7 +160,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     });
 
                     // Mining
-                    if self.mining_enabled && self.mine {
+                    if self.mining_enabled {
                         // Data race: the data requests should be sent after mining the block, otherwise
                         // it takes 2 epochs to move from one stage to the next one
                         self.try_mine_block(ctx);
@@ -217,6 +217,8 @@ impl Handler<AddBlocks> for ChainManager {
                         break;
                     }
                 }
+                // TODO: what needs to be done here?
+                self.sm_state = StateMachine::WaitingConsensus;
             }
             StateMachine::Synced => {
                 debug!("AddBlocks handle: Synced state");
@@ -407,17 +409,7 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
     ) -> Self::Result {
         debug!("GetBlocksEpochRange received {:?}", range);
 
-        match self.sm_state {
-            StateMachine::WaitingConsensus => {}
-            StateMachine::Synchronizing => {
-                unimplemented!();
-            }
-            StateMachine::Synced => {
-                unimplemented!();
-            }
-        };
-
-        //TODO: Refactor next code in StateMachine branches
+        // Accept this message in any state
 
         let mut hashes: Vec<(Epoch, InventoryEntry)> = self
             .chain_state
@@ -460,28 +452,6 @@ fn find_output_from_pointer(
     }
 }
 
-impl Handler<PeerLastEpoch> for ChainManager {
-    type Result = ();
-
-    fn handle(&mut self, msg: PeerLastEpoch, _ctx: &mut Context<Self>) {
-        if msg.epoch
-            == self
-                .chain_state
-                .chain_info
-                .as_ref()
-                .map(|x| x.highest_block_checkpoint.checkpoint)
-                .unwrap_or(0)
-        {
-            self.synced = true;
-        } else {
-            warn!("Mine flag disabled");
-            self.synced = false;
-            self.mine = false;
-            self.best_candidate = None;
-        }
-    }
-}
-
 impl Handler<PeersBeacons> for ChainManager {
     type Result = <PeersBeacons as Message>::Result;
 
@@ -505,7 +475,21 @@ impl Handler<PeersBeacons> for ChainManager {
                         .filter_map(|(p, b)| if b != beacon { Some(p) } else { None })
                         .collect();
                     self.target_beacon = Some(beacon);
-                    self.sm_state = StateMachine::Synchronizing;
+
+                    let our_beacon = self
+                        .chain_state
+                        .chain_info
+                        .as_ref()
+                        .unwrap()
+                        .highest_block_checkpoint;
+
+                    // Maybe we are already synchronized?
+                    self.sm_state = if our_beacon == beacon {
+                        StateMachine::Synced
+                    } else {
+                        StateMachine::Synchronizing
+                    };
+
                     Ok(peers_out_of_consensus)
                 } else {
                     // No consensus: unregister all peers

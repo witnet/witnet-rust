@@ -53,9 +53,7 @@ use self::{
 };
 use crate::actors::{
     inventory_manager::InventoryManager,
-    messages::{
-        AddItem, AddTransaction, Anycast, Broadcast, InventoryExchange, Put, SendInventoryItem,
-    },
+    messages::{AddItem, AddTransaction, Broadcast, Put, SendInventoryItem},
     sessions_manager::SessionsManager,
     storage_keys::CHAIN_STATE_KEY,
     storage_manager::StorageManager,
@@ -118,8 +116,6 @@ pub struct ChainManager {
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
     transactions_pool: TransactionsPool,
-    /// Candidate to update chain_info, unspent_outputs_pool and transactions_pool in the next epoch
-    best_candidate: Option<BlockInChain>,
     /// Maximum weight each block can have
     max_block_weight: u32,
     // Random value to help with debugging because there is no signature
@@ -133,10 +129,6 @@ pub struct ChainManager {
     genesis_block_hash: Hash,
     /// Pool of active data requests
     data_request_pool: DataRequestPool,
-    /// Are we actually synchronized with our peers?
-    mine: bool,
-    /// Are we actually synchronized with our peers?
-    synced: bool,
     /// Synchronization period while the blockchain is being synchronized
     synchronizing_period: Duration,
     /// Synchronization period once the blockchain is considered to be synced
@@ -332,40 +324,6 @@ impl ChainManager {
         for transaction in transactions {
             self.transactions_pool.remove(&transaction.hash());
         }
-    }
-
-    /// Method to periodically synchronize inventory items with our peers
-    fn synchronize(&self, ctx: &mut Context<Self>, sync_interval: std::time::Duration) {
-        // Schedule the bootstrap with a given period
-        ctx.run_later(sync_interval, move |act, ctx| {
-            debug!("Triggering synchronization routine");
-
-            // Get SessionsManager address
-            let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
-            // Trigger inventory exchange
-            sessions_manager_addr.do_send(Anycast {
-                command: InventoryExchange,
-                safu: false,
-            });
-
-            if act.synced {
-                debug!(
-                    "The blockchain seems to be synced (slowing down the synchronization routine)"
-                );
-
-                // Enable or disabled mine flag if the blockchain is synced during a SYNCED_INTERVAL (at least two epochs)
-                act.mine = sync_interval == act.synced_period;
-                if act.mine {
-                    info!("Blockchain ready to mine");
-                } else {
-                    warn!("Blockchain disabled to mine");
-                }
-
-                act.synchronize(ctx, act.synced_period);
-            } else {
-                act.synchronize(ctx, act.synchronizing_period);
-            }
-        });
     }
 
     fn consolidate_block(
