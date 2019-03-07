@@ -26,10 +26,9 @@ use crate::actors::{
     codec::BytesMut,
     inventory_manager::InventoryManager,
     messages::{
-        AddBlocks, AddPeers, AddTransaction, AnnounceItems, Consolidate,
-        DiscardExistingInventoryEntries, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem,
-        GetPeers, InventoryExchange, PeerLastEpoch, RequestPeers, SendInventoryItem,
-        SessionUnitResult,
+        AddBlocks, AddCandidates, AddPeers, AddTransaction, AnnounceItems, Consolidate,
+        EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem, GetPeers,
+        InventoryExchange, PeerLastEpoch, RequestPeers, SendInventoryItem, SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -37,6 +36,33 @@ use crate::actors::{
 
 /// Implement WriteHandler for Session
 impl WriteHandler<Error> for Session {}
+
+/// Payload for the notification for a specific epoch
+#[derive(Debug)]
+pub struct EpochPayload;
+
+/// Payload for the notification for all epochs
+#[derive(Clone, Debug)]
+pub struct EveryEpochPayload;
+
+/// Handler for EpochNotification<EpochPayload>
+impl Handler<EpochNotification<EpochPayload>> for ChainManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
+        debug!("Epoch notification received {:?}", msg.checkpoint);
+    }
+}
+
+/// Handler for EpochNotification<EveryEpochPayload>
+impl Handler<EpochNotification<EveryEpochPayload>> for Session {
+    type Result = ();
+
+    fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, _ctx: &mut Context<Self>) {
+        debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        self.current_epoch = Some(msg.checkpoint);
+    }
+}
 
 /// Implement `StreamHandler` trait in order to use `Framed` with an actor
 impl StreamHandler<BytesMut, Error> for Session {
