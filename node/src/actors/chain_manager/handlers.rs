@@ -14,9 +14,9 @@ use super::{
     StateMachine,
 };
 use crate::actors::messages::{
-    AddBlocks, AddCandidates, AddTransaction, Broadcast, EpochNotification, GetBlocksEpochRange,
-    GetHighestCheckpointBeacon, GetOutput, GetOutputResult, PeersBeacons, SendLastBeacon,
-    SessionUnitResult, SetNetworkReady,
+    AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, EpochNotification,
+    GetBlocksEpochRange, GetHighestCheckpointBeacon, GetOutput, GetOutputResult, PeersBeacons,
+    SendLastBeacon, SessionUnitResult, SetNetworkReady,
 };
 use crate::actors::sessions_manager::SessionsManager;
 use crate::utils::mode_consensus;
@@ -81,7 +81,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                 debug!("EpochNotification handle: WaitingConsensus state");
 
                 if let Some(chain_info) = &self.chain_state.chain_info {
-                    // Send last beacon is state 1 because otherwise the network cannot bootstrap
+                    // Send last beacon in state 1 because otherwise the network cannot bootstrap
                     SessionsManager::from_registry().do_send(Broadcast {
                         command: SendLastBeacon {
                             beacon: chain_info.highest_block_checkpoint,
@@ -147,7 +147,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         );
                     }
 
-                    // Send last beacon is state 3 on block consolidation
+                    // Send last beacon in state 3 on block consolidation
                     SessionsManager::from_registry().do_send(Broadcast {
                         command: SendLastBeacon {
                             beacon: self
@@ -210,15 +210,40 @@ impl Handler<AddBlocks> for ChainManager {
             StateMachine::Synchronizing => {
                 debug!("AddBlocks handle: Synchronizing state");
                 let old_chain_state = self.chain_state.clone();
+                let target_beacon = self.target_beacon.unwrap();
                 for block in msg.blocks {
                     if !self.process_requested_block(ctx, block) {
                         warn!("Unexpected fail in process_requested_block");
                         self.chain_state = old_chain_state;
                         break;
                     }
+                    // This check is needed if we get more blocks than needed: stop at target
+                    let our_beacon = self
+                        .chain_state
+                        .chain_info
+                        .as_ref()
+                        .unwrap()
+                        .highest_block_checkpoint;
+                    if our_beacon == target_beacon {
+                        // Target achived, go back to state 1
+                        self.sm_state = StateMachine::WaitingConsensus;
+                        break;
+                    }
                 }
-                // TODO: what needs to be done here?
-                self.sm_state = StateMachine::WaitingConsensus;
+
+                let our_beacon = self
+                    .chain_state
+                    .chain_info
+                    .as_ref()
+                    .unwrap()
+                    .highest_block_checkpoint;
+                if target_beacon != our_beacon {
+                    // Try again, send Anycast<SendLastBeacon> to a safu peer
+                    SessionsManager::from_registry().do_send(Anycast {
+                        command: SendLastBeacon { beacon: our_beacon },
+                        safu: true,
+                    });
+                }
             }
             StateMachine::Synced => {
                 debug!("AddBlocks handle: Synced state");
@@ -410,6 +435,8 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         debug!("GetBlocksEpochRange received {:?}", range);
 
         // Accept this message in any state
+        // TODO: we should only accept this message in Synced state, but that breaks the
+        // JSON-RPC getBlockChain method
 
         let mut hashes: Vec<(Epoch, InventoryEntry)> = self
             .chain_state
