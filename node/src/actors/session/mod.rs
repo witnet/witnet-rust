@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 use actix::io::FramedWrite;
 
@@ -8,10 +8,15 @@ use log::{debug, error};
 
 use tokio::{io::WriteHalf, net::TcpStream};
 
-use witnet_data_structures::{proto::ProtobufConvert, types::Message as WitnetMessage};
+use witnet_data_structures::{
+    chain::{Block, Hash},
+    proto::ProtobufConvert,
+    types::Message as WitnetMessage,
+};
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use crate::actors::codec::P2PCodec;
+use witnet_data_structures::chain::Epoch;
 
 mod actor;
 

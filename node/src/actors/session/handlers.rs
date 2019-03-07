@@ -11,7 +11,7 @@ use log::{debug, error, info, trace, warn};
 
 use witnet_data_structures::{
     builders::from_address,
-    chain::{Block, CheckpointBeacon, InventoryEntry, InventoryItem, Transaction},
+    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem, Transaction},
     proto::ProtobufConvert,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
@@ -196,12 +196,12 @@ impl StreamHandler<BytesMut, Error> for Session {
                         session_last_beacon_outbound(self, ctx, highest_block_checkpoint);
                     }
 
-                    ////////////////////
-                    // INVENTORY      //
-                    ////////////////////
+                    ////////////////////////////
+                    // INVENTORY ANNOUNCEMENT //
+                    ////////////////////////////
                     // Handle InventoryAnnouncement message
                     (_, SessionStatus::Consolidated, Command::InventoryAnnouncement(inv)) => {
-                        inventory_process_inv(self, ctx, &inv);
+                        inventory_process_inv(self, &inv);
                     }
                     /////////////////////
                     // NOT SUPPORTED   //
@@ -412,14 +412,49 @@ fn peer_discovery_peers(peers: &[Address]) {
 }
 
 /// Function called when Block message is received
-fn inventory_process_block(_session: &mut Session, _ctx: &mut Context<Session>, block: Block) {
+fn inventory_process_block(session: &mut Session, ctx: &mut Context<Session>, block: Block) {
     // Get ChainManager address
     let chain_manager_addr = System::current().registry().get::<ChainManager>();
 
-    // Send a message to the ChainManager to try to add a new block
-    chain_manager_addr.do_send(AddBlocks {
-        blocks: vec![block],
-    });
+    let block_epoch = block.block_header.beacon.checkpoint;
+    let block_hash = block.hash();
+
+    if Some(block_epoch) == session.current_epoch {
+        // Send a message to the ChainManager to try to add a new candidate
+        chain_manager_addr.do_send(AddCandidates {
+            blocks: vec![block],
+        });
+    // TODO: Add timeout
+    } else if session.requested_blocks.len() == session.requested_block_hashes.len() {
+        let mut blocks_vector = vec![];
+        // Iterate over requested block hashes ordered by epoch
+        // TODO: Now we assume that it is sort by epoch,
+        // It would be nice to check it to sort it or discard it
+        for hash in session.requested_block_hashes.clone() {
+            if let Some(block) = session.requested_blocks.remove(&hash) {
+                blocks_vector.push(block);
+            } else {
+                // As soon as there is a missing block, stop processing the other
+                // blocks, send a empty message to the ChainManager and close the session
+                blocks_vector.clear();
+                chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
+                warn!("Unexpected missing block");
+                ctx.stop();
+            }
+        }
+
+        // Send a message to the ChainManager to try to add a new block
+        chain_manager_addr.do_send(AddBlocks {
+            blocks: blocks_vector,
+        });
+
+        // Clear requested block structures
+        session.requested_blocks.clear();
+        session.requested_block_hashes.clear();
+    } else {
+        // Add block to requested_blocks
+        session.requested_blocks.insert(block_hash, block);
+    }
 }
 
 /// Function called when Block message is received
