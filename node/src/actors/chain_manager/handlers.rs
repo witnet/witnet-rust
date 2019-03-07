@@ -217,6 +217,8 @@ impl Handler<AddBlocks> for ChainManager {
                         break;
                     }
                 }
+                // TODO: what needs to be done here?
+                self.sm_state = StateMachine::WaitingConsensus;
             }
             StateMachine::Synced => {
                 debug!("AddBlocks handle: Synced state");
