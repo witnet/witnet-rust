@@ -109,6 +109,11 @@ pub trait Defaults {
     fn connections_synced_period(&self) -> Duration {
         Duration::from_secs(181)
     }
+
+    /// Default blocks timeout for waiting requested blocks: `400`
+    fn connections_blocks_timeout(&self) -> i64 {
+        400
+    }
 }
 
 /// Struct that will implement all the mainnet defaults
