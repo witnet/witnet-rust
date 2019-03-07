@@ -21,7 +21,7 @@ use witnet_data_structures::{
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use super::Session;
-use crate::actors::messages::PeerBeacon;
+use crate::actors::messages::{PeerBeacon, SendLastBeacon};
 use crate::actors::{
     chain_manager::ChainManager,
     codec::BytesMut,
@@ -286,6 +286,15 @@ impl Handler<InventoryExchange> for Session {
             self.remote_addr
         );
         inventory_get_blocks(self, ctx)
+    }
+}
+
+impl Handler<SendLastBeacon> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, SendLastBeacon { beacon }: SendLastBeacon, _ctx: &mut Context<Self>) {
+        debug!("Sending LastBeacon to peer at {:?}", self.remote_addr);
+        send_last_beacon(self, beacon);
     }
 }
 
@@ -663,4 +672,10 @@ fn session_last_beacon_outbound(
         address: session.remote_addr,
         beacon,
     })
+}
+
+fn send_last_beacon(session: &mut Session, beacon: CheckpointBeacon) {
+    let beacon_msg = WitnetMessage::build_last_beacon(session.magic_number, beacon);
+    // Send LastBeacon msg
+    session.send_message(beacon_msg);
 }

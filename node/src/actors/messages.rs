@@ -438,6 +438,19 @@ impl fmt::Display for InventoryExchange {
     }
 }
 
+/// Message to send beacon through the network
+#[derive(Clone, Debug, Message)]
+pub struct SendLastBeacon {
+    /// The highest block checkpoint
+    pub beacon: CheckpointBeacon,
+}
+
+impl fmt::Display for SendLastBeacon {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SendLastBeacon")
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM SESSIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////
