@@ -82,7 +82,6 @@ pub struct Session {
     requested_blocks: HashMap<Hash, Block>,
 
     /// Timeout for requested blocks
-
     blocks_timeout: i64,
 
     /// Timestamp for requested blocks
@@ -115,6 +114,7 @@ impl Session {
             requested_block_hashes: vec![],
             requested_blocks: HashMap::new(),
             blocks_timeout,
+            blocks_timestamp: 0,
         }
     }
     /// Method to send a Witnet message to the remote peer

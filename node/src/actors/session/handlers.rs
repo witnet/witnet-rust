@@ -33,6 +33,7 @@ use crate::actors::{
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
+use witnet_util::timestamp::get_timestamp;
 
 /// Implement WriteHandler for Session
 impl WriteHandler<Error> for Session {}
@@ -58,9 +59,19 @@ impl Handler<EpochNotification<EpochPayload>> for ChainManager {
 impl Handler<EpochNotification<EveryEpochPayload>> for Session {
     type Result = ();
 
-    fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, _ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         self.current_epoch = Some(msg.checkpoint);
+
+        let now = get_timestamp();
+        if self.blocks_timestamp != 0 && now - self.blocks_timestamp > self.blocks_timeout {
+            // Get ChainManager address
+            let chain_manager_addr = System::current().registry().get::<ChainManager>();
+
+            chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
+            warn!("Timeout for waiting blocks achieved");
+            ctx.stop();
+        }
     }
 }
 
@@ -449,6 +460,7 @@ fn inventory_process_block(session: &mut Session, ctx: &mut Context<Session>, bl
         });
 
         // Clear requested block structures
+        session.blocks_timestamp = 0;
         session.requested_blocks.clear();
         session.requested_block_hashes.clear();
     } else {
@@ -485,6 +497,8 @@ fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
             | InventoryEntry::Tx(hash) => hash,
         })
         .collect();
+
+    session.blocks_timestamp = get_timestamp();
 
     // Try to create InventoryRequest protocol message to request missing inventory vectors
     if let Ok(inv_req_msg) =
