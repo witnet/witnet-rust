@@ -1,4 +1,4 @@
-use actix::{Actor, Context, Handler, Message};
+use actix::{Actor, Context, Handler, Message, SystemService};
 use log::{debug, error, warn};
 
 use witnet_data_structures::{
@@ -14,10 +14,11 @@ use super::{
     StateMachine,
 };
 use crate::actors::messages::{
-    AddBlocks, AddCandidates, AddTransaction, EpochNotification, GetBlocksEpochRange,
+    AddBlocks, AddCandidates, AddTransaction, Broadcast, EpochNotification, GetBlocksEpochRange,
     GetHighestCheckpointBeacon, GetOutput, GetOutputResult, PeerLastEpoch, PeersBeacons,
-    SessionUnitResult, SetNetworkReady,
+    SendLastBeacon, SessionUnitResult, SetNetworkReady,
 };
+use crate::actors::sessions_manager::SessionsManager;
 use crate::utils::mode_consensus;
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +79,15 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 debug!("EpochNotification handle: WaitingConsensus state");
+
+                if let Some(chain_info) = &self.chain_state.chain_info {
+                    // Send last beacon is state 1 because otherwise the network cannot bootstrap
+                    SessionsManager::from_registry().do_send(Broadcast {
+                        command: SendLastBeacon {
+                            beacon: chain_info.highest_block_checkpoint,
+                        },
+                    });
+                }
             }
             StateMachine::Synchronizing => {
                 debug!("EpochNotification handle: Synchronizing state");
@@ -137,7 +147,17 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         );
                     }
 
-                    // TODO: Send last_beacon
+                    // Send last beacon is state 3 on block consolidation
+                    SessionsManager::from_registry().do_send(Broadcast {
+                        command: SendLastBeacon {
+                            beacon: self
+                                .chain_state
+                                .chain_info
+                                .as_ref()
+                                .unwrap()
+                                .highest_block_checkpoint,
+                        },
+                    });
 
                     // Mining
                     if self.mining_enabled && self.mine {
