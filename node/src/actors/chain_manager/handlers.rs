@@ -189,8 +189,13 @@ impl Handler<AddBlocks> for ChainManager {
             }
             StateMachine::Synchronizing => {
                 debug!("AddBlocks handle: Synchronizing state");
+                let old_chain_state = self.chain_state.clone();
                 for block in msg.blocks {
-                    self.process_requested_block(ctx, block)
+                    if !self.process_requested_block(ctx, block) {
+                        warn!("Unexpected fail in process_requested_block");
+                        self.chain_state = old_chain_state;
+                        break;
+                    }
                 }
             }
             StateMachine::Synced => {
