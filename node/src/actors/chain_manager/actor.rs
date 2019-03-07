@@ -39,8 +39,6 @@ impl Actor for ChainManager {
         self.initialize_from_storage(ctx);
 
         self.subscribe_to_epoch_manager(ctx);
-
-        self.synchronize(ctx, self.synchronizing_period);
     }
 }
 
