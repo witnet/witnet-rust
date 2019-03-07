@@ -144,19 +144,6 @@ impl Message for GetBlocksEpochRange {
     type Result = Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>;
 }
 
-/// Discard inventory entries that exist in the BlocksManager
-pub struct DiscardExistingInventoryEntries {
-    /// Vector of inventory entries
-    pub inv_entries: Vec<InventoryEntry>,
-}
-
-/// Result of the DiscardExistingInventoryEntries message handling
-pub type InventoryEntriesResult = Result<Vec<InventoryEntry>, ChainManagerError>;
-
-impl Message for DiscardExistingInventoryEntries {
-    type Result = InventoryEntriesResult;
-}
-
 /// Ask for an output
 pub struct GetOutput {
     /// Output pointer

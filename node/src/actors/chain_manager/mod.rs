@@ -39,8 +39,8 @@ use witnet_rad::types::RadonTypes;
 use witnet_data_structures::{
     chain::{
         ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
-        Hashable, InventoryEntry, InventoryItem, Output, OutputPointer, Transaction,
-        TransactionsPool, UnspentOutputsPool,
+        Hashable, InventoryItem, Output, OutputPointer, Transaction, TransactionsPool,
+        UnspentOutputsPool,
     },
     serializers::decoders::TryFrom,
 };
@@ -54,8 +54,7 @@ use self::{
 use crate::actors::{
     inventory_manager::InventoryManager,
     messages::{
-        AddItem, AddTransaction, Anycast, Broadcast, InventoryEntriesResult, InventoryExchange,
-        Put, SendInventoryItem,
+        AddItem, AddTransaction, Anycast, Broadcast, InventoryExchange, Put, SendInventoryItem,
     },
     sessions_manager::SessionsManager,
     storage_keys::CHAIN_STATE_KEY,
@@ -115,8 +114,6 @@ pub struct ChainManager {
     network_ready: bool,
     /// Blockchain state data structure
     chain_state: ChainState,
-    /// Map that stores blocks without validation by their hash
-    blocks_to_validate: HashMap<Hash, Block>,
     /// Current Epoch
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
@@ -267,31 +264,6 @@ impl ChainManager {
         sessions_manager_addr.do_send(Broadcast {
             command: SendInventoryItem { item },
         });
-    }
-
-    fn discard_existing_inventory_entries(
-        &mut self,
-        inv_entries: Vec<InventoryEntry>,
-    ) -> InventoryEntriesResult {
-        // Missing inventory entries
-        let missing_inv_entries = inv_entries
-            .into_iter()
-            .filter(|inv_entry| {
-                // Get hash from inventory vector
-                let hash = match inv_entry {
-                    InventoryEntry::Error(hash)
-                    | InventoryEntry::Block(hash)
-                    | InventoryEntry::Tx(hash)
-                    | InventoryEntry::DataRequest(hash)
-                    | InventoryEntry::DataResult(hash) => hash,
-                };
-
-                // Add the inventory vector to the missing vectors if it is not found
-                self.blocks_to_validate.get(&hash).is_none()
-            })
-            .collect();
-
-        Ok(missing_inv_entries)
     }
 
     fn process_requested_block(&mut self, ctx: &mut Context<Self>, block: Block) {

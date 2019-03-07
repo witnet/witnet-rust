@@ -14,9 +14,9 @@ use super::{
     StateMachine,
 };
 use crate::actors::messages::{
-    AddBlocks, AddCandidates, AddTransaction, DiscardExistingInventoryEntries, EpochNotification,
-    GetBlocksEpochRange, GetHighestCheckpointBeacon, GetOutput, GetOutputResult,
-    InventoryEntriesResult, PeerLastEpoch, PeersBeacons, SessionUnitResult, SetNetworkReady,
+    AddBlocks, AddCandidates, AddTransaction, EpochNotification, GetBlocksEpochRange,
+    GetHighestCheckpointBeacon, GetOutput, GetOutputResult, PeerLastEpoch, PeersBeacons,
+    SessionUnitResult, SetNetworkReady,
 };
 use crate::utils::mode_consensus;
 
@@ -73,6 +73,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        self.current_epoch = Some(msg.checkpoint);
 
         match self.sm_state {
             StateMachine::WaitingConsensus => {
@@ -406,20 +407,6 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         }
 
         Ok(hashes)
-    }
-}
-
-/// Handler for DiscardExistingInvVectors message
-impl Handler<DiscardExistingInventoryEntries> for ChainManager {
-    type Result = InventoryEntriesResult;
-
-    fn handle(
-        &mut self,
-        msg: DiscardExistingInventoryEntries,
-        _ctx: &mut Context<Self>,
-    ) -> InventoryEntriesResult {
-        // Discard existing inventory vectors
-        self.discard_existing_inventory_entries(msg.inv_entries)
     }
 }
 

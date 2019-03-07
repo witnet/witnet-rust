@@ -410,59 +410,28 @@ fn inventory_process_transaction(
 }
 
 /// Function to process an InventoryAnnouncement message
-fn inventory_process_inv(
-    session: &mut Session,
-    ctx: &mut Context<Session>,
-    inv: &InventoryAnnouncement,
-) {
+fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
     // Check how many of the received inventory vectors need to be requested
     let inv_entries = &inv.inventory;
 
-    // Get ChainManager address
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    session.requested_block_hashes = inv_entries
+        .iter()
+        .map(|inv_entry| match inv_entry.clone() {
+            InventoryEntry::Error(hash)
+            | InventoryEntry::Block(hash)
+            | InventoryEntry::DataRequest(hash)
+            | InventoryEntry::DataResult(hash)
+            | InventoryEntry::Tx(hash) => hash,
+        })
+        .collect();
 
-    // Send a message to the ChainManager to try to add a new block
-    chain_manager_addr
-        // Send GetConfig message to config manager actor
-        // This returns a Request Future, representing an asynchronous message sending process
-        .send(DiscardExistingInventoryEntries {
-            inv_entries: inv_entries.to_vec(),
-        })
-        // Convert a normal future into an ActorFuture
-        .into_actor(session)
-        // Process the response from the Chain Manager
-        // This returns a FutureResult containing the socket address if present
-        .then(|res, _act, _ctx| {
-            // Process the Result<InventoryEntriesResult, MailboxError>
-            match res {
-                Err(e) => {
-                    error!("Unsuccessful communication with Chain Manager: {}", e);
-                    actix::fut::err(())
-                }
-                Ok(res) => match res {
-                    Err(_) => {
-                        error!("Error while filtering inventory vectors");
-                        actix::fut::err(())
-                    }
-                    Ok(res) => actix::fut::ok(res),
-                },
-            }
-        })
-        // Process the received filtered inv elems
-        // This returns a FutureResult containing a success
-        .and_then(|missing_inv_entries, act, _ctx| {
-            // Try to create InventoryRequest protocol message to request missing inventory vectors
-            if let Ok(inv_req_msg) = WitnetMessage::build_inventory_request(
-                act.magic_number,
-                missing_inv_entries.to_vec(),
-            ) {
-                // Send InventoryRequest message through the session network connection
-                act.send_message(inv_req_msg);
-            }
-
-            actix::fut::ok(())
-        })
-        .wait(ctx);
+    // Try to create InventoryRequest protocol message to request missing inventory vectors
+    if let Ok(inv_req_msg) =
+        WitnetMessage::build_inventory_request(session.magic_number, inv_entries.to_vec())
+    {
+        // Send InventoryRequest message through the session network connection
+        session.send_message(inv_req_msg);
+    }
 }
 
 /// Function called when Verack message is received
