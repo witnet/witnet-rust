@@ -470,10 +470,9 @@ impl Handler<PeersBeacons> for ChainManager {
         PeersBeacons { pb }: PeersBeacons,
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
-        debug!("PeersBeacons received");
-
         match self.sm_state {
             StateMachine::WaitingConsensus => {
+                debug!("PeersBeacons handle: WaitingConsensus state");
                 // As soon as there is consensus, we set the target beacon to the consensus
                 // and set the state to Synchronizing
 
@@ -495,6 +494,7 @@ impl Handler<PeersBeacons> for ChainManager {
                 }
             }
             StateMachine::Synchronizing => {
+                debug!("PeersBeacons handle: Synchronizing state");
                 // We are synchronizing, so ignore all the new beacons until we reach the target beacon
 
                 // Return error meaning unexpected message, because if we return Ok(vec![]), the
@@ -502,6 +502,7 @@ impl Handler<PeersBeacons> for ChainManager {
                 Err(())
             }
             StateMachine::Synced => {
+                debug!("PeersBeacons handle: Synced state");
                 // If we are synced and the consensus beacon is not the same as our beacon, then
                 // we need to rewind one epoch
 

@@ -431,41 +431,45 @@ fn inventory_process_block(session: &mut Session, ctx: &mut Context<Session>, bl
     let block_hash = block.hash();
 
     if Some(block_epoch) == session.current_epoch {
+        debug!("Send Candidate");
         // Send a message to the ChainManager to try to add a new candidate
         chain_manager_addr.do_send(AddCandidates {
             blocks: vec![block],
         });
-    // TODO: Add timeout
-    } else if session.requested_blocks.len() == session.requested_block_hashes.len() {
-        let mut blocks_vector = vec![];
-        // Iterate over requested block hashes ordered by epoch
-        // TODO: Now we assume that it is sort by epoch,
-        // It would be nice to check it to sort it or discard it
-        for hash in session.requested_block_hashes.clone() {
-            if let Some(block) = session.requested_blocks.remove(&hash) {
-                blocks_vector.push(block);
-            } else {
-                // As soon as there is a missing block, stop processing the other
-                // blocks, send a empty message to the ChainManager and close the session
-                blocks_vector.clear();
-                chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
-                warn!("Unexpected missing block");
-                ctx.stop();
-            }
-        }
-
-        // Send a message to the ChainManager to try to add a new block
-        chain_manager_addr.do_send(AddBlocks {
-            blocks: blocks_vector,
-        });
-
-        // Clear requested block structures
-        session.blocks_timestamp = 0;
-        session.requested_blocks.clear();
-        session.requested_block_hashes.clear();
     } else {
         // Add block to requested_blocks
         session.requested_blocks.insert(block_hash, block);
+
+        if session.requested_blocks.len() == session.requested_block_hashes.len() {
+            let mut blocks_vector = vec![];
+            // Iterate over requested block hashes ordered by epoch
+            // TODO: Now we assume that it is sort by epoch,
+            // It would be nice to check it to sort it or discard it
+            for hash in session.requested_block_hashes.clone() {
+                if let Some(block) = session.requested_blocks.remove(&hash) {
+                    blocks_vector.push(block);
+                } else {
+                    // As soon as there is a missing block, stop processing the other
+                    // blocks, send a empty message to the ChainManager and close the session
+                    blocks_vector.clear();
+                    chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
+                    warn!("Unexpected missing block");
+                    ctx.stop();
+                }
+            }
+
+            debug!("Send AddBlocks");
+
+            // Send a message to the ChainManager to try to add a new block
+            chain_manager_addr.do_send(AddBlocks {
+                blocks: blocks_vector,
+            });
+
+            // Clear requested block structures
+            session.blocks_timestamp = 0;
+            session.requested_blocks.clear();
+            session.requested_block_hashes.clear();
+        }
     }
 }
 

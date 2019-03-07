@@ -322,7 +322,8 @@ impl ChainManager {
             if !self.candidates.contains_key(&hash_block)
                 && validate_candidate(&block, current_epoch)
             {
-                self.candidates.insert(hash_block, block);
+                self.candidates.insert(hash_block, block.clone());
+                self.broadcast_item(InventoryItem::Block(block));
             }
         }
     }
