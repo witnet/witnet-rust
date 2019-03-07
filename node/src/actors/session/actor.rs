@@ -7,11 +7,9 @@ use log::{debug, error, info, warn};
 use witnet_data_structures::types::Message as WitnetMessage;
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
-use super::Session;
-use crate::actors::epoch_manager::EpochManager;
-use crate::actors::epoch_manager::EpochManagerError::CheckpointZeroInTheFuture;
-use crate::actors::session::handlers::EveryEpochPayload;
+use super::{handlers::EveryEpochPayload, Session};
 use crate::actors::{
+    epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
     messages::{GetEpoch, Register, Subscribe, Unregister},
     sessions_manager::SessionsManager,
 };
