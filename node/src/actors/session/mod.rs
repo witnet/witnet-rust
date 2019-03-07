@@ -66,6 +66,15 @@ pub struct Session {
 
     /// Magic number
     magic_number: u16,
+
+    /// Current epoch
+    current_epoch: Option<Epoch>,
+
+    /// Requested block hashes vector
+    requested_block_hashes: Vec<Hash>,
+
+    /// HashMap with requested blocks
+    requested_blocks: HashMap<Hash, Block>,
 }
 
 /// Session helper methods
@@ -89,6 +98,9 @@ impl Session {
             handshake_flags: HandshakeFlags::default(),
             remote_sender_addr: None,
             magic_number,
+            current_epoch: None,
+            requested_block_hashes: vec![],
+            requested_blocks: HashMap::new(),
         }
     }
     /// Method to send a Witnet message to the remote peer
