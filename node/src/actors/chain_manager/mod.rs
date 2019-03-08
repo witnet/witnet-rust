@@ -26,7 +26,6 @@
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
 use std::collections::HashMap;
-use std::time::Duration;
 
 use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System, SystemService,
@@ -109,6 +108,7 @@ impl Default for StateMachine {
 #[derive(Default)]
 pub struct ChainManager {
     /// Flag indicating if network is ready
+    // TODO: Remove after peers_beacons handle outbounds_limit
     network_ready: bool,
     /// Blockchain state data structure
     chain_state: ChainState,
@@ -122,6 +122,7 @@ pub struct ChainManager {
     // and all the mined blocks have the same hash.
     // This random value helps to distinguish blocks mined on different nodes
     // To be removed when we implement real signing.
+    // TODO: Remove after create signatures
     random: u64,
     /// Mining enabled
     mining_enabled: bool,
@@ -129,10 +130,6 @@ pub struct ChainManager {
     genesis_block_hash: Hash,
     /// Pool of active data requests
     data_request_pool: DataRequestPool,
-    /// Synchronization period while the blockchain is being synchronized
-    synchronizing_period: Duration,
-    /// Synchronization period once the blockchain is considered to be synced
-    synced_period: Duration,
     /// state of the state machine
     sm_state: StateMachine,
     /// Target beacon
