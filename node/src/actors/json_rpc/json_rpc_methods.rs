@@ -2,7 +2,7 @@
 use self::mock_actix::System;
 use crate::actors::{
     chain_manager::ChainManager,
-    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange, GetOutput},
+    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange},
 };
 #[cfg(not(test))]
 use actix::System;
@@ -10,11 +10,11 @@ use actix::SystemService;
 use jsonrpc_core::{futures, futures::Future, IoHandler, Params, Value};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use witnet_data_structures::chain::{Block, InventoryEntry, OutputPointer, Transaction};
+//use std::str::FromStr;
+use witnet_data_structures::chain::{Block, InventoryEntry, Transaction};
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
-type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
+//type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
 
 /// Define the JSON-RPC interface:
 /// All the methods available through JSON-RPC
@@ -23,7 +23,7 @@ pub fn jsonrpc_io_handler() -> IoHandler<()> {
 
     io.add_method("inventory", |params: Params| inventory(params.parse()?));
     io.add_method("getBlockChain", |_params| get_block_chain());
-    io.add_method("getOutput", |params: Params| get_output(params.parse()));
+    //io.add_method("getOutput", |params: Params| get_output(params.parse()));
 
     io
 }
@@ -146,7 +146,7 @@ pub fn get_block_chain() -> impl Future<Item = Value, Error = jsonrpc_core::Erro
             }
         })
 }
-
+/*
 /// get output
 pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
     let output_pointer = match output_pointer {
@@ -203,6 +203,7 @@ pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> Jso
             }),
     )
 }
+*/
 
 #[cfg(test)]
 mod mock_actix {

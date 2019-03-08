@@ -12,8 +12,8 @@ use std::{
 
 use witnet_data_structures::{
     chain::{
-        Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, InventoryItem, Output, OutputPointer,
-        RADConsensus, RADRequest, Transaction,
+        Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, InventoryItem, RADConsensus,
+        RADRequest, Transaction,
     },
     error::ChainInfoResult,
 };
@@ -142,26 +142,6 @@ impl GetBlocksEpochRange {
 
 impl Message for GetBlocksEpochRange {
     type Result = Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>;
-}
-
-/// Ask for an output
-pub struct GetOutput {
-    /// Output pointer
-    pub output_pointer: OutputPointer,
-}
-
-/// Result of the GetOutput message handling
-pub type GetOutputResult = Result<Output, ChainManagerError>;
-
-impl Message for GetOutput {
-    type Result = GetOutputResult;
-}
-
-#[derive(Message)]
-/// FIXME: rename
-pub struct PeerLastEpoch {
-    /// A beacon from another peer
-    pub epoch: Epoch,
 }
 
 /// A list of peers and their respective last beacon, used to establish consensus
