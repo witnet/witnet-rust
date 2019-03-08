@@ -50,11 +50,8 @@ impl ChainManager {
             // Get environment and consensus_constants parameters from config
             let environment = (&config.environment).clone();
             let consensus_constants = (&config.consensus_constants).clone();
-            let connections = (&config.connections).clone();
 
             act.max_block_weight = consensus_constants.max_block_weight;
-            act.synchronizing_period = connections.synchronizing_period;
-            act.synced_period = connections.synced_period;
 
             // Get StorageManager actor address
             let storage_manager_addr = System::current().registry().get::<StorageManager>();
