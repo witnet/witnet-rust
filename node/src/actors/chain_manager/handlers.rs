@@ -270,17 +270,17 @@ impl Handler<AddTransaction> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) {
+        debug!("AddTransaction handle: {:?} state", self.sm_state);
+        // Ignore AddTransaction when not in Synced state
         match self.sm_state {
-            StateMachine::WaitingConsensus => {}
+            StateMachine::WaitingConsensus => {
+                return;
+            }
             StateMachine::Synchronizing => {
-                unimplemented!();
+                return;
             }
-            StateMachine::Synced => {
-                unimplemented!();
-            }
+            StateMachine::Synced => {}
         };
-
-        //TODO: Refactor next code in StateMachine branches
 
         let transaction_hash = &msg.transaction.hash();
         if self.transactions_pool.contains(transaction_hash) {
