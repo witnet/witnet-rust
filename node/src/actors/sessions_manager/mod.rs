@@ -16,8 +16,8 @@ use crate::actors::{
     chain_manager::ChainManager,
     connections_manager::ConnectionsManager,
     messages::{
-        Anycast, Broadcast, GetPeers, GetRandomPeer, InventoryExchange, OutboundTcpConnect,
-        PeersSocketAddrResult, SetNetworkReady,
+        Anycast, GetRandomPeer, OutboundTcpConnect, PeersSocketAddrResult, SendGetPeers,
+        SetNetworkReady,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -95,10 +95,6 @@ impl SessionsManager {
                 chain_manager_addr.do_send(SetNetworkReady {
                     network_ready: true,
                 });
-                // Broadcast `InventoryExchange` messages to consolidated sessions
-                ctx.address().do_send(Broadcast {
-                    command: InventoryExchange,
-                });
             }
 
             // Reschedule the bootstrap peers task
@@ -112,7 +108,7 @@ impl SessionsManager {
         ctx.run_later(discovery_peers_period, move |act, ctx| {
             // Send Anycast(GetPeers) message
             ctx.notify(Anycast {
-                command: GetPeers {},
+                command: SendGetPeers {},
                 safu: false,
             });
             act.discovery_peers(ctx, discovery_peers_period);

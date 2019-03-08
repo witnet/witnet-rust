@@ -4,7 +4,7 @@ use witnet_data_structures::{
 };
 
 #[test]
-fn message_get_blocks_from_bytes() {
+fn message_last_beacon_from_bytes() {
     let buff: Vec<u8> = [
         18, 40, 82, 38, 10, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -25,7 +25,7 @@ fn message_get_blocks_from_bytes() {
 }
 
 #[test]
-fn message_get_blocks_to_bytes() {
+fn message_last_beacon_to_bytes() {
     let msg = Message {
         kind: Command::LastBeacon(LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
