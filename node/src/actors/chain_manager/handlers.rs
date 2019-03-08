@@ -2,21 +2,16 @@ use actix::{Actor, Context, Handler, Message, SystemService};
 use log::{debug, error, warn};
 
 use witnet_data_structures::{
-    chain::{
-        CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, Output, OutputPointer,
-    },
+    chain::{CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
 };
 use witnet_util::error::WitnetError;
 
-use super::{
-    data_request::DataRequestPool, validations::validate_block, ChainManager, ChainManagerError,
-    StateMachine,
-};
+use super::{validations::validate_block, ChainManager, ChainManagerError, StateMachine};
 use crate::actors::messages::{
     AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, EpochNotification,
-    GetBlocksEpochRange, GetHighestCheckpointBeacon, GetOutput, GetOutputResult, PeersBeacons,
-    SendLastBeacon, SessionUnitResult, SetNetworkReady,
+    GetBlocksEpochRange, GetHighestCheckpointBeacon, PeersBeacons, SendLastBeacon,
+    SessionUnitResult, SetNetworkReady,
 };
 use crate::actors::sessions_manager::SessionsManager;
 use crate::utils::mode_consensus;
@@ -452,31 +447,6 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         }
 
         Ok(hashes)
-    }
-}
-
-impl Handler<GetOutput> for ChainManager {
-    type Result = GetOutputResult;
-
-    fn handle(
-        &mut self,
-        GetOutput { output_pointer }: GetOutput,
-        _ctx: &mut Context<Self>,
-    ) -> GetOutputResult {
-        find_output_from_pointer(&self.data_request_pool, &output_pointer)
-    }
-}
-
-fn find_output_from_pointer(
-    d: &DataRequestPool,
-    pointer: &OutputPointer,
-) -> Result<Output, ChainManagerError> {
-    if let Some(dr) = d.data_request_state(pointer) {
-        // This pointer is already in our DataRequestPool
-        Ok(Output::DataRequest(dr.data_request.clone()))
-    } else {
-        // FIXME: retrieve Output from Storage
-        Err(ChainManagerError::BlockDoesNotExist)
     }
 }
 

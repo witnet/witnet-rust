@@ -58,14 +58,15 @@ pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), f
             output_index,
         } => {
             let config = config.or(last_config);
-            let mut stream = start_client(config)?;
+            let mut _stream = start_client(config)?;
             let output_pointer = OutputPointer::from_str(&output_index)?;
             let request_payload = serde_json::to_string(&output_pointer)?;
-            let request = format!(
+            let _request = format!(
                 r#"{{"jsonrpc": "2.0","method": "getOutput", "params": [{}], "id": "1"}}"#,
                 request_payload,
             );
-            let response = send_request(&mut stream, &request)?;
+            //let response = send_request(&mut stream, &request)?;
+            let response = "unimplemented yet";
 
             println!("{}", response);
 
