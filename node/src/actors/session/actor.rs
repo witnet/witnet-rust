@@ -9,8 +9,9 @@ use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use super::{handlers::EveryEpochPayload, Session};
 use crate::actors::{
+    chain_manager::ChainManager,
     epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
-    messages::{GetEpoch, Register, Subscribe, Unregister},
+    messages::{AddBlocks, GetEpoch, Register, Subscribe, Unregister},
     sessions_manager::SessionsManager,
 };
 use witnet_util::timestamp::pretty_print;
@@ -101,6 +102,15 @@ impl Actor for Session {
             session_type: self.session_type,
             status: self.status,
         });
+
+        // When session unregisters, notify ChainManager to stop waiting for new blocks
+        if self.blocks_timestamp != 0 {
+            // Get ChainManager address
+            let chain_manager_addr = System::current().registry().get::<ChainManager>();
+
+            chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
+            warn!("Session disconnected during block exchange");
+        }
 
         Running::Stop
     }
