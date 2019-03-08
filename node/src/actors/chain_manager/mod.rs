@@ -107,9 +107,6 @@ impl Default for StateMachine {
 /// ChainManager actor
 #[derive(Default)]
 pub struct ChainManager {
-    /// Flag indicating if network is ready
-    // TODO: Remove after peers_beacons handle outbounds_limit
-    network_ready: bool,
     /// Blockchain state data structure
     chain_state: ChainState,
     /// Current Epoch

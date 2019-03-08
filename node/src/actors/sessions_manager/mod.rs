@@ -15,10 +15,7 @@ use crate::actors::messages::{PeersBeacons, Subscribe};
 use crate::actors::{
     chain_manager::ChainManager,
     connections_manager::ConnectionsManager,
-    messages::{
-        Anycast, GetRandomPeer, OutboundTcpConnect, PeersSocketAddrResult, SendGetPeers,
-        SetNetworkReady,
-    },
+    messages::{Anycast, GetRandomPeer, OutboundTcpConnect, PeersSocketAddrResult, SendGetPeers},
     peers_manager::PeersManager,
     session::Session,
 };
@@ -33,8 +30,6 @@ mod handlers;
 pub struct SessionsManager {
     // Registered Sessions
     sessions: Sessions<Addr<Session>>,
-    // Flag indicating if network is ready, i.e. enough outbound peers are connected
-    network_ready: bool,
     // List of beacons of outbound sessions
     beacons: HashMap<SocketAddr, Option<CheckpointBeacon>>,
 }
@@ -84,19 +79,7 @@ impl SessionsManager {
                         actix::fut::ok(())
                     })
                     .wait(ctx);
-            } else if !act.network_ready {
-                debug!(
-                    "Network is now ready to start Inventory exchanges with consolidated sessions"
-                );
-                act.network_ready = true;
-
-                // Get ChainManager address and send `SetNetworkReady` message
-                let chain_manager_addr = System::current().registry().get::<ChainManager>();
-                chain_manager_addr.do_send(SetNetworkReady {
-                    network_ready: true,
-                });
             }
-
             // Reschedule the bootstrap peers task
             act.bootstrap_peers(ctx, bootstrap_peers_period);
         });
