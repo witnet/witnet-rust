@@ -27,9 +27,9 @@ use crate::actors::{
     codec::BytesMut,
     inventory_manager::InventoryManager,
     messages::{
-        AddBlocks, AddCandidates, AddPeers, AddTransaction, AnnounceItems, Consolidate,
-        EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem, GetPeers,
-        InventoryExchange, RequestPeers, SendInventoryItem, SessionUnitResult,
+        AddBlocks, AddCandidates, AddPeers, AddTransaction, Consolidate, EpochNotification,
+        GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem, RequestPeers, SendGetPeers,
+        SendInventoryAnnouncement, SendInventoryItem, SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -232,10 +232,10 @@ impl StreamHandler<BytesMut, Error> for Session {
 }
 
 /// Handler for GetPeers message (sent by other actors)
-impl Handler<GetPeers> for Session {
+impl Handler<SendGetPeers> for Session {
     type Result = SessionUnitResult;
 
-    fn handle(&mut self, _msg: GetPeers, _: &mut Context<Self>) {
+    fn handle(&mut self, _msg: SendGetPeers, _: &mut Context<Self>) {
         debug!("Sending GetPeers message to peer at {:?}", self.remote_addr);
         // Create get peers message
         let get_peers_msg = WitnetMessage::build_get_peers(self.magic_number);
@@ -245,10 +245,10 @@ impl Handler<GetPeers> for Session {
 }
 
 /// Handler for AnnounceItems message (sent by other actors)
-impl Handler<AnnounceItems> for Session {
+impl Handler<SendInventoryAnnouncement> for Session {
     type Result = SessionUnitResult;
 
-    fn handle(&mut self, msg: AnnounceItems, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: SendInventoryAnnouncement, _: &mut Context<Self>) {
         debug!(
             "Sending AnnounceItems message to peer at {:?}",
             self.remote_addr
@@ -276,19 +276,6 @@ impl Handler<SendInventoryItem> for Session {
     }
 }
 
-/// Handler for InventoryExchange message (sent by other actors)
-impl Handler<InventoryExchange> for Session {
-    type Result = SessionUnitResult;
-
-    fn handle(&mut self, _: InventoryExchange, ctx: &mut Context<Self>) {
-        debug!(
-            "Starting Inventory Exchange with peer at {:?}",
-            self.remote_addr
-        );
-        inventory_get_blocks(self, ctx)
-    }
-}
-
 impl Handler<SendLastBeacon> for Session {
     type Result = SessionUnitResult;
 
@@ -305,37 +292,6 @@ fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
         // Update session to consolidate status
         update_consolidate(session, ctx);
     }
-}
-
-/// Function to retrieve highest CheckpointBeacon and send LastBeacon message in Session
-fn inventory_get_blocks(session: &Session, ctx: &mut Context<Session>) {
-    // Get ChainManager address from registry
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
-    // Send GetHighestCheckpointBeacon message to ChainManager
-    chain_manager_addr
-        .send(GetHighestCheckpointBeacon)
-        .into_actor(session)
-        .then(|res, act, ctx| {
-            match res {
-                Ok(Ok(beacon)) => {
-                    // Create get blocks message
-                    let get_blocks_msg = WitnetMessage::build_last_beacon(act.magic_number, beacon);
-                    // Write get blocks message in session
-                    act.send_message(get_blocks_msg);
-
-                    actix::fut::ok(())
-                }
-                _ => {
-                    warn!("Failed to get highest checkpoint beacon from ChainManager");
-                    // FIXME(#72): a full stop of the session is not correct (unregister should
-                    // be skipped)
-                    ctx.stop();
-
-                    actix::fut::err(())
-                }
-            }
-        })
-        .wait(ctx);
 }
 
 // Function to notify the SessionsManager that the session has been consolidated
@@ -637,10 +593,6 @@ fn session_last_beacon_inbound(
                             .wait(ctx);
                     } else if chain_beacon.checkpoint == received_checkpoint {
                         info!("Our chain is on par with our peer's",);
-                        // Create a last_beacon message
-                        let last_beacon_msg = WitnetMessage::build_last_beacon(act.magic_number, chain_beacon);
-                        // Write a last_beacon message in session
-                        act.send_message(last_beacon_msg);
                     } else {
                         warn!(
                             "Received a checkpoint beacon that is ahead of ours ({} > {})",

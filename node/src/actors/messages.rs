@@ -390,28 +390,28 @@ impl Message for RunConsensus {
 
 /// Message to indicate that the session needs to send a GetPeers message through the network
 #[derive(Debug)]
-pub struct GetPeers;
+pub struct SendGetPeers;
 
-impl Message for GetPeers {
+impl Message for SendGetPeers {
     type Result = SessionUnitResult;
 }
 
-impl fmt::Display for GetPeers {
+impl fmt::Display for SendGetPeers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GetPeers")
+        write!(f, "SendGetPeers")
     }
 }
 
 /// Message to announce new inventory entries through the network
 #[derive(Clone, Debug, Message)]
-pub struct AnnounceItems {
+pub struct SendInventoryAnnouncement {
     /// Inventory entries
     pub items: Vec<InventoryEntry>,
 }
 
-impl fmt::Display for AnnounceItems {
+impl fmt::Display for SendInventoryAnnouncement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AnnounceItems")
+        write!(f, "SendInventoryAnnouncement")
     }
 }
 
@@ -425,16 +425,6 @@ pub struct SendInventoryItem {
 impl fmt::Display for SendInventoryItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SendInventoryItem")
-    }
-}
-
-/// Message to indicate that the session needs start an inventory exchange
-#[derive(Clone, Debug, Message)]
-pub struct InventoryExchange;
-
-impl fmt::Display for InventoryExchange {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "InventoryExchange")
     }
 }
 
