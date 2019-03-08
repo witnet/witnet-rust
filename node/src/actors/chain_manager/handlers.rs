@@ -11,7 +11,7 @@ use super::{validations::validate_block, ChainManager, ChainManagerError, StateM
 use crate::actors::messages::{
     AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, EpochNotification,
     GetBlocksEpochRange, GetHighestCheckpointBeacon, PeersBeacons, SendLastBeacon,
-    SessionUnitResult, SetNetworkReady,
+    SessionUnitResult,
 };
 use crate::actors::sessions_manager::SessionsManager;
 use crate::utils::mode_consensus;
@@ -26,15 +26,6 @@ pub struct EpochPayload;
 /// Payload for the notification for all epochs
 #[derive(Clone, Debug)]
 pub struct EveryEpochPayload;
-
-/// Handler for SetNetworkReady message
-impl Handler<SetNetworkReady> for ChainManager {
-    type Result = SessionUnitResult;
-
-    fn handle(&mut self, msg: SetNetworkReady, _ctx: &mut Context<Self>) {
-        self.network_ready = msg.network_ready;
-    }
-}
 
 /// Handler for EpochNotification<EpochPayload>
 impl Handler<EpochNotification<EpochPayload>> for ChainManager {
