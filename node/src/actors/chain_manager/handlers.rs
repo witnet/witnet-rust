@@ -226,7 +226,22 @@ impl Handler<AddBlocks> for ChainManager {
                         .highest_block_checkpoint;
                     if our_beacon == target_beacon {
                         // Target achived, go back to state 1
-                        self.sm_state = StateMachine::WaitingConsensus;
+                        /*
+                        // Ask for beacons again, to force transition from state 1 to 3
+                        SessionsManager::from_registry().do_send(Broadcast {
+                            command: SendLastBeacon { beacon: our_beacon },
+                        });
+                        */
+                        // Or maybe we could go directly to state 3?
+                        let current_epoch = self.current_epoch.unwrap();
+                        let target_epoch = target_beacon.checkpoint;
+                        // TODO: this will lead to a fork if we have not received the candidate block
+                        self.sm_state = if current_epoch == target_epoch {
+                            StateMachine::Synced
+                        } else {
+                            StateMachine::WaitingConsensus
+                        };
+
                         break;
                     }
                 }

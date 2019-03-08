@@ -252,6 +252,9 @@ impl Handler<PeerBeacon> for SessionsManager {
 
         if !all_ready_before && all_ready_after {
             self.send_peers_beacons(ctx);
+            // Allow for multiple PeersBeacons messages per epoch
+            // TODO: this is related to the hack in the 2->1 state transition
+            //self.clear_beacons();
         }
     }
 }
