@@ -169,11 +169,12 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     // (The transactions must be included into this block, both the transactions from
                     // our node and the transactions from other nodes
                     self.try_mine_data_request(ctx);
+
+                    // Clear candidates
+                    self.candidates.clear();
                 }
             }
         };
-        // Clear candidates
-        self.candidates.clear();
     }
 }
 
@@ -485,7 +486,7 @@ impl Handler<PeersBeacons> for ChainManager {
     fn handle(
         &mut self,
         PeersBeacons { pb }: PeersBeacons,
-        _ctx: &mut Context<Self>,
+        ctx: &mut Context<Self>,
     ) -> Self::Result {
         match self.sm_state {
             StateMachine::WaitingConsensus => {
@@ -514,8 +515,22 @@ impl Handler<PeersBeacons> for ChainManager {
                     self.sm_state = if our_beacon == beacon {
                         StateMachine::Synced
                     } else {
-                        StateMachine::Synchronizing
+                        // Review candidates
+                        let consensus_block_hash = beacon.hash_prev_block;
+                        if let Some(consensus_block) = self.candidates.remove(&consensus_block_hash)
+                        {
+                            if self.process_requested_block(ctx, consensus_block) {
+                                StateMachine::Synced
+                            } else {
+                                StateMachine::Synchronizing
+                            }
+                        } else {
+                            StateMachine::Synchronizing
+                        }
                     };
+
+                    // Clear candidates
+                    self.candidates.clear();
 
                     Ok(peers_out_of_consensus)
                 } else {
