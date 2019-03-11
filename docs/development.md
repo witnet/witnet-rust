@@ -1,78 +1,69 @@
 # Development
-Witnet-rust is build using [The Rust Programming language](https://rust-lang-nursery.github.io/edition-guide/introduction.html) and following [rust2018 edition guide](https://rust-lang-nursery.github.io/edition-guide/introduction.html).
+
+`witnet-rust` is built using [The Rust Programming language][rust] and following the
+[Rust 2018 Edition Guide][rust-2018] as its code styling convention.
 
 ## Installing
 
-1. Install dependencies
-    - Rust2018 (stable channel)
-    ```
-    $ curl https://sh.rustup.rs -sSf | sh
-    $ rustup default stable
-    $ rustc --version
-    ```
-    - `clang` Clang compiler
-    ```
-    $ apt-get install clang
-    ```
-    - `protoc` Protocol Buffers compiler
-    ```
-    $ apt-get install protobuf-compiler
-    ```
-    - `mkdocs`, `pymdown-extensions`, `mkdocs-material` python packages (optional, only if generating documentation)
-    ```
-    $ pip install mkdocs
-    $ pip install pymdown-extensions
-    $ pip install mkdocs-material
-    ```
+We have installation guides for several operating systems:
 
-2. Clone and build the source code from github:
-  ```
-  $ git clone https://github.com/witnet/witnet-rust.git
-  $ cd witnet-rust
-  $ cargo build
-  ```
-3. Use cargo to install ```just``` .
-  ```
-  $ cargo install just
-  ```
-4. Run just script to install dev tools
-  ```
-  $ just install-setup
-  ```
-5. Run a witnet component. Find a list of components and how to run them at [CLI](#cli).
-  ```
-  $ RUST_LOG=witnet=trace cargo run node
-    or
-  $ just node
-  ```
+- [Installing Witnet-rust on GNU/Linux][install-gnu-linux]
+- [Installing Witnet-rust on macOS][install-macos]
+- [Installing Witnet-rust on Windows][install-windows]
+- [Compiling Witnet-rust on from source code][install-from-source]
 
-## CLI
+
+## Running the CLI
+
 ### Synopsis
-    RUST_LOG=witnet=[error | info | debug | main | trace] cargo run
-    [node [ --address address] [--config config_filename]]
+```console
+RUST_LOG=witnet=[error | info | debug | main | trace] cargo run \
+[node [ --address address] [--config config_filename]]
+```
 
 ### Components
 
 #### Node
-  --address (-d) *&lt;address&gt;*
+```console
+--address <address>
+-d <address>
+```
 
-  Read server address from *&lt;address&gt;* argument.
+Read server address from `<address>` argument.
 
-  --config (-c) *&lt;config_filename&gt;*
+```console
+--config <file_path>
+-c <file_path>
+```
 
-  Read config filename from *&lt;config_filename&gt;* argument.
+Read configuration from the given `<file_path>` argument (defaults to `./witnet.toml`).
 
 ## Development Scripts
 
-  There are some useful scripts to run with ```just```:
+There are some useful scripts to run with the `just` tool:
 
-  - ```clippy```: Run ```clippy``` style checking.
-  - ```docs-build```: Compile docs into static files.
-  - ```docs-deploy```: Deploy compiled docs into gh-pages branch.
-  - ```docs-dev```: Run local documentation server at localhost:8000
-  - ```fmt```: Run code formatter.
-  - ```install-clippy```. Install ```clippy``` library.
-  - ```install-rustfmt```: Install ```rustfmt``` library.
-  - ```install-setup```: Install dev tools.
-  - ```server```: Run witnet server component.
-  - ```travis```: Run travis build.
+- `clippy`: run `clippy` style checking.
+- `docs-build`: compile docs into static files.
+- `docs-deploy`: deploy compiled docs into gh-pages branch.
+- `docs-dev`: run local documentation server at `localhost:8000`.
+- `fmt`: run code formatter.
+- `install-clippy`: install `clippy` library.
+- `install-rustfmt`: install `rustfmt` library.
+- `install-setup`: install dev tools (`clippy` and `rustfmt`).
+- `server`: run witnet server component.
+- `travis`: run travis build.
+
+!!! tip "Installing the `just` tool"
+
+    `just` is a command runner tool widely used in the Rust ecosystem. You can install it with a single line:
+
+    ```console
+    cargo install just
+    ```
+
+[rust]: https://rust-lang.org
+[rust-2018]: https://rust-lang-nursery.github.io/edition-guide/introduction.html
+[install-gnu-linux]: get-started/installation/gnu-linux
+[install-macos]: get-started/installation/macos
+[install-windows]: get-started/installation/windows
+[install-from-source]: get-started/installation/from-source
