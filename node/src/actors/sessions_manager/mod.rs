@@ -1,4 +1,4 @@
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use std::{net::SocketAddr, time::Duration};
 
 use actix::{
@@ -47,6 +47,7 @@ impl SessionsManager {
                 Cyan.bold()
                     .paint(act.sessions.get_num_outbound_sessions().to_string())
             );
+            trace!("{:#?}", act.sessions.show_ips());
 
             // Check if bootstrap is needed
             if act.sessions.is_outbound_bootstrap_needed() {

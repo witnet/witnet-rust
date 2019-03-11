@@ -280,4 +280,48 @@ where
         // Remove session from unconsolidated collection
         cons_sessions.unregister_session(address).map(|_| ())
     }
+
+    /// Show the addresses of all the sessions
+    pub fn show_ips(&self) -> Vec<String> {
+        ["Inbound Unconsolidated".to_string()]
+            .iter()
+            .cloned()
+            .chain(
+                self.inbound_unconsolidated
+                    .collection
+                    .keys()
+                    .map(|k| k.to_string()),
+            )
+            .chain(std::iter::once("Inbound Consolidated".to_string()))
+            .chain(
+                self.inbound_consolidated
+                    .collection
+                    .keys()
+                    .map(|k| k.to_string()),
+            )
+            .chain(std::iter::once("Outbound Unconsolidated".to_string()))
+            .chain(
+                self.outbound_unconsolidated
+                    .collection
+                    .keys()
+                    .map(|k| k.to_string()),
+            )
+            .chain(std::iter::once("Outbound Consolidated".to_string()))
+            .chain(
+                self.outbound_consolidated
+                    .collection
+                    .keys()
+                    .map(|k| k.to_string()),
+            )
+            .chain(std::iter::once(
+                "Outbound Consolidated Consensus".to_string(),
+            ))
+            .chain(
+                self.outbound_consolidated_consensus
+                    .collection
+                    .keys()
+                    .map(|k| k.to_string()),
+            )
+            .collect()
+    }
 }
