@@ -160,6 +160,13 @@ impl SessionsManager {
     }
 
     fn send_peers_beacons(&mut self, ctx: &mut Context<Self>) {
+        if self.sessions.is_outbound_bootstrap_needed() {
+            // Do not send PeersBeacons until we get to the outbound limit
+            debug!("PeersBeacons message delayed because of lack of peers");
+            return;
+        }
+
+        debug!("Sending PeersBeacons message");
         // Send message to peers manager
         // Peers which did not send a beacon will be ignored: neither unregistered nor promoted to safu
         let pb: Vec<_> = self
@@ -167,6 +174,18 @@ impl SessionsManager {
             .iter()
             .filter_map(|(k, v)| v.map(|v| (*k, v)))
             .collect();
+
+        if self
+            .sessions
+            .outbound_consolidated
+            .limit
+            .map(|limit| pb.len() < limit as usize)
+            .unwrap_or(true)
+        {
+            debug!("PeersBeacons message delayed because not enoght peers sent their beacons");
+            return;
+        }
+
         let mut peers_to_keep: HashSet<_> = pb.iter().map(|(p, _b)| *p).collect();
         ChainManager::from_registry()
             .send(PeersBeacons { pb })
