@@ -21,7 +21,7 @@ use witnet_p2p::{
     peers::error::PeersResult,
     sessions::{error::SessionsResult, SessionStatus, SessionType},
 };
-use witnet_rad::error::RadResult;
+use witnet_rad::error::RadError;
 use witnet_storage::{error::StorageResult, storage::Storable};
 
 use super::{
@@ -347,11 +347,11 @@ pub struct RunConsensus {
 }
 
 impl Message for ResolveRA {
-    type Result = RadResult<Vec<u8>>;
+    type Result = Result<Vec<u8>, RadError>;
 }
 
 impl Message for RunConsensus {
-    type Result = RadResult<Vec<u8>>;
+    type Result = Result<Vec<u8>, RadError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
