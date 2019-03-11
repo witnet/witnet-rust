@@ -7,11 +7,7 @@ use log::{debug, error, info, warn};
 use futures::future::{join_all, Future};
 use std::{collections::HashMap, time::Duration};
 
-use super::{
-    data_request::{create_tally, create_vt_tally},
-    validations::{block_reward, merkle_tree_root, verify_poe_data_request},
-    ChainManager,
-};
+use super::ChainManager;
 use crate::actors::{
     messages::{
         AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunConsensus,
@@ -26,7 +22,9 @@ use witnet_data_structures::{
         Secp256k1Signature, Signature, Transaction, TransactionsPool, UnspentOutputsPool,
         ValueTransferOutput,
     },
+    data_request::{create_tally, create_vt_tally},
     serializers::decoders::TryFrom,
+    validations::{block_reward, merkle_tree_root, verify_poe_data_request},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_storage::storage::Storable;

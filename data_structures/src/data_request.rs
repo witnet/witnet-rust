@@ -3,15 +3,17 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use witnet_crypto::hash::calculate_sha256;
 
-use super::validations::{
-    calculate_commit_reward, calculate_dr_vt_reward, calculate_reveal_reward,
-    calculate_tally_change,
-};
-
-use witnet_data_structures::chain::{
-    CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
-    DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
-    RevealInput, RevealOutput, TallyOutput, Transaction, UnspentOutputsPool, ValueTransferOutput,
+use super::{
+    chain::{
+        CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
+        DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
+        RevealInput, RevealOutput, TallyOutput, Transaction, UnspentOutputsPool,
+        ValueTransferOutput,
+    },
+    validations::{
+        calculate_commit_reward, calculate_dr_vt_reward, calculate_reveal_reward,
+        calculate_tally_change,
+    },
 };
 
 type DataRequestsWithReveals = Vec<(
@@ -602,8 +604,7 @@ pub fn create_tally(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use witnet_data_structures::chain::*;
+    use crate::{chain::*, data_request::DataRequestPool};
 
     fn empty_data_request() -> DataRequestOutput {
         let data_request = RADRequest {

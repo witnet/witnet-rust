@@ -41,15 +41,13 @@ use witnet_data_structures::{
         Hashable, InventoryItem, Output, OutputPointer, Transaction, TransactionsPool,
         UnspentOutputsPool,
     },
+    data_request::DataRequestPool,
     serializers::decoders::TryFrom,
+    validations::{validate_block, validate_candidate},
 };
 use witnet_storage::{error::StorageError, storage::Storable};
 use witnet_util::error::WitnetError;
 
-use self::{
-    data_request::DataRequestPool,
-    validations::{validate_block, validate_candidate},
-};
 use crate::actors::{
     inventory_manager::InventoryManager,
     messages::{AddItem, AddTransaction, Broadcast, Put, SendInventoryItem},
@@ -59,10 +57,8 @@ use crate::actors::{
 };
 
 mod actor;
-mod data_request;
 mod handlers;
 mod mining;
-mod validations;
 
 /// Maximum blocks number to be sent during synchronization process
 pub const MAX_BLOCKS_SYNC: usize = 500;
@@ -133,14 +129,6 @@ pub struct ChainManager {
     target_beacon: Option<CheckpointBeacon>,
     /// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain
     candidates: HashMap<Hash, Block>,
-}
-
-/// Struct that keeps a block candidate and its modifications in the blockchain
-#[derive(Debug, Clone)]
-pub struct BlockInChain {
-    block: Block,
-    utxo_set: UnspentOutputsPool,
-    data_request_pool: DataRequestPool,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry

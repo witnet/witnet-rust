@@ -1,17 +1,16 @@
 use std::collections::HashMap;
 
-use super::data_request::DataRequestPool;
-
 use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree_root};
 
-use witnet_data_structures::chain::{
-    Block, DataRequestOutput, Epoch, Hash, Hashable, Input, Output, OutputPointer, Transaction,
-    TransactionsPool, UnspentOutputsPool,
+use super::{
+    chain::{
+        Block, BlockInChain, CheckpointBeacon, DataRequestOutput, Epoch, Hash, Hashable, Input,
+        Output, OutputPointer, Transaction, TransactionsPool, UnspentOutputsPool,
+    },
+    data_request::DataRequestPool,
 };
 
-use crate::actors::chain_manager::BlockInChain;
 use log::{debug, warn};
-use witnet_data_structures::chain::CheckpointBeacon;
 
 /// Function to validate a transaction
 pub fn validate_transaction<S: ::std::hash::BuildHasher>(

@@ -1,14 +1,19 @@
-use crate::proto::{schema::witnet, ProtobufConvert};
-use crate::serializers::decoders::TryFrom;
+use super::{
+    data_request::DataRequestPool,
+    proto::{schema::witnet, ProtobufConvert},
+    serializers::decoders::TryFrom,
+};
 use failure::Fail;
 use partial_struct::PartialStruct;
 use protobuf::Message;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::convert::AsRef;
-use std::fmt;
-use std::num::ParseIntError;
-use std::str::FromStr;
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    convert::AsRef,
+    fmt,
+    num::ParseIntError,
+    str::FromStr,
+};
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 use witnet_util::parser::parse_hex;
 
@@ -164,6 +169,14 @@ impl Block {
 
         Ok(())
     }
+}
+
+/// Struct that keeps a block candidate and its modifications in the blockchain
+#[derive(Debug, Clone)]
+pub struct BlockInChain {
+    pub block: Block,
+    pub utxo_set: UnspentOutputsPool,
+    pub data_request_pool: DataRequestPool,
 }
 
 /// Any reference to a Hashable type is also Hashable

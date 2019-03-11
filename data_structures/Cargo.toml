@@ -15,6 +15,7 @@ rand = "0.6.5"
 serde = "1.0.88"
 serde_derive = "1.0.88"
 toml = "0.4.10"
+log = "0.4.6"
 
 [dependencies.partial_struct]
 path = "../partial_struct"

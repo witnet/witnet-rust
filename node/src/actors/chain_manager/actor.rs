@@ -2,7 +2,6 @@
 use actix::prelude::*;
 
 use super::{
-    data_request::DataRequestPool,
     handlers::{EpochPayload, EveryEpochPayload},
     ChainManager,
 };
@@ -14,8 +13,12 @@ use crate::actors::{
 };
 use crate::config_mngr;
 
-use witnet_data_structures::chain::{
-    ActiveDataRequestPool, Blockchain, ChainInfo, ChainState, CheckpointBeacon, UnspentOutputsPool,
+use witnet_data_structures::{
+    chain::{
+        ActiveDataRequestPool, Blockchain, ChainInfo, ChainState, CheckpointBeacon,
+        UnspentOutputsPool,
+    },
+    data_request::DataRequestPool,
 };
 
 use witnet_util::timestamp::{get_timestamp_nanos, pretty_print};
