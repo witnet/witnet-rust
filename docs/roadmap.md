@@ -4,11 +4,12 @@ Witnet is an open initiative and Witnet-rust is and an open source project that 
 
 However, Witnet Foundation has a strong commitment to ensure the following milestones are met:
 
-- ~~__September 2018__: a user-facing demo/prototype that will let users explore the potential of the protocol being built.~~ Done! [Sheikah desktop client is already out][sheikah]!
-- __2019 Q1__ `testnet-1`: a functional test network implementing the essential features of the Witnet protocol.
-- __2019 Q3__: bridge node software for Ethereum and RChain.
+- ~~__September 2018__: a user-facing demo/prototype that will let users explore the potential of the protocol being built.~~ __Done!__ [Sheikah desktop client is already out][sheikah]!
+- ~~__2019 Q1__ `testnet-1`: a functional test network implementing the essential features of the Witnet protocol.~~ __Done!__ [testnet-1 is already out][testnet]!
+- __2019 Q3__: bridge node software for Ethereum.
 - __2019 Q4__: `mainnet` release.
 
 _Given the experimental nature of the technologies and network protocols under development, these dates and deliverables may be subject to change due to reasons beyond the control of Witnet Foundation._
 
 [sheikah]: https://medium.com/witnet/welcome-to-sheikah-5b658d4815c8
+[testnet]: https://medium.com/witnet/witnet-monthly-report-january-2019-d3bc903438f9
