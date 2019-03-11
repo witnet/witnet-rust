@@ -72,6 +72,9 @@ impl ChainManager {
         let sign = |x, _k| match x {
             Hash::SHA256(mut x) => {
                 // Add some randomness to the signature
+                // TODO: since the hash of the block depends only on the block header,
+                // this does not change the hash. Therefore, until we implement signatures,
+                // all the nodes will always mine blocks with the same hash.
                 x[0] = self.random as u8;
                 x
             }

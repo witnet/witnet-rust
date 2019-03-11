@@ -123,7 +123,7 @@ fn test_block_hashable_trait() {
         proof,
         txns,
     };
-    let expected = "2972d0fb3e40ecfc8c771aadfb68070b4b1f7f2c2b371b628d58b5634d1ce2c4";
+    let expected = "41d36ff16318f17350b0f0a74afb907bda00b89035d12ccede8ca404a4afb1c0";
     assert_eq!(block.hash().to_string(), expected);
 }
 
