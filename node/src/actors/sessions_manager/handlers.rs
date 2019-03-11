@@ -227,7 +227,7 @@ impl Handler<EpochNotification<()>> for SessionsManager {
             self.send_peers_beacons(ctx);
         }
         // New epoch, new beacons
-        // TODO: There is a race condition here: we must receive the beacons after this handler has
+        // There is a race condition here: we must receive the beacons after this handler has
         // been executed. We could avoid this by only clearing beacons from past epochs, and
         // accepting beacons for future epochs, but that would add complexity.
         self.clear_beacons();
