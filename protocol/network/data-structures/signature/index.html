@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -462,8 +522,8 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#ecdsa-over-secp256k1" title="ECDSA over secp256k1" class="md-nav__link">
-    ECDSA over secp256k1
+  <a href="#secp256k1signature" title="Secp256k1Signature" class="md-nav__link">
+    Secp256k1Signature
   </a>
   
 </li>
@@ -968,6 +1028,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -980,8 +1052,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1217,18 +1289,6 @@
   <li class="md-nav__item">
     <a href="../../../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1608,8 +1668,8 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#ecdsa-over-secp256k1" title="ECDSA over secp256k1" class="md-nav__link">
-    ECDSA over secp256k1
+  <a href="#secp256k1signature" title="Secp256k1Signature" class="md-nav__link">
+    Secp256k1Signature
   </a>
   
 </li>
@@ -1639,25 +1699,18 @@
                 
                 
                 <h1 id="signature">Signature<a class="headerlink" href="#signature" title="Permanent link">&para;</a></h1>
-<p><strong>Signatures</strong> are formatted as follows:</p>
+<p><strong>Signatures</strong> are a tagged union of the supported cryptosystems:</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Kind</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">crypto_sys</code></td>
-<td><code class="codehilite">cryptosystem</code></td>
-<td>A cryptosystem identifier (see enumeration below)</td>
-</tr>
-<tr>
-<td><code class="codehilite">signature</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>A variable-length digital signature</td>
+<td align="left"><code class="codehilite">Secp256k1Signature</code></td>
+<td align="left">ECDSA over secp256k1</td>
 </tr>
 </tbody>
 </table>
@@ -1665,26 +1718,21 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">crypto_sys</code></td>
-<td><code class="codehilite">cryptosystem</code></td>
-<td>A cryptosystem identifier (see enumeration below)</td>
+<td align="left"><code class="codehilite">signature</code></td>
+<td align="left"><code class="codehilite">Signature</code></td>
+<td align="left">A variable-length digital signature</td>
 </tr>
 <tr>
-<td><code class="codehilite">signature</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>A variable-length digital signature</td>
-</tr>
-<tr>
-<td><code class="codehilite">public_key</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>The public key matching the private key used for producing the <code class="codehilite">signature</code></td>
+<td align="left"><code class="codehilite">public_key</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">The public key matching the private key used for producing the <code class="codehilite">signature</code></td>
 </tr>
 </tbody>
 </table>
@@ -1693,8 +1741,6 @@
 <table>
 <thead>
 <tr>
-<th>Identifier (dec)</th>
-<th>Identifier (hex)</th>
 <th>Cryptosystem</th>
 <th>Signature size</th>
 <th>Public key size</th>
@@ -1702,22 +1748,18 @@
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">0</code></td>
-<td><code class="codehilite">0x00000000</code></td>
 <td>None</td>
 <td>0 bytes</td>
 <td>0 bytes</td>
 </tr>
 <tr>
-<td><code class="codehilite">1</code></td>
-<td><code class="codehilite">0x00000001</code></td>
 <td>ECDSA over secp256k1</td>
 <td>65 bytes</td>
 <td>33 bytes</td>
 </tr>
 </tbody>
 </table>
-<h3 id="ecdsa-over-secp256k1">ECDSA over secp256k1<a class="headerlink" href="#ecdsa-over-secp256k1" title="Permanent link">&para;</a></h3>
+<h3 id="secp256k1signature">Secp256k1Signature<a class="headerlink" href="#secp256k1signature" title="Permanent link">&para;</a></h3>
 <p>ECDSA signatures over the <code class="codehilite">secp256k1</code> curve consist of:</p>
 <table>
 <thead>
@@ -1730,17 +1772,17 @@
 <tbody>
 <tr>
 <td><code class="codehilite">r</code></td>
-<td><code class="codehilite">[u8; 32]</code></td>
-<td>The signature value R</td>
+<td><code class="codehilite">bytes</code></td>
+<td>The signature value R (32 bytes)</td>
 </tr>
 <tr>
 <td><code class="codehilite">s</code></td>
-<td><code class="codehilite">[u8; 33]</code></td>
-<td>The signature value S</td>
+<td><code class="codehilite">bytes</code></td>
+<td>The signature value S (33 bytes)</td>
 </tr>
 </tbody>
 </table>
-<p>ECDSA public keys must always use compression and thus their type is <code class="codehilite">[u8; 33]</code>.</p>
+<p>ECDSA public keys must always use compression and thus their length is 33 bytes.</p>
                 
                   
                 

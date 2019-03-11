@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1283,18 +1355,6 @@
   <li class="md-nav__item">
     <a href="../rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1804,7 +1864,7 @@ epoch, as well as a list of subscriptions.</p>
 
 <h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
 <p>The creation of the epoch manager actor and its registration into the system registry are
-performed directly by the main process <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs"><code class="codehilite">node.rs</code></a>:</p>
+performed directly by the main process <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/node.rs"><code class="codehilite">node.rs</code></a>:</p>
 <div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">epoch_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EpochManager</span>::<span class="n">default</span><span class="p">().</span><span class="n">start</span><span class="p">();</span><span class="w"></span>
 <span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">epoch_manager_addr</span><span class="p">);</span><span class="w"></span>
 </pre></div>
@@ -1993,10 +2053,10 @@ a type like <code class="codehilite">()</code> or an empty struct can be used.</
 </tbody>
 </table>
 <h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor when the epoch manager actor is started.</p>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor when the epoch manager actor is started.</p>
 <p>The return value is used to initialize the protocol constants (checkpoint period and
 epoch zero timestamp).
-For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a>.</p>
+For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a>.</p>
 <h4 id="epochnotification">EpochNotification<T><a class="headerlink" href="#epochnotification" title="Permanent link">&para;</a></h4>
 <p>This message is sent to all the actors which are subscribed to the epoch that just started.
 There are two types of subscriptions:</p>
@@ -2021,7 +2081,7 @@ There are two types of subscriptions:</p>
 </pre></div>
 
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">EpochManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">epoch_manager.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">EpochManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/epoch_manager"><code class="codehilite">epoch_manager.rs</code></a>.</p>
                 
                   
                 

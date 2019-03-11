@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -969,6 +1029,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -981,8 +1053,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1218,18 +1290,6 @@
   <li class="md-nav__item">
     <a href="../../../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1641,92 +1701,89 @@
                 
                 
                 <h1 id="block">Block<a class="headerlink" href="#block" title="Permanent link">&para;</a></h1>
-<p>In the Witnet network protocol, a <code class="codehilite">block</code> is formatted as follows:</p>
+<p>In the Witnet network protocol, a <code class="codehilite">Block</code> is formatted as follows:</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">header</code></td>
-<td><code class="codehilite">block_header</code></td>
-<td>The header of the block</td>
+<td align="left"><code class="codehilite">block_header</code></td>
+<td align="left"><code class="codehilite">BlockHeader</code></td>
+<td align="left">The header of the block</td>
 </tr>
 <tr>
-<td><code class="codehilite">txns</code></td>
-<td><code class="codehilite">[tx]</code></td>
-<td>Block transactions following the format of a <code class="codehilite">TX</code> command, as described in the <a href="/protocol/network/data-structures/transaction/">Transaction</a> section</td>
+<td align="left"><code class="codehilite">proof</code></td>
+<td align="left"><code class="codehilite">LeadershipProof</code></td>
+<td align="left">A miner-provided <em>Proof of Eligibility</em></td>
 </tr>
 <tr>
-<td><code class="codehilite">signature</code></td>
-<td><code class="codehilite">keyed_signature</code></td>
-<td>A <a href="/protocol/network/data-structures/signature/">keyed signature</a> of the block header</td>
+<td align="left"><code class="codehilite">txns</code></td>
+<td align="left"><code class="codehilite">repeated Transaction</code></td>
+<td align="left">A <a href="/protocol/network/data-structures/signature/">keyed signature</a> of the block header</td>
 </tr>
 </tbody>
 </table>
 <p>A non-empty list of transactions is always provided because the <em>mint</em> transaction should always be included.</p>
 <h2 id="block-header-structure">Block header structure<a class="headerlink" href="#block-header-structure" title="Permanent link">&para;</a></h2>
-<p>The block header (<code class="codehilite">block_header</code>) is composed of the following fields:</p>
+<p>The block header (<code class="codehilite">BlockHeader</code>) is composed of the following fields:</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">version</code></td>
-<td><code class="codehilite">u32</code></td>
-<td>The block version number indicating the block validation rules</td>
+<td align="left"><code class="codehilite">version</code></td>
+<td align="left"><code class="codehilite">uint32</code></td>
+<td align="left">The block version number indicating the block validation rules</td>
 </tr>
 <tr>
-<td><code class="codehilite">beacon</code></td>
-<td><code class="codehilite">beacon</code></td>
-<td>A checkpoint beacon for the epoch that this block is closing</td>
+<td align="left"><code class="codehilite">beacon</code></td>
+<td align="left"><code class="codehilite">CheckpointBeacon</code></td>
+<td align="left">A checkpoint beacon for the epoch that this block is closing</td>
 </tr>
 <tr>
-<td><code class="codehilite">hash_merkle_root</code></td>
-<td><code class="codehilite">[u8; 32]</code></td>
-<td>A 256-bit hash based on all of the transactions committed to this block</td>
-</tr>
-<tr>
-<td><code class="codehilite">proof</code></td>
-<td><code class="codehilite">signature</code></td>
-<td>A miner-provided <em>Proof of Eligibility</em></td>
+<td align="left"><code class="codehilite">hash_merkle_root</code></td>
+<td align="left"><code class="codehilite">Hash</code></td>
+<td align="left">A 256-bit hash based on all of the transactions committed to this block</td>
 </tr>
 </tbody>
 </table>
 <h2 id="checkpoint-beacon-structure">Checkpoint beacon structure<a class="headerlink" href="#checkpoint-beacon-structure" title="Permanent link">&para;</a></h2>
-<p>The checkpoint beacon (<code class="codehilite">beacon</code>) is composed of the following fields:</p>
+<p>The checkpoint beacon (<code class="codehilite">CheckpointBeacon</code>) is composed of the following fields:</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">checkpoint</code></td>
-<td><code class="codehilite">u32</code></td>
-<td>The serial number for an epoch</td>
+<td align="left"><code class="codehilite">checkpoint</code></td>
+<td align="left"><code class="codehilite">fixed32</code></td>
+<td align="left">The serial number for this epoch</td>
 </tr>
 <tr>
-<td><code class="codehilite">hash_prev_block</code></td>
-<td><code class="codehilite">[u8; 32]</code></td>
-<td>The 256-bit hash of the previous block header</td>
+<td align="left"><code class="codehilite">hash_prev_block</code></td>
+<td align="left"><code class="codehilite">Hash</code></td>
+<td align="left">The 256-bit hash of the previous block</td>
 </tr>
 </tbody>
 </table>
 <h2 id="proof-of-eligibility">Proof of Eligibility<a class="headerlink" href="#proof-of-eligibility" title="Permanent link">&para;</a></h2>
-<p>The <em>Proof of Eligibility</em> (<code class="codehilite">proof</code>) signature is computed by simply signing the <code class="codehilite">beacon</code> field of the block header using the same private key as for the <code class="codehilite">signature</code>.</p>
+<p>The <em>Proof of Eligibility</em> (<code class="codehilite">LeadershipProof</code>) signature is computed by
+simply signing the <code class="codehilite">beacon</code> field of the block header using the same
+private key as for the <code class="codehilite">signature</code>.</p>
 <p>Signature structures are defined in the <a href="/protocol/network/data-structures/signature/">Signature</a> section.</p>
                 
                   

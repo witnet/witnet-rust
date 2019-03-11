@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1170,18 +1242,6 @@
 
 
   <li class="md-nav__item">
-    <a href="../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
     <a href="../../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
       Sessions Manager
     </a>
@@ -1398,6 +1458,46 @@
   <a href="#getblockchain" title="getBlockChain" class="md-nav__link">
     getBlockChain
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getoutput" title="getOutput" class="md-nav__link">
+    getOutput
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#request" title="Request" class="md-nav__link">
+    Request
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response" title="Response" class="md-nav__link">
+    Response
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1645,6 +1745,46 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#getoutput" title="getOutput" class="md-nav__link">
+    getOutput
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#request" title="Request" class="md-nav__link">
+    Request
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response" title="Response" class="md-nav__link">
+    Response
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1737,6 +1877,25 @@ the first line is a request, the second line is a response.</p>
 <div class="codehilite"><pre><span></span>$ witnet cli getBlockChain -c witnet_01.toml
 Block for epoch #46924 had digest e706995269bfc4fb5f4ab9082765a1bdb48fc6e58cdf5f95621c9e3f849301ed
 Block for epoch #46925 had digest 2dc469691916a862154eb92473278ea8591ace910ec7ecb560797cbb91fdc01e
+</pre></div>
+
+<h4 id="getoutput">getOutput<a class="headerlink" href="#getoutput" title="Permanent link">&para;</a></h4>
+<p>Returns the output of the transaction that matches the provided output pointer.</p>
+<div class="codehilite"><pre><span></span>$ witnet cli getOutput &lt;output pointer&gt;
+</pre></div>
+
+<p>The format of the <code class="codehilite">&lt;output pointer&gt;</code> argument is <code class="codehilite">&lt;transaction id&gt;:&lt;output index&gt;</code>, where:</p>
+<ul>
+<li><code class="codehilite">transaction id</code>: Is the 32 hex digits of the transaction id</li>
+<li><code class="codehilite">output index</code>: Is a number identifying the index of the output in the transaction</li>
+</ul>
+<h5 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h5>
+<h6 id="request">Request<a class="headerlink" href="#request" title="Permanent link">&para;</a></h6>
+<div class="codehilite"><pre><span></span>$ witnet cli getOutput 1234567890abcdef111111111111111111111111111111111111111111111111:1
+</pre></div>
+
+<h6 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h6>
+<div class="codehilite"><pre><span></span><span class="p">{</span><span class="s2">&quot;jsonrpc&quot;</span><span class="o">:</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span><span class="s2">&quot;result&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;DataRequest&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;backup_witnesses&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;commit_fee&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;data_request&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;aggregate&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;script&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">0</span><span class="p">]},</span><span class="s2">&quot;consensus&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;script&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">0</span><span class="p">]},</span><span class="s2">&quot;deliver&quot;</span><span class="o">:</span><span class="p">[{</span><span class="s2">&quot;kind&quot;</span><span class="o">:</span><span class="s2">&quot;HTTP-GET&quot;</span><span class="p">,</span><span class="s2">&quot;url&quot;</span><span class="o">:</span><span class="s2">&quot;https://hooks.zapier.com/hooks/catch/3860543/l2awcd/&quot;</span><span class="p">}],</span><span class="s2">&quot;not_before&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;retrieve&quot;</span><span class="o">:</span><span class="p">[{</span><span class="s2">&quot;kind&quot;</span><span class="o">:</span><span class="s2">&quot;HTTP-GET&quot;</span><span class="p">,</span><span class="s2">&quot;script&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="s2">&quot;url&quot;</span><span class="o">:</span><span class="s2">&quot;https://openweathermap.org/data/2.5/weather?id=2950159&amp;appid=b6907d289e10d714a6e88b30761fae22&quot;</span><span class="p">}]},</span><span class="s2">&quot;pkh&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span><span class="s2">&quot;reveal_fee&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;tally_fee&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;time_lock&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;value&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;witnesses&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">}},</span><span class="s2">&quot;id&quot;</span><span class="o">:</span><span class="s2">&quot;1&quot;</span><span class="p">}</span>
 </pre></div>
                 
                   

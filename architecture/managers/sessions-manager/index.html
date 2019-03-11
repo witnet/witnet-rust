@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1164,18 +1236,6 @@
   <li class="md-nav__item">
     <a href="../rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1803,12 +1863,12 @@
                 <h1 id="sessions-manager">Sessions Manager<a class="headerlink" href="#sessions-manager" title="Permanent link">&para;</a></h1>
 <p>The <strong>sessions manager</strong> is the actor that handles incoming (inbound) and outgoing (outbound) sessions. Its responsibilities include:</p>
 <ul>
-<li>Create new sessions (i.e. starting a <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/session">session</a> actor)</li>
+<li>Create new sessions (i.e. starting a <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/session">session</a> actor)</li>
 <li>Register / unregister new sessions</li>
 <li>Keep track of the status of the sessions</li>
 <li>Periodically check the number of outgoing connections. If less than the configured number of outgoing peers, the sessions manager will:</li>
-<li>Request a new peer address from the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager"><code class="codehilite">PeersManager</code></a>.</li>
-<li>Send a message to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager"><code class="codehilite">ConnectionsManager</code></a> to request a new TCP
+<li>Request a new peer address from the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/peers_manager"><code class="codehilite">PeersManager</code></a>.</li>
+<li>Send a message to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/connections_manager"><code class="codehilite">ConnectionsManager</code></a> to request a new TCP
     connection to that peer.</li>
 </ul>
 <p>The <strong>sessions manager</strong> is the actor that encapsulates the logic of the <strong>sessions</strong> library, defined under the subcrate <code class="codehilite">witnet_p2p</code>. The library allows to manage the sessions collection present at the Witnet node.</p>
@@ -1837,48 +1897,48 @@ performed directly by the <code class="codehilite">main</code> process:</p>
 <table>
 <thead>
 <tr>
-<th>Message</th>
-<th>Input type</th>
-<th>Output type</th>
-<th>Description</th>
+<th align="left">Message</th>
+<th align="left">Input type</th>
+<th align="left">Output type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">Create</code></td>
-<td><code class="codehilite">TcpStream, SessionType</code></td>
-<td><code class="codehilite">()</code></td>
-<td>Request to create a new session</td>
+<td align="left"><code class="codehilite">Create</code></td>
+<td align="left"><code class="codehilite">TcpStream, SessionType</code></td>
+<td align="left"><code class="codehilite">()</code></td>
+<td align="left">Request to create a new session</td>
 </tr>
 <tr>
-<td><code class="codehilite">Register</code></td>
-<td><code class="codehilite">SocketAddr, Addr&lt;Session&gt;, SessionType</code></td>
-<td><code class="codehilite">SessionsResult&lt;()&gt;</code></td>
-<td>Request to register a new session</td>
+<td align="left"><code class="codehilite">Register</code></td>
+<td align="left"><code class="codehilite">SocketAddr, Addr&lt;Session&gt;, SessionType</code></td>
+<td align="left"><code class="codehilite">SessionsResult&lt;()&gt;</code></td>
+<td align="left">Request to register a new session</td>
 </tr>
 <tr>
-<td><code class="codehilite">Unregister</code></td>
-<td><code class="codehilite">SocketAddr, SessionType, SessionStatus</code></td>
-<td><code class="codehilite">SessionsResult&lt;()&gt;</code></td>
-<td>Request to unregister a session</td>
+<td align="left"><code class="codehilite">Unregister</code></td>
+<td align="left"><code class="codehilite">SocketAddr, SessionType, SessionStatus</code></td>
+<td align="left"><code class="codehilite">SessionsResult&lt;()&gt;</code></td>
+<td align="left">Request to unregister a session</td>
 </tr>
 <tr>
-<td><code class="codehilite">Consolidate</code></td>
-<td><code class="codehilite">SocketAddr, SessionType</code></td>
-<td><code class="codehilite">SessionsResult&lt;()&gt;</code></td>
-<td>Request to consolidate a session</td>
+<td align="left"><code class="codehilite">Consolidate</code></td>
+<td align="left"><code class="codehilite">SocketAddr, SessionType</code></td>
+<td align="left"><code class="codehilite">SessionsResult&lt;()&gt;</code></td>
+<td align="left">Request to consolidate a session</td>
 </tr>
 <tr>
-<td><code class="codehilite">Anycast&lt;T&gt;</code></td>
-<td><code class="codehilite">T</code></td>
-<td><code class="codehilite">()</code></td>
-<td>Request to send a T message to a random Session</td>
+<td align="left"><code class="codehilite">Anycast&lt;T&gt;</code></td>
+<td align="left"><code class="codehilite">T, bool</code></td>
+<td align="left"><code class="codehilite">()</code></td>
+<td align="left">Request to send a T message to a random consolidated outbound Session (when bool flag <code class="codehilite">safu</code> is true, use only outbound sessions in consensus)</td>
 </tr>
 <tr>
-<td><code class="codehilite">Broadcast&lt;T&gt;</code></td>
-<td><code class="codehilite">T</code></td>
-<td><code class="codehilite">()</code></td>
-<td>Request to send a T message to all the consolidated outbound sesions</td>
+<td align="left"><code class="codehilite">Broadcast&lt;T&gt;</code></td>
+<td align="left"><code class="codehilite">T</code></td>
+<td align="left"><code class="codehilite">()</code></td>
+<td align="left">Request to send a T message to all the consolidated outbound sesions</td>
 </tr>
 </tbody>
 </table>
@@ -1935,6 +1995,7 @@ to do.</p>
 <h4 id="anycast">Anycast<T><a class="headerlink" href="#anycast" title="Permanent link">&para;</a></h4>
 <p>The handler for <code class="codehilite">Anycast&lt;T&gt;</code> messages is basically just calling the method <code class="codehilite">get_random_anycast_session</code> from the
 <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions"><code class="codehilite">Sessions</code></a> library to obtain a random <code class="codehilite">Session</code> and forward the <code class="codehilite">T</code> message to it.</p>
+<p>When bool flag <code class="codehilite">safu</code> is true, use only outbound consolidated sessions in consensus.</p>
 <p>The return value of the delegated call is processed by <code class="codehilite">act.process_command_response(&amp;res)</code></p>
 <div class="codehilite"><pre><span></span><span class="w">   </span><span class="sd">/// Method to process session SendMessage response</span>
 <span class="w">    </span><span class="k">fn</span> <span class="nf">process_command_response</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">(</span><span class="w"></span>
@@ -2002,7 +2063,7 @@ successfully sent.</p>
 </tbody>
 </table>
 <h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor when the sessions manager actor
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor when the sessions manager actor
 is started.</p>
 <p>The returned configuration is used to store some parameters at the <a href="https://github.com/witnet/witnet-rust/blob/master/p2p/src/sessions"><code class="codehilite">Sessions</code></a> state:</p>
 <ul>
@@ -2011,9 +2072,9 @@ is started.</p>
 <li>Outbound limit: used to stop requesting new outgoing connections once the limit has been reached.</li>
 <li>Handshake timeout: sent to the session upon creation to set a time limit to the handshake process.</li>
 </ul>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a>.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a>.</p>
 <h4 id="getrandompeer">GetRandomPeer<a class="headerlink" href="#getrandompeer" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager"><code class="codehilite">PeersManager</code></a> actor when the sessions manager actor
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/peers_manager"><code class="codehilite">PeersManager</code></a> actor when the sessions manager actor
 detects that the number of outbound sessions registered is less than the configured limit. This
 detection is done in a bootstrap periodic task.</p>
 <p>The return value is then processed. If an error happened, nothing occurs. If the <code class="codehilite">PeersManager</code>
@@ -2025,9 +2086,9 @@ address.</p>
 <li>The address is not the own Witnet node's server address</li>
 <li>The address is not one of the already existing outbound connections  </li>
 </ul>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/peers_manager"><code class="codehilite">PeersManager</code></a>.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/peers_manager"><code class="codehilite">PeersManager</code></a>.</p>
 <h4 id="outboundtcpconnect">OutboundTcpConnect<a class="headerlink" href="#outboundtcpconnect" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager"><code class="codehilite">ConnectionsManager</code></a> actor when the sessions
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/connections_manager"><code class="codehilite">ConnectionsManager</code></a> actor when the sessions
 manager receives a valid peer address from the <code class="codehilite">PeersManager</code>.</p>
 <p>It is a best effort message, its return value is not processed and the sessions manager actor does
 not even wait for its response after sending it.</p>
@@ -2035,15 +2096,15 @@ not even wait for its response after sending it.</p>
 created and registered into the <code class="codehilite">SessionsManager</code>). If the operation was not successful, then the
 sessions manager will detect in its next periodic bootstrap task that there are no new outbound
 connections and try to create a new one.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager"><code class="codehilite">ConnectionsManager</code></a>.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/connections_manager"><code class="codehilite">ConnectionsManager</code></a>.</p>
 <h4 id="anycast_1">Anycast<GetPeers><a class="headerlink" href="#anycast_1" title="Permanent link">&para;</a></h4>
-<p>Due to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> having an <code class="codehilite">Anycast&lt;T&gt;</code> handler to forward a <code class="codehilite">T</code> message
+<p>Due to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> having an <code class="codehilite">Anycast&lt;T&gt;</code> handler to forward a <code class="codehilite">T</code> message
 to one randomly selected <code class="codehilite">Session</code>, this message is periodically sent to itself.</p>
-<p>It is a best effort message, its return value is not processed and the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>
+<p>It is a best effort message, its return value is not processed and the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>
 actor does not even wait for its response after sending it.</p>
 <p>This message causes <code class="codehilite">SessionManager</code> to forward a <code class="codehilite">GetPeers</code> message to one randomly selected <code class="codehilite">Session</code> actor.</p>
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">SessionsManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">sessions_manager.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">SessionsManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">sessions_manager.rs</code></a>.</p>
                 
                   
                 
@@ -2064,7 +2125,7 @@ actor does not even wait for its response after sending it.</p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../reputation-manager/" title="Reputation Manager" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../rad-manager/" title="RAD Manager" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -2073,7 +2134,7 @@ actor does not even wait for its response after sending it.</p>
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Reputation Manager
+                RAD Manager
               </span>
             </div>
           </a>

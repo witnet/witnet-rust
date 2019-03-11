@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1196,13 +1268,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#validatepoe" title="ValidatePoE" class="md-nav__link">
-    ValidatePoE
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#additem" title="AddItem" class="md-nav__link">
     AddItem
   </a>
@@ -1305,18 +1370,6 @@
   <li class="md-nav__item">
     <a href="../rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1767,13 +1820,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#validatepoe" title="ValidatePoE" class="md-nav__link">
-    ValidatePoE
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#additem" title="AddItem" class="md-nav__link">
     AddItem
   </a>
@@ -1866,7 +1912,7 @@ and also encapsulates the logic of the <em>unspent transaction outputs</em>.</p>
 
 <h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
 <p>The creation of the Chain Manager actor and its registration into the system registry are
-performed directly by the main process <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/node.rs"><code class="codehilite">node.rs</code></a>:</p>
+performed directly by the main process <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/node.rs"><code class="codehilite">node.rs</code></a>:</p>
 <div class="codehilite"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">chain_manager_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ChainManager</span>::<span class="n">default</span><span class="p">().</span><span class="n">start</span><span class="p">();</span><span class="w"></span>
 <span class="n">System</span>::<span class="n">current</span><span class="p">().</span><span class="n">registry</span><span class="p">().</span><span class="n">set</span><span class="p">(</span><span class="n">chain_manager_addr</span><span class="p">);</span><span class="w"></span>
 </pre></div>
@@ -2035,13 +2081,6 @@ checkpoint.</p>
 <td>Announce new inventory entries to the sessions</td>
 </tr>
 <tr>
-<td><code class="codehilite">ValidatePoE</code></td>
-<td><code class="codehilite">ReputationManager</code></td>
-<td><code class="codehilite">CheckpointBeacon</code>,<code class="codehilite">LeadershipProof</code></td>
-<td><code class="codehilite">bool</code></td>
-<td>Request Proof of Eligibility validation</td>
-</tr>
-<tr>
 <td><code class="codehilite">AddItem</code></td>
 <td><code class="codehilite">InventoryManager</code></td>
 <td><code class="codehilite">InventoryItem</code></td>
@@ -2065,39 +2104,36 @@ checkpoint.</p>
 </tbody>
 </table>
 <h4 id="subscribeepoch">SubscribeEpoch<a class="headerlink" href="#subscribeepoch" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> actor when the <code class="codehilite">ChainManager</code> actor is
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> actor when the <code class="codehilite">ChainManager</code> actor is
 started, in order to subscribe to the next epoch (test functionality).</p>
-<p>Subscribing to the next epoch means that the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> will send an
+<p>Subscribing to the next epoch means that the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> will send an
 <code class="codehilite">EpochNotification&lt;EpochPayload&gt;</code> back to the <code class="codehilite">ChainManager</code> when the epoch is reached.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a>.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a>.</p>
 <h4 id="subscribeall">SubscribeAll<a class="headerlink" href="#subscribeall" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> actor when the Chain Manager actor is
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> actor when the Chain Manager actor is
 started, in order to subscribe to the all epochs.</p>
-<p>Subscribing to all epochs means that the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> will send an
+<p>Subscribing to all epochs means that the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> will send an
 <code class="codehilite">EpochNotification&lt;EveryEpochPayload&gt;</code> back to the <code class="codehilite">ChainManager</code> when every epoch is reached.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a>.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a>.</p>
 <h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
 <p>This message is sent to the [<code class="codehilite">ConfigManager</code>][config_manager] actor when the peers manager actor is started.</p>
 <p>The return value is used to initialize the list of known peers, and
 to decide whether or not enable the mining.</p>
 <p>For further information, see  [<code class="codehilite">ConfigManager</code>][config_manager].</p>
 <h4 id="get">Get<a class="headerlink" href="#get" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager"><code class="codehilite">StorageManager</code></a> actor when the Chain Manager actor is started.</p>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/storage_manager"><code class="codehilite">StorageManager</code></a> actor when the Chain Manager actor is started.</p>
 <p>The return value is a <code class="codehilite">ChainInfo</code> structure from the storage which are added to the state of the actor.</p>
 <h4 id="put">Put<a class="headerlink" href="#put" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/storage_manager"><code class="codehilite">StorageManager</code></a> actor to persist the <code class="codehilite">ChainInfo</code> structure</p>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/storage_manager"><code class="codehilite">StorageManager</code></a> actor to persist the <code class="codehilite">ChainInfo</code> structure</p>
 <p>The return value is used to check if the storage process has been successful.</p>
 <h4 id="broadcast">Broadcast<AnnounceItems><a class="headerlink" href="#broadcast" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor which will
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor which will
 broadcast a <code class="codehilite">AnnounceItems</code> message to the open outbound sessions.</p>
-<h4 id="validatepoe">ValidatePoE<a class="headerlink" href="#validatepoe" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/reputation_manager"><code class="codehilite">ReputationManager</code></a> actor to request a
-Proof of Eligibility validation for the <code class="codehilite">BlockHeaderWithProof</code> sent.</p>
 <h4 id="additem">AddItem<a class="headerlink" href="#additem" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/inventory_manager"><code class="codehilite">InventoryManager</code></a> actor as a <code class="codehilite">InventoryItem</code>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/inventory_manager"><code class="codehilite">InventoryManager</code></a> actor as a <code class="codehilite">InventoryItem</code>
 to persist the <code class="codehilite">block_candidate</code> state.</p>
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">ChainManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/chain_manager"><code class="codehilite">chain_manager.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">ChainManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/chain_manager"><code class="codehilite">chain_manager.rs</code></a>.</p>
                 
                   
                 

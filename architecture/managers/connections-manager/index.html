@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1290,18 +1362,6 @@
   <li class="md-nav__item">
     <a href="../rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1791,7 +1851,7 @@
 <ul>
 <li>A <strong>TCP server</strong> bound to the address indicated by the configuration file </li>
 <li>As many <strong>TCP clients</strong> as requested, connected to the addresses requested by the
-<a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">Sessions Manager</code></a></li>
+<a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">Sessions Manager</code></a></li>
 </ul>
 <h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
 <p>The <code class="codehilite">Connections Manager</code> actor has no proper state.</p>
@@ -1853,7 +1913,7 @@ send a message to the actor:
 <h4 id="inboundtcpconnect-message">InboundTcpConnect message<a class="headerlink" href="#inboundtcpconnect-message" title="Permanent link">&para;</a></h4>
 <p>The <code class="codehilite">InboundTcpConnect</code> message is sent to the <code class="codehilite">ConnectionsManager</code> by the <code class="codehilite">ConnectionsManager</code> itself.</p>
 <p>In the <code class="codehilite">started</code> method of the connections manager actor, the server address is requested from
-the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor and a TCP listener is created and bound to that address:</p>
+the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor and a TCP listener is created and bound to that address:</p>
 <div class="codehilite"><pre><span></span><span class="c1">// Get address to launch the server</span>
 <span class="kd">let</span><span class="w"> </span><span class="n">server_address</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;127.0.0.1:50005&quot;</span><span class="p">.</span><span class="n">parse</span><span class="p">().</span><span class="n">unwrap</span><span class="p">();</span><span class="w"></span>
 
@@ -1882,7 +1942,7 @@ the TCP stream and sent to the actor:</p>
 </pre></div>
 
 <h4 id="outboundtcpconnect-message">OutboundTcpConnect message<a class="headerlink" href="#outboundtcpconnect-message" title="Permanent link">&para;</a></h4>
-<p>The <code class="codehilite">OutboundTcpConnect</code> message is sent to the <code class="codehilite">ConnectionsManager</code> by the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>. </p>
+<p>The <code class="codehilite">OutboundTcpConnect</code> message is sent to the <code class="codehilite">ConnectionsManager</code> by the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>. </p>
 <p>When an <code class="codehilite">OutboundTcpConnect</code> message arrives at the connections manager actor, several actions are
 performed:</p>
 <ul>
@@ -1942,21 +2002,21 @@ address</li>
 </tbody>
 </table>
 <h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor when the connections manager actor
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a> actor when the connections manager actor
 is started.</p>
 <p>The return value is used to get the TCP server address of the Witnet node and launch it.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a>.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager"><code class="codehilite">ConfigManager</code></a>.</p>
 <h4 id="connectaddr">ConnectAddr<a class="headerlink" href="#connectaddr" title="Permanent link">&para;</a></h4>
 <p>This message is sent to the <a href="https://actix.rs/actix/actix/actors/resolver/index.html"><code class="codehilite">Resolver</code></a> actor when an <code class="codehilite">OutboundTcpConnect</code> message is received.</p>
 <p>Upon reception of this message, the <code class="codehilite">Resolver</code> tries to open a TCP connection to the address specified
 in the message.</p>
 <p>For further information, see <a href="https://actix.rs/actix/actix/actors/resolver/index.html"><code class="codehilite">Resolver</code></a>.</p>
 <h4 id="create">Create<a class="headerlink" href="#create" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor when a TCP connection is
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor when a TCP connection is
 established to request the creation of a session.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>.</p>
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">ConnectionsManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/connections_manager"><code class="codehilite">connections_manager.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">ConnectionsManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/connections_manager"><code class="codehilite">connections_manager.rs</code></a>.</p>
                 
                   
                 

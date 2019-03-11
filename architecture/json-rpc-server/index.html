@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1162,18 +1234,6 @@
   <li class="md-nav__item">
     <a href="../managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1722,7 +1782,7 @@ which handles the new incoming connections and spawns a <code class="codehilite"
 new connection.</p>
 <p>The <code class="codehilite">JsonRpc</code> actor handles the JSON-RPC protocol, parses the input stream as JSON-RPC,
 executes the request and generates an appropriate response.</p>
-<p>The supported JSON-RPC methods are implemented in <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/json_rpc_methods.rs"><code class="codehilite">json_rpc_methods.rs</code></a>.</p>
+<p>The supported JSON-RPC methods are implemented in <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/json_rpc_methods.rs"><code class="codehilite">json_rpc_methods.rs</code></a>.</p>
 <p>See <a href="../../interface/json-rpc/">JSON-RPC</a> for further information.</p>
 <h2 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
 <p>The <code class="codehilite">JsonRpcServer</code> does not expose any public API, once it is started
@@ -1780,10 +1840,10 @@ actor.</p>
 </tbody>
 </table>
 <h4 id="getconfig">GetConfig<a class="headerlink" href="#getconfig" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a> actor when the <code class="codehilite">JsonRpcServer</code> actor is started.</p>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a> actor when the <code class="codehilite">JsonRpcServer</code> actor is started.</p>
 <p>The return value is used to initialize the protocol constants (checkpoint period and
 epoch zero timestamp).
-For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a>.</p>
+For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/config_manager.rs"><code class="codehilite">ConfigManager</code></a>.</p>
 <h3 id="incoming-others-jsonrpc">Incoming: Others -&gt; JsonRpc<a class="headerlink" href="#incoming-others-jsonrpc" title="Permanent link">&para;</a></h3>
 <p>The <code class="codehilite">JsonRpc</code> actor does not have any message handlers.</p>
 <h3 id="outgoing-messages-jsonrpc-others">Outgoing messages: JsonRpc -&gt; Others<a class="headerlink" href="#outgoing-messages-jsonrpc-others" title="Permanent link">&para;</a></h3>
@@ -1810,7 +1870,7 @@ For further information, see <a href="https://github.com/witnet/witnet-rust/blob
 <p>The <code class="codehilite">JsonRpc</code> actor only sends one <code class="codehilite">Unregister</code> message to its parent
 when the connection closes.</p>
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">JsonRpcServer</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/server.rs"><code class="codehilite">server.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">JsonRpcServer</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/server.rs"><code class="codehilite">server.rs</code></a>.</p>
                 
                   
                 

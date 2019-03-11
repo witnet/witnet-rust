@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1160,18 +1232,6 @@
   <li class="md-nav__item">
     <a href="../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1420,6 +1480,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#getoutputpointer" title="getOutputPointer" class="md-nav__link">
+    getOutputPointer
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1659,6 +1726,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#getoutputpointer" title="getOutputPointer" class="md-nav__link">
+    getOutputPointer
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1707,7 +1781,7 @@ It can be disabled in the <a href="../../configuration/toml-file/">configuration
 <p>Therefore, the JSON string cannot contain any newlines expect for the final one.</p>
 <p><code class="codehilite">NewLineCodec</code></p>
 <h3 id="methods">Methods<a class="headerlink" href="#methods" title="Permanent link">&para;</a></h3>
-<p>See <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/json_rpc/json_rpc_methods.rs"><code class="codehilite">json_rpc_methods.rs</code></a> for the implementation
+<p>See <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/json_rpc_methods.rs"><code class="codehilite">json_rpc_methods.rs</code></a> for the implementation
 details.</p>
 <h4 id="inventory">inventory<a class="headerlink" href="#inventory" title="Permanent link">&para;</a></h4>
 <p>Make the node process, validate and potentially broadcast a new inventory item.</p>
@@ -1744,6 +1818,17 @@ details.</p>
 
 <p>Response:</p>
 <div class="codehilite"><pre><span></span>{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;result&quot;:[[0,&quot;ed28899af8c3148a4162736af942bc68c4466da93c5124dabfaa7c582af49e30&quot;],[1,&quot;9c9038cfb31a7050796920f91b17f4a68c7e9a795ee8962916b35d39fc1efefc&quot;]],&quot;id&quot;:1}
+</pre></div>
+
+<h4 id="getoutputpointer">getOutputPointer<a class="headerlink" href="#getoutputpointer" title="Permanent link">&para;</a></h4>
+<p>Get the outputPointer that matches with the input provided.</p>
+<p>Returns an <code class="codehilite">OuputPointer</code>.</p>
+<p>Example:</p>
+<div class="codehilite"><pre><span></span>{&quot;jsonrpc&quot;: &quot;2.0&quot;,&quot;method&quot;: &quot;getOutput&quot;, &quot;params&quot;: {&quot;transaction_id&quot;:{&quot;SHA256&quot;:[17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17]},&quot;output_index&quot;:1}, &quot;id&quot;: &quot;1&quot;}
+</pre></div>
+
+<p>Response:</p>
+<div class="codehilite"><pre><span></span>{&quot;jsonrpc&quot;:&quot;2.0&quot;,&quot;result&quot;:{&quot;DataRequest&quot;:{&quot;backup_witnesses&quot;:0,&quot;commit_fee&quot;:0,&quot;data_request&quot;:{&quot;aggregate&quot;:{&quot;script&quot;:[0]},&quot;consensus&quot;:{&quot;script&quot;:[0]},&quot;deliver&quot;:[{&quot;kind&quot;:&quot;HTTP-GET&quot;,&quot;url&quot;:&quot;https://hooks.zapier.com/hooks/catch/3860543/l2awcd/&quot;}],&quot;not_before&quot;:0,&quot;retrieve&quot;:[{&quot;kind&quot;:&quot;HTTP-GET&quot;,&quot;script&quot;:[0],&quot;url&quot;:&quot;https://openweathermap.org/data/2.5/weather?id=2950159&amp;appid=b6907d289e10d714a6e88b30761fae22&quot;}]},&quot;pkh&quot;:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],&quot;reveal_fee&quot;:0,&quot;tally_fee&quot;:0,&quot;time_lock&quot;:0,&quot;value&quot;:0,&quot;witnesses&quot;:0}},&quot;id&quot;:&quot;1&quot;}
 </pre></div>
                 
                   

@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1160,18 +1232,6 @@
   <li class="md-nav__item">
     <a href="../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1652,19 +1712,19 @@
 <tr>
 <td><code class="codehilite">connections</code></td>
 <td><code class="codehilite">outbound_limit</code></td>
-<td><code class="codehilite">8</code></td>
+<td><code class="codehilite">1</code></td>
 <td>Maximum number of opened connections to other peers this node has</td>
 </tr>
 <tr>
 <td><code class="codehilite">connections</code></td>
 <td><code class="codehilite">known_peers</code></td>
-<td><code class="codehilite">[]</code></td>
+<td><code class="codehilite">[&quot;40.121.131.135:21337&quot;]</code></td>
 <td>Other peer addresses this node knows about at start</td>
 </tr>
 <tr>
 <td><code class="codehilite">connections</code></td>
 <td><code class="codehilite">bootstrap_peers_period_seconds</code></td>
-<td><code class="codehilite">5</code></td>
+<td><code class="codehilite">30</code></td>
 <td>Period of the outbound peer bootstrapping process (in seconds)</td>
 </tr>
 <tr>
@@ -1688,7 +1748,7 @@
 <tr>
 <td><code class="codehilite">consensus_constants</code></td>
 <td><code class="codehilite">checkpoint_zero_timestamp</code></td>
-<td><code class="codehilite">9_999_999_999_999</code></td>
+<td><code class="codehilite">1548855420</code></td>
 <td>Timestamp at checkpoint 0 (the start of epoch 0)</td>
 </tr>
 <tr>

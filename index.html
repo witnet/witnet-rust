@@ -375,10 +375,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -976,6 +1036,18 @@
 
 
   <li class="md-nav__item">
+    <a href="protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -988,8 +1060,8 @@
 
 
   <li class="md-nav__item">
-    <a href="protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1225,18 +1297,6 @@
   <li class="md-nav__item">
     <a href="architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1661,16 +1721,15 @@
                 
                 
                 <h1 id="witnet-rust">Witnet-rust<a class="headerlink" href="#witnet-rust" title="Permanent link">&para;</a></h1>
-<p><strong>Witnet-rust</strong> is an open-source implementation of the Witnet protocol written in Rust.</p>
+<p><strong>Witnet-rust</strong> is an open-source implementation of the Witnet protocol written in <a href="https://rust-lang.org">Rust</a>.</p>
 <p>The Witnet protocol, as outlined by the <a href="https://witnet.io/static/witnet-whitepaper.pdf">Witnet Whitepaper</a>, allows a network of computers to act as a
-"decentralized oracle" that retrieves, attests and delivers information to smart contracts without having to place trust
- in a single entity.</p>
+"decentralized oracle" that retrieves, attests and delivers information to smart contracts in a tamper-resistant way.</p>
 <p>This <em>Decentralized Oracle Network (DON)</em> maintains and distributes a <em>block chain</em> data structure that serves as a
-common ledger for the operation of the protocol as well as for the <em>wit</em> token, which is central to incentivizing the
+common ledger for the operation of the protocol as well as for the <em>wit</em> token, which is central for incentivizing the
 network players to abide by the protocol and make them liable for any misbehavior.</p>
-<p>Active network participants will earn wit tokens for fulfilling the data retrieval, attestation and delivery tasks
-coming from different smart contract platforms such as Ethereum and RChain.</p>
-<p>Witnet-rust is the first open-source implementation of the Witnet protocol and leverages the Rust programming language
+<p>Active network participants earn wit tokens for fulfilling the data retrieval, attestation and delivery tasks coming
+from different smart contract platforms such as <a href="https://ethereum.org">Ethereum</a>.</p>
+<p>Witnet-rust is the first open-source implementation of the Witnet protocol and leverages the <a href="https://rust-lang.org">Rust</a> programming language
 to achieve utmost speed, memory safety and fearless concurrency without compromising on performance.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -1679,8 +1738,14 @@ to achieve utmost speed, memory safety and fearless concurrency without compromi
 <h2 id="get-started">Get started<a class="headerlink" href="#get-started" title="Permanent link">&para;</a></h2>
 <h3 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h3>
 <p>Witnet-rust is an open-source native app providing "full node" functionality of the Witnet Decentralized Oracle Network
-protocol. It is available under the <a href="https://github.com/witnet/witnet-rust/blob/master/LICENSE">GNU General Public License v3.0</a>. You may refer to the
-<a href="get-started/install">installation guide</a> in order to install the app together with its dependencies.</p>
+protocol. It is available under the <a href="https://github.com/witnet/witnet-rust/blob/master/LICENSE">GNU General Public License v3.0</a>.</p>
+<p>We have installation guides for several operating systems:</p>
+<ul>
+<li><a href="get-started/installation/gnu-linux">Installing Witnet-rust on GNU/Linux</a></li>
+<li><a href="get-started/installation/macos">Installing Witnet-rust on macOS</a></li>
+<li><a href="get-started/installation/windows">Installing Witnet-rust on Windows</a></li>
+<li><a href="get-started/installation/from-source">Compiling Witnet-rust on from source code</a></li>
+</ul>
 <h2 id="roadmap">Roadmap<a class="headerlink" href="#roadmap" title="Permanent link">&para;</a></h2>
 <p>Witnet-rust is an ambitious effort in its early days. We are currently working towards launching our first testnet.</p>
 <p>As you can guess from our <a href="roadmap">datailed roadmap</a> and <a href="https://github.com/witnet/witnet-rust/issues">GitHub issues</a>, there are still a lot of missing

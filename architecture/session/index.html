@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1162,18 +1234,6 @@
   <li class="md-nav__item">
     <a href="../managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1764,7 +1824,7 @@
 <li>Real-time inventory management by supporting <a href="/protocol/network/messages/inventory/#inventory-broadcasting">Inventory Broadcasting</a></li>
 </ul>
 <h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
-<p>The creation of the session actor is performed by the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor
+<p>The creation of the session actor is performed by the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor
 upon reception of a <code class="codehilite">Create</code> message:</p>
 <div class="codehilite"><pre><span></span><span class="c1">// Create a session actor</span>
 <span class="n">Session</span>::<span class="n">create</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">|</span><span class="n">ctx</span><span class="o">|</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
@@ -1864,17 +1924,17 @@ upon reception of a <code class="codehilite">Create</code> message:</p>
 </tbody>
 </table>
 <h4 id="register">Register<a class="headerlink" href="#register" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor when the session 
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor when the session 
 actor is started to register this session.</p>
 <p>The returned value is a <code class="codehilite">Result</code> for easy verification of the success of the operation.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>.</p>
 <h4 id="unregister">Unregister<a class="headerlink" href="#unregister" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor when the session
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor when the session
 actor is stopped to unregister this session.</p>
 <p>The returned value is a <code class="codehilite">Result</code> for easy verification of the success of the operation.</p>
-<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>.</p>
+<p>For further information, see <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a>.</p>
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
-<p>The full source code of the <code class="codehilite">Session</code> actor can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/core/src/actors/session"><code class="codehilite">session.rs</code></a>.</p>
+<p>The full source code of the <code class="codehilite">Session</code> actor can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/session"><code class="codehilite">session.rs</code></a>.</p>
                 
                   
                 

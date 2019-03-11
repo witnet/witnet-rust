@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1160,18 +1232,6 @@
   <li class="md-nav__item">
     <a href="../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1630,17 +1690,17 @@
 [connections] # section for connections-related params
 server_addr = &quot;127.0.0.1:1234&quot;
 inbound_limit = 128
-outbound_limit = 8
-known_peers = [&quot;127.0.0.1:20000&quot;, &quot;127.0.0.1:20001&quot;]
-bootstrap_peers_period_seconds = 3
-storage_peers_period_seconds = 60
-handshake_timeout_seconds = 10
+outbound_limit = 1
+known_peers = [&quot;40.121.131.135:21337&quot;]
+bootstrap_peers_period_seconds = 30
+storage_peers_period_seconds = 30
+handshake_timeout_seconds = 5
 
 [storage] # section for storage-related params
 db_path = &quot;.wit&quot;
 
 [consensus_constants] # consensus-critical constants
-checkpoint_zero_timestamp = 1542203073
+checkpoint_zero_timestamp = 1548855420
 checkpoints_period_seconds = 90
 
 [jsonrpc] # section for params related to JSON-RPC API
@@ -1679,19 +1739,19 @@ enabled = true
 <tr>
 <td><code class="codehilite">connections</code></td>
 <td><code class="codehilite">outbound_limit</code></td>
-<td><code class="codehilite">8</code></td>
+<td><code class="codehilite">1</code></td>
 <td>Maximum number of opened connections to other peers this node has</td>
 </tr>
 <tr>
 <td><code class="codehilite">connections</code></td>
 <td><code class="codehilite">known_peers</code></td>
-<td><code class="codehilite">[]</code></td>
+<td><code class="codehilite">[&quot;40.121.131.135:21337&quot;]</code></td>
 <td>Other peer addresses this node knows about at start</td>
 </tr>
 <tr>
 <td><code class="codehilite">connections</code></td>
 <td><code class="codehilite">bootstrap_peers_period_seconds</code></td>
-<td><code class="codehilite">5</code></td>
+<td><code class="codehilite">30</code></td>
 <td>Period of the outbound peer bootstrapping process (in seconds)</td>
 </tr>
 <tr>
@@ -1715,7 +1775,7 @@ enabled = true
 <tr>
 <td><code class="codehilite">consensus_constants</code></td>
 <td><code class="codehilite">checkpoint_zero_timestamp</code></td>
-<td><code class="codehilite">9_999_999_999_999</code></td>
+<td><code class="codehilite">1548855420</code></td>
 <td>Timestamp at checkpoint 0 (the start of epoch 0)</td>
 </tr>
 <tr>

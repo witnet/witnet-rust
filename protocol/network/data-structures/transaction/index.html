@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -1165,6 +1225,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -1177,8 +1249,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1414,18 +1486,6 @@
   <li class="md-nav__item">
     <a href="../../../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -2037,31 +2097,31 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">version</code></td>
-<td><code class="codehilite">u32</code></td>
-<td>The transaction data format version number</td>
+<td align="left"><code class="codehilite">version</code></td>
+<td align="left"><code class="codehilite">uint32</code></td>
+<td align="left">The transaction data format version number</td>
 </tr>
 <tr>
-<td><code class="codehilite">inputs</code></td>
-<td><code class="codehilite">[input]</code></td>
-<td>A list of transaction inputs</td>
+<td align="left"><code class="codehilite">inputs</code></td>
+<td align="left"><code class="codehilite">repeated Input</code></td>
+<td align="left">A list of transaction inputs</td>
 </tr>
 <tr>
-<td><code class="codehilite">outputs</code></td>
-<td><code class="codehilite">[output]</code></td>
-<td>A list of 1 or more transaction outputs</td>
+<td align="left"><code class="codehilite">outputs</code></td>
+<td align="left"><code class="codehilite">repeated Output</code></td>
+<td align="left">A list of 1 or more transaction outputs</td>
 </tr>
 <tr>
-<td><code class="codehilite">signatures</code></td>
-<td><code class="codehilite">[keyed_signature]</code></td>
-<td>A list of keyed signatures (as many as inputs)</td>
+<td align="left"><code class="codehilite">signatures</code></td>
+<td align="left"><code class="codehilite">repeated KeyedSignature</code></td>
+<td align="left">A list of keyed signatures (as many as inputs)</td>
 </tr>
 </tbody>
 </table>
@@ -2088,26 +2148,26 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">pkh</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Slice of the digest of a public key (20 bytes)</td>
+<td align="left"><code class="codehilite">pkh</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">Slice of the digest of a public key (20 bytes)</td>
 </tr>
 <tr>
-<td><code class="codehilite">value</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>Transaction value</td>
+<td align="left"><code class="codehilite">value</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">Transaction value</td>
 </tr>
 <tr>
-<td><code class="codehilite">time_lock</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>The UTC Unix timestamp before which the output can not be spent</td>
+<td align="left"><code class="codehilite">time_lock</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">The UTC Unix timestamp before which the output can not be spent</td>
 </tr>
 </tbody>
 </table>
@@ -2128,56 +2188,56 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">data_request</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Data request scripts as a byte array</td>
+<td align="left"><code class="codehilite">pkh</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">Slice of the digest of a public key (20 bytes)</td>
 </tr>
 <tr>
-<td><code class="codehilite">pkh</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Slice of the digest of a public key (20 bytes)</td>
+<td align="left"><code class="codehilite">data_request</code></td>
+<td align="left"><code class="codehilite">RadRequest</code></td>
+<td align="left">Data request scripts as a byte array</td>
 </tr>
 <tr>
-<td><code class="codehilite">value</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>Transaction value that will be used as reward to be distributed after consensus has been reached and fees have been subtracted</td>
+<td align="left"><code class="codehilite">value</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">Transaction value that will be used as reward to be distributed after consensus has been reached and fees have been subtracted</td>
 </tr>
 <tr>
-<td><code class="codehilite">witnesses</code></td>
-<td><code class="codehilite">u8</code></td>
-<td>Minimum amount of witness nodes that will be employed for resolving this data request</td>
+<td align="left"><code class="codehilite">witnesses</code></td>
+<td align="left"><code class="codehilite">uint32</code></td>
+<td align="left">Minimum amount of witness nodes that will be employed for resolving this data request (max 65535)</td>
 </tr>
 <tr>
-<td><code class="codehilite">backup_witnesses</code></td>
-<td><code class="codehilite">u8</code></td>
-<td>Number of backup witnesses that will be employed for resolving this data request</td>
+<td align="left"><code class="codehilite">backup_witnesses</code></td>
+<td align="left"><code class="codehilite">uint32</code></td>
+<td align="left">Number of backup witnesses that will be employed for resolving this data request (max 65535)</td>
 </tr>
 <tr>
-<td><code class="codehilite">commit_fee</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>Miner fee for each valid <em>commit</em> output included in the block during the <em>commit stage</em></td>
+<td align="left"><code class="codehilite">commit_fee</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">Miner fee for each valid <em>commit</em> output included in the block during the <em>commit stage</em></td>
 </tr>
 <tr>
-<td><code class="codehilite">reveal_fee</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>Miner fee for each valid <em>reveal</em> output included in the block during the <em>reveal stage</em></td>
+<td align="left"><code class="codehilite">reveal_fee</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">Miner fee for each valid <em>reveal</em> output included in the block during the <em>reveal stage</em></td>
 </tr>
 <tr>
-<td><code class="codehilite">tally_fee</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>Miner fee for each valid <em>value</em> transfer output included in the block during the <em>tally stage</em></td>
+<td align="left"><code class="codehilite">tally_fee</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">Miner fee for each valid <em>value</em> transfer output included in the block during the <em>tally stage</em></td>
 </tr>
 <tr>
-<td><code class="codehilite">time_lock</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>The UTC Unix timestamp after which data request shall be executed</td>
+<td align="left"><code class="codehilite">time_lock</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">The UTC Unix timestamp after which data request shall be executed</td>
 </tr>
 </tbody>
 </table>
@@ -2203,21 +2263,21 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">commitment</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Digest of the data request's aggregation stage, salted by a nonce and the previous checkpoint beacon</td>
+<td align="left"><code class="codehilite">commitment</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">Digest of the data request's aggregation stage, salted by a nonce and the previous checkpoint beacon</td>
 </tr>
 <tr>
-<td><code class="codehilite">value</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>Remaining transaction value that will be used as reward to be distributed after consensus has been reached</td>
+<td align="left"><code class="codehilite">value</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">Remaining transaction value that will be used as reward to be distributed after consensus has been reached</td>
 </tr>
 </tbody>
 </table>
@@ -2239,26 +2299,26 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">reveal</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>The result of executing the retrieval and aggregation stage scripts of a data inputs can onrequest</td>
+<td align="left"><code class="codehilite">reveal</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">The result of executing the retrieval and aggregation stage scripts of a data inputs can onrequest</td>
 </tr>
 <tr>
-<td><code class="codehilite">pkh</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Slice of the digest of a public key (20 bytes)</td>
+<td align="left"><code class="codehilite">pkh</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">Slice of the digest of a public key (20 bytes)</td>
 </tr>
 <tr>
-<td><code class="codehilite">value</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>Remaining transaction value that will be used as reward to be distributed after consensus has been reached</td>
+<td align="left"><code class="codehilite">value</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">Remaining transaction value that will be used as reward to be distributed after consensus has been reached</td>
 </tr>
 </tbody>
 </table>
@@ -2281,26 +2341,26 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">result</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Data request result as computed by applying the consensus stage function as specified by the data request on every <em>reveal</em> input in the same transaction as this output</td>
+<td align="left"><code class="codehilite">result</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">Data request result as computed by applying the consensus stage function as specified by the data request on every <em>reveal</em> input in the same transaction as this output</td>
 </tr>
 <tr>
-<td><code class="codehilite">pkh</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Slice of the digest of the public key of the data request creator (20 bytes)</td>
+<td align="left"><code class="codehilite">pkh</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">Slice of the digest of the public key of the data request creator (20 bytes)</td>
 </tr>
 <tr>
-<td><code class="codehilite">value</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>Remaining transaction value that has not been used as reward or fee of the data request</td>
+<td align="left"><code class="codehilite">value</code></td>
+<td align="left"><code class="codehilite">uint64</code></td>
+<td align="left">Remaining transaction value that has not been used as reward or fee of the data request</td>
 </tr>
 </tbody>
 </table>
@@ -2325,21 +2385,21 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">transaction_id</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>A transaction identifier</td>
+<td align="left"><code class="codehilite">transaction_id</code></td>
+<td align="left"><code class="codehilite">Hash</code></td>
+<td align="left">A transaction identifier</td>
 </tr>
 <tr>
-<td><code class="codehilite">output_index</code></td>
-<td><code class="codehilite">u32</code></td>
-<td>The index of a specific output in the transaction</td>
+<td align="left"><code class="codehilite">output_index</code></td>
+<td align="left"><code class="codehilite">uint32</code></td>
+<td align="left">The index of a specific output in the transaction</td>
 </tr>
 </tbody>
 </table>
@@ -2350,26 +2410,26 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">transaction_id</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>A transaction identifier</td>
+<td align="left"><code class="codehilite">transaction_id</code></td>
+<td align="left"><code class="codehilite">Hash</code></td>
+<td align="left">A transaction identifier</td>
 </tr>
 <tr>
-<td><code class="codehilite">output_index</code></td>
-<td><code class="codehilite">u32</code></td>
-<td>The index of a specific output in the transaction</td>
+<td align="left"><code class="codehilite">output_index</code></td>
+<td align="left"><code class="codehilite">uint32</code></td>
+<td align="left">The index of a specific output in the transaction</td>
 </tr>
 <tr>
-<td><code class="codehilite">poe</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>Proof of Eligibility produced with same keypair as the transaction signature</td>
+<td align="left"><code class="codehilite">poe</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">Proof of Eligibility produced with same keypair as the transaction signature</td>
 </tr>
 </tbody>
 </table>
@@ -2379,31 +2439,31 @@
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">transaction_id</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>A transaction identifier</td>
+<td align="left"><code class="codehilite">transaction_id</code></td>
+<td align="left"><code class="codehilite">Hash</code></td>
+<td align="left">A transaction identifier</td>
 </tr>
 <tr>
-<td><code class="codehilite">output_index</code></td>
-<td><code class="codehilite">u32</code></td>
-<td>The index of a specific output in the transaction</td>
+<td align="left"><code class="codehilite">output_index</code></td>
+<td align="left"><code class="codehilite">uint32</code></td>
+<td align="left">The index of a specific output in the transaction</td>
 </tr>
 <tr>
-<td><code class="codehilite">reveal</code></td>
-<td><code class="codehilite">[u8]</code></td>
-<td>The result of executing the retrieval and aggregation stages of the data request</td>
+<td align="left"><code class="codehilite">reveal</code></td>
+<td align="left"><code class="codehilite">bytes</code></td>
+<td align="left">The result of executing the retrieval and aggregation stages of the data request</td>
 </tr>
 <tr>
-<td><code class="codehilite">nonce</code></td>
-<td><code class="codehilite">u64</code></td>
-<td>The nonce used for generating the previously published commitment</td>
+<td align="left"><code class="codehilite">nonce</code></td>
+<td align="left"><code class="codehilite">fixed64</code></td>
+<td align="left">The nonce used for generating the previously published commitment</td>
 </tr>
 </tbody>
 </table>

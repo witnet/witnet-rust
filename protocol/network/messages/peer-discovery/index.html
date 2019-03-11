@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -962,6 +1022,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -974,8 +1046,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1211,18 +1283,6 @@
   <li class="md-nav__item">
     <a href="../../../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1628,7 +1688,7 @@
                 
                 <h1 id="peer-discovery">Peer discovery<a class="headerlink" href="#peer-discovery" title="Permanent link">&para;</a></h1>
 <p>Peer discovery protocol allows nodes to exchange information of known peers to other nodes. This information may be used by peer discovery algorithms.</p>
-<p>Nodes may request to their outbound peers for a list of their known "recent" peers. This request is initiated by sending a <code class="codehilite">get_peers</code> message to a remote peer. The receiving node will reply a <code class="codehilite">peers</code> message with a list of peer addresses that have been recently seen active in the network (e.g. peers that sent at least a message in the last 90 minutes). Usually, the transmitting node will then update its local list of peer addresses accordingly.</p>
+<p>Nodes may request to their outbound peers for a list of their known "recent" peers. This request is initiated by sending a <code class="codehilite">GetPeers</code> message to a remote peer. The receiving node will reply a <code class="codehilite">Peers</code> message with a list of peer addresses that have been recently seen active in the network (e.g. peers that sent at least a message in the last 90 minutes). Usually, the transmitting node will then update its local list of peer addresses accordingly.</p>
 <div class="codehilite"><pre><span></span>         NodeA                            NodeB
            +                                +
            |           GET_PEERS            |
@@ -1640,22 +1700,22 @@
 </pre></div>
 
 <h2 id="get-peers-message">Get peers message<a class="headerlink" href="#get-peers-message" title="Permanent link">&para;</a></h2>
-<p>The <code class="codehilite">get_peers</code> message only consists of a message header with the <code class="codehilite">GET_PEERS</code> command.</p>
+<p>The <code class="codehilite">GetPeers</code> message has no payload.</p>
 <h2 id="peers-message">Peers message<a class="headerlink" href="#peers-message" title="Permanent link">&para;</a></h2>
-<p>The <code class="codehilite">peers</code> message consists of a message header with the <code class="codehilite">PEERS</code> command and a payload containing a list of known peers as:</p>
+<p>The <code class="codehilite">Peers</code> message has a payload containing a list of known peers as:</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
+<th align="left">Field</th>
 <th align="center">Type</th>
-<th>Description</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">peers</code></td>
-<td align="center"><code class="codehilite">addr[]</code></td>
-<td>List of IP addresses of active known peers, as described in the <a href="/protocol/network/data-structures/ip-address/">IP address</a> section</td>
+<td align="left"><code class="codehilite">peers</code></td>
+<td align="center"><code class="codehilite">repeated Address</code></td>
+<td align="left">List of IP addresses of active known peers, as described in the <a href="/protocol/network/data-structures/ip-address/">IP address</a> section</td>
 </tr>
 </tbody>
 </table>

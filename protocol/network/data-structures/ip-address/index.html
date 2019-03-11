@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -926,6 +986,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -938,8 +1010,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1175,18 +1247,6 @@
   <li class="md-nav__item">
     <a href="../../../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1568,57 +1628,15 @@
                 
                 
                 <h1 id="ip-address">IP Address<a class="headerlink" href="#ip-address" title="Permanent link">&para;</a></h1>
-<p>IP addresses in Witnet protocol may be IPv4 or IPv6 and they are formatted as follows:</p>
-<ul>
-<li>
-<p>IPv4:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code class="codehilite">ipv4</code></td>
-<td align="center"><code class="codehilite">u32</code></td>
-<td>IPv4 address of the peer</td>
-</tr>
-<tr>
-<td><code class="codehilite">port</code></td>
-<td align="center"><code class="codehilite">u16</code></td>
-<td>Port number in which the peer is listening</td>
-</tr>
-</tbody>
-</table>
-</li>
-<li>
-<p>IPv6:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th align="center">Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code class="codehilite">ipv6</code></td>
-<td align="center"><code class="codehilite">[u32; 4]</code></td>
-<td>IPv6 address of the peer</td>
-</tr>
-<tr>
-<td><code class="codehilite">port</code></td>
-<td align="center"><code class="codehilite">u16</code></td>
-<td>Port number in which the peer is listening</td>
-</tr>
-</tbody>
-</table>
-</li>
-</ul>
+<p>IP addresses in Witnet protocol may be IPv4 or IPv6 and they are encoded
+as bytes, as a concatenation of ip and port.</p>
+<p>The kind is inferred based on the length: 6 bytes for IPv4 and
+18 bytes for IPv6. The fields are encoded using Big-Endian
+representation.</p>
+<p>(<code class="codehilite">||</code> denotes concatenation)</p>
+<div class="codehilite"><pre><span></span>[u8; 6]  =&gt; (Ipv4) ip || port 
+[u8; 18] =&gt; (Ipv6) ip0 || ip1 || ip2 || ip3 || port
+</pre></div>
                 
                   
                 

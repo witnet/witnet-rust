@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -911,6 +971,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../protocol/mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../protocol/reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -923,8 +995,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../protocol/mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../protocol/serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1160,18 +1232,6 @@
   <li class="md-nav__item">
     <a href="../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1478,8 +1538,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#cli" title="CLI" class="md-nav__link">
-    CLI
+  <a href="#running-the-cli" title="Running the CLI" class="md-nav__link">
+    Running the CLI
   </a>
   
     <nav class="md-nav">
@@ -1635,8 +1695,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#cli" title="CLI" class="md-nav__link">
-    CLI
+  <a href="#running-the-cli" title="Running the CLI" class="md-nav__link">
+    Running the CLI
   </a>
   
     <nav class="md-nav">
@@ -1701,76 +1761,55 @@
                 
                 
                 <h1 id="development">Development<a class="headerlink" href="#development" title="Permanent link">&para;</a></h1>
-<p>Witnet-rust is build using <a href="https://rust-lang-nursery.github.io/edition-guide/introduction.html">The Rust Programming language</a> and following <a href="https://rust-lang-nursery.github.io/edition-guide/introduction.html">rust2018 edition guide</a>.</p>
+<p><code class="codehilite">witnet-rust</code> is built using <a href="https://rust-lang.org">The Rust Programming language</a> and following the
+<a href="https://rust-lang-nursery.github.io/edition-guide/introduction.html">Rust 2018 Edition Guide</a> as its code styling convention.</p>
 <h2 id="installing">Installing<a class="headerlink" href="#installing" title="Permanent link">&para;</a></h2>
-<ol>
-<li>
-<p>Install dependencies</p>
+<p>We have installation guides for several operating systems:</p>
 <ul>
-<li>Rust2018 (stable channel)
-<div class="codehilite"><pre><span></span>$ curl https://sh.rustup.rs -sSf <span class="p">|</span> sh
-$ rustup default stable
-$ rustc --version
-</pre></div></li>
-<li><code class="codehilite">clang</code> Clang compiler
-<div class="codehilite"><pre><span></span>$ apt-get install clang
-</pre></div></li>
-<li><code class="codehilite">flatc</code> FlatBuffers compiler (optional, only if recompiling schemas)
-<div class="codehilite"><pre><span></span>$ pip install FoLiA-Linguistic-Annotation-Tool
-</pre></div></li>
-<li><code class="codehilite">mkdocs</code>, <code class="codehilite">pymdown-extensions</code>, <code class="codehilite">mkdocs-material</code> python packages (optional, only if generating documentation)
-<div class="codehilite"><pre><span></span>$ pip install mkdocs
-$ pip install pymdown-extensions
-$ pip install mkdocs-material
-</pre></div></li>
+<li><a href="get-started/installation/gnu-linux">Installing Witnet-rust on GNU/Linux</a></li>
+<li><a href="get-started/installation/macos">Installing Witnet-rust on macOS</a></li>
+<li><a href="get-started/installation/windows">Installing Witnet-rust on Windows</a></li>
+<li><a href="get-started/installation/from-source">Compiling Witnet-rust on from source code</a></li>
 </ul>
-</li>
-<li>
-<p>Clone and build the source code from github:
-  <div class="codehilite"><pre><span></span>$ git clone https://github.com/witnet/witnet-rust.git
-$ <span class="nb">cd</span> witnet-rust
-$ cargo build
-</pre></div></p>
-</li>
-<li>Use cargo to install <code class="codehilite">just</code> .
-  <div class="codehilite"><pre><span></span>$ cargo install just
-</pre></div></li>
-<li>Run just script to install dev tools
-  <div class="codehilite"><pre><span></span>$ just install-setup
-</pre></div></li>
-<li>Run a witnet component. Find a list of components and how to run them at <a href="#cli">CLI</a>.
-  <div class="codehilite"><pre><span></span>$ <span class="nv">RUST_LOG</span><span class="o">=</span><span class="nv">witnet</span><span class="o">=</span>trace cargo run node
-  or
-$ just node
-</pre></div></li>
-</ol>
-<h2 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
+<h2 id="running-the-cli">Running the CLI<a class="headerlink" href="#running-the-cli" title="Permanent link">&para;</a></h2>
 <h3 id="synopsis">Synopsis<a class="headerlink" href="#synopsis" title="Permanent link">&para;</a></h3>
-<div class="codehilite"><pre><span></span>RUST_LOG=witnet=[error | info | debug | main | trace] cargo run
-[node [ --address address] [--config config_filename]]
+<div class="codehilite"><pre><span></span><span class="go">RUST_LOG=witnet=[error | info | debug | main | trace] cargo run \</span>
+<span class="go">[node [ --address address] [--config config_filename]]</span>
 </pre></div>
-
 
 <h3 id="components">Components<a class="headerlink" href="#components" title="Permanent link">&para;</a></h3>
 <h4 id="node">Node<a class="headerlink" href="#node" title="Permanent link">&para;</a></h4>
-<p>--address (-d) <em>&lt;address&gt;</em></p>
-<p>Read server address from <em>&lt;address&gt;</em> argument.</p>
-<p>--config (-c) <em>&lt;config_filename&gt;</em></p>
-<p>Read config filename from <em>&lt;config_filename&gt;</em> argument.</p>
+<div class="codehilite"><pre><span></span><span class="go">--address &lt;address&gt;</span>
+<span class="go">-d &lt;address&gt;</span>
+</pre></div>
+
+<p>Read server address from <code class="codehilite">&lt;address&gt;</code> argument.</p>
+<div class="codehilite"><pre><span></span><span class="go">--config &lt;file_path&gt;</span>
+<span class="go">-c &lt;file_path&gt;</span>
+</pre></div>
+
+<p>Read configuration from the given <code class="codehilite">&lt;file_path&gt;</code> argument (defaults to <code class="codehilite">./witnet.toml</code>).</p>
 <h2 id="development-scripts">Development Scripts<a class="headerlink" href="#development-scripts" title="Permanent link">&para;</a></h2>
-<p>There are some useful scripts to run with <code class="codehilite">just</code>:</p>
+<p>There are some useful scripts to run with the <code class="codehilite">just</code> tool:</p>
 <ul>
-<li><code class="codehilite">clippy</code>: Run <code class="codehilite">clippy</code> style checking.</li>
-<li><code class="codehilite">docs-build</code>: Compile docs into static files.</li>
-<li><code class="codehilite">docs-deploy</code>: Deploy compiled docs into gh-pages branch.</li>
-<li><code class="codehilite">docs-dev</code>: Run local documentation server at localhost:8000</li>
-<li><code class="codehilite">fmt</code>: Run code formatter.</li>
-<li><code class="codehilite">install-clippy</code>. Install <code class="codehilite">clippy</code> library.</li>
-<li><code class="codehilite">install-rustfmt</code>: Install <code class="codehilite">rustfmt</code> library.</li>
-<li><code class="codehilite">install-setup</code>: Install dev tools.</li>
-<li><code class="codehilite">server</code>: Run witnet server component.</li>
-<li><code class="codehilite">travis</code>: Run travis build.</li>
+<li><code class="codehilite">clippy</code>: run <code class="codehilite">clippy</code> style checking.</li>
+<li><code class="codehilite">docs-build</code>: compile docs into static files.</li>
+<li><code class="codehilite">docs-deploy</code>: deploy compiled docs into gh-pages branch.</li>
+<li><code class="codehilite">docs-dev</code>: run local documentation server at <code class="codehilite"><span class="n">localhost</span><span class="o">:</span><span class="mi">8000</span></code>.</li>
+<li><code class="codehilite">fmt</code>: run code formatter.</li>
+<li><code class="codehilite">install-clippy</code>: install <code class="codehilite">clippy</code> library.</li>
+<li><code class="codehilite">install-rustfmt</code>: install <code class="codehilite">rustfmt</code> library.</li>
+<li><code class="codehilite">install-setup</code>: install dev tools (<code class="codehilite">clippy</code> and <code class="codehilite">rustfmt</code>).</li>
+<li><code class="codehilite">server</code>: run witnet server component.</li>
+<li><code class="codehilite">travis</code>: run travis build.</li>
 </ul>
+<div class="admonition tip">
+<p class="admonition-title">Installing the <code class="codehilite">just</code> tool</p>
+<p><code class="codehilite">just</code> is a command runner tool widely used in the Rust ecosystem. You can install it with a single line:</p>
+<div class="codehilite"><pre><span></span><span class="go">cargo install just</span>
+</pre></div>
+
+</div>
                 
                   
                 

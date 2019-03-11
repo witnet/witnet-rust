@@ -310,10 +310,70 @@
           
 
 
-  <li class="md-nav__item">
-    <a href="../../../../get-started/install/" title="Install" class="md-nav__link">
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2-4" type="checkbox" id="nav-2-4">
+    
+    <label class="md-nav__link" for="nav-2-4">
       Install
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-2-4">
+        Install
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+      GNU/Linux
     </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+      macOS
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+      Windows
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+      From source code
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
   </li>
 
         
@@ -962,6 +1022,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../../../mining/" title="Mining" class="md-nav__link">
+      Mining
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../../../reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
@@ -974,8 +1046,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../mining/" title="Mining" class="md-nav__link">
-      Mining
+    <a href="../../../serialization/" title="Serialization" class="md-nav__link">
+      Serialization
     </a>
   </li>
 
@@ -1211,18 +1283,6 @@
   <li class="md-nav__item">
     <a href="../../../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
-    </a>
-  </li>
-
-        
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../../architecture/managers/reputation-manager/" title="Reputation Manager" class="md-nav__link">
-      Reputation Manager
     </a>
   </li>
 
@@ -1628,10 +1688,10 @@
                 
                 <h1 id="handshake">Handshake<a class="headerlink" href="#handshake" title="Permanent link">&para;</a></h1>
 <p>The protocol to connect from a local peer (handshake initiator) to a known remote peer, is known as a "handshake." The handshake starts with a TCP connection to a given IP address and port.</p>
-<p>The handshake initiator, sends a <code class="codehilite">version</code> message to the remote peer. Then, the remote peer will analyze the information in order to evaluate if the submitting peer is compatible regarding their supported versions and capabilities. If so, the remote peer will acknowledge the <code class="codehilite">version</code> message and establish a connection by sending a <code class="codehilite">verack</code> message.</p>
-<p>Subsequently, the handshake initiator will expect a <code class="codehilite">version</code> message from the remote peer. The local peer will also acknowledge by replying with a <code class="codehilite">verack</code> message.</p>
-<p>A peer cannot consider a <strong>Witnet session</strong> to be valid and established until it has received a <code class="codehilite">verack</code> message (in response to a previously sent <code class="codehilite">version</code> message) and it has sent a <code class="codehilite">verack</code> message (as acknowledgement to a previously received <code class="codehilite">version</code> message).</p>
-<p>After the TCP connection has been started, both peers will define a timeout to wait for establishing a valid Witnet session. If no <code class="codehilite">verack</code> is received during these timeouts (e.g. 10 seconds), the TCP connection will be dropped and the remote peer will be discarded from the known peers list. Additionally, Witnet nodes will not reply to any other message types until a valid Witnet session has been successfully established.</p>
+<p>The handshake initiator, sends a <code class="codehilite">Version</code> message to the remote peer. Then, the remote peer will analyze the information in order to evaluate if the submitting peer is compatible regarding their supported versions and capabilities. If so, the remote peer will acknowledge the <code class="codehilite">Version</code> message and establish a connection by sending a <code class="codehilite">Verack</code> message.</p>
+<p>Subsequently, the handshake initiator will expect a <code class="codehilite">Version</code> message from the remote peer. The local peer will also acknowledge by replying with a <code class="codehilite">Verack</code> message.</p>
+<p>A peer cannot consider a <strong>Witnet session</strong> to be valid and established until it has received a <code class="codehilite">Verack</code> message (in response to a previously sent <code class="codehilite">Version</code> message) and it has sent a <code class="codehilite">Verack</code> message (as acknowledgement to a previously received <code class="codehilite">Version</code> message).</p>
+<p>After the TCP connection has been started, both peers will define a timeout to wait for establishing a valid Witnet session. If no <code class="codehilite">Verack</code> is received during these timeouts (e.g. 10 seconds), the TCP connection will be dropped and the remote peer will be discarded from the known peers list. Additionally, Witnet nodes will not reply to any other message types until a valid Witnet session has been successfully established.</p>
 <div class="codehilite"><pre><span></span>         NodeA                            NodeB
            +                                +
          ^ |            VERSION             | ^
@@ -1650,65 +1710,65 @@ TimeoutA | |            VERSION             | | TimeoutB
 </pre></div>
 
 <h2 id="version-message">Version message<a class="headerlink" href="#version-message" title="Permanent link">&para;</a></h2>
-<p>The <code class="codehilite">version</code> message contains the following information:</p>
+<p>The <code class="codehilite">Version</code> message contains the following information:</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
+<th align="left">Field</th>
 <th align="center">Type</th>
-<th>Description</th>
+<th align="left">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code class="codehilite">version</code></td>
-<td align="center"><code class="codehilite">u32</code></td>
-<td>The Witnet p2p protocol version that the client is using</td>
+<td align="left"><code class="codehilite">Version</code></td>
+<td align="center"><code class="codehilite">uint32</code></td>
+<td align="left">The Witnet p2p protocol version that the client is using</td>
 </tr>
 <tr>
-<td><code class="codehilite">timestamp</code></td>
-<td align="center"><code class="codehilite">u64</code></td>
-<td>The current UTC Unix timestamp (seconds since Unix epoch)</td>
+<td align="left"><code class="codehilite">timestamp</code></td>
+<td align="center"><code class="codehilite">int64</code></td>
+<td align="left">The current UTC Unix timestamp (seconds since Unix epoch)</td>
 </tr>
 <tr>
-<td><code class="codehilite">capabilities</code></td>
-<td align="center"><code class="codehilite">u64</code></td>
-<td>List of flags of supported services, by default NODE_NETWORK is used</td>
+<td align="left"><code class="codehilite">capabilities</code></td>
+<td align="center"><code class="codehilite">fixed64</code></td>
+<td align="left">List of flags of supported services, by default NODE_NETWORK is used</td>
 </tr>
 <tr>
-<td><code class="codehilite">sender_address</code></td>
-<td align="center"><code class="codehilite">addr</code></td>
-<td>The IP address and port of the handshake initiator peer</td>
+<td align="left"><code class="codehilite">sender_address</code></td>
+<td align="center"><code class="codehilite">Address</code></td>
+<td align="left">The IP address and port of the handshake initiator peer</td>
 </tr>
 <tr>
-<td><code class="codehilite">receiver_address</code></td>
-<td align="center"><code class="codehilite">addr</code></td>
-<td>The IP address and port of the remote peer</td>
+<td align="left"><code class="codehilite">receiver_address</code></td>
+<td align="center"><code class="codehilite">Address</code></td>
+<td align="left">The IP address and port of the remote peer</td>
 </tr>
 <tr>
-<td><code class="codehilite">user_agent</code></td>
+<td align="left"><code class="codehilite">user_agent</code></td>
 <td align="center"><code class="codehilite">string</code></td>
-<td>A version showing which software is running the local peer</td>
+<td align="left">A version showing which software is running the local peer</td>
 </tr>
 <tr>
-<td><code class="codehilite">last_epoch</code></td>
-<td align="center"><code class="codehilite">u32</code></td>
-<td>Last epoch in the local peer blockchain</td>
+<td align="left"><code class="codehilite">last_epoch</code></td>
+<td align="center"><code class="codehilite">fixed32</code></td>
+<td align="left">Last epoch in the local peer blockchain</td>
 </tr>
 <tr>
-<td><code class="codehilite">genesis</code></td>
-<td align="center"><code class="codehilite">[u8; 32]</code></td>
-<td>Hash of the genesis block</td>
+<td align="left"><code class="codehilite">genesis</code></td>
+<td align="center"><code class="codehilite">Hash</code></td>
+<td align="left">Hash of the genesis block</td>
 </tr>
 <tr>
-<td><code class="codehilite">nonce</code></td>
-<td align="center"><code class="codehilite">u64</code></td>
-<td>Node random nonce, randomly generated every time a version packet is sent (used to detect connections to self)</td>
+<td align="left"><code class="codehilite">nonce</code></td>
+<td align="center"><code class="codehilite">fixed64</code></td>
+<td align="left">Node random nonce, randomly generated every time a version packet is sent (used to detect connections to self)</td>
 </tr>
 </tbody>
 </table>
 <h2 id="verack-message">Verack message<a class="headerlink" href="#verack-message" title="Permanent link">&para;</a></h2>
-<p>The <code class="codehilite">verack</code> message is sent as reply to the version and it only consists of a message header with the command <code class="codehilite">VERACK</code>.</p>
+<p>The <code class="codehilite">Verack</code> message is sent as reply to the version and it only consists of a message header with the command <code class="codehilite">Verack</code>.</p>
                 
                   
                 
