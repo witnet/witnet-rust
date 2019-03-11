@@ -10,7 +10,11 @@ nav:
     - What is Witnet: get-started/what-is-witnet.md
     - Why Rust?: get-started/why-rust.md
     - Design Overview: get-started/design-overview.md
-    - Install: get-started/install.md
+    - Install:
+      - GNU/Linux: get-started/installation/gnu-linux.md
+      - macOS: get-started/installation/macos.md
+      - Windows: get-started/installation/windows.md
+      - From source code: get-started/installation/from-source.md
   - Protocol:
     - Network:
       - Overview: protocol/network/overview.md
