@@ -7,7 +7,7 @@ use rmpv::{Integer, Value};
 #[derive(Debug, PartialEq, Fail)]
 pub enum RadError {
     /// Failed to decode a type from other
-    #[fail(display = "Failed to decode {} from {}", from, to)]
+    #[fail(display = "Failed to decode {} from {}", to, from)]
     Decode {
         from: &'static str,
         to: &'static str,
