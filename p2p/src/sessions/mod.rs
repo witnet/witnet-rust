@@ -203,6 +203,15 @@ where
             .chain(self.inbound_consolidated.collection.values())
             .map(|info| &info.reference)
     }
+
+    /// Method to get all the consolidated sessions (inbound and outbound)
+    pub fn get_all_consolidated_inbound_sessions<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+        self.inbound_consolidated
+            .collection
+            .values()
+            .map(|info| &info.reference)
+    }
+
     /// Method to insert a new session
     pub fn register_session(
         &mut self,

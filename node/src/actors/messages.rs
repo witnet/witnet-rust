@@ -506,6 +506,8 @@ where
 pub struct Broadcast<T> {
     /// Command to be sent to all the sessions
     pub command: T,
+    /// Inbound flag: use only inbound peers
+    pub only_inbound: bool,
 }
 
 impl<T> Message for Broadcast<T>

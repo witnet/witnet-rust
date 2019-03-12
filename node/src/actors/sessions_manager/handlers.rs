@@ -208,12 +208,21 @@ where
             msg.command
         );
 
-        self.sessions
-            .get_all_consolidated_sessions()
-            .for_each(|session_addr| {
-                // Send message to session and ignore errors
-                session_addr.do_send(msg.command.clone());
-            });
+        if msg.only_inbound {
+            self.sessions
+                .get_all_consolidated_inbound_sessions()
+                .for_each(|session_addr| {
+                    // Send message to session and ignore errors
+                    session_addr.do_send(msg.command.clone());
+                });
+        } else {
+            self.sessions
+                .get_all_consolidated_sessions()
+                .for_each(|session_addr| {
+                    // Send message to session and ignore errors
+                    session_addr.do_send(msg.command.clone());
+                });
+        }
     }
 }
 
