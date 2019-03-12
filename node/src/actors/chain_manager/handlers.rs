@@ -483,9 +483,21 @@ impl Handler<PeersBeacons> for ChainManager {
                             if self.process_requested_block(ctx, consensus_block) {
                                 StateMachine::Synced
                             } else {
+                                // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
+                                SessionsManager::from_registry().do_send(Anycast {
+                                    command: SendLastBeacon { beacon: our_beacon },
+                                    safu: true,
+                                });
+
                                 StateMachine::Synchronizing
                             }
                         } else {
+                            // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
+                            SessionsManager::from_registry().do_send(Anycast {
+                                command: SendLastBeacon { beacon: our_beacon },
+                                safu: true,
+                            });
+
                             StateMachine::Synchronizing
                         }
                     };
