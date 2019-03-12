@@ -8,14 +8,16 @@ use actix::{
 
 use ansi_term::Color::Cyan;
 
-use witnet_p2p::sessions::{SessionStatus, SessionType, Sessions};
+use witnet_p2p::sessions::Sessions;
 
-use crate::actors::epoch_manager::EpochManager;
-use crate::actors::messages::{PeersBeacons, Subscribe};
 use crate::actors::{
     chain_manager::ChainManager,
     connections_manager::ConnectionsManager,
-    messages::{Anycast, GetRandomPeer, OutboundTcpConnect, PeersSocketAddrResult, SendGetPeers},
+    epoch_manager::EpochManager,
+    messages::{
+        Anycast, CloseSession, GetRandomPeer, OutboundTcpConnect, PeersBeacons,
+        PeersSocketAddrResult, SendGetPeers, Subscribe,
+    },
     peers_manager::PeersManager,
     session::Session,
 };
@@ -202,12 +204,10 @@ impl SessionsManager {
                     Ok(Ok(peers_to_unregister)) => {
                         // Unregister peers out of consensus
                         for peer in peers_to_unregister {
-                            match act.sessions.unregister_session(
-                                SessionType::Outbound,
-                                SessionStatus::Consolidated,
-                                peer,
-                            ) {
-                                _ => {}
+                            if let Some(a) =
+                                act.sessions.outbound_consolidated.collection.get(&peer)
+                            {
+                                a.reference.do_send(CloseSession);
                             }
                             peers_to_keep.remove(&peer);
                         }

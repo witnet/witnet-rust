@@ -21,15 +21,15 @@ use witnet_data_structures::{
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use super::Session;
-use crate::actors::messages::{PeerBeacon, SendLastBeacon};
 use crate::actors::{
     chain_manager::ChainManager,
     codec::BytesMut,
     inventory_manager::InventoryManager,
     messages::{
-        AddBlocks, AddCandidates, AddPeers, AddTransaction, Consolidate, EpochNotification,
-        GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem, RequestPeers, SendGetPeers,
-        SendInventoryAnnouncement, SendInventoryItem, SessionUnitResult,
+        AddBlocks, AddCandidates, AddPeers, AddTransaction, CloseSession, Consolidate,
+        EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem, PeerBeacon,
+        RequestPeers, SendGetPeers, SendInventoryAnnouncement, SendInventoryItem, SendLastBeacon,
+        SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -282,6 +282,14 @@ impl Handler<SendLastBeacon> for Session {
     fn handle(&mut self, SendLastBeacon { beacon }: SendLastBeacon, _ctx: &mut Context<Self>) {
         debug!("Sending LastBeacon to peer at {:?}", self.remote_addr);
         send_last_beacon(self, beacon);
+    }
+}
+
+impl Handler<CloseSession> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(&mut self, _msg: CloseSession, ctx: &mut Context<Self>) {
+        ctx.stop();
     }
 }
 
