@@ -249,6 +249,7 @@ impl ChainManager {
 
         sessions_manager_addr.do_send(Broadcast {
             command: SendInventoryItem { item },
+            only_inbound: false,
         });
     }
 

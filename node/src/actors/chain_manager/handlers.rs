@@ -72,6 +72,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         command: SendLastBeacon {
                             beacon: chain_info.highest_block_checkpoint,
                         },
+                        only_inbound: true,
                     });
                 }
             }
@@ -143,6 +144,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 .unwrap()
                                 .highest_block_checkpoint,
                         },
+                        only_inbound: true,
                     });
 
                     // Mining
