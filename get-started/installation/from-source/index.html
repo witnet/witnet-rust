@@ -412,6 +412,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#openssl-libssl" title="OpenSSL / libssl" class="md-nav__link">
+    OpenSSL / libssl
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#clang-compiler" title="CLang compiler" class="md-nav__link">
     CLang compiler
   </a>
@@ -1715,6 +1722,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#openssl-libssl" title="OpenSSL / libssl" class="md-nav__link">
+    OpenSSL / libssl
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#clang-compiler" title="CLang compiler" class="md-nav__link">
     CLang compiler
   </a>
@@ -1788,48 +1802,63 @@
 <span class="go">rustup default stable</span>
 </pre></div>
 
-<h3 id="clang-compiler">CLang compiler<a class="headerlink" href="#clang-compiler" title="Permanent link">&para;</a></h3>
+<h3 id="openssl-libssl">OpenSSL / libssl<a class="headerlink" href="#openssl-libssl" title="Permanent link">&para;</a></h3>
 <div class="superfences-tabs">
 <input name="__tabs_1" type="radio" id="__tab_1_0" checked="checked" />
 <label for="__tab_1_0">GNU/Linux (apt)</label>
-<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">apt-get install clang</span>
+<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">apt install libssl-dev</span>
 </pre></div></div>
 <input name="__tabs_1" type="radio" id="__tab_1_1" />
 <label for="__tab_1_1">GNU/Linux (pacman)</label>
-<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">pacman -S clang</span>
+<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">pacman -S openssl</span>
 </pre></div></div>
 <input name="__tabs_1" type="radio" id="__tab_1_2" />
 <label for="__tab_1_2">macOS</label>
+<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">brew install openssl</span>
+</pre></div></div>
+</div>
+<h3 id="clang-compiler">CLang compiler<a class="headerlink" href="#clang-compiler" title="Permanent link">&para;</a></h3>
+<div class="superfences-tabs">
+<input name="__tabs_2" type="radio" id="__tab_2_0" checked="checked" />
+<label for="__tab_2_0">GNU/Linux (apt)</label>
+<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">apt install clang</span>
+</pre></div></div>
+<input name="__tabs_2" type="radio" id="__tab_2_1" />
+<label for="__tab_2_1">GNU/Linux (pacman)</label>
+<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">pacman -S clang</span>
+</pre></div></div>
+<input name="__tabs_2" type="radio" id="__tab_2_2" />
+<label for="__tab_2_2">macOS</label>
 <div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">xcode-select --install</span>
 </pre></div></div>
 </div>
 <h3 id="protocol-buffers-compiler">Protocol Buffers compiler<a class="headerlink" href="#protocol-buffers-compiler" title="Permanent link">&para;</a></h3>
 <div class="superfences-tabs">
-<input name="__tabs_2" type="radio" id="__tab_2_0" checked="checked" />
-<label for="__tab_2_0">GNU/Linux (apt)</label>
-<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">apt-get install protobuf-compiler</span>
+<input name="__tabs_3" type="radio" id="__tab_3_0" checked="checked" />
+<label for="__tab_3_0">GNU/Linux (apt)</label>
+<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">apt install protobuf-compiler</span>
 </pre></div></div>
-<input name="__tabs_2" type="radio" id="__tab_2_1" />
-<label for="__tab_2_1">GNU/Linux (pacman)</label>
+<input name="__tabs_3" type="radio" id="__tab_3_1" />
+<label for="__tab_3_1">GNU/Linux (pacman)</label>
 <div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">pacman -S protobuf</span>
 </pre></div></div>
-<input name="__tabs_2" type="radio" id="__tab_2_2" />
-<label for="__tab_2_2">macOS</label>
+<input name="__tabs_3" type="radio" id="__tab_3_2" />
+<label for="__tab_3_2">macOS</label>
 <div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">brew install protobuf</span>
 </pre></div></div>
 </div>
 <h3 id="git-client">Git client<a class="headerlink" href="#git-client" title="Permanent link">&para;</a></h3>
 <div class="superfences-tabs">
-<input name="__tabs_3" type="radio" id="__tab_3_0" checked="checked" />
-<label for="__tab_3_0">GNU/Linux (apt)</label>
-<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">apt-get install git</span>
+<input name="__tabs_4" type="radio" id="__tab_4_0" checked="checked" />
+<label for="__tab_4_0">GNU/Linux (apt)</label>
+<div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">apt install git</span>
 </pre></div></div>
-<input name="__tabs_3" type="radio" id="__tab_3_1" />
-<label for="__tab_3_1">GNU/Linux (pacman)</label>
+<input name="__tabs_4" type="radio" id="__tab_4_1" />
+<label for="__tab_4_1">GNU/Linux (pacman)</label>
 <div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">pacman -S git</span>
 </pre></div></div>
-<input name="__tabs_3" type="radio" id="__tab_3_2" />
-<label for="__tab_3_2">macOS</label>
+<input name="__tabs_4" type="radio" id="__tab_4_2" />
+<label for="__tab_4_2">macOS</label>
 <div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">brew install git</span>
 </pre></div></div>
 </div>
@@ -1842,13 +1871,13 @@
 
 <h2 id="checkout-source-code-from-github">Checkout source code from GitHub<a class="headerlink" href="#checkout-source-code-from-github" title="Permanent link">&para;</a></h2>
 <div class="superfences-tabs">
-<input name="__tabs_4" type="radio" id="__tab_4_0" checked="checked" />
-<label for="__tab_4_0">HTTPS</label>
+<input name="__tabs_5" type="radio" id="__tab_5_0" checked="checked" />
+<label for="__tab_5_0">HTTPS</label>
 <div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">git clone https://github.com/witnet/witnet-rust.git</span>
 <span class="go">cd witnet-rust</span>
 </pre></div></div>
-<input name="__tabs_4" type="radio" id="__tab_4_1" />
-<label for="__tab_4_1">SSH</label>
+<input name="__tabs_5" type="radio" id="__tab_5_1" />
+<label for="__tab_5_1">SSH</label>
 <div class="superfences-content"><div class="codehilite"><pre><span></span><span class="go">git clone git@github.com:witnet/witnet-rust.git</span>
 <span class="go">cd witnet-rust</span>
 </pre></div></div>
