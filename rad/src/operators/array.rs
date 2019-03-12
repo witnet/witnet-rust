@@ -28,13 +28,12 @@ fn test_reduce_no_args() {
     ]);
     let args = &[];
 
-    let correctness = if let Err(err) = reduce(input, args) {
-        err.inner().kind() == &RadError::WrongArguments
-    } else {
-        false
-    };
+    let result = reduce(input, args);
 
-    assert!(correctness);
+    assert_eq!(
+        &result.unwrap_err().to_string(),
+        "Wrong `RadonArray::Reduce()` arguments: `[]`"
+    );
 }
 
 #[test]
@@ -47,13 +46,12 @@ fn test_reduce_wrong_args() {
     ]);
     let args = &[Value::from("wrong")]; // This is RadonReducers::AverageMean
 
-    let correctness = if let Err(err) = reduce(input, args) {
-        err.inner().kind() == &RadError::WrongArguments
-    } else {
-        false
-    };
+    let result = reduce(input, args);
 
-    assert!(correctness);
+    assert_eq!(
+        &result.unwrap_err().to_string(),
+        "Wrong `RadonArray::Reduce()` arguments: `[String(Utf8String { s: Ok(\"wrong\") })]`"
+    );
 }
 
 #[test]
@@ -66,13 +64,12 @@ fn test_reduce_unknown_reducer() {
     ]);
     let args = &[Value::from(-1)]; // This doesn't match any reducer code in RadonReducers
 
-    let correctness = if let Err(err) = reduce(input, args) {
-        err.inner().kind() == &RadError::WrongArguments
-    } else {
-        false
-    };
+    let result = reduce(input, args);
 
-    assert!(correctness);
+    assert_eq!(
+        &result.unwrap_err().to_string(),
+        "Wrong `RadonArray::Reduce()` arguments: `[Integer(NegInt(-1))]`"
+    );
 }
 
 #[test]

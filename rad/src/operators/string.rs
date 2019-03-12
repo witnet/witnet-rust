@@ -101,16 +101,12 @@ fn test_hash() {
         RadonString::from("dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f");
 
     assert_eq!(valid_output, valid_expected);
-
-    assert!(if let Err(err) = wrong_output {
-        err.inner().kind() == &RadError::WrongArguments
-    } else {
-        false
-    });
-
-    assert!(if let Err(err) = unsupported_output {
-        err.inner().kind() == &RadError::UnsupportedHashFunction
-    } else {
-        false
-    });
+    assert_eq!(
+        &wrong_output.unwrap_err().to_string(),
+        "Wrong `RadonString::Hash()` arguments: `[Integer(PosInt(255))]`"
+    );
+    assert_eq!(
+        &unsupported_output.unwrap_err().to_string(),
+        "Hash function `RadonHashFunctions::Fail` is not implemented"
+    );
 }

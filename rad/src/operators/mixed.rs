@@ -21,7 +21,7 @@ fn test_as_float() {
 
     assert_eq!(to_float(radon_mixed).unwrap(), radon_float);
     assert_eq!(
-        to_float(radon_mixed_error).unwrap_err().kind(),
-        &RadError::EncodeDecode
+        &to_float(radon_mixed_error).unwrap_err().to_string(),
+        "Failed to decode rmpv::Value from RadonFloat"
     );
 }
