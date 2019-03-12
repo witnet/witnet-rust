@@ -10,6 +10,21 @@ source $HOME/.cargo/env
 rustup default stable
 ```
 
+### OpenSSL / libssl
+
+```console tab="GNU/Linux (apt)"
+apt-get install libssl-dev
+```
+
+```console tab="GNU/Linux (pacman)"
+pacman -S openssl
+```
+
+```console tab="macOS"
+brew install openssl
+```
+
+
 ### CLang compiler
 
 ```console tab="GNU/Linux (apt)"
