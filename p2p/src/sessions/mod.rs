@@ -217,6 +217,8 @@ where
         sessions.register_session(address, reference)
     }
     /// Method to remove a session
+    /// Note: this does not close the socket, the connection will still be alive unless the actor
+    /// is also stopped.
     pub fn unregister_session(
         &mut self,
         session_type: SessionType,
