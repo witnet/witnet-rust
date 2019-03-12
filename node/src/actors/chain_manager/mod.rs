@@ -129,9 +129,9 @@ pub struct ChainManager {
     data_request_pool: DataRequestPool,
     /// state of the state machine
     sm_state: StateMachine,
-    /// Target beacon
+    /// The best beacon known to this node—to which it will try to catch up
     target_beacon: Option<CheckpointBeacon>,
-    /// Map that stores candidate blocks
+    /// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain
     candidates: HashMap<Hash, Block>,
 }
 
@@ -253,23 +253,13 @@ impl ChainManager {
         });
     }
 
-    fn process_requested_block(&mut self, ctx: &mut Context<Self>, block: Block) -> bool {
-        let mut response = false;
+    fn process_requested_block(&mut self, ctx: &mut Context<Self>, block: Block) -> Result<(), ()> {
+        if let (Some(current_epoch), Some(chain_info)) =
+            (self.current_epoch, self.chain_state.chain_info.as_ref())
+        {
+            let chain_beacon = chain_info.highest_block_checkpoint;
 
-        if self.current_epoch.is_none() {
-            warn!("ChainManager doesn't have current epoch");
-        } else if self.chain_state.chain_info.is_none() {
-            warn!("ChainManager doesn't have chain_info");
-        } else {
-            let current_epoch = self.current_epoch.unwrap();
-            let chain_beacon = self
-                .chain_state
-                .chain_info
-                .as_ref()
-                .unwrap()
-                .highest_block_checkpoint;
-
-            let block_in_chain = validate_block(
+            if let Ok(block_in_chain) = validate_block(
                 &block,
                 current_epoch,
                 chain_beacon,
@@ -277,11 +267,7 @@ impl ChainManager {
                 &self.chain_state.unspent_outputs_pool,
                 &self.transactions_pool,
                 &self.data_request_pool,
-            );
-
-            if block_in_chain.is_some() {
-                let block_in_chain = block_in_chain.unwrap();
-
+            ) {
                 // Persist block and update ChainState
                 self.consolidate_block(
                     ctx,
@@ -290,28 +276,28 @@ impl ChainManager {
                     block_in_chain.data_request_pool,
                     false,
                 );
-                response = true;
-            }
-        }
 
-        response
+                Ok(())
+            } else {
+                Err(())
+            }
+        } else {
+            Err(())
+        }
     }
 
     fn process_candidate(&mut self, block: Block) {
-        if self.current_epoch.is_none() {
-            warn!("ChainManager doesn't have current epoch");
-        } else if self.chain_state.chain_info.is_none() {
-            warn!("ChainManager doesn't have chain_info");
-        } else {
-            let current_epoch = self.current_epoch.unwrap();
+        if let Some(current_epoch) = self.current_epoch {
             let hash_block = block.hash();
 
             if !self.candidates.contains_key(&hash_block)
-                && validate_candidate(&block, current_epoch)
+                && validate_candidate(&block, current_epoch).is_ok()
             {
                 self.candidates.insert(hash_block, block.clone());
                 self.broadcast_item(InventoryItem::Block(block));
             }
+        } else {
+            warn!("ChainManager doesn't have current epoch");
         }
     }
 

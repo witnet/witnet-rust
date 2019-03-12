@@ -62,12 +62,14 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         self.current_epoch = Some(msg.checkpoint);
 
+        debug!(
+            "EpochNotification received while StateMachine is in state {:?}",
+            self.sm_state
+        );
         match self.sm_state {
             StateMachine::WaitingConsensus => {
-                debug!("EpochNotification handle: WaitingConsensus state");
-
                 if let Some(chain_info) = &self.chain_state.chain_info {
-                    // Send last beacon in state 1 because otherwise the network cannot bootstrap
+                    // Send last beacon because otherwise the network cannot bootstrap
                     SessionsManager::from_registry().do_send(Broadcast {
                         command: SendLastBeacon {
                             beacon: chain_info.highest_block_checkpoint,
@@ -76,45 +78,34 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     });
                 }
             }
-            StateMachine::Synchronizing => {
-                debug!("EpochNotification handle: Synchronizing state");
-            }
+            StateMachine::Synchronizing => {}
             StateMachine::Synced => {
-                debug!("EpochNotification handle: Synced state");
-
-                if self.current_epoch.is_none() {
-                    warn!("ChainManager doesn't have current epoch");
-                } else if self.chain_state.chain_info.is_none() {
-                    warn!("ChainManager doesn't have chain_info");
-                } else {
-                    let current_epoch = self.current_epoch.unwrap();
+                if let (Some(current_epoch), Some(chain_info)) =
+                    (self.current_epoch, self.chain_state.chain_info.as_ref())
+                {
                     let candidates = self.candidates.clone();
 
                     // Decide the best candidate
+                    // TODO: replace for loop with a try_fold
                     let mut chosen_candidate = None;
                     for (key, block_candidate) in candidates {
-                        if chosen_candidate.is_some() {
-                            let (chosen_key, _) = chosen_candidate.clone().unwrap();
+                        if let Some((chosen_key, _)) = chosen_candidate.clone() {
                             if chosen_key < key {
                                 // Ignore candidates with bigger hashes
                                 continue;
                             }
                         }
-                        if let Some(block_in_chain) = validate_block(
+                        chosen_candidate = validate_block(
                             &block_candidate,
                             current_epoch,
-                            self.chain_state
-                                .chain_info
-                                .as_ref()
-                                .unwrap()
-                                .highest_block_checkpoint,
+                            chain_info.highest_block_checkpoint,
                             self.genesis_block_hash,
                             &self.chain_state.unspent_outputs_pool,
                             &self.transactions_pool,
                             &self.data_request_pool,
-                        ) {
-                            chosen_candidate = Some((key, block_in_chain));
-                        }
+                        )
+                        .ok()
+                        .map(|block_in_chain| (key, block_in_chain));
                     }
 
                     // Consolidate the best candidate
@@ -129,7 +120,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         );
                     } else {
                         warn!(
-                            "There are not valid candidate to consolidate in epoch {}",
+                            "There is no valid block candidate to consolidate for epoch {}",
                             msg.checkpoint
                         );
                     }
@@ -152,14 +143,17 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         // Data race: the data requests should be sent after mining the block, otherwise
                         // it takes 2 epochs to move from one stage to the next one
                         self.try_mine_block(ctx);
+
+                        // Data request mining MUST finish BEFORE the block has been mined!!!!
+                        // (The transactions must be included into this block, both the transactions from
+                        // our node and the transactions from other nodes
+                        self.try_mine_data_request(ctx);
                     }
-                    // Data request mining MUST finish BEFORE the block has been mined!!!!
-                    // (The transactions must be included into this block, both the transactions from
-                    // our node and the transactions from other nodes
-                    self.try_mine_data_request(ctx);
 
                     // Clear candidates
                     self.candidates.clear();
+                } else {
+                    warn!("ChainManager doesn't have current epoch");
                 }
             }
         };
@@ -192,51 +186,53 @@ impl Handler<AddBlocks> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddBlocks, ctx: &mut Context<Self>) {
+        debug!(
+            "AddBlocks received while StateMachine is in state {:?}",
+            self.sm_state
+        );
         match self.sm_state {
-            StateMachine::WaitingConsensus => {
-                debug!("AddBlocks handle: WaitingConsensus state");
-            }
+            StateMachine::WaitingConsensus => {}
             StateMachine::Synchronizing => {
-                debug!("AddBlocks handle: Synchronizing state");
                 let old_chain_state = self.chain_state.clone();
-                let target_beacon = self.target_beacon.unwrap();
-                for block in msg.blocks {
-                    if !self.process_requested_block(ctx, block) {
-                        warn!("Unexpected fail in process_requested_block");
-                        self.chain_state = old_chain_state;
-                        break;
+                if let Some(target_beacon) = self.target_beacon {
+                    for block in msg.blocks {
+                        if let Err(()) = self.process_requested_block(ctx, block) {
+                            warn!("Unexpected fail in process_requested_block");
+                            self.chain_state = old_chain_state;
+                            break;
+                        }
+                        // This check is needed if we get more blocks than needed: stop at target
+                        let our_beacon = self
+                            .chain_state
+                            .chain_info
+                            .as_ref()
+                            .unwrap()
+                            .highest_block_checkpoint;
+                        if our_beacon == target_beacon {
+                            // Target achived, go back to state 1
+                            self.sm_state = StateMachine::WaitingConsensus;
+                            break;
+                        }
                     }
-                    // This check is needed if we get more blocks than needed: stop at target
+
                     let our_beacon = self
                         .chain_state
                         .chain_info
                         .as_ref()
                         .unwrap()
                         .highest_block_checkpoint;
-                    if our_beacon == target_beacon {
-                        // Target achived, go back to state 1
-                        self.sm_state = StateMachine::WaitingConsensus;
-                        break;
+                    if target_beacon != our_beacon {
+                        // Try again, send Anycast<SendLastBeacon> to a "safu" peer, i.e. their last beacon matches our target beacon.
+                        SessionsManager::from_registry().do_send(Anycast {
+                            command: SendLastBeacon { beacon: our_beacon },
+                            safu: true,
+                        });
                     }
-                }
-
-                let our_beacon = self
-                    .chain_state
-                    .chain_info
-                    .as_ref()
-                    .unwrap()
-                    .highest_block_checkpoint;
-                if target_beacon != our_beacon {
-                    // Try again, send Anycast<SendLastBeacon> to a safu peer
-                    SessionsManager::from_registry().do_send(Anycast {
-                        command: SendLastBeacon { beacon: our_beacon },
-                        safu: true,
-                    });
+                } else {
+                    warn!("Target Beacon is None");
                 }
             }
-            StateMachine::Synced => {
-                debug!("AddBlocks handle: Synced state");
-            }
+            StateMachine::Synced => {}
         };
     }
 }
@@ -246,7 +242,7 @@ impl Handler<AddCandidates> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddCandidates, _ctx: &mut Context<Self>) {
-        // AddCandidates is need in all states
+        // AddCandidates is needed in all states
         for block in msg.blocks {
             self.process_candidate(block)
         }
@@ -258,7 +254,10 @@ impl Handler<AddTransaction> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) {
-        debug!("AddTransaction handle: {:?} state", self.sm_state);
+        debug!(
+            "AddTransaction received while StateMachine is in state {:?}",
+            self.sm_state
+        );
         // Ignore AddTransaction when not in Synced state
         match self.sm_state {
             StateMachine::WaitingConsensus => {
@@ -451,9 +450,12 @@ impl Handler<PeersBeacons> for ChainManager {
         PeersBeacons { pb }: PeersBeacons,
         ctx: &mut Context<Self>,
     ) -> Self::Result {
+        debug!(
+            "PeersBeacons received while StateMachine is in state {:?}",
+            self.sm_state
+        );
         match self.sm_state {
             StateMachine::WaitingConsensus => {
-                debug!("PeersBeacons handle: WaitingConsensus state");
                 // As soon as there is consensus, we set the target beacon to the consensus
                 // and set the state to Synchronizing
 
@@ -474,7 +476,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         .unwrap()
                         .highest_block_checkpoint;
 
-                    // Maybe we are already synchronized?
+                    // Check if we are already synchronized
                     self.sm_state = if our_beacon == beacon {
                         StateMachine::Synced
                     } else {
@@ -482,7 +484,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         let consensus_block_hash = beacon.hash_prev_block;
                         if let Some(consensus_block) = self.candidates.remove(&consensus_block_hash)
                         {
-                            if self.process_requested_block(ctx, consensus_block) {
+                            if self.process_requested_block(ctx, consensus_block).is_ok() {
                                 StateMachine::Synced
                             } else {
                                 // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
@@ -515,7 +517,6 @@ impl Handler<PeersBeacons> for ChainManager {
                 }
             }
             StateMachine::Synchronizing => {
-                debug!("PeersBeacons handle: Synchronizing state");
                 // We are synchronizing, so ignore all the new beacons until we reach the target beacon
 
                 // Return error meaning unexpected message, because if we return Ok(vec![]), the
@@ -523,7 +524,6 @@ impl Handler<PeersBeacons> for ChainManager {
                 Err(())
             }
             StateMachine::Synced => {
-                debug!("PeersBeacons handle: Synced state");
                 // If we are synced and the consensus beacon is not the same as our beacon, then
                 // we need to rewind one epoch
 
@@ -539,7 +539,8 @@ impl Handler<PeersBeacons> for ChainManager {
                     .unwrap()
                     .highest_block_checkpoint;
 
-                // Now we also take into account our beacon to calculate the consensus
+                // We also take into account our beacon to calculate the consensus
+                // TODO: should we count our own beacon when deciding consensus?
                 let consensus_beacon =
                     mode_consensus(pb.iter().map(|(_p, b)| b).chain(&[our_beacon])).cloned();
 

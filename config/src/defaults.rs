@@ -102,7 +102,8 @@ pub trait Defaults {
         10_000
     }
 
-    /// Default blocks timeout for waiting requested blocks: `400`
+    /// Default number of seconds before giving up waiting for requested blocks: `400`.
+    /// Sending 500 blocks should take less than 400 seconds.
     fn connections_blocks_timeout(&self) -> i64 {
         400
     }

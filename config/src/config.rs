@@ -142,7 +142,7 @@ pub struct Connections {
     ))]
     pub handshake_timeout: Duration,
 
-    /// Waiting for requested blocks timeout
+    /// Number of seconds before giving up waiting for requested blocks
     pub blocks_timeout: i64,
 }
 

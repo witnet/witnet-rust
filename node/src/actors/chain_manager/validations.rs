@@ -24,22 +24,25 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
 
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
 // TODO: Add verifications related to data requests (e.g. enough commitment transactions for a data request)
+// TODO: use proper error type with failure::Error, for example
+// enum TransactionValidationError {}
 pub fn validate_transactions(
     utxo_set: &UnspentOutputsPool,
     _txn_pool: &TransactionsPool,
     data_request_pool: &DataRequestPool,
     block: &Block,
-) -> Option<BlockInChain> {
+) -> Result<BlockInChain, ()> {
     // TODO: Add validate_mint function
 
     let mut utxo_set = utxo_set.clone();
     let mut data_request_pool = data_request_pool.clone();
 
-    let mut valid_transactions = true;
-
     let transactions = block.txns.clone();
 
     let mut remove_later = vec![];
+
+    // TODO: replace for loop with a try_fold
+    let mut valid_transactions = true;
     for transaction in &transactions {
         if validate_transaction(&transaction, &mut utxo_set) {
             let txn_hash = transaction.hash();
@@ -85,17 +88,19 @@ pub fn validate_transactions(
     }
 
     if valid_transactions {
-        Some(BlockInChain {
+        Ok(BlockInChain {
             block: block.clone(),
             utxo_set,
             data_request_pool,
         })
     } else {
-        None
+        Err(())
     }
 }
 
 /// Function to validate a block
+// TODO: use proper error type with failure::Error, for example
+// enum BlockValidationError {}
 pub fn validate_block(
     block: &Block,
     current_epoch: Epoch,
@@ -104,25 +109,28 @@ pub fn validate_block(
     utxo_set: &UnspentOutputsPool,
     txn_pool: &TransactionsPool,
     data_request_pool: &DataRequestPool,
-) -> Option<BlockInChain> {
-    let mut response = None;
+) -> Result<BlockInChain, ()> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
 
     if !verify_poe_block() {
         warn!("Invalid PoE");
+        Err(())
     } else if !validate_merkle_tree(&block) {
         warn!("Block merkle tree not valid");
+        Err(())
     } else if block_epoch > current_epoch {
         warn!(
             "Block epoch from the future: current: {}, block: {}",
             current_epoch, block_epoch
         );
+        Err(())
     } else if chain_beacon.checkpoint > block_epoch {
         debug!(
             "Ignoring block from epoch {} (older than highest block checkpoint {})",
             block_epoch, chain_beacon.checkpoint
         );
+        Err(())
     } else if hash_prev_block != genesis_block_hash
         && chain_beacon.hash_prev_block != hash_prev_block
     {
@@ -130,30 +138,29 @@ pub fn validate_block(
             "Ignoring block because previous hash [{:?}]is not known",
             hash_prev_block
         );
+        Err(())
     } else {
-        response = validate_transactions(&utxo_set, &txn_pool, &data_request_pool, &block)
+        validate_transactions(&utxo_set, &txn_pool, &data_request_pool, &block)
     }
-
-    response
 }
 
 /// Function to validate a block candidate
-pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> bool {
-    let mut valid_block = false;
+// TODO: use proper error type with failure::Error
+pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> Result<(), ()> {
     let block_epoch = block.block_header.beacon.checkpoint;
 
     if !verify_poe_block() {
         warn!("Invalid PoE");
+        Err(())
     } else if block_epoch != current_epoch {
         warn!(
             "Block epoch from different epoch: current: {}, block: {}",
             current_epoch, block_epoch
         );
+        Err(())
     } else {
-        valid_block = true;
+        Ok(())
     }
-
-    valid_block
 }
 
 /// Function to calculate a merkle tree from a transaction vector

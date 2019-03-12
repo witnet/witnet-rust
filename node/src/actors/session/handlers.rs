@@ -432,8 +432,6 @@ fn inventory_process_block(session: &mut Session, ctx: &mut Context<Session>, bl
                 }
             }
 
-            debug!("Send AddBlocks");
-
             // Send a message to the ChainManager to try to add a new block
             chain_manager_addr.do_send(AddBlocks {
                 blocks: blocks_vector,
