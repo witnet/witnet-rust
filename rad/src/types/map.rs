@@ -73,7 +73,7 @@ impl TryInto<Value> for RadonMap {
 
 impl fmt::Display for RadonMap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RadonMap")
+        write!(f, "RadonMap({:?})", self.value)
     }
 }
 
@@ -85,7 +85,7 @@ impl Operable for RadonMap {
                 map_operators::get(&self, args.as_slice()).map(Into::into)
             }
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: self.to_string(),
+                input_type: "RadonMixed".to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),

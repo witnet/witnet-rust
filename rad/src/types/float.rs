@@ -58,7 +58,7 @@ impl<'a> Operable for RadonFloat {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Float(self)),
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: self.to_string(),
+                input_type: "RadonFloat".to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),
@@ -68,7 +68,7 @@ impl<'a> Operable for RadonFloat {
 
 impl fmt::Display for RadonFloat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RadonFloat")
+        write!(f, "RadonFloat({})", self.value)
     }
 }
 

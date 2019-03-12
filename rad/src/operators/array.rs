@@ -7,7 +7,7 @@ use rmpv::Value;
 
 pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let error = || RadError::WrongArguments {
-        input_type: input.to_string(),
+        input_type: "RadonArray".to_string(),
         operator: "Reduce".to_string(),
         args: args.to_vec(),
     };

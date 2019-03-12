@@ -60,7 +60,7 @@ impl Operable for RadonString {
                 string_operators::parse_json(&self).map(RadonTypes::Mixed)
             }
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: self.to_string(),
+                input_type: "RadonString".to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),
@@ -70,7 +70,7 @@ impl Operable for RadonString {
 
 impl<'a> fmt::Display for RadonString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RadonString")
+        write!(f, r#"RadonString("{}")"#, self.value)
     }
 }
 

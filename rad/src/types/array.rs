@@ -93,7 +93,7 @@ impl TryInto<Value> for RadonArray {
 
 impl fmt::Display for RadonArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RadonArray")
+        write!(f, "RadonArray({:?})", self.value)
     }
 }
 
@@ -103,7 +103,7 @@ impl Operable for RadonArray {
             (RadonOpCodes::Identity, None) => identity(self.into()),
             (RadonOpCodes::Reduce, Some(args)) => array_operators::reduce(&self, args.as_slice()),
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: self.to_string(),
+                input_type: "RadonArray".to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),

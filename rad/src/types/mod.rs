@@ -48,12 +48,11 @@ impl RadonTypes {
 impl fmt::Display for RadonTypes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RadonTypes::Array(_array) => write!(f, "RadonArray"),
-            RadonTypes::Float(_float) => write!(f, "RadonFloat"),
-            RadonTypes::Map(_map) => write!(f, "RadonMap"),
-            RadonTypes::Mixed(_mixed) => write!(f, "RadonMixed"),
-            RadonTypes::String(_string) => write!(f, "RadonString"),
-            //_ => write!(f, "RadonTypes::{:?}", self),
+            RadonTypes::Array(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::Float(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::Map(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::Mixed(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::String(inner) => write!(f, "RadonTypes::{}", inner),
         }
     }
 }

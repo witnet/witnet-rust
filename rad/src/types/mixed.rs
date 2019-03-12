@@ -55,7 +55,7 @@ impl Operable for RadonMixed {
                 .map_err(Into::into),
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: self.to_string(),
+                input_type: "RadonMixed".to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),
@@ -65,7 +65,7 @@ impl Operable for RadonMixed {
 
 impl fmt::Display for RadonMixed {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RadonMixed")
+        write!(f, "RadonMixed({:?})", self.value)
     }
 }
 
