@@ -14,7 +14,7 @@ pub struct RadonFloat {
     value: f64,
 }
 
-impl<'a> RadonType<'a, f64> for RadonFloat {
+impl RadonType<f64> for RadonFloat {
     fn value(&self) -> f64 {
         self.value
     }

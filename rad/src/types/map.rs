@@ -16,7 +16,7 @@ pub struct RadonMap {
     value: HashMap<String, RadonMixed>,
 }
 
-impl<'a> RadonType<'a, HashMap<String, RadonMixed>> for RadonMap {
+impl RadonType<HashMap<String, RadonMixed>> for RadonMap {
     fn value(&self) -> HashMap<String, RadonMixed> {
         self.value.clone()
     }

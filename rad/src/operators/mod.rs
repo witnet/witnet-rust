@@ -60,7 +60,7 @@ pub fn operate(input: RadonTypes, call: &RadonCall) -> Result<RadonTypes, RadErr
     }
 }
 
-pub fn identity<'a>(input: RadonTypes) -> Result<RadonTypes, RadError> {
+pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
     Ok(input)
 }
 

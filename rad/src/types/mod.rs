@@ -19,7 +19,7 @@ pub mod map;
 pub mod mixed;
 pub mod string;
 
-pub trait RadonType<'a, T>:
+pub trait RadonType<T>:
     fmt::Display + From<T> + PartialEq + TryFrom<Value> + TryInto<Value>
 where
     T: fmt::Debug,
@@ -37,7 +37,7 @@ pub enum RadonTypes {
 }
 
 impl RadonTypes {
-    pub fn hash<'a>(self) -> Result<Hash, RadError> {
+    pub fn hash(self) -> Result<Hash, RadError> {
         self.try_into()
             .map(|vector: Vec<u8>| calculate_sha256(&*vector))
             .map(Hash::from)

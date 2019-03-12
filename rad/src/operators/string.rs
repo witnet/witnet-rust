@@ -19,7 +19,7 @@ pub fn parse_json(input: &RadonString) -> Result<RadonMixed, RadError> {
     }
 }
 
-pub fn hash(input: &RadonString, args: &'static [Value]) -> Result<RadonString, RadError> {
+pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
     let error = || RadError::WrongArguments {
         input_type: input.to_string(),
         operator: "Hash".to_string(),

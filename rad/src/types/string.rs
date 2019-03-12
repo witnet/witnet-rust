@@ -12,7 +12,7 @@ pub struct RadonString {
     value: String,
 }
 
-impl<'a> RadonType<'a, String> for RadonString {
+impl RadonType<String> for RadonString {
     fn value(&self) -> String {
         self.value.clone()
     }

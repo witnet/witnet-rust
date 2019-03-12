@@ -28,7 +28,7 @@ impl RadonArray {
     }
 }
 
-impl<'a> RadonType<'a, Vec<RadonTypes>> for RadonArray {
+impl RadonType<Vec<RadonTypes>> for RadonArray {
     fn value(&self) -> Vec<RadonTypes> {
         self.value.clone()
     }

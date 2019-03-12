@@ -12,7 +12,7 @@ pub struct RadonMixed {
     value: Value,
 }
 
-impl<'a> RadonType<'a, Value> for RadonMixed {
+impl RadonType<Value> for RadonMixed {
     fn value(&self) -> Value {
         self.value.clone()
     }
