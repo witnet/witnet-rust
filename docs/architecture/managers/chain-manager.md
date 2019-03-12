@@ -4,7 +4,7 @@ The __Chain Manager__ is the actor in charge of managing the blocks of managing
 the blocks and transactions of the Witnet blockchain received through the protocol,
 and also encapsulates the logic of the _unspent transaction outputs_.
 
-Among its responsabilities are the following:
+Among its responsibilities are the following:
 
 * Initializing the chain info upon running the node for the first time and persisting it into storage (see **Storage Manager**).
 * Recovering the chain info from storage and keeping it in its state.
@@ -39,19 +39,54 @@ The state of the actor is an instance of the [`ChainInfo`][chain] data structure
 /// ChainManager actor
 #[derive(Default)]
 pub struct ChainManager {
-    /// Blockchain information data structure
-    chain_info: Option<ChainInfo>,
-    /// Map that relates an epoch with the hashes of the blocks for that epoch
-    // One epoch can have more than one block
-    epoch_to_block_hash: HashMap<Epoch, HashSet<Hash>>,
-    /// Map that stores blocks by their hash
-    blocks: HashMap<Hash, Block>,
+    /// Blockchain state data structure
+    chain_state: ChainState,
     /// Current Epoch
     current_epoch: Option<Epoch>,
-    /// Block candidate to update chain_info in the next epoch
-    block_candidate: Option<Block>,
+    /// Transactions Pool (_mempool_)
+    transactions_pool: TransactionsPool,
+    /// Maximum weight each block can have
+    max_block_weight: u32,
+    /// Mining enabled
+    mining_enabled: bool,
+    /// Hash of the genesis block
+    genesis_block_hash: Hash,
+    /// Pool of active data requests
+    data_request_pool: DataRequestPool,
+    /// state of the state machine
+    sm_state: StateMachine,
+    /// The best beacon known to this node—to which it will try to catch up
+    target_beacon: Option<CheckpointBeacon>,
+    /// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain
+    candidates: HashMap<Hash, Block>,
 }
 ```
+
+## ChainManager State Machine
+
+ChainManager has a state machine to specify handler's actions for each state:
+
+### WaitingConsensus
+
+In this state, the node is waiting to receive a `PeersBeacons` message with the
+`CheckPointBeacon` of all its outbounds. It will decide with a consensus method
+the consensus beacon to achieve. If its `CheckPointBeacon` is the same as consensus
+, it will change to Synced, if not, it will hold the `target_beacon` and it will change
+to Synchronizing.
+
+During this state all the messages will be ignored except `AddCandidates`.
+
+### Synchronizing
+
+In this state, the node is waiting to receive an `AddBlocks` to synchronize all the
+blocks. After that, it will check if `target_beacon` is reached and change to `WaitingConsensus`,
+if not, it will send another `AnyCast<SendLastBeacon>` to continue the synchronization process.
+
+### Synced
+
+In this state, the node is fully operative. It can consolidate blocks, mine, broadcast `LastBeacon` messages
+and help other nodes synchronizing.
+
 
 ## Actor creation and registration
 
@@ -73,13 +108,12 @@ These are the messages supported by the `ChainManager` handlers:
 |-----------------------------------------|--------------------------------------|-----------------------------------------------------------|--------------------------------------------------------------------|
 | `EpochNotification<EpochPayload>`       | `Epoch`, `EpochPayload`              | `()`                                                      | The requested epoch has been reached                               |
 | `EpochNotification<EveryEpochPayload>`  | `Epoch`, `EveryEpochPayload`         | `()`                                                      | A new epoch has been reached                                       |
-| `EpochNotification<MiningNotification>` | `Epoch`, `MiningNotification`        | `()`                                                      | A new epoch has been reached, try to mine a new block              |
 | `GetHighestBlockCheckpoint`             | `()`                                 | `ChainInfoResult`                                         | Request a copy of the highest block checkpoint                     |
-| `AddNewBlock`                           | `Block`                              | `Result<(), ChainManagerError>`                           | Add a new block and announce it to other sessions                  |
+| `AddBlocks`                             | `Vec<Block>`                         | `()`                                                      | Add a vector of blocks to synchronization process                  |
+| `AddCandidates`                         | `Vec<Block>`                         | `()`                                                      | Add a vector of candidates to consolidate in chain later           |
 | `AddTransaction`                        | `Transaction`                        | `Result<(), ChainManagerError>`                           | Add a new transaction and announce it to other sessions            |
-| `GetBlock`                              | `Hash`                               | `Result<(), ChainManagerError>`                           | Ask for a block identified by its hash                             |
 | `GetBlocksEpochRange`                   | `(Bound<Epoch>, Bound<Epoch>)`       | `Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>` | Obtain a vector of epochs and block hashes using a range of epochs |
-| `DiscardExistingInventoryEntries`       | `Vec<InventoryEntries>`              | `InventoryEntriesResult`                                  | Discard inventory entries that exist in the BlocksManager          |
+| `PeersBeacons`                          | `Vec<(SocketAddr, CheckpointBeacon)>`| `Result<Vec<SocketAddr>, ()>`                             | Obtain a vector of `CheckPointBeacon` to decide a consensus block  |
 
 Where `ChainInfoResult` is just:
 
@@ -127,17 +161,17 @@ fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Se
 
 These are the messages sent by the Chain Manager:
 
-| Message                    | Destination         | Input type                                  | Output type                         | Description                                    |
-| -------------------------- | ------------------- | ------------------------------------------- | ----------------------------------- | ---------------------------------------------- |
-| `SubscribeEpoch`           | `EpochManager`      | `Epoch`, `Addr<ChainManager>, EpochPayload` | `()`                                | Subscribe to a particular epoch                |
-| `SubscribeAll`             | `EpochManager`      | `Addr<ChainManager>, EveryEpochPayload`     | `()`                                | Subscribe to all epochs                        |
-| `GetConfig`                | `ConfigManager`     | `()`                                        | `Result<Config, io::Error>`         | Request the configuration                      |
-| `Get`                      | `StorageManager`    | `&'static [u8]`                             | `StorageResult<Option<T>>`          | Wrapper to Storage `get()` method              |
-| `Put`                      | `StorageManager`    | `&'static [u8]`, `Vec<u8>`                  | `StorageResult<()>`                 | Wrapper to Storage `put()` method              |
-| `Broadcast<AnnounceItems>` | `SessionsManager`   | `Vec<InventoryEntry>`                       | `()`                                | Announce new inventory entries to the sessions |
-| `AddItem`                  | `InventoryManager`  | `InventoryItem`                             | `Result<(), InventoryManagerError>` | Persist the `best_candidate.block`             |
-| `Broadcast<SendBlock>`     | `SessionsManager`   | `Block`                                     | `()`                                | Send a new block to the sessions               |
-| `Anycast<RequestBlock>`    | `SessionsManager`   | `InventoryEntry`                            | `()`                                | Request a lost block to a random session       |
+| Message                        | Destination         | Input type                                  | Output type                         | Description                                    |
+| ------------------------------ | ------------------- | ------------------------------------------- | ----------------------------------- | ---------------------------------------------- |
+| `SubscribeEpoch`               | `EpochManager`      | `Epoch`, `Addr<ChainManager>, EpochPayload` | `()`                                | Subscribe to a particular epoch                |
+| `SubscribeAll`                 | `EpochManager`      | `Addr<ChainManager>, EveryEpochPayload`     | `()`                                | Subscribe to all epochs                        |
+| `GetConfig`                    | `ConfigManager`     | `()`                                        | `Result<Config, io::Error>`         | Request the configuration                      |
+| `Get`                          | `StorageManager`    | `&'static [u8]`                             | `StorageResult<Option<T>>`          | Wrapper to Storage `get()` method              |
+| `Put`                          | `StorageManager`    | `&'static [u8]`, `Vec<u8>`                  | `StorageResult<()>`                 | Wrapper to Storage `put()` method              |
+| `AddItem`                      | `InventoryManager`  | `InventoryItem`                             | `Result<(), InventoryManagerError>` | Persist the `best_candidate.block`             |
+| `Broadcast<SendInventoryItem>` | `SessionsManager`   | `InventoryItem`                             | `()`                                | Send a InventoryItem to all the sessions       |
+| `Anycast<SendLastBeacon>`      | `SessionsManager`   | `CheckpointBeacon`                          | `()`                                | Send a LastBeacon to a random session          |
+| `GetEpoch`                     | `EpochManager`      | `()`                                        | `EpochResult<Epoch>`                | Get the current epoch                          |
 
 #### SubscribeEpoch
 
@@ -180,15 +214,25 @@ This message is sent to the [`StorageManager`][storage_manager] actor to persist
 
 The return value is used to check if the storage process has been successful.
 
-#### Broadcast<AnnounceItems>
-
-This message is sent to the [`SessionsManager`][sessions_manager] actor which will
-broadcast a `AnnounceItems` message to the open outbound sessions.
-
 #### AddItem
 
 This message is sent to the [`InventoryManager`][inventory_manager] actor as a `InventoryItem`
 to persist the `block_candidate` state.
+
+#### Broadcast<SendInventoryItem>
+
+This message is sent to the [`SessionsManager`][sessions_manager] actor which will
+broadcast a `SendInventoryItem` message to the open sessions.
+
+#### Anycast<SendLastBeacon>
+
+This message is sent to the [`SessionsManager`][sessions_manager] actor which will
+send a `SendLastBeacon` message to a random open outbound sessions.
+
+#### GetEpoch
+
+This message is sent to the [`EpochManager`][epoch_manager] actor which will provide
+the current epoch.
 
 ## Further information
 
