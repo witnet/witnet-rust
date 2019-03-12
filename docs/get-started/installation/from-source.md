@@ -13,7 +13,7 @@ rustup default stable
 ### OpenSSL / libssl
 
 ```console tab="GNU/Linux (apt)"
-apt-get install libssl-dev
+apt install libssl-dev
 ```
 
 ```console tab="GNU/Linux (pacman)"
@@ -28,7 +28,7 @@ brew install openssl
 ### CLang compiler
 
 ```console tab="GNU/Linux (apt)"
-apt-get install clang
+apt install clang
 ```
 
 ```console tab="GNU/Linux (pacman)"
@@ -42,7 +42,7 @@ xcode-select --install
 ### Protocol Buffers compiler
 
 ```console tab="GNU/Linux (apt)"
-apt-get install protobuf-compiler
+apt install protobuf-compiler
 ```
 
 ```console tab="GNU/Linux (pacman)"
@@ -56,7 +56,7 @@ brew install protobuf
 ### Git client
 
 ```console tab="GNU/Linux (apt)"
-apt-get install git
+apt install git
 ```
 
 ```console tab="GNU/Linux (pacman)"
