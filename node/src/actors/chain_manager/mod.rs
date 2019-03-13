@@ -241,6 +241,7 @@ impl ChainManager {
         });
     }
 
+    // TODO: use proper error type with failure::Error
     fn process_requested_block(&mut self, ctx: &mut Context<Self>, block: Block) -> Result<(), ()> {
         if let (Some(current_epoch), Some(chain_info)) =
             (self.current_epoch, self.chain_state.chain_info.as_ref())
@@ -289,12 +290,6 @@ impl ChainManager {
         }
     }
 
-    fn update_transaction_pool(&mut self, transactions: &[Transaction]) {
-        for transaction in transactions {
-            self.transactions_pool.remove(&transaction.hash());
-        }
-    }
-
     fn consolidate_block(
         &mut self,
         ctx: &mut Context<Self>,
@@ -320,7 +315,7 @@ impl ChainManager {
                 self.chain_state.unspent_outputs_pool = utxo_set;
 
                 // Update TransactionPool
-                self.update_transaction_pool(block.txns.as_ref());
+                update_transaction_pool(&mut self.transactions_pool, block.txns.as_ref());
 
                 // Update DataRequestPool
                 self.data_request_pool = dr_pool;
@@ -337,7 +332,7 @@ impl ChainManager {
                 to_be_stored.into_iter().for_each(|dr| {
                     self.persist_data_request(ctx, &dr);
                     if info_flag {
-                        self.show_info_tally(dr, block_epoch);
+                        show_info_tally(&self.chain_state.unspent_outputs_pool, dr, block_epoch);
                     }
                 });
                 // FIXME: Revisit to avoid data redundancies
@@ -350,7 +345,7 @@ impl ChainManager {
                     dr_pointer_cache: self.data_request_pool.dr_pointer_cache.clone(),
                 };
                 if info_flag {
-                    self.show_info_dr(&block);
+                    show_info_dr(&self.data_request_pool, &block);
 
                     debug!("{:?}", block);
                     debug!("Mint transaction hash: {:?}", block.txns[0].hash());
@@ -368,64 +363,71 @@ impl ChainManager {
             }
         }
     }
+}
 
-    fn show_info_tally(&self, dr: (OutputPointer, DataRequestReport), block_epoch: Epoch) {
-        let tally_output_pointer = dr.1.tally;
-        let tr = self
-            .chain_state
-            .unspent_outputs_pool
-            .get(&tally_output_pointer);
-        if let Some(Output::Tally(tally_output)) = tr {
-            let result = RadonTypes::try_from(tally_output.result.as_slice())
-                .map(|x| x.to_string())
-                .unwrap_or_else(|_| "RADError".to_string());
-            info!(
-                "{} {} completed at epoch #{} with result: {}",
-                Yellow.bold().paint("[Data Request]"),
-                Yellow.bold().paint(&dr.0.to_string()),
-                Yellow.bold().paint(block_epoch.to_string()),
-                Yellow.bold().paint(result),
-            );
-        }
+// Helper methods
+fn update_transaction_pool(transactions_pool: &mut TransactionsPool, transactions: &[Transaction]) {
+    for transaction in transactions {
+        transactions_pool.remove(&transaction.hash());
     }
+}
 
-    fn show_info_dr(&self, block: &Block) {
-        let block_hash = block.hash();
-        let block_epoch = block.block_header.beacon.checkpoint;
+fn show_info_tally(
+    unspent_outputs_pool: &UnspentOutputsPool,
+    dr: (OutputPointer, DataRequestReport),
+    block_epoch: Epoch,
+) {
+    let tally_output_pointer = dr.1.tally;
+    let tr = unspent_outputs_pool.get(&tally_output_pointer);
+    if let Some(Output::Tally(tally_output)) = tr {
+        let result = RadonTypes::try_from(tally_output.result.as_slice())
+            .map(|x| x.to_string())
+            .unwrap_or_else(|_| "RADError".to_string());
+        info!(
+            "{} {} completed at epoch #{} with result: {}",
+            Yellow.bold().paint("[Data Request]"),
+            Yellow.bold().paint(&dr.0.to_string()),
+            Yellow.bold().paint(block_epoch.to_string()),
+            Yellow.bold().paint(result),
+        );
+    }
+}
 
-        let info =
-            self.data_request_pool
-                .data_request_pool
-                .iter()
-                .fold(String::new(), |acc, (k, v)| {
-                    format!(
-                        "{}\n\t* {} Stage: {}, Commits: {}, Reveals: {}",
-                        acc,
-                        White.bold().paint(k.to_string()),
-                        White.bold().paint(format!("{:?}", v.stage)),
-                        v.info.commits.len(),
-                        v.info.reveals.len()
-                    )
-                });
+fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
+    let block_hash = block.hash();
+    let block_epoch = block.block_header.beacon.checkpoint;
 
-        if info.is_empty() {
-            info!(
-                "{} Block {} consolidated for epoch #{} {}",
-                Purple.bold().paint("[Chain]"),
-                Purple.bold().paint(block_hash.to_string()),
-                Purple.bold().paint(block_epoch.to_string()),
-                White.paint("with no data requests".to_string()),
-            );
-        } else {
-            info!(
-                "{} Block {} consolidated for epoch #{}\n{}{}",
-                Purple.bold().paint("[Chain]"),
-                Purple.bold().paint(block_hash.to_string()),
-                Purple.bold().paint(block_epoch.to_string()),
-                White.bold().paint("Data Requests: "),
-                White.bold().paint(info),
-            );
-        }
+    let info = data_request_pool
+        .data_request_pool
+        .iter()
+        .fold(String::new(), |acc, (k, v)| {
+            format!(
+                "{}\n\t* {} Stage: {}, Commits: {}, Reveals: {}",
+                acc,
+                White.bold().paint(k.to_string()),
+                White.bold().paint(format!("{:?}", v.stage)),
+                v.info.commits.len(),
+                v.info.reveals.len()
+            )
+        });
+
+    if info.is_empty() {
+        info!(
+            "{} Block {} consolidated for epoch #{} {}",
+            Purple.bold().paint("[Chain]"),
+            Purple.bold().paint(block_hash.to_string()),
+            Purple.bold().paint(block_epoch.to_string()),
+            White.paint("with no data requests".to_string()),
+        );
+    } else {
+        info!(
+            "{} Block {} consolidated for epoch #{}\n{}{}",
+            Purple.bold().paint("[Chain]"),
+            Purple.bold().paint(block_hash.to_string()),
+            Purple.bold().paint(block_epoch.to_string()),
+            White.bold().paint("Data Requests: "),
+            White.bold().paint(info),
+        );
     }
 }
 
