@@ -12,6 +12,8 @@ fn mixed_discriminant() -> Discriminant<RadonTypes> {
     discriminant(&RadonTypes::from(RadonMixed::from(Value::Nil)))
 }
 
+pub const RADON_ARRAY_TYPE_NAME: &str = "RadonArray";
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadonArray {
     value: Vec<RadonTypes>,
@@ -31,6 +33,10 @@ impl RadonArray {
 impl RadonType<Vec<RadonTypes>> for RadonArray {
     fn value(&self) -> Vec<RadonTypes> {
         self.value.clone()
+    }
+
+    fn radon_type_name() -> String {
+        RADON_ARRAY_TYPE_NAME.to_string()
     }
 }
 
@@ -72,8 +78,8 @@ impl TryFrom<Value> for RadonArray {
                     .collect::<Vec<RadonTypes>>()
             })
             .ok_or_else(|| RadError::Decode {
-                from: "rmpv::Value",
-                to: "RadonTypes::Array",
+                from: "rmpv::Value".to_string(),
+                to: RADON_ARRAY_TYPE_NAME.to_string(),
             })
             .map(Self::from)
     }
@@ -93,7 +99,7 @@ impl TryInto<Value> for RadonArray {
 
 impl fmt::Display for RadonArray {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RadonArray({:?})", self.value)
+        write!(f, "{}({:?})", RADON_ARRAY_TYPE_NAME, self.value)
     }
 }
 
@@ -103,7 +109,7 @@ impl Operable for RadonArray {
             (RadonOpCodes::Identity, None) => identity(self.into()),
             (RadonOpCodes::Reduce, Some(args)) => array_operators::reduce(&self, args.as_slice()),
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: "RadonArray".to_string(),
+                input_type: RADON_ARRAY_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),

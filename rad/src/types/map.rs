@@ -11,6 +11,8 @@ use crate::script::RadonCall;
 use crate::types::RadonTypes;
 use crate::types::{mixed::RadonMixed, RadonType};
 
+pub const RADON_MAP_TYPE_NAME: &str = "RadonMap";
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadonMap {
     value: HashMap<String, RadonMixed>,
@@ -19,6 +21,10 @@ pub struct RadonMap {
 impl RadonType<HashMap<String, RadonMixed>> for RadonMap {
     fn value(&self) -> HashMap<String, RadonMixed> {
         self.value.clone()
+    }
+
+    fn radon_type_name() -> String {
+        RADON_MAP_TYPE_NAME.to_string()
     }
 }
 
@@ -52,8 +58,8 @@ impl TryFrom<Value> for RadonMap {
             .unwrap_or(None)
             .map(Self::from)
             .ok_or_else(|| RadError::Decode {
-                from: "rmpv::Value",
-                to: "RadonMap",
+                from: "rmpv::Value".to_string(),
+                to: RADON_MAP_TYPE_NAME.to_string(),
             })
     }
 }
@@ -73,7 +79,7 @@ impl TryInto<Value> for RadonMap {
 
 impl fmt::Display for RadonMap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RadonMap({:?})", self.value)
+        write!(f, "{}({:?})", RADON_MAP_TYPE_NAME, self.value)
     }
 }
 
@@ -85,7 +91,7 @@ impl Operable for RadonMap {
                 map_operators::get(&self, args.as_slice()).map(Into::into)
             }
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: "RadonMixed".to_string(),
+                input_type: RADON_MAP_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),

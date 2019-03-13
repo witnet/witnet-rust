@@ -9,6 +9,8 @@ use crate::operators::{identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
+pub const RADON_FLOAT_TYPE_NAME: &str = "RadonFloat";
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadonFloat {
     value: f64,
@@ -17,6 +19,10 @@ pub struct RadonFloat {
 impl RadonType<f64> for RadonFloat {
     fn value(&self) -> f64 {
         self.value
+    }
+
+    fn radon_type_name() -> String {
+        RADON_FLOAT_TYPE_NAME.to_string()
     }
 }
 
@@ -31,8 +37,8 @@ impl TryFrom<Value> for RadonFloat {
             _ => None,
         }
         .ok_or_else(|| RadError::Decode {
-            from: "rmpv::Value",
-            to: "RadonFloat",
+            from: "rmpv::Value".to_string(),
+            to: RADON_FLOAT_TYPE_NAME.to_string(),
         })
     }
 }
@@ -58,7 +64,7 @@ impl<'a> Operable for RadonFloat {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Float(self)),
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: "RadonFloat".to_string(),
+                input_type: RADON_FLOAT_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),
@@ -68,7 +74,7 @@ impl<'a> Operable for RadonFloat {
 
 impl fmt::Display for RadonFloat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RadonFloat({})", self.value)
+        write!(f, "{}({})", RADON_FLOAT_TYPE_NAME, self.value)
     }
 }
 

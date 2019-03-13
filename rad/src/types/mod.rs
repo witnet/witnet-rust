@@ -25,6 +25,7 @@ where
     T: fmt::Debug,
 {
     fn value(&self) -> T;
+    fn radon_type_name() -> String;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -42,6 +43,16 @@ impl RadonTypes {
             .map(|vector: Vec<u8>| calculate_sha256(&*vector))
             .map(Hash::from)
             .map_err(|_| RadError::Hash)
+    }
+
+    pub fn radon_type_name(self) -> String {
+        match self {
+            RadonTypes::Array(_) => RadonArray::radon_type_name(),
+            RadonTypes::Float(_) => RadonFloat::radon_type_name(),
+            RadonTypes::Map(_) => RadonMap::radon_type_name(),
+            RadonTypes::Mixed(_) => RadonMixed::radon_type_name(),
+            RadonTypes::String(_) => RadonString::radon_type_name(),
+        }
     }
 }
 
@@ -126,8 +137,8 @@ impl TryFrom<&[u8]> for RadonTypes {
         match radon_result {
             Ok(Ok(radon)) => Ok(radon),
             _ => Err(RadError::Decode {
-                from: "&[u8]",
-                to: "RadonType",
+                from: "&[u8]".to_string(),
+                to: "RadonType".to_string(),
             }),
         }
     }
@@ -138,15 +149,15 @@ impl TryInto<Vec<u8>> for RadonTypes {
 
     fn try_into(self) -> Result<Vec<u8>, Self::Error> {
         let mut cursor = Cursor::new(Vec::new());
-        let value_result = self.try_into();
+        let value_result = self.clone().try_into();
         let result = value_result.map(|value| encode::write_value(&mut cursor, &value));
         let vector = cursor.into_inner();
 
         match result {
             Ok(Ok(())) => Ok(vector),
             _ => Err(RadError::Decode {
-                from: "RadonType",
-                to: "Vec<u8>",
+                from: self.radon_type_name(),
+                to: "Vec<u8>".to_string(),
             }),
         }
     }

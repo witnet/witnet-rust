@@ -7,6 +7,8 @@ use rmpv::Value;
 use std::fmt;
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
+pub const RADON_STRING_TYPE_NAME: &str = "RadonString";
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadonString {
     value: String,
@@ -15,6 +17,10 @@ pub struct RadonString {
 impl RadonType<String> for RadonString {
     fn value(&self) -> String {
         self.value.clone()
+    }
+
+    fn radon_type_name() -> String {
+        RADON_STRING_TYPE_NAME.to_string()
     }
 }
 
@@ -26,8 +32,8 @@ impl TryFrom<Value> for RadonString {
             .as_str()
             .map(Self::from)
             .ok_or_else(|| RadError::Decode {
-                from: "rmpv::Value",
-                to: "RadonString",
+                from: "rmpv::Value".to_string(),
+                to: RADON_STRING_TYPE_NAME.to_string(),
             })
     }
 }
@@ -60,7 +66,7 @@ impl Operable for RadonString {
                 string_operators::parse_json(&self).map(RadonTypes::Mixed)
             }
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: "RadonString".to_string(),
+                input_type: RADON_STRING_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),
@@ -68,9 +74,9 @@ impl Operable for RadonString {
     }
 }
 
-impl<'a> fmt::Display for RadonString {
+impl fmt::Display for RadonString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, r#"RadonString("{}")"#, self.value)
+        write!(f, r#"{}("{}")"#, RADON_STRING_TYPE_NAME, self.value)
     }
 }
 

@@ -7,6 +7,8 @@ use rmpv::Value;
 use std::fmt;
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
+pub const RADON_MIXED_TYPE_NAME: &str = "RadonMixed";
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadonMixed {
     value: Value,
@@ -15,6 +17,10 @@ pub struct RadonMixed {
 impl RadonType<Value> for RadonMixed {
     fn value(&self) -> Value {
         self.value.clone()
+    }
+
+    fn radon_type_name() -> String {
+        RADON_MIXED_TYPE_NAME.to_string()
     }
 }
 
@@ -55,7 +61,7 @@ impl Operable for RadonMixed {
                 .map_err(Into::into),
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: "RadonMixed".to_string(),
+                input_type: RADON_MIXED_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),
@@ -65,7 +71,7 @@ impl Operable for RadonMixed {
 
 impl fmt::Display for RadonMixed {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RadonMixed({:?})", self.value)
+        write!(f, "{}({:?})", RADON_MIXED_TYPE_NAME, self.value)
     }
 }
 

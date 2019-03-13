@@ -8,16 +8,10 @@ use rmpv::{Integer, Value};
 pub enum RadError {
     /// Failed to decode a type from other
     #[fail(display = "Failed to decode {} from {}", to, from)]
-    Decode {
-        from: &'static str,
-        to: &'static str,
-    },
+    Decode { from: String, to: String },
     /// Failed to encode a type into other
     #[fail(display = "Failed to encode {} into {}", from, to)]
-    Encode {
-        from: &'static str,
-        to: &'static str,
-    },
+    Encode { from: String, to: String },
     /// Failed to calculate the hash of a RADON value or structure
     #[fail(display = "Failed to calculate the hash of a RADON value or structure")]
     Hash,
