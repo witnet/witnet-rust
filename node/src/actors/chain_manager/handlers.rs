@@ -96,7 +96,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 continue;
                             }
                         }
-                        chosen_candidate = validate_block(
+                        match validate_block(
                             &block_candidate,
                             current_epoch,
                             chain_info.highest_block_checkpoint,
@@ -104,9 +104,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             &self.chain_state.unspent_outputs_pool,
                             &self.transactions_pool,
                             &self.data_request_pool,
-                        )
-                        .ok()
-                        .map(|block_in_chain| (key, block_in_chain));
+                        ) {
+                            Ok(block_in_chain) => chosen_candidate = Some((key, block_in_chain)),
+                            Err(e) => debug!("{}", e),
+                        }
                     }
 
                     // Consolidate the best candidate
@@ -197,8 +198,8 @@ impl Handler<AddBlocks> for ChainManager {
                 let old_chain_state = self.chain_state.clone();
                 if let Some(target_beacon) = self.target_beacon {
                     for block in msg.blocks {
-                        if let Err(()) = self.process_requested_block(ctx, block) {
-                            warn!("Unexpected fail in process_requested_block");
+                        if let Err(e) = self.process_requested_block(ctx, block) {
+                            warn!("{}", e);
                             self.chain_state = old_chain_state;
                             break;
                         }
@@ -483,18 +484,25 @@ impl Handler<PeersBeacons> for ChainManager {
                     } else {
                         // Review candidates
                         let consensus_block_hash = beacon.hash_prev_block;
+                        // TODO: Be functional my friend
                         if let Some(consensus_block) = self.candidates.remove(&consensus_block_hash)
                         {
-                            if self.process_requested_block(ctx, consensus_block).is_ok() {
-                                StateMachine::Synced
-                            } else {
-                                // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
-                                SessionsManager::from_registry().do_send(Anycast {
-                                    command: SendLastBeacon { beacon: our_beacon },
-                                    safu: true,
-                                });
+                            match self.process_requested_block(ctx, consensus_block) {
+                                Ok(()) => {
+                                    debug!("Consolidate consensus candidate. Synced state");
+                                    StateMachine::Synced
+                                }
+                                Err(e) => {
+                                    debug!("Failed to consolidate consensus candidate: {}", e);
 
-                                StateMachine::Synchronizing
+                                    // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
+                                    SessionsManager::from_registry().do_send(Anycast {
+                                        command: SendLastBeacon { beacon: our_beacon },
+                                        safu: true,
+                                    });
+
+                                    StateMachine::Synchronizing
+                                }
                             }
                         } else {
                             // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization

@@ -45,8 +45,7 @@ use witnet_data_structures::{
     serializers::decoders::TryFrom,
     validations::{validate_block, validate_candidate},
 };
-use witnet_storage::{error::StorageError, storage::Storable};
-use witnet_util::error::WitnetError;
+use witnet_storage::storage::Storable;
 
 use crate::actors::{
     inventory_manager::InventoryManager,
@@ -56,6 +55,8 @@ use crate::actors::{
     storage_manager::StorageManager,
 };
 
+use failure::Fail;
+
 mod actor;
 mod handlers;
 mod mining;
@@ -64,20 +65,17 @@ mod mining;
 pub const MAX_BLOCKS_SYNC: usize = 500;
 
 /// Possible errors when interacting with ChainManager
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Fail)]
 pub enum ChainManagerError {
     /// A block being processed was already known to this node
+    #[fail(display = "A block being processed was already known to this node")]
     BlockAlreadyExists,
     /// A block does not exist
+    #[fail(display = "A block does not exist")]
     BlockDoesNotExist,
     /// StorageError
-    StorageError(WitnetError<StorageError>),
-}
-
-impl From<WitnetError<StorageError>> for ChainManagerError {
-    fn from(x: WitnetError<StorageError>) -> Self {
-        ChainManagerError::StorageError(x)
-    }
+    #[fail(display = "ChainManager is not ready yet")]
+    ChainNotReady,
 }
 
 /// State Machine
@@ -241,14 +239,17 @@ impl ChainManager {
         });
     }
 
-    // TODO: use proper error type with failure::Error
-    fn process_requested_block(&mut self, ctx: &mut Context<Self>, block: Block) -> Result<(), ()> {
+    fn process_requested_block(
+        &mut self,
+        ctx: &mut Context<Self>,
+        block: Block,
+    ) -> Result<(), failure::Error> {
         if let (Some(current_epoch), Some(chain_info)) =
             (self.current_epoch, self.chain_state.chain_info.as_ref())
         {
             let chain_beacon = chain_info.highest_block_checkpoint;
 
-            if let Ok(block_in_chain) = validate_block(
+            match validate_block(
                 &block,
                 current_epoch,
                 chain_beacon,
@@ -257,21 +258,22 @@ impl ChainManager {
                 &self.transactions_pool,
                 &self.data_request_pool,
             ) {
-                // Persist block and update ChainState
-                self.consolidate_block(
-                    ctx,
-                    block_in_chain.block,
-                    block_in_chain.utxo_set,
-                    block_in_chain.data_request_pool,
-                    false,
-                );
+                Ok(block_in_chain) => {
+                    // Persist block and update ChainState
+                    self.consolidate_block(
+                        ctx,
+                        block_in_chain.block,
+                        block_in_chain.utxo_set,
+                        block_in_chain.data_request_pool,
+                        false,
+                    );
 
-                Ok(())
-            } else {
-                Err(())
+                    Ok(())
+                }
+                Err(e) => Err(e),
             }
         } else {
-            Err(())
+            Err(ChainManagerError::ChainNotReady)?
         }
     }
 
@@ -279,11 +281,14 @@ impl ChainManager {
         if let Some(current_epoch) = self.current_epoch {
             let hash_block = block.hash();
 
-            if !self.candidates.contains_key(&hash_block)
-                && validate_candidate(&block, current_epoch).is_ok()
-            {
-                self.candidates.insert(hash_block, block.clone());
-                self.broadcast_item(InventoryItem::Block(block));
+            if !self.candidates.contains_key(&hash_block) {
+                match validate_candidate(&block, current_epoch) {
+                    Ok(()) => {
+                        self.candidates.insert(hash_block, block.clone());
+                        self.broadcast_item(InventoryItem::Block(block));
+                    }
+                    Err(e) => warn!("{}", e),
+                }
             }
         } else {
             warn!("ChainManager doesn't have current epoch");
