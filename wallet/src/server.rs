@@ -532,7 +532,7 @@ impl Handler<Greeting> for HiActor {
         format!("Hi, {}!", msg.name)
     }
 }
-
+/// poc
 pub fn websockets_actix_poc() {
     // Actix
     let system = System::new("wallet");

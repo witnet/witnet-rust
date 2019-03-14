@@ -41,6 +41,7 @@ impl Mnemonic {
 pub struct Seed(bip39::Seed);
 
 impl Seed {
+    /// serialize a seed
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
@@ -64,16 +65,22 @@ impl AsRef<[u8]> for Seed {
 /// * `256 bits` generates `24 words` mnemonic
 #[derive(Debug, PartialEq)]
 pub enum Length {
+    /// 12 words length
     Words12,
+    /// 15 words length
     Words15,
+    /// 18 words length
     Words18,
+    /// 21 words length
     Words21,
+    /// 24 words length
     Words24,
 }
 
 /// The language in which Mnemonics are generated
 #[derive(Debug, PartialEq)]
 pub enum Lang {
+    /// English language
     English,
 }
 

@@ -21,12 +21,6 @@ const HARDENED_BIT: u32 = 1 << 31;
 /// [generate_master](generate_master)
 pub static DEFAULT_HMAC_KEY: &[u8] = b"Bitcoin seed";
 
-/// secp256k1 Secret Key with Chain Code
-// pub type ExtendedSK = ExtendedKey<SecretKey>;
-
-/// secp256k1 Public Key with Chain Code
-// pub type ExtendedPK = ExtendedKey<secp256k1::PublicKey>;
-
 /// The error type for [generate_master](generate_master)
 #[derive(Debug, PartialEq, Fail)]
 pub enum MasterKeyGenError {
@@ -90,7 +84,7 @@ where
         })
     }
 }
-
+/// Error returned trying to derivate a key
 #[derive(Debug, PartialEq, Fail)]
 pub enum KeyDerivationError {
     /// Invalid hmac key length
@@ -99,15 +93,17 @@ pub enum KeyDerivationError {
     /// Invalid seed length
     #[fail(display = "The length of the seed is invalid, must be between 128/256 bits")]
     InvalidSeedLength,
-
+    /// Secp256k1 internal error
     #[fail(display = "Error in secp256k1 crate")]
-    Secp256k1Error,
+    Secp256k1Error(secp256k1::Error),
 }
 
 /// Extended Key is just a Key with a Chain Code
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ExtendedSK {
+    /// Secret key
     pub secret_key: SecretKey,
+    /// Chain code
     pub chain_code: [u8; 32],
 }
 
@@ -116,14 +112,12 @@ pub struct ExtendedSK {
 pub struct ChildNumber(u32);
 
 impl ChildNumber {
+    /// check if a child is hardened
     pub fn is_hardened(&self) -> bool {
         self.0 & HARDENED_BIT == HARDENED_BIT
     }
 
-    pub fn is_normal(&self) -> bool {
-        self.0 & HARDENED_BIT == 0
-    }
-
+    /// Serialize a child
     pub fn to_bytes(&self) -> [u8; 4] {
         self.0.to_be_bytes()
     }
@@ -133,19 +127,9 @@ impl ExtendedSK {
     /// Try to derive an extended private key from a given path
     pub fn derive(seed: &[u8], path: Vec<ChildNumber>) -> Result<ExtendedSK, KeyDerivationError> {
         let key_bytes = DEFAULT_HMAC_KEY.as_ref();
-        let mut hmac512 = Hmac::<sha2::Sha512>::new_varkey(key_bytes)
+        let hmac512 = Hmac::<sha2::Sha512>::new_varkey(key_bytes)
             .map_err(|_| KeyDerivationError::InvalidKeyLength)?;
-        hmac512.input(seed);
-
-        let i = hmac512.result().code();
-        let (il, ir) = i.split_at(32);
-        let chain_code: [u8; 32] = {
-            let mut array: [u8; 32] = [0; 32];
-            array.copy_from_slice(&ir);
-            array
-        };
-        let secret_key =
-            SecretKey::from_slice(&il).map_err(|_| KeyDerivationError::Secp256k1Error)?;
+        let (chain_code, secret_key) = get_chain_code_and_secret(seed, hmac512)?;
 
         let mut extended_sk = ExtendedSK {
             secret_key,
@@ -158,7 +142,7 @@ impl ExtendedSK {
 
         Ok(extended_sk)
     }
-
+    /// get the secret
     pub fn secret(&self) -> [u8; 32] {
         let mut secret: [u8; 32] = [0; 32];
         secret.copy_from_slice(&self.secret_key[..]);
@@ -179,26 +163,36 @@ impl ExtendedSK {
                     .serialize(),
             );
         }
-        hmac512.input(&child.to_bytes());
-        let i = hmac512.result().code();
-        let (il, ir) = i.split_at(32);
-        let chain_code: [u8; 32] = {
-            let mut array: [u8; 32] = [0; 32];
-            array.copy_from_slice(&ir);
-            array
-        };
 
-        let mut secret_key =
-            SecretKey::from_slice(&il).map_err(|_| KeyDerivationError::Secp256k1Error)?;
+        let (chain_code, mut secret_key) = get_chain_code_and_secret(&child.to_bytes(), hmac512)?;
+
         secret_key
             .add_assign(&self.secret_key[..])
-            .map_err(|_| KeyDerivationError::Secp256k1Error)?;
+            .map_err(|err| KeyDerivationError::Secp256k1Error(err))?;
 
         Ok(ExtendedSK {
             secret_key,
             chain_code,
         })
     }
+}
+
+fn get_chain_code_and_secret(
+    seed: &[u8],
+    mut hmac512: Hmac<sha2::Sha512>,
+) -> Result<([u8; 32], SecretKey), KeyDerivationError> {
+    hmac512.input(seed);
+    let i = hmac512.result().code();
+    let (il, ir) = i.split_at(32);
+    let chain_code: [u8; 32] = {
+        let mut array: [u8; 32] = [0; 32];
+        array.copy_from_slice(&ir);
+        array
+    };
+    let secret_key =
+        SecretKey::from_slice(&il).map_err(|err| KeyDerivationError::Secp256k1Error(err))?;
+
+    Ok((chain_code, secret_key))
 }
 
 #[cfg(test)]

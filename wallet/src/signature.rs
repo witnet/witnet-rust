@@ -1,11 +1,13 @@
-use secp256k1::{Error, Message, PublicKey, Secp256k1, SecretKey, Signature};
+//! Signature module
 
+use secp256k1::{Error, Message, PublicKey, Secp256k1, SecretKey, Signature};
+/// Sign data with provided secret key
 pub fn sign(secret_key: SecretKey, data: &[u8]) -> Signature {
     let msg = Message::from_slice(data).unwrap();
     let secp = Secp256k1::new();
     secp.sign(&msg, &secret_key)
 }
-
+/// Verify signature with a provided public key
 pub fn verify(public_key: PublicKey, data: &[u8], sig: Signature) -> Result<(), Error> {
     let msg = Message::from_slice(data).unwrap();
     let secp = Secp256k1::new();
