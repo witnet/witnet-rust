@@ -104,7 +104,7 @@ fn send_data_request(
         Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let x = RadonValue {};
+    let x = Transaction {};
     Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
         let mut err = jsonrpc_ws_server::jsonrpc_core::Error::internal_error();
         err.message = e.to_string();
@@ -194,9 +194,14 @@ fn create_data_request(
 #[derive(Serialize)]
 struct Address {}
 
+#[derive(Debug, Deserialize)]
+struct GenerateAddressParams {
+    wallet_id: String,
+}
+
 fn generate_address(
     _registry: &SystemRegistry,
-    params: jsonrpc_ws_server::jsonrpc_core::Result<()>,
+    params: jsonrpc_ws_server::jsonrpc_core::Result<GenerateAddressParams>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
     match params {
         Ok(x) => x,
