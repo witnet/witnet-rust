@@ -2647,6 +2647,7 @@ dependencies = [
  "witnet_rad 0.1.2",
  "witnet_storage 0.1.2",
  "witnet_util 0.1.2",
+ "witnet_wallet 0.1.2",
 ]
 
 [[package]]
