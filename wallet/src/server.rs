@@ -198,7 +198,7 @@ fn generate_address(
     _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<()>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let _params = match params {
+    match params {
         Ok(x) => x,
         Err(e) => return Box::new(futures::failed(e)),
     };
@@ -308,7 +308,7 @@ impl Wallet {
             },
             seed: SeedInfo::Wip3(Seed(vec![])),
             epochs: EpochsInfo { last: 0, born: 0 },
-            purpose: DerivationPath(format!("m/44'/60'/0'/0")),
+            purpose: DerivationPath("m/44'/60'/0'/0".to_string()),
             accounts: vec![],
         }
     }
@@ -346,9 +346,9 @@ struct ChildNumber(u32);
 
 #[derive(Debug, Deserialize, Serialize)]
 enum KeyChain {
-    ExternalKeyChain,
-    InternalKeyChain,
-    RadKeyChain,
+    External,
+    Internal,
+    Rad,
 }
 
 #[derive(Debug, Deserialize)]
@@ -406,7 +406,7 @@ fn create_mnemonics(
     _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<()>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let _params = match params {
+    match params {
         Ok(x) => x,
         Err(e) => return Box::new(futures::failed(e)),
     };
@@ -429,7 +429,7 @@ fn get_wallet_infos(
     _registry: &SystemRegistry,
     params: jsonrpc_ws_server::jsonrpc_core::Result<()>,
 ) -> impl Future<Item = Value, Error = jsonrpc_ws_server::jsonrpc_core::Error> {
-    let _params = match params {
+    match params {
         Ok(x) => x,
         Err(e) => return Box::new(futures::failed(e)),
     };
@@ -482,7 +482,7 @@ fn say_hello(
     registry
         .get::<HiActor>()
         .send(Greeting {
-            name: params.map(|x| x.name).unwrap_or("Anon".into()),
+            name: params.map(|x| x.name).unwrap_or_else(|_| "Anon".into()),
         })
         .then(|x| match x {
             Err(e) => {

@@ -97,6 +97,11 @@ pub struct MnemonicGen {
     len: Length,
     lang: Lang,
 }
+impl Default for MnemonicGen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl MnemonicGen {
     /// Create a new BIP39 Mnemonic generator

@@ -66,7 +66,7 @@ where
             Err(MasterKeyGenError::InvalidSeedLength)?
         }
 
-        let key_bytes = self.key.as_ref();
+        let key_bytes = self.key;
         let mut mac = Hmac::<sha2::Sha512>::new_varkey(key_bytes)
             .map_err(|_| MasterKeyGenError::InvalidKeyLength)?;
         mac.input(seed_bytes);
@@ -113,12 +113,12 @@ pub struct ChildNumber(u32);
 
 impl ChildNumber {
     /// check if a child is hardened
-    pub fn is_hardened(&self) -> bool {
+    pub fn is_hardened(self) -> bool {
         self.0 & HARDENED_BIT == HARDENED_BIT
     }
 
     /// Serialize a child
-    pub fn to_bytes(&self) -> [u8; 4] {
+    pub fn to_bytes(self) -> [u8; 4] {
         self.0.to_be_bytes()
     }
 }
@@ -126,7 +126,7 @@ impl ChildNumber {
 impl ExtendedSK {
     /// Try to derive an extended private key from a given path
     pub fn derive(seed: &[u8], path: Vec<ChildNumber>) -> Result<ExtendedSK, KeyDerivationError> {
-        let key_bytes = DEFAULT_HMAC_KEY.as_ref();
+        let key_bytes = DEFAULT_HMAC_KEY;
         let hmac512 = Hmac::<sha2::Sha512>::new_varkey(key_bytes)
             .map_err(|_| KeyDerivationError::InvalidKeyLength)?;
         let (chain_code, secret_key) = get_chain_code_and_secret(seed, hmac512)?;
@@ -168,7 +168,7 @@ impl ExtendedSK {
 
         secret_key
             .add_assign(&self.secret_key[..])
-            .map_err(|err| KeyDerivationError::Secp256k1Error(err))?;
+            .map_err(KeyDerivationError::Secp256k1Error)?;
 
         Ok(ExtendedSK {
             secret_key,
@@ -189,8 +189,7 @@ fn get_chain_code_and_secret(
         array.copy_from_slice(&ir);
         array
     };
-    let secret_key =
-        SecretKey::from_slice(&il).map_err(|err| KeyDerivationError::Secp256k1Error(err))?;
+    let secret_key = SecretKey::from_slice(&il).map_err(KeyDerivationError::Secp256k1Error)?;
 
     Ok((chain_code, secret_key))
 }
