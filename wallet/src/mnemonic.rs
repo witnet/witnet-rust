@@ -15,6 +15,7 @@
 //! let seed = mnemonic.seed(passphrase);
 //! ```
 use bip39;
+use failure::Error;
 
 /// BIP39 Mnemonic
 pub struct Mnemonic(bip39::Mnemonic);
@@ -28,6 +29,11 @@ impl Mnemonic {
     /// Get the binary seed used for generating a master secret key
     pub fn seed<'a, S: Into<&'a str>>(&self, passphrase: S) -> Seed {
         Seed(bip39::Seed::new(&self.0, passphrase.into()))
+    }
+
+    /// Get a mnemonic from a existing pharse
+    pub fn from_phrase(phrase: String, language: Lang) -> Result<Mnemonic, Error> {
+        bip39::Mnemonic::from_phrase(phrase, language.into()).map(Mnemonic)
     }
 }
 
@@ -69,6 +75,14 @@ pub enum Length {
 #[derive(Debug, PartialEq)]
 pub enum Lang {
     English,
+}
+
+impl Into<bip39::Language> for Lang {
+    fn into(self) -> bip39::Language {
+        match self {
+            Lang::English => bip39::Language::English,
+        }
+    }
 }
 
 /// BIP39 Mnemonic generator
