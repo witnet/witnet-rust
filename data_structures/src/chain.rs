@@ -352,6 +352,17 @@ pub enum TransactionError {
     OutputNotFound(OutputPointer),
 }
 
+/// Transaction tags for validation process
+pub enum TransactionType {
+    InvalidType,
+    ValueTransfer,
+    DataRequest,
+    Commit,
+    Reveal,
+    Tally,
+    Mint,
+}
+
 impl Transaction {
     /// Creates a new transaction from inputs and outputs.
     // TODO: Transaction::new is missing the signatures which depend

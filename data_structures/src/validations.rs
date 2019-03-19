@@ -5,7 +5,7 @@ use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree
 use super::{
     chain::{
         Block, BlockInChain, CheckpointBeacon, DataRequestOutput, Epoch, Hash, Hashable, Input,
-        Output, OutputPointer, Transaction, TransactionsPool, UnspentOutputsPool,
+        Output, OutputPointer, Transaction, TransactionType, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
 };
@@ -150,6 +150,24 @@ pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> Result<(), fai
         Err(BlockValidationError::CandidateFromDifferentEpoch)?
     } else {
         Ok(())
+    }
+}
+
+/// Function to assign tags to transactions
+pub fn transaction_tag(tx: &Transaction) -> TransactionType {
+    match tx.outputs.last() {
+        Some(Output::DataRequest(_)) => TransactionType::DataRequest,
+        Some(Output::ValueTransfer(_)) => {
+            if tx.inputs.is_empty() {
+                TransactionType::Mint
+            } else {
+                TransactionType::ValueTransfer
+            }
+        }
+        Some(Output::Commit(_)) => TransactionType::Commit,
+        Some(Output::Reveal(_)) => TransactionType::Reveal,
+        Some(Output::Tally(_)) => TransactionType::Tally,
+        None => TransactionType::InvalidType,
     }
 }
 
