@@ -98,11 +98,14 @@ pub enum KeyDerivationError {
     Secp256k1Error(secp256k1::Error),
 }
 
+/// Secret Key
+pub type SK = SecretKey;
+
 /// Extended Key is just a Key with a Chain Code
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ExtendedSK {
     /// Secret key
-    pub secret_key: SecretKey,
+    pub secret_key: SK,
     /// Chain code
     pub chain_code: [u8; 32],
 }

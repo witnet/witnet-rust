@@ -180,10 +180,9 @@ pub struct BlockInChain {
     pub data_request_pool: DataRequestPool,
 }
 
-/// Any reference to a Hashable type is also Hashable
-impl<'a, T: Hashable> Hashable for &'a T {
+impl<T: AsRef<[u8]>> Hashable for T {
     fn hash(&self) -> Hash {
-        (*self).hash()
+        calculate_sha256(self.as_ref()).into()
     }
 }
 
