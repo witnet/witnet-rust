@@ -12,7 +12,7 @@ use super::{
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
 /// found in `pool`, then an error is returned instead indicating
-/// it.
+/// it. If a Signature is invalid an error is returned too
 pub fn transaction_inputs_sum(
     tx: &Transaction,
     pool: &UnspentOutputsPool,
@@ -25,6 +25,8 @@ pub fn transaction_inputs_sum(
             .ok_or_else(|| TransactionError::OutputNotFound(input.output_pointer()))?
             .value();
         total_value += pointed_value;
+
+        // TODO(#526): Validate signatures -> TransactionError::InvalidSignature
     }
 
     Ok(total_value)
@@ -61,8 +63,8 @@ pub fn transaction_is_mint(tx: &Transaction) -> bool {
 
 /// Function to validate a transaction
 pub fn validate_transaction(
-    _transaction: &Transaction,
-    _utxo_set: &UnspentOutputsPool,
+    transaction: &Transaction,
+    utxo_set: &UnspentOutputsPool,
 ) -> Result<(), failure::Error> {
 
     let _fee = transaction_fee(transaction, utxo_set)?;
@@ -91,7 +93,7 @@ pub fn validate_transactions(
     // TODO: replace for loop with a try_fold
     for transaction in &transactions {
         match validate_transaction(&transaction, &mut utxo_set) {
-            Ok(()) => {
+            Ok(_) => {
                 let txn_hash = transaction.hash();
 
                 for input in &transaction.inputs {

@@ -327,6 +327,8 @@ pub enum TransactionError {
     /// An output with the given index wasn't found in a transaction.
     #[fail(display = "Output not found: {}", 0)]
     OutputNotFound(OutputPointer),
+    #[fail(display = "The transaction signature is invalid")]
+    InvalidSignature,
 }
 
 /// Transaction tags for validation process
