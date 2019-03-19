@@ -129,46 +129,21 @@ pub enum BlockError {
     /// and the output value of the rest of the transactions, plus the
     /// block reward, don't add up
     #[fail(
-        display = "The value of the mint transaction does not match the fess + reward of the blok"
+        display = "The value of the mint transaction does not match the fess + reward of the block"
     )]
     MismatchedMintValue,
-}
-
-impl Block {
-    /// Check if the block is valid.
-    ///
-    /// The conditions for a block being valid are:
-    /// * First transaction is a mint transaction
-    /// * Rest of transactions in the block are valid and are not mint
-    /// * The output of the mint transaction must be equal to the sum
-    /// of the fees of the rest of the transactions in the block plus
-    /// the block reward
-    pub fn validate(
-        &self,
-        block_reward: u64,
-        pool: &UnspentOutputsPool,
-    ) -> Result<(), failure::Error> {
-        let mint_transaction = self.txns.first().ok_or_else(|| BlockError::Empty)?;
-
-        if !mint_transaction.is_mint() {
-            Err(BlockError::NoMint)?
-        }
-
-        let mut total_fees = 0;
-        for transaction in self.txns.iter().skip(1) {
-            if transaction.is_mint() {
-                Err(BlockError::MultipleMint)?;
-            }
-            total_fees += transaction.fee(pool)?;
-        }
-
-        let mint_fee = mint_transaction.outputs_sum();
-        if mint_fee != total_fees + block_reward {
-            Err(BlockError::MismatchedMintValue)?
-        }
-
-        Ok(())
-    }
+    #[fail(display = "The block has an invalid PoE")]
+    NotValidPoe,
+    #[fail(display = "The block has an invalid Merkle Tree")]
+    NotValidMerkleTree,
+    #[fail(display = "Block epoch from the future")]
+    BlockFromFuture,
+    #[fail(display = "Ignoring block older than highest block checkpoint")]
+    BlockOlderThanTip,
+    #[fail(display = "Ignoring block because previous hash is unknown")]
+    PreviousHashNotKnown,
+    #[fail(display = "Candidate epoch different from current epoch")]
+    CandidateFromDifferentEpoch,
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
@@ -339,8 +314,10 @@ pub struct Transaction {
 }
 
 /// The error type for operations on a [`Transaction`](Transaction)
-#[derive(Debug, Fail)]
+#[derive(Debug, PartialEq, Fail)]
 pub enum TransactionError {
+    #[fail(display = "The transaction is invalid")]
+    NotValidTransaction,
     /// The transaction creates value
     #[fail(display = "Transaction creates value (its fee is negative)")]
     NegativeFee,
@@ -388,64 +365,14 @@ impl Transaction {
             signatures,
         }
     }
-
-    /// Return the value of the output with index `index`.
-    pub fn get_output_value(&self, index: usize) -> Option<u64> {
-        self.outputs.get(index).map(Output::value)
-    }
-
-    /// Calculate the sum of the values of the outputs pointed by the
-    /// inputs of a transaction. If an input pointed-output is not
-    /// found in `pool`, then an error is returned instead indicating
-    /// it.
-    pub fn inputs_sum(&self, pool: &UnspentOutputsPool) -> Result<u64, TransactionError> {
-        let mut total_value = 0;
-
-        for input in &self.inputs {
-            let pointed_value = pool
-                .get(&input.output_pointer())
-                .ok_or_else(|| TransactionError::OutputNotFound(input.output_pointer()))?
-                .value();
-            total_value += pointed_value;
-        }
-
-        Ok(total_value)
-    }
-
-    /// Calculate the sum of the values of the outputs of a transaction.
-    pub fn outputs_sum(&self) -> u64 {
-        self.outputs.iter().map(Output::value).sum()
-    }
-
     /// Returns the size a transaction will have on the wire in bytes
     pub fn size(&self) -> u32 {
         self.to_pb().write_to_bytes().unwrap().len() as u32
     }
 
-    /// Returns `true` if the transaction classifies as a _mint
-    /// transaction_.  A mint transaction is one that has no inputs,
-    /// only outputs, thus, is allowed to create new wits.
-    pub fn is_mint(&self) -> bool {
-        self.inputs.is_empty()
-    }
-
-    /// Returns the fee of a transaction.
-    ///
-    /// The fee is the difference between the outputs and the inputs
-    /// of the transaction. The pool parameter is used to find the
-    /// outputs pointed by the inputs and that contain the actual
-    /// their value.
-    pub fn fee(&self, pool: &UnspentOutputsPool) -> Result<u64, TransactionError> {
-        let in_value = self.inputs_sum(pool)?;
-        let out_value = self.outputs_sum();
-
-        if self.is_mint() {
-            Ok(out_value)
-        } else if out_value > in_value {
-            Err(TransactionError::NegativeFee)?
-        } else {
-            Ok(in_value - out_value)
-        }
+    /// Return the value of the output with index `index`.
+    pub fn get_output_value(&self, index: usize) -> Option<u64> {
+        self.outputs.get(index).map(Output::value)
     }
 }
 

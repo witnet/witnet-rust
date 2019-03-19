@@ -1,30 +1,74 @@
-use std::collections::HashMap;
-
 use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree_root};
 
 use super::{
     chain::{
-        Block, BlockInChain, CheckpointBeacon, DataRequestOutput, Epoch, Hash, Hashable, Input,
-        Output, OutputPointer, Transaction, TransactionType, TransactionsPool, UnspentOutputsPool,
+        Block, BlockError, BlockInChain, CheckpointBeacon, DataRequestOutput, Epoch, Hash,
+        Hashable, Input, Output, OutputPointer, Transaction, TransactionError, TransactionType,
+        TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
 };
 
-use failure::Fail;
+/// Calculate the sum of the values of the outputs pointed by the
+/// inputs of a transaction. If an input pointed-output is not
+/// found in `pool`, then an error is returned instead indicating
+/// it.
+pub fn transaction_inputs_sum(
+    tx: &Transaction,
+    pool: &UnspentOutputsPool,
+) -> Result<u64, failure::Error> {
+    let mut total_value = 0;
 
-//TODO: Complete Transaction validation error
-#[derive(Debug, PartialEq, Fail)]
-pub enum TransactionValidationError {
-    #[fail(display = "The transaction is not valid")]
-    NotValidTransaction,
+    for input in &tx.inputs {
+        let pointed_value = pool
+            .get(&input.output_pointer())
+            .ok_or_else(|| TransactionError::OutputNotFound(input.output_pointer()))?
+            .value();
+        total_value += pointed_value;
+    }
+
+    Ok(total_value)
 }
+
+/// Calculate the sum of the values of the outputs of a transaction.
+pub fn transaction_outputs_sum(tx: &Transaction) -> u64 {
+    tx.outputs.iter().map(Output::value).sum()
+}
+
+/// Returns the fee of a transaction.
+///
+/// The fee is the difference between the outputs and the inputs
+/// of the transaction. The pool parameter is used to find the
+/// outputs pointed by the inputs and that contain the actual
+/// their value.
+pub fn transaction_fee(tx: &Transaction, pool: &UnspentOutputsPool) -> Result<u64, failure::Error> {
+    let in_value = transaction_inputs_sum(tx, pool)?;
+    let out_value = transaction_outputs_sum(tx);
+
+    if out_value > in_value {
+        Err(TransactionError::NegativeFee)?
+    } else {
+        Ok(in_value - out_value)
+    }
+}
+
+/// Returns `true` if the transaction classifies as a _mint
+/// transaction_.  A mint transaction is one that has no inputs,
+/// only outputs, thus, is allowed to create new wits.
+pub fn transaction_is_mint(tx: &Transaction) -> bool {
+    tx.inputs.is_empty()
+}
+
 /// Function to validate a transaction
-pub fn validate_transaction<S: ::std::hash::BuildHasher>(
+pub fn validate_transaction(
     _transaction: &Transaction,
-    _utxo_set: &mut HashMap<OutputPointer, Output, S>,
-) -> bool {
-    //TODO Implement validate transaction properly
-    true
+    _utxo_set: &UnspentOutputsPool,
+) -> Result<(), failure::Error> {
+
+    let _fee = transaction_fee(transaction, utxo_set)?;
+    // TODO(#519) Validate any kind of transaction
+
+    Ok(())
 }
 
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
@@ -46,40 +90,41 @@ pub fn validate_transactions(
 
     // TODO: replace for loop with a try_fold
     for transaction in &transactions {
-        if validate_transaction(&transaction, &mut utxo_set) {
-            let txn_hash = transaction.hash();
+        match validate_transaction(&transaction, &mut utxo_set) {
+            Ok(()) => {
+                let txn_hash = transaction.hash();
 
-            for input in &transaction.inputs {
-                // Obtain the OuputPointer of each input and remove it from the utxo_set
-                let output_pointer = input.output_pointer();
-                match input {
-                    Input::DataRequest(..) => {
-                        remove_later.push(output_pointer);
-                    }
-                    _ => {
-                        utxo_set.remove(&output_pointer);
+                for input in &transaction.inputs {
+                    // Obtain the OuputPointer of each input and remove it from the utxo_set
+                    let output_pointer = input.output_pointer();
+                    match input {
+                        Input::DataRequest(..) => {
+                            remove_later.push(output_pointer);
+                        }
+                        _ => {
+                            utxo_set.remove(&output_pointer);
+                        }
                     }
                 }
+
+                for (index, output) in transaction.outputs.iter().enumerate() {
+                    // Add the new outputs to the utxo_set
+                    let output_pointer = OutputPointer {
+                        transaction_id: txn_hash,
+                        output_index: index as u32,
+                    };
+
+                    utxo_set.insert(output_pointer, output.clone());
+                }
+
+                // Add DataRequests from the block into the data_request_pool
+                data_request_pool.process_transaction(
+                    transaction,
+                    block.block_header.beacon.checkpoint,
+                    &block.hash(),
+                );
             }
-
-            for (index, output) in transaction.outputs.iter().enumerate() {
-                // Add the new outputs to the utxo_set
-                let output_pointer = OutputPointer {
-                    transaction_id: txn_hash,
-                    output_index: index as u32,
-                };
-
-                utxo_set.insert(output_pointer, output.clone());
-            }
-
-            // Add DataRequests from the block into the data_request_pool
-            data_request_pool.process_transaction(
-                transaction,
-                block.block_header.beacon.checkpoint,
-                &block.hash(),
-            );
-        } else {
-            Err(TransactionValidationError::NotValidTransaction)?
+            Err(e) => Err(e)?,
         }
     }
 
@@ -92,22 +137,6 @@ pub fn validate_transactions(
         utxo_set,
         data_request_pool,
     })
-}
-
-#[derive(Debug, PartialEq, Fail)]
-pub enum BlockValidationError {
-    #[fail(display = "The block has an invalid PoE")]
-    NotValidPoe,
-    #[fail(display = "The block has an invalid Merkle Tree")]
-    NotValidMerkleTree,
-    #[fail(display = "Block epoch from the future")]
-    BlockFromFuture,
-    #[fail(display = "Ignoring block older than highest block checkpoint")]
-    BlockOlderThanTip,
-    #[fail(display = "Ignoring block because previous hash is unknown")]
-    PreviousHashNotKnown,
-    #[fail(display = "Candidate epoch different from current epoch")]
-    CandidateFromDifferentEpoch,
 }
 
 /// Function to validate a block
@@ -124,17 +153,17 @@ pub fn validate_block(
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
 
     if !verify_poe_block() {
-        Err(BlockValidationError::NotValidPoe)?
+        Err(BlockError::NotValidPoe)?
     } else if !validate_merkle_tree(&block) {
-        Err(BlockValidationError::NotValidMerkleTree)?
+        Err(BlockError::NotValidMerkleTree)?
     } else if block_epoch > current_epoch {
-        Err(BlockValidationError::BlockFromFuture)?
+        Err(BlockError::BlockFromFuture)?
     } else if chain_beacon.checkpoint > block_epoch {
-        Err(BlockValidationError::BlockOlderThanTip)?
+        Err(BlockError::BlockOlderThanTip)?
     } else if hash_prev_block != genesis_block_hash
         && chain_beacon.hash_prev_block != hash_prev_block
     {
-        Err(BlockValidationError::PreviousHashNotKnown)?
+        Err(BlockError::PreviousHashNotKnown)?
     } else {
         validate_transactions(&utxo_set, &txn_pool, &data_request_pool, &block)
     }
@@ -145,9 +174,9 @@ pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> Result<(), fai
     let block_epoch = block.block_header.beacon.checkpoint;
 
     if !verify_poe_block() {
-        Err(BlockValidationError::NotValidPoe)?
+        Err(BlockError::NotValidPoe)?
     } else if block_epoch != current_epoch {
-        Err(BlockValidationError::CandidateFromDifferentEpoch)?
+        Err(BlockError::CandidateFromDifferentEpoch)?
     } else {
         Ok(())
     }

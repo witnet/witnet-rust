@@ -24,7 +24,7 @@ use witnet_data_structures::{
     },
     data_request::{create_tally, create_vt_tally},
     serializers::decoders::TryFrom,
-    validations::{block_reward, merkle_tree_root, verify_poe_data_request},
+    validations::{block_reward, merkle_tree_root, transaction_fee, verify_poe_data_request},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_storage::storage::Storable;
@@ -313,7 +313,7 @@ fn build_block(
         debug!("Pushing transaction into block: {:?}", transaction);
         // Currently, 1 weight unit is equivalent to 1 byte
         let transaction_weight = transaction.size();
-        let transaction_fee = match transaction.fee(unspent_outputs_pool) {
+        let transaction_fee = match transaction_fee(&transaction, unspent_outputs_pool) {
             Ok(x) => x,
             Err(e) => {
                 debug!(
