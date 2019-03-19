@@ -1,12 +1,13 @@
 #[cfg(test)]
 use self::mock_actix::System;
 use crate::actors::{
-    chain_manager::ChainManager,
-    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange},
+    chain_manager::{ChainManager, ChainManagerError},
+    epoch_manager::EpochManager,
+    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange, GetEpoch},
 };
 #[cfg(not(test))]
 use actix::System;
-use actix::SystemService;
+use actix::{MailboxError, SystemService};
 use jsonrpc_core::{futures, futures::Future, IoHandler, Params, Value};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use witnet_data_structures::chain::{Block, InventoryEntry, Transaction};
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
-//type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
+type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
 
 /// Define the JSON-RPC interface:
 /// All the methods available through JSON-RPC
@@ -22,7 +23,9 @@ pub fn jsonrpc_io_handler() -> IoHandler<()> {
     let mut io = IoHandler::new();
 
     io.add_method("inventory", |params: Params| inventory(params.parse()?));
-    io.add_method("getBlockChain", |_params| get_block_chain());
+    io.add_method("getBlockChain", |params: Params| {
+        get_block_chain(params.parse())
+    });
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
 
     io
@@ -92,17 +95,31 @@ pub fn inventory(inv_elem: InventoryItem) -> JsonRpcResult {
     }
 }
 
+/// Params of getBlockChain method
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct GetBlockChainParams {
+    /// TODO
+    #[serde(default)] // default to 0
+    pub epoch: i64,
+    /// TODO
+    #[serde(default)] // default to 0
+    pub limit: u32,
+}
+
 /// Get the list of all the known block hashes.
 ///
 /// Returns a list of `(epoch, block_hash)` pairs.
 /* test
 {"jsonrpc": "2.0","method": "getBlockChain", "id": 1}
 */
-pub fn get_block_chain() -> impl Future<Item = Value, Error = jsonrpc_core::Error> {
-    let chain_manager_addr = ChainManager::from_registry();
-    chain_manager_addr
-        .send(GetBlocksEpochRange::new(..))
-        .then(|res| match res {
+pub fn get_block_chain(
+    params: Result<Option<GetBlockChainParams>, jsonrpc_core::Error>,
+) -> JsonRpcResultAsync {
+    // Helper function to convert the result of GetBlockEpochRange to a JSON value, or a JSON-RPC error
+    fn process_get_block_chain(
+        res: Result<Result<Vec<(u32, InventoryEntry)>, ChainManagerError>, MailboxError>,
+    ) -> impl Future<Item = Value, Error = jsonrpc_core::Error> {
+        match res {
             Ok(Ok(vec_inv_entry)) => {
                 let epoch_and_hash: Vec<_> = vec_inv_entry
                     .into_iter()
@@ -144,7 +161,57 @@ pub fn get_block_chain() -> impl Future<Item = Value, Error = jsonrpc_core::Erro
                 };
                 futures::failed(err)
             }
-        })
+        }
+    }
+
+    let GetBlockChainParams { epoch, limit } = match params {
+        Ok(x) => x.unwrap_or_default(),
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let limit = limit as usize;
+    let chain_manager_addr = ChainManager::from_registry();
+    if epoch >= 0 {
+        let epoch = epoch as u32;
+        let fut = chain_manager_addr
+            .send(GetBlocksEpochRange::new_with_limit(epoch.., limit))
+            .then(process_get_block_chain);
+        Box::new(fut)
+    } else {
+        // On negative epoch, get blocks from last n epochs
+        // But, what is the current epoch?
+        let fut = EpochManager::from_registry()
+            .send(GetEpoch)
+            .then(move |res| match res {
+                Ok(Ok(current_epoch)) => {
+                    let epoch = (i64::from(current_epoch) + epoch) as u32;
+
+                    futures::finished(epoch)
+                }
+                Ok(Err(e)) => {
+                    let err = jsonrpc_core::Error {
+                        code: jsonrpc_core::ErrorCode::InternalError,
+                        message: format!("{:?}", e),
+                        data: None,
+                    };
+                    futures::failed(err)
+                }
+                Err(e) => {
+                    let err = jsonrpc_core::Error {
+                        code: jsonrpc_core::ErrorCode::InternalError,
+                        message: format!("{:?}", e),
+                        data: None,
+                    };
+                    futures::failed(err)
+                }
+            })
+            .and_then(move |epoch| {
+                chain_manager_addr
+                    .send(GetBlocksEpochRange::new_with_limit(epoch.., limit))
+                    .then(process_get_block_chain)
+            });
+        Box::new(fut)
+    }
 }
 /*
 /// get output
