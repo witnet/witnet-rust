@@ -91,6 +91,20 @@ Block for epoch #46924 had digest e706995269bfc4fb5f4ab9082765a1bdb48fc6e58cdf5f
 Block for epoch #46925 had digest 2dc469691916a862154eb92473278ea8591ace910ec7ecb560797cbb91fdc01e
 ```
 
+There are two optional arguments: `epoch` and `limit`. For example, to get the
+blocks for epochs `100-104`, use `epoch 100` and `limit 5`:
+
+```sh
+$ witnet cli getBlockChain -c witnet_01.toml 100 5
+```
+
+If a negative epoch is supplied, it is interpreted as "the last N epochs".
+For instance, to get the block for the last epoch:
+
+```sh
+$ witnet cli getBlockChain -c witnet_01.toml -1
+```
+
 #### getOutput
 
 Returns the output of the transaction that matches the provided output pointer.
