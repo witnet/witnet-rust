@@ -11,13 +11,14 @@ use std::result::Result;
 use ctrlc;
 use directories;
 use failure;
-use structopt::StructOpt;
+use structopt::{clap::AppSettings, StructOpt};
 
 use super::json_rpc_client;
 use crate::node::actors;
 
 /// Witnet network
 #[derive(Debug, StructOpt)]
+#[structopt(raw(global_settings = "&[AppSettings::AllowNegativeNumbers]"))]
 pub(crate) struct Cli {
     /// `witnet cmd ...`
     #[structopt(subcommand)]
@@ -94,6 +95,10 @@ pub(crate) enum CliCommand {
         )]
         #[structopt(parse(from_os_str))]
         config: Option<PathBuf>,
+        // Positional argument 1: first epoch for which to show block hashes
+        epoch: Option<i64>,
+        // Positional argument 2: max number of epochs for which to show block hashes
+        limit: Option<u32>,
     },
     #[structopt(name = "getOutput", about = "Get an output of a transaction")]
     GetOutput {

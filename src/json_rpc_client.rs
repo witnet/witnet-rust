@@ -12,6 +12,7 @@ use std::{
 use witnet_config::config::Config;
 use witnet_config::loaders::toml;
 use witnet_data_structures::chain::OutputPointer;
+use witnet_node::actors::json_rpc::json_rpc_methods::GetBlockChainParams;
 
 pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), failure::Error> {
     match cmd {
@@ -37,12 +38,23 @@ pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), f
                 print!("{}", response);
             }
         }
-        CliCommand::GetBlockChain { config } => {
+        CliCommand::GetBlockChain {
+            config,
+            epoch,
+            limit,
+        } => {
             let config = config.or(last_config);
+            let params = GetBlockChainParams {
+                epoch: epoch.unwrap_or_default(),
+                limit: limit.unwrap_or_default(),
+            };
             let mut stream = start_client(config)?;
             let response = send_request(
                 &mut stream,
-                r#"{"jsonrpc": "2.0","method": "getBlockChain", "id": 1}"#,
+                &format!(
+                    r#"{{"jsonrpc": "2.0","method": "getBlockChain", "params": {}, "id": 1}}"#,
+                    serde_json::to_string(&params).unwrap()
+                ),
             )?;
             info!("{}", response);
             let block_chain: ResponseBlockChain<'_> = parse_response(&response)?;
