@@ -73,6 +73,26 @@ Get the list of all the known block hashes.
 
 Returns a list of `(epoch, block_hash)` pairs.
 
+These parameters can be used to limit to some epoch range.
+There are two optional parameters: epoch and limit. For example, to get the
+blocks for epochs `100-104`, use `"epoch" 100` and `"limit": 5`:
+
+```json
+"params": {
+    "epoch": 100,
+    "limit": 5,
+}
+```
+
+If a negative epoch is supplied, it is interpreted as "the last N epochs".
+For instance, to get the block for the last epoch:
+
+```json
+"params": {
+    "epoch": -1,
+}
+```
+
 Example:
 
 ```
