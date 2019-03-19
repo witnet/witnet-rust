@@ -22,7 +22,9 @@ pub fn transaction_inputs_sum(
     for input in &tx.inputs {
         let pointed_value = pool
             .get(&input.output_pointer())
-            .ok_or_else(|| TransactionError::OutputNotFound(input.output_pointer()))?
+            .ok_or_else(|| TransactionError::OutputNotFound {
+                output: input.output_pointer(),
+            })?
             .value();
         total_value += pointed_value;
 
@@ -66,7 +68,6 @@ pub fn validate_transaction(
     transaction: &Transaction,
     utxo_set: &UnspentOutputsPool,
 ) -> Result<(), failure::Error> {
-
     let _fee = transaction_fee(transaction, utxo_set)?;
     // TODO(#519) Validate any kind of transaction
 
@@ -92,7 +93,7 @@ pub fn validate_transactions(
 
     // TODO: replace for loop with a try_fold
     for transaction in &transactions {
-        match validate_transaction(&transaction, &mut utxo_set) {
+        match validate_transaction(&transaction, &utxo_set) {
             Ok(_) => {
                 let txn_hash = transaction.hash();
 
@@ -159,13 +160,21 @@ pub fn validate_block(
     } else if !validate_merkle_tree(&block) {
         Err(BlockError::NotValidMerkleTree)?
     } else if block_epoch > current_epoch {
-        Err(BlockError::BlockFromFuture)?
+        Err(BlockError::BlockFromFuture {
+            block_epoch,
+            current_epoch,
+        })?
     } else if chain_beacon.checkpoint > block_epoch {
-        Err(BlockError::BlockOlderThanTip)?
+        Err(BlockError::BlockOlderThanTip {
+            chain_epoch: chain_beacon.checkpoint,
+            block_epoch,
+        })?
     } else if hash_prev_block != genesis_block_hash
         && chain_beacon.hash_prev_block != hash_prev_block
     {
-        Err(BlockError::PreviousHashNotKnown)?
+        Err(BlockError::PreviousHashNotKnown {
+            hash: hash_prev_block,
+        })?
     } else {
         validate_transactions(&utxo_set, &txn_pool, &data_request_pool, &block)
     }
@@ -178,7 +187,10 @@ pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> Result<(), fai
     if !verify_poe_block() {
         Err(BlockError::NotValidPoe)?
     } else if block_epoch != current_epoch {
-        Err(BlockError::CandidateFromDifferentEpoch)?
+        Err(BlockError::CandidateFromDifferentEpoch {
+            block_epoch,
+            current_epoch,
+        })?
     } else {
         Ok(())
     }

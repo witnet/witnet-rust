@@ -129,21 +129,47 @@ pub enum BlockError {
     /// and the output value of the rest of the transactions, plus the
     /// block reward, don't add up
     #[fail(
-        display = "The value of the mint transaction does not match the fess + reward of the block"
+        display = "The value of the mint transaction does not match the fees + reward of the block ({} != {} + {})",
+        mint_value, fees_value, reward_value
     )]
-    MismatchedMintValue,
+    MismatchedMintValue {
+        mint_value: u32,
+        fees_value: u32,
+        reward_value: u32,
+    },
     #[fail(display = "The block has an invalid PoE")]
     NotValidPoe,
     #[fail(display = "The block has an invalid Merkle Tree")]
     NotValidMerkleTree,
-    #[fail(display = "Block epoch from the future")]
-    BlockFromFuture,
-    #[fail(display = "Ignoring block older than highest block checkpoint")]
-    BlockOlderThanTip,
-    #[fail(display = "Ignoring block because previous hash is unknown")]
-    PreviousHashNotKnown,
-    #[fail(display = "Candidate epoch different from current epoch")]
-    CandidateFromDifferentEpoch,
+    #[fail(
+        display = "Block epoch from the future. Current epoch is: {}, block epoch is: {}",
+        current_epoch, block_epoch
+    )]
+    BlockFromFuture {
+        current_epoch: Epoch,
+        block_epoch: Epoch,
+    },
+    #[fail(
+        display = "Ignoring block because its epoch ({}) is older than highest block checkpoint ({})",
+        block_epoch, chain_epoch
+    )]
+    BlockOlderThanTip {
+        chain_epoch: Epoch,
+        block_epoch: Epoch,
+    },
+    #[fail(
+        display = "Ignoring block because previous hash (\"{}\") is unknown",
+        hash
+    )]
+    PreviousHashNotKnown { hash: Hash },
+    #[fail(
+        display = "Block candidate's epoch differs from current epoch ({} != {})",
+        block_epoch, current_epoch
+    )]
+    CandidateFromDifferentEpoch {
+        current_epoch: Epoch,
+        block_epoch: Epoch,
+    },
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
@@ -322,11 +348,11 @@ pub enum TransactionError {
     #[fail(display = "Transaction creates value (its fee is negative)")]
     NegativeFee,
     /// A transaction with the given hash wasn't found in a pool.
-    #[fail(display = "A hash is missing in the pool {}", 0)]
-    PoolMiss(Hash),
+    #[fail(display = "A hash is missing in the pool (\"{}\")", hash)]
+    PoolMiss { hash: Hash },
     /// An output with the given index wasn't found in a transaction.
-    #[fail(display = "Output not found: {}", 0)]
-    OutputNotFound(OutputPointer),
+    #[fail(display = "Output not found: {}", output)]
+    OutputNotFound { output: OutputPointer },
     #[fail(display = "The transaction signature is invalid")]
     InvalidSignature,
 }
