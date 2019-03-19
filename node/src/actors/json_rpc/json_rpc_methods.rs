@@ -31,6 +31,14 @@ pub fn jsonrpc_io_handler() -> IoHandler<()> {
     io
 }
 
+fn internal_error<T: std::fmt::Debug>(e: T) -> jsonrpc_core::Error {
+    jsonrpc_core::Error {
+        code: jsonrpc_core::ErrorCode::InternalError,
+        message: format!("{:?}", e),
+        data: None,
+    }
+}
+
 /// Inventory element: block, transaction, etc
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum InventoryItem {
@@ -135,30 +143,18 @@ pub fn get_block_chain(
                 let value = match serde_json::to_value(epoch_and_hash) {
                     Ok(x) => x,
                     Err(e) => {
-                        let err = jsonrpc_core::Error {
-                            code: jsonrpc_core::ErrorCode::InternalError,
-                            message: format!("{}", e),
-                            data: None,
-                        };
+                        let err = internal_error(e);
                         return futures::failed(err);
                     }
                 };
                 futures::finished(value)
             }
             Ok(Err(e)) => {
-                let err = jsonrpc_core::Error {
-                    code: jsonrpc_core::ErrorCode::InternalError,
-                    message: format!("{:?}", e),
-                    data: None,
-                };
+                let err = internal_error(e);
                 futures::failed(err)
             }
             Err(e) => {
-                let err = jsonrpc_core::Error {
-                    code: jsonrpc_core::ErrorCode::InternalError,
-                    message: format!("{:?}", e),
-                    data: None,
-                };
+                let err = internal_error(e);
                 futures::failed(err)
             }
         }
@@ -189,19 +185,11 @@ pub fn get_block_chain(
                     futures::finished(epoch)
                 }
                 Ok(Err(e)) => {
-                    let err = jsonrpc_core::Error {
-                        code: jsonrpc_core::ErrorCode::InternalError,
-                        message: format!("{:?}", e),
-                        data: None,
-                    };
+                    let err = internal_error(e);
                     futures::failed(err)
                 }
                 Err(e) => {
-                    let err = jsonrpc_core::Error {
-                        code: jsonrpc_core::ErrorCode::InternalError,
-                        message: format!("{:?}", e),
-                        data: None,
-                    };
+                    let err = internal_error(e);
                     futures::failed(err)
                 }
             })
@@ -220,11 +208,7 @@ pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> Jso
         Ok(x) => match OutputPointer::from_str(&x.0) {
             Ok(x) => x,
             Err(e) => {
-                let err = jsonrpc_core::Error {
-                    code: jsonrpc_core::ErrorCode::InternalError,
-                    message: format!("{:?}", e),
-                    data: None,
-                };
+                let err = internal_error(e);
                 return Box::new(futures::failed(err));
             }
         },
@@ -241,30 +225,18 @@ pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> Jso
                     let value = match serde_json::to_value(output) {
                         Ok(x) => x,
                         Err(e) => {
-                            let err = jsonrpc_core::Error {
-                                code: jsonrpc_core::ErrorCode::InternalError,
-                                message: format!("{}", e),
-                                data: None,
-                            };
+                            let err = internal_error(e);
                             return futures::failed(err);
                         }
                     };
                     futures::finished(value)
                 }
                 Ok(Err(e)) => {
-                    let err = jsonrpc_core::Error {
-                        code: jsonrpc_core::ErrorCode::InternalError,
-                        message: format!("{:?}", e),
-                        data: None,
-                    };
+                    let err = internal_error(e);
                     futures::failed(err)
                 }
                 Err(e) => {
-                    let err = jsonrpc_core::Error {
-                        code: jsonrpc_core::ErrorCode::InternalError,
-                        message: format!("{:?}", e),
-                        data: None,
-                    };
+                    let err = internal_error(e);
                     futures::failed(err)
                 }
             }),
