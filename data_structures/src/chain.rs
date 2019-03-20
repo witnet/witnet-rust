@@ -133,9 +133,9 @@ pub enum BlockError {
         mint_value, fees_value, reward_value
     )]
     MismatchedMintValue {
-        mint_value: u32,
-        fees_value: u32,
-        reward_value: u32,
+        mint_value: u64,
+        fees_value: u64,
+        reward_value: u64,
     },
     #[fail(display = "The block has an invalid PoE")]
     NotValidPoe,
@@ -354,6 +354,8 @@ pub enum TransactionError {
     OutputNotFound { output: OutputPointer },
     #[fail(display = "The transaction signature is invalid")]
     InvalidSignature,
+    #[fail(display = "Mint transaction is invalid")]
+    InvalidMintTransaction,
 }
 
 /// Transaction tags for validation process

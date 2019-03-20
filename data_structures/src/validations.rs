@@ -63,6 +63,27 @@ pub fn transaction_is_mint(tx: &Transaction) -> bool {
     tx.inputs.is_empty()
 }
 
+/// Function to validate a mint transaction
+pub fn validate_mint_transaction(
+    tx: &Transaction,
+    total_fees: u64,
+    block_reward: u64,
+) -> Result<(), failure::Error> {
+    let mint_value = transaction_outputs_sum(tx);
+
+    if !transaction_is_mint(tx) {
+        Err(TransactionError::InvalidMintTransaction)?
+    } else if mint_value != total_fees + block_reward {
+        Err(BlockError::MismatchedMintValue {
+            mint_value,
+            fees_value: total_fees,
+            reward_value: block_reward,
+        })?
+    } else {
+        Ok(())
+    }
+}
+
 /// Function to validate a transaction
 pub fn validate_transaction(
     transaction: &Transaction,
@@ -201,7 +222,7 @@ pub fn transaction_tag(tx: &Transaction) -> TransactionType {
     match tx.outputs.last() {
         Some(Output::DataRequest(_)) => TransactionType::DataRequest,
         Some(Output::ValueTransfer(_)) => {
-            if tx.inputs.is_empty() {
+            if transaction_is_mint(tx) {
                 TransactionType::Mint
             } else {
                 TransactionType::ValueTransfer
