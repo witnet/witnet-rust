@@ -356,6 +356,14 @@ pub enum TransactionError {
     InvalidSignature,
     #[fail(display = "Mint transaction is invalid")]
     InvalidMintTransaction,
+    #[fail(display = "Commit transaction is invalid")]
+    InvalidCommitTransaction,
+    #[fail(display = "Commit transaction has not a DataRequest Input")]
+    NotDataRequestInputInCommit,
+    #[fail(display = "Commit transaction has a invalid Proof of Eligibility")]
+    InvalidDataRequestPoe,
+    #[fail(display = "Invalid fee found: {}. Expected fee: {}", fee, expected_fee)]
+    InvalidFee { fee: u64, expected_fee: u64 },
 }
 
 /// Transaction tags for validation process
@@ -516,7 +524,7 @@ pub struct ValueTransferOutput {
 }
 
 /// Data request output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::Transaction_Output_DataRequestOutput")]
 pub struct DataRequestOutput {
     pub pkh: PublicKeyHash,
@@ -563,14 +571,14 @@ pub struct KeyedSignature {
     pub public_key: [u8; 32],
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
 pub enum RADType {
     #[serde(rename = "HTTP-GET")]
     HttpGet,
 }
 
 /// RAD request data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(
     pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest",
     crate = "crate"
@@ -583,7 +591,7 @@ pub struct RADRequest {
     pub deliver: Vec<RADDeliver>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(
     pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest_RADRetrieve",
     crate = "crate"
@@ -594,7 +602,7 @@ pub struct RADRetrieve {
     pub script: Vec<u8>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(
     pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest_RADAggregate",
     crate = "crate"
@@ -603,7 +611,7 @@ pub struct RADAggregate {
     pub script: Vec<u8>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(
     pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest_RADConsensus",
     crate = "crate"
@@ -612,7 +620,7 @@ pub struct RADConsensus {
     pub script: Vec<u8>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(
     pb = "witnet::Transaction_Output_DataRequestOutput_RADRequest_RADDeliver",
     crate = "crate"

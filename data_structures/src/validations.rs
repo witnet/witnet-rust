@@ -8,6 +8,7 @@ use super::{
     },
     data_request::DataRequestPool,
 };
+use std::collections::HashMap;
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -81,6 +82,66 @@ pub fn validate_mint_transaction(
         })?
     } else {
         Ok(())
+    }
+}
+
+// Add 1 in the number assigned to a DataRequestOutput
+pub fn update_count<S: ::std::hash::BuildHasher>(
+    mut hm: HashMap<DataRequestOutput, u32, S>,
+    k: &DataRequestOutput,
+) {
+    match hm.get_mut(k) {
+        Some(count) => {
+            *count += 1;
+        }
+        None => {
+            hm.insert(k.clone(), 1);
+        },
+    };
+}
+
+/// Function to validate a commit transaction
+pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
+    tx: &Transaction,
+    dr_pool: &DataRequestPool,
+    block_commits: HashMap<DataRequestOutput, u32, S>,
+    fee: u64,
+) -> Result<(), failure::Error> {
+    if (tx.inputs.len() != 1) || (tx.outputs.len() != 1) {
+        Err(TransactionError::InvalidCommitTransaction)?
+    }
+
+    match &tx.inputs[0] {
+        Input::DataRequest(dr_input) => {
+            // TODO: Complete PoE validation
+            let _poe = dr_input.poe;
+            if !verify_poe_data_request() {
+                Err(TransactionError::InvalidDataRequestPoe)?
+            }
+
+            // Get DataRequest information
+            let dr_pointer = dr_input.output_pointer();
+            let dr_state = dr_pool.data_request_pool.get(&dr_pointer).ok_or(
+                TransactionError::OutputNotFound {
+                    output: dr_pointer.clone(),
+                },
+            )?;
+
+            // Validate fee
+            let expected_commit_fee = dr_state.data_request.commit_fee;
+            if fee != expected_commit_fee {
+                Err(TransactionError::InvalidFee {
+                    fee,
+                    expected_fee: expected_commit_fee,
+                })?
+            }
+
+            // Accumulate commits number
+            update_count(block_commits, &dr_state.data_request);
+
+            Ok(())
+        }
+        _ => Err(TransactionError::NotDataRequestInputInCommit)?,
     }
 }
 
