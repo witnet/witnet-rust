@@ -85,6 +85,39 @@ pub fn validate_mint_transaction(
     }
 }
 
+/// Function to validate a data request transaction
+pub fn validate_dr_transaction(tx: &Transaction) -> Result<(), failure::Error> {
+    if tx.outputs.len() != 1 {
+        Err(TransactionError::InvalidDataRequestTransaction)?
+    }
+
+    if let Output::DataRequest(dr_output) = &tx.outputs[0] {
+        if dr_output.witnesses < 2 {
+            Err(TransactionError::InsufficientWitnesses)?
+        }
+
+        let witnesses = i64::from(dr_output.witnesses);
+        let dr_value = dr_output.value as i64;
+        let commit_fee = dr_output.commit_fee as i64;
+        let reveal_fee = dr_output.reveal_fee as i64;
+        let tally_fee = dr_output.tally_fee as i64;
+
+        let witness_reward = ((dr_value - tally_fee) / witnesses) - commit_fee - reveal_fee;
+        if witness_reward <= 0 {
+            Err(TransactionError::InvalidDataRequestReward {
+                reward: witness_reward,
+            })?
+        }
+
+        let _rad_request = &dr_output.data_request;
+        // TODO(#531): Validate RADON scripts
+
+        Ok(())
+    } else {
+        Err(TransactionError::InvalidDataRequestTransaction)?
+    }
+}
+
 // Add 1 in the number assigned to a DataRequestOutput
 pub fn update_count<S: ::std::hash::BuildHasher>(
     mut hm: HashMap<DataRequestOutput, u32, S>,

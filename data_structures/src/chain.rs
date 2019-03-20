@@ -356,6 +356,8 @@ pub enum TransactionError {
     InvalidSignature,
     #[fail(display = "Mint transaction is invalid")]
     InvalidMintTransaction,
+    #[fail(display = "Data Request transaction is invalid")]
+    InvalidDataRequestTransaction,
     #[fail(display = "Commit transaction is invalid")]
     InvalidCommitTransaction,
     #[fail(display = "Reveal transaction is invalid")]
@@ -368,6 +370,10 @@ pub enum TransactionError {
     InvalidDataRequestPoe,
     #[fail(display = "Invalid fee found: {}. Expected fee: {}", fee, expected_fee)]
     InvalidFee { fee: u64, expected_fee: u64 },
+    #[fail(display = "Invalid Data Request reward: {}", reward)]
+    InvalidDataRequestReward { reward: i64 },
+    #[fail(display = "Data Request witnesses number is not enough")]
+    InsufficientWitnesses,
 }
 
 /// Transaction tags for validation process
