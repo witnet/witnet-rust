@@ -145,6 +145,52 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
     }
 }
 
+/// Function to validate a reveal transaction
+pub fn validate_reveal_transaction<S: ::std::hash::BuildHasher>(
+    tx: &Transaction,
+    dr_pool: &DataRequestPool,
+    block_reveals: HashMap<DataRequestOutput, u32, S>,
+    fee: u64,
+) -> Result<(), failure::Error> {
+    if (tx.inputs.len() != 1) || (tx.outputs.len() != 1) {
+        Err(TransactionError::InvalidRevealTransaction)?
+    }
+
+    match &tx.inputs[0] {
+        Input::Commit(commit_input) => {
+            // Get DataRequest information
+            let commit_pointer = commit_input.output_pointer();
+            let dr_pointer = dr_pool.dr_pointer_cache.get(&commit_pointer).ok_or(
+                TransactionError::OutputNotFound {
+                    output: commit_pointer.clone(),
+                },
+            )?;
+            let dr_state = dr_pool.data_request_pool.get(&dr_pointer).ok_or(
+                TransactionError::OutputNotFound {
+                    output: dr_pointer.clone(),
+                },
+            )?;
+
+            // Validate fee
+            let expected_reveal_fee = dr_state.data_request.reveal_fee;
+            if fee != expected_reveal_fee {
+                Err(TransactionError::InvalidFee {
+                    fee,
+                    expected_fee: expected_reveal_fee,
+                })?
+            }
+
+            // TODO(#526): Validate commitment signatures -> TransactionError::InvalidSignature
+
+            // Accumulate commits number
+            update_count(block_reveals, &dr_state.data_request);
+
+            Ok(())
+        }
+        _ => Err(TransactionError::NotCommitInputInReveal)?,
+    }
+}
+
 /// Function to validate a transaction
 pub fn validate_transaction(
     transaction: &Transaction,

@@ -358,8 +358,12 @@ pub enum TransactionError {
     InvalidMintTransaction,
     #[fail(display = "Commit transaction is invalid")]
     InvalidCommitTransaction,
+    #[fail(display = "Reveal transaction is invalid")]
+    InvalidRevealTransaction,
     #[fail(display = "Commit transaction has not a DataRequest Input")]
     NotDataRequestInputInCommit,
+    #[fail(display = "Reveal transaction has not a Commit Input")]
+    NotCommitInputInReveal,
     #[fail(display = "Commit transaction has a invalid Proof of Eligibility")]
     InvalidDataRequestPoe,
     #[fail(display = "Invalid fee found: {}. Expected fee: {}", fee, expected_fee)]
