@@ -129,7 +129,7 @@ pub fn update_count<S: ::std::hash::BuildHasher>(
         }
         None => {
             hm.insert(k.clone(), 1);
-        },
+        }
     };
 }
 
@@ -224,12 +224,86 @@ pub fn validate_reveal_transaction<S: ::std::hash::BuildHasher>(
     }
 }
 
+/// Function to validate a tally transaction
+pub fn validate_tally_transaction(
+    tx: &Transaction,
+    dr_pool: &DataRequestPool,
+    utxo: &UnspentOutputsPool,
+    fee: u64,
+) -> Result<(()), failure::Error> {
+    if (tx.outputs.len() - tx.inputs.len()) != 1 {
+        Err(TransactionError::InvalidTallyTransaction)?
+    }
+
+    let mut v_reveals: Vec<Vec<u8>> = vec![];
+    let mut dr_pointer_aux = &OutputPointer {
+        transaction_id: Hash::default(),
+        output_index: 0,
+    };
+
+    for input in &tx.inputs {
+        match input {
+            Input::Reveal(reveal_input) => {
+                // Get DataRequest information
+                let reveal_pointer = reveal_input.output_pointer();
+
+                let dr_pointer = dr_pool.dr_pointer_cache.get(&reveal_pointer).ok_or(
+                    TransactionError::OutputNotFound {
+                        output: reveal_pointer.clone(),
+                    },
+                )?;
+
+                if dr_pointer_aux.transaction_id == Hash::default() {
+                    dr_pointer_aux = dr_pointer;
+                } else if dr_pointer_aux != dr_pointer {
+                    Err(TransactionError::RevealsFromDifferentDataRequest)?
+                }
+
+                match utxo.get(&reveal_pointer) {
+                    Some(Output::Reveal(reveal_output)) => {
+                        v_reveals.push(reveal_output.reveal.clone())
+                    }
+                    _ => Err(TransactionError::OutputNotFound {
+                        output: reveal_pointer.clone(),
+                    })?,
+                }
+            }
+
+            _ => Err(TransactionError::NotRevealInputInTally)?,
+        }
+    }
+
+    // Get DataRequestState
+    let dr_state =
+        dr_pool
+            .data_request_pool
+            .get(dr_pointer_aux)
+            .ok_or(TransactionError::OutputNotFound {
+                output: dr_pointer_aux.clone(),
+            })?;
+
+    // Validate fee
+    let expected_tally_fee = dr_state.data_request.tally_fee;
+    if fee != expected_tally_fee {
+        Err(TransactionError::InvalidFee {
+            fee,
+            expected_fee: expected_tally_fee,
+        })?
+    }
+
+    //TODO: Check Tally convergence
+
+    //TODO: Apply RAD Consensus and validate tally_value
+
+    Ok(())
+}
+
 /// Function to validate a transaction
 pub fn validate_transaction(
-    transaction: &Transaction,
-    utxo_set: &UnspentOutputsPool,
+    _transaction: &Transaction,
+    _utxo_set: &UnspentOutputsPool,
 ) -> Result<(), failure::Error> {
-    let _fee = transaction_fee(transaction, utxo_set)?;
+    //let _fee = transaction_fee(transaction, utxo_set)?;
     // TODO(#519) Validate any kind of transaction
 
     Ok(())

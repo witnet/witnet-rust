@@ -362,10 +362,14 @@ pub enum TransactionError {
     InvalidCommitTransaction,
     #[fail(display = "Reveal transaction is invalid")]
     InvalidRevealTransaction,
+    #[fail(display = "Tally transaction is invalid")]
+    InvalidTallyTransaction,
     #[fail(display = "Commit transaction has not a DataRequest Input")]
     NotDataRequestInputInCommit,
     #[fail(display = "Reveal transaction has not a Commit Input")]
     NotCommitInputInReveal,
+    #[fail(display = "Tally transaction has not a Reveal Input")]
+    NotRevealInputInTally,
     #[fail(display = "Commit transaction has a invalid Proof of Eligibility")]
     InvalidDataRequestPoe,
     #[fail(display = "Invalid fee found: {}. Expected fee: {}", fee, expected_fee)]
@@ -374,6 +378,8 @@ pub enum TransactionError {
     InvalidDataRequestReward { reward: i64 },
     #[fail(display = "Data Request witnesses number is not enough")]
     InsufficientWitnesses,
+    #[fail(display = "Reveals from different Data Requests")]
+    RevealsFromDifferentDataRequest,
 }
 
 /// Transaction tags for validation process
