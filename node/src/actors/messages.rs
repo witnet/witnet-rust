@@ -607,3 +607,12 @@ impl Delete {
 impl Message for Delete {
     type Result = UnitStorageResult;
 }
+
+// JsonRpcServer messages (notifications)
+
+/// New block notification
+#[derive(Message)]
+pub struct NewBlock {
+    /// Block
+    pub block: Block,
+}

@@ -10,15 +10,17 @@ use tokio::{
 };
 
 use futures::Stream;
-use jsonrpc_core::IoHandler;
 use log::*;
-use std::{collections::HashSet, net::SocketAddr, rc::Rc};
+use std::{collections::HashMap, collections::HashSet, net::SocketAddr, rc::Rc, sync::Arc};
 
 use super::{
     connection::JsonRpc, json_rpc_methods::jsonrpc_io_handler, newline_codec::NewLineCodec,
 };
-use crate::actors::messages::InboundTcpConnect;
+use crate::actors::json_rpc::json_rpc_methods::{AddrJsonRpc, Subscriptions};
+use crate::actors::messages::{InboundTcpConnect, NewBlock};
 use crate::config_mngr;
+use futures::sync::mpsc;
+use jsonrpc_pubsub::{PubSubHandler, Session};
 
 /// JSON RPC server
 #[derive(Default)]
@@ -29,15 +31,21 @@ pub struct JsonRpcServer {
     open_connections: HashSet<Addr<JsonRpc>>,
     /// JSON-RPC methods
     // Stored as an `Rc` to avoid creating a new handler for each connection
-    jsonrpc_io: Option<Rc<IoHandler<()>>>,
+    jsonrpc_io: Option<Rc<PubSubHandler<AddrJsonRpc>>>,
+    // TODO
+    subscriptions: Subscriptions,
 }
+
+/// Required traits for being able to retrieve storage manager address from registry
+impl Supervised for JsonRpcServer {}
+impl SystemService for JsonRpcServer {}
 
 impl JsonRpcServer {
     /// Method to process the configuration received from ConfigManager
     fn process_config(&mut self, ctx: &mut <Self as Actor>::Context) {
         config_mngr::get()
             .into_actor(self)
-            .and_then(|config, actor, ctx| {
+            .and_then(|config, act, ctx| {
                 let enabled = config.jsonrpc.enabled;
 
                 // Do not start the server if enabled = false
@@ -49,10 +57,10 @@ impl JsonRpcServer {
 
                 debug!("Starting JSON-RPC interface.");
                 let server_addr = config.jsonrpc.server_address;
-                actor.server_addr = Some(server_addr);
+                act.server_addr = Some(server_addr);
                 // Create and store the JSON-RPC method handler
-                let jsonrpc_io = jsonrpc_io_handler();
-                actor.jsonrpc_io = Some(Rc::new(jsonrpc_io));
+                let jsonrpc_io = jsonrpc_io_handler(act.subscriptions.clone());
+                act.jsonrpc_io = Some(Rc::new(jsonrpc_io));
 
                 // Bind TCP listener to this address
                 // FIXME(#176): running `yes | nc 127.0.0.1 1234` freezes the entire actor system
@@ -91,15 +99,19 @@ impl JsonRpcServer {
 
         // Get a reference to the JSON-RPC method handler
         let jsonrpc_io = Rc::clone(self.jsonrpc_io.as_ref().unwrap());
+        let (transport_sender, transport_receiver) = mpsc::channel(16);
+        // TODO: transport_receiver should forward the message to framed.
 
         // Create a new `JsonRpc` actor which will listen to this stream
         let addr = JsonRpc::create(|ctx| {
             let (r, w) = stream.split();
             JsonRpc::add_stream(FramedRead::new(r, NewLineCodec), ctx);
+            JsonRpc::add_stream(transport_receiver, ctx);
             JsonRpc {
                 framed: io::FramedWrite::new(w, NewLineCodec, ctx),
                 parent,
                 jsonrpc_io,
+                session: Arc::new(Session::new(transport_sender)),
             }
         });
 
@@ -145,5 +157,68 @@ impl Handler<Unregister> for JsonRpcServer {
     /// Method to remove a finished session
     fn handle(&mut self, msg: Unregister, _ctx: &mut Context<Self>) -> Self::Result {
         self.remove_connection(&msg.addr);
+        if let Ok(mut ss) = self.subscriptions.lock() {
+            info!("Removing session from subscriptions map");
+            //ss.retain(|k, v| v.retain(|x| ))
+            for (_method, v) in ss.iter_mut() {
+                v.remove(&msg.addr);
+            }
+        } else {
+            log::error!("Failed to adquire lock in Unregister");
+        }
+    }
+}
+
+impl Handler<NewBlock> for JsonRpcServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: NewBlock, ctx: &mut Self::Context) -> Self::Result {
+        info!("Got NewBlock message, sending notifications...");
+        let block = serde_json::to_value(msg.block).unwrap();
+        if let Ok(subs) = self.subscriptions.lock() {
+            let empty_map = HashMap::new();
+            for v in subs.get("newBlocks").unwrap_or(&empty_map).values() {
+                for (subscription, (sink, _subscription_params)) in v {
+                    info!("Sending NewBlock notification!");
+                    struct SubRes {
+                        result: serde_json::Value,
+                        subscription: jsonrpc_pubsub::SubscriptionId,
+                    }
+                    impl From<SubRes> for jsonrpc_core::Params {
+                        fn from(x: SubRes) -> Self {
+                            let mut map = serde_json::Map::new();
+                            map.insert("result".to_string(), x.result);
+                            map.insert(
+                                "subscription".to_string(),
+                                match x.subscription {
+                                    jsonrpc_pubsub::SubscriptionId::Number(x) => {
+                                        serde_json::Value::Number(serde_json::Number::from(x))
+                                    }
+                                    jsonrpc_pubsub::SubscriptionId::String(s) => {
+                                        serde_json::Value::String(s)
+                                    }
+                                },
+                            );
+                            jsonrpc_core::Params::Map(map)
+                        }
+                    }
+                    let r = SubRes {
+                        result: block.clone(),
+                        subscription: subscription.clone(),
+                    };
+                    let params = jsonrpc_core::Params::from(r);
+                    ctx.spawn(
+                        sink.notify(params)
+                            .into_actor(self)
+                            .then(|_res, _act, _ctx| {
+                                info!("Actix sent the message");
+                                actix::fut::ok(())
+                            }),
+                    );
+                }
+            }
+        } else {
+            // Mutex error
+        }
     }
 }

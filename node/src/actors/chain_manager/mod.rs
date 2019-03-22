@@ -48,7 +48,8 @@ use witnet_validations::validations::{validate_block, validate_candidate};
 
 use crate::actors::{
     inventory_manager::InventoryManager,
-    messages::{AddItem, AddTransaction, Broadcast, Put, SendInventoryItem},
+    json_rpc::JsonRpcServer,
+    messages::{AddItem, AddTransaction, Broadcast, NewBlock, Put, SendInventoryItem},
     sessions_manager::SessionsManager,
     storage_keys::CHAIN_STATE_KEY,
     storage_manager::StorageManager,
@@ -358,10 +359,13 @@ impl ChainManager {
 
                 // Insert candidate block into `block_chain` and persist it
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
-                self.persist_item(ctx, InventoryItem::Block(block));
+                self.persist_item(ctx, InventoryItem::Block(block.clone()));
 
                 // Persist chain_info into storage
                 self.persist_chain_state(ctx);
+
+                // Send notification to JsonRpcServer
+                JsonRpcServer::from_registry().do_send(NewBlock { block })
             }
             None => {
                 error!("No ChainInfo loaded in ChainManager");

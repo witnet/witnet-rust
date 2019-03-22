@@ -6,7 +6,6 @@ use tokio::{io::WriteHalf, net::TcpStream};
 
 use bytes;
 use bytes::BytesMut;
-use jsonrpc_core::IoHandler;
 use log::*;
 use std::{io, rc::Rc};
 
@@ -14,6 +13,9 @@ use super::{
     newline_codec::NewLineCodec,
     server::{JsonRpcServer, Unregister},
 };
+use crate::actors::json_rpc::json_rpc_methods::AddrJsonRpc;
+use jsonrpc_pubsub::{PubSubHandler, Session};
+use std::sync::Arc;
 
 /// A single JSON-RPC connection
 pub struct JsonRpc {
@@ -23,7 +25,9 @@ pub struct JsonRpc {
     // Needed to send the `Unregister` message when the connection closes
     pub parent: Addr<JsonRpcServer>,
     /// IoHandler
-    pub jsonrpc_io: Rc<IoHandler<()>>,
+    pub jsonrpc_io: Rc<PubSubHandler<AddrJsonRpc>>,
+    /// lololololol
+    pub session: Arc<Session>,
 }
 
 impl Actor for JsonRpc {
@@ -68,9 +72,17 @@ impl StreamHandler<BytesMut, io::Error> for JsonRpc {
             }
         };
 
+        let session = Arc::clone(&self.session);
+
         // Handle response asynchronously
         self.jsonrpc_io
-            .handle_request(&msg)
+            .handle_request(
+                &msg,
+                AddrJsonRpc {
+                    addr: ctx.address(),
+                    session,
+                },
+            )
             .into_actor(self)
             .then(|res, act, _ctx| {
                 if let Ok(Some(response)) = res {
@@ -80,5 +92,12 @@ impl StreamHandler<BytesMut, io::Error> for JsonRpc {
                 actix::fut::ok(())
             })
             .wait(ctx);
+    }
+}
+
+impl StreamHandler<String, ()> for JsonRpc {
+    fn handle(&mut self, item: String, _ctx: &mut Self::Context) {
+        info!("JsonRpc actor got StreamHandler message: {}", item);
+        self.framed.write(BytesMut::from(item));
     }
 }

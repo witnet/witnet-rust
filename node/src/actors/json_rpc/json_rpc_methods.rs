@@ -7,26 +7,138 @@ use crate::actors::{
 };
 #[cfg(not(test))]
 use actix::System;
-use actix::{MailboxError, SystemService};
-use jsonrpc_core::{futures, futures::Future, IoHandler, Params, Value};
+use actix::{Addr, MailboxError, SystemService};
+use jsonrpc_core::{futures, futures::Future, BoxFuture, MetaIoHandler, Metadata, Params, Value};
+use jsonrpc_pubsub::{PubSubHandler, PubSubMetadata, Session, Subscriber, SubscriptionId};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 //use std::str::FromStr;
+use crate::actors::json_rpc::connection::JsonRpc;
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
+};
 use witnet_data_structures::chain::{Block, InventoryEntry, Transaction};
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
+/// Subscriptions
+// TODO: define here or move up to server?
+pub type Subscriptions = Arc<
+    Mutex<
+        HashMap<
+            &'static str,
+            HashMap<
+                Addr<JsonRpc>,
+                HashMap<jsonrpc_pubsub::SubscriptionId, (jsonrpc_pubsub::Sink, Value)>,
+            >,
+        >,
+    >,
+>;
 
 /// Define the JSON-RPC interface:
 /// All the methods available through JSON-RPC
-pub fn jsonrpc_io_handler() -> IoHandler<()> {
-    let mut io = IoHandler::new();
+pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<AddrJsonRpc> {
+    let mut io = PubSubHandler::new(MetaIoHandler::default());
 
     io.add_method("inventory", |params: Params| inventory(params.parse()?));
     io.add_method("getBlockChain", |params: Params| {
         get_block_chain(params.parse())
     });
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
+
+    // We need two Arcs, one for subscribe and one for unsuscribe
+    let ss = subscriptions.clone();
+    let ssu = subscriptions.clone();
+    let atomic_counter = AtomicUsize::new(1);
+    io.add_subscription(
+        "witnet_subscription",
+        (
+            "witnet_subscribe",
+            move |params: Params, meta: AddrJsonRpc, subscriber: Subscriber| {
+                info!("Called witnet_subscribe");
+                let params_vec: Vec<serde_json::Value> = match params {
+                    Params::Array(v) => v,
+                    _ => {
+                        // Ignore errors with `.ok()` because an error here means the connection was closed
+                        subscriber
+                            .reject(jsonrpc_core::Error::invalid_params("Expected array"))
+                            .ok();
+                        return;
+                    }
+                };
+
+                let method: String = match serde_json::from_value(params_vec[0].clone()) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        // Ignore errors with `.ok()` because an error here means the connection was closed
+                        subscriber
+                            .reject(jsonrpc_core::Error::invalid_params(e.to_string()))
+                            .ok();
+                        return;
+                    }
+                };
+
+                let method_params = params_vec.get(1).cloned().unwrap_or(Value::Null);
+
+                match method.as_str() {
+                    "newBlocks" => {
+                        if let Ok(mut s) = ss.lock() {
+                            let id = SubscriptionId::String(
+                                atomic_counter.fetch_add(1, Ordering::SeqCst).to_string(),
+                            );
+                            let sink = subscriber.assign_id(id.clone()).unwrap();
+                            let v = s
+                                .entry("newBlocks")
+                                .or_insert_with(HashMap::new)
+                                .entry(meta.addr)
+                                .or_insert_with(HashMap::new);
+                            v.insert(id, (sink, method_params));
+                            info!("Subscribed to newBlocks");
+                            info!("This session has {} subscriptions", v.len());
+                        }
+                    }
+                    e => {
+                        // Ignore errors with `.ok()` because an error here means the connection was closed
+                        subscriber
+                            .reject(jsonrpc_core::Error::invalid_params(format!(
+                                "Unknown subscription: {}",
+                                e
+                            )))
+                            .ok();
+                        return;
+                    }
+                }
+            },
+        ),
+        (
+            "witnet_unsubscribe",
+            move |id: SubscriptionId, meta: Option<AddrJsonRpc>| -> BoxFuture<Value> {
+                info!("Closing subscription {:?}", id);
+                // When the session is closed, meta is none and the lock cannot be acquired
+                if let (Ok(mut s), Some(_meta)) = (ssu.lock(), meta.clone()) {
+                    debug!("Is this ok?");
+                    for (_method, v) in s.iter_mut() {
+                        for v in v.values_mut() {
+                            debug!("Removed one");
+                            v.remove(&id);
+                        }
+                    }
+                } else {
+                    // The connection was probably closed
+                    log::error!(
+                        "Error unsubscribe: meta is some {}, lock is ok: {}",
+                        meta.is_some(),
+                        ssu.try_lock().is_ok()
+                    );
+                }
+                Box::new(futures::future::ok(Value::Bool(true)))
+            },
+        ),
+    );
 
     io
 }
@@ -38,6 +150,23 @@ fn internal_error<T: std::fmt::Debug>(e: T) -> jsonrpc_core::Error {
         data: None,
     }
 }
+
+/// Wrapper over Addr<JsonRpc> with extra trait implementations
+#[derive(Clone)]
+pub struct AddrJsonRpc {
+    /// Addr
+    pub addr: Addr<JsonRpc>,
+    /// Session magic
+    pub session: Arc<Session>,
+}
+
+impl PubSubMetadata for AddrJsonRpc {
+    fn session(&self) -> Option<Arc<Session>> {
+        Some(self.session.clone())
+    }
+}
+
+impl Metadata for AddrJsonRpc {}
 
 /// Inventory element: block, transaction, etc
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
@@ -275,181 +404,6 @@ mod mock_actix {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn empty_string_parse_error() {
-        // An empty message should return a parse error
-        let empty_string = "";
-        let parse_error =
-            r#"{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}"#
-                .to_string();
-        let io = jsonrpc_io_handler();
-        let response = io.handle_request_sync(empty_string);
-        assert_eq!(response, Some(parse_error));
-    }
-
-    #[test]
-    fn inventory_method() {
-        // The expected behaviour of the inventory method
-        use witnet_data_structures::chain::*;
-        let signature = Signature::Secp256k1(Secp256k1Signature {
-            r: [0; 32],
-            s: [0; 32],
-            v: 0,
-        });
-        let keyed_signatures = vec![KeyedSignature {
-            public_key: [0; 32],
-            signature,
-        }];
-
-        let reveal_input = Input::Reveal(RevealInput {
-            output_index: 0,
-            transaction_id: Hash::SHA256([0; 32]),
-        });
-
-        let commit_input = Input::Commit(CommitInput {
-            nonce: 0,
-            output_index: 0,
-            reveal: [0; 32].to_vec(),
-            transaction_id: Hash::SHA256([0; 32]),
-        });
-        let data_request_input = Input::DataRequest(DataRequestInput {
-            output_index: 0,
-            poe: [0; 32],
-            transaction_id: Hash::SHA256([0; 32]),
-        });
-
-        let rad_aggregate = RADAggregate { script: vec![0] };
-
-        let rad_retrieve_1 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_retrieve_2 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_consensus = RADConsensus { script: vec![0] };
-
-        let rad_deliver_1 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-        };
-
-        let rad_deliver_2 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-        };
-
-        let rad_request = RADRequest {
-            aggregate: rad_aggregate,
-            not_before: 0,
-            retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-            consensus: rad_consensus,
-            deliver: vec![rad_deliver_1, rad_deliver_2],
-        };
-        let data_request_output = Output::DataRequest(DataRequestOutput {
-            backup_witnesses: 0,
-            commit_fee: 0,
-            data_request: rad_request,
-            pkh: [0; 20],
-            reveal_fee: 0,
-            tally_fee: 0,
-            time_lock: 0,
-            value: 0,
-            witnesses: 0,
-        });
-        let commit_output = Output::Commit(CommitOutput {
-            commitment: Hash::SHA256([0; 32]),
-            value: 0,
-        });
-        let reveal_output = Output::Reveal(RevealOutput {
-            pkh: [0; 20],
-            reveal: [0; 32].to_vec(),
-            value: 0,
-        });
-        let consensus_output = Output::Tally(TallyOutput {
-            pkh: [0; 20],
-            result: [0; 32].to_vec(),
-            value: 0,
-        });
-        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-            pkh: [0; 20],
-            value: 0,
-        });
-        let inputs = vec![reveal_input, data_request_input, commit_input];
-        let outputs = vec![
-            value_transfer_output,
-            data_request_output,
-            commit_output,
-            reveal_output,
-            consensus_output,
-        ];
-        let txns = vec![Transaction::new(
-            TransactionBody::new(0, inputs, outputs),
-            keyed_signatures,
-        )];
-        let block = Block {
-            block_header: BlockHeader {
-                version: 1,
-                beacon: CheckpointBeacon {
-                    checkpoint: 2,
-                    hash_prev_block: Hash::SHA256([4; 32]),
-                },
-                hash_merkle_root: Hash::SHA256([3; 32]),
-            },
-            proof: LeadershipProof {
-                block_sig: None,
-                influence: 99999,
-            },
-            txns,
-        };
-
-        let inv_elem = InventoryItem::Block(block);
-        let s = serde_json::to_string(&inv_elem).unwrap();
-        let msg = format!(
-            r#"{{"jsonrpc":"2.0","method":"inventory","params":{},"id":1}}"#,
-            s
-        );
-
-        // Expected result: true
-        let expected = r#"{"jsonrpc":"2.0","result":true,"id":1}"#.to_string();
-        let io = jsonrpc_io_handler();
-        let response = io.handle_request_sync(&msg);
-        assert_eq!(response, Some(expected));
-    }
-
-    #[test]
-    fn inventory_invalid_params() {
-        // What happens when the inventory method is called with an invalid parameter?
-        let msg = r#"{"jsonrpc":"2.0","method":"inventory","params":{ "header": 0 },"id":1}"#;
-        let expected = r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params: unknown variant `header`, expected one of"#.to_string();
-        let io = jsonrpc_io_handler();
-        let response = io.handle_request_sync(&msg);
-        // Compare only the first N characters
-        let response =
-            response.map(|s| s.chars().take(expected.chars().count()).collect::<String>());
-        assert_eq!(response, Some(expected));
-    }
-
-    #[test]
-    fn inventory_unimplemented_type() {
-        // What happens when the inventory method is called with an unimplemented type?
-        let msg = r#"{"jsonrpc":"2.0","method":"inventory","params":{ "error": null },"id":1}"#;
-        let expected =
-            r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Item type not implemented"#
-                .to_string();
-        let io = jsonrpc_io_handler();
-        let response = io.handle_request_sync(&msg);
-        // Compare only the first N characters
-        let response =
-            response.map(|s| s.chars().take(expected.chars().count()).collect::<String>());
-        assert_eq!(response, Some(expected));
-    }
 
     #[test]
     fn serialize_block() {

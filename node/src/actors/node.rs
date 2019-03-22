@@ -69,8 +69,9 @@ pub fn run(
     let rad_manager_addr = RadManager::default().start();
     System::current().registry().set(rad_manager_addr);
 
-    // Start JSON RPC server (this doesn't need to be in the registry)
-    let _json_rpc_server_addr = JsonRpcServer::default().start();
+    // Start JSON RPC server
+    let json_rpc_server_addr = JsonRpcServer::default().start();
+    System::current().registry().set(json_rpc_server_addr);
 
     // Run system
     system.run();
