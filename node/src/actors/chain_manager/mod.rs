@@ -43,9 +43,9 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     serializers::decoders::TryFrom,
-    validations::{validate_block, validate_candidate},
 };
 use witnet_storage::storage::Storable;
+use witnet_validations::validations::{validate_block, validate_candidate};
 
 use crate::actors::{
     inventory_manager::InventoryManager,

@@ -2471,6 +2471,7 @@ dependencies = [
  "witnet_rad 0.1.2",
  "witnet_storage 0.1.2",
  "witnet_util 0.1.2",
+ "witnet_validations 0.1.2",
 ]
 
 [[package]]
@@ -2535,6 +2536,7 @@ dependencies = [
  "witnet_rad 0.1.2",
  "witnet_storage 0.1.2",
  "witnet_util 0.1.2",
+ "witnet_validations 0.1.2",
  "witnet_wallet 0.1.2",
 ]
 
@@ -2586,6 +2588,16 @@ version = "0.1.2"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "witnet_validations"
+version = "0.1.2"
+dependencies = [
+ "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "witnet_crypto 0.1.2",
+ "witnet_data_structures 0.1.2",
+ "witnet_rad 0.1.2",
 ]
 
 [[package]]

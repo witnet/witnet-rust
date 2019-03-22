@@ -25,9 +25,6 @@ pub mod types;
 /// Module containing error definitions
 pub mod error;
 
-/// Module containing validations
-pub mod validations;
-
 /// Module containing data_request structures
 pub mod data_request;
 

@@ -4,9 +4,9 @@ use log::{debug, error, warn};
 use witnet_data_structures::{
     chain::{CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem},
     error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
-    validations::validate_block,
 };
 use witnet_util::error::WitnetError;
+use witnet_validations::validations::validate_block;
 
 use super::{ChainManager, ChainManagerError, StateMachine};
 use crate::actors::messages::{

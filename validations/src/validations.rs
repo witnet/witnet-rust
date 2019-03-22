@@ -1,6 +1,7 @@
 use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree_root};
 
-use super::{
+use std::collections::HashMap;
+use witnet_data_structures::{
     chain::{
         Block, BlockError, BlockInChain, CheckpointBeacon, DataRequestOutput, Epoch, Hash,
         Hashable, Input, Output, OutputPointer, Transaction, TransactionError, TransactionType,
@@ -8,7 +9,6 @@ use super::{
     },
     data_request::DataRequestPool,
 };
-use std::collections::HashMap;
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -498,26 +498,6 @@ pub fn verify_poe_block() -> bool {
 // TODO: Implement logic for this function
 pub fn verify_poe_data_request() -> bool {
     true
-}
-
-/// Function to calculate the commit reward
-pub fn calculate_commit_reward(dr_output: &DataRequestOutput) -> u64 {
-    dr_output.value / u64::from(dr_output.witnesses) - dr_output.commit_fee
-}
-
-/// Function to calculate the reveal reward
-pub fn calculate_reveal_reward(dr_output: &DataRequestOutput) -> u64 {
-    calculate_commit_reward(dr_output) - dr_output.reveal_fee
-}
-
-/// Function to calculate the value transfer reward
-pub fn calculate_dr_vt_reward(dr_output: &DataRequestOutput) -> u64 {
-    calculate_reveal_reward(dr_output) - dr_output.tally_fee
-}
-
-/// Function to calculate the tally change
-pub fn calculate_tally_change(dr_output: &DataRequestOutput, n_reveals: u64) -> u64 {
-    calculate_reveal_reward(dr_output) * (u64::from(dr_output.witnesses) - n_reveals)
 }
 
 #[cfg(test)]

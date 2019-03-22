@@ -24,10 +24,12 @@ use witnet_data_structures::{
     },
     data_request::{create_tally, create_vt_tally},
     serializers::decoders::TryFrom,
-    validations::{block_reward, merkle_tree_root, transaction_fee, verify_poe_data_request},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_storage::storage::Storable;
+use witnet_validations::validations::{
+    block_reward, merkle_tree_root, transaction_fee, verify_poe_data_request,
+};
 
 impl ChainManager {
     /// Try to mine a block

@@ -1,0 +1,13 @@
+[package]
+authors = ["Witnet Foundation <info@witnet.foundation>"]
+description = "validations component"
+edition = "2018"
+name = "witnet_validations"
+version = "0.1.2"
+workspace = ".."
+
+[dependencies]
+witnet_data_structures = { path = "../data_structures" }
+witnet_crypto = { path = "../crypto" }
+witnet_rad = { path = "../rad" }
+failure = "0.1.5"
