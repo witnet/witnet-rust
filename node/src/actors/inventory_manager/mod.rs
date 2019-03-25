@@ -3,8 +3,6 @@
 //! It acts as a single entry point for getting and putting inventory items from and into StorageManager. This creates one more degree of abstraction between how storage works and the node business logic of the app.mod actor;
 
 use std::fmt;
-use witnet_storage::error::StorageError;
-use witnet_util::error::WitnetError;
 
 mod actor;
 mod handlers;
@@ -20,16 +18,8 @@ pub enum InventoryManagerError {
     ItemAlreadyExists,
     /// An item does not exist
     ItemDoesNotExist,
-    /// StorageError
-    StorageError(WitnetError<StorageError>),
     /// MailBoxError
     MailBoxError,
-}
-
-impl From<WitnetError<StorageError>> for InventoryManagerError {
-    fn from(x: WitnetError<StorageError>) -> Self {
-        InventoryManagerError::StorageError(x)
-    }
 }
 
 impl fmt::Display for InventoryManagerError {

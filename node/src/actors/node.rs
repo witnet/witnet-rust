@@ -9,9 +9,9 @@ use crate::actors::{
     chain_manager::ChainManager, connections_manager::ConnectionsManager,
     epoch_manager::EpochManager, inventory_manager::InventoryManager, json_rpc::JsonRpcServer,
     peers_manager::PeersManager, rad_manager::RadManager, sessions_manager::SessionsManager,
-    storage_manager::StorageManager,
 };
 use crate::config_mngr;
+use crate::storage_mngr;
 
 /// Function to run the main system
 pub fn run(
@@ -37,9 +37,7 @@ pub fn run(
         _ => (),
     }
 
-    // Start StorageManager actor
-    let storage_manager_addr = StorageManager::default().start();
-    System::current().registry().set(storage_manager_addr);
+    storage_mngr::start();
 
     // Start PeersManager actor
     let peers_manager_addr = PeersManager::default().start();

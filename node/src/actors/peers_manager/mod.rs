@@ -1,15 +1,15 @@
 use std::time::Duration;
 
+use actix::prelude::*;
 use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System, SystemService,
-    WrapFuture,
+    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, SystemService, WrapFuture,
 };
 
 use log::{debug, error};
 
+use crate::actors::storage_keys::PEERS_KEY;
+use crate::storage_mngr;
 use witnet_p2p::peers::Peers;
-
-use crate::actors::{messages::Put, storage_keys::PEERS_KEY, storage_manager::StorageManager};
 
 // Internal Actor implementation for PeersManager
 mod actor;
@@ -39,29 +39,16 @@ impl PeersManager {
     fn persist_peers(&self, ctx: &mut Context<Self>, storage_peers_period: Duration) {
         // Schedule the discovery_peers with a given period
         ctx.run_later(storage_peers_period, move |act, ctx| {
-            // Get StorageManager address
-            let storage_manager_addr = System::current().registry().get::<StorageManager>();
-
-            // Persist peers into storage. `AsyncContext::wait` registers
-            // future within context, but context waits until this future resolves
-            // before processing any other events.
-            storage_manager_addr
-                .send(Put::from_value(PEERS_KEY, &act.peers).unwrap())
+            storage_mngr::put(&PEERS_KEY, &act.peers)
                 .into_actor(act)
-                .then(|res, _act, _ctx| {
-                    match res {
-                        Ok(Ok(v)) => debug!(
-                            "PeersManager successfully persisted peers to storage {:?}",
-                            v
-                        ),
-                        _ => {
-                            error!("Peers manager persist peers to storage failed");
-                            // FIXME(#72): handle errors
-                        }
-                    }
-                    actix::fut::ok(())
+                .and_then(|_, _, _| {
+                    debug!("PeersManager successfully persisted peers to storage");
+                    fut::ok(())
                 })
-                .wait(ctx);
+                .map_err(|err, _, _| {
+                    error!("Peers manager persist peers to storage failed: {}", err)
+                })
+                .spawn(ctx);
 
             act.persist_peers(ctx, storage_peers_period);
         });

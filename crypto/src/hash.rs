@@ -13,6 +13,12 @@ pub static EMPTY_SHA256: Sha256 = Sha256([
     100, 155, 147, 76, 164, 149, 153, 27, 120, 82, 184, 85,
 ]);
 
+impl AsRef<[u8]> for Sha256 {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 /// Calculate the SHA256 hash
 pub fn calculate_sha256(bytes: &[u8]) -> Sha256 {
     let mut hasher = sha2::Sha256::new();

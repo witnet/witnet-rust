@@ -8,5 +8,4 @@
 #![deny(missing_docs)]
 
 pub mod backends;
-pub mod error;
 pub mod storage;

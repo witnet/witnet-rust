@@ -27,36 +27,34 @@
 //!     - Adding a new UTXO for every output in the transaction.
 use std::collections::HashMap;
 
+use actix::prelude::*;
 use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System, SystemService,
     WrapFuture,
 };
 use ansi_term::Color::{Purple, White, Yellow};
+use failure::Fail;
 use log::{debug, error, info, warn};
-use witnet_rad::types::RadonTypes;
-
-use witnet_data_structures::{
-    chain::{
-        ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
-        Hashable, InventoryItem, Output, OutputPointer, TransactionsPool, UnspentOutputsPool,
-    },
-    data_request::DataRequestPool,
-    serializers::decoders::TryFrom,
-};
-use witnet_storage::storage::Storable;
-use witnet_validations::validations::{validate_block, validate_candidate};
 
 use crate::actors::{
     inventory_manager::InventoryManager,
     json_rpc::JsonRpcServer,
-    messages::{AddItem, AddTransaction, Broadcast, NewBlock, Put, SendInventoryItem},
+    messages::{AddItem, AddTransaction, Broadcast, NewBlock, SendInventoryItem},
     sessions_manager::SessionsManager,
     storage_keys::CHAIN_STATE_KEY,
-    storage_manager::StorageManager,
 };
-
-use failure::Fail;
-use witnet_data_structures::chain::Transaction;
+use crate::storage_mngr;
+use witnet_data_structures::{
+    chain::{
+        ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
+        Hashable, InventoryItem, Output, OutputPointer, Transaction, TransactionsPool,
+        UnspentOutputsPool,
+    },
+    data_request::DataRequestPool,
+    serializers::decoders::TryFrom,
+};
+use witnet_rad::types::RadonTypes;
+use witnet_validations::validations::{validate_block, validate_candidate};
 
 mod actor;
 mod handlers;
@@ -140,9 +138,6 @@ impl SystemService for ChainManager {}
 impl ChainManager {
     /// Method to persist chain_info into storage
     fn persist_chain_state(&self, ctx: &mut Context<Self>) {
-        // Get StorageManager address
-        let storage_manager_addr = System::current().registry().get::<StorageManager>();
-
         match self.chain_state.chain_info.as_ref() {
             Some(x) => x,
             None => {
@@ -151,24 +146,14 @@ impl ChainManager {
             }
         };
 
-        // Persist chain_info into storage. `AsyncContext::wait` registers
-        // future within context, but context waits until this future resolves
-        // before processing any other events.
-        let msg = Put::from_value(CHAIN_STATE_KEY, &self.chain_state).unwrap();
-        storage_manager_addr
-            .send(msg)
+        storage_mngr::put(&CHAIN_STATE_KEY, &self.chain_state)
             .into_actor(self)
-            .then(|res, _act, _ctx| {
-                match res {
-                    Ok(Ok(_)) => debug!("Successfully persisted chain_info into storage"),
-                    _ => {
-                        error!("Failed to persist chain_info into storage");
-                        // FIXME(#72): handle errors
-                    }
-                }
-                actix::fut::ok(())
+            .and_then(|_, _, _| {
+                debug!("Successfully persisted chain_info into storage");
+                fut::ok(())
             })
-            .wait(ctx);
+            .map_err(|err, _, _| error!("Failed to persist chain_info into storage: {}", err))
+            .spawn(ctx);
     }
 
     /// Method to Send an Item to Inventory Manager
@@ -207,27 +192,14 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         (output_pointer, data_request_report): &(OutputPointer, DataRequestReport),
     ) {
-        // Get StorageManager address
-        let storage_manager_addr = System::current().registry().get::<StorageManager>();
-
-        // Persist block_chain into storage. `AsyncContext::wait` registers
-        // future within context, but context waits until this future resolves
-        // before processing any other events.
-        let msg = Put::from_value(output_pointer.to_bytes().unwrap(), data_request_report).unwrap();
-        storage_manager_addr
-            .send(msg)
+        storage_mngr::put(output_pointer, data_request_report)
             .into_actor(self)
-            .then(|res, _act, _ctx| {
-                match res {
-                    Ok(Ok(_)) => debug!("Successfully persisted block_chain into storage"),
-                    _ => {
-                        error!("Failed to persist block_chain into storage");
-                        // FIXME(#72): handle errors
-                    }
-                }
-                actix::fut::ok(())
+            .map_err(|e, _, _| error!("Failed to persist block_chain into storage: {}", e))
+            .and_then(|_, _, _| {
+                debug!("Successfully persisted block_chain into storage");
+                fut::ok(())
             })
-            .wait(ctx);
+            .spawn(ctx);
     }
 
     fn broadcast_item(&self, item: InventoryItem) {

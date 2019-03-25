@@ -16,9 +16,6 @@ pub mod sessions_manager;
 /// Session actor module
 pub mod session;
 
-/// Storage manager actor module
-pub mod storage_manager;
-
 /// Connections manager actor module
 pub mod connections_manager;
 

@@ -38,16 +38,18 @@
 //! // Default config for mainnet
 //! // Config::from_partial(&PartialConfig::default_mainnet());
 //! ```
-use crate::defaults::{Defaults, Testnet1};
-use log::warn;
-use partial_struct::PartialStruct;
-use serde::{Deserialize, Deserializer};
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use log::warn;
+use serde::{Deserialize, Deserializer};
+
+use crate::defaults::{Defaults, Testnet1};
+use partial_struct::PartialStruct;
 use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
+use witnet_protected::Protected;
 
 /// The total configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
@@ -156,12 +158,46 @@ where
     })
 }
 
+/// Available storage backends
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub enum StorageBackend {
+    #[serde(rename = "hashmap")]
+    HashMap,
+    #[serde(rename = "rocksdb")]
+    RocksDB,
+}
+
+impl Default for StorageBackend {
+    fn default() -> Self {
+        StorageBackend::RocksDB
+    }
+}
+
 /// Storage-specific configuration
 #[derive(PartialStruct, Debug, Clone, PartialEq)]
 #[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct Storage {
-    /// Path to the directory that will contain the database files
+    /// Storage backend to use
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub backend: StorageBackend,
+    /// Whether or not the information should be encrypted before
+    /// being stored with this password
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    #[partial_struct(serde(deserialize_with = "as_protected_string"))]
+    pub password: Option<Protected>,
+    /// Path to the directory that will contain the database. Used
+    /// only if backend is RocksDB.
     pub db_path: PathBuf,
+}
+
+fn as_protected_string<'de, D>(deserializer: D) -> Result<Option<Protected>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let passwd = String::deserialize(deserializer)?;
+    Ok(Some(passwd.into()))
 }
 
 /// JsonRPC API configuration
@@ -305,6 +341,8 @@ impl Connections {
 impl Storage {
     pub fn from_partial(config: &PartialStorage, defaults: &dyn Defaults) -> Self {
         Storage {
+            backend: config.backend.clone(),
+            password: config.password.clone(),
             db_path: config
                 .db_path
                 .to_owned()
@@ -354,6 +392,8 @@ mod tests {
     #[test]
     fn test_storage_from_partial() {
         let partial_config = PartialStorage {
+            backend: StorageBackend::RocksDB,
+            password: None,
             db_path: Some(PathBuf::from("other")),
         };
         let config = Storage::from_partial(&partial_config, &Testnet1);

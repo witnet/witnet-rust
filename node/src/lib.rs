@@ -12,8 +12,8 @@ pub mod actors;
 
 /// Config Manager Actor API
 pub mod config_mngr;
-
 pub mod signature_mngr;
+pub mod storage_mngr;
 
 /// Utilities for actor behaviour
 pub mod utils;

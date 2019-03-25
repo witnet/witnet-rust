@@ -7,12 +7,11 @@ use super::{
 };
 use crate::actors::{
     epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
-    messages::{Get, GetEpoch, Subscribe},
+    messages::{GetEpoch, Subscribe},
     storage_keys::CHAIN_STATE_KEY,
-    storage_manager::StorageManager,
 };
 use crate::config_mngr;
-
+use crate::storage_mngr;
 use witnet_data_structures::{
     chain::{
         ActiveDataRequestPool, Blockchain, ChainInfo, ChainState, CheckpointBeacon,
@@ -56,28 +55,9 @@ impl ChainManager {
 
             act.max_block_weight = consensus_constants.max_block_weight;
 
-            // Get StorageManager actor address
-            let storage_manager_addr = System::current().registry().get::<StorageManager>();
-            storage_manager_addr
-            // Send a message to read the chain_info from the storage
-                .send(Get::<ChainState>::new(CHAIN_STATE_KEY))
+            storage_mngr::get::<_, ChainState>(&CHAIN_STATE_KEY)
                 .into_actor(act)
-            // Process the response
-                .then(|res, _act, _ctx| match res {
-                    Err(e) => {
-                        // Error when sending message
-                        error!("Unsuccessful communication with storage manager: {}", e);
-                        actix::fut::err(())
-                    }
-                    Ok(res) => match res {
-                        Err(e) => {
-                            // Storage error
-                            error!("Error while getting chain state from storage: {}", e);
-                            actix::fut::err(())
-                        }
-                        Ok(res) => actix::fut::ok(res),
-                    },
-                })
+                .map_err(|e, _, _| error!("Error while getting chain state from storage: {}", e))
                 .and_then(move |chain_state_from_storage, act, _ctx| {
                     // chain_info_from_storage can be None if the storage does not contain that key
                     if chain_state_from_storage.is_some()
@@ -166,9 +146,10 @@ impl ChainManager {
                             block_chain: Blockchain::default(),
                         };
                     }
-                    actix::fut::ok(())
+
+                    fut::ok(())
                 })
-                .wait(ctx);
+                .spawn(ctx);
 
             // Store the genesis block hash
             act.genesis_block_hash = config.consensus_constants.genesis_hash;

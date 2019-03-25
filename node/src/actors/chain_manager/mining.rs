@@ -3,6 +3,7 @@ use actix::{
 };
 use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
+use serde_json;
 
 use futures::future::{join_all, Future};
 use std::{collections::HashMap, time::Duration};
@@ -27,7 +28,6 @@ use witnet_data_structures::{
     serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;
-use witnet_storage::storage::Storable;
 use witnet_validations::validations::{
     block_reward, merkle_tree_root, transaction_fee, verify_poe_data_request,
 };
@@ -66,7 +66,7 @@ impl ChainManager {
         }
         // The highest checkpoint beacon should contain the current epoch
         beacon.checkpoint = current_epoch;
-        let beacon_hash = Hash::from(calculate_sha256(&beacon.to_bytes().unwrap()));
+        let beacon_hash = Hash::from(calculate_sha256(&serde_json::to_vec(&beacon).unwrap()));
         let private_key = 1;
 
         // TODO: send Sign message to CryptoManager

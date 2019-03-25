@@ -7,14 +7,11 @@ edition = "2018"
 description = "Witnet storage module that conveniently abstracts a key/value API away from specific storage backends"
 
 [dependencies]
-env_logger = "0.6.0"
 failure = "0.1.5"
-log = "0.4.6"
-rocksdb = { version = "0.11.0", optional = true }
-serde = "1.0.88"
-serde_json = "1.0.38"
-
-witnet_util = { path = "../util" }
+rocksdb = { version = "0.12.0", optional = true }
+witnet_crypto = { path = "../crypto", optional = true }
+witnet_protected = { path = "../protected", optional = true }
 
 [features]
 rocksdb-backend = ["rocksdb"]
+crypto-backend = ["witnet_crypto", "witnet_protected"]

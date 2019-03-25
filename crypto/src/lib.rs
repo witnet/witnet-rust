@@ -10,10 +10,12 @@
 /// Hash functions
 pub mod hash;
 
+pub mod cipher;
 /// Merkle tree implementation
 pub mod merkle;
 
 pub mod key;
 /// Cryptographic keys, signatures and mnemonic phrases
 pub mod mnemonic;
+pub mod pbkdf2;
 pub mod signature;

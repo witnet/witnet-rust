@@ -13,3 +13,6 @@ rust-crypto = "0.2.36"
 secp256k1 = "0.12.2"
 sha2 = "0.8.0"
 tiny-bip39 = "0.6.0"
+memzero = "0.1.0"
+rand = "0.6.5"
+witnet_protected = { path = "../protected" }
