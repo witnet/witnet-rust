@@ -104,7 +104,7 @@ fn start_ws_jsonrpc_server(
         (
             "witnet_subscribe",
             move |params: Params, _meta, subscriber: Subscriber| {
-                info!("Called witnet_subscribe");
+                debug!("Called witnet_subscribe");
                 let params_vec: Vec<Value> = match params {
                     Params::Array(v) => v,
                     _ => {
@@ -116,7 +116,7 @@ fn start_ws_jsonrpc_server(
                     }
                 };
 
-                let method: String = match serde_json::from_value(params_vec[0].clone()) {
+                let method_name: String = match serde_json::from_value(params_vec[0].clone()) {
                     Ok(s) => s,
                     Err(e) => {
                         // Ignore errors with `.ok()` because an error here means the connection was closed
@@ -127,31 +127,33 @@ fn start_ws_jsonrpc_server(
                     }
                 };
 
-                let method_params = params_vec.get(1);
+                let method_params = params_vec.get(1).cloned().unwrap_or_default();
 
-                match method.as_str() {
+                let add_subscription = |method_name: String, subscriber: Subscriber| {
+                    let idd = atomic_counter.fetch_add(1, Ordering::SeqCst).to_string();
+                    let id = SubscriptionId::String(idd.clone());
+                    if let Ok(sink) = subscriber.assign_id(id.clone()) {
+                        registry
+                            .get::<JsonRpcClient>()
+                            .do_send(JsonRpcForwardSubscribeMsg::new(
+                                method_name.to_string(),
+                                method_params,
+                                idd,
+                                sink,
+                            ));
+                    } else {
+                        // Session closed before we got a chance to reply
+                        debug!("Failed to assing id: session closed");
+                    }
+                };
+
+                match method_name.as_str() {
                     "newBlocks" => {
-                        // Subscribe to new blocks, for testing
-                        let idd =
-                            (atomic_counter.fetch_add(1, Ordering::SeqCst) as u64).to_string();
-                        let id = SubscriptionId::String(idd.clone());
-                        match subscriber.assign_id(id.clone()) {
-                            Ok(sink) => {
-                                registry.get::<JsonRpcClient>().do_send(
-                                    JsonRpcForwardSubscribeMsg::new(
-                                        "newBlocks".to_string(),
-                                        method_params.cloned().unwrap_or(Value::Null),
-                                        idd,
-                                        sink,
-                                    ),
-                                );
-                            }
-                            Err(()) => {
-                                // The connection was closed before we got a chance to reply
-                            }
-                        }
+                        debug!("New subscription to {}", method_name);
+                        add_subscription(method_name, subscriber);
                     }
                     e => {
+                        debug!("Unknown subscription method: {}", e);
                         // Ignore errors with `.ok()` because an error here means the connection was closed
                         subscriber
                             .reject(jsonrpc_core::Error::invalid_params(format!(
@@ -169,7 +171,7 @@ fn start_ws_jsonrpc_server(
             move |id: SubscriptionId,
                   _meta: Option<Arc<Session>>|
                   -> Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send> {
-                info!("Closing subscription {:?}", id);
+                debug!("Closing subscription {:?}", id);
                 // When the session is closed, meta is none and the lock cannot be acquired
                 Box::new(
                     registryu
@@ -797,6 +799,8 @@ struct JsonRpcSubscribeMsg {
 }
 
 impl JsonRpcSubscribeMsg {
+    // TODO: remove once used
+    #[allow(unused)]
     fn new<A: Into<String>, B: Into<Value>>(method: A, params: B) -> Self {
         Self {
             method: method.into(),
@@ -825,27 +829,24 @@ impl Handler<JsonRpcSubscribeMsg> for JsonRpcClient {
             .s
             .execute(&subscribe.method, subscribe.params)
             .into_actor(self)
-            .then(|x, act, ctx| {
-                match x {
-                    Ok(res) => {
-                        info!("Subscribed successfully! Id: {:?}", res);
-                        let res = match res {
-                            Value::String(s) => s,
-                            _ => panic!("Only String subscription ids are supported"),
-                        };
-                        let resc = res.clone();
-                        let fut = act
-                            .s
-                            .subscribe(&res.clone().into())
-                            .map(move |x| NormalNotification(resc.clone(), x));
-                        JsonRpcClient::add_stream(fut, ctx);
-                        actix::fut::ok(res)
-                    }
-                    Err(e) => {
-                        warn!("Error: {}", e);
-                        //TODO: whatever
-                        actix::fut::err(e.to_string())
-                    }
+            .then(|x, act, ctx| match x {
+                Ok(res) => {
+                    info!("Subscribed successfully! Id: {:?}", res);
+                    let res = match res {
+                        Value::String(s) => s,
+                        _ => panic!("Only String subscription ids are supported"),
+                    };
+                    let resc = res.clone();
+                    let fut = act
+                        .s
+                        .subscribe(&res.clone().into())
+                        .map(move |x| NormalNotification(resc.clone(), x));
+                    JsonRpcClient::add_stream(fut, ctx);
+                    actix::fut::ok(res)
+                }
+                Err(e) => {
+                    warn!("Error: {}", e);
+                    actix::fut::err(e.to_string())
                 }
             });
         Box::new(fut)
@@ -899,43 +900,40 @@ impl Handler<JsonRpcForwardSubscribeMsg> for JsonRpcClient {
             .s
             .execute(&subscribe.method, subscribe.params)
             .into_actor(self)
-            .then(|x, act, ctx| {
-                match x {
-                    Ok(res) => {
-                        info!("Subscribed successfully! Id: {:?}", res);
-                        let res = match res {
-                            Value::String(s) => s,
-                            _ => panic!("Only String subscription ids are supported"),
-                        };
-                        let resc = res.clone();
-                        let empty_map = HashMap::new();
-                        let fut = act
-                            .s
-                            .subscribe(&res.clone().into())
-                            .map(move |x| ForwardNotification(resc.clone(), x));
-                        JsonRpcClient::add_stream(fut, ctx);
+            .then(|x, act, ctx| match x {
+                Ok(res) => {
+                    info!("Subscribed successfully! Id: {:?}", res);
+                    let res = match res {
+                        Value::String(s) => s,
+                        _ => panic!("Only String subscription ids are supported"),
+                    };
+                    let resc = res.clone();
+                    let empty_map = HashMap::new();
+                    let fut = act
+                        .s
+                        .subscribe(&res.clone().into())
+                        .map(move |x| ForwardNotification(resc.clone(), x));
+                    JsonRpcClient::add_stream(fut, ctx);
 
-                        if let Ok(mut s) = act.subscriptions.lock() {
-                            let v = s.entry("newBlocks").or_insert(empty_map);
-                            let node_sub_id = res.clone();
-                            v.insert(
-                                msg.id.clone().into(),
-                                (msg.sink, Some(node_sub_id.clone().into()), msg.params),
-                            );
-                            info!("Mapping node id {} to client id {}", node_sub_id, msg.id);
-                            act.node_id_to_client_id
-                                .insert(node_sub_id.into(), msg.id.into());
-                            info!("Subscribed to newBlocks");
-                            info!("This session has {} subscriptions", v.len());
-                        }
+                    if let Ok(mut s) = act.subscriptions.lock() {
+                        let v = s.entry("newBlocks").or_insert(empty_map);
+                        let node_sub_id = res.clone();
+                        v.insert(
+                            msg.id.clone().into(),
+                            (msg.sink, Some(node_sub_id.clone().into()), msg.params),
+                        );
+                        info!("Mapping node id {} to client id {}", node_sub_id, msg.id);
+                        act.node_id_to_client_id
+                            .insert(node_sub_id.into(), msg.id.into());
+                        info!("Subscribed to newBlocks");
+                        info!("This session has {} subscriptions", v.len());
+                    }
 
-                        actix::fut::ok(res)
-                    }
-                    Err(e) => {
-                        warn!("Error: {}", e);
-                        //TODO: whatever
-                        actix::fut::err(e.to_string())
-                    }
+                    actix::fut::ok(res)
+                }
+                Err(e) => {
+                    warn!("Error: {}", e);
+                    actix::fut::err(e.to_string())
                 }
             });
         Box::new(fut)
@@ -987,7 +985,6 @@ impl Handler<JsonRpcUnsubscribe> for JsonRpcClient {
                 }
                 Err(e) => {
                     warn!("Error: {}", e);
-                    //TODO: whatever
                     actix::fut::err(e.to_string())
                 }
             });
@@ -1054,6 +1051,8 @@ impl StreamHandler<ForwardNotification, async_jsonrpc_client::Error> for JsonRpc
         info!("Got subscription with id! {} {}", id, item);
         let idd: SubscriptionId = id.clone().into();
         // Now we need to send a notification to the client
+        // TODO: SubRes could be imported as SubscriptionResult from witnet_node/json_rpc
+        // but importing witnet_node results in a dependency cycle
         struct SubRes {
             result: Value,
             subscription: jsonrpc_pubsub::SubscriptionId,
