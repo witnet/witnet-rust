@@ -101,7 +101,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="#page-under-construction-check-back-soon" tabindex="1" class="md-skip">
+      <a href="#data-integrity" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -324,8 +324,22 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#page-under-construction-check-back-soon" title="Page under construction. Check back soon." class="md-nav__link">
-    Page under construction. Check back soon.
+  <a href="#data-integrity" title="Data integrity" class="md-nav__link">
+    Data integrity
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fairness" title="Fairness" class="md-nav__link">
+    Fairness
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#radical-parametrization" title="Radical parametrization" class="md-nav__link">
+    Radical parametrization
   </a>
   
 </li>
@@ -1457,6 +1471,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../interface/wallet/" title="Wallet" class="md-nav__link">
+      Wallet
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -1637,8 +1663,22 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#page-under-construction-check-back-soon" title="Page under construction. Check back soon." class="md-nav__link">
-    Page under construction. Check back soon.
+  <a href="#data-integrity" title="Data integrity" class="md-nav__link">
+    Data integrity
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fairness" title="Fairness" class="md-nav__link">
+    Fairness
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#radical-parametrization" title="Radical parametrization" class="md-nav__link">
+    Radical parametrization
   </a>
   
 </li>
@@ -1664,7 +1704,41 @@
                 
                   <h1>Design Overview</h1>
                 
-                <h3 id="page-under-construction-check-back-soon">Page under construction. Check back soon.<a class="headerlink" href="#page-under-construction-check-back-soon" title="Permanent link">&para;</a></h3>
+                <p>The Witnet protocol aims to guarantee properties common to all public blockchains such as safety, liveness and fault tolerance. Yet, there are specific design goals and decisions that make Witnet different from other solutions.</p>
+<h2 id="data-integrity">Data integrity<a class="headerlink" href="#data-integrity" title="Permanent link">&para;</a></h2>
+<p>In oracle solutions, tamper-resistance and censor-resistance boil down to <em>data integrity</em>—ensuring data is brokered from the sources to the consumers without manipulation.</p>
+<p>The Witnet protocol is designed to preserve data integrity by solving data requests through:</p>
+<ul>
+<li><strong>Crowd-witnessing</strong>: the final result of a data request is not given by an individual node but is the result of a consensus achieved by several data retrievals made by a randomly selected group of nodes.</li>
+<li><strong>Multi-source fact checking</strong>: the protocol offers the possibility to query many data sources and aggregate their responses before reaching a consensus.</li>
+<li><strong>Economic incentives</strong>: honest nodes are rewarded while dishonest ones are penalized.</li>
+<li><strong>Deterring conflicts of interest</strong>: provided by clear segregation of duties among all the actors involved in data request life cycles.</li>
+</ul>
+<h2 id="fairness">Fairness<a class="headerlink" href="#fairness" title="Permanent link">&para;</a></h2>
+<p>Beyond the economic and ethical implications of making the Witnet ecosystem as accessible as possible to everyone, any technical measure ensuring "fairness" in the protocol has very practical implications.
+Fairness seeks to guarantee that the network is not controlled by a few actors that may collude to tamper with the data requests.
+This fairness is achieved through:</p>
+<ul>
+<li><strong>Low barriers to entry for new nodes</strong>, which means that new nodes do not need to stake a significant monetary amount nor invest in expensive hardware to become eligible to resolve data requests or mining. Nodes will compete with each other with respect to their reputation, which can be easily gained by behaving honestly (not tampering with the data).</li>
+<li><strong>Anti-hoarding measures</strong>. Spurious incentives may appear if Witnet allowed a perpetuation in the power of the most reputed nodes. These could be bribed to lie in specific data requests for which they could prove valid eligibility. Further, and very related to our previous point, we would like Witnet to allow anyone to potentially become a reputed node.</li>
+</ul>
+<h2 id="radical-parametrization">Radical parametrization<a class="headerlink" href="#radical-parametrization" title="Permanent link">&para;</a></h2>
+<p>A decentralized oracle solution should be parameterizable enough to enable as many use cases as possible, which may require different types of setups, incentives and trade-offs.</p>
+<p>Some examples about this parametrization are:</p>
+<ul>
+<li><strong>Tailored data requests retrieval and aggregation</strong>: clients define programatically how the results of one or multiple sources are retrieved, aggregated and verified.</li>
+<li><strong>Tailored data request consensus</strong>: additionally, clients also include the tally clauses in order to programmatically define how to turn the multiple data request results provided by witnesses into a single data point.</li>
+<li><strong>Parameterizable incentives</strong>: honest resolution of data requests is incentivized by using several mechanisms which can be configured and fine tuned to achieve a specific degree of certainty and security.</li>
+</ul>
+<p>Some examples for these customizable incentives are:</p>
+<ul>
+<li><strong>Data request reward</strong>: incentivizes the honest behavior of the nodes resolving the data request (a.k.a. the witnesses)</li>
+<li><strong>Number of witnesses</strong>: how many nodes we want the data request to be executed by</li>
+<li><strong>Network fees</strong>: incentives to the network to include the transactions that are required for the data request lifecycle into subsequent blocks</li>
+<li><strong>Collateral and coin age</strong>: guarantee the neutrality and honesty of data request committees (prevents sybil attacks)</li>
+</ul>
+<p>Ironically, even if all of these customizable incentive mechanisms contribute to make Witnet an exceptionally robust design, one of the main virtues of this system lays indeed in what is not parameterizable: the committee selection.
+In Witnet, committee members (the nodes in charge of resolving a specific data request) are selected unpredictably through Verifiable Random Functions (VRF) weighted by the participants’ reputation scores. That is, the more reputed your node is, the more committees it will end up sitting on.</p>
                 
                   
                 

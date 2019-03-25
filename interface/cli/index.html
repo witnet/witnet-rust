@@ -1534,6 +1534,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../wallet/" title="Wallet" class="md-nav__link">
+      Wallet
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -1877,6 +1889,16 @@ the first line is a request, the second line is a response.</p>
 <div class="codehilite"><pre><span></span>$ witnet cli getBlockChain -c witnet_01.toml
 Block for epoch #46924 had digest e706995269bfc4fb5f4ab9082765a1bdb48fc6e58cdf5f95621c9e3f849301ed
 Block for epoch #46925 had digest 2dc469691916a862154eb92473278ea8591ace910ec7ecb560797cbb91fdc01e
+</pre></div>
+
+<p>There are two optional arguments: <code class="codehilite">epoch</code> and <code class="codehilite">limit</code>. For example, to get the
+blocks for epochs <code class="codehilite">100-104</code>, use <code class="codehilite">epoch 100</code> and <code class="codehilite">limit 5</code>:</p>
+<div class="codehilite"><pre><span></span>$ witnet cli getBlockChain -c witnet_01.toml <span class="m">100</span> <span class="m">5</span>
+</pre></div>
+
+<p>If a negative epoch is supplied, it is interpreted as "the last N epochs".
+For instance, to get the block for the last epoch:</p>
+<div class="codehilite"><pre><span></span>$ witnet cli getBlockChain -c witnet_01.toml -1
 </pre></div>
 
 <h4 id="getoutput">getOutput<a class="headerlink" href="#getoutput" title="Permanent link">&para;</a></h4>

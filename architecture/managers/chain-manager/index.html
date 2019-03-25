@@ -1196,6 +1196,40 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#chainmanager-state-machine" title="ChainManager State Machine" class="md-nav__link">
+    ChainManager State Machine
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#waitingconsensus" title="WaitingConsensus" class="md-nav__link">
+    WaitingConsensus
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#synchronizing" title="Synchronizing" class="md-nav__link">
+    Synchronizing
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#synced" title="Synced" class="md-nav__link">
+    Synced
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#actor-creation-and-registration" title="Actor creation and registration" class="md-nav__link">
     Actor creation and registration
   </a>
@@ -1261,6 +1295,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#additem" title="AddItem" class="md-nav__link">
+    AddItem
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#broadcast" title="Broadcast" class="md-nav__link">
     Broadcast
   </a>
@@ -1268,8 +1309,15 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#additem" title="AddItem" class="md-nav__link">
-    AddItem
+  <a href="#anycast" title="Anycast" class="md-nav__link">
+    Anycast
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getepoch" title="GetEpoch" class="md-nav__link">
+    GetEpoch
   </a>
   
 </li>
@@ -1559,6 +1607,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../interface/wallet/" title="Wallet" class="md-nav__link">
+      Wallet
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -1748,6 +1808,40 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#chainmanager-state-machine" title="ChainManager State Machine" class="md-nav__link">
+    ChainManager State Machine
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#waitingconsensus" title="WaitingConsensus" class="md-nav__link">
+    WaitingConsensus
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#synchronizing" title="Synchronizing" class="md-nav__link">
+    Synchronizing
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#synced" title="Synced" class="md-nav__link">
+    Synced
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#actor-creation-and-registration" title="Actor creation and registration" class="md-nav__link">
     Actor creation and registration
   </a>
@@ -1813,6 +1907,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#additem" title="AddItem" class="md-nav__link">
+    AddItem
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#broadcast" title="Broadcast" class="md-nav__link">
     Broadcast
   </a>
@@ -1820,8 +1921,15 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#additem" title="AddItem" class="md-nav__link">
-    AddItem
+  <a href="#anycast" title="Anycast" class="md-nav__link">
+    Anycast
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getepoch" title="GetEpoch" class="md-nav__link">
+    GetEpoch
   </a>
   
 </li>
@@ -1866,7 +1974,7 @@
 <p>The <strong>Chain Manager</strong> is the actor in charge of managing the blocks of managing
 the blocks and transactions of the Witnet blockchain received through the protocol,
 and also encapsulates the logic of the <em>unspent transaction outputs</em>.</p>
-<p>Among its responsabilities are the following:</p>
+<p>Among its responsibilities are the following:</p>
 <ul>
 <li>Initializing the chain info upon running the node for the first time and persisting it into storage (see <strong>Storage Manager</strong>).</li>
 <li>Recovering the chain info from storage and keeping it in its state.</li>
@@ -1896,20 +2004,45 @@ and also encapsulates the logic of the <em>unspent transaction outputs</em>.</p>
 <div class="codehilite"><pre><span></span><span class="sd">/// ChainManager actor</span>
 <span class="cp">#[derive(Default)]</span><span class="w"></span>
 <span class="k">pub</span><span class="w"> </span><span class="k">struct</span> <span class="nc">ChainManager</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="sd">/// Blockchain information data structure</span>
-<span class="w">    </span><span class="n">chain_info</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">ChainInfo</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
-<span class="w">    </span><span class="sd">/// Map that relates an epoch with the hashes of the blocks for that epoch</span>
-<span class="w">    </span><span class="c1">// One epoch can have more than one block</span>
-<span class="w">    </span><span class="n">epoch_to_block_hash</span>: <span class="nc">HashMap</span><span class="o">&lt;</span><span class="n">Epoch</span><span class="p">,</span><span class="w"> </span><span class="n">HashSet</span><span class="o">&lt;</span><span class="n">Hash</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="w"></span>
-<span class="w">    </span><span class="sd">/// Map that stores blocks by their hash</span>
-<span class="w">    </span><span class="n">blocks</span>: <span class="nc">HashMap</span><span class="o">&lt;</span><span class="n">Hash</span><span class="p">,</span><span class="w"> </span><span class="n">Block</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Blockchain state data structure</span>
+<span class="w">    </span><span class="n">chain_state</span>: <span class="nc">ChainState</span><span class="p">,</span><span class="w"></span>
 <span class="w">    </span><span class="sd">/// Current Epoch</span>
 <span class="w">    </span><span class="n">current_epoch</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">Epoch</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
-<span class="w">    </span><span class="sd">/// Block candidate to update chain_info in the next epoch</span>
-<span class="w">    </span><span class="n">block_candidate</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">Block</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Transactions Pool (_mempool_)</span>
+<span class="w">    </span><span class="n">transactions_pool</span>: <span class="nc">TransactionsPool</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Maximum weight each block can have</span>
+<span class="w">    </span><span class="n">max_block_weight</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Mining enabled</span>
+<span class="w">    </span><span class="n">mining_enabled</span>: <span class="kt">bool</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Hash of the genesis block</span>
+<span class="w">    </span><span class="n">genesis_block_hash</span>: <span class="nc">Hash</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Pool of active data requests</span>
+<span class="w">    </span><span class="n">data_request_pool</span>: <span class="nc">DataRequestPool</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// state of the state machine</span>
+<span class="w">    </span><span class="n">sm_state</span>: <span class="nc">StateMachine</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// The best beacon known to this node—to which it will try to catch up</span>
+<span class="w">    </span><span class="n">target_beacon</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">CheckpointBeacon</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
+<span class="w">    </span><span class="sd">/// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain</span>
+<span class="w">    </span><span class="n">candidates</span>: <span class="nc">HashMap</span><span class="o">&lt;</span><span class="n">Hash</span><span class="p">,</span><span class="w"> </span><span class="n">Block</span><span class="o">&gt;</span><span class="p">,</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </pre></div>
 
+<h2 id="chainmanager-state-machine">ChainManager State Machine<a class="headerlink" href="#chainmanager-state-machine" title="Permanent link">&para;</a></h2>
+<p>ChainManager has a state machine to specify handler's actions for each state:</p>
+<h3 id="waitingconsensus">WaitingConsensus<a class="headerlink" href="#waitingconsensus" title="Permanent link">&para;</a></h3>
+<p>In this state, the node is waiting to receive a <code class="codehilite">PeersBeacons</code> message with the
+<code class="codehilite">CheckPointBeacon</code> of all its outbounds. It will decide with a consensus method
+the consensus beacon to achieve. If its <code class="codehilite">CheckPointBeacon</code> is the same as consensus
+, it will change to Synced, if not, it will hold the <code class="codehilite">target_beacon</code> and it will change
+to Synchronizing.</p>
+<p>During this state all the messages will be ignored except <code class="codehilite">AddCandidates</code>.</p>
+<h3 id="synchronizing">Synchronizing<a class="headerlink" href="#synchronizing" title="Permanent link">&para;</a></h3>
+<p>In this state, the node is waiting to receive an <code class="codehilite">AddBlocks</code> to synchronize all the
+blocks. After that, it will check if <code class="codehilite">target_beacon</code> is reached and change to <code class="codehilite">WaitingConsensus</code>,
+if not, it will send another <code class="codehilite">AnyCast&lt;SendLastBeacon&gt;</code> to continue the synchronization process.</p>
+<h3 id="synced">Synced<a class="headerlink" href="#synced" title="Permanent link">&para;</a></h3>
+<p>In this state, the node is fully operative. It can consolidate blocks, mine, broadcast <code class="codehilite">LastBeacon</code> messages
+and help other nodes synchronizing.</p>
 <h2 id="actor-creation-and-registration">Actor creation and registration<a class="headerlink" href="#actor-creation-and-registration" title="Permanent link">&para;</a></h2>
 <p>The creation of the Chain Manager actor and its registration into the system registry are
 performed directly by the main process <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/node.rs"><code class="codehilite">node.rs</code></a>:</p>
@@ -1943,22 +2076,22 @@ performed directly by the main process <a href="https://github.com/witnet/witnet
 <td>A new epoch has been reached</td>
 </tr>
 <tr>
-<td><code class="codehilite">EpochNotification&lt;MiningNotification&gt;</code></td>
-<td><code class="codehilite">Epoch</code>, <code class="codehilite">MiningNotification</code></td>
-<td><code class="codehilite">()</code></td>
-<td>A new epoch has been reached, try to mine a new block</td>
-</tr>
-<tr>
 <td><code class="codehilite">GetHighestBlockCheckpoint</code></td>
 <td><code class="codehilite">()</code></td>
 <td><code class="codehilite">ChainInfoResult</code></td>
 <td>Request a copy of the highest block checkpoint</td>
 </tr>
 <tr>
-<td><code class="codehilite">AddNewBlock</code></td>
-<td><code class="codehilite">Block</code></td>
-<td><code class="codehilite">Result&lt;(), ChainManagerError&gt;</code></td>
-<td>Add a new block and announce it to other sessions</td>
+<td><code class="codehilite">AddBlocks</code></td>
+<td><code class="codehilite">Vec&lt;Block&gt;</code></td>
+<td><code class="codehilite">()</code></td>
+<td>Add a vector of blocks to synchronization process</td>
+</tr>
+<tr>
+<td><code class="codehilite">AddCandidates</code></td>
+<td><code class="codehilite">Vec&lt;Block&gt;</code></td>
+<td><code class="codehilite">()</code></td>
+<td>Add a vector of candidates to consolidate in chain later</td>
 </tr>
 <tr>
 <td><code class="codehilite">AddTransaction</code></td>
@@ -1967,22 +2100,16 @@ performed directly by the main process <a href="https://github.com/witnet/witnet
 <td>Add a new transaction and announce it to other sessions</td>
 </tr>
 <tr>
-<td><code class="codehilite">GetBlock</code></td>
-<td><code class="codehilite">Hash</code></td>
-<td><code class="codehilite">Result&lt;(), ChainManagerError&gt;</code></td>
-<td>Ask for a block identified by its hash</td>
-</tr>
-<tr>
 <td><code class="codehilite">GetBlocksEpochRange</code></td>
 <td><code class="codehilite">(Bound&lt;Epoch&gt;, Bound&lt;Epoch&gt;)</code></td>
 <td><code class="codehilite">Result&lt;Vec&lt;(Epoch, InventoryEntry)&gt;, ChainManagerError&gt;</code></td>
 <td>Obtain a vector of epochs and block hashes using a range of epochs</td>
 </tr>
 <tr>
-<td><code class="codehilite">DiscardExistingInventoryEntries</code></td>
-<td><code class="codehilite">Vec&lt;InventoryEntries&gt;</code></td>
-<td><code class="codehilite">InventoryEntriesResult</code></td>
-<td>Discard inventory entries that exist in the BlocksManager</td>
+<td><code class="codehilite">PeersBeacons</code></td>
+<td><code class="codehilite">Vec&lt;(SocketAddr, CheckpointBeacon)&gt;</code></td>
+<td><code class="codehilite">Result&lt;Vec&lt;SocketAddr&gt;, ()&gt;</code></td>
+<td>Obtain a vector of <code class="codehilite">CheckPointBeacon</code> to decide a consensus block</td>
 </tr>
 </tbody>
 </table>
@@ -2074,13 +2201,6 @@ checkpoint.</p>
 <td>Wrapper to Storage <code class="codehilite">put()</code> method</td>
 </tr>
 <tr>
-<td><code class="codehilite">Broadcast&lt;AnnounceItems&gt;</code></td>
-<td><code class="codehilite">SessionsManager</code></td>
-<td><code class="codehilite">Vec&lt;InventoryEntry&gt;</code></td>
-<td><code class="codehilite">()</code></td>
-<td>Announce new inventory entries to the sessions</td>
-</tr>
-<tr>
 <td><code class="codehilite">AddItem</code></td>
 <td><code class="codehilite">InventoryManager</code></td>
 <td><code class="codehilite">InventoryItem</code></td>
@@ -2088,18 +2208,25 @@ checkpoint.</p>
 <td>Persist the <code class="codehilite">best_candidate.block</code></td>
 </tr>
 <tr>
-<td><code class="codehilite">Broadcast&lt;SendBlock&gt;</code></td>
+<td><code class="codehilite">Broadcast&lt;SendInventoryItem&gt;</code></td>
 <td><code class="codehilite">SessionsManager</code></td>
-<td><code class="codehilite">Block</code></td>
+<td><code class="codehilite">InventoryItem</code></td>
 <td><code class="codehilite">()</code></td>
-<td>Send a new block to the sessions</td>
+<td>Send a InventoryItem to all the sessions</td>
 </tr>
 <tr>
-<td><code class="codehilite">Anycast&lt;RequestBlock&gt;</code></td>
+<td><code class="codehilite">Anycast&lt;SendLastBeacon&gt;</code></td>
 <td><code class="codehilite">SessionsManager</code></td>
-<td><code class="codehilite">InventoryEntry</code></td>
+<td><code class="codehilite">CheckpointBeacon</code></td>
 <td><code class="codehilite">()</code></td>
-<td>Request a lost block to a random session</td>
+<td>Send a LastBeacon to a random session</td>
+</tr>
+<tr>
+<td><code class="codehilite">GetEpoch</code></td>
+<td><code class="codehilite">EpochManager</code></td>
+<td><code class="codehilite">()</code></td>
+<td><code class="codehilite">EpochResult&lt;Epoch&gt;</code></td>
+<td>Get the current epoch</td>
 </tr>
 </tbody>
 </table>
@@ -2126,12 +2253,18 @@ to decide whether or not enable the mining.</p>
 <h4 id="put">Put<a class="headerlink" href="#put" title="Permanent link">&para;</a></h4>
 <p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/storage_manager"><code class="codehilite">StorageManager</code></a> actor to persist the <code class="codehilite">ChainInfo</code> structure</p>
 <p>The return value is used to check if the storage process has been successful.</p>
-<h4 id="broadcast">Broadcast<AnnounceItems><a class="headerlink" href="#broadcast" title="Permanent link">&para;</a></h4>
-<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor which will
-broadcast a <code class="codehilite">AnnounceItems</code> message to the open outbound sessions.</p>
 <h4 id="additem">AddItem<a class="headerlink" href="#additem" title="Permanent link">&para;</a></h4>
 <p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/inventory_manager"><code class="codehilite">InventoryManager</code></a> actor as a <code class="codehilite">InventoryItem</code>
 to persist the <code class="codehilite">block_candidate</code> state.</p>
+<h4 id="broadcast">Broadcast<SendInventoryItem><a class="headerlink" href="#broadcast" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor which will
+broadcast a <code class="codehilite">SendInventoryItem</code> message to the open sessions.</p>
+<h4 id="anycast">Anycast<SendLastBeacon><a class="headerlink" href="#anycast" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/sessions_manager"><code class="codehilite">SessionsManager</code></a> actor which will
+send a <code class="codehilite">SendLastBeacon</code> message to a random open outbound sessions.</p>
+<h4 id="getepoch">GetEpoch<a class="headerlink" href="#getepoch" title="Permanent link">&para;</a></h4>
+<p>This message is sent to the <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/epoch_manager"><code class="codehilite">EpochManager</code></a> actor which will provide
+the current epoch.</p>
 <h2 id="further-information">Further information<a class="headerlink" href="#further-information" title="Permanent link">&para;</a></h2>
 <p>The full source code of the <code class="codehilite">ChainManager</code> can be found at <a href="https://github.com/witnet/witnet-rust/blob/master/node/src/actors/chain_manager"><code class="codehilite">chain_manager.rs</code></a>.</p>
                 

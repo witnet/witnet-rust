@@ -1508,6 +1508,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../wallet/" title="Wallet" class="md-nav__link">
+      Wallet
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -1812,6 +1824,22 @@ details.</p>
 <h4 id="getblockchain">getBlockChain<a class="headerlink" href="#getblockchain" title="Permanent link">&para;</a></h4>
 <p>Get the list of all the known block hashes.</p>
 <p>Returns a list of <code class="codehilite">(epoch, block_hash)</code> pairs.</p>
+<p>These parameters can be used to limit to some epoch range.
+There are two optional parameters: epoch and limit. For example, to get the
+blocks for epochs <code class="codehilite">100-104</code>, use <code class="codehilite">&quot;epoch&quot; 100</code> and <code class="codehilite">&quot;limit&quot;: 5</code>:</p>
+<div class="codehilite"><pre><span></span><span class="s2">&quot;params&quot;</span><span class="err">:</span> <span class="p">{</span>
+    <span class="nt">&quot;epoch&quot;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
+    <span class="nt">&quot;limit&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+
+<p>If a negative epoch is supplied, it is interpreted as "the last N epochs".
+For instance, to get the block for the last epoch:</p>
+<div class="codehilite"><pre><span></span><span class="s2">&quot;params&quot;</span><span class="err">:</span> <span class="p">{</span>
+    <span class="nt">&quot;epoch&quot;</span><span class="p">:</span> <span class="mi">-1</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+
 <p>Example:</p>
 <div class="codehilite"><pre><span></span>{&quot;jsonrpc&quot;: &quot;2.0&quot;,&quot;method&quot;: &quot;getBlockChain&quot;, &quot;id&quot;: 1}
 </pre></div>
@@ -1865,13 +1893,13 @@ details.</p>
           </a>
         
         
-          <a href="../../advanced/constants/" title="Network constants" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../wallet/" title="Wallet" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Network constants
+                Wallet
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
