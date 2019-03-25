@@ -57,7 +57,6 @@ fn builders_build_block() {
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        reveal: [0; 32].to_vec(),
         transaction_id: Hash::SHA256([0; 32]),
     });
     let data_request_input = Input::DataRequest(DataRequestInput {
@@ -177,7 +176,6 @@ fn builders_build_transaction() {
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        reveal: [0; 32].to_vec(),
         transaction_id: Hash::SHA256([0; 32]),
     });
     let data_request_input = Input::DataRequest(DataRequestInput {

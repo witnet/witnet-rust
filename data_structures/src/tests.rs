@@ -28,7 +28,6 @@ fn test_block_hashable_trait() {
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        reveal: [0; 32].to_vec(),
         transaction_id: HASH,
     });
     let reveal_input = Input::Reveal(RevealInput {
@@ -139,7 +138,6 @@ fn test_transaction_hashable_trait() {
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        reveal: [0; 32].to_vec(),
         transaction_id: HASH,
     });
     let reveal_input = Input::Reveal(RevealInput {

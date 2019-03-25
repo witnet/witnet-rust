@@ -26,7 +26,6 @@ fn build_hardcoded_block(checkpoint: u32, influence: u64, hash_prev_block: Hash)
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        reveal: [0; 32].to_vec(),
         transaction_id: Hash::SHA256([0; 32]),
     });
 

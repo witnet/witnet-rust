@@ -537,7 +537,6 @@ pub struct ValueTransferInput {
 pub struct CommitInput {
     pub transaction_id: Hash,
     pub output_index: u32,
-    pub reveal: Vec<u8>,
     pub nonce: u64,
 }
 
@@ -1355,7 +1354,6 @@ mod tests {
         let commit_input = Input::Commit(CommitInput {
             nonce: 0,
             output_index: 0,
-            reveal: [0; 32].to_vec(),
             transaction_id: Hash::SHA256([0; 32]),
         });
         let reveal_input = Input::Reveal(RevealInput {
@@ -1466,7 +1464,6 @@ mod tests {
         let commit_input = Input::Commit(CommitInput {
             nonce: 0,
             output_index: 0,
-            reveal: [0; 32].to_vec(),
             transaction_id: Hash::SHA256([0; 32]),
         });
         let reveal_input = Input::Reveal(RevealInput {
@@ -1548,7 +1545,6 @@ mod tests {
             reveal_output,
             consensus_output,
         ];
-        let transaction_body = TransactionBody::new(0, inputs, outputs);
         let transaction = Transaction::new(transaction_body.clone(), signatures);
         let expected = "745e4caa38c85fe6788a2b81388dca5e73929a10e234b3b9a3a8df9ec2a7ad2f";
 

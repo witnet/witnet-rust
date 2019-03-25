@@ -534,7 +534,6 @@ pub fn create_reveal_body(
     let commit_input = Input::Commit(CommitInput {
         transaction_id: commit_pointer.transaction_id,
         output_index: commit_pointer.output_index,
-        reveal: reveal.clone(),
         nonce: 0,
     });
 
@@ -863,7 +862,6 @@ mod tests {
             Input::Commit(CommitInput {
                 transaction_id: commit_pointer.transaction_id,
                 output_index: commit_pointer.output_index,
-                reveal: vec![77],
                 nonce: 444,
             }),
             Output::Reveal(reveal),
@@ -983,7 +981,6 @@ mod tests {
             Input::Commit(CommitInput {
                 transaction_id: commit_pointer.transaction_id,
                 output_index: commit_pointer.output_index,
-                reveal: vec![77],
                 nonce: 444,
             }),
             Output::Reveal(reveal),
@@ -1116,7 +1113,6 @@ mod tests {
             Input::Commit(CommitInput {
                 transaction_id: commit_pointer.transaction_id,
                 output_index: commit_pointer.output_index,
-                reveal: vec![77],
                 nonce: 444,
             }),
             Output::Reveal(reveal),
@@ -1288,7 +1284,6 @@ mod tests {
             Input::Commit(CommitInput {
                 transaction_id: commit_pointer.transaction_id,
                 output_index: commit_pointer.output_index,
-                reveal: vec![77],
                 nonce: 444,
             }),
             Output::Reveal(reveal),
