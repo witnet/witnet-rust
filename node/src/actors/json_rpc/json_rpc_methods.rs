@@ -503,12 +503,10 @@ mod tests {
             reveal_output,
             consensus_output,
         ];
-        let txns: Vec<Transaction> = vec![Transaction {
-            inputs,
-            signatures: keyed_signatures,
-            outputs,
-            version: 0,
-        }];
+        let txns = vec![Transaction::new(
+            TransactionBody::new(0, inputs, outputs),
+            keyed_signatures,
+        )];
         let block = Block {
             block_header: BlockHeader {
                 version: 1,
@@ -563,16 +561,70 @@ mod tests {
         // What happens when the inventory method is called with an unimplemented type?
         let msg = r#"{"jsonrpc":"2.0","method":"inventory","params":{ "error": null },"id":1}"#;
         let expected =
-            r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Item type not implemented"#
+            r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Item type not implemented"},"id":1}"#
                 .to_string();
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
         let io = jsonrpc_io_handler(subscriptions);
         let response = io.handle_request_sync(&msg, meta);
-        // Compare only the first N characters
-        let response =
-            response.map(|s| s.chars().take(expected.chars().count()).collect::<String>());
+        assert_eq!(response, Some(expected));
+    }
+
+    #[test]
+    fn subscribe_invalid_method() {
+        // Try to subscribe to a non-existent subscription?
+        let msg = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["asdf"],"id":1}"#;
+        let expected =
+            r#"{"jsonrpc":"2.0","error":{"code":-32602,"message":"Unknown subscription method: asdf"},"id":1}"#
+                .to_string();
+        let subscriptions = Subscriptions::default();
+        let (transport_sender, _transport_receiver) = mpsc::channel(0);
+        let meta = Arc::new(Session::new(transport_sender));
+        let io = jsonrpc_io_handler(subscriptions);
+        let response = io.handle_request_sync(&msg, meta);
+        assert_eq!(response, Some(expected));
+    }
+
+    #[test]
+    fn subscribe_new_blocks() {
+        // Subscribe to new blocks gives us a SubscriptionId
+        let msg = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["newBlocks"],"id":1}"#;
+        let expected = r#"{"jsonrpc":"2.0","result":"1","id":1}"#.to_string();
+        let subscriptions = Subscriptions::default();
+        let (transport_sender, _transport_receiver) = mpsc::channel(0);
+        let meta = Arc::new(Session::new(transport_sender));
+        let io = jsonrpc_io_handler(subscriptions);
+        let response = io.handle_request_sync(&msg, meta);
+        assert_eq!(response, Some(expected));
+    }
+
+    #[test]
+    fn unsubscribe_returns_true() {
+        // Check that unsubscribe returns true
+        let msg2 = r#"{"jsonrpc":"2.0","method":"witnet_unsubscribe","params":["1"],"id":1}"#;
+        let expected2 = r#"{"jsonrpc":"2.0","result":true,"id":1}"#.to_string();
+        let subscriptions = Subscriptions::default();
+        let (transport_sender, _transport_receiver) = mpsc::channel(0);
+        let meta = Arc::new(Session::new(transport_sender));
+        let io = jsonrpc_io_handler(subscriptions);
+        // But first, subscribe to newBlocks
+        let msg1 = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["newBlocks"],"id":1}"#;
+        let _response1 = io.handle_request_sync(&msg1, meta.clone());
+        let response2 = io.handle_request_sync(&msg2, meta);
+        assert_eq!(response2, Some(expected2));
+    }
+
+    #[test]
+    fn unsubscribe_can_fail() {
+        // Check that unsubscribe returns false when unsubscribing to a non-existent subscription
+        let msg = r#"{"jsonrpc":"2.0","method":"witnet_unsubscribe","params":["999"],"id":1}"#;
+        let expected = r#"{"jsonrpc":"2.0","result":false,"id":1}"#.to_string();
+        let subscriptions = Subscriptions::default();
+        let (transport_sender, _transport_receiver) = mpsc::channel(0);
+        let meta = Arc::new(Session::new(transport_sender));
+        let io = jsonrpc_io_handler(subscriptions);
+        let response = io.handle_request_sync(&msg, meta);
         assert_eq!(response, Some(expected));
     }
 
