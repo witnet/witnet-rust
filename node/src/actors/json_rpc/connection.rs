@@ -13,7 +13,6 @@ use super::{
     newline_codec::NewLineCodec,
     server::{JsonRpcServer, Unregister},
 };
-use crate::actors::json_rpc::json_rpc_methods::AddrJsonRpc;
 use jsonrpc_pubsub::{PubSubHandler, Session};
 use std::sync::Arc;
 
@@ -25,8 +24,8 @@ pub struct JsonRpc {
     // Needed to send the `Unregister` message when the connection closes
     pub parent: Addr<JsonRpcServer>,
     /// IoHandler
-    pub jsonrpc_io: Rc<PubSubHandler<AddrJsonRpc>>,
-    /// lololololol
+    pub jsonrpc_io: Rc<PubSubHandler<Arc<Session>>>,
+    /// Sender
     pub session: Arc<Session>,
 }
 
@@ -76,13 +75,7 @@ impl StreamHandler<BytesMut, io::Error> for JsonRpc {
 
         // Handle response asynchronously
         self.jsonrpc_io
-            .handle_request(
-                &msg,
-                AddrJsonRpc {
-                    addr: ctx.address(),
-                    session,
-                },
-            )
+            .handle_request(&msg, session)
             .into_actor(self)
             .then(|res, act, _ctx| {
                 if let Ok(Some(response)) = res {
@@ -97,7 +90,6 @@ impl StreamHandler<BytesMut, io::Error> for JsonRpc {
 
 impl StreamHandler<String, ()> for JsonRpc {
     fn handle(&mut self, item: String, _ctx: &mut Self::Context) {
-        info!("JsonRpc actor got StreamHandler message: {}", item);
         self.framed.write(BytesMut::from(item));
     }
 }
