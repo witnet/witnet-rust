@@ -4,11 +4,14 @@ use std::collections::HashMap;
 use witnet_data_structures::{
     chain::{
         Block, BlockError, BlockInChain, CheckpointBeacon, DataRequestOutput, Epoch, Hash,
-        Hashable, Input, Output, OutputPointer, Transaction, TransactionError, TransactionType,
-        TransactionsPool, UnspentOutputsPool,
+        Hashable, Input, Output, OutputPointer, RADRequest, Transaction, TransactionError,
+        TransactionType, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
+    serializers::decoders::TryFrom,
 };
+
+use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -85,6 +88,45 @@ pub fn validate_mint_transaction(
     }
 }
 
+/// Function to validate a rad request
+pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Error> {
+    let retrieval_paths = &rad_request.retrieve;
+    for path in retrieval_paths {
+        unpack_radon_script(path.script.as_slice())?;
+    }
+
+    let aggregate = &rad_request.aggregate;
+    unpack_radon_script(aggregate.script.as_slice())?;
+
+    let consensus = &rad_request.consensus;
+    unpack_radon_script(consensus.script.as_slice())?;
+
+    Ok(())
+}
+
+/// Function to validate a tally consensus
+pub fn validate_consensus(
+    reveals: Vec<Vec<u8>>,
+    miner_tally: Vec<u8>,
+    tally_stage: Vec<u8>,
+) -> Result<(), failure::Error> {
+    let radon_types_vec: Vec<RadonTypes> = reveals
+        .iter()
+        .filter_map(|input| RadonTypes::try_from(input.as_slice()).ok())
+        .collect();
+
+    let local_tally = run_consensus(radon_types_vec, tally_stage)?;
+
+    if local_tally == miner_tally {
+        Ok(())
+    } else {
+        Err(TransactionError::MismatchedConsensus {
+            local_tally,
+            miner_tally,
+        })?
+    }
+}
+
 /// Function to validate a data request transaction
 pub fn validate_dr_transaction(tx: &Transaction) -> Result<(), failure::Error> {
     if tx.outputs.len() != 1 {
@@ -109,10 +151,7 @@ pub fn validate_dr_transaction(tx: &Transaction) -> Result<(), failure::Error> {
             })?
         }
 
-        let _rad_request = &dr_output.data_request;
-        // TODO(#531): Validate RADON scripts
-
-        Ok(())
+        validate_rad_request(&dr_output.data_request)
     } else {
         Err(TransactionError::InvalidDataRequestTransaction)?
     }
@@ -235,7 +274,7 @@ pub fn validate_tally_transaction(
         Err(TransactionError::InvalidTallyTransaction)?
     }
 
-    let mut v_reveals: Vec<Vec<u8>> = vec![];
+    let mut reveals: Vec<Vec<u8>> = vec![];
     let mut dr_pointer_aux = &OutputPointer {
         transaction_id: Hash::default(),
         output_index: 0,
@@ -261,7 +300,7 @@ pub fn validate_tally_transaction(
 
                 match utxo.get(&reveal_pointer) {
                     Some(Output::Reveal(reveal_output)) => {
-                        v_reveals.push(reveal_output.reveal.clone())
+                        reveals.push(reveal_output.reveal.clone())
                     }
                     _ => Err(TransactionError::OutputNotFound {
                         output: reveal_pointer.clone(),
@@ -293,9 +332,15 @@ pub fn validate_tally_transaction(
 
     //TODO: Check Tally convergence
 
-    //TODO: Apply RAD Consensus and validate tally_value
+    // Validate tally result
+    if let Some(Output::Tally(tally_output)) = tx.outputs.last() {
+        let miner_tally = tally_output.result.clone();
+        let tally_stage = dr_state.data_request.data_request.consensus.script.clone();
 
-    Ok(())
+        validate_consensus(reveals, miner_tally, tally_stage)
+    } else {
+        Err(TransactionError::InvalidTallyTransaction)?
+    }
 }
 
 /// Function to validate a transaction

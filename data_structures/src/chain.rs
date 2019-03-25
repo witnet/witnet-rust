@@ -380,6 +380,14 @@ pub enum TransactionError {
     InsufficientWitnesses,
     #[fail(display = "Reveals from different Data Requests")]
     RevealsFromDifferentDataRequest,
+    #[fail(
+        display = "Mismatching between local tally ({:?}) and miner tally ({:?})",
+        local_tally, miner_tally
+    )]
+    MismatchedConsensus {
+        local_tally: Vec<u8>,
+        miner_tally: Vec<u8>,
+    },
 }
 
 /// Transaction tags for validation process
