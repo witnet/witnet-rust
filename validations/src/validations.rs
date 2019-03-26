@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use witnet_data_structures::{
     chain::{
         Block, BlockError, BlockInChain, CheckpointBeacon, DataRequestOutput, Epoch, Hash,
-        Hashable, Input, Output, OutputPointer, RADRequest, Transaction, TransactionError,
-        TransactionType, TransactionsPool, UnspentOutputsPool,
+        Hashable, Input, Output, OutputPointer, RADRequest, Transaction, TransactionBody,
+        TransactionError, TransactionType, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     serializers::decoders::TryFrom,
@@ -18,7 +18,7 @@ use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 /// found in `pool`, then an error is returned instead indicating
 /// it. If a Signature is invalid an error is returned too
 pub fn transaction_inputs_sum(
-    tx: &Transaction,
+    tx: &TransactionBody,
     pool: &UnspentOutputsPool,
 ) -> Result<u64, failure::Error> {
     let mut total_value = 0;
@@ -39,7 +39,7 @@ pub fn transaction_inputs_sum(
 }
 
 /// Calculate the sum of the values of the outputs of a transaction.
-pub fn transaction_outputs_sum(tx: &Transaction) -> u64 {
+pub fn transaction_outputs_sum(tx: &TransactionBody) -> u64 {
     tx.outputs.iter().map(Output::value).sum()
 }
 
@@ -49,7 +49,10 @@ pub fn transaction_outputs_sum(tx: &Transaction) -> u64 {
 /// of the transaction. The pool parameter is used to find the
 /// outputs pointed by the inputs and that contain the actual
 /// their value.
-pub fn transaction_fee(tx: &Transaction, pool: &UnspentOutputsPool) -> Result<u64, failure::Error> {
+pub fn transaction_fee(
+    tx: &TransactionBody,
+    pool: &UnspentOutputsPool,
+) -> Result<u64, failure::Error> {
     let in_value = transaction_inputs_sum(tx, pool)?;
     let out_value = transaction_outputs_sum(tx);
 
@@ -63,13 +66,13 @@ pub fn transaction_fee(tx: &Transaction, pool: &UnspentOutputsPool) -> Result<u6
 /// Returns `true` if the transaction classifies as a _mint
 /// transaction_.  A mint transaction is one that has no inputs,
 /// only outputs, thus, is allowed to create new wits.
-pub fn transaction_is_mint(tx: &Transaction) -> bool {
+pub fn transaction_is_mint(tx: &TransactionBody) -> bool {
     tx.inputs.is_empty()
 }
 
 /// Function to validate a mint transaction
 pub fn validate_mint_transaction(
-    tx: &Transaction,
+    tx: &TransactionBody,
     total_fees: u64,
     block_reward: u64,
 ) -> Result<(), failure::Error> {
@@ -128,7 +131,7 @@ pub fn validate_consensus(
 }
 
 /// Function to validate a data request transaction
-pub fn validate_dr_transaction(tx: &Transaction) -> Result<(), failure::Error> {
+pub fn validate_dr_transaction(tx: &TransactionBody) -> Result<(), failure::Error> {
     if tx.outputs.len() != 1 {
         Err(TransactionError::InvalidDataRequestTransaction)?
     }
@@ -174,7 +177,7 @@ pub fn update_count<S: ::std::hash::BuildHasher>(
 
 /// Function to validate a commit transaction
 pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
-    tx: &Transaction,
+    tx: &TransactionBody,
     dr_pool: &DataRequestPool,
     block_commits: HashMap<DataRequestOutput, u32, S>,
     fee: u64,
@@ -219,7 +222,7 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
 
 /// Function to validate a reveal transaction
 pub fn validate_reveal_transaction<S: ::std::hash::BuildHasher>(
-    tx: &Transaction,
+    tx: &TransactionBody,
     dr_pool: &DataRequestPool,
     block_reveals: HashMap<DataRequestOutput, u32, S>,
     fee: u64,
@@ -265,7 +268,7 @@ pub fn validate_reveal_transaction<S: ::std::hash::BuildHasher>(
 
 /// Function to validate a tally transaction
 pub fn validate_tally_transaction(
-    tx: &Transaction,
+    tx: &TransactionBody,
     dr_pool: &DataRequestPool,
     utxo: &UnspentOutputsPool,
     fee: u64,
@@ -377,7 +380,7 @@ pub fn validate_transactions(
             Ok(_) => {
                 let txn_hash = transaction.hash();
 
-                for input in &transaction.inputs {
+                for input in &transaction.body.inputs {
                     // Obtain the OuputPointer of each input and remove it from the utxo_set
                     let output_pointer = input.output_pointer();
                     match input {
@@ -390,7 +393,7 @@ pub fn validate_transactions(
                     }
                 }
 
-                for (index, output) in transaction.outputs.iter().enumerate() {
+                for (index, output) in transaction.body.outputs.iter().enumerate() {
                     // Add the new outputs to the utxo_set
                     let output_pointer = OutputPointer {
                         transaction_id: txn_hash,
@@ -477,7 +480,7 @@ pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> Result<(), fai
 }
 
 /// Function to assign tags to transactions
-pub fn transaction_tag(tx: &Transaction) -> TransactionType {
+pub fn transaction_tag(tx: &TransactionBody) -> TransactionType {
     match tx.outputs.last() {
         Some(Output::DataRequest(_)) => TransactionType::DataRequest,
         Some(Output::ValueTransfer(_)) => {
