@@ -31,9 +31,12 @@ mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
         let signature = sign(secret_key, &data);
-        let signature_expected =
-            "304402203dc4fa74655c21b7ffc0740e29bfd88647e8dfe2b68c507cf96264e4e7439c1f\
-             02207aa61261b18eebdfdb704ca7bab4c7bcf7961ae0ade5309f6f1398e21aec0f9f0000";
+        let signature_expected = "3044\
+                                  0220\
+                                  3dc4fa74655c21b7ffc0740e29bfd88647e8dfe2b68c507cf96264e4e7439c1f\
+                                  0220\
+                                  7aa61261b18eebdfdb704ca7bab4c7bcf7961ae0ade5309f6f1398e21aec0f9f\
+                                  0000";
         assert_eq!(signature_expected.to_string(), signature.to_string());
 
         assert!(verify(public_key, &data, signature).is_ok());

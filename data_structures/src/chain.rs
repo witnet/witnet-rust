@@ -6,6 +6,7 @@ use super::{
 use failure::Fail;
 use partial_struct::PartialStruct;
 use protobuf::Message;
+use secp256k1::Signature as Secp256k1_Signature;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::Cell;
 use std::{
@@ -254,6 +255,42 @@ pub struct Secp256k1Signature {
     pub s: [u8; 32],
     /// 1 byte prefix of value S
     pub v: u8,
+}
+
+/// The error type for operations on a [`Secp256k1Signature`](Secp256k1Signature)
+#[derive(Debug, PartialEq, Fail)]
+pub enum Secp256k1SignatureError {
+    #[fail(
+        display = "Failing in signature conversion process from Signature to Secp256k1_Signature"
+    )]
+    FailSignatureConversion,
+}
+
+impl Secp256k1Signature {
+    pub fn from_secp256k1(secp256k1_signature: Secp256k1_Signature) -> Self {
+        let der = secp256k1_signature.serialize_der();
+        let mut r: [u8; 32] = [0; 32];
+        r.copy_from_slice(&der[4..36]);
+        let mut s: [u8; 32] = [0; 32];
+        s.copy_from_slice(&der[38..70]);
+
+        Secp256k1Signature { r, s, v: 2u8 }
+    }
+
+    pub fn into_secp256k1(self) -> Result<Secp256k1_Signature, failure::Error> {
+        let mut der = vec![];
+        let head1 = &[0x30, 0x44];
+        let head2 = &[0x02, 0x20];
+
+        der.extend_from_slice(head1);
+        der.extend_from_slice(head2);
+        der.extend_from_slice(&self.r);
+        der.extend_from_slice(head2);
+        der.extend_from_slice(&self.s);
+
+        Ok(Secp256k1_Signature::from_der(&der)
+            .map_err(|_| Secp256k1SignatureError::FailSignatureConversion)?)
+    }
 }
 
 /// Hash
@@ -1588,5 +1625,22 @@ mod tests {
         assert!(result_error_format_1.is_err());
         assert!(result_error_format_2.is_err());
         assert!(result_error_format_3.is_err());
+    }
+
+    #[test]
+    fn secp256k1_from_into_signatures() {
+        use crate::chain::Secp256k1Signature;
+        use secp256k1::{Message as Secp256k1_Message, Secp256k1, SecretKey};
+
+        let data = [0xab; 32];
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let msg = Secp256k1_Message::from_slice(&data).unwrap();
+        let signature = secp.sign(&msg, &secret_key);
+
+        let witnet_signature = Secp256k1Signature::from_secp256k1(signature);
+        let signature_into = witnet_signature.into_secp256k1().unwrap();
+
+        assert_eq!(signature.to_string(), signature_into.to_string());
     }
 }
