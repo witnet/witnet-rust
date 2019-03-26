@@ -6,7 +6,7 @@ use super::{
 use failure::Fail;
 use partial_struct::PartialStruct;
 use protobuf::Message;
-use secp256k1::Signature as Secp256k1_Signature;
+use secp256k1::{PublicKey as Secp256k1_PublicKey, Signature as Secp256k1_Signature};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::Cell;
 use std::{
@@ -259,11 +259,15 @@ pub struct Secp256k1Signature {
 
 /// The error type for operations on a [`Secp256k1Signature`](Secp256k1Signature)
 #[derive(Debug, PartialEq, Fail)]
-pub enum Secp256k1SignatureError {
+pub enum Secp256k1Error {
     #[fail(
         display = "Failing in signature conversion process from Signature to Secp256k1_Signature"
     )]
     FailSignatureConversion,
+    #[fail(
+        display = "Failing in public key conversion process from PublicKey to Secp256k1_PublicKey"
+    )]
+    FailPublicKeyConversion,
 }
 
 impl Secp256k1Signature {
@@ -289,7 +293,30 @@ impl Secp256k1Signature {
         der.extend_from_slice(&self.s);
 
         Ok(Secp256k1_Signature::from_der(&der)
-            .map_err(|_| Secp256k1SignatureError::FailSignatureConversion)?)
+            .map_err(|_| Secp256k1Error::FailSignatureConversion)?)
+    }
+}
+
+impl PublicKey {
+    pub fn from_secp256k1(secp256k1_pk: Secp256k1_PublicKey) -> Self {
+        let serialize = secp256k1_pk.serialize();
+        let mut bytes: [u8; 32] = [0; 32];
+        bytes.copy_from_slice(&serialize[1..]);
+
+        PublicKey {
+            compressed: serialize[0],
+            bytes,
+        }
+    }
+
+    pub fn into_secp256k1(self) -> Result<Secp256k1_PublicKey, failure::Error> {
+        let mut pk_ser = vec![];
+
+        pk_ser.extend_from_slice(&[self.compressed]);
+        pk_ser.extend_from_slice(&self.bytes);
+
+        Ok(Secp256k1_PublicKey::from_slice(&pk_ser)
+            .map_err(|_| Secp256k1Error::FailPublicKeyConversion)?)
     }
 }
 
@@ -1656,4 +1683,20 @@ mod tests {
 
         assert_eq!(signature.to_string(), signature_into.to_string());
     }
+
+    #[test]
+    fn secp256k1_from_into_public_keys() {
+        use crate::chain::PublicKey;
+        use secp256k1::{PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey};
+
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &secret_key);
+
+        let witnet_pk = PublicKey::from_secp256k1(public_key);
+        let pk_into = witnet_pk.into_secp256k1().unwrap();
+
+        assert_eq!(public_key, pk_into);
+    }
+
 }
