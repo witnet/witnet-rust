@@ -85,7 +85,7 @@ message LastBeacon {
     CheckpointBeacon highest_block_checkpoint = 1;
 }
 
-message Transaction {
+message TransactionBody {
     message Input {
         message ValueTransferInput {
             Hash transaction_id = 1;
@@ -187,7 +187,11 @@ message Transaction {
     uint32 version = 1;
     repeated Input inputs = 2;
     repeated Output outputs = 3;
-    repeated KeyedSignature signatures = 4;
+}
+
+message Transaction {
+    TransactionBody body = 1;
+    repeated KeyedSignature signatures = 2;
 }
 
 // Helper structures (not meant to be sent directly as messages)
