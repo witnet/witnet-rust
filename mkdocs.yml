@@ -89,6 +89,7 @@ nav:
   - Interface:
     - Command Line Interface (CLI): interface/cli.md
     - JSON-RPC: interface/json-rpc.md
+    - Pub/Sub API: interface/pub-sub.md
     - Wallet: interface/wallet.md
   - Advanced:
     - Network constants: advanced/constants.md

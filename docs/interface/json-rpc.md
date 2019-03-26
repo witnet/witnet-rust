@@ -26,6 +26,9 @@ Therefore, the JSON string cannot contain any newlines expect for the final one.
 
 `NewLineCodec`
 
+### Subscriptions
+
+The Witnet node provides a pub/sub API, [see here for more info][pubsub].
 
 ### Methods
 
@@ -128,3 +131,4 @@ Response:
 [json_rpc_specs]: https://www.jsonrpc.org/specification
 [json_rpc_docs]: ../../interface/json-rpc/
 [configuration]: ../../configuration/toml-file/
+[pubsub]: ../../interface/pub-sub/

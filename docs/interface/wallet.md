@@ -6,6 +6,10 @@ It can be used to sign transactions and send them to the Witnet node over JSON-R
 The wallet itself provides a JSON-RPC API over WebSockets, which is useful
 for the Sheikah client.
 
+## Subscriptions
+
+The Witnet wallet provides a pub/sub API, [see here for more info][pubsub].
+
 ## Methods
 
 The following methods are available:
@@ -118,3 +122,5 @@ Unlocks the given wallet.
 ```
 unlockWallet(id, password) -> Wallet
 ```
+
+[pubsub]: ../../interface/pub-sub/
