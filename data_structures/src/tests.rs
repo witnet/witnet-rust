@@ -22,7 +22,10 @@ fn test_block_hashable_trait() {
         influence: 0,
     };
     let keyed_signatures = vec![KeyedSignature {
-        public_key: [0; 32],
+        public_key: PublicKey {
+            compressed: 0,
+            bytes: [0; 32],
+        },
         signature,
     }];
     let commit_input = Input::Commit(CommitInput {
@@ -132,7 +135,10 @@ fn test_transaction_hashable_trait() {
         v: 0,
     });
     let signatures = vec![KeyedSignature {
-        public_key: [0; 32],
+        public_key: PublicKey {
+            compressed: 0,
+            bytes: [0; 32],
+        },
         signature,
     }];
     let commit_input = Input::Commit(CommitInput {

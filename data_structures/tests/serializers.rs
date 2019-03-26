@@ -368,7 +368,10 @@ fn message_block_to_bytes() {
         influence: 0,
     };
     let keyed_signature = vec![KeyedSignature {
-        public_key: [0; 32],
+        public_key: PublicKey {
+            compressed: 0,
+            bytes: [0; 32],
+        },
         signature,
     }];
     let reveal_input = Input::Reveal(RevealInput {
@@ -580,7 +583,10 @@ fn message_block_from_bytes() {
         influence: 0,
     };
     let keyed_signature = vec![KeyedSignature {
-        public_key: [0; 32],
+        public_key: PublicKey {
+            compressed: 0,
+            bytes: [0; 32],
+        },
         signature,
     }];
     let reveal_input = Input::Reveal(RevealInput {
@@ -704,7 +710,10 @@ fn message_block_encode_decode() {
         influence: 0,
     };
     let keyed_signature = vec![KeyedSignature {
-        public_key: [0; 32],
+        public_key: PublicKey {
+            compressed: 0,
+            bytes: [0; 32],
+        },
         signature,
     }];
 
@@ -963,7 +972,10 @@ fn message_transaction_encode_decode() {
         v: 0,
     });
     let keyed_signature = vec![KeyedSignature {
-        public_key: [0; 32],
+        public_key: PublicKey {
+            compressed: 0,
+            bytes: [0; 32],
+        },
         signature,
     }];
 

@@ -673,7 +673,14 @@ pub struct TallyOutput {
 #[protobuf_convert(pb = "witnet::KeyedSignature")]
 pub struct KeyedSignature {
     pub signature: Signature,
-    pub public_key: [u8; 32],
+    pub public_key: PublicKey,
+}
+
+/// Public Key data structure
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct PublicKey {
+    pub compressed: u8,
+    pub bytes: [u8; 32],
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
@@ -1385,7 +1392,10 @@ mod tests {
             influence: 0,
         };
         let keyed_signatures = vec![KeyedSignature {
-            public_key: [0; 32],
+            public_key: PublicKey {
+                compressed: 0,
+                bytes: [0; 32],
+            },
             signature,
         }];
         let commit_input = Input::Commit(CommitInput {
@@ -1495,7 +1505,10 @@ mod tests {
             v: 0,
         });
         let signatures = vec![KeyedSignature {
-            public_key: [0; 32],
+            public_key: PublicKey {
+                compressed: 0,
+                bytes: [0; 32],
+            },
             signature,
         }];
         let commit_input = Input::Commit(CommitInput {

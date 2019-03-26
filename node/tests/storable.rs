@@ -14,7 +14,10 @@ fn build_hardcoded_block(checkpoint: u32, influence: u64, hash_prev_block: Hash)
         v: 0,
     });
     let keyed_signature = vec![KeyedSignature {
-        public_key: [0; 32],
+        public_key: PublicKey {
+            compressed: 0,
+            bytes: [0; 32],
+        },
         signature: signature.clone(),
     }];
 

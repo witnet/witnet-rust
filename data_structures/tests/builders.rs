@@ -47,7 +47,10 @@ fn builders_build_block() {
         influence: 0,
     };
     let keyed_signatures = vec![KeyedSignature {
-        public_key: [0; 32],
+        public_key: PublicKey {
+            compressed: 0,
+            bytes: [0; 32],
+        },
         signature: signature.clone(),
     }];
     let reveal_input = Input::Reveal(RevealInput {
@@ -166,7 +169,10 @@ fn builders_build_transaction() {
         v: 0,
     });
     let keyed_signatures = vec![KeyedSignature {
-        public_key: [0; 32],
+        public_key: PublicKey {
+            compressed: 0,
+            bytes: [0; 32],
+        },
         signature,
     }];
     let reveal_input = Input::Reveal(RevealInput {
