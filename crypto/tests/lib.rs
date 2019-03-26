@@ -1,4 +1,4 @@
-use witnet_crypto::hash::{calculate_sha256, Sha256};
+use witnet_crypto::hash::{calculate_sha256, Sha256, EMPTY_SHA256};
 
 #[test]
 fn sha256() {
@@ -9,4 +9,9 @@ fn sha256() {
     ];
     let witnet_hash = calculate_sha256(b"WITNET");
     assert_eq!(witnet_hash, Sha256(expected_witnet_hash));
+}
+
+#[test]
+fn empty_sha256() {
+    assert_eq!(EMPTY_SHA256, calculate_sha256(b""));
 }

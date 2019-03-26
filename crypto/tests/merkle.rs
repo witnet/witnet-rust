@@ -1,5 +1,5 @@
 use witnet_crypto::hash::{calculate_sha256, Sha256};
-use witnet_crypto::merkle::merkle_tree_root;
+use witnet_crypto::merkle::{merkle_tree_root, ProgressiveMerkleTree};
 
 #[test]
 fn empty() {
@@ -70,4 +70,28 @@ fn manual_hash_test() {
         merkle_tree_root(&[a, b, c, d, e, f, g]),
         h(h(h(a, b), h(c, d)), h(h(e, f), g))
     );
+}
+
+#[test]
+fn progressive() {
+    // Compare the ProgressiveMerkleTree against the slice-based one
+    let a = Sha256([0x00; 32]);
+    let b = Sha256([0x11; 32]);
+    let c = Sha256([0x22; 32]);
+    let d = Sha256([0x33; 32]);
+    let e = Sha256([0x44; 32]);
+    let f = Sha256([0x55; 32]);
+    let g = Sha256([0x66; 32]);
+    let x = vec![a, b, c, d, e, f, g];
+
+    let mut mt = ProgressiveMerkleTree::sha256();
+    // Empty merkle tree: empty hash
+    assert_eq!(merkle_tree_root(&[]), mt.root());
+    let mut mhashes = vec![];
+
+    for hash in x {
+        mt.push(hash);
+        mhashes.push(hash);
+        assert_eq!(merkle_tree_root(&mhashes), mt.root());
+    }
 }
