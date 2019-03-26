@@ -112,12 +112,10 @@ fn test_block_hashable_trait() {
         reveal_output,
         consensus_output,
     ];
-    let txns: Vec<Transaction> = vec![Transaction {
-        inputs,
-        signatures: keyed_signatures,
-        outputs,
-        version: 0,
-    }];
+    let txns: Vec<Transaction> = vec![Transaction::new(
+        TransactionBody::new(0, inputs, outputs),
+        keyed_signatures,
+    )];
     let block = Block {
         block_header,
         proof,
@@ -223,13 +221,8 @@ fn test_transaction_hashable_trait() {
         reveal_output,
         consensus_output,
     ];
-    let transaction: Transaction = Transaction {
-        inputs,
-        outputs,
-        signatures,
-        version: 0,
-    };
-    let expected = "4931d8cefc65f3becbed17b0132b67d11efe426b03f6dba6cf0a1d6855409def";
+    let transaction = Transaction::new(TransactionBody::new(0, inputs, outputs), signatures);
+    let expected = "745e4caa38c85fe6788a2b81388dca5e73929a10e234b3b9a3a8df9ec2a7ad2f";
     assert_eq!(transaction.hash().to_string(), expected);
 }
 

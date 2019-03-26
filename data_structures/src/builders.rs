@@ -3,6 +3,9 @@ use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
+use witnet_util::error::WitnetError;
+use witnet_util::timestamp::get_timestamp;
+
 use crate::chain::{
     Block, BlockHeader, CheckpointBeacon, InventoryEntry, LeadershipProof, Transaction,
 };
@@ -11,9 +14,6 @@ use crate::types::{
     Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress, LastBeacon,
     Message, Peers, Ping, Pong, Verack, Version,
 };
-
-use witnet_util::error::WitnetError;
-use witnet_util::timestamp::get_timestamp;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // PROTOCOL MESSAGES CONSTANTS
@@ -167,7 +167,7 @@ impl Message {
         )
     }
 
-    /// Function to build Block message
+    /// Function to build Transaction message
     pub fn build_transaction(magic: u16, transaction: Transaction) -> Message {
         Message::build_message(magic, Command::Transaction(transaction))
     }

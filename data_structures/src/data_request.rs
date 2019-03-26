@@ -6,8 +6,10 @@ use witnet_crypto::hash::calculate_sha256;
 use super::chain::{
     CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
     DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
-    RevealInput, RevealOutput, TallyOutput, Transaction, UnspentOutputsPool, ValueTransferOutput,
+    RevealInput, RevealOutput, TallyOutput, TransactionBody, UnspentOutputsPool,
+    ValueTransferOutput,
 };
+use crate::chain::Transaction;
 
 type DataRequestsWithReveals = Vec<(
     (OutputPointer, DataRequestOutput),
@@ -48,29 +50,9 @@ impl DataRequestPool {
             .map(|dr_state| dr_state.data_request.clone())
     }
 
-    /// Create data request commit and reveal
-    pub fn create_commit_and_reveal(
-        &mut self,
-        dr_output_pointer: &OutputPointer,
-        dr_output: &DataRequestOutput,
-        reveal: Vec<u8>,
-        random: u64,
-    ) -> Transaction {
-        let mut commit_transaction = create_commit(dr_output_pointer, dr_output, &reveal);
-        commit_transaction.signatures[0].public_key[0] = random as u8;
-        let commit_pointer = OutputPointer {
-            transaction_id: commit_transaction.hash(),
-            output_index: 0,
-        };
-        let mut reveal_transaction = create_reveal(commit_pointer, dr_output, reveal);
-        reveal_transaction.signatures[0].public_key[0] = random as u8;
-
-        // This function can only fail when reveal transactions is not valid,
-        // It can not be due to we are creating just before.
-        self.add_own_reveal(dr_output_pointer.clone(), reveal_transaction.clone())
-            .unwrap();
-
-        commit_transaction
+    /// Insert a reveal transaction into the pool
+    pub fn insert_reveal(&mut self, data_request_pointer: OutputPointer, reveal: Transaction) {
+        self.waiting_for_reveal.insert(data_request_pointer, reveal);
     }
 
     /// Get all the reveals
@@ -132,9 +114,9 @@ impl DataRequestPool {
         // struct RevealTransaction(Transaction)
         // but can only be constructed using a method which checks the validity
         // The reveal transaction can only have one input and one output
-        if reveal.inputs.len() == 1 && reveal.outputs.len() == 1 {
+        if reveal.body.inputs.len() == 1 && reveal.body.outputs.len() == 1 {
             // Input: CommitInput, Output: RevealOutput
-            match (&reveal.inputs[0], &reveal.outputs[0]) {
+            match (&reveal.body.inputs[0], &reveal.body.outputs[0]) {
                 (&Input::Commit(..), &Output::Reveal(..)) => {
                     Ok(self.waiting_for_reveal.insert(data_request_pointer, reveal))
                 }
@@ -350,7 +332,7 @@ impl DataRequestPool {
                         if let Some(transaction) = waiting_for_reveal.remove(dr_pointer) {
                             // We submitted a commit for this data request!
                             // But has it been included into the block?
-                            let commit_pointer = match &transaction.inputs[0] {
+                            let commit_pointer = match &transaction.body.inputs[0] {
                                 Input::Commit(commit) => commit.output_pointer(),
                                 _ => panic!("Invalid format for reveal transaction"),
                             };
@@ -386,7 +368,7 @@ impl DataRequestPool {
     /// The block hash is only used for debugging purposes
     pub fn process_transaction(&mut self, t: &Transaction, epoch: Epoch, block_hash: &Hash) {
         let transaction_id = t.hash();
-        for (i, (z, s)) in t.inputs.iter().zip(t.outputs.iter()).enumerate() {
+        for (i, (z, s)) in t.body.inputs.iter().zip(t.body.outputs.iter()).enumerate() {
             let output_index = i as u32;
             let pointer = OutputPointer {
                 transaction_id,
@@ -436,11 +418,15 @@ impl DataRequestPool {
         // at least 1 input and 2 outputs.
         // The last output is the tally, with no corresponding input,
         // and the last input-output pair is (RevealInput, ValueTransferOutput).
-        let possibly_tally = t.outputs.len() >= 2 && t.inputs.len() == t.outputs.len() - 1;
+        let possibly_tally =
+            t.body.outputs.len() >= 2 && t.body.inputs.len() == t.body.outputs.len() - 1;
 
         if possibly_tally {
-            let tally_index = t.outputs.len() - 1;
-            match (&t.inputs[tally_index - 1], &t.outputs[tally_index]) {
+            let tally_index = t.body.outputs.len() - 1;
+            match (
+                &t.body.inputs[tally_index - 1],
+                &t.body.outputs[tally_index],
+            ) {
                 (Input::Reveal(reveal), Output::Tally(_tally)) => {
                     // Assume that all the reveal inputs point to the same data request
                     // (as that should have been already validated)
@@ -463,8 +449,8 @@ impl DataRequestPool {
                          Outputs: {outputs:?}",
                         b = block_hash,
                         t = transaction_id,
-                        inputs = t.inputs,
-                        outputs = t.outputs
+                        inputs = t.body.inputs,
+                        outputs = t.body.outputs
                     );
                 }
                 _ => {
@@ -511,11 +497,11 @@ pub fn calculate_tally_change(dr_output: &DataRequestOutput, n_reveals: u64) -> 
 }
 
 /// Create data request commitment
-pub fn create_commit(
+pub fn create_commit_body(
     dr_output_pointer: &OutputPointer,
     dr_output: &DataRequestOutput,
-    reveal: &[u8],
-) -> Transaction {
+    reveal: Vec<u8>,
+) -> TransactionBody {
     // Create input
     let dr_input = Input::DataRequest(DataRequestInput {
         transaction_id: dr_output_pointer.transaction_id,
@@ -527,7 +513,7 @@ pub fn create_commit(
     // Calculate reveal_value
     let commit_value = calculate_commit_reward(&dr_output);
 
-    let reveal_hash = calculate_sha256(reveal).into();
+    let reveal_hash = calculate_sha256(reveal.as_slice()).into();
 
     // Create output
     let commit_output = Output::Commit(CommitOutput {
@@ -535,16 +521,15 @@ pub fn create_commit(
         value: commit_value,
     });
 
-    // TODO: use a proper signature
-    Transaction::new(0, vec![dr_input], vec![commit_output], ())
+    TransactionBody::new(0, vec![dr_input], vec![commit_output])
 }
 
 /// Create data request reveal
-pub fn create_reveal(
+pub fn create_reveal_body(
     commit_pointer: OutputPointer,
     dr_output: &DataRequestOutput,
     reveal: Vec<u8>,
-) -> Transaction {
+) -> TransactionBody {
     // Create input
     let commit_input = Input::Commit(CommitInput {
         transaction_id: commit_pointer.transaction_id,
@@ -564,8 +549,7 @@ pub fn create_reveal(
         value: reveal_value,
     });
 
-    // TODO: use a proper signature
-    Transaction::new(0, vec![commit_input], vec![reveal_output], ())
+    TransactionBody::new(0, vec![commit_input], vec![reveal_output])
 }
 
 pub fn create_vt_tally(
@@ -597,12 +581,12 @@ pub fn create_vt_tally(
     (inputs, outputs, results)
 }
 
-pub fn create_tally(
+pub fn create_tally_body(
     dr_output: &DataRequestOutput,
     inputs: Vec<Input>,
     mut outputs: Vec<Output>,
     consensus: Vec<u8>,
-) -> Transaction {
+) -> TransactionBody {
     let change = calculate_tally_change(dr_output, inputs.len() as u64);
     let pkh = dr_output.pkh;
 
@@ -612,7 +596,7 @@ pub fn create_tally(
         value: change,
     };
     outputs.push(Output::Tally(tally_output));
-    Transaction::new(0, inputs, outputs, ())
+    TransactionBody::new(0, inputs, outputs)
 }
 
 #[cfg(test)]
@@ -687,12 +671,10 @@ mod tests {
             outputs.push(t.1);
         }
 
-        Transaction {
-            version: 0,
-            inputs,
-            outputs,
-            signatures: vec![],
-        }
+        Transaction::new(
+            TransactionBody::new(0, inputs, outputs),
+            vec![KeyedSignature::default()],
+        )
     }
 
     #[test]
@@ -1037,7 +1019,10 @@ mod tests {
             }),
             Output::ValueTransfer(empty_value_transfer_output()),
         )]);
-        tally_transaction.outputs.push(Output::Tally(tally.clone()));
+        tally_transaction
+            .body
+            .outputs
+            .push(Output::Tally(tally.clone()));
 
         // Now we can get the data request pointer from the commit/reveal pointers
         assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));
@@ -1348,7 +1333,10 @@ mod tests {
             }),
             Output::ValueTransfer(empty_value_transfer_output()),
         )]);
-        tally_transaction.outputs.push(Output::Tally(tally.clone()));
+        tally_transaction
+            .body
+            .outputs
+            .push(Output::Tally(tally.clone()));
 
         // Now we can get the data request pointer from the commit/reveal pointers
         assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));

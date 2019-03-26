@@ -137,12 +137,10 @@ fn builders_build_block() {
         reveal_output,
         consensus_output,
     ];
-    let txns: Vec<Transaction> = vec![Transaction {
-        inputs,
-        signatures: keyed_signatures,
-        outputs,
-        version: 0,
-    }];
+    let txns: Vec<Transaction> = vec![Transaction::new(
+        TransactionBody::new(0, inputs, outputs),
+        keyed_signatures,
+    )];
 
     // Expected message
     let msg = Message {
@@ -261,12 +259,7 @@ fn builders_build_transaction() {
         consensus_output,
     ];
 
-    let txn = Transaction {
-        inputs,
-        signatures: keyed_signatures,
-        outputs,
-        version: 0,
-    };
+    let txn = Transaction::new(TransactionBody::new(0, inputs, outputs), keyed_signatures);
 
     // Expected message
     let msg = Message {
