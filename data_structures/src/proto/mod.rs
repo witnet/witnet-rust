@@ -133,6 +133,33 @@ impl ProtobufConvert for chain::Signature {
     }
 }
 
+impl ProtobufConvert for chain::PublicKey {
+    type ProtoStruct = witnet::PublicKey;
+
+    fn to_pb(&self) -> Self::ProtoStruct {
+        let mut m = witnet::PublicKey::new();
+        let mut v = vec![];
+        v.extend(&[self.compressed]);
+        v.extend(&self.bytes);
+        m.set_public_key(v);
+
+        m
+    }
+
+    fn from_pb(mut pb: Self::ProtoStruct) -> Result<Self, Error> {
+        let v = pb.take_public_key();
+        ensure!(v.len() == 33, "Invalid array length");
+
+        let mut bytes = [0; 32];
+        bytes.copy_from_slice(&v[1..]);
+
+        Ok(Self {
+            compressed: v[0],
+            bytes,
+        })
+    }
+}
+
 impl ProtobufConvert for types::Address {
     type ProtoStruct = witnet::Address;
 

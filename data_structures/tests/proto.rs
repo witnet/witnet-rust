@@ -1,3 +1,4 @@
+use witnet_data_structures::chain::PublicKey;
 use witnet_data_structures::{proto::ProtobufConvert, types, types::IpAddress};
 
 #[test]
@@ -28,4 +29,19 @@ fn address_proto() {
     let address2v6 = types::Address::from_pb_bytes(&address_bytes).unwrap();
 
     assert_eq!(addressv6, address2v6);
+}
+
+#[test]
+fn public_key_proto() {
+    // Serialize
+    let test_public_key = PublicKey {
+        compressed: 0x03,
+        bytes: [0x4a; 32],
+    };
+    let pk_bytes = test_public_key.to_pb_bytes().unwrap();
+
+    // Deserialize
+    let deserialize_public_key = PublicKey::from_pb_bytes(&pk_bytes).unwrap();
+
+    assert_eq!(test_public_key, deserialize_public_key);
 }

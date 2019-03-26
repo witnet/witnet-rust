@@ -212,10 +212,13 @@ message Signature {
     }
 }
 
+message PublicKey {
+    bytes public_key = 1;
+}
+
 message KeyedSignature {
     Signature signature = 1;
-    // TODO: PublicKey type?
-    bytes public_key = 2;
+    PublicKey public_key = 2;
 }
 
 message Address {
