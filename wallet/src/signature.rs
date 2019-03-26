@@ -1,9 +1,18 @@
 //! Signature module
 
-use secp256k1::{Error, Message, PublicKey, Secp256k1, SecretKey};
+use failure::Fail;
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 
 /// Signature
 pub type Signature = secp256k1::Signature;
+
+/// The error type for operations with signatures
+#[derive(Debug, PartialEq, Fail)]
+pub enum SignatureError {
+    #[fail(display = "Fail in verify process")]
+    /// Fail in verify process
+    VerifyError,
+}
 
 /// Sign data with provided secret key
 pub fn sign(secret_key: SecretKey, data: &[u8]) -> Signature {
@@ -12,10 +21,12 @@ pub fn sign(secret_key: SecretKey, data: &[u8]) -> Signature {
     secp.sign(&msg, &secret_key)
 }
 /// Verify signature with a provided public key
-pub fn verify(public_key: PublicKey, data: &[u8], sig: Signature) -> Result<(), Error> {
+pub fn verify(public_key: PublicKey, data: &[u8], sig: Signature) -> Result<(), failure::Error> {
     let msg = Message::from_slice(data).unwrap();
     let secp = Secp256k1::new();
+
     secp.verify(&msg, &sig, &public_key)
+        .map_err(|_| SignatureError::VerifyError.into())
 }
 
 #[cfg(test)]

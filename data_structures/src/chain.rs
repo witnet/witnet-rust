@@ -259,7 +259,7 @@ pub struct Secp256k1Signature {
 
 /// The error type for operations on a [`Secp256k1Signature`](Secp256k1Signature)
 #[derive(Debug, PartialEq, Fail)]
-pub enum Secp256k1Error {
+pub enum Secp256k1ConversionError {
     #[fail(
         display = "Failing in signature conversion process from Signature to Secp256k1_Signature"
     )]
@@ -292,8 +292,8 @@ impl Secp256k1Signature {
         der.extend_from_slice(head2);
         der.extend_from_slice(&self.s);
 
-        Ok(Secp256k1_Signature::from_der(&der)
-            .map_err(|_| Secp256k1Error::FailSignatureConversion)?)
+        Secp256k1_Signature::from_der(&der)
+            .map_err(|_| Secp256k1ConversionError::FailSignatureConversion.into())
     }
 }
 
@@ -315,8 +315,8 @@ impl PublicKey {
         pk_ser.extend_from_slice(&[self.compressed]);
         pk_ser.extend_from_slice(&self.bytes);
 
-        Ok(Secp256k1_PublicKey::from_slice(&pk_ser)
-            .map_err(|_| Secp256k1Error::FailPublicKeyConversion)?)
+        Secp256k1_PublicKey::from_slice(&pk_ser)
+            .map_err(|_| Secp256k1ConversionError::FailPublicKeyConversion.into())
     }
 }
 
@@ -475,6 +475,11 @@ pub enum TransactionError {
         local_tally: Vec<u8>,
         miner_tally: Vec<u8>,
     },
+    #[fail(
+        display = "Mismatching signatures number ({}) and inputs number ({})",
+        signatures_n, inputs_n
+    )]
+    MismatchedSignaturesNumber { signatures_n: u8, inputs_n: u8 },
 }
 
 /// Transaction tags for validation process

@@ -11,7 +11,10 @@ use witnet_data_structures::{
     serializers::decoders::TryFrom,
 };
 
+use witnet_data_structures::chain::KeyedSignature;
+use witnet_data_structures::chain::Signature;
 use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
+use witnet_wallet::signature::verify;
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -31,8 +34,6 @@ pub fn transaction_inputs_sum(
             })?
             .value();
         total_value += pointed_value;
-
-        // TODO(#526): Validate signatures -> TransactionError::InvalidSignature
     }
 
     Ok(total_value)
@@ -255,7 +256,7 @@ pub fn validate_reveal_transaction<S: ::std::hash::BuildHasher>(
                 })?
             }
 
-            // TODO(#526): Validate commitment signatures -> TransactionError::InvalidSignature
+            // TODO: Validate commitment
 
             // Accumulate commits number
             update_count(block_reveals, &dr_state.data_request);
@@ -344,6 +345,46 @@ pub fn validate_tally_transaction(
     } else {
         Err(TransactionError::InvalidTallyTransaction)?
     }
+}
+/// Function to validate a signature
+pub fn validate_transaction_signature(
+    input: &Input,
+    keyed_signature: &KeyedSignature,
+) -> Result<(), failure::Error> {
+    let tx_hash = match input {
+        Input::Commit(i) => i.transaction_id,
+        Input::Reveal(i) => i.transaction_id,
+        Input::ValueTransfer(i) => i.transaction_id,
+        Input::DataRequest(i) => i.transaction_id,
+    };
+
+    let Hash::SHA256(plain_text) = tx_hash;
+
+    let cypher_text = match keyed_signature.signature.clone() {
+        Signature::Secp256k1(signature) => signature.into_secp256k1()?,
+    };
+    let public_key = keyed_signature.public_key.clone().into_secp256k1()?;
+
+    verify(public_key, &plain_text, cypher_text)
+}
+
+/// Function to validate signatures
+pub fn validate_transaction_signatures(
+    inputs: Vec<Input>,
+    signatures: Vec<KeyedSignature>,
+) -> Result<(), failure::Error> {
+    if signatures.len() != inputs.len() {
+        Err(TransactionError::MismatchedSignaturesNumber {
+            signatures_n: signatures.len() as u8,
+            inputs_n: inputs.len() as u8,
+        })?
+    }
+
+    for (input, keyed_signature) in inputs.iter().zip(signatures.iter()) {
+        validate_transaction_signature(input, keyed_signature)?
+    }
+
+    Ok(())
 }
 
 /// Function to validate a transaction
