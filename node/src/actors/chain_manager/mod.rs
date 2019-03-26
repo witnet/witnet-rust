@@ -38,8 +38,7 @@ use witnet_rad::types::RadonTypes;
 use witnet_data_structures::{
     chain::{
         ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
-        Hashable, InventoryItem, Output, OutputPointer, Transaction, TransactionsPool,
-        UnspentOutputsPool,
+        Hashable, InventoryItem, Output, OutputPointer, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     serializers::decoders::TryFrom,
@@ -56,6 +55,7 @@ use crate::actors::{
 };
 
 use failure::Fail;
+use witnet_data_structures::chain::Transaction;
 
 mod actor;
 mod handlers;

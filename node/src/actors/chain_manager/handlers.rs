@@ -279,8 +279,8 @@ impl Handler<AddTransaction> for ChainManager {
 
         debug!("Adding transaction: {:?}", msg.transaction);
         // FIXME: transaction validation is broken
-        //let outputs = &msg.transaction.outputs;
-        let inputs = &msg.transaction.inputs;
+        //let outputs = &msg.transaction.body.outputs;
+        let inputs = &msg.transaction.body.inputs;
 
         match self.chain_state.get_outputs_from_inputs(inputs) {
             Ok(_outputs_from_inputs) => {
@@ -289,7 +289,7 @@ impl Handler<AddTransaction> for ChainManager {
                 // Check that all inputs point to unspent outputs
                 if self
                     .chain_state
-                    .find_unspent_outputs(&msg.transaction.inputs)
+                    .find_unspent_outputs(&msg.transaction.body.inputs)
                 {
                     /*
                     use crate::utils::{

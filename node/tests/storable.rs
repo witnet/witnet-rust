@@ -100,12 +100,10 @@ fn build_hardcoded_block(checkpoint: u32, influence: u64, hash_prev_block: Hash)
         reveal_output,
         consensus_output,
     ];
-    let txns: Vec<Transaction> = vec![Transaction {
-        inputs,
-        signatures: keyed_signature,
-        outputs,
-        version: 0,
-    }];
+    let txns = vec![Transaction::new(
+        TransactionBody::new(0, inputs, outputs),
+        keyed_signature,
+    )];
     let proof = LeadershipProof {
         block_sig: Some(signature),
         influence,

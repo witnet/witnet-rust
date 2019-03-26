@@ -1,6 +1,3 @@
-use actix::{actors::resolver::ResolverError, dev::ToEnvelope, Actor, Addr, Handler, Message};
-use tokio::net::TcpStream;
-
 use std::{
     borrow::Cow,
     fmt,
@@ -9,6 +6,9 @@ use std::{
     net::SocketAddr,
     ops::{Bound, RangeBounds},
 };
+
+use actix::{actors::resolver::ResolverError, dev::ToEnvelope, Actor, Addr, Handler, Message};
+use tokio::net::TcpStream;
 
 use witnet_data_structures::{
     chain::{

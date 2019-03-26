@@ -16,13 +16,14 @@ use crate::actors::{
 };
 
 use witnet_crypto::hash::calculate_sha256;
+use witnet_data_structures::chain::{Hashable, KeyedSignature, OutputPointer, Transaction};
+use witnet_data_structures::data_request::{create_commit_body, create_reveal_body};
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, CheckpointBeacon, Hash, Input, LeadershipProof, Output, PublicKeyHash,
-        Secp256k1Signature, Signature, Transaction, TransactionsPool, UnspentOutputsPool,
-        ValueTransferOutput,
+        Secp256k1Signature, Signature, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
-    data_request::{create_tally, create_vt_tally},
+    data_request::{create_tally_body, create_vt_tally},
     serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;
@@ -181,14 +182,24 @@ impl ChainManager {
                             }
 
                             Ok(reveal_value) => {
-                                // Create commit transaction
-                                let commit_transaction =
-                                    act.data_request_pool.create_commit_and_reveal(
-                                        &dr_output_pointer,
-                                        &data_request_output,
-                                        reveal_value,
-                                        act.random,
-                                    );
+                                // Create commitment transaction
+                                let commit_body = create_commit_body(&dr_output_pointer, &data_request_output, reveal_value.clone());
+                                // TODO: produce real signature
+                                let sig = KeyedSignature::default();
+                                let commit_transaction = Transaction::new(commit_body, vec![sig]);
+
+                                // Create reveal transaction
+                                let commit_pointer = OutputPointer {
+                                    transaction_id: commit_transaction.hash(),
+                                    output_index: 0,
+                                };
+                                let reveal_body = create_reveal_body(commit_pointer,  &data_request_output, reveal_value);
+                                // TODO: produce real signature
+                                let sig = KeyedSignature::default();
+                                let reveal_transaction = Transaction::new(reveal_body, vec![sig]);
+
+                                // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
+                                act.data_request_pool.insert_reveal(dr_output_pointer.clone(), reveal_transaction);
 
                                 info!(
                                     "{} Discovered eligibility for mining a data request {} for epoch #{}",
@@ -248,8 +259,10 @@ impl ChainManager {
                         }
 
                         Ok(consensus) => {
-                            let tally_transaction =
-                                create_tally(&dr_output, inputs, outputs, consensus.clone());
+                            let tally_body =
+                                create_tally_body(&dr_output, inputs, outputs, consensus.clone());
+                            // TODO: replace with actual call to signature manager
+                            let tally_transaction = Transaction::new(tally_body, vec![]);
 
                             let print_results: Vec<_> = results
                                 .into_iter()
@@ -315,7 +328,7 @@ fn build_block(
         debug!("Pushing transaction into block: {:?}", transaction);
         // Currently, 1 weight unit is equivalent to 1 byte
         let transaction_weight = transaction.size();
-        let transaction_fee = match transaction_fee(&transaction, unspent_outputs_pool) {
+        let transaction_fee = match transaction_fee(&transaction.body, unspent_outputs_pool) {
             Ok(x) => x,
             Err(e) => {
                 debug!(
@@ -328,7 +341,7 @@ fn build_block(
         let new_block_weight = block_weight + transaction_weight;
 
         if new_block_weight <= max_block_weight {
-            if let Input::DataRequest(dri) = &transaction.inputs[0] {
+            if let Input::DataRequest(dri) = &transaction.body.inputs[0] {
                 let dri_pointer = dri.output_pointer();
                 if let Some(dr) = unspent_outputs_pool.get(&dri_pointer) {
                     if let Output::DataRequest(dr) = dr {
@@ -363,6 +376,7 @@ fn build_block(
 
     // Build Mint Transaction
     transactions[0]
+        .body
         .outputs
         .push(Output::ValueTransfer(ValueTransferOutput {
             pkh,
@@ -396,12 +410,7 @@ mod tests {
         // In protocol buffers, when version is 0 and all the other fields are empty vectors, the
         // transaction size is 0 bytes (since missing fields are initialized with the default
         // values). Therefore version cannot be 0.
-        let transaction = Transaction {
-            version: 1,
-            inputs: vec![],
-            outputs: vec![],
-            signatures: vec![],
-        };
+        let transaction = Transaction::default();
         transaction_pool.insert(transaction.hash(), transaction.clone());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
@@ -428,8 +437,8 @@ mod tests {
 
         // Check if block only contains the Mint Transaction
         assert_eq!(block.txns.len(), 1);
-        assert_eq!(block.txns[0].inputs.len(), 0);
-        assert_eq!(block.txns[0].outputs.len(), 1);
+        assert_eq!(block.txns[0].body.inputs.len(), 0);
+        assert_eq!(block.txns[0].body.outputs.len(), 1);
         assert_eq!(block.txns[0].signatures.len(), 0);
 
         // Check that transaction in block is not the transaction in `transactions_pool`
@@ -440,66 +449,72 @@ mod tests {
     #[ignore]
     fn build_block_with_transactions() {
         // Build sample transactions
-        let transaction_1 = Transaction {
-            version: 0,
-            inputs: vec![Input::ValueTransfer(ValueTransferInput {
-                transaction_id: Hash::SHA256([1; 32]),
-                output_index: 0,
-            })],
-            outputs: vec![Output::ValueTransfer(ValueTransferOutput {
-                pkh: PublicKeyHash::default(),
-                value: 1,
-            })],
-            signatures: vec![],
-        };
-        let transaction_2 = Transaction {
-            version: 0,
-            inputs: vec![
-                Input::ValueTransfer(ValueTransferInput {
-                    transaction_id: Hash::SHA256([2; 32]),
+        let transaction_1 = Transaction::new(
+            TransactionBody::new(
+                0,
+                vec![Input::ValueTransfer(ValueTransferInput {
+                    transaction_id: Hash::SHA256([1; 32]),
                     output_index: 0,
-                }),
-                Input::ValueTransfer(ValueTransferInput {
-                    transaction_id: Hash::SHA256([3; 32]),
-                    output_index: 0,
-                }),
-            ],
-            outputs: vec![
-                Output::ValueTransfer(ValueTransferOutput {
+                })],
+                vec![Output::ValueTransfer(ValueTransferOutput {
                     pkh: PublicKeyHash::default(),
-                    value: 2,
-                }),
-                Output::ValueTransfer(ValueTransferOutput {
-                    pkh: PublicKeyHash::default(),
-                    value: 3,
-                }),
-            ],
-            signatures: vec![],
-        };
-        let transaction_3 = Transaction {
-            version: 0,
-            inputs: vec![
-                Input::ValueTransfer(ValueTransferInput {
-                    transaction_id: Hash::SHA256([4; 32]),
-                    output_index: 0,
-                }),
-                Input::ValueTransfer(ValueTransferInput {
-                    transaction_id: Hash::SHA256([5; 32]),
-                    output_index: 0,
-                }),
-            ],
-            outputs: vec![
-                Output::ValueTransfer(ValueTransferOutput {
-                    pkh: PublicKeyHash::default(),
-                    value: 4,
-                }),
-                Output::ValueTransfer(ValueTransferOutput {
-                    pkh: PublicKeyHash::default(),
-                    value: 5,
-                }),
-            ],
-            signatures: vec![],
-        };
+                    value: 1,
+                })],
+            ),
+            vec![],
+        );
+        let transaction_2 = Transaction::new(
+            TransactionBody::new(
+                0,
+                vec![
+                    Input::ValueTransfer(ValueTransferInput {
+                        transaction_id: Hash::SHA256([2; 32]),
+                        output_index: 0,
+                    }),
+                    Input::ValueTransfer(ValueTransferInput {
+                        transaction_id: Hash::SHA256([3; 32]),
+                        output_index: 0,
+                    }),
+                ],
+                vec![
+                    Output::ValueTransfer(ValueTransferOutput {
+                        pkh: PublicKeyHash::default(),
+                        value: 2,
+                    }),
+                    Output::ValueTransfer(ValueTransferOutput {
+                        pkh: PublicKeyHash::default(),
+                        value: 3,
+                    }),
+                ],
+            ),
+            vec![],
+        );
+        let transaction_3 = Transaction::new(
+            TransactionBody::new(
+                0,
+                vec![
+                    Input::ValueTransfer(ValueTransferInput {
+                        transaction_id: Hash::SHA256([4; 32]),
+                        output_index: 0,
+                    }),
+                    Input::ValueTransfer(ValueTransferInput {
+                        transaction_id: Hash::SHA256([5; 32]),
+                        output_index: 0,
+                    }),
+                ],
+                vec![
+                    Output::ValueTransfer(ValueTransferOutput {
+                        pkh: PublicKeyHash::default(),
+                        value: 4,
+                    }),
+                    Output::ValueTransfer(ValueTransferOutput {
+                        pkh: PublicKeyHash::default(),
+                        value: 5,
+                    }),
+                ],
+            ),
+            vec![],
+        );
 
         // Insert transactions into `transactions_pool`
         // TODO: Currently the insert function does not take into account the fees to compute the transaction's weight
@@ -534,8 +549,8 @@ mod tests {
         assert_eq!(block.txns.len(), 2);
 
         // Check that first transaction is the Mint Transaction
-        assert_eq!(block.txns[0].inputs.len(), 0);
-        assert_eq!(block.txns[0].outputs.len(), 1);
+        assert_eq!(block.txns[0].body.inputs.len(), 0);
+        assert_eq!(block.txns[0].body.outputs.len(), 1);
         assert_eq!(block.txns[0].signatures.len(), 0);
         // Check that transaction in block is not a transaction from `transactions_pool`
         assert_ne!(block.txns[0], transaction_1);
