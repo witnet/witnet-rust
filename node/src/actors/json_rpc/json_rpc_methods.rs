@@ -3,7 +3,8 @@ use self::mock_actix::System;
 use crate::actors::{
     chain_manager::{ChainManager, ChainManagerError},
     epoch_manager::EpochManager,
-    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange, GetEpoch},
+    inventory_manager::InventoryManager,
+    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange, GetEpoch, GetItem},
 };
 #[cfg(not(test))]
 use actix::System;
@@ -12,7 +13,7 @@ use jsonrpc_core::{futures, futures::Future, IoHandler, Params, Value};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 //use std::str::FromStr;
-use witnet_data_structures::chain::{Block, InventoryEntry, Transaction};
+use witnet_data_structures::chain::{self, Block, Hash, InventoryEntry, Transaction};
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
@@ -26,6 +27,7 @@ pub fn jsonrpc_io_handler() -> IoHandler<()> {
     io.add_method("getBlockChain", |params: Params| {
         get_block_chain(params.parse())
     });
+    io.add_method("getBlock", |params: Params| get_block(params.parse()));
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
 
     io
@@ -201,6 +203,50 @@ pub fn get_block_chain(
         Box::new(fut)
     }
 }
+
+/// Get block by hash
+/* test
+{"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb"]}
+{"jsonrpc":"2.0","id":1,"method":"getBlock","params":[{"SHA256":[255,198,135,145,253,40,66,175,226,220,119,243,233,210,25,119,171,217,215,188,185,190,93,116,164,234,217,67,30,102,205,46]}]}
+*/
+pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let hash = match hash {
+        Ok(x) => x.0,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let inventory_manager = InventoryManager::from_registry();
+    Box::new(
+        inventory_manager
+            .send(GetItem { hash })
+            .then(move |res| match res {
+                Ok(Ok(chain::InventoryItem::Block(output))) => {
+                    let value = match serde_json::to_value(output) {
+                        Ok(x) => x,
+                        Err(e) => {
+                            let err = internal_error(e);
+                            return futures::failed(err);
+                        }
+                    };
+                    futures::finished(value)
+                }
+                Ok(Ok(chain::InventoryItem::Transaction(_))) => {
+                    // Not a block
+                    let err = internal_error(format!("Not a block, {} is a transaction", hash));
+                    futures::failed(err)
+                }
+                Ok(Err(e)) => {
+                    let err = internal_error(e);
+                    futures::failed(err)
+                }
+                Err(e) => {
+                    let err = internal_error(e);
+                    futures::failed(err)
+                }
+            }),
+    )
+}
+
 /*
 /// get output
 pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> JsonRpcResultAsync {

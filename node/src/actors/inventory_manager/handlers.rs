@@ -42,7 +42,7 @@ impl Handler<AddItem> for InventoryManager {
     }
 }
 
-/// Handler for AddItem message
+/// Handler for GetItem message
 impl Handler<GetItem> for InventoryManager {
     type Result = ResponseActFuture<Self, InventoryItem, InventoryManagerError>;
 
