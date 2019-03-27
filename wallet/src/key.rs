@@ -199,8 +199,8 @@ fn get_chain_code_and_secret(
 
 #[cfg(test)]
 mod tests {
-    use super::super::mnemonic as bip39;
     use super::*;
+    use witnet_crypto::mnemonic as bip39;
 
     #[test]
     fn test_generate_master_invalid_seed() {

@@ -3,7 +3,7 @@
 //! Example
 //!
 //! ```
-//! # use witnet_wallet::mnemonic::MnemonicGen;
+//! # use witnet_crypto::mnemonic::MnemonicGen;
 //! let mnemonic = MnemonicGen::new().generate();
 //!
 //! // A Mnemonic Seed must be protected by a passphrase
