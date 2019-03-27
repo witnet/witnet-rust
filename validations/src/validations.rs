@@ -1,4 +1,4 @@
-use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree_root};
+use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree_root, signature::verify};
 
 use std::collections::HashMap;
 use witnet_data_structures::{
@@ -11,8 +11,7 @@ use witnet_data_structures::{
     serializers::decoders::{TryFrom, TryInto},
 };
 
-use witnet_crypto::signature::verify;
-use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
+use log::debug;
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -386,14 +385,53 @@ pub fn validate_transaction_signatures(
 }
 
 /// Function to validate a transaction
-pub fn validate_transaction(
-    _transaction: &Transaction,
-    _utxo_set: &UnspentOutputsPool,
-) -> Result<(), failure::Error> {
-    //let _fee = transaction_fee(transaction, utxo_set)?;
-    // TODO(#519) Validate any kind of transaction
+pub fn validate_transaction<S: ::std::hash::BuildHasher>(
+    transaction: &Transaction,
+    utxo_set: &UnspentOutputsPool,
+    dr_pool: &DataRequestPool,
+    block_commits: HashMap<DataRequestOutput, u32, S>,
+    block_reveals: HashMap<DataRequestOutput, u32, S>,
+) -> Result<u64, failure::Error> {
+    let transaction_body = &transaction.body;
 
-    Ok(())
+    match transaction_tag(transaction_body) {
+        TransactionType::Mint => Err(TransactionError::UnexpectedMint)?,
+        TransactionType::InvalidType => Err(TransactionError::NotValidTransaction)?,
+        TransactionType::ValueTransfer => {
+            debug!("ValueTransfer Transaction validation");
+            let fee = transaction_fee(transaction_body, utxo_set)?;
+
+            Ok(fee)
+        }
+        TransactionType::DataRequest => {
+            debug!("DataRequest Transaction validation");
+            let fee = transaction_fee(transaction_body, utxo_set)?;
+
+            validate_dr_transaction(transaction_body)?;
+            Ok(fee)
+        }
+        TransactionType::Commit => {
+            debug!("DataRequest Transaction validation");
+            let fee = transaction_fee(transaction_body, utxo_set)?;
+
+            validate_commit_transaction(transaction_body, dr_pool, block_commits, fee)?;
+            Ok(fee)
+        }
+        TransactionType::Reveal => {
+            debug!("DataRequest Transaction validation");
+            let fee = transaction_fee(transaction_body, utxo_set)?;
+
+            validate_reveal_transaction(transaction_body, dr_pool, block_reveals, fee)?;
+            Ok(fee)
+        }
+        TransactionType::Tally => {
+            debug!("DataRequest Transaction validation");
+            let fee = transaction_fee(transaction_body, utxo_set)?;
+
+            validate_tally_transaction(transaction_body, dr_pool, utxo_set, fee)?;
+            Ok(fee)
+        }
+    }
 }
 
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
@@ -415,7 +453,7 @@ pub fn validate_transactions(
 
     // TODO: replace for loop with a try_fold
     for transaction in &transactions {
-        match validate_transaction(&transaction, &utxo_set) {
+        match validate_transaction(&transaction, &utxo_set, &data_request_pool, HashMap::new(), HashMap::new()) {
             Ok(_) => {
                 let txn_hash = transaction.hash();
 

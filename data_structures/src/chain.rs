@@ -125,9 +125,6 @@ pub enum BlockError {
     /// The first transaction of the block is no mint.
     #[fail(display = "The block first transaction is not a mint transactions")]
     NoMint,
-    /// There are multiple mint transactions in the block.
-    #[fail(display = "The block has more than one mint transaction")]
-    MultipleMint,
     /// The total value created by the mint transaction of the block,
     /// and the output value of the rest of the transactions, plus the
     /// block reward, don't add up
@@ -489,6 +486,8 @@ pub enum TransactionError {
         signatures_n, inputs_n
     )]
     MismatchingSignaturesNumber { signatures_n: u8, inputs_n: u8 },
+    #[fail(display = "Invalid Position for a Mint Transaction")]
+    UnexpectedMint,
 }
 
 /// Transaction tags for validation process

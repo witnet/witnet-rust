@@ -16,6 +16,8 @@ use crate::actors::messages::{
 };
 use crate::actors::sessions_manager::SessionsManager;
 use crate::utils::mode_consensus;
+use std::collections::HashMap;
+use witnet_validations::validations::validate_transaction;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -275,125 +277,15 @@ impl Handler<AddTransaction> for ChainManager {
         if self.transactions_pool.contains(transaction_hash) {
             debug!("Transaction is already in the pool: {}", transaction_hash);
             return;
-        }
-
-        debug!("Adding transaction: {:?}", msg.transaction);
-        // FIXME: transaction validation is broken
-        //let outputs = &msg.transaction.body.outputs;
-        let inputs = &msg.transaction.body.inputs;
-
-        match self.chain_state.get_outputs_from_inputs(inputs) {
-            Ok(_outputs_from_inputs) => {
-                //let outputs_from_inputs = &outputs_from_inputs;
-
-                // Check that all inputs point to unspent outputs
-                if self
-                    .chain_state
-                    .find_unspent_outputs(&msg.transaction.body.inputs)
-                {
-                    /*
-                    use crate::utils::{
-                        count_tally_outputs, is_commit_input, is_commit_output, is_data_request_input,
-                        is_reveal_output, is_tally_output, is_value_transfer_output, validate_tally_output_uniqueness,
-                        validate_value_transfer_output_position,
-                    };
-                                        // Validate transaction
-                                        // DRO RULE 1. Multiple data request outputs can be included into a single transaction.
-                                        // As long as the inputs are greater than the outputs, the rule still hold true. The difference
-                                        // with VTOs is that the total output value for data request outputs also includes the
-                                        // commit fee, reveal fee and tally fee.
-                                        let inputs_sum = outputs_from_inputs.iter().map(Output::value).sum();
-                                        let outputs_sum = msg.transaction.outputs_sum();
-
-                                        if outputs_sum < inputs_sum {
-                                            let mut is_valid_input = true;
-                                            let mut is_valid_output = true;
-                                            let iter = outputs.iter().zip(inputs.iter());
-
-                                            // VTO RULE 2. The number of VTOs in a single transaction is virtually unlimited as
-                                            // long as the VTOs are all contiguous and located at the end of the outputs list.
-                                            let is_valid_vto_position =
-                                                validate_value_transfer_output_position(outputs);
-
-                                            // TO RULE 1. Any transaction can contain at most one tally output.
-                                            let consensus_output_overflow = count_tally_outputs(outputs) > 1;
-
-                                            let is_valid_transaction = iter
-                                                .take_while(|(output, input)| {
-                                                    // Validate input
-                                                    is_valid_input =
-                                                        match &self.chain_state.get_output_from_input(input) {
-                                                            // VTO RULE 4. The value brought into a transaction by an input pointing
-                                                            // to a VTO can be freely assigned to any output of any type unless otherwise
-                                                            // restricted by the specific validation rules for such output type.
-                                                            Some(Output::ValueTransfer(_)) => true,
-
-                                                            // DRO RULE 2. The value brought into a transaction by an input pointing
-                                                            // to a data request output can only be spent by commit outputs.
-                                                            Some(Output::DataRequest(_)) => is_commit_output(output),
-
-                                                            // CO RULE 3. The value brought into a transaction by an input pointing
-                                                            // to a commit output can only be spent by reveal or tally outputs.
-                                                            Some(Output::Commit(_)) => {
-                                                                is_reveal_output(output) || is_tally_output(output)
-                                                            }
-
-                                                            // RO 3. The value brought into a transaction by an input pointing to a
-                                                            // reveal output can only be spent by value transfer outputs.
-                                                            Some(Output::Reveal(_)) => match output {
-                                                                Output::ValueTransfer(_) => true,
-                                                                _ => false,
-                                                            },
-                                                            // TO RULE 4. The value brought into a transaction by an input pointing
-                                                            // to a tally output can be freely assigned to any output of any type
-                                                            // unless otherwise restricted by the specific validation rules for such
-                                                            // output type.
-                                                            Some(Output::Tally(_)) => true,
-
-                                                            None => false,
-                                                        };
-
-                                                    is_valid_output = match output {
-                                                        Output::ValueTransfer(_) => true,
-
-                                                        Output::DataRequest(_) => true,
-                                                        // CO RULE 1. Commit outputs can only take value from data request inputs
-                                                        // whose index in the inputs list is the same as their own index in the outputs list.
-                                                        // CO RULE 2. Multiple commit outputs can exist in a single transaction,
-                                                        // but each of them needs to be coupled with a data request input occupying
-                                                        // the same index in the inputs list as their own in the outputs list.
-                                                        // Predictably, as a result of the previous rule, each of the multiple
-                                                        // commit outputs only takes value from the data request input with the same index.
-                                                        Output::Commit(_) => is_data_request_input(input),
-
-                                                        Output::Reveal(_) => {
-                                                            // RO RULE 3. The value brought into a transaction by an input pointing
-                                                            // to a reveal output can only be spent by value transfer outputs.
-                                                            is_value_transfer_output(output)
-                                                            // RO RULE 1. Reveal outputs can only take value from commit inputs
-                                                            // whose index in the inputs list is the same as their own index in the outputs list.
-                                                            // RO RULE 2. Multiple reveal outputs can exist in a single transaction,
-                                                            // but each of them needs to be coupled with a commit input occupying
-                                                            // the same index in the inputs list as their own in the outputs list.
-                                                            // Predictably, as a result of the previous rule, each of the multiple
-                                                            // reveal outputs only takes value from the commit input with the same index.
-                                                            && is_commit_input(input)
-                                                            // TODO: validate only once
-                                                            // RO RULE 4. Any transaction including an input pointing to a
-                                                            // reveal output must also include exactly only one tally output.
-                                                            && validate_tally_output_uniqueness(outputs)
-                                                        }
-                                                        Output::Tally(_) => true,
-                                                    };
-
-                                                    is_valid_input && is_valid_output
-                                                })
-                                                .last();
-
-                                            if is_valid_transaction.is_some()
-                                                && is_valid_vto_position
-                                                && !consensus_output_overflow
-                                            {*/
+        } else {
+            match validate_transaction(
+                &msg.transaction,
+                &self.chain_state.unspent_outputs_pool,
+                &self.data_request_pool,
+                HashMap::new(),
+                HashMap::new(),
+            ) {
+                Ok(_) => {
                     debug!("Transaction added successfully");
                     // Broadcast valid transaction
                     self.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
@@ -401,13 +293,9 @@ impl Handler<AddTransaction> for ChainManager {
                     // Add valid transaction to transactions_pool
                     self.transactions_pool
                         .insert(*transaction_hash, msg.transaction);
-                } else {
-                    warn!("Input OutputPointer not in pool");
                 }
-            }
-            Err(_) => {
-                //TODO Show input information
-                warn!("Input with no output");
+
+                Err(e) => warn!("{}", e),
             }
         }
     }
