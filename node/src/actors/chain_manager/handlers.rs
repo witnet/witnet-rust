@@ -282,8 +282,8 @@ impl Handler<AddTransaction> for ChainManager {
                 &msg.transaction,
                 &self.chain_state.unspent_outputs_pool,
                 &self.data_request_pool,
-                HashMap::new(),
-                HashMap::new(),
+                &mut HashMap::new(),
+                &mut HashMap::new(),
             ) {
                 Ok(_) => {
                     debug!("Transaction added successfully");

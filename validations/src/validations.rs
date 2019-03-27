@@ -1,4 +1,8 @@
-use witnet_crypto::{hash::Sha256, merkle::merkle_tree_root as crypto_merkle_tree_root, signature::verify};
+use witnet_crypto::{
+    hash::Sha256,
+    merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
+    signature::verify,
+};
 
 use std::collections::HashMap;
 use witnet_data_structures::{
@@ -12,6 +16,8 @@ use witnet_data_structures::{
 };
 
 use log::debug;
+
+use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -160,7 +166,7 @@ pub fn validate_dr_transaction(tx: &TransactionBody) -> Result<(), failure::Erro
 
 // Add 1 in the number assigned to a DataRequestOutput
 pub fn update_count<S: ::std::hash::BuildHasher>(
-    mut hm: HashMap<DataRequestOutput, u32, S>,
+    hm: &mut HashMap<DataRequestOutput, u32, S>,
     k: &DataRequestOutput,
 ) {
     match hm.get_mut(k) {
@@ -177,7 +183,7 @@ pub fn update_count<S: ::std::hash::BuildHasher>(
 pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
     tx: &TransactionBody,
     dr_pool: &DataRequestPool,
-    block_commits: HashMap<DataRequestOutput, u32, S>,
+    block_commits: &mut HashMap<DataRequestOutput, u32, S>,
     fee: u64,
 ) -> Result<(), failure::Error> {
     if (tx.inputs.len() != 1) || (tx.outputs.len() != 1) {
@@ -222,7 +228,7 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
 pub fn validate_reveal_transaction<S: ::std::hash::BuildHasher>(
     tx: &TransactionBody,
     dr_pool: &DataRequestPool,
-    block_reveals: HashMap<DataRequestOutput, u32, S>,
+    block_reveals: &mut HashMap<DataRequestOutput, u32, S>,
     fee: u64,
 ) -> Result<(), failure::Error> {
     if (tx.inputs.len() != 1) || (tx.outputs.len() != 1) {
@@ -389,8 +395,8 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
     transaction: &Transaction,
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
-    block_commits: HashMap<DataRequestOutput, u32, S>,
-    block_reveals: HashMap<DataRequestOutput, u32, S>,
+    block_commits: &mut HashMap<DataRequestOutput, u32, S>,
+    block_reveals: &mut HashMap<DataRequestOutput, u32, S>,
 ) -> Result<u64, failure::Error> {
     let transaction_body = &transaction.body;
 
@@ -435,27 +441,50 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
 }
 
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
-// TODO: Add verifications related to data requests (e.g. enough commitment transactions for a data request)
 pub fn validate_transactions(
     utxo_set: &UnspentOutputsPool,
     _txn_pool: &TransactionsPool,
     data_request_pool: &DataRequestPool,
     block: &Block,
 ) -> Result<BlockInChain, failure::Error> {
-    // TODO: Add validate_mint function
+    let transactions = block.txns.clone();
+
+    match transaction_tag(&transactions[0].body) {
+        TransactionType::Mint => (),
+        _ => Err(BlockError::NoMint)?,
+    }
 
     let mut utxo_set = utxo_set.clone();
     let mut data_request_pool = data_request_pool.clone();
-
-    let transactions = block.txns.clone();
-
     let mut remove_later = vec![];
 
+    // TODO: Handle commits_number and reveals_number
+    let mut commits_number: HashMap<DataRequestOutput, u32> = HashMap::new();
+    let mut reveals_number: HashMap<DataRequestOutput, u32> = HashMap::new();
+
+    // Init total fee
+    let mut total_fee = 0;
+
+    // Init Progressive merkle tree
+    let mut mt = ProgressiveMerkleTree::sha256();
+
     // TODO: replace for loop with a try_fold
-    for transaction in &transactions {
-        match validate_transaction(&transaction, &utxo_set, &data_request_pool, HashMap::new(), HashMap::new()) {
-            Ok(_) => {
+    for transaction in &transactions[1..] {
+        match validate_transaction(
+            &transaction,
+            &utxo_set,
+            &data_request_pool,
+            &mut commits_number,
+            &mut reveals_number,
+        ) {
+            Ok(fee) => {
+                // Add transaction fee
+                total_fee += fee;
+
+                // Add new hash to merkle tree
                 let txn_hash = transaction.hash();
+                let Hash::SHA256(sha) = txn_hash;
+                mt.push(Sha256(sha));
 
                 for input in &transaction.body.inputs {
                     // Obtain the OuputPointer of each input and remove it from the utxo_set
@@ -493,6 +522,19 @@ pub fn validate_transactions(
 
     for output_pointer in remove_later {
         utxo_set.remove(&output_pointer);
+    }
+
+    // Validate mint
+    validate_mint_transaction(
+        &block.txns[0].body,
+        total_fee,
+        block_reward(block.block_header.beacon.checkpoint),
+    )?;
+
+    // Validate Merkle Root
+    let Hash::SHA256(mr) = block.block_header.hash_merkle_root;
+    if mt.root() != Sha256(mr) {
+        Err(BlockError::NotValidMerkleTree)?
     }
 
     Ok(BlockInChain {
