@@ -65,6 +65,19 @@ pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), f
 
             Ok(())
         }
+        CliCommand::GetBlock { config, hash } => {
+            let config = config.or(last_config);
+            let mut stream = start_client(config)?;
+            let request = format!(
+                r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
+                hash,
+            );
+            let response = send_request(&mut stream, &request)?;
+
+            println!("{}", response);
+
+            Ok(())
+        }
         CliCommand::GetOutput {
             config,
             output_index,

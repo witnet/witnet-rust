@@ -100,6 +100,20 @@ pub(crate) enum CliCommand {
         // Positional argument 2: max number of epochs for which to show block hashes
         limit: Option<u32>,
     },
+    #[structopt(name = "getBlock", about = "Get a block by its hash")]
+    GetBlock {
+        // Config file path
+        #[structopt(
+            name = "config",
+            long = "config",
+            short = "c",
+            help = "Path to the configuration file"
+        )]
+        #[structopt(parse(from_os_str))]
+        config: Option<PathBuf>,
+        #[structopt(name = "hash", help = "SHA256 block hash in string format")]
+        hash: String,
+    },
     #[structopt(name = "getOutput", about = "Get an output of a transaction")]
     GetOutput {
         // Config file path
