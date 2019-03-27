@@ -2502,6 +2502,7 @@ name = "witnet_crypto"
 version = "0.1.2"
 dependencies = [
  "rust-crypto 0.2.36 (registry+https://github.com/rust-lang/crates.io-index)",
+ "secp256k1 0.12.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2611,7 +2612,6 @@ dependencies = [
  "witnet_crypto 0.1.2",
  "witnet_data_structures 0.1.2",
  "witnet_rad 0.1.2",
- "witnet_wallet 0.1.2",
 ]
 
 [[package]]

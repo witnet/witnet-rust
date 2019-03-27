@@ -12,3 +12,6 @@ pub mod hash;
 
 /// Merkle tree implementation
 pub mod merkle;
+
+/// Cryptographic signatures
+pub mod signature;

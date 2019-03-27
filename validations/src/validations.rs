@@ -11,8 +11,8 @@ use witnet_data_structures::{
     serializers::decoders::{TryFrom, TryInto},
 };
 
+use witnet_crypto::signature::verify;
 use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
-use witnet_wallet::signature::verify;
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
