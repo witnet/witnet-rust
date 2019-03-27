@@ -105,6 +105,29 @@ For instance, to get the block for the last epoch:
 $ witnet cli getBlockChain -c witnet_01.toml -1
 ```
 
+#### getBlock
+
+Returns the block that matches the provided hash.
+
+```sh
+$ witnet cli getBlock <hash>
+```
+
+The hash of the block should be provided as a hexadecimal string.
+
+##### Example
+
+###### Request
+
+```sh
+$ witnet cli getBlock 2dca073973d87dba3beec0ac5a4aeef22ae97d310cbcd6694d0197b292347d71
+```
+
+###### Response
+```js
+{"jsonrpc":"2.0","result":{"block_header":{"beacon":{"checkpoint":279313,"hash_prev_block":{"SHA256":[72,57,249,156,218,72,75,103,227,231,101,175,220,170,167,221,26,113,75,32,38,46,116,180,119,254,66,83,239,73,45,186]}},"hash_merkle_root":{"SHA256":[213,120,146,54,165,218,119,82,142,198,232,156,45,174,34,203,107,87,171,204,108,233,223,198,186,218,93,102,190,186,216,27]},"version":0},"proof":{"block_sig":{"Secp256k1":{"r":[110,242,206,28,113,89,70,255,14,223,109,187,94,13,137,221,79,193,56,184,116,142,84,146,185,143,5,66,145,26,126,58],"s":[110,242,206,28,113,89,70,255,14,223,109,187,94,13,137,221,79,193,56,184,116,142,84,146,185,143,5,66,145,26,126,58],"v":0}},"influence":0},"txns":[{"inputs":[],"outputs":[{"ValueTransfer":{"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"value":50000000000}}],"signatures":[],"version":0}]},"id":"1"}
+```
+
 #### getOutput
 
 Returns the output of the transaction that matches the provided output pointer.

@@ -108,10 +108,29 @@ Response:
 {"jsonrpc":"2.0","result":[[0,"ed28899af8c3148a4162736af942bc68c4466da93c5124dabfaa7c582af49e30"],[1,"9c9038cfb31a7050796920f91b17f4a68c7e9a795ee8962916b35d39fc1efefc"]],"id":1}
 ```
 
-#### getOutputPointer
+
+#### getBlock
+Get the block with the provided hash.
+
+Returns a `Block`.
+
+Example:
+
+```
+{"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb"]}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":{"block_header":{"beacon":{"checkpoint":279256,"hash_prev_block":{"SHA256":[255,198,135,145,253,40,66,175,226,220,119,243,233,210,25,119,171,217,215,188,185,190,93,116,164,234,217,67,30,102,205,46]}},"hash_merkle_root":{"SHA256":[213,120,146,54,165,218,119,82,142,198,232,156,45,174,34,203,107,87,171,204,108,233,223,198,186,218,93,102,190,186,216,27]},"version":0},"proof":{"block_sig":{"Secp256k1":{"r":[112,102,21,231,95,88,196,37,189,190,121,79,13,61,106,45,53,191,114,223,172,133,64,85,96,96,61,17,125,86,4,149],"s":[112,102,21,231,95,88,196,37,189,190,121,79,13,61,106,45,53,191,114,223,172,133,64,85,96,96,61,17,125,86,4,149],"v":0}},"influence":0},"txns":[{"inputs":[],"outputs":[{"ValueTransfer":{"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"value":50000000000}}],"signatures":[],"version":0}]},"id":1}
+```
+
+
+#### getOutput
 Get the outputPointer that matches with the input provided.
 
-Returns an `OuputPointer`.
+Returns an `OutputPointer`.
 
 Example:
 
