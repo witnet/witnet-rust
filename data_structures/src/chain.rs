@@ -3,6 +3,7 @@ use super::{
     proto::{schema::witnet, ProtobufConvert},
     serializers::decoders::TryFrom,
 };
+use crate::serializers::decoders::TryInto;
 use failure::Fail;
 use partial_struct::PartialStruct;
 use protobuf::Message;
@@ -261,17 +262,17 @@ pub struct Secp256k1Signature {
 #[derive(Debug, PartialEq, Fail)]
 pub enum Secp256k1ConversionError {
     #[fail(
-        display = "Failing in signature conversion process from Signature to Secp256k1_Signature"
+        display = "Failed to convert `witnet_data_structures::Signature` into `secp256k1::Signature`"
     )]
     FailSignatureConversion,
     #[fail(
-        display = "Failing in public key conversion process from PublicKey to Secp256k1_PublicKey"
+        display = " Failed to convert `witnet_data_structures::PublicKey` into `secp256k1::PublicKey`"
     )]
     FailPublicKeyConversion,
 }
 
-impl Secp256k1Signature {
-    pub fn from_secp256k1(secp256k1_signature: Secp256k1_Signature) -> Self {
+impl From<Secp256k1_Signature> for Secp256k1Signature {
+    fn from(secp256k1_signature: Secp256k1_Signature) -> Self {
         let der = secp256k1_signature.serialize_der();
         let mut r: [u8; 32] = [0; 32];
         r.copy_from_slice(&der[4..36]);
@@ -280,8 +281,12 @@ impl Secp256k1Signature {
 
         Secp256k1Signature { r, s, v: 2u8 }
     }
+}
 
-    pub fn into_secp256k1(self) -> Result<Secp256k1_Signature, failure::Error> {
+impl TryInto<Secp256k1_Signature> for Secp256k1Signature {
+    type Error = failure::Error;
+
+    fn try_into(self) -> Result<Secp256k1_Signature, Self::Error> {
         let mut der = vec![];
         let head1 = &[0x30, 0x44];
         let head2 = &[0x02, 0x20];
@@ -297,8 +302,8 @@ impl Secp256k1Signature {
     }
 }
 
-impl PublicKey {
-    pub fn from_secp256k1(secp256k1_pk: Secp256k1_PublicKey) -> Self {
+impl From<Secp256k1_PublicKey> for PublicKey {
+    fn from(secp256k1_pk: Secp256k1_PublicKey) -> Self {
         let serialize = secp256k1_pk.serialize();
         let mut bytes: [u8; 32] = [0; 32];
         bytes.copy_from_slice(&serialize[1..]);
@@ -308,8 +313,12 @@ impl PublicKey {
             bytes,
         }
     }
+}
 
-    pub fn into_secp256k1(self) -> Result<Secp256k1_PublicKey, failure::Error> {
+impl TryInto<Secp256k1_PublicKey> for PublicKey {
+    type Error = failure::Error;
+
+    fn try_into(self) -> Result<Secp256k1_PublicKey, Self::Error> {
         let mut pk_ser = vec![];
 
         pk_ser.extend_from_slice(&[self.compressed]);
@@ -476,10 +485,10 @@ pub enum TransactionError {
         miner_tally: Vec<u8>,
     },
     #[fail(
-        display = "Mismatching signatures number ({}) and inputs number ({})",
+        display = "Mismatching number of signatures ({}) and inputs ({})",
         signatures_n, inputs_n
     )]
-    MismatchedSignaturesNumber { signatures_n: u8, inputs_n: u8 },
+    MismatchingSignaturesNumber { signatures_n: u8, inputs_n: u8 },
 }
 
 /// Transaction tags for validation process
@@ -709,7 +718,7 @@ pub struct KeyedSignature {
 }
 
 /// Public Key data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PublicKey {
     pub compressed: u8,
     pub bytes: [u8; 32],
@@ -1424,10 +1433,7 @@ mod tests {
             influence: 0,
         };
         let keyed_signatures = vec![KeyedSignature {
-            public_key: PublicKey {
-                compressed: 0,
-                bytes: [0; 32],
-            },
+            public_key: PublicKey::default(),
             signature,
         }];
         let commit_input = Input::Commit(CommitInput {
@@ -1537,10 +1543,7 @@ mod tests {
             v: 0,
         });
         let signatures = vec![KeyedSignature {
-            public_key: PublicKey {
-                compressed: 0,
-                bytes: [0; 32],
-            },
+            public_key: PublicKey::default(),
             signature,
         }];
         let commit_input = Input::Commit(CommitInput {
@@ -1627,8 +1630,9 @@ mod tests {
             reveal_output,
             consensus_output,
         ];
+        let transaction_body = TransactionBody::new(0, inputs, outputs);
         let transaction = Transaction::new(transaction_body.clone(), signatures);
-        let expected = "745e4caa38c85fe6788a2b81388dca5e73929a10e234b3b9a3a8df9ec2a7ad2f";
+        let expected = "2ba55d09b0196a302c8cc65465e03bfc043bbcc0a94e2141d6f2579e6b290ed6";
 
         // Signatures don't affect the hash of a transaction (SegWit style), thus both must be equal
         assert_eq!(transaction_body.hash().to_string(), expected);
@@ -1675,7 +1679,9 @@ mod tests {
     #[test]
     fn secp256k1_from_into_signatures() {
         use crate::chain::Secp256k1Signature;
-        use secp256k1::{Message as Secp256k1_Message, Secp256k1, SecretKey};
+        use secp256k1::{
+            Message as Secp256k1_Message, Secp256k1, SecretKey, Signature as Secp256k1_Signature,
+        };
 
         let data = [0xab; 32];
         let secp = Secp256k1::new();
@@ -1683,8 +1689,8 @@ mod tests {
         let msg = Secp256k1_Message::from_slice(&data).unwrap();
         let signature = secp.sign(&msg, &secret_key);
 
-        let witnet_signature = Secp256k1Signature::from_secp256k1(signature);
-        let signature_into = witnet_signature.into_secp256k1().unwrap();
+        let witnet_signature = Secp256k1Signature::from(signature);
+        let signature_into: Secp256k1_Signature = witnet_signature.try_into().unwrap();
 
         assert_eq!(signature.to_string(), signature_into.to_string());
     }
@@ -1698,8 +1704,8 @@ mod tests {
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &secret_key);
 
-        let witnet_pk = PublicKey::from_secp256k1(public_key);
-        let pk_into = witnet_pk.into_secp256k1().unwrap();
+        let witnet_pk = PublicKey::from(public_key);
+        let pk_into: Secp256k1_PublicKey = witnet_pk.try_into().unwrap();
 
         assert_eq!(public_key, pk_into);
     }

@@ -4,15 +4,13 @@ use std::collections::HashMap;
 use witnet_data_structures::{
     chain::{
         Block, BlockError, BlockInChain, CheckpointBeacon, DataRequestOutput, Epoch, Hash,
-        Hashable, Input, Output, OutputPointer, RADRequest, Transaction, TransactionBody,
-        TransactionError, TransactionType, TransactionsPool, UnspentOutputsPool,
+        Hashable, Input, KeyedSignature, Output, OutputPointer, RADRequest, Signature, Transaction,
+        TransactionBody, TransactionError, TransactionType, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
-    serializers::decoders::TryFrom,
+    serializers::decoders::{TryFrom, TryInto},
 };
 
-use witnet_data_structures::chain::KeyedSignature;
-use witnet_data_structures::chain::Signature;
 use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 use witnet_wallet::signature::verify;
 
@@ -358,14 +356,14 @@ pub fn validate_transaction_signature(
         Input::DataRequest(i) => i.transaction_id,
     };
 
-    let Hash::SHA256(plain_text) = tx_hash;
+    let Hash::SHA256(message) = tx_hash;
 
-    let cypher_text = match keyed_signature.signature.clone() {
-        Signature::Secp256k1(signature) => signature.into_secp256k1()?,
+    let signature = match keyed_signature.signature.clone() {
+        Signature::Secp256k1(s) => s.try_into()?,
     };
-    let public_key = keyed_signature.public_key.clone().into_secp256k1()?;
+    let public_key = keyed_signature.public_key.clone().try_into()?;
 
-    verify(public_key, &plain_text, cypher_text)
+    verify(public_key, &message, signature)
 }
 
 /// Function to validate signatures
@@ -374,7 +372,7 @@ pub fn validate_transaction_signatures(
     signatures: Vec<KeyedSignature>,
 ) -> Result<(), failure::Error> {
     if signatures.len() != inputs.len() {
-        Err(TransactionError::MismatchedSignaturesNumber {
+        Err(TransactionError::MismatchingSignaturesNumber {
             signatures_n: signatures.len() as u8,
             inputs_n: inputs.len() as u8,
         })?

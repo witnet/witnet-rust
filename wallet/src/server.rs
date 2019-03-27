@@ -10,9 +10,12 @@ use async_jsonrpc_client::{
     DuplexTransport, Transport,
 };
 use futures::{future::Future, stream::Stream};
-use jsonrpc_core::{MetaIoHandler, Params, Value};
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
-use jsonrpc_ws_server::{jsonrpc_core, RequestContext, Server, ServerBuilder};
+use jsonrpc_ws_server::{
+    jsonrpc_core,
+    jsonrpc_core::{MetaIoHandler, Params, Value},
+    RequestContext, Server, ServerBuilder,
+};
 
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};

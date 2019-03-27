@@ -22,10 +22,7 @@ fn test_block_hashable_trait() {
         influence: 0,
     };
     let keyed_signatures = vec![KeyedSignature {
-        public_key: PublicKey {
-            compressed: 0,
-            bytes: [0; 32],
-        },
+        public_key: PublicKey::default(),
         signature,
     }];
     let commit_input = Input::Commit(CommitInput {
@@ -135,10 +132,7 @@ fn test_transaction_hashable_trait() {
         v: 0,
     });
     let signatures = vec![KeyedSignature {
-        public_key: PublicKey {
-            compressed: 0,
-            bytes: [0; 32],
-        },
+        public_key: PublicKey::default(),
         signature,
     }];
     let commit_input = Input::Commit(CommitInput {
@@ -226,7 +220,7 @@ fn test_transaction_hashable_trait() {
         consensus_output,
     ];
     let transaction = Transaction::new(TransactionBody::new(0, inputs, outputs), signatures);
-    let expected = "745e4caa38c85fe6788a2b81388dca5e73929a10e234b3b9a3a8df9ec2a7ad2f";
+    let expected = "2ba55d09b0196a302c8cc65465e03bfc043bbcc0a94e2141d6f2579e6b290ed6";
     assert_eq!(transaction.hash().to_string(), expected);
 }
 
