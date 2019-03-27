@@ -81,6 +81,7 @@ fn start_ws_jsonrpc_server(
         ("say_hello", say_hello),
         ("getBlockChain", |r, p| forward_call("getBlockChain", r, p)),
         ("inventory", |r, p| forward_call("inventory", r, p)),
+        ("getBlock", |r, p| forward_call("getBlock", r, p)),
         ("getOutput", |r, p| forward_call("getOutput", r, p)),
         ("getWalletInfos", get_wallet_infos),
         ("createMnemonics", create_mnemonics),

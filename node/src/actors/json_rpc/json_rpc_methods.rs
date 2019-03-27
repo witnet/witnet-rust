@@ -1,10 +1,9 @@
-#[cfg(test)]
-use self::mock_actix::System;
-use crate::actors::{
-    chain_manager::{ChainManager, ChainManagerError},
-    epoch_manager::EpochManager,
-    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange, GetEpoch},
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicUsize, Ordering},
+    sync::Arc,
 };
+
 #[cfg(not(test))]
 use actix::System;
 use actix::{MailboxError, SystemService};
@@ -12,14 +11,21 @@ use jsonrpc_core::{futures, futures::Future, BoxFuture, MetaIoHandler, Params, V
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
+
+use witnet_data_structures::chain::{self, Block, Hash, InventoryEntry, Transaction};
+
+use crate::actors::{
+    chain_manager::{ChainManager, ChainManagerError},
+    epoch_manager::EpochManager,
+    inventory_manager::InventoryManager,
+    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange, GetEpoch, GetItem},
+};
+
 //use std::str::FromStr;
 use super::Subscriptions;
-use std::{
-    collections::HashMap,
-    sync::atomic::{AtomicUsize, Ordering},
-    sync::Arc,
-};
-use witnet_data_structures::chain::{Block, InventoryEntry, Transaction};
+
+#[cfg(test)]
+use self::mock_actix::System;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
@@ -33,6 +39,7 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
     io.add_method("getBlockChain", |params: Params| {
         get_block_chain(params.parse())
     });
+    io.add_method("getBlock", |params: Params| get_block(params.parse()));
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
 
     // We need two Arcs, one for subscribe and one for unsuscribe
@@ -313,6 +320,50 @@ pub fn get_block_chain(
         Box::new(fut)
     }
 }
+
+/// Get block by hash
+/* test
+{"jsonrpc":"2.0","id":1,"method":"getBlock","params":["c0002c6b25615c0f71069f159dffddf8a0b3e529efb054402f0649e969715bdb"]}
+{"jsonrpc":"2.0","id":1,"method":"getBlock","params":[{"SHA256":[255,198,135,145,253,40,66,175,226,220,119,243,233,210,25,119,171,217,215,188,185,190,93,116,164,234,217,67,30,102,205,46]}]}
+*/
+pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let hash = match hash {
+        Ok(x) => x.0,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let inventory_manager = InventoryManager::from_registry();
+    Box::new(
+        inventory_manager
+            .send(GetItem { hash })
+            .then(move |res| match res {
+                Ok(Ok(chain::InventoryItem::Block(output))) => {
+                    let value = match serde_json::to_value(output) {
+                        Ok(x) => x,
+                        Err(e) => {
+                            let err = internal_error(e);
+                            return futures::failed(err);
+                        }
+                    };
+                    futures::finished(value)
+                }
+                Ok(Ok(chain::InventoryItem::Transaction(_))) => {
+                    // Not a block
+                    let err = internal_error(format!("Not a block, {} is a transaction", hash));
+                    futures::failed(err)
+                }
+                Ok(Err(e)) => {
+                    let err = internal_error(e);
+                    futures::failed(err)
+                }
+                Err(e) => {
+                    let err = internal_error(e);
+                    futures::failed(err)
+                }
+            }),
+    )
+}
+
 /*
 /// get output
 pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
@@ -386,7 +437,13 @@ mod mock_actix {
 
 #[cfg(test)]
 mod tests {
+    use futures::sync::mpsc;
+
+    #[cfg(test)]
+    use witnet_data_structures::chain::RADRequest;
+
     use super::*;
+
     #[test]
     fn empty_string_parse_error() {
         // An empty message should return a parse error
@@ -797,10 +854,6 @@ mod tests {
         let expected = r#"{"transaction":{"body":{"version":0,"inputs":[{"ValueTransfer":{"transaction_id":{"SHA256":[9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9]},"output_index":0}}],"outputs":[{"DataRequest":{"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]}],"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}}],"hash":null},"signatures":[{"signature":{"Secp256k1":{"r":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"s":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"v":0}},"public_key":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}]}}"#;
         assert_eq!(s.unwrap(), expected);
     }
-
-    use futures::sync::mpsc;
-    #[cfg(test)]
-    use witnet_data_structures::chain::RADRequest;
 
     fn build_hardcoded_transaction(data_request: RADRequest) -> Transaction {
         use witnet_data_structures::chain::*;
