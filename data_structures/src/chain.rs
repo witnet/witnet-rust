@@ -322,15 +322,15 @@ impl<'de> Deserialize<'de> for Hash {
                 let mut sha256: SHA256 = [0; 32];
                 let sha256_bytes = parse_hex(&hash_str);
                 if sha256_bytes.len() != 32 {
-                    // TODO: error handling
-                    panic!(
-                        "Hash with invalid length: expected 32 got {}",
-                        sha256_bytes.len()
-                    );
-                }
-                sha256.copy_from_slice(&sha256_bytes);
+                    Err(<D::Error as serde::de::Error>::invalid_length(
+                        sha256_bytes.len(),
+                        &"32",
+                    ))
+                } else {
+                    sha256.copy_from_slice(&sha256_bytes);
 
-                Ok(Hash::SHA256(sha256))
+                    Ok(Hash::SHA256(sha256))
+                }
             }
         }
     }
@@ -1072,8 +1072,7 @@ impl<'de> Deserialize<'de> for OutputPointer {
     {
         let output_pointer_as_str = String::deserialize(deserializer)?;
 
-        // TODO: handle unwrap
-        Ok(Self::from_str(&output_pointer_as_str).unwrap())
+        Self::from_str(&output_pointer_as_str).map_err(<D::Error as serde::de::Error>::custom)
     }
 }
 
