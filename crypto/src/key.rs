@@ -3,8 +3,7 @@
 //! Example
 //!
 //! ```
-//! # use witnet_wallet::mnemonic;
-//! # use witnet_wallet::key;
+//! # use witnet_crypto::{key, mnemonic};
 //! let passphrase = "";
 //! let seed = mnemonic::MnemonicGen::new().generate().seed(passphrase);
 //! let ext_key = key::MasterKeyGen::new(seed).generate();
@@ -200,7 +199,7 @@ fn get_chain_code_and_secret(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use witnet_crypto::mnemonic as bip39;
+    use crate::mnemonic as bip39;
 
     #[test]
     fn test_generate_master_invalid_seed() {

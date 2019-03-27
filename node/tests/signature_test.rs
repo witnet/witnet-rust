@@ -1,8 +1,8 @@
 use actix;
 use futures::Future;
 
+use witnet_crypto::key::SK;
 use witnet_node::signature_mngr;
-use witnet_wallet::key::SK;
 
 fn ignore<T>(_: T) {}
 

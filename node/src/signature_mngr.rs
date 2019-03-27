@@ -8,9 +8,8 @@ use failure;
 use failure::bail;
 use futures::future::Future;
 
-use witnet_crypto::signature;
+use witnet_crypto::{key::SK, signature};
 use witnet_data_structures::chain::{Hash, Hashable};
-use witnet_wallet::key::SK;
 
 /// Start the signature manager
 pub fn start() {

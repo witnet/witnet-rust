@@ -13,6 +13,7 @@ pub mod hash;
 /// Merkle tree implementation
 pub mod merkle;
 
-/// Cryptographic signatures and mnemonic phrases
+pub mod key;
+/// Cryptographic keys, signatures and mnemonic phrases
 pub mod mnemonic;
 pub mod signature;
