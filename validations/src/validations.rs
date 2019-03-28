@@ -136,6 +136,12 @@ pub fn validate_consensus(
     }
 }
 
+/// Function to validate a value transfer transaction
+pub fn validate_vt_transaction(_tx: &TransactionBody) -> Result<(), failure::Error> {
+    // TODO(#514): Implement valu transfer validation
+    Ok(())
+}
+
 /// Function to validate a data request transaction
 pub fn validate_dr_transaction(tx: &TransactionBody) -> Result<(), failure::Error> {
     if tx.outputs.len() != 1 {
@@ -414,6 +420,7 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
             debug!("ValueTransfer Transaction validation");
             let fee = transaction_fee(transaction_body, utxo_set)?;
 
+            validate_vt_transaction(transaction_body)?;
             Ok(fee)
         }
         TransactionType::DataRequest => {
@@ -456,8 +463,8 @@ pub fn validate_transactions(
 ) -> Result<BlockInChain, failure::Error> {
     let transactions = block.txns.clone();
 
-    match transaction_tag(&transactions[0].body) {
-        TransactionType::Mint => (),
+    match transactions.get(0).map(|tx| transaction_tag(&tx.body)) {
+        Some(TransactionType::Mint) => (),
         _ => Err(BlockError::NoMint)?,
     }
 
