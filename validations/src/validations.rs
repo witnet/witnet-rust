@@ -29,14 +29,40 @@ pub fn transaction_inputs_sum(
 ) -> Result<u64, failure::Error> {
     let mut total_value = 0;
 
-    for input in &tx.inputs {
-        let pointed_value = pool
-            .get(&input.output_pointer())
-            .ok_or_else(|| TransactionError::OutputNotFound {
-                output: input.output_pointer(),
-            })?
-            .value();
-        total_value += pointed_value;
+    match transaction_tag(tx) {
+        // Commit exception to calculate inputs
+        TransactionType::Commit => {
+            match &tx.inputs[0] {
+                Input::DataRequest(dr_input) => {
+                    // Get DataRequest information
+                    let dr_pointer = dr_input.output_pointer();
+                    let dr_output =
+                        pool.get(&dr_pointer)
+                            .ok_or(TransactionError::OutputNotFound {
+                                output: dr_pointer.clone(),
+                            })?;
+
+                    match dr_output {
+                        Output::DataRequest(dr_state) => {
+                            total_value = dr_state.value / u64::from(dr_state.witnesses);
+                        }
+                        _ => Err(TransactionError::InvalidCommitTransaction)?,
+                    }
+                }
+                _ => Err(TransactionError::InvalidCommitTransaction)?,
+            }
+        }
+        _ => {
+            for input in &tx.inputs {
+                let pointed_value = pool
+                    .get(&input.output_pointer())
+                    .ok_or_else(|| TransactionError::OutputNotFound {
+                        output: input.output_pointer(),
+                    })?
+                    .value();
+                total_value += pointed_value;
+            }
+        }
     }
 
     Ok(total_value)
@@ -224,7 +250,7 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
             update_count(
                 block_commits,
                 &dr_pointer,
-                dr_state.data_request.witnesses as u32,
+                u32::from(dr_state.data_request.witnesses),
             );
 
             Ok(())
@@ -274,7 +300,7 @@ pub fn validate_reveal_transaction<S: ::std::hash::BuildHasher>(
             update_count(
                 block_reveals,
                 &dr_pointer,
-                dr_state.data_request.witnesses as u32,
+                u32::from(dr_state.data_request.witnesses),
             );
 
             Ok(())
