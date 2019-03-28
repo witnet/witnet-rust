@@ -170,6 +170,16 @@ pub enum BlockError {
         current_epoch: Epoch,
         block_epoch: Epoch,
     },
+    #[fail(
+        display = "Commits in block ({}) are not equal to commits required ({})",
+        commits, rf
+    )]
+    MismatchingCommitsNumber { commits: u32, rf: u32 },
+    #[fail(
+        display = "Reveals in block ({}) are not equal to reveals required ({})",
+        reveals, rf
+    )]
+    MismatchingRevealsNumber { reveals: u32, rf: u32 },
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain

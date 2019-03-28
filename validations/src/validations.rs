@@ -7,9 +7,9 @@ use witnet_crypto::{
 use std::collections::HashMap;
 use witnet_data_structures::{
     chain::{
-        Block, BlockError, BlockInChain, CheckpointBeacon, DataRequestOutput, Epoch, Hash,
-        Hashable, Input, KeyedSignature, Output, OutputPointer, RADRequest, Signature, Transaction,
-        TransactionBody, TransactionError, TransactionType, TransactionsPool, UnspentOutputsPool,
+        Block, BlockError, BlockInChain, CheckpointBeacon, Epoch, Hash, Hashable, Input,
+        KeyedSignature, Output, OutputPointer, RADRequest, Signature, Transaction, TransactionBody,
+        TransactionError, TransactionType, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     serializers::decoders::{TryFrom, TryInto},
@@ -65,6 +65,8 @@ pub fn transaction_fee(
     } else {
         Ok(in_value - out_value)
     }
+
+    // TODO: Add signature validation after signing transactions
 }
 
 /// Returns `true` if the transaction classifies as a _mint
@@ -166,24 +168,21 @@ pub fn validate_dr_transaction(tx: &TransactionBody) -> Result<(), failure::Erro
 
 // Add 1 in the number assigned to a DataRequestOutput
 pub fn update_count<S: ::std::hash::BuildHasher>(
-    hm: &mut HashMap<DataRequestOutput, u32, S>,
-    k: &DataRequestOutput,
+    hm: &mut WitnessesCounter<S>,
+    k: &OutputPointer,
+    rf: u32,
 ) {
-    match hm.get_mut(k) {
-        Some(count) => {
-            *count += 1;
-        }
-        None => {
-            hm.insert(k.clone(), 1);
-        }
-    };
+    hm.entry(k.clone()).or_insert((0, rf)).0 += 1;
 }
+
+/// HashMap to count commit and reveals transactions need for a Data Request
+pub type WitnessesCounter<S> = HashMap<OutputPointer, (u32, u32), S>;
 
 /// Function to validate a commit transaction
 pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
     tx: &TransactionBody,
     dr_pool: &DataRequestPool,
-    block_commits: &mut HashMap<DataRequestOutput, u32, S>,
+    block_commits: &mut WitnessesCounter<S>,
     fee: u64,
 ) -> Result<(), failure::Error> {
     if (tx.inputs.len() != 1) || (tx.outputs.len() != 1) {
@@ -216,7 +215,11 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
             }
 
             // Accumulate commits number
-            update_count(block_commits, &dr_state.data_request);
+            update_count(
+                block_commits,
+                &dr_pointer,
+                dr_state.data_request.witnesses as u32,
+            );
 
             Ok(())
         }
@@ -228,7 +231,7 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
 pub fn validate_reveal_transaction<S: ::std::hash::BuildHasher>(
     tx: &TransactionBody,
     dr_pool: &DataRequestPool,
-    block_reveals: &mut HashMap<DataRequestOutput, u32, S>,
+    block_reveals: &mut WitnessesCounter<S>,
     fee: u64,
 ) -> Result<(), failure::Error> {
     if (tx.inputs.len() != 1) || (tx.outputs.len() != 1) {
@@ -262,7 +265,11 @@ pub fn validate_reveal_transaction<S: ::std::hash::BuildHasher>(
             // TODO: Validate commitment
 
             // Accumulate commits number
-            update_count(block_reveals, &dr_state.data_request);
+            update_count(
+                block_reveals,
+                &dr_pointer,
+                dr_state.data_request.witnesses as u32,
+            );
 
             Ok(())
         }
@@ -395,8 +402,8 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
     transaction: &Transaction,
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
-    block_commits: &mut HashMap<DataRequestOutput, u32, S>,
-    block_reveals: &mut HashMap<DataRequestOutput, u32, S>,
+    block_commits: &mut WitnessesCounter<S>,
+    block_reveals: &mut WitnessesCounter<S>,
 ) -> Result<u64, failure::Error> {
     let transaction_body = &transaction.body;
 
@@ -458,9 +465,8 @@ pub fn validate_transactions(
     let mut data_request_pool = data_request_pool.clone();
     let mut remove_later = vec![];
 
-    // TODO: Handle commits_number and reveals_number
-    let mut commits_number: HashMap<DataRequestOutput, u32> = HashMap::new();
-    let mut reveals_number: HashMap<DataRequestOutput, u32> = HashMap::new();
+    let mut commits_number: WitnessesCounter<_> = HashMap::new();
+    let mut reveals_number: WitnessesCounter<_> = HashMap::new();
 
     // Init total fee
     let mut total_fee = 0;
@@ -531,6 +537,26 @@ pub fn validate_transactions(
         block_reward(block.block_header.beacon.checkpoint),
     )?;
 
+    // Validate commits number
+    for (count, rf) in commits_number.values() {
+        if count != rf {
+            Err(BlockError::MismatchingCommitsNumber {
+                commits: *count,
+                rf: *rf,
+            })?
+        }
+    }
+
+    // Validate reveals number
+    for (count, rf) in reveals_number.values() {
+        if count != rf {
+            Err(BlockError::MismatchingRevealsNumber {
+                reveals: *count,
+                rf: *rf,
+            })?
+        }
+    }
+
     // Validate Merkle Root
     let Hash::SHA256(mr) = block.block_header.hash_merkle_root;
     if mt.root() != Sha256(mr) {
@@ -557,11 +583,7 @@ pub fn validate_block(
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
 
-    if !verify_poe_block() {
-        Err(BlockError::NotValidPoe)?
-    } else if !validate_merkle_tree(&block) {
-        Err(BlockError::NotValidMerkleTree)?
-    } else if block_epoch > current_epoch {
+    if block_epoch > current_epoch {
         Err(BlockError::BlockFromFuture {
             block_epoch,
             current_epoch,
@@ -577,6 +599,8 @@ pub fn validate_block(
         Err(BlockError::PreviousHashNotKnown {
             hash: hash_prev_block,
         })?
+    } else if !verify_poe_block() {
+        Err(BlockError::NotValidPoe)?
     } else {
         validate_transactions(&utxo_set, &txn_pool, &data_request_pool, &block)
     }
