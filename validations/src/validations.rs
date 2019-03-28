@@ -175,7 +175,7 @@ pub fn validate_dr_transaction(tx: &TransactionBody) -> Result<(), failure::Erro
     }
 
     if let Output::DataRequest(dr_output) = &tx.outputs[0] {
-        if dr_output.witnesses < 2 {
+        if dr_output.witnesses < 1 {
             Err(TransactionError::InsufficientWitnesses)?
         }
 
@@ -573,12 +573,11 @@ pub fn validate_transactions(
         total_fee,
         block_reward(block.block_header.beacon.checkpoint),
     )?;
-    
+
     // Insert mint in utxo
     let mint_output_pointer = OutputPointer {
         transaction_id: block.txns[0].hash(),
         output_index: 0,
-
     };
     let mint_output = block.txns[0].body.outputs[0].clone();
     utxo_set.insert(mint_output_pointer, mint_output);
