@@ -108,6 +108,7 @@ impl Operable for RadonArray {
         match call {
             (RadonOpCodes::Identity, None) => identity(self.into()),
             (RadonOpCodes::Reduce, Some(args)) => array_operators::reduce(&self, args.as_slice()),
+            (RadonOpCodes::Get, Some(args)) => array_operators::get(&self, args.as_slice()),
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_ARRAY_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),

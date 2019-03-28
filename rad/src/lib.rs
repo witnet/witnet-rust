@@ -108,3 +108,22 @@ fn test_run_consensus_and_aggregation() {
     assert_eq!(output_consensus, expected);
     assert_eq!(output_aggregate, expected);
 }
+
+#[test]
+fn test_run_retrieval_random_api() {
+    let script = vec![
+        149, 83, 204, 132, 146, 1, 164, 100, 97, 116, 97, 204, 128, 146, 1, 0,
+    ];
+    let retrieve = RADRetrieve {
+        kind: RADType::HttpGet,
+        url: "http://qrng.anu.edu.au/API/jsonI.php?length=1&type=uint8".to_string(),
+        script,
+    };
+
+    let result = run_retrieval(retrieve).unwrap();
+
+    match result {
+        RadonTypes::Float(_) => {}
+        err => panic!("Error in run_retrieval: {:?}", err),
+    }
+}

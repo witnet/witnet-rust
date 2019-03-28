@@ -1,7 +1,5 @@
 use crate::error::RadError;
-use crate::operators::{
-    identity, string as string_operators, Operable, RadonOpCodes,
-};
+use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 

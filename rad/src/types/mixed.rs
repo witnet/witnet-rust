@@ -55,6 +55,10 @@ impl Operable for RadonMixed {
             (RadonOpCodes::ToFloat, None) => mixed_operators::to_float(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
+            // To Array
+            (RadonOpCodes::ToArray, None) => mixed_operators::to_array(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             // To Map
             (RadonOpCodes::ToMap, None) => mixed_operators::to_map(self)
                 .map(RadonTypes::from)

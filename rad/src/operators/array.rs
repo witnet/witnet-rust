@@ -1,7 +1,6 @@
 use crate::error::RadError;
 use crate::reducers::{self, RadonReducers};
-use crate::types::{array::RadonArray, RadonTypes};
-
+use crate::types::{array::RadonArray, RadonType, RadonTypes};
 use num_traits::FromPrimitive;
 use rmpv::Value;
 
@@ -16,6 +15,23 @@ pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
     let reducer_code = RadonReducers::from_i64(reducer_integer).ok_or_else(error)?;
 
     reducers::reduce(input, reducer_code)
+}
+
+pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
+    let key = args.first().map(|ref value| value.as_u64()).unwrap_or(None);
+    match key {
+        Some(key_str) => match input.value().get(key_str as usize) {
+            Some(value) => Ok(value.clone()),
+            None => Err(RadError::MapKeyNotFound {
+                key: key_str.to_string(),
+            }),
+        },
+        None => Err(RadError::WrongArguments {
+            input_type: input.to_string(),
+            operator: "Get".to_string(),
+            args: args.to_vec(),
+        }),
+    }
 }
 
 #[test]
