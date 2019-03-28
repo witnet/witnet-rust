@@ -1,11 +1,11 @@
 use crate::error::RadError;
 use crate::hash_functions::{self, RadonHashFunctions};
-use crate::types::{mixed::RadonMixed, string::RadonString, RadonType};
+use crate::types::{float::RadonFloat, mixed::RadonMixed, string::RadonString, RadonType};
 
 use json;
 use num_traits::FromPrimitive;
 use rmpv::{self, Value};
-use std::error::Error;
+use std::{error::Error, str::FromStr};
 
 pub fn parse_json(input: &RadonString) -> Result<RadonMixed, RadError> {
     match json::parse(&input.value()) {
@@ -17,6 +17,11 @@ pub fn parse_json(input: &RadonString) -> Result<RadonMixed, RadError> {
             description: json_error.description().to_owned(),
         }),
     }
+}
+pub fn to_float(input: &RadonString) -> Result<RadonFloat, RadError> {
+    f64::from_str(&input.value())
+        .map(RadonFloat::from)
+        .map_err(Into::into)
 }
 
 pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {

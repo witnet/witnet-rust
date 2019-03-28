@@ -1,5 +1,7 @@
 use crate::error::RadError;
-use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
+use crate::operators::{
+    identity, string as string_operators, Operable, RadonOpCodes,
+};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
@@ -65,6 +67,9 @@ impl Operable for RadonString {
             (RadonOpCodes::ParseJson, None) => {
                 string_operators::parse_json(&self).map(RadonTypes::Mixed)
             }
+            (RadonOpCodes::ToFloat, None) => string_operators::to_float(&self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_STRING_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),

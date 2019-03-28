@@ -83,11 +83,25 @@ pub enum RadError {
         message
     )]
     Http { message: String },
+    /// Failed to convert string to float
+    #[fail(
+        display = "Failed to convert string to float with error message: {}",
+        message
+    )]
+    ParseFloat { message: String },
 }
 
 impl From<reqwest::Error> for RadError {
     fn from(err: reqwest::Error) -> RadError {
         RadError::Http {
+            message: err.to_string(),
+        }
+    }
+}
+
+impl From<std::num::ParseFloatError> for RadError {
+    fn from(err: std::num::ParseFloatError) -> RadError {
+        RadError::ParseFloat {
             message: err.to_string(),
         }
     }
