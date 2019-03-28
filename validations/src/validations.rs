@@ -463,7 +463,14 @@ pub fn validate_transactions(
 ) -> Result<BlockInChain, failure::Error> {
     let transactions = block.txns.clone();
 
-    match transactions.get(0).map(|tx| transaction_tag(&tx.body)) {
+    // Init Progressive merkle tree
+    let mut mt = ProgressiveMerkleTree::sha256();
+
+    match transactions.get(0).map(|tx| {
+        let Hash::SHA256(sha) = tx.hash();
+        mt.push(Sha256(sha));
+        transaction_tag(&tx.body)
+    }) {
         Some(TransactionType::Mint) => (),
         _ => Err(BlockError::NoMint)?,
     }
@@ -477,9 +484,6 @@ pub fn validate_transactions(
 
     // Init total fee
     let mut total_fee = 0;
-
-    // Init Progressive merkle tree
-    let mut mt = ProgressiveMerkleTree::sha256();
 
     // TODO: replace for loop with a try_fold
     for transaction in &transactions[1..] {
