@@ -1,6 +1,6 @@
 [package]
 name = "witnet_protected"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 description = "Protected bytes struct that will be zeroed when dropped"
