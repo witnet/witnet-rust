@@ -175,11 +175,6 @@ pub enum BlockError {
         commits, rf
     )]
     MismatchingCommitsNumber { commits: u32, rf: u32 },
-    #[fail(
-        display = "Reveals in block ({}) are not equal to reveals required ({})",
-        reveals, rf
-    )]
-    MismatchingRevealsNumber { reveals: u32, rf: u32 },
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
@@ -479,6 +474,11 @@ pub enum TransactionError {
     InvalidFee { fee: u64, expected_fee: u64 },
     #[fail(display = "Invalid Data Request reward: {}", reward)]
     InvalidDataRequestReward { reward: i64 },
+    #[fail(
+        display = "Invalid Data Request reward ({}) for this number of witnesses ({})",
+        dr_value, witnesses
+    )]
+    InvalidDataRequestValue { dr_value: i64, witnesses: i64 },
     #[fail(display = "Data Request witnesses number is not enough")]
     InsufficientWitnesses,
     #[fail(display = "Reveals from different Data Requests")]

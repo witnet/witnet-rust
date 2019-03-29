@@ -46,7 +46,7 @@ impl<T: Storage> Storage for Backend<T> {
 
                     cipher::decrypt_aes_cbc(&secret, data, iv)
                         .map(Some)
-                        .map_err(|err| err.into())
+                        .map_err(Into::into)
                 }
                 None => Ok(None),
             })

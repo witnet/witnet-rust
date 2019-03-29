@@ -301,28 +301,28 @@ where
                 self.inbound_unconsolidated
                     .collection
                     .keys()
-                    .map(|k| k.to_string()),
+                    .map(ToString::to_string),
             )
             .chain(std::iter::once("Inbound Consolidated".to_string()))
             .chain(
                 self.inbound_consolidated
                     .collection
                     .keys()
-                    .map(|k| k.to_string()),
+                    .map(ToString::to_string),
             )
             .chain(std::iter::once("Outbound Unconsolidated".to_string()))
             .chain(
                 self.outbound_unconsolidated
                     .collection
                     .keys()
-                    .map(|k| k.to_string()),
+                    .map(ToString::to_string),
             )
             .chain(std::iter::once("Outbound Consolidated".to_string()))
             .chain(
                 self.outbound_consolidated
                     .collection
                     .keys()
-                    .map(|k| k.to_string()),
+                    .map(ToString::to_string),
             )
             .chain(std::iter::once(
                 "Outbound Consolidated Consensus".to_string(),
@@ -331,7 +331,7 @@ where
                 self.outbound_consolidated_consensus
                     .collection
                     .keys()
-                    .map(|k| k.to_string()),
+                    .map(ToString::to_string),
             )
             .collect()
     }

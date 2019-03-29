@@ -346,7 +346,7 @@ fn build_block(
         let transaction_fee = match transaction_fee(&transaction.body, unspent_outputs_pool) {
             Ok(x) => x,
             Err(e) => {
-                debug!(
+                warn!(
                     "Error when calculating transaction fee for transaction: {}",
                     e
                 );

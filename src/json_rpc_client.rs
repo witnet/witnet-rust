@@ -182,7 +182,7 @@ fn start_client(config_path: Option<PathBuf>) -> Result<TcpStream, failure::Erro
     info!("Connecting to JSON-RPC server at {}", addr);
     let stream = TcpStream::connect(addr);
 
-    stream.map_err(|e| e.into())
+    stream.map_err(Into::into)
 }
 
 fn send_request<S: Read + Write>(stream: &mut S, request: &str) -> Result<String, io::Error> {
