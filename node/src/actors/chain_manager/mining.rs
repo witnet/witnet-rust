@@ -17,14 +17,13 @@ use crate::actors::{
 };
 
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::{Hashable, KeyedSignature, OutputPointer, Transaction};
-use witnet_data_structures::data_request::{create_commit_body, create_reveal_body};
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, CheckpointBeacon, Hash, Input, LeadershipProof, Output, PublicKeyHash,
-        Secp256k1Signature, Signature, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockHeader, CheckpointBeacon, Hash, Hashable, Input, KeyedSignature,
+        LeadershipProof, Output, OutputPointer, PublicKeyHash, Secp256k1Signature, Signature,
+        Transaction, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
-    data_request::{create_tally_body, create_vt_tally},
+    data_request::{create_commit_body, create_reveal_body, create_tally_body, create_vt_tally},
     serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;

@@ -93,7 +93,6 @@ pub fn transaction_fee(
     if out_value > in_value {
         Err(TransactionError::NegativeFee)?
     } else {
-        log::error!("Calculated fee is {}", in_value - out_value);
         Ok(in_value - out_value)
     }
 
