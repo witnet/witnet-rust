@@ -10,7 +10,7 @@ bootstrap_peers_period_seconds = 15
 db_path = ".wit"
 
 [consensus_constants]
-checkpoint_zero_timestamp = 1548855420
+checkpoint_zero_timestamp = 1553817600
 
 #########################################
 ### LOGGING CONFIGURATION             ###
