@@ -127,17 +127,8 @@ impl ChildNumber {
 
 impl ExtendedSK {
     /// Try to derive an extended private key from a given path
-    pub fn derive(seed: &[u8], path: Vec<ChildNumber>) -> Result<ExtendedSK, KeyDerivationError> {
-        let key_bytes = DEFAULT_HMAC_KEY;
-        let hmac512 = Hmac::<sha2::Sha512>::new_varkey(key_bytes)
-            .map_err(|_| KeyDerivationError::InvalidKeyLength)?;
-        let (chain_code, secret_key) = get_chain_code_and_secret(seed, hmac512)?;
-
-        let mut extended_sk = ExtendedSK {
-            secret_key,
-            chain_code,
-        };
-
+    pub fn derive(&self, path: Vec<ChildNumber>) -> Result<ExtendedSK, KeyDerivationError> {
+        let mut extended_sk = self.clone();
         for child in path {
             extended_sk = extended_sk.child(child)?
         }
@@ -226,33 +217,6 @@ mod tests {
     }
 
     #[test]
-    fn test_key_derivation() {
-        let phrase = "panda eyebrow bullet gorilla call smoke muffin taste mesh discover soft ostrich alcohol speed nation flash devote level hobby quick inner drive ghost inside";
-        let expected_secret_key = b"\xff\x1e\x68\xeb\x7b\xf2\xf4\x86\x51\xc4\x7e\xf0\x17\x7e\xb8\x15\x85\x73\x22\x25\x7c\x58\x94\xbb\x4c\xfd\x11\x76\xc9\x98\x93\x14";
-
-        let mnemonic =
-            bip39::Mnemonic::from_phrase(phrase.to_string(), bip39::Lang::English).unwrap();
-        let seed = bip39::Mnemonic::seed(&mnemonic, "");
-        let account = ExtendedSK::derive(
-            seed.as_bytes(),
-            vec![
-                ChildNumber(2147483692),
-                ChildNumber(2147483708),
-                ChildNumber(2147483648),
-                ChildNumber(0),
-                ChildNumber(0),
-            ],
-        )
-        .unwrap();
-
-        assert_eq!(
-            expected_secret_key,
-            &account.secret(),
-            "Secret key is invalid"
-        );
-    }
-
-    #[test]
     fn test_seed() {
         let phrase = "panda eyebrow bullet gorilla call smoke muffin taste mesh discover soft ostrich alcohol speed nation flash devote level hobby quick inner drive ghost inside";
 
@@ -261,6 +225,7 @@ mod tests {
 
         let seed = bip39::Mnemonic::seed(&mnemonic, "");
 
+        // Expected seed calculated in https://iancoleman.io/bip39/
         let expected_seed = [
             62, 6, 109, 125, 238, 45, 191, 143, 205, 63, 226, 64, 163, 151, 86, 88, 202, 17, 138,
             143, 111, 76, 168, 28, 249, 145, 4, 148, 70, 4, 176, 90, 80, 144, 167, 157, 153, 229,
@@ -269,5 +234,56 @@ mod tests {
         ];
 
         assert_eq!(&expected_seed[..], seed.as_bytes());
+    }
+
+    #[test]
+    fn test_secret_key() {
+        let seed = [
+            62, 6, 109, 125, 238, 45, 191, 143, 205, 63, 226, 64, 163, 151, 86, 88, 202, 17, 138,
+            143, 111, 76, 168, 28, 249, 145, 4, 148, 70, 4, 176, 90, 80, 144, 167, 157, 153, 229,
+            69, 112, 75, 145, 76, 160, 57, 127, 237, 184, 47, 208, 15, 214, 167, 32, 152, 112, 55,
+            9, 200, 145, 160, 101, 238, 73,
+        ];
+
+        let master_key = MasterKeyGen::new(&seed[..]).generate().unwrap();
+
+        let expected_secret_key = [
+            79, 67, 227, 208, 107, 229, 51, 169, 104, 61, 121, 142, 8, 143, 75, 74, 235, 179, 67,
+            213, 108, 252, 255, 16, 32, 162, 57, 21, 195, 162, 115, 128,
+        ];
+        assert_eq!(expected_secret_key, &master_key.secret_key[..]);
+    }
+
+    #[test]
+    fn test_key_derivation() {
+        let seed = [
+            62, 6, 109, 125, 238, 45, 191, 143, 205, 63, 226, 64, 163, 151, 86, 88, 202, 17, 138,
+            143, 111, 76, 168, 28, 249, 145, 4, 148, 70, 4, 176, 90, 80, 144, 167, 157, 153, 229,
+            69, 112, 75, 145, 76, 160, 57, 127, 237, 184, 47, 208, 15, 214, 167, 32, 152, 112, 55,
+            9, 200, 145, 160, 101, 238, 73,
+        ];
+
+        let master_key = MasterKeyGen::new(&seed[..]).generate().unwrap();
+
+        let secret_key = master_key
+            .derive(vec![
+                ChildNumber(0x8000002c), // purpose: BIP-44
+                ChildNumber(0x80000000), // coin_type: Bitcoin
+                ChildNumber(0x80000000), // account: hardened 0
+                ChildNumber(0),          // change: 0
+                ChildNumber(0),          // address: 0
+            ])
+            .unwrap();
+
+        let expected_secret_key = [
+            137, 174, 230, 121, 4, 190, 53, 238, 47, 181, 52, 226, 109, 68, 153, 170, 112, 150, 84,
+            84, 26, 177, 194, 157, 76, 80, 136, 25, 6, 79, 247, 43,
+        ];
+
+        assert_eq!(
+            expected_secret_key,
+            &secret_key.secret()[..],
+            "Secret key is invalid"
+        );
     }
 }
