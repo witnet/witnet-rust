@@ -17,7 +17,7 @@ use witnet_data_structures::{
     data_request::DataRequestPool,
 };
 
-use witnet_util::timestamp::{get_timestamp_nanos, pretty_print};
+use witnet_util::timestamp::pretty_print;
 
 use log::{debug, error, warn};
 
@@ -30,10 +30,6 @@ impl Actor for ChainManager {
     // FIXME: Remove all `unwrap()`s
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("ChainManager actor has been started!");
-
-        // Use the current timestamp as a random value to modify the signature
-        // Make sure to wait at least 1 second before starting each node
-        self.random = u64::from(get_timestamp_nanos().1);
 
         self.initialize_from_storage(ctx);
 

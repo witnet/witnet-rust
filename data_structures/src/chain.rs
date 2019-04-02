@@ -283,6 +283,12 @@ pub enum Secp256k1ConversionError {
     FailSecretKeyConversion,
 }
 
+impl From<Secp256k1_Signature> for Signature {
+    fn from(secp256k1_signature: Secp256k1_Signature) -> Self {
+        Signature::Secp256k1(Secp256k1Signature::from(secp256k1_signature))
+    }
+}
+
 impl From<Secp256k1_Signature> for Secp256k1Signature {
     fn from(secp256k1_signature: Secp256k1_Signature) -> Self {
         let der = secp256k1_signature.serialize_der();

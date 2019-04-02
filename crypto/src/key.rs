@@ -11,7 +11,7 @@
 
 use failure::Fail;
 use hmac::{Hmac, Mac};
-use secp256k1::{PublicKey, SecretKey};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sha2;
 
 const HARDENED_BIT: u32 = 1 << 31;
@@ -99,6 +99,16 @@ pub enum KeyDerivationError {
 
 /// Secret Key
 pub type SK = SecretKey;
+
+/// Public Key
+pub type PK = PublicKey;
+
+/// Signing context for signature operations
+///
+/// `SignContext::new()`: all capabilities
+/// `SignContext::signing_only()`: only be used for signing
+/// `SignContext::verification_only()`: only be used for verification
+pub type SignContext<C> = Secp256k1<C>;
 
 /// Extended Key is just a Key with a Chain Code
 #[derive(Clone, PartialEq, Eq, Debug)]

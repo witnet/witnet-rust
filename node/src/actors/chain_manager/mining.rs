@@ -1,9 +1,9 @@
+use actix::prelude::*;
 use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture,
 };
 use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
-use serde_json;
 
 use futures::future::{join_all, Future};
 use std::{collections::HashMap, time::Duration};
@@ -16,12 +16,12 @@ use crate::actors::{
     rad_manager::RadManager,
 };
 
-use witnet_crypto::hash::calculate_sha256;
+use crate::signature_mngr;
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, CheckpointBeacon, Hash, Hashable, Input, KeyedSignature,
-        LeadershipProof, Output, OutputPointer, PublicKeyHash, Secp256k1Signature, Signature,
-        Transaction, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockHeader, CheckpointBeacon, Hashable, Input, LeadershipProof, Output,
+        OutputPointer, PublicKeyHash, Transaction, TransactionsPool, UnspentOutputsPool,
+        ValueTransferOutput,
     },
     data_request::{create_commit_body, create_reveal_body, create_tally_body, create_vt_tally},
     serializers::decoders::TryFrom,
@@ -65,32 +65,6 @@ impl ChainManager {
         }
         // The highest checkpoint beacon should contain the current epoch
         beacon.checkpoint = current_epoch;
-        let beacon_hash = Hash::from(calculate_sha256(&serde_json::to_vec(&beacon).unwrap()));
-        let private_key = 1;
-
-        // TODO: send Sign message to CryptoManager
-        let sign = |x, _k| match x {
-            Hash::SHA256(mut x) => {
-                // Add some randomness to the signature
-                // TODO: since the hash of the block depends only on the block header,
-                // this does not change the hash. Therefore, until we implement signatures,
-                // all the nodes will always mine blocks with the same hash.
-                x[0] = self.random as u8;
-                x
-            }
-        };
-        let signed_beacon_hash = sign(beacon_hash, private_key);
-        // Currently, every hash is valid
-        // Fake signature which will be accepted anyway
-        let signature = Signature::Secp256k1(Secp256k1Signature {
-            r: signed_beacon_hash,
-            s: signed_beacon_hash,
-            v: 0,
-        });
-        let leadership_proof = LeadershipProof {
-            block_sig: Some(signature),
-            influence: 0,
-        };
 
         // TODO: Use a real PoE
         let poe = true;
@@ -109,8 +83,17 @@ impl ChainManager {
                 // which will construct and broadcast the block
 
                 act.create_tally_transactions()
+                    .join(
+                        signature_mngr::sign(&beacon)
+                            .map_err(|e| error!("Couldn't sign beacon: {}", e)),
+                    )
                     .into_actor(act)
-                    .and_then(move |tally_transactions, act, ctx| {
+                    .and_then(move |(tally_transactions, keyed_signature), act, ctx| {
+                        let leadership_proof = LeadershipProof {
+                            block_sig: Some(keyed_signature.signature),
+                            influence: 0,
+                        };
+
                         // Build the block using the supplied beacon and eligibility proof
                         let block = build_block(
                             &act.transactions_pool,
@@ -185,59 +168,59 @@ impl ChainManager {
                         rad_request,
                     })
                     .into_actor(self)
-                    .then(move |res, act, ctx| match res {
-                        // Process the response from RADManager
-                        Err(e) => {
-                            // Error when sending message
-                            error!("Unsuccessful communication with RADManager: {}", e);
-                            actix::fut::err(())
+                    .then(|result, _, _| match result {
+                        Ok(Ok(value)) => fut::ok(value),
+                        Ok(Err(e)) => {
+                            log::error!("Couldn't resolve rad request: {}", e);
+                            fut::err(())
                         }
-                        Ok(res) => match res {
-                            Err(e) => {
-                                // Error executing the rad_request
-                                error!("RadManager error: {}", e);
-                                actix::fut::err(())
-                            }
-
-                            Ok(reveal_value) => {
-                                // Create commitment transaction
-                                let commit_body = create_commit_body(&dr_output_pointer, &data_request_output, reveal_value.clone());
-                                // TODO: produce real signature
-                                let sig = KeyedSignature::default();
+                        Err(e) => {
+                            log::error!("Couldn't resolve rad request: {}", e);
+                            fut::err(())
+                        }
+                    })
+                    .and_then(move |reveal_value, act, _ctx| {
+                        // Create commitment transaction
+                        let commit_body = create_commit_body(&dr_output_pointer, &data_request_output, reveal_value.clone());
+                        signature_mngr::sign(&commit_body)
+                            .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
+                            .into_actor(act)
+                            .and_then(move |sig, act, _ctx| {
                                 let commit_transaction = Transaction::new(commit_body, vec![sig]);
-
-                                // Create reveal transaction
                                 let commit_pointer = OutputPointer {
                                     transaction_id: commit_transaction.hash(),
                                     output_index: 0,
                                 };
                                 let reveal_body = create_reveal_body(commit_pointer,  &data_request_output, reveal_value);
-                                // TODO: produce real signature
-                                let sig = KeyedSignature::default();
-                                let reveal_transaction = Transaction::new(reveal_body, vec![sig]);
 
-                                // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
-                                act.chain_state.data_request_pool.insert_reveal(dr_output_pointer.clone(), reveal_transaction);
+                                signature_mngr::sign(&reveal_body)
+                                    .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
+                                    .into_actor(act)
+                                    .and_then(move |sig, act, ctx| {
+                                        let reveal_transaction = Transaction::new(reveal_body, vec![sig]);
 
-                                info!(
-                                    "{} Discovered eligibility for mining a data request {} for epoch #{}",
-                                    Yellow.bold().paint("[Mining]"),
-                                    Yellow.bold().paint(dr_output_pointer.to_string()),
-                                    Yellow.bold().paint(current_epoch.to_string())
-                                );
+                                        // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
+                                        act.chain_state.data_request_pool.insert_reveal(dr_output_pointer.clone(), reveal_transaction);
 
-                                // Send AddTransaction message to self
-                                // And broadcast it to all of peers
-                                act.handle(
-                                    AddTransaction {
-                                        transaction: commit_transaction,
-                                    },
-                                    ctx,
-                                );
+                                        info!(
+                                            "{} Discovered eligibility for mining a data request {} for epoch #{}",
+                                            Yellow.bold().paint("[Mining]"),
+                                            Yellow.bold().paint(dr_output_pointer.to_string()),
+                                            Yellow.bold().paint(current_epoch.to_string())
+                                        );
 
-                                actix::fut::ok(())
-                            }
-                        },
+                                        // Send AddTransaction message to self
+                                        // And broadcast it to all of peers
+                                        act.handle(
+                                            AddTransaction {
+                                                transaction: commit_transaction,
+                                            },
+                                            ctx,
+                                        );
+
+                                        actix::fut::ok(())
+                                    })
+                            })
                     })
                     .wait(ctx)
             }
@@ -262,25 +245,25 @@ impl ChainManager {
                     script: dr_output.data_request.consensus.clone(),
                     reveals: results.clone(),
                 })
-                .then(move |res| match res {
-                    // Process the response from RADManager
-                    Err(e) => {
-                        // Error when sending message
-                        error!("Unsuccessful communication with RADManager: {}", e);
+                .then(|result| match result {
+                    Ok(Ok(value)) => futures::future::ok(value),
+                    Ok(Err(e)) => {
+                        log::error!("Couldn't run consensus: {}", e);
                         futures::future::err(())
                     }
-                    Ok(res) => match res {
-                        Err(e) => {
-                            // Error executing the RAD consensus
-                            error!("RadManager error: {}", e);
-                            futures::future::err(())
-                        }
+                    Err(e) => {
+                        log::error!("Couldn't run consensus: {}", e);
+                        futures::future::err(())
+                    }
+                })
+                .and_then(move |consensus| {
+                    let tally_body =
+                        create_tally_body(&dr_output, inputs, outputs, consensus.clone());
 
-                        Ok(consensus) => {
-                            let tally_body =
-                                create_tally_body(&dr_output, inputs, outputs, consensus.clone());
-                            // TODO: replace with actual call to signature manager
-                            let tally_transaction = Transaction::new(tally_body, vec![]);
+                    signature_mngr::sign(&tally_body)
+                        .map_err(|e| log::error!("Couldn't sign tally body: {}", e))
+                        .and_then(move |sig| {
+                            let tally_transaction = Transaction::new(tally_body, vec![sig]);
 
                             let print_results: Vec<_> = results
                                 .into_iter()
@@ -309,8 +292,7 @@ impl ChainManager {
                             );
 
                             futures::future::ok(tally_transaction)
-                        }
-                    },
+                        })
                 });
             future_tally_transactions.push(fut);
         }

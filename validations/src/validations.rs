@@ -95,8 +95,6 @@ pub fn transaction_fee(
     } else {
         Ok(in_value - out_value)
     }
-
-    // TODO: Add signature validation after signing transactions
 }
 
 /// Returns `true` if the transaction classifies as a _mint

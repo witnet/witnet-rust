@@ -107,12 +107,6 @@ pub struct ChainManager {
     transactions_pool: TransactionsPool,
     /// Maximum weight each block can have
     max_block_weight: u32,
-    // Random value to help with debugging because there is no signature
-    // and all the mined blocks have the same hash.
-    // This random value helps to distinguish blocks mined on different nodes
-    // To be removed when we implement real signing.
-    // TODO: Remove after create signatures
-    random: u64,
     /// Mining enabled
     mining_enabled: bool,
     /// Hash of the genesis block
