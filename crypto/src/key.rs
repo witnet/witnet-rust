@@ -263,9 +263,9 @@ mod tests {
             9, 200, 145, 160, 101, 238, 73,
         ];
 
-        let master_key = MasterKeyGen::new(&seed[..]).generate().unwrap();
+        let extended_sk = MasterKeyGen::new(&seed[..]).generate().unwrap();
 
-        let secret_key = master_key
+        let account = extended_sk
             .derive(vec![
                 ChildNumber(0x8000002c), // purpose: BIP-44
                 ChildNumber(0x80000000), // coin_type: Bitcoin
@@ -275,14 +275,14 @@ mod tests {
             ])
             .unwrap();
 
-        let expected_secret_key = [
+        let expected_account = [
             137, 174, 230, 121, 4, 190, 53, 238, 47, 181, 52, 226, 109, 68, 153, 170, 112, 150, 84,
             84, 26, 177, 194, 157, 76, 80, 136, 25, 6, 79, 247, 43,
         ];
 
         assert_eq!(
-            expected_secret_key,
-            &secret_key.secret()[..],
+            expected_account,
+            &account.secret()[..],
             "Secret key is invalid"
         );
     }
