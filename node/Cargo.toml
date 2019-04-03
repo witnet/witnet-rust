@@ -20,6 +20,7 @@ rust-crypto = "0.2.36"
 serde = "1.0.88"
 serde_json = "1.0.38"
 tokio = "0.1.15"
+secp256k1 = "0.12.2"
 
 witnet_data_structures = { path = "../data_structures" }
 witnet_p2p = { path = "../p2p" }

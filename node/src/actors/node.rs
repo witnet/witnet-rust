@@ -11,6 +11,7 @@ use crate::actors::{
     peers_manager::PeersManager, rad_manager::RadManager, sessions_manager::SessionsManager,
 };
 use crate::config_mngr;
+use crate::signature_mngr;
 use crate::storage_mngr;
 
 /// Function to run the main system
@@ -38,6 +39,7 @@ pub fn run(
     }
 
     storage_mngr::start();
+    signature_mngr::start();
 
     // Start PeersManager actor
     let peers_manager_addr = PeersManager::default().start();

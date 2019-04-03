@@ -7,9 +7,17 @@ use actix::prelude::*;
 use failure;
 use failure::bail;
 use futures::future::Future;
+use log;
 
-use witnet_crypto::{key::SK, signature};
-use witnet_data_structures::chain::{Hash, Hashable};
+use crate::{actors::storage_keys::MASTER_KEY, storage_mngr};
+
+use witnet_crypto::{
+    key::{ExtendedSK, MasterKeyGen, SK},
+    mnemonic::MnemonicGen,
+    signature,
+};
+
+use witnet_data_structures::chain::{ExtendedSecretKey, Hash, Hashable};
 
 /// Start the signature manager
 pub fn start() {
@@ -48,11 +56,54 @@ struct SignatureManager {
 struct SetKey(SK);
 struct Sign(Vec<u8>);
 
+fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = failure::Error> {
+    let master_key = ExtendedSecretKey::from(master_key);
+
+    storage_mngr::put(&MASTER_KEY, &master_key).inspect(|_| {
+        log::debug!("Successfully persisted the extended secret key into storage");
+    })
+}
+
+fn create_master_key() -> Box<dyn Future<Item = (), Error = failure::Error>> {
+    log::info!("Generating and persisting a new master key for this node");
+
+    // Create a new master key
+    let mnemonic = MnemonicGen::new().generate();
+    let seed = mnemonic.seed("");
+    match MasterKeyGen::new(seed).generate() {
+        Ok(master_key) => {
+            let fut = set_key(master_key.secret_key)
+                .join(persist_master_key(master_key))
+                .map(|_| ());
+
+            Box::new(fut)
+        }
+        Err(e) => {
+            let fut = futures::future::err(e.into());
+
+            Box::new(fut)
+        }
+    }
+}
+
 impl Actor for SignatureManager {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
+    fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("Signature Manager actor has been started!");
+
+        storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY)
+            .and_then(move |master_key_from_storage| {
+                master_key_from_storage.map_or_else(create_master_key, |master_key| {
+                    let master_key: ExtendedSK = master_key.into();
+                    let fut = set_key(master_key.secret_key);
+
+                    Box::new(fut)
+                })
+            })
+            .map_err(|e| log::error!("Couldn't initialize Signature Manager: {}", e))
+            .into_actor(self)
+            .wait(ctx);
     }
 }
 
