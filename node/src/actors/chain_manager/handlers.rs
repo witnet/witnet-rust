@@ -105,7 +105,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             self.genesis_block_hash,
                             &self.chain_state.unspent_outputs_pool,
                             &self.transactions_pool,
-                            &self.data_request_pool,
+                            &self.chain_state.data_request_pool,
                         ) {
                             Ok(block_in_chain) => chosen_candidate = Some((key, block_in_chain)),
                             Err(e) => debug!("{}", e),
@@ -281,7 +281,7 @@ impl Handler<AddTransaction> for ChainManager {
             match validate_transaction(
                 &msg.transaction,
                 &self.chain_state.unspent_outputs_pool,
-                &self.data_request_pool,
+                &self.chain_state.data_request_pool,
                 &mut HashMap::new(),
             ) {
                 Ok(_) => {

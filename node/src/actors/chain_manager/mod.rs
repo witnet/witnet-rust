@@ -46,9 +46,8 @@ use crate::actors::{
 use crate::storage_mngr;
 use witnet_data_structures::{
     chain::{
-        ActiveDataRequestPool, Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash,
-        Hashable, InventoryItem, Output, OutputPointer, Transaction, TransactionsPool,
-        UnspentOutputsPool,
+        Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable,
+        InventoryItem, Output, OutputPointer, Transaction, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     serializers::decoders::TryFrom,
@@ -118,8 +117,6 @@ pub struct ChainManager {
     mining_enabled: bool,
     /// Hash of the genesis block
     genesis_block_hash: Hash,
-    /// Pool of active data requests
-    data_request_pool: DataRequestPool,
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up
@@ -229,7 +226,7 @@ impl ChainManager {
                 self.genesis_block_hash,
                 &self.chain_state.unspent_outputs_pool,
                 &self.transactions_pool,
-                &self.data_request_pool,
+                &self.chain_state.data_request_pool,
             ) {
                 Ok(block_in_chain) => {
                     // Persist block and update ChainState
@@ -296,8 +293,11 @@ impl ChainManager {
                 update_transaction_pool(&mut self.transactions_pool, block.txns.as_ref());
 
                 // Update DataRequestPool
-                self.data_request_pool = dr_pool;
-                let reveals = self.data_request_pool.update_data_request_stages();
+                self.chain_state.data_request_pool = dr_pool;
+                let reveals = self
+                    .chain_state
+                    .data_request_pool
+                    .update_data_request_stages();
                 for reveal in reveals {
                     // Send AddTransaction message to self
                     // And broadcast it to all of peers
@@ -306,24 +306,16 @@ impl ChainManager {
                     })
                 }
                 // Persist finished data requests into storage
-                let to_be_stored = self.data_request_pool.finished_data_requests();
+                let to_be_stored = self.chain_state.data_request_pool.finished_data_requests();
                 to_be_stored.into_iter().for_each(|dr| {
                     self.persist_data_request(ctx, &dr);
                     if info_flag {
                         show_info_tally(&self.chain_state.unspent_outputs_pool, dr, block_epoch);
                     }
                 });
-                // FIXME: Revisit to avoid data redundancies
-                // Store active data requests
-                self.chain_state.data_request_pool = ActiveDataRequestPool {
-                    waiting_for_reveal: self.data_request_pool.waiting_for_reveal.clone(),
-                    data_requests_by_epoch: self.data_request_pool.data_requests_by_epoch.clone(),
-                    data_request_pool: self.data_request_pool.data_request_pool.clone(),
-                    to_be_stored: self.data_request_pool.to_be_stored.clone(),
-                    dr_pointer_cache: self.data_request_pool.dr_pointer_cache.clone(),
-                };
+
                 if info_flag {
-                    show_info_dr(&self.data_request_pool, &block);
+                    show_info_dr(&self.chain_state.data_request_pool, &block);
 
                     debug!("{:?}", block);
                     debug!("Mint transaction hash: {:?}", block.txns[0].hash());

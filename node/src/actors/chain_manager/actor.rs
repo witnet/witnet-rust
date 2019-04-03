@@ -13,10 +13,7 @@ use crate::actors::{
 use crate::config_mngr;
 use crate::storage_mngr;
 use witnet_data_structures::{
-    chain::{
-        ActiveDataRequestPool, Blockchain, ChainInfo, ChainState, CheckpointBeacon,
-        UnspentOutputsPool,
-    },
+    chain::{Blockchain, ChainInfo, ChainState, CheckpointBeacon, UnspentOutputsPool},
     data_request::DataRequestPool,
 };
 
@@ -75,35 +72,6 @@ impl ChainManager {
                             if consensus_constants == chain_info_from_storage.consensus_constants {
                                 // Update Chain Info from storage
                                 act.chain_state = chain_state_from_storage;
-                                // Restore Data Request Pool
-                                // FIXME: Revisit how to avoid data redundancies
-                                act.data_request_pool = DataRequestPool {
-                                    waiting_for_reveal: act
-                                        .chain_state
-                                        .data_request_pool
-                                        .waiting_for_reveal
-                                        .clone(),
-                                    data_requests_by_epoch: act
-                                        .chain_state
-                                        .data_request_pool
-                                        .data_requests_by_epoch
-                                        .clone(),
-                                    data_request_pool: act
-                                        .chain_state
-                                        .data_request_pool
-                                        .data_request_pool
-                                        .clone(),
-                                    to_be_stored: act
-                                        .chain_state
-                                        .data_request_pool
-                                        .to_be_stored
-                                        .clone(),
-                                    dr_pointer_cache: act
-                                        .chain_state
-                                        .data_request_pool
-                                        .dr_pointer_cache
-                                        .clone(),
-                                };
                                 debug!("ChainInfo successfully obtained from storage");
                             } else {
                                 // Mismatching consensus constants between config and storage
@@ -142,7 +110,7 @@ impl ChainManager {
                         act.chain_state = ChainState {
                             chain_info: Some(chain_info),
                             unspent_outputs_pool: UnspentOutputsPool::default(),
-                            data_request_pool: ActiveDataRequestPool::default(),
+                            data_request_pool: DataRequestPool::default(),
                             block_chain: Blockchain::default(),
                         };
                     }

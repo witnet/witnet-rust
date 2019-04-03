@@ -1327,22 +1327,6 @@ pub enum DataRequestStage {
     TALLY,
 }
 
-/// Pool of active data requests
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct ActiveDataRequestPool {
-    /// Currently active data requests for which this node has announced commitments
-    /// Key: Data Request Pointer, Value: Reveal Transaction
-    pub waiting_for_reveal: HashMap<OutputPointer, Transaction>,
-    /// Indexes the output pointers of every active data request by epoch (only for mining purposes)
-    pub data_requests_by_epoch: BTreeMap<Epoch, HashSet<OutputPointer>>,
-    /// Indexes every active data request by its original output pointer
-    pub data_request_pool: HashMap<OutputPointer, DataRequestState>,
-    /// Lists data request reports that need to be persisted into storage
-    pub to_be_stored: Vec<(OutputPointer, DataRequestReport)>,
-    /// Maps `commit_pointer` and `reveal_pointer` to `data_request_pointer`
-    pub dr_pointer_cache: HashMap<OutputPointer, OutputPointer>,
-}
-
 pub type UnspentOutputsPool = HashMap<OutputPointer, Output>;
 
 pub type Blockchain = BTreeMap<Epoch, Hash>;
@@ -1355,7 +1339,7 @@ pub struct ChainState {
     /// Unspent Outputs Pool
     pub unspent_outputs_pool: UnspentOutputsPool,
     /// Collection of state structures for active data requests
-    pub data_request_pool: ActiveDataRequestPool,
+    pub data_request_pool: DataRequestPool,
     /// List of consolidated blocks by epoch
     pub block_chain: Blockchain,
 }

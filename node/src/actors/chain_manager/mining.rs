@@ -128,7 +128,7 @@ impl ChainManager {
                             act.genesis_block_hash,
                             &act.chain_state.unspent_outputs_pool,
                             &act.transactions_pool,
-                            &act.data_request_pool,
+                            &act.chain_state.data_request_pool,
                         ) {
                             Ok(_) => {
                                 // Send AddCandidates message to self
@@ -164,11 +164,15 @@ impl ChainManager {
 
         // Data Request mining
         let dr_output_pointers = self
+            .chain_state
             .data_request_pool
             .get_dr_output_pointers_by_epoch(current_epoch);
 
         for dr_output_pointer in dr_output_pointers {
-            let data_request_output = self.data_request_pool.get_dr_output(&dr_output_pointer);
+            let data_request_output = self
+                .chain_state
+                .data_request_pool
+                .get_dr_output(&dr_output_pointer);
 
             if data_request_output.is_some() && verify_poe_data_request() {
                 let data_request_output = data_request_output.unwrap();
@@ -213,7 +217,7 @@ impl ChainManager {
                                 let reveal_transaction = Transaction::new(reveal_body, vec![sig]);
 
                                 // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
-                                act.data_request_pool.insert_reveal(dr_output_pointer.clone(), reveal_transaction);
+                                act.chain_state.data_request_pool.insert_reveal(dr_output_pointer.clone(), reveal_transaction);
 
                                 info!(
                                     "{} Discovered eligibility for mining a data request {} for epoch #{}",
@@ -241,7 +245,7 @@ impl ChainManager {
     }
 
     fn create_tally_transactions(&mut self) -> impl Future<Item = Vec<Transaction>, Error = ()> {
-        let data_request_pool = &self.data_request_pool;
+        let data_request_pool = &self.chain_state.data_request_pool;
         let utxo = &self.chain_state.unspent_outputs_pool;
 
         // Include Tally transactions, one for each data request in tally stage

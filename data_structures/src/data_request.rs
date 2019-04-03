@@ -6,10 +6,11 @@ use witnet_crypto::hash::calculate_sha256;
 use super::chain::{
     CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
     DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
-    RevealInput, RevealOutput, TallyOutput, TransactionBody, UnspentOutputsPool,
+    RevealInput, RevealOutput, TallyOutput, Transaction, TransactionBody, UnspentOutputsPool,
     ValueTransferOutput,
 };
-use crate::chain::Transaction;
+
+use serde::{Deserialize, Serialize};
 
 type DataRequestsWithReveals = Vec<(
     (OutputPointer, DataRequestOutput),
@@ -17,7 +18,7 @@ type DataRequestsWithReveals = Vec<(
 )>;
 
 /// Pool of active data requests
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestPool {
     /// Current active data request, in which this node has announced commitments.
     /// Key: Data Request Pointer, Value: Reveal Transaction
