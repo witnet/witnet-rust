@@ -20,7 +20,10 @@ use std::{
     num::ParseIntError,
     str::FromStr,
 };
-use witnet_crypto::hash::{calculate_sha256, Sha256};
+use witnet_crypto::{
+    hash::{calculate_sha256, Sha256},
+    key::ExtendedSK,
+};
 use witnet_util::parser::parse_hex;
 
 pub trait Hashable {
@@ -350,6 +353,26 @@ impl From<Secp256k1_SecretKey> for SecretKey {
 impl Into<Secp256k1_SecretKey> for SecretKey {
     fn into(self) -> Secp256k1_SecretKey {
         Secp256k1_SecretKey::from_slice(&self.bytes).unwrap()
+    }
+}
+
+impl From<ExtendedSK> for ExtendedSecretKey {
+    fn from(extended_sk: ExtendedSK) -> Self {
+        ExtendedSecretKey {
+            secret_key: SecretKey::from(extended_sk.secret_key),
+            chain_code: extended_sk.chain_code,
+        }
+    }
+}
+
+impl Into<ExtendedSK> for ExtendedSecretKey {
+    fn into(self) -> ExtendedSK {
+        let secret_key = self.secret_key.into();
+
+        ExtendedSK {
+            secret_key,
+            chain_code: self.chain_code,
+        }
     }
 }
 
@@ -755,11 +778,21 @@ pub struct PublicKey {
     pub bytes: [u8; 32],
 }
 
-/// Public Key data structure
+/// Secret Key data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SecretKey {
     // TODO(#560): Use Protected type
     pub bytes: [u8; 32],
+}
+
+/// Extended Secret Key data structure
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct ExtendedSecretKey {
+    /// Secret key
+    pub secret_key: SecretKey,
+    /// Chain code
+    // TODO(#560): Use Protected type
+    pub chain_code: [u8; 32],
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
@@ -1749,6 +1782,25 @@ mod tests {
         let sk_into: Secp256k1_SecretKey = witnet_sk.into();
 
         assert_eq!(secret_key, sk_into);
+    }
+
+    #[test]
+    fn secp256k1_from_into_extended_sk() {
+        use witnet_crypto::key::MasterKeyGen;
+
+        let seed = [
+            62, 6, 109, 125, 238, 45, 191, 143, 205, 63, 226, 64, 163, 151, 86, 88, 202, 17, 138,
+            143, 111, 76, 168, 28, 249, 145, 4, 148, 70, 4, 176, 90, 80, 144, 167, 157, 153, 229,
+            69, 112, 75, 145, 76, 160, 57, 127, 237, 184, 47, 208, 15, 214, 167, 32, 152, 112, 55,
+            9, 200, 145, 160, 101, 238, 73,
+        ];
+
+        let extended_sk = MasterKeyGen::new(&seed[..]).generate().unwrap();
+
+        let witnet_extended_sk = ExtendedSecretKey::from(extended_sk.clone());
+        let extended_sk_into = witnet_extended_sk.into();
+
+        assert_eq!(extended_sk, extended_sk_into);
     }
 
 }
