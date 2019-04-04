@@ -397,7 +397,7 @@ fn peer_discovery_peers(peers: &[Address]) {
 }
 
 /// Function called when Block message is received
-fn inventory_process_block(session: &mut Session, ctx: &mut Context<Session>, block: Block) {
+fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, block: Block) {
     // Get ChainManager address
     let chain_manager_addr = System::current().registry().get::<ChainManager>();
 
@@ -412,7 +412,11 @@ fn inventory_process_block(session: &mut Session, ctx: &mut Context<Session>, bl
         });
     } else {
         // Add block to requested_blocks
-        session.requested_blocks.insert(block_hash, block);
+        if session.requested_block_hashes.contains(&block_hash) {
+            session.requested_blocks.insert(block_hash, block);
+        } else {
+            error!("Unexpected not requested block");
+        }
 
         if session.requested_blocks.len() == session.requested_block_hashes.len() {
             let mut blocks_vector = vec![];
@@ -428,7 +432,6 @@ fn inventory_process_block(session: &mut Session, ctx: &mut Context<Session>, bl
                     blocks_vector.clear();
                     chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
                     warn!("Unexpected missing block");
-                    ctx.stop();
                 }
             }
 

@@ -150,7 +150,7 @@ impl ChainManager {
                 fut::ok(())
             })
             .map_err(|err, _, _| error!("Failed to persist chain_info into storage: {}", err))
-            .spawn(ctx);
+            .wait(ctx);
     }
 
     /// Method to Send an Item to Inventory Manager
@@ -196,7 +196,7 @@ impl ChainManager {
                 debug!("Successfully persisted block_chain into storage");
                 fut::ok(())
             })
-            .spawn(ctx);
+            .wait(ctx);
     }
 
     fn broadcast_item(&self, item: InventoryItem) {
@@ -326,7 +326,9 @@ impl ChainManager {
                 self.persist_item(ctx, InventoryItem::Block(block.clone()));
 
                 // Persist chain_info into storage
-                self.persist_chain_state(ctx);
+                if let StateMachine::Synced = self.sm_state {
+                    self.persist_chain_state(ctx);
+                }
 
                 // Send notification to JsonRpcServer
                 JsonRpcServer::from_registry().do_send(NewBlock { block })

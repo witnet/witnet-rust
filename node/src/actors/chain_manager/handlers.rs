@@ -205,27 +205,17 @@ impl Handler<AddBlocks> for ChainManager {
                             self.chain_state = old_chain_state;
                             break;
                         }
-                        // This check is needed if we get more blocks than needed: stop at target
-                        let our_beacon = self
-                            .chain_state
-                            .chain_info
-                            .as_ref()
-                            .unwrap()
-                            .highest_block_checkpoint;
-                        if our_beacon == target_beacon {
-                            // Target achived, go back to state 1
-                            self.sm_state = StateMachine::WaitingConsensus;
-                            break;
-                        }
                     }
-
                     let our_beacon = self
                         .chain_state
                         .chain_info
                         .as_ref()
                         .unwrap()
                         .highest_block_checkpoint;
-                    if target_beacon != our_beacon {
+                    if our_beacon == target_beacon {
+                        // Target achived, go back to state 1
+                        self.sm_state = StateMachine::WaitingConsensus;
+                    } else {
                         // Try again, send Anycast<SendLastBeacon> to a "safu" peer, i.e. their last beacon matches our target beacon.
                         SessionsManager::from_registry().do_send(Anycast {
                             command: SendLastBeacon { beacon: our_beacon },
