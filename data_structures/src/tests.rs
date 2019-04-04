@@ -19,7 +19,6 @@ fn test_block_hashable_trait() {
     });
     let proof = LeadershipProof {
         block_sig: Some(signature.clone()),
-        influence: 0,
     };
     let keyed_signatures = vec![KeyedSignature {
         public_key: PublicKey::default(),
@@ -372,7 +371,6 @@ mod block {
 
     const PROOF: LeadershipProof = LeadershipProof {
         block_sig: None,
-        influence: 123,
     };
 
     #[test]

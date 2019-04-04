@@ -66,7 +66,6 @@ impl ProtobufConvert for chain::LeadershipProof {
 
     fn to_pb(&self) -> Self::ProtoStruct {
         let mut m = witnet::Block_LeadershipProof::new();
-        m.set_influence(self.influence);
         if let Some(sig) = &self.block_sig {
             m.set_block_sig(sig.to_pb());
         }
@@ -74,17 +73,13 @@ impl ProtobufConvert for chain::LeadershipProof {
     }
 
     fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
-        let influence = pb.get_influence();
         let block_sig = match pb.optional_block_sig {
             Some(sig) => Some(chain::Signature::from_pb(match sig {
                 witnet::Block_LeadershipProof_oneof_optional_block_sig::block_sig(s) => s,
             })?),
             None => None,
         };
-        Ok(chain::LeadershipProof {
-            block_sig,
-            influence,
-        })
+        Ok(chain::LeadershipProof { block_sig })
     }
 }
 

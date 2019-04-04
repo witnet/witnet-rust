@@ -365,7 +365,6 @@ fn message_block_to_bytes() {
     });
     let proof = LeadershipProof {
         block_sig: Some(signature.clone()),
-        influence: 0,
     };
     let keyed_signature = vec![KeyedSignature {
         public_key: PublicKey::default(),
@@ -575,7 +574,6 @@ fn message_block_from_bytes() {
     });
     let proof = LeadershipProof {
         block_sig: Some(signature.clone()),
-        influence: 0,
     };
     let keyed_signature = vec![KeyedSignature {
         public_key: PublicKey::default(),
@@ -699,7 +697,6 @@ fn message_block_encode_decode() {
     });
     let proof = LeadershipProof {
         block_sig: Some(signature.clone()),
-        influence: 0,
     };
     let keyed_signature = vec![KeyedSignature {
         public_key: PublicKey::default(),

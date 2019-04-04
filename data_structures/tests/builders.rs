@@ -44,7 +44,6 @@ fn builders_build_block() {
     };
     let proof = LeadershipProof {
         block_sig: Some(signature.clone()),
-        influence: 0,
     };
     let keyed_signatures = vec![KeyedSignature {
         public_key: PublicKey::default(),
@@ -147,7 +146,6 @@ fn builders_build_block() {
             block_header: block_header.clone(),
             proof: LeadershipProof {
                 block_sig: Some(signature),
-                influence: 0,
             },
             txns: txns.clone(),
         }),

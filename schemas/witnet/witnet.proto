@@ -66,7 +66,6 @@ message Block {
         oneof optional_block_sig {
             Signature block_sig = 1;
         }
-        uint64 influence = 2;
     }
     BlockHeader block_header = 1;
     LeadershipProof proof = 2;

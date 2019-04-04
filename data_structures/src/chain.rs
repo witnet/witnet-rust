@@ -238,8 +238,6 @@ pub struct BlockHeader {
 pub struct LeadershipProof {
     /// An enveloped signature of the block header except the `proof` part
     pub block_sig: Option<Signature>,
-    /// The alleged miner influence as of last checkpoint
-    pub influence: u64,
 }
 
 /// Digital signatures structure (based on supported cryptosystems)
@@ -1491,7 +1489,6 @@ mod tests {
         });
         let proof = LeadershipProof {
             block_sig: Some(signature.clone()),
-            influence: 0,
         };
         let keyed_signatures = vec![KeyedSignature {
             public_key: PublicKey::default(),
