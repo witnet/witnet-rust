@@ -53,6 +53,13 @@ struct SignatureManager {
     key: Option<SK>,
 }
 
+impl SignatureManager {
+    fn set_key(&mut self, key: SK) {
+        // let public_key = PK::from_secret_key(&SignContext::signing_only(), &key);
+        self.key = Some(key);
+    }
+}
+
 struct SetKey(SK);
 struct Sign(Vec<u8>);
 
@@ -64,7 +71,7 @@ fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = 
     })
 }
 
-fn create_master_key() -> Box<dyn Future<Item = (), Error = failure::Error>> {
+fn create_master_key() -> Box<dyn Future<Item = SK, Error = failure::Error>> {
     log::info!("Generating and persisting a new master key for this node");
 
     // Create a new master key
@@ -72,9 +79,7 @@ fn create_master_key() -> Box<dyn Future<Item = (), Error = failure::Error>> {
     let seed = mnemonic.seed("");
     match MasterKeyGen::new(seed).generate() {
         Ok(master_key) => {
-            let fut = set_key(master_key.secret_key)
-                .join(persist_master_key(master_key))
-                .map(|_| ());
+            let fut = persist_master_key(master_key.clone()).map(move |_| master_key.secret_key);
 
             Box::new(fut)
         }
@@ -96,13 +101,16 @@ impl Actor for SignatureManager {
             .and_then(move |master_key_from_storage| {
                 master_key_from_storage.map_or_else(create_master_key, |master_key| {
                     let master_key: ExtendedSK = master_key.into();
-                    let fut = set_key(master_key.secret_key);
+                    let fut = futures::future::ok(master_key.secret_key);
 
                     Box::new(fut)
                 })
             })
             .map_err(|e| log::error!("Couldn't initialize Signature Manager: {}", e))
             .into_actor(self)
+            .map(|secret_key, _, ctx| {
+                ctx.notify(SetKey(secret_key));
+            })
             .wait(ctx);
     }
 }
@@ -122,8 +130,11 @@ impl Message for Sign {
 impl Handler<SetKey> for SignatureManager {
     type Result = <SetKey as Message>::Result;
 
-    fn handle(&mut self, SetKey(key): SetKey, _ctx: &mut Self::Context) -> Self::Result {
-        self.key = Some(key);
+    fn handle(&mut self, SetKey(secret_key): SetKey, _ctx: &mut Self::Context) -> Self::Result {
+        self.set_key(secret_key);
+
+        log::info!("Signature Manager received a key and is ready to sign");
+
         Ok(())
     }
 }
