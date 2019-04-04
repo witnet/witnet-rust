@@ -10,61 +10,19 @@ source $HOME/.cargo/env
 rustup default stable
 ```
 
-### OpenSSL / libssl
+### Compilation dependencies
 
 ```console tab="GNU/Linux (apt)"
-apt install libssl-dev
+apt install -y clang git libssl-dev protobuf-compiler
 ```
 
 ```console tab="GNU/Linux (pacman)"
-pacman -S openssl
-```
-
-```console tab="macOS"
-brew install openssl
-```
-
-
-### CLang compiler
-
-```console tab="GNU/Linux (apt)"
-apt install clang
-```
-
-```console tab="GNU/Linux (pacman)"
-pacman -S clang
+pacman -S clang git openssl protobuf
 ```
 
 ```console tab="macOS"
 xcode-select --install
-```
-
-### Protocol Buffers compiler
-
-```console tab="GNU/Linux (apt)"
-apt install protobuf-compiler
-```
-
-```console tab="GNU/Linux (pacman)"
-pacman -S protobuf
-```
-
-```console tab="macOS"
-brew install protobuf
-```
-
-### Git client
-
-```console tab="GNU/Linux (apt)"
-apt install git
-```
-
-```console tab="GNU/Linux (pacman)"
-pacman -S git
-```
-
-```console tab="macOS"
-brew install git
+brew install git openssl protobuf
 ```
 
 ### MkDocs Python packages
@@ -98,4 +56,17 @@ cargo run node
 
 For more `witnet-rust` commands (`cli`, `wallet`, etc.) you can read the [Witnet-rust CLI documentation][CLI].
 
+## Building a release
+
+This one-liner will build a releasable standalone binary compatible with the architecture of your computer's processor:
+
+```console
+cargo build --release
+```
+
+The resulting binary will be located at `./target/release/witnet`.
+
+If you want to produce binaries for other architectures, please read the [cross compilation instructions][cross-compilation].
+
 [CLI]: /development/#cli
+[cross-compilation]: /get-started/installation/cross-compilation

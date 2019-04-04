@@ -1,10 +1,16 @@
 # Running `witnet-rust` on GNU/Linux
 
 ## Download the `witnet-rust` package
-GNU/Linux packages are available in our GitHub repository:
+GNU/Linux packages [are available in our GitHub repository][release]. Currently supported GNU/Linux architectures are:
 
-- [Witnet-rust for desktop GNU/Linux (x86_64)][release]
-- [Witnet-rust for Raspberry Pi GNU/Linux (armv6l)][release]
+- `x86_64-linux-gnu`: most modern GNU/Linux distributions for the typical Intel or AMD desktop/laptop processors.
+- `aarch-unknown-linux-gnu`: 64 bit GNU/Linux distributions on ARMv8 processors, like the Raspberry Pi 3
+- `armv7-unknown-linux-gnueabihf`: 32 bit GNU/Linux distributions on ARMv7/8 processors, like the Raspberry Pi 2 and 3
+- `arm-unknown-linux-gnueabihf`: 32 bit GNU/Linux distributions on ARMv6 processors, like the Raspberry Pi 1 and Zero
+
+If you want to run `witnet-rust` on a Raspberry Pi, you should try the `armv7-unknown-linux-gnueabihf` binary unless:
+- You positively know you are using a 64 bit distribution. Then use `aarch-unknown-linux-gnu`.
+- You are using Pi model 1, model Zero or Zero W. Then use `arm-unknown-linux-gnueabihf`.
 
 ## Unpacking and granting execution permission
 

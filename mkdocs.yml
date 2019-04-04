@@ -15,6 +15,7 @@ nav:
       - macOS: get-started/installation/macos.md
       - Windows: get-started/installation/windows.md
       - From source code: get-started/installation/from-source.md
+      - Cross compilation: get-started/installation/cross-compilation.md
   - Protocol:
     - Network:
       - Overview: protocol/network/overview.md

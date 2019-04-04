@@ -64,10 +64,14 @@ cross-compile-all:
     find ./docker -type d -ls | tail -n +2 | sed -En "s/^(.*)\.\/docker\/(.*)/\2/p" | xargs -n1 just cross-compile
 
 # cross compile witnet-rust for a specific compilation target
-cross-compile target profile="release":
+# - this assumes the container to set the `$STRIP` variable to be the path for binutils `strip` tool
+# - if `$STRIP` is unset, the binary will not be stripped and will retain all its symbols
+cross-compile target profile="debug":
     docker run \
     -v $(pwd):/project:ro \
     -v $(pwd)/target:/target \
     -w /project \
     -i witnet-rust/{{target}} \
-    bash -c "cargo build --{{profile}} --target={{target}} --target-dir=/target && \$STRIP /target/{{target}}/{{profile}}/witnet"
+    bash -c "cargo build `[[ {{profile}} == "release" ]] && echo "--release"` \--target={{target}} --target-dir=/target \
+    && [ -z "\$STRIP" ] \
+    && \$STRIP /target/{{target}}/{{profile}}/witnet"

@@ -7,10 +7,11 @@
 
 We have installation guides for several operating systems:
 
-- [Installing Witnet-rust on GNU/Linux][install-gnu-linux]
-- [Installing Witnet-rust on macOS][install-macos]
-- [Installing Witnet-rust on Windows][install-windows]
-- [Compiling Witnet-rust on from source code][install-from-source]
+- [Installing `witnet-rust` on GNU/Linux][install-gnu-linux]
+- [Installing `witnet-rust` on macOS][install-macos]
+- [Installing `witnet-rust` on Windows][install-windows]
+- [Compiling `witnet-rust` on from source code][install-from-source]
+- [Cross compiling `witnet-rust`][cross-compilation]
 
 
 ## Running the CLI
@@ -63,7 +64,8 @@ There are some useful scripts to run with the `just` tool:
 
 [rust]: https://rust-lang.org
 [rust-2018]: https://rust-lang-nursery.github.io/edition-guide/introduction.html
-[install-gnu-linux]: get-started/installation/gnu-linux
-[install-macos]: get-started/installation/macos
-[install-windows]: get-started/installation/windows
-[install-from-source]: get-started/installation/from-source
+[install-gnu-linux]: /get-started/installation/gnu-linux
+[install-macos]: /get-started/installation/macos
+[install-windows]: /get-started/installation/windows
+[install-from-source]: /get-started/installation/from-source
+[cross-compilation]: /get-started/installation/cross-compilation
