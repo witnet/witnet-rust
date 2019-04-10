@@ -62,10 +62,7 @@ message Block {
         Hash hash_merkle_root = 3;
     }
     message LeadershipProof {
-        // Option<Signature>
-        oneof optional_block_sig {
-            Signature block_sig = 1;
-        }
+        KeyedSignature block_sig = 1;
     }
     BlockHeader block_header = 1;
     LeadershipProof proof = 2;
@@ -201,13 +198,12 @@ message Hash {
 }
 
 message Secp256k1Signature {
-    bytes r = 1;
-    bytes s = 2;
+    bytes der = 1;
 }
 
 message Signature {
     oneof kind {
-        Secp256k1Signature s = 1;
+        Secp256k1Signature Secp256k1 = 1;
     }
 }
 
