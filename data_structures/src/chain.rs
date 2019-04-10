@@ -603,6 +603,7 @@ impl Output {
             Output::Commit(output) => output.value,
             Output::Tally(output) => output.value,
             Output::DataRequest(output) => {
+                // TODO: this is incorrect, right?
                 output.value + output.commit_fee + output.reveal_fee + output.tally_fee
             }
             Output::Reveal(output) => output.value,
