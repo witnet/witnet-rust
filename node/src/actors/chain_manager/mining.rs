@@ -400,7 +400,12 @@ fn build_block(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secp256k1::{
+        PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
+    };
+    use witnet_crypto::signature::{sign, verify};
     use witnet_data_structures::chain::*;
+    use witnet_validations::validations::validate_block_signature;
 
     #[test]
     fn build_empty_block() {
@@ -441,6 +446,65 @@ mod tests {
 
         // Check that transaction in block is not the transaction in `transactions_pool`
         assert_ne!(block.txns[0], transaction);
+    }
+
+    #[test]
+    fn build_signed_empty_block() {
+        // Initialize transaction_pool with 1 transaction
+        let mut transaction_pool = TransactionsPool::default();
+        let transaction = Transaction::default();
+        transaction_pool.insert(transaction.hash(), transaction.clone());
+
+        let unspent_outputs_pool = UnspentOutputsPool::default();
+
+        // Set `max_block_weight` to zero (no transaction should be included)
+        let max_block_weight = 0;
+
+        // Fields required to mine a block
+        let block_beacon = CheckpointBeacon::default();
+
+        // Create a KeyedSignature
+        let Hash::SHA256(data) = block_beacon.hash();
+        let secp = Secp256k1::new();
+        let secret_key =
+            Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &secret_key);
+        let signature = sign(secret_key, &data);
+
+        // Check Signature
+        assert!(verify(&public_key, &data, &signature).is_ok());
+
+        let witnet_signature: Signature = Signature::from(signature);
+        let witnet_pk: PublicKey = PublicKey::from(public_key);
+
+        let block_proof = LeadershipProof {
+            block_sig: KeyedSignature {
+                signature: witnet_signature,
+                public_key: witnet_pk,
+            },
+        };
+
+        // Build empty block (because max weight is zero)
+        let block = build_block(
+            &transaction_pool,
+            &unspent_outputs_pool,
+            max_block_weight,
+            block_beacon,
+            block_proof,
+            &[],
+        );
+
+        // Check if block only contains the Mint Transaction
+        assert_eq!(block.txns.len(), 1);
+        assert_eq!(block.txns[0].body.inputs.len(), 0);
+        assert_eq!(block.txns[0].body.outputs.len(), 1);
+        assert_eq!(block.txns[0].signatures.len(), 0);
+
+        // Check that transaction in block is not the transaction in `transactions_pool`
+        assert_ne!(block.txns[0], transaction);
+
+        // Validate block signature
+        assert!(validate_block_signature(&block).is_ok());
     }
 
     #[test]
@@ -556,5 +620,45 @@ mod tests {
 
         // Check that the included transaction is the only one that fits the `max_block_weight`
         assert_eq!(block.txns[1], transaction_1);
+    }
+
+    #[test]
+    fn test_signature_and_serialization() {
+        use secp256k1::{
+            PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
+        };
+        use witnet_data_structures::serializers::decoders::TryInto;
+
+        let secret_key = SecretKey {
+            bytes: [
+                106, 203, 222, 17, 245, 196, 188, 111, 78, 241, 172, 142, 124, 110, 248, 199, 64,
+                127, 236, 133, 218, 0, 32, 60, 14, 113, 138, 102, 2, 247, 54, 107,
+            ],
+        };
+        let sk: Secp256k1_SecretKey = secret_key.into();
+
+        let secp = Secp256k1::new();
+        let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &sk);
+
+        let data = [
+            0xca, 0x18, 0xf5, 0xad, 0xc2, 0x18, 0x45, 0x25, 0x0e, 0x88, 0x14, 0x18, 0x1f, 0xf7,
+            0x8c, 0x5b, 0x83, 0x68, 0x5c, 0x0c, 0xda, 0x55, 0x62, 0xda, 0x30, 0xc1, 0x95, 0x8d,
+            0x84, 0x9e, 0xc6, 0xb9,
+        ];
+
+        let signature = sign(sk, &data);
+        assert!(verify(&public_key, &data, &signature).is_ok());
+
+        // Conversion step
+        let witnet_signature = Signature::from(signature);
+        let witnet_pk = PublicKey::from(public_key);
+
+        let signature2 = witnet_signature.try_into().unwrap();
+        let public_key2 = witnet_pk.try_into().unwrap();
+
+        assert_eq!(signature, signature2);
+        assert_eq!(public_key, public_key2);
+
+        assert!(verify(&public_key2, &data, &signature2).is_ok());
     }
 }
