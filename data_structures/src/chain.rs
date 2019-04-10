@@ -1474,17 +1474,16 @@ mod tests {
             version: 0,
             beacon: CheckpointBeacon {
                 checkpoint: 0,
-                hash_prev_block: Hash::SHA256([0; 32]),
+                hash_prev_block: Hash::default(),
             },
-            hash_merkle_root: Hash::SHA256([0; 32]),
+            hash_merkle_root: Hash::default(),
         };
-        let signature = Signature::Secp256k1(Secp256k1Signature {
-            r: [0; 32],
-            s: [0; 32],
-            v: 0,
-        });
+        let signature = Signature::Secp256k1(Secp256k1Signature::default());
         let proof = LeadershipProof {
-            block_sig: Some(signature.clone()),
+            block_sig: KeyedSignature {
+                public_key: PublicKey::default(),
+                signature: signature.clone(),
+            },
         };
         let keyed_signatures = vec![KeyedSignature {
             public_key: PublicKey::default(),
@@ -1493,16 +1492,16 @@ mod tests {
         let commit_input = Input::Commit(CommitInput {
             nonce: 0,
             output_index: 0,
-            transaction_id: Hash::SHA256([0; 32]),
+            transaction_id: Hash::default(),
         });
         let reveal_input = Input::Reveal(RevealInput {
             output_index: 0,
-            transaction_id: Hash::SHA256([0; 32]),
+            transaction_id: Hash::default(),
         });
         let data_request_input = Input::DataRequest(DataRequestInput {
             output_index: 0,
             poe: [0; 32],
-            transaction_id: Hash::SHA256([0; 32]),
+            transaction_id: Hash::default(),
         });
         let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
             pkh: [0; 20],
@@ -1555,7 +1554,7 @@ mod tests {
             witnesses: 0,
         });
         let commit_output = Output::Commit(CommitOutput {
-            commitment: Hash::SHA256([0; 32]),
+            commitment: Hash::default(),
             value: 0,
         });
         let reveal_output = Output::Reveal(RevealOutput {
@@ -1591,11 +1590,7 @@ mod tests {
 
     #[test]
     fn test_transaction_hashable_trait() {
-        let signature = Signature::Secp256k1(Secp256k1Signature {
-            r: [0; 32],
-            s: [0; 32],
-            v: 0,
-        });
+        let signature = Signature::Secp256k1(Secp256k1Signature::default());
         let signatures = vec![KeyedSignature {
             public_key: PublicKey::default(),
             signature,
@@ -1603,16 +1598,16 @@ mod tests {
         let commit_input = Input::Commit(CommitInput {
             nonce: 0,
             output_index: 0,
-            transaction_id: Hash::SHA256([0; 32]),
+            transaction_id: Hash::default(),
         });
         let reveal_input = Input::Reveal(RevealInput {
             output_index: 0,
-            transaction_id: Hash::SHA256([0; 32]),
+            transaction_id: Hash::default(),
         });
         let data_request_input = Input::DataRequest(DataRequestInput {
             output_index: 0,
             poe: [0; 32],
-            transaction_id: Hash::SHA256([0; 32]),
+            transaction_id: Hash::default(),
         });
         let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
             pkh: [0; 20],
@@ -1663,7 +1658,7 @@ mod tests {
             witnesses: 0,
         });
         let commit_output = Output::Commit(CommitOutput {
-            commitment: Hash::SHA256([0; 32]),
+            commitment: Hash::default(),
             value: 0,
         });
         let reveal_output = Output::Reveal(RevealOutput {

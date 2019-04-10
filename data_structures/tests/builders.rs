@@ -7,7 +7,7 @@ use witnet_data_structures::{chain::*, types::*};
 fn builders_build_last_beacon() {
     let highest_block_checkpoint = CheckpointBeacon {
         checkpoint: 0,
-        hash_prev_block: Hash::SHA256([0; 32]),
+        hash_prev_block: Hash::default(),
     };
     let msg = Message {
         kind: Command::LastBeacon(LastBeacon {
@@ -28,22 +28,21 @@ fn builders_build_block() {
         version: 0x0000_0001,
         beacon: CheckpointBeacon {
             checkpoint: 0,
-            hash_prev_block: Hash::SHA256([0; 32]),
+            hash_prev_block: Hash::default(),
         },
-        hash_merkle_root: Hash::SHA256([0; 32]),
+        hash_merkle_root: Hash::default(),
     };
-    let signature = Signature::Secp256k1(Secp256k1Signature {
-        r: [0; 32],
-        s: [0; 32],
-        v: 0,
-    });
+    let signature = Signature::Secp256k1(Secp256k1Signature::default());
     let block_header = BlockHeader {
         version: header.version,
         beacon: header.beacon,
         hash_merkle_root: header.hash_merkle_root,
     };
     let proof = LeadershipProof {
-        block_sig: Some(signature.clone()),
+        block_sig: KeyedSignature {
+            public_key: PublicKey::default(),
+            signature: signature.clone(),
+        },
     };
     let keyed_signatures = vec![KeyedSignature {
         public_key: PublicKey::default(),
@@ -51,17 +50,17 @@ fn builders_build_block() {
     }];
     let reveal_input = Input::Reveal(RevealInput {
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let data_request_input = Input::DataRequest(DataRequestInput {
         output_index: 0,
         poe: [0; 32],
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
         pkh: [0; 20],
@@ -113,7 +112,7 @@ fn builders_build_block() {
         witnesses: 0,
     });
     let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::SHA256([0; 32]),
+        commitment: Hash::default(),
         value: 0,
     });
     let reveal_output = Output::Reveal(RevealOutput {
@@ -145,7 +144,10 @@ fn builders_build_block() {
         kind: Command::Block(Block {
             block_header: block_header.clone(),
             proof: LeadershipProof {
-                block_sig: Some(signature),
+                block_sig: KeyedSignature {
+                    public_key: PublicKey::default(),
+                    signature: signature.clone(),
+                },
             },
             txns: txns.clone(),
         }),
@@ -158,28 +160,24 @@ fn builders_build_block() {
 
 #[test]
 fn builders_build_transaction() {
-    let signature = Signature::Secp256k1(Secp256k1Signature {
-        r: [0; 32],
-        s: [0; 32],
-        v: 0,
-    });
+    let signature = Signature::Secp256k1(Secp256k1Signature::default());
     let keyed_signatures = vec![KeyedSignature {
         public_key: PublicKey::default(),
         signature,
     }];
     let reveal_input = Input::Reveal(RevealInput {
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let data_request_input = Input::DataRequest(DataRequestInput {
         output_index: 0,
         poe: [0; 32],
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
         pkh: [0; 20],
@@ -232,7 +230,7 @@ fn builders_build_transaction() {
         witnesses: 0,
     });
     let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::SHA256([0; 32]),
+        commitment: Hash::default(),
         value: 0,
     });
     let reveal_output = Output::Reveal(RevealOutput {

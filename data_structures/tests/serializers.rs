@@ -14,7 +14,7 @@ fn message_last_beacon_from_bytes() {
     let expected_msg = Message {
         kind: Command::LastBeacon(LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
-                hash_prev_block: Hash::SHA256([0; 32]),
+                hash_prev_block: Hash::default(),
                 checkpoint: 0,
             },
         }),
@@ -29,7 +29,7 @@ fn message_last_beacon_to_bytes() {
     let msg = Message {
         kind: Command::LastBeacon(LastBeacon {
             highest_block_checkpoint: CheckpointBeacon {
-                hash_prev_block: Hash::SHA256([0; 32]),
+                hash_prev_block: Hash::default(),
                 checkpoint: 0,
             },
         }),
@@ -354,17 +354,16 @@ fn message_block_to_bytes() {
         version: 0,
         beacon: CheckpointBeacon {
             checkpoint: 0,
-            hash_prev_block: Hash::SHA256([0; 32]),
+            hash_prev_block: Hash::default(),
         },
-        hash_merkle_root: Hash::SHA256([0; 32]),
+        hash_merkle_root: Hash::default(),
     };
-    let signature = Signature::Secp256k1(Secp256k1Signature {
-        r: [0; 32],
-        s: [0; 32],
-        v: 0,
-    });
+    let signature = Signature::Secp256k1(Secp256k1Signature::default());
     let proof = LeadershipProof {
-        block_sig: Some(signature.clone()),
+        block_sig: KeyedSignature {
+            public_key: PublicKey::default(),
+            signature: signature.clone(),
+        },
     };
     let keyed_signature = vec![KeyedSignature {
         public_key: PublicKey::default(),
@@ -372,17 +371,17 @@ fn message_block_to_bytes() {
     }];
     let reveal_input = Input::Reveal(RevealInput {
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let data_request_input = Input::DataRequest(DataRequestInput {
         output_index: 0,
         poe: [0; 32],
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
         pkh: [0; 20],
@@ -434,7 +433,7 @@ fn message_block_to_bytes() {
         witnesses: 0,
     });
     let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::SHA256([0; 32]),
+        commitment: Hash::default(),
         value: 0,
     });
     let reveal_output = Output::Reveal(RevealOutput {
@@ -469,30 +468,29 @@ fn message_block_to_bytes() {
     };
 
     let expected_buf: Vec<u8> = [
-        8, 1, 18, 197, 7, 58, 194, 7, 10, 74, 18, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        8, 1, 18, 226, 6, 58, 223, 6, 10, 74, 18, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 34, 10, 32, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18,
-        73, 10, 71, 10, 69, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 168, 6, 10, 181, 5, 18, 38, 26, 36, 10,
+        43, 10, 41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 227, 5, 10, 181, 5, 18, 38, 26, 36,
+        10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 18, 72, 18, 70, 10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 38, 34, 36, 10,
         34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 18, 72, 18, 70, 10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 38, 34, 36, 10, 34,
-        10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 26, 24, 10, 22, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 26, 222, 2, 18, 219, 2, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 18, 194, 2, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101, 110,
-        119, 101, 97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116, 97,
-        47, 50, 46, 53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48, 49,
-        53, 57, 38, 97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49, 48,
-        100, 55, 49, 52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26, 1,
-        0, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101, 110, 119, 101, 97,
-        116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116, 97, 47, 50, 46, 53,
-        47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48, 49, 53, 57, 38, 97,
-        112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49, 48, 100, 55, 49, 52,
-        97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26, 1, 0, 26, 3, 10, 1,
-        0, 34, 3, 10, 1, 0, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111,
+        0, 0, 0, 0, 0, 0, 26, 24, 10, 22, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 26, 222, 2, 18, 219, 2, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 18, 194, 2, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101,
+        110, 119, 101, 97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116,
+        97, 47, 50, 46, 53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48,
+        49, 53, 57, 38, 97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49,
+        48, 100, 55, 49, 52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26,
+        1, 0, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101, 110, 119, 101,
+        97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116, 97, 47, 50, 46,
+        53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48, 49, 53, 57, 38,
+        97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49, 48, 100, 55, 49,
+        52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26, 1, 0, 26, 3, 10,
+        1, 0, 34, 3, 10, 1, 0, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111,
         107, 115, 46, 122, 97, 112, 105, 101, 114, 46, 99, 111, 109, 47, 104, 111, 111, 107, 115,
         47, 99, 97, 116, 99, 104, 47, 51, 56, 54, 48, 53, 52, 51, 47, 108, 50, 97, 119, 99, 100,
         47, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111, 107, 115, 46, 122,
@@ -503,11 +501,8 @@ fn message_block_to_bytes() {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 26, 58, 42, 56, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 110, 10, 71, 10, 69, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 33, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 35,
-        10, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ]
     .to_vec();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
@@ -517,30 +512,29 @@ fn message_block_to_bytes() {
 #[test]
 fn message_block_from_bytes() {
     let buf: Vec<u8> = [
-        8, 1, 18, 197, 7, 58, 194, 7, 10, 74, 18, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        8, 1, 18, 226, 6, 58, 223, 6, 10, 74, 18, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 34, 10, 32, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18,
-        73, 10, 71, 10, 69, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 168, 6, 10, 181, 5, 18, 38, 26, 36, 10,
+        43, 10, 41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 227, 5, 10, 181, 5, 18, 38, 26, 36,
+        10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 18, 72, 18, 70, 10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 38, 34, 36, 10,
         34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 18, 72, 18, 70, 10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 38, 34, 36, 10, 34,
-        10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 26, 24, 10, 22, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 26, 222, 2, 18, 219, 2, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 18, 194, 2, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101, 110,
-        119, 101, 97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116, 97,
-        47, 50, 46, 53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48, 49,
-        53, 57, 38, 97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49, 48,
-        100, 55, 49, 52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26, 1,
-        0, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101, 110, 119, 101, 97,
-        116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116, 97, 47, 50, 46, 53,
-        47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48, 49, 53, 57, 38, 97,
-        112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49, 48, 100, 55, 49, 52,
-        97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26, 1, 0, 26, 3, 10, 1,
-        0, 34, 3, 10, 1, 0, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111,
+        0, 0, 0, 0, 0, 0, 26, 24, 10, 22, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 26, 222, 2, 18, 219, 2, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 18, 194, 2, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101,
+        110, 119, 101, 97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116,
+        97, 47, 50, 46, 53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48,
+        49, 53, 57, 38, 97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49,
+        48, 100, 55, 49, 52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26,
+        1, 0, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101, 110, 119, 101,
+        97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116, 97, 47, 50, 46,
+        53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48, 49, 53, 57, 38,
+        97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49, 48, 100, 55, 49,
+        52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26, 1, 0, 26, 3, 10,
+        1, 0, 34, 3, 10, 1, 0, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111,
         107, 115, 46, 122, 97, 112, 105, 101, 114, 46, 99, 111, 109, 47, 104, 111, 111, 107, 115,
         47, 99, 97, 116, 99, 104, 47, 51, 56, 54, 48, 53, 52, 51, 47, 108, 50, 97, 119, 99, 100,
         47, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111, 107, 115, 46, 122,
@@ -551,11 +545,8 @@ fn message_block_from_bytes() {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 26, 58, 42, 56, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 110, 10, 71, 10, 69, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 33, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 35,
-        10, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ]
     .to_vec();
 
@@ -563,17 +554,16 @@ fn message_block_from_bytes() {
         version: 0,
         beacon: CheckpointBeacon {
             checkpoint: 0,
-            hash_prev_block: Hash::SHA256([0; 32]),
+            hash_prev_block: Hash::default(),
         },
-        hash_merkle_root: Hash::SHA256([0; 32]),
+        hash_merkle_root: Hash::default(),
     };
-    let signature = Signature::Secp256k1(Secp256k1Signature {
-        r: [0; 32],
-        s: [0; 32],
-        v: 0,
-    });
+    let signature = Signature::Secp256k1(Secp256k1Signature::default());
     let proof = LeadershipProof {
-        block_sig: Some(signature.clone()),
+        block_sig: KeyedSignature {
+            public_key: PublicKey::default(),
+            signature: signature.clone(),
+        },
     };
     let keyed_signature = vec![KeyedSignature {
         public_key: PublicKey::default(),
@@ -581,17 +571,17 @@ fn message_block_from_bytes() {
     }];
     let reveal_input = Input::Reveal(RevealInput {
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let data_request_input = Input::DataRequest(DataRequestInput {
         output_index: 0,
         poe: [0; 32],
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
         pkh: [0; 20],
@@ -643,7 +633,7 @@ fn message_block_from_bytes() {
         witnesses: 0,
     });
     let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::SHA256([0; 32]),
+        commitment: Hash::default(),
         value: 0,
     });
     let reveal_output = Output::Reveal(RevealOutput {
@@ -686,17 +676,16 @@ fn message_block_encode_decode() {
         version: 0,
         beacon: CheckpointBeacon {
             checkpoint: 0,
-            hash_prev_block: Hash::SHA256([0; 32]),
+            hash_prev_block: Hash::default(),
         },
-        hash_merkle_root: Hash::SHA256([0; 32]),
+        hash_merkle_root: Hash::default(),
     };
-    let signature = Signature::Secp256k1(Secp256k1Signature {
-        r: [0; 32],
-        s: [0; 32],
-        v: 0,
-    });
+    let signature = Signature::Secp256k1(Secp256k1Signature::default());
     let proof = LeadershipProof {
-        block_sig: Some(signature.clone()),
+        block_sig: KeyedSignature {
+            public_key: PublicKey::default(),
+            signature: signature.clone(),
+        },
     };
     let keyed_signature = vec![KeyedSignature {
         public_key: PublicKey::default(),
@@ -706,16 +695,16 @@ fn message_block_encode_decode() {
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let data_request_input = Input::DataRequest(DataRequestInput {
         output_index: 0,
         poe: [0; 32],
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let reveal_input = Input::Reveal(RevealInput {
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
         pkh: [0; 20],
@@ -767,7 +756,7 @@ fn message_block_encode_decode() {
         witnesses: 0,
     });
     let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::SHA256([0; 32]),
+        commitment: Hash::default(),
         value: 0,
     });
     let reveal_output = Output::Reveal(RevealOutput {
@@ -952,11 +941,7 @@ fn message_get_data_encode_decode() {
 
 #[test]
 fn message_transaction_encode_decode() {
-    let signature = Signature::Secp256k1(Secp256k1Signature {
-        r: [0; 32],
-        s: [0; 32],
-        v: 0,
-    });
+    let signature = Signature::Secp256k1(Secp256k1Signature::default());
     let keyed_signature = vec![KeyedSignature {
         public_key: PublicKey::default(),
         signature,
@@ -965,16 +950,16 @@ fn message_transaction_encode_decode() {
     let commit_input = Input::Commit(CommitInput {
         nonce: 0,
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let data_request_input = Input::DataRequest(DataRequestInput {
         output_index: 0,
         poe: [0; 32],
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let reveal_input = Input::Reveal(RevealInput {
         output_index: 0,
-        transaction_id: Hash::SHA256([0; 32]),
+        transaction_id: Hash::default(),
     });
     let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
         pkh: [0; 20],
@@ -1026,7 +1011,7 @@ fn message_transaction_encode_decode() {
         witnesses: 0,
     });
     let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::SHA256([0; 32]),
+        commitment: Hash::default(),
         value: 0,
     });
     let reveal_output = Output::Reveal(RevealOutput {

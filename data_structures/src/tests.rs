@@ -12,13 +12,12 @@ fn test_block_hashable_trait() {
         },
         hash_merkle_root: HASH,
     };
-    let signature = Signature::Secp256k1(Secp256k1Signature {
-        r: [0; 32],
-        s: [0; 32],
-        v: 0,
-    });
+    let signature = Signature::Secp256k1(Secp256k1Signature::default());
     let proof = LeadershipProof {
-        block_sig: Some(signature.clone()),
+        block_sig: KeyedSignature {
+            public_key: PublicKey::default(),
+            signature: signature.clone(),
+        },
     };
     let keyed_signatures = vec![KeyedSignature {
         public_key: PublicKey::default(),
@@ -125,11 +124,7 @@ fn test_block_hashable_trait() {
 
 #[test]
 fn test_transaction_hashable_trait() {
-    let signature = Signature::Secp256k1(Secp256k1Signature {
-        r: [0; 32],
-        s: [0; 32],
-        v: 0,
-    });
+    let signature = Signature::Secp256k1(Secp256k1Signature::default());
     let signatures = vec![KeyedSignature {
         public_key: PublicKey::default(),
         signature,
