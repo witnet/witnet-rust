@@ -13,10 +13,7 @@ use crate::actors::{
 use crate::config_mngr;
 use crate::signature_mngr;
 use crate::storage_mngr;
-use witnet_data_structures::{
-    chain::{Blockchain, ChainInfo, ChainState, CheckpointBeacon, UnspentOutputsPool},
-    data_request::DataRequestPool,
-};
+use witnet_data_structures::chain::{ChainInfo, ChainState, CheckpointBeacon};
 
 use witnet_util::timestamp::pretty_print;
 
@@ -120,9 +117,7 @@ impl ChainManager {
                         };
                         act.chain_state = ChainState {
                             chain_info: Some(chain_info),
-                            unspent_outputs_pool: UnspentOutputsPool::default(),
-                            data_request_pool: DataRequestPool::default(),
-                            block_chain: Blockchain::default(),
+                            ..ChainState::default()
                         };
                     }
 

@@ -1294,6 +1294,8 @@ pub struct ChainState {
     pub data_request_pool: DataRequestPool,
     /// List of consolidated blocks by epoch
     pub block_chain: Blockchain,
+    /// List of unspent outputs that can be spent by this node
+    pub own_utxos: HashSet<OutputPointer>,
 }
 
 impl ChainState {

@@ -25,7 +25,7 @@
 //! * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use actix::prelude::*;
 use actix::{
@@ -291,6 +291,8 @@ impl ChainManager {
                     &mut self.chain_state.data_request_pool,
                     &mut self.transactions_pool,
                     utxo_diff,
+                    self.own_pkh,
+                    &mut self.chain_state.own_utxos,
                 );
 
                 // Insert candidate block into `block_chain` state
@@ -354,6 +356,8 @@ fn update_pools(
     data_request_pool: &mut DataRequestPool,
     transactions_pool: &mut TransactionsPool,
     utxo_diff: Diff,
+    own_pkh: Option<PublicKeyHash>,
+    own_utxos: &mut HashSet<OutputPointer>,
 ) {
     for transaction in block.txns.iter() {
         data_request_pool.process_transaction(
@@ -362,6 +366,25 @@ fn update_pools(
             &block.hash(),
         );
         transactions_pool.remove(&transaction.hash());
+
+        // Update own_utxos:
+        if let Some(own_pkh) = own_pkh {
+            // Remove spent inputs
+            for input in &transaction.body.inputs {
+                own_utxos.remove(&input.output_pointer());
+            }
+            // Insert new outputs
+            for (i, output) in transaction.body.outputs.iter().enumerate() {
+                if let Output::ValueTransfer(x) = output {
+                    if x.pkh == own_pkh {
+                        own_utxos.insert(OutputPointer {
+                            transaction_id: transaction.hash(),
+                            output_index: i as u32,
+                        });
+                    }
+                }
+            }
+        }
     }
 
     utxo_diff.apply(unspent_outputs_pool);
