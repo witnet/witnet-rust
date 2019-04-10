@@ -90,7 +90,7 @@ impl ChainManager {
                     .into_actor(act)
                     .and_then(move |(tally_transactions, keyed_signature), act, ctx| {
                         let leadership_proof = LeadershipProof {
-                            block_sig: Some(keyed_signature.signature),
+                            block_sig: keyed_signature,
                         };
 
                         // Build the block using the supplied beacon and eligibility proof
