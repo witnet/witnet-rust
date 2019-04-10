@@ -16,7 +16,7 @@ use crate::actors::{
     rad_manager::RadManager,
 };
 
-use crate::actors::chain_manager::sign_transaction;
+use crate::actors::chain_manager::transaction_factory::sign_transaction;
 use crate::signature_mngr;
 use witnet_data_structures::{
     chain::{

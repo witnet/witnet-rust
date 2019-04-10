@@ -604,7 +604,11 @@ impl Output {
             Output::Commit(output) => output.value,
             Output::Tally(output) => output.value,
             Output::DataRequest(output) => {
-                // TODO: this is incorrect, right?
+                // The total cost of a data request is
+                // value (total reward to be divided between all the witnesses)
+                // + commit_fee (total commit fee to be divided between all commits)
+                // + reveal_fee (total reveal fee to be divided between all reveals)
+                // + tally_fee (fee for the tally transaction)
                 output.value + output.commit_fee + output.reveal_fee + output.tally_fee
             }
             Output::Reveal(output) => output.value,

@@ -25,7 +25,6 @@ impl Actor for ChainManager {
     type Context = Context<Self>;
 
     /// Method to be executed when the actor is started
-    // FIXME: Remove all `unwrap()`s
     fn started(&mut self, ctx: &mut Self::Context) {
         debug!("ChainManager actor has been started!");
 
@@ -33,25 +32,14 @@ impl Actor for ChainManager {
 
         self.subscribe_to_epoch_manager(ctx);
 
-        signature_mngr::pkh()
-            .into_actor(self)
-            .map_err(|e, _, _| {
-                error!(
-                    "Error while getting public key hash from signature manager: {}",
-                    e
-                )
-            })
-            .and_then(|res, act, _ctx| {
-                act.own_pkh = Some(res);
-                actix::fut::ok(())
-            })
-            .wait(ctx);
+        self.get_pkh(ctx);
     }
 }
 
 impl ChainManager {
     /// Get configuration from ConfigManager and try to initialize ChainManager state from Storage
     /// (initialize to Default values if empty)
+    // FIXME: Remove all `unwrap()`s
     pub fn initialize_from_storage(&mut self, ctx: &mut Context<ChainManager>) {
         config_mngr::get().into_actor(self).and_then(|config, act, ctx| {
             // Get environment and consensus_constants parameters from config
@@ -183,6 +171,24 @@ impl ChainManager {
                     }
                 }
 
+                actix::fut::ok(())
+            })
+            .wait(ctx);
+    }
+
+    /// Load public key hash from signature manager
+    fn get_pkh(&mut self, ctx: &mut Context<Self>) {
+        signature_mngr::pkh()
+            .into_actor(self)
+            .map_err(|e, _act, _ctx| {
+                error!(
+                    "Error while getting public key hash from signature manager: {}",
+                    e
+                );
+            })
+            .and_then(|res, act, _ctx| {
+                act.own_pkh = Some(res);
+                debug!("Public key hash successfully loaded from signature manager");
                 actix::fut::ok(())
             })
             .wait(ctx);
