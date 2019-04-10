@@ -6,8 +6,8 @@ use witnet_crypto::hash::calculate_sha256;
 use super::chain::{
     CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
     DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
-    RevealInput, RevealOutput, TallyOutput, Transaction, TransactionBody, UnspentOutputsPool,
-    ValueTransferOutput,
+    PublicKeyHash, RevealInput, RevealOutput, TallyOutput, Transaction, TransactionBody,
+    UnspentOutputsPool, ValueTransferOutput,
 };
 
 use serde::{Deserialize, Serialize};
@@ -545,7 +545,7 @@ pub fn create_reveal_body(
     let reveal_output = Output::Reveal(RevealOutput {
         reveal,
         // TODO: use a proper pkh
-        pkh: [0; 20],
+        pkh: PublicKeyHash::default(),
         value: reveal_value,
     });
 
@@ -621,7 +621,7 @@ mod tests {
             reveal_fee: 0,
             tally_fee: 0,
             time_lock: 0,
-            pkh: [45; 20],
+            pkh: PublicKeyHash::default(),
         }
     }
 
@@ -635,7 +635,7 @@ mod tests {
     fn empty_reveal_output() -> RevealOutput {
         RevealOutput {
             reveal: vec![],
-            pkh: [78; 20],
+            pkh: PublicKeyHash::default(),
             value: 5,
         }
     }
@@ -643,7 +643,7 @@ mod tests {
     fn empty_tally_output() -> TallyOutput {
         TallyOutput {
             result: vec![],
-            pkh: [23; 20],
+            pkh: PublicKeyHash::default(),
             value: 6,
         }
     }
@@ -657,7 +657,7 @@ mod tests {
 
     fn empty_value_transfer_output() -> ValueTransferOutput {
         ValueTransferOutput {
-            pkh: [25; 20],
+            pkh: PublicKeyHash::default(),
             value: 7,
         }
     }

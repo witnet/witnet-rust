@@ -112,8 +112,7 @@ message TransactionBody {
     }
     message Output {
         message ValueTransferOutput {
-            // TODO: PublicKeyHash should be its own type
-            bytes pkh = 1;
+            PublicKeyHash pkh = 1;
             uint64 value = 2;
         }
         message DataRequestOutput {
@@ -145,7 +144,7 @@ message TransactionBody {
                 repeated RADDeliver deliver = 5;
             }
 
-            bytes pkh = 1;
+            PublicKeyHash pkh = 1;
             RADRequest data_request = 2;
             uint64 value = 3;
             uint32 witnesses = 4;
@@ -161,13 +160,13 @@ message TransactionBody {
         }
         message RevealOutput {
             bytes reveal = 1;
-            bytes pkh = 2;
+            PublicKeyHash pkh = 2;
             uint64 value = 3;
         }
 
         message TallyOutput {
             bytes result = 1;
-            bytes pkh = 2;
+            PublicKeyHash pkh = 2;
             uint64 value = 3;
         }
 
@@ -209,6 +208,10 @@ message Signature {
 
 message PublicKey {
     bytes public_key = 1;
+}
+
+message PublicKeyHash {
+    bytes hash = 1;
 }
 
 message KeyedSignature {

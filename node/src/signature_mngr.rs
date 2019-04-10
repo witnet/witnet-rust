@@ -11,14 +11,13 @@ use log;
 
 use crate::{actors::storage_keys::MASTER_KEY, storage_mngr};
 
-use witnet_crypto::hash::calculate_sha256;
 use witnet_crypto::{
     key::{ExtendedSK, MasterKeyGen, SignContext, PK, SK},
     mnemonic::MnemonicGen,
     signature,
 };
 use witnet_data_structures::chain::{
-    ExtendedSecretKey, Hash, Hashable, KeyedSignature, PublicKey, Signature,
+    ExtendedSecretKey, Hash, Hashable, KeyedSignature, PublicKey, PublicKeyHash, Signature,
 };
 
 /// Start the signature manager
@@ -53,7 +52,7 @@ where
 /// Get the public key hash.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn pkh() -> impl Future<Item = Hash, Error = failure::Error> {
+pub fn pkh() -> impl Future<Item = PublicKeyHash, Error = failure::Error> {
     let addr = actix::System::current()
         .registry()
         .get::<SignatureManager>();
@@ -141,7 +140,7 @@ impl Message for Sign {
 }
 
 impl Message for GetPkh {
-    type Result = Result<Hash, failure::Error>;
+    type Result = Result<PublicKeyHash, failure::Error>;
 }
 
 impl Handler<SetKey> for SignatureManager {
@@ -180,12 +179,7 @@ impl Handler<GetPkh> for SignatureManager {
 
     fn handle(&mut self, _msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
         match self.keypair {
-            Some((_secret, public)) => {
-                // TODO: move to helper method calculate_pkh(public_key) -> Hash
-                let pkh = calculate_sha256(&public.serialize()).into();
-
-                Ok(pkh)
-            }
+            Some((_secret, public)) => Ok(PublicKeyHash::from_public_key(&public.into())),
             None => bail!("Signature Manager cannot sign because it contains no key"),
         }
     }

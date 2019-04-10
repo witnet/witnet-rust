@@ -10,7 +10,7 @@ fn test_block_hashable_trait() {
 #[test]
 fn test_transaction_hashable_trait() {
     let transaction = transaction_example();
-    let expected = "e8923072df4613294778ba071171e7fcf88368e98aa05a5d9a165dd87cb2bc52";
+    let expected = "c6c3f9dd0f9522ff1b994424401448ce79e96b66b9f88741b534810631b51bcf";
     assert_eq!(transaction.hash().to_string(), expected);
 }
 

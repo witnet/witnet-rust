@@ -152,6 +152,16 @@ impl Hashable for Transaction {
     }
 }
 
+impl Hashable for PublicKey {
+    fn hash(&self) -> Hash {
+        let mut v = vec![];
+        v.extend(&[self.compressed]);
+        v.extend(&self.bytes);
+
+        calculate_sha256(&v).into()
+    }
+}
+
 /// Block header structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::Block_BlockHeader")]
@@ -390,8 +400,27 @@ impl<'de> Deserialize<'de> for Hash {
 /// SHA-256 Hash
 pub type SHA256 = [u8; 32];
 
-/// Public Key Hash: slice of the digest of a public key (20 bytes)
-pub type PublicKeyHash = [u8; 20];
+/// Public Key Hash: slice of the digest of a public key (20 bytes).
+///
+/// It is the first 20 bytes of the SHA256 hash of the PublicKey.
+#[derive(
+    Copy, Clone, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize, ProtobufConvert,
+)]
+#[protobuf_convert(pb = "witnet::PublicKeyHash")]
+pub struct PublicKeyHash {
+    hash: [u8; 20],
+}
+
+impl PublicKeyHash {
+    /// Calculate the hash of the provided public key
+    pub fn from_public_key(pk: &PublicKey) -> Self {
+        let mut pkh = [0; 20];
+        let Hash::SHA256(h) = pk.hash();
+        pkh.copy_from_slice(&h[..20]);
+
+        Self { hash: pkh }
+    }
+}
 
 /// Transaction data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
@@ -1400,7 +1429,7 @@ mod tests {
     #[test]
     fn test_transaction_hashable_trait() {
         let transaction = transaction_example();
-        let expected = "e8923072df4613294778ba071171e7fcf88368e98aa05a5d9a165dd87cb2bc52";
+        let expected = "c6c3f9dd0f9522ff1b994424401448ce79e96b66b9f88741b534810631b51bcf";
 
         // Signatures don't affect the hash of a transaction (SegWit style), thus both must be equal
         assert_eq!(transaction.body.hash().to_string(), expected);
