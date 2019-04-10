@@ -43,7 +43,8 @@ use crate::actors::{
     sessions_manager::SessionsManager,
     storage_keys::CHAIN_STATE_KEY,
 };
-use crate::storage_mngr;
+use crate::{signature_mngr, storage_mngr};
+use futures::Future;
 use witnet_data_structures::chain::{
     DataRequestOutput, Input, TransactionBody, ValueTransferInput, ValueTransferOutput,
 };
@@ -495,6 +496,31 @@ pub fn build_drt<S: std::hash::BuildHasher>(
             Ok(tx_body)
         }
     }
+}
+
+/// Sign a transaction using this node's private key.
+/// This function assumes that all the inputs have the same public key hash:
+/// the hash of the public key of the node.
+pub fn sign_transaction(
+    tx_body: TransactionBody,
+) -> impl Future<Item = Transaction, Error = failure::Error> {
+    // Assuming that all the inputs have the same pkh
+    signature_mngr::sign(&tx_body).map(move |signature| {
+        // TODO: do we need to sign:
+        // value transfer inputs,
+        // data request inputs (for commits),
+        // commit inputs (for reveals),
+        //
+        // We do not need to sign:
+        // reveal inputs (for tallies)
+        //
+        // But currently we just sign everything, hoping that the validations
+        // work
+        let num_inputs = tx_body.inputs.len();
+        let signatures = vec![signature; num_inputs];
+
+        Transaction::new(tx_body, signatures)
+    })
 }
 
 // TODO: END

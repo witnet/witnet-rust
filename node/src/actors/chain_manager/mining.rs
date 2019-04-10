@@ -16,6 +16,7 @@ use crate::actors::{
     rad_manager::RadManager,
 };
 
+use crate::actors::chain_manager::sign_transaction;
 use crate::signature_mngr;
 use witnet_data_structures::{
     chain::{
@@ -185,23 +186,20 @@ impl ChainManager {
                     .and_then(move |reveal_value, act, _ctx| {
                         // Create commitment transaction
                         let commit_body = create_commit_body(&dr_output_pointer, &data_request_output, reveal_value.clone());
-                        signature_mngr::sign(&commit_body)
+                        sign_transaction(commit_body)
                             .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
                             .into_actor(act)
-                            .and_then(move |sig, act, _ctx| {
-                                let commit_transaction = Transaction::new(commit_body, vec![sig]);
+                            .and_then(move |commit_transaction, act, _ctx| {
                                 let commit_pointer = OutputPointer {
                                     transaction_id: commit_transaction.hash(),
                                     output_index: 0,
                                 };
                                 let reveal_body = create_reveal_body(commit_pointer,  &data_request_output, reveal_value);
 
-                                signature_mngr::sign(&reveal_body)
+                                sign_transaction(reveal_body)
                                     .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
                                     .into_actor(act)
-                                    .and_then(move |sig, act, ctx| {
-                                        let reveal_transaction = Transaction::new(reveal_body, vec![sig]);
-
+                                    .and_then(move |reveal_transaction, act, ctx| {
                                         // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
                                         act.chain_state.data_request_pool.insert_reveal(dr_output_pointer.clone(), reveal_transaction);
 
