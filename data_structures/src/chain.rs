@@ -181,6 +181,9 @@ pub enum BlockError {
         commits, rf
     )]
     MismatchingCommitsNumber { commits: u32, rf: u32 },
+    /// Block verification signature process failed.
+    #[fail(display = "Failed to verify the signature of block {}", hash)]
+    VerifySignatureFail { hash: Hash },
 }
 
 /// Struct that keeps a block candidate and its modifications in the blockchain
@@ -543,6 +546,15 @@ pub enum TransactionError {
     MismatchingSignaturesNumber { signatures_n: u8, inputs_n: u8 },
     #[fail(display = "Invalid Position for a Mint Transaction")]
     UnexpectedMint,
+    /// Transaction verification process failed.
+    #[fail(
+        display = "Failed to verify the signature at index {} in transaction {}",
+        index, hash
+    )]
+    VerifyTransactionSignatureFail { hash: Hash, index: u8 },
+    /// Signature not found
+    #[fail(display = "Transaction signature not found")]
+    SignatureNotFound,
 }
 
 /// Transaction tags for validation process

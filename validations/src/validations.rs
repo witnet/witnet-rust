@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use witnet_data_structures::{
     chain::{
         Block, BlockError, BlockInChain, CheckpointBeacon, Epoch, Hash, Hashable, Input,
-        KeyedSignature, Output, OutputPointer, RADRequest, Signature, Transaction, TransactionBody,
+        KeyedSignature, Output, OutputPointer, RADRequest, Transaction, TransactionBody,
         TransactionError, TransactionType, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
@@ -207,7 +207,7 @@ pub fn validate_dr_transaction(tx: &TransactionBody) -> Result<(), failure::Erro
     }
 }
 
-// Add 1 in the number assigned to a DataRequestOutput
+// Add 1 in the number assigned to a OutputPointer
 pub fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
     hm: &mut WitnessesCounter<S>,
     k: &OutputPointer,
@@ -221,7 +221,7 @@ pub fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
         .current += 1;
 }
 
-/// HashMap to count commit and reveals transactions need for a Data Request
+/// HashMap to count commit transactions need for a Data Request
 pub struct WitnessesCount {
     current: u32,
     target: u32,
@@ -398,33 +398,35 @@ pub fn validate_tally_transaction(
         Err(TransactionError::InvalidTallyTransaction)?
     }
 }
-/// Function to validate a signature
-pub fn validate_transaction_signature(
-    input: &Input,
-    keyed_signature: &KeyedSignature,
-) -> Result<(), failure::Error> {
-    let tx_hash = match input {
-        Input::Commit(i) => i.transaction_id,
-        Input::Reveal(i) => i.transaction_id,
-        Input::ValueTransfer(i) => i.transaction_id,
-        Input::DataRequest(i) => i.transaction_id,
-    };
 
-    let Hash::SHA256(message) = tx_hash;
+/// Function to validate a block signature
+pub fn validate_block_signature(block: &Block) -> Result<(), failure::Error> {
+    let keyed_signature = &block.proof.block_sig;
 
-    let signature = match keyed_signature.signature.clone() {
-        Signature::Secp256k1(s) => s.try_into()?,
-    };
+    let signature = keyed_signature.signature.clone().try_into()?;
     let public_key = keyed_signature.public_key.clone().try_into()?;
 
-    verify(public_key, &message, signature)
+    let Hash::SHA256(message) = block.block_header.beacon.hash();
+
+    verify(&public_key, &message, &signature)
+        .map_err(|_| BlockError::VerifySignatureFail { hash: block.hash() }.into())
 }
 
-/// Function to validate signatures
-pub fn validate_transaction_signatures(
-    inputs: Vec<Input>,
-    signatures: Vec<KeyedSignature>,
+/// Function to validate a pkh signature
+pub fn validate_pkh_signature(
+    _input: &Input,
+    _keyed_signature: &KeyedSignature,
+    _tx_hash: &Hash,
 ) -> Result<(), failure::Error> {
+    // TODO: Implement a properly pkh validation
+    Ok(())
+}
+
+/// Function to validate transaction signatures
+pub fn validate_transaction_signatures(transaction: &Transaction) -> Result<(), failure::Error> {
+    let signatures = &transaction.signatures;
+    let inputs = &transaction.body.inputs;
+
     if signatures.len() != inputs.len() {
         Err(TransactionError::MismatchingSignaturesNumber {
             signatures_n: signatures.len() as u8,
@@ -432,8 +434,24 @@ pub fn validate_transaction_signatures(
         })?
     }
 
-    for (input, keyed_signature) in inputs.iter().zip(signatures.iter()) {
-        validate_transaction_signature(input, keyed_signature)?
+    // Validate transaction signature
+    if let Some(tx_keyed_signature) = signatures.get(0) {
+        let signature = tx_keyed_signature.signature.clone().try_into()?;
+        let public_key = tx_keyed_signature.public_key.clone().try_into()?;
+        let Hash::SHA256(message) = transaction.hash();
+
+        verify(&public_key, &message, &signature).map_err(|_| {
+            TransactionError::VerifyTransactionSignatureFail {
+                hash: transaction.hash(),
+                index: 0,
+            }
+        })?;
+    } else {
+        Err(TransactionError::SignatureNotFound)?
+    }
+
+    for (input, keyed_signature) in inputs.iter().zip(signatures.iter().next()) {
+        validate_pkh_signature(input, keyed_signature, &transaction.hash())?
     }
 
     Ok(())
@@ -446,44 +464,44 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
     dr_pool: &DataRequestPool,
     block_commits: &mut WitnessesCounter<S>,
 ) -> Result<u64, failure::Error> {
-    let transaction_body = &transaction.body;
+    validate_transaction_signatures(&transaction)?;
 
-    match transaction_tag(transaction_body) {
+    match transaction_tag(&transaction.body) {
         TransactionType::Mint => Err(TransactionError::UnexpectedMint)?,
         TransactionType::InvalidType => Err(TransactionError::NotValidTransaction)?,
         TransactionType::ValueTransfer => {
             log::debug!("ValueTransfer Transaction validation");
-            let fee = transaction_fee(transaction_body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_set)?;
 
-            validate_vt_transaction(transaction_body)?;
+            validate_vt_transaction(&transaction.body)?;
             Ok(fee)
         }
         TransactionType::DataRequest => {
             log::debug!("DataRequest Transaction validation");
-            let fee = transaction_fee(transaction_body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_set)?;
 
-            validate_dr_transaction(transaction_body)?;
+            validate_dr_transaction(&transaction.body)?;
             Ok(fee)
         }
         TransactionType::Commit => {
             log::debug!("Commit Transaction validation");
-            let fee = transaction_fee(transaction_body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_set)?;
 
-            validate_commit_transaction(transaction_body, dr_pool, block_commits, fee)?;
+            validate_commit_transaction(&transaction.body, dr_pool, block_commits, fee)?;
             Ok(fee)
         }
         TransactionType::Reveal => {
             log::debug!("Reveal Transaction validation");
-            let fee = transaction_fee(transaction_body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_set)?;
 
-            validate_reveal_transaction(transaction_body, dr_pool, fee)?;
+            validate_reveal_transaction(&transaction.body, dr_pool, fee)?;
             Ok(fee)
         }
         TransactionType::Tally => {
             log::debug!("Tally Transaction validation");
-            let fee = transaction_fee(transaction_body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_set)?;
 
-            validate_tally_transaction(transaction_body, dr_pool, utxo_set, fee)?;
+            validate_tally_transaction(&transaction.body, dr_pool, utxo_set, fee)?;
             Ok(fee)
         }
     }
@@ -642,6 +660,8 @@ pub fn validate_block(
     } else if !verify_poe_block() {
         Err(BlockError::NotValidPoe)?
     } else {
+        validate_block_signature(&block)?;
+
         validate_transactions(&utxo_set, &txn_pool, &data_request_pool, &block)
     }
 }

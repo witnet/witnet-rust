@@ -21,11 +21,11 @@ pub fn sign(secret_key: SecretKey, data: &[u8]) -> Signature {
     secp.sign(&msg, &secret_key)
 }
 /// Verify signature with a provided public key
-pub fn verify(public_key: PublicKey, data: &[u8], sig: Signature) -> Result<(), failure::Error> {
+pub fn verify(public_key: &PublicKey, data: &[u8], sig: &Signature) -> Result<(), failure::Error> {
     let msg = Message::from_slice(data).unwrap();
     let secp = Secp256k1::new();
 
-    secp.verify(&msg, &sig, &public_key)
+    secp.verify(&msg, sig, public_key)
         .map_err(|_| SignatureError::VerifyError.into())
 }
 
@@ -50,6 +50,6 @@ mod tests {
                                   0000";
         assert_eq!(signature_expected.to_string(), signature.to_string());
 
-        assert!(verify(public_key, &data, signature).is_ok());
+        assert!(verify(&public_key, &data, &signature).is_ok());
     }
 }
