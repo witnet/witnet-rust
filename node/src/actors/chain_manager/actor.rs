@@ -11,6 +11,7 @@ use crate::actors::{
     storage_keys::CHAIN_STATE_KEY,
 };
 use crate::config_mngr;
+use crate::signature_mngr;
 use crate::storage_mngr;
 use witnet_data_structures::{
     chain::{Blockchain, ChainInfo, ChainState, CheckpointBeacon, UnspentOutputsPool},
@@ -34,6 +35,20 @@ impl Actor for ChainManager {
         self.initialize_from_storage(ctx);
 
         self.subscribe_to_epoch_manager(ctx);
+
+        signature_mngr::pkh()
+            .into_actor(self)
+            .map_err(|e, _, _| {
+                error!(
+                    "Error while getting public key hash from signature manager: {}",
+                    e
+                )
+            })
+            .and_then(|res, act, _ctx| {
+                act.own_pkh = Some(res);
+                actix::fut::ok(())
+            })
+            .wait(ctx);
     }
 }
 

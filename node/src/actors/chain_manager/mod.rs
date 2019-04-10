@@ -118,6 +118,8 @@ pub struct ChainManager {
     target_beacon: Option<CheckpointBeacon>,
     /// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain
     candidates: HashMap<Hash, Block>,
+    /// Our public key hash, used to create the mint transaction
+    own_pkh: Option<Hash>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry

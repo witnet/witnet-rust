@@ -11,6 +11,7 @@ use log;
 
 use crate::{actors::storage_keys::MASTER_KEY, storage_mngr};
 
+use witnet_crypto::hash::calculate_sha256;
 use witnet_crypto::{
     key::{ExtendedSK, MasterKeyGen, SignContext, PK, SK},
     mnemonic::MnemonicGen,
@@ -49,6 +50,16 @@ where
     addr.send(Sign(data_hash.to_vec())).flatten()
 }
 
+/// Get the public key hash.
+///
+/// This might fail if the manager has not been initialized with a key
+pub fn pkh() -> impl Future<Item = Hash, Error = failure::Error> {
+    let addr = actix::System::current()
+        .registry()
+        .get::<SignatureManager>();
+    addr.send(GetPkh).flatten()
+}
+
 #[derive(Debug, Default)]
 struct SignatureManager {
     keypair: Option<(SK, PK)>,
@@ -63,6 +74,7 @@ impl SignatureManager {
 
 struct SetKey(SK);
 struct Sign(Vec<u8>);
+struct GetPkh;
 
 fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = failure::Error> {
     let master_key = ExtendedSecretKey::from(master_key);
@@ -128,6 +140,10 @@ impl Message for Sign {
     type Result = Result<KeyedSignature, failure::Error>;
 }
 
+impl Message for GetPkh {
+    type Result = Result<Hash, failure::Error>;
+}
+
 impl Handler<SetKey> for SignatureManager {
     type Result = <SetKey as Message>::Result;
 
@@ -153,6 +169,22 @@ impl Handler<Sign> for SignatureManager {
                 };
 
                 Ok(keyed_signature)
+            }
+            None => bail!("Signature Manager cannot sign because it contains no key"),
+        }
+    }
+}
+
+impl Handler<GetPkh> for SignatureManager {
+    type Result = <GetPkh as Message>::Result;
+
+    fn handle(&mut self, _msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
+        match self.keypair {
+            Some((_secret, public)) => {
+                // TODO: move to helper method calculate_pkh(public_key) -> Hash
+                let pkh = calculate_sha256(&public.serialize()).into();
+
+                Ok(pkh)
             }
             None => bail!("Signature Manager cannot sign because it contains no key"),
         }
