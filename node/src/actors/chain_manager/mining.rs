@@ -40,6 +40,9 @@ impl ChainManager {
 
             return;
         }
+        if self.own_pkh.is_none() {
+            warn!("PublicKeyHash is not set. All mined wits will be lost!");
+        }
 
         let current_epoch = self.current_epoch.unwrap();
 
@@ -102,6 +105,7 @@ impl ChainManager {
                             beacon,
                             leadership_proof,
                             &tally_transactions,
+                            act.own_pkh.unwrap_or_default(),
                         );
 
                         match validate_block(
@@ -309,6 +313,7 @@ fn build_block(
     beacon: CheckpointBeacon,
     proof: LeadershipProof,
     tally_transactions: &[Transaction],
+    own_pkh: PublicKeyHash,
 ) -> Block {
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
@@ -369,9 +374,6 @@ fn build_block(
     }
 
     // Include Mint Transaction by miner
-    // TODO: Include Witnet's node PKH (keyed signature is not needed as there is no input)
-    let pkh = PublicKeyHash::default();
-
     let epoch = beacon.checkpoint;
     let reward = block_reward(epoch) + transaction_fees;
 
@@ -380,7 +382,7 @@ fn build_block(
         .body
         .outputs
         .push(Output::ValueTransfer(ValueTransferOutput {
-            pkh,
+            pkh: own_pkh,
             value: reward,
         }));
 
@@ -436,6 +438,7 @@ mod tests {
             block_beacon,
             block_proof,
             &[],
+            PublicKeyHash::default(),
         );
 
         // Check if block only contains the Mint Transaction
@@ -492,6 +495,7 @@ mod tests {
             block_beacon,
             block_proof,
             &[],
+            PublicKeyHash::default(),
         );
 
         // Check if block only contains the Mint Transaction
@@ -604,6 +608,7 @@ mod tests {
             block_beacon,
             block_proof,
             &[],
+            PublicKeyHash::default(),
         );
 
         // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
