@@ -5,7 +5,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use actix::Message;
 use bytes;
-use log::{debug, error};
+use log;
 use tokio::codec::{Decoder, Encoder};
 
 const HEADER_SIZE: usize = 4; // bytes
@@ -66,14 +66,14 @@ impl Encoder for P2PCodec {
 
     /// Method to encode a response into bytes
     fn encode(&mut self, bytes: BytesMut, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        debug!("Encoding {:?}", bytes);
+        log::trace!("Encoding {:?}", bytes);
 
         // let Response(bytes) = resp;
 
         let mut encoded_msg = vec![];
 
         if bytes.len() > u32::max_value() as usize {
-            error!("Maximum message size exceeded");
+            log::error!("Maximum message size exceeded");
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("Message size {} bytes too big for u32", bytes.len()),
