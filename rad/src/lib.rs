@@ -110,6 +110,7 @@ fn test_run_consensus_and_aggregation() {
 }
 
 #[test]
+#[ignore]
 fn test_run_retrieval_random_api() {
     let script = vec![
         149, 83, 204, 132, 146, 1, 164, 100, 97, 116, 97, 204, 128, 146, 1, 0,
