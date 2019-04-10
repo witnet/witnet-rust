@@ -17,6 +17,7 @@ use crate::actors::{
 };
 
 use crate::signature_mngr;
+use rand::Rng;
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, CheckpointBeacon, Hashable, Input, LeadershipProof, Output,
@@ -369,7 +370,9 @@ fn build_block(
 
     // Include Mint Transaction by miner
     // TODO: Include Witnet's node PKH (keyed signature is not needed as there is no input)
-    let pkh = PublicKeyHash::default();
+    let mut pkh = PublicKeyHash::default();
+    pkh[0] = rand::thread_rng().gen();
+
     let epoch = beacon.checkpoint;
     let reward = block_reward(epoch) + transaction_fees;
 
