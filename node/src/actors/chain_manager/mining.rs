@@ -427,9 +427,7 @@ mod tests {
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
-        let block_proof = LeadershipProof {
-            block_sig: KeyedSignature::default(),
-        };
+        let block_proof = LeadershipProof::default();
 
         // Build empty block (because max weight is zero)
         let block = build_block(

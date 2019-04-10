@@ -3,6 +3,40 @@ use witnet_data_structures::{
     {chain::*, types::*},
 };
 
+const EXAMPLE_BLOCK_VECTOR: &'static [u8] = &[
+    8, 1, 18, 146, 6, 58, 143, 6, 10, 74, 18, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 34, 10, 32, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 43, 10,
+    41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 147, 5, 10, 229, 4, 18, 38, 26, 36, 10, 34, 10, 32,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    18, 72, 18, 70, 10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 38, 34, 36, 10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 24, 10, 22, 10,
+    20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 210, 2, 18, 207, 2, 10, 20,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 182, 2, 18, 95, 18, 93, 104,
+    116, 116, 112, 115, 58, 47, 47, 111, 112, 101, 110, 119, 101, 97, 116, 104, 101, 114, 109, 97,
+    112, 46, 111, 114, 103, 47, 100, 97, 116, 97, 47, 50, 46, 53, 47, 119, 101, 97, 116, 104, 101,
+    114, 63, 105, 100, 61, 50, 57, 53, 48, 49, 53, 57, 38, 97, 112, 112, 105, 100, 61, 98, 54, 57,
+    48, 55, 100, 50, 56, 57, 101, 49, 48, 100, 55, 49, 52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54,
+    49, 102, 97, 101, 50, 50, 18, 95, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101,
+    110, 119, 101, 97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116, 97,
+    47, 50, 46, 53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48, 49, 53,
+    57, 38, 97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49, 48, 100, 55,
+    49, 52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26, 0, 34, 0, 42,
+    54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111, 107, 115, 46, 122, 97, 112,
+    105, 101, 114, 46, 99, 111, 109, 47, 104, 111, 111, 107, 115, 47, 99, 97, 116, 99, 104, 47, 51,
+    56, 54, 48, 53, 52, 51, 47, 108, 50, 97, 119, 99, 100, 47, 42, 54, 18, 52, 104, 116, 116, 112,
+    115, 58, 47, 47, 104, 111, 111, 107, 115, 46, 122, 97, 112, 105, 101, 114, 46, 99, 111, 109,
+    47, 104, 111, 111, 107, 115, 47, 99, 97, 116, 99, 104, 47, 51, 56, 54, 48, 53, 52, 51, 47, 108,
+    49, 97, 119, 99, 119, 47, 26, 38, 26, 36, 10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 24, 34, 22, 18, 20, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 24, 42, 22, 18, 20, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+
 #[test]
 fn message_last_beacon_from_bytes() {
     let buff: Vec<u8> = [
@@ -13,10 +47,7 @@ fn message_last_beacon_from_bytes() {
 
     let expected_msg = Message {
         kind: Command::LastBeacon(LastBeacon {
-            highest_block_checkpoint: CheckpointBeacon {
-                hash_prev_block: Hash::default(),
-                checkpoint: 0,
-            },
+            highest_block_checkpoint: CheckpointBeacon::default(),
         }),
         magic: 0,
     };
@@ -28,10 +59,7 @@ fn message_last_beacon_from_bytes() {
 fn message_last_beacon_to_bytes() {
     let msg = Message {
         kind: Command::LastBeacon(LastBeacon {
-            highest_block_checkpoint: CheckpointBeacon {
-                hash_prev_block: Hash::default(),
-                checkpoint: 0,
-            },
+            highest_block_checkpoint: CheckpointBeacon::default(),
         }),
         magic: 0,
     };
@@ -350,443 +378,33 @@ fn message_version_encode_decode() {
 
 #[test]
 fn message_block_to_bytes() {
-    let block_header = BlockHeader {
-        version: 0,
-        beacon: CheckpointBeacon {
-            checkpoint: 0,
-            hash_prev_block: Hash::default(),
-        },
-        hash_merkle_root: Hash::default(),
-    };
-    let signature = Signature::Secp256k1(Secp256k1Signature::default());
-    let proof = LeadershipProof {
-        block_sig: KeyedSignature {
-            public_key: PublicKey::default(),
-            signature: signature.clone(),
-        },
-    };
-    let keyed_signature = vec![KeyedSignature {
-        public_key: PublicKey::default(),
-        signature,
-    }];
-    let reveal_input = Input::Reveal(RevealInput {
-        output_index: 0,
-        transaction_id: Hash::default(),
-    });
-    let commit_input = Input::Commit(CommitInput {
-        nonce: 0,
-        output_index: 0,
-        transaction_id: Hash::default(),
-    });
-    let data_request_input = Input::DataRequest(DataRequestInput {
-        output_index: 0,
-        poe: [0; 32],
-        transaction_id: Hash::default(),
-    });
-    let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-        pkh: [0; 20],
-        value: 0,
-    });
-
-    let rad_aggregate = RADAggregate { script: vec![0] };
-
-    let rad_retrieve_1 = RADRetrieve {
-        kind: RADType::HttpGet,
-        url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-        script: vec![0],
-    };
-
-    let rad_retrieve_2 = RADRetrieve {
-        kind: RADType::HttpGet,
-        url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-        script: vec![0],
-    };
-
-    let rad_consensus = RADConsensus { script: vec![0] };
-
-    let rad_deliver_1 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-    };
-
-    let rad_deliver_2 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-    };
-
-    let rad_request = RADRequest {
-        aggregate: rad_aggregate,
-        not_before: 0,
-        retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-        consensus: rad_consensus,
-        deliver: vec![rad_deliver_1, rad_deliver_2],
-    };
-    let data_request_output = Output::DataRequest(DataRequestOutput {
-        backup_witnesses: 0,
-        commit_fee: 0,
-        data_request: rad_request,
-        pkh: [0; 20],
-        reveal_fee: 0,
-        tally_fee: 0,
-        time_lock: 0,
-        value: 0,
-        witnesses: 0,
-    });
-    let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::default(),
-        value: 0,
-    });
-    let reveal_output = Output::Reveal(RevealOutput {
-        pkh: [0; 20],
-        reveal: [0; 32].to_vec(),
-        value: 0,
-    });
-    let consensus_output = Output::Tally(TallyOutput {
-        pkh: [0; 20],
-        result: [0; 32].to_vec(),
-        value: 0,
-    });
-    let inputs = vec![commit_input, data_request_input, reveal_input];
-    let outputs = vec![
-        value_transfer_output,
-        data_request_output,
-        commit_output,
-        reveal_output,
-        consensus_output,
-    ];
-    let txns: Vec<Transaction> = vec![Transaction::new(
-        TransactionBody::new(0, inputs, outputs),
-        keyed_signature,
-    )];
     let msg = Message {
-        kind: Command::Block(Block {
-            block_header,
-            proof,
-            txns: txns,
-        }),
+        kind: Command::Block(block_example()),
         magic: 1,
     };
 
-    let expected_buf: Vec<u8> = [
-        8, 1, 18, 226, 6, 58, 223, 6, 10, 74, 18, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 34, 10, 32, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18,
-        43, 10, 41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 227, 5, 10, 181, 5, 18, 38, 26, 36,
-        10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 18, 72, 18, 70, 10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 38, 34, 36, 10,
-        34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 26, 24, 10, 22, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 26, 222, 2, 18, 219, 2, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 18, 194, 2, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101,
-        110, 119, 101, 97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116,
-        97, 47, 50, 46, 53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48,
-        49, 53, 57, 38, 97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49,
-        48, 100, 55, 49, 52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26,
-        1, 0, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101, 110, 119, 101,
-        97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116, 97, 47, 50, 46,
-        53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48, 49, 53, 57, 38,
-        97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49, 48, 100, 55, 49,
-        52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26, 1, 0, 26, 3, 10,
-        1, 0, 34, 3, 10, 1, 0, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111,
-        107, 115, 46, 122, 97, 112, 105, 101, 114, 46, 99, 111, 109, 47, 104, 111, 111, 107, 115,
-        47, 99, 97, 116, 99, 104, 47, 51, 56, 54, 48, 53, 52, 51, 47, 108, 50, 97, 119, 99, 100,
-        47, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111, 107, 115, 46, 122,
-        97, 112, 105, 101, 114, 46, 99, 111, 109, 47, 104, 111, 111, 107, 115, 47, 99, 97, 116, 99,
-        104, 47, 51, 56, 54, 48, 53, 52, 51, 47, 108, 49, 97, 119, 99, 119, 47, 26, 38, 26, 36, 10,
-        34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 26, 58, 34, 56, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 26, 58, 42, 56, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ]
-    .to_vec();
+    let expected_buf: Vec<u8> = EXAMPLE_BLOCK_VECTOR.to_vec();
     let result: Vec<u8> = msg.to_pb_bytes().unwrap();
     assert_eq!(result, expected_buf);
 }
 
 #[test]
 fn message_block_from_bytes() {
-    let buf: Vec<u8> = [
-        8, 1, 18, 226, 6, 58, 223, 6, 10, 74, 18, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 34, 10, 32, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18,
-        43, 10, 41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 227, 5, 10, 181, 5, 18, 38, 26, 36,
-        10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 18, 72, 18, 70, 10, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 38, 34, 36, 10,
-        34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 26, 24, 10, 22, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 26, 222, 2, 18, 219, 2, 10, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 18, 194, 2, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101,
-        110, 119, 101, 97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116,
-        97, 47, 50, 46, 53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48,
-        49, 53, 57, 38, 97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49,
-        48, 100, 55, 49, 52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26,
-        1, 0, 18, 98, 18, 93, 104, 116, 116, 112, 115, 58, 47, 47, 111, 112, 101, 110, 119, 101,
-        97, 116, 104, 101, 114, 109, 97, 112, 46, 111, 114, 103, 47, 100, 97, 116, 97, 47, 50, 46,
-        53, 47, 119, 101, 97, 116, 104, 101, 114, 63, 105, 100, 61, 50, 57, 53, 48, 49, 53, 57, 38,
-        97, 112, 112, 105, 100, 61, 98, 54, 57, 48, 55, 100, 50, 56, 57, 101, 49, 48, 100, 55, 49,
-        52, 97, 54, 101, 56, 56, 98, 51, 48, 55, 54, 49, 102, 97, 101, 50, 50, 26, 1, 0, 26, 3, 10,
-        1, 0, 34, 3, 10, 1, 0, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111,
-        107, 115, 46, 122, 97, 112, 105, 101, 114, 46, 99, 111, 109, 47, 104, 111, 111, 107, 115,
-        47, 99, 97, 116, 99, 104, 47, 51, 56, 54, 48, 53, 52, 51, 47, 108, 50, 97, 119, 99, 100,
-        47, 42, 54, 18, 52, 104, 116, 116, 112, 115, 58, 47, 47, 104, 111, 111, 107, 115, 46, 122,
-        97, 112, 105, 101, 114, 46, 99, 111, 109, 47, 104, 111, 111, 107, 115, 47, 99, 97, 116, 99,
-        104, 47, 51, 56, 54, 48, 53, 52, 51, 47, 108, 49, 97, 119, 99, 119, 47, 26, 38, 26, 36, 10,
-        34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 26, 58, 34, 56, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 26, 58, 42, 56, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 41, 10, 2, 10, 0, 18, 35, 10, 33, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ]
-    .to_vec();
-
-    let block_header = BlockHeader {
-        version: 0,
-        beacon: CheckpointBeacon {
-            checkpoint: 0,
-            hash_prev_block: Hash::default(),
-        },
-        hash_merkle_root: Hash::default(),
-    };
-    let signature = Signature::Secp256k1(Secp256k1Signature::default());
-    let proof = LeadershipProof {
-        block_sig: KeyedSignature {
-            public_key: PublicKey::default(),
-            signature: signature.clone(),
-        },
-    };
-    let keyed_signature = vec![KeyedSignature {
-        public_key: PublicKey::default(),
-        signature,
-    }];
-    let reveal_input = Input::Reveal(RevealInput {
-        output_index: 0,
-        transaction_id: Hash::default(),
-    });
-    let commit_input = Input::Commit(CommitInput {
-        nonce: 0,
-        output_index: 0,
-        transaction_id: Hash::default(),
-    });
-    let data_request_input = Input::DataRequest(DataRequestInput {
-        output_index: 0,
-        poe: [0; 32],
-        transaction_id: Hash::default(),
-    });
-    let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-        pkh: [0; 20],
-        value: 0,
-    });
-
-    let rad_aggregate = RADAggregate { script: vec![0] };
-
-    let rad_retrieve_1 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-    let rad_retrieve_2 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-    let rad_consensus = RADConsensus { script: vec![0] };
-
-    let rad_deliver_1 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-    };
-
-    let rad_deliver_2 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-    };
-
-    let rad_request = RADRequest {
-        aggregate: rad_aggregate,
-        not_before: 0,
-        retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-        consensus: rad_consensus,
-        deliver: vec![rad_deliver_1, rad_deliver_2],
-    };
-    let data_request_output = Output::DataRequest(DataRequestOutput {
-        backup_witnesses: 0,
-        commit_fee: 0,
-        data_request: rad_request,
-        pkh: [0; 20],
-        reveal_fee: 0,
-        tally_fee: 0,
-        time_lock: 0,
-        value: 0,
-        witnesses: 0,
-    });
-    let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::default(),
-        value: 0,
-    });
-    let reveal_output = Output::Reveal(RevealOutput {
-        pkh: [0; 20],
-        reveal: [0; 32].to_vec(),
-        value: 0,
-    });
-    let consensus_output = Output::Tally(TallyOutput {
-        pkh: [0; 20],
-        result: [0; 32].to_vec(),
-        value: 0,
-    });
-    let inputs = vec![commit_input, data_request_input, reveal_input];
-    let outputs = vec![
-        value_transfer_output,
-        data_request_output,
-        commit_output,
-        reveal_output,
-        consensus_output,
-    ];
-    let txns: Vec<Transaction> = vec![Transaction::new(
-        TransactionBody::new(0, inputs, outputs),
-        keyed_signature,
-    )];
     let expected_msg = Message {
-        kind: Command::Block(Block {
-            block_header,
-            proof,
-            txns: txns,
-        }),
+        kind: Command::Block(block_example()),
         magic: 1,
     };
 
-    assert_eq!(Message::from_pb_bytes(&buf).unwrap(), expected_msg);
+    assert_eq!(
+        Message::from_pb_bytes(EXAMPLE_BLOCK_VECTOR).unwrap(),
+        expected_msg
+    );
 }
 
 #[test]
 fn message_block_encode_decode() {
-    let block_header = BlockHeader {
-        version: 0,
-        beacon: CheckpointBeacon {
-            checkpoint: 0,
-            hash_prev_block: Hash::default(),
-        },
-        hash_merkle_root: Hash::default(),
-    };
-    let signature = Signature::Secp256k1(Secp256k1Signature::default());
-    let proof = LeadershipProof {
-        block_sig: KeyedSignature {
-            public_key: PublicKey::default(),
-            signature: signature.clone(),
-        },
-    };
-    let keyed_signature = vec![KeyedSignature {
-        public_key: PublicKey::default(),
-        signature,
-    }];
-
-    let commit_input = Input::Commit(CommitInput {
-        nonce: 0,
-        output_index: 0,
-        transaction_id: Hash::default(),
-    });
-    let data_request_input = Input::DataRequest(DataRequestInput {
-        output_index: 0,
-        poe: [0; 32],
-        transaction_id: Hash::default(),
-    });
-    let reveal_input = Input::Reveal(RevealInput {
-        output_index: 0,
-        transaction_id: Hash::default(),
-    });
-    let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-        pkh: [0; 20],
-        value: 0,
-    });
-
-    let rad_aggregate = RADAggregate { script: vec![0] };
-
-    let rad_retrieve_1 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-    let rad_retrieve_2 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-    let rad_consensus = RADConsensus { script: vec![0] };
-
-    let rad_deliver_1 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-    };
-
-    let rad_deliver_2 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-    };
-
-    let rad_request = RADRequest {
-        aggregate: rad_aggregate,
-        not_before: 0,
-        retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-        consensus: rad_consensus,
-        deliver: vec![rad_deliver_1, rad_deliver_2],
-    };
-    let data_request_output = Output::DataRequest(DataRequestOutput {
-        backup_witnesses: 0,
-        commit_fee: 0,
-        data_request: rad_request,
-        pkh: [0; 20],
-        reveal_fee: 0,
-        tally_fee: 0,
-        time_lock: 0,
-        value: 0,
-        witnesses: 0,
-    });
-    let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::default(),
-        value: 0,
-    });
-    let reveal_output = Output::Reveal(RevealOutput {
-        pkh: [0; 20],
-        reveal: [0; 32].to_vec(),
-        value: 0,
-    });
-    let consensus_output = Output::Tally(TallyOutput {
-        pkh: [0; 20],
-        result: [0; 32].to_vec(),
-        value: 0,
-    });
-    let inputs = vec![data_request_input, reveal_input, commit_input];
-    let outputs = vec![
-        value_transfer_output,
-        data_request_output,
-        commit_output,
-        reveal_output,
-        consensus_output,
-    ];
-    let txns: Vec<Transaction> = vec![Transaction::new(
-        TransactionBody::new(0, inputs, outputs),
-        keyed_signature,
-    )];
     let msg = Message {
-        kind: Command::Block(Block {
-            block_header,
-            proof,
-            txns,
-        }),
+        kind: Command::Block(block_example()),
         magic: 1,
     };
     let cloned_msg = msg.clone();
@@ -941,102 +559,8 @@ fn message_get_data_encode_decode() {
 
 #[test]
 fn message_transaction_encode_decode() {
-    let signature = Signature::Secp256k1(Secp256k1Signature::default());
-    let keyed_signature = vec![KeyedSignature {
-        public_key: PublicKey::default(),
-        signature,
-    }];
-
-    let commit_input = Input::Commit(CommitInput {
-        nonce: 0,
-        output_index: 0,
-        transaction_id: Hash::default(),
-    });
-    let data_request_input = Input::DataRequest(DataRequestInput {
-        output_index: 0,
-        poe: [0; 32],
-        transaction_id: Hash::default(),
-    });
-    let reveal_input = Input::Reveal(RevealInput {
-        output_index: 0,
-        transaction_id: Hash::default(),
-    });
-    let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-        pkh: [0; 20],
-        value: 0,
-    });
-
-    let rad_aggregate = RADAggregate { script: vec![0] };
-
-    let rad_retrieve_1 = RADRetrieve {
-        kind: RADType::HttpGet,
-        url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-        script: vec![0],
-    };
-
-    let rad_retrieve_2 = RADRetrieve {
-        kind: RADType::HttpGet,
-        url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-        script: vec![0],
-    };
-
-    let rad_consensus = RADConsensus { script: vec![0] };
-
-    let rad_deliver_1 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-    };
-
-    let rad_deliver_2 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-    };
-
-    let rad_request = RADRequest {
-        aggregate: rad_aggregate,
-        not_before: 0,
-        retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-        consensus: rad_consensus,
-        deliver: vec![rad_deliver_1, rad_deliver_2],
-    };
-    let data_request_output = Output::DataRequest(DataRequestOutput {
-        backup_witnesses: 0,
-        commit_fee: 0,
-        data_request: rad_request,
-        pkh: [0; 20],
-        reveal_fee: 0,
-        tally_fee: 0,
-        time_lock: 0,
-        value: 0,
-        witnesses: 0,
-    });
-    let commit_output = Output::Commit(CommitOutput {
-        commitment: Hash::default(),
-        value: 0,
-    });
-    let reveal_output = Output::Reveal(RevealOutput {
-        pkh: [0; 20],
-        reveal: vec![],
-        value: 0,
-    });
-    let consensus_output = Output::Tally(TallyOutput {
-        pkh: [0; 20],
-        result: vec![0; 1024], // The maximum size is not defined
-        value: 0,
-    });
-    let inputs = vec![data_request_input, reveal_input, commit_input];
-    let outputs = vec![
-        value_transfer_output,
-        data_request_output,
-        commit_output,
-        reveal_output,
-        consensus_output,
-    ];
     let msg = Message {
-        kind: Command::Transaction(Transaction::new(
-            TransactionBody::new(0, inputs, outputs),
-            keyed_signature,
-        )),
+        kind: Command::Transaction(transaction_example()),
         magic: 1,
     };
     let cloned_msg = msg.clone();

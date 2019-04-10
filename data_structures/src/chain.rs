@@ -225,7 +225,7 @@ impl Hashable for Transaction {
 }
 
 /// Block header structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::Block_BlockHeader")]
 pub struct BlockHeader {
     /// The block version number indicating the block validation rules
@@ -237,7 +237,7 @@ pub struct BlockHeader {
 }
 
 /// Proof of leadership structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::Block_LeadershipProof")]
 pub struct LeadershipProof {
     /// An enveloped signature of the block header except the `proof` part
@@ -668,7 +668,7 @@ impl Input {
 }
 
 /// Value transfer input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Input_ValueTransferInput")]
 pub struct ValueTransferInput {
     pub transaction_id: Hash,
@@ -676,7 +676,7 @@ pub struct ValueTransferInput {
 }
 
 /// Commit input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Input_CommitInput")]
 pub struct CommitInput {
     pub transaction_id: Hash,
@@ -685,7 +685,7 @@ pub struct CommitInput {
 }
 
 /// Commit input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Input_DataRequestInput")]
 pub struct DataRequestInput {
     pub transaction_id: Hash,
@@ -694,7 +694,7 @@ pub struct DataRequestInput {
 }
 
 /// Reveal input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Input_RevealInput")]
 pub struct RevealInput {
     pub transaction_id: Hash,
@@ -728,7 +728,7 @@ impl Output {
 }
 
 /// Value transfer output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Output_ValueTransferOutput")]
 pub struct ValueTransferOutput {
     pub pkh: PublicKeyHash,
@@ -736,7 +736,7 @@ pub struct ValueTransferOutput {
 }
 
 /// Data request output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Output_DataRequestOutput")]
 pub struct DataRequestOutput {
     pub pkh: PublicKeyHash,
@@ -751,7 +751,7 @@ pub struct DataRequestOutput {
 }
 
 /// Commit output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Output_CommitOutput")]
 pub struct CommitOutput {
     pub commitment: Hash,
@@ -759,7 +759,7 @@ pub struct CommitOutput {
 }
 
 /// Reveal output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Output_RevealOutput")]
 pub struct RevealOutput {
     pub reveal: Vec<u8>,
@@ -767,7 +767,7 @@ pub struct RevealOutput {
     pub value: u64,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Output_TallyOutput")]
 pub struct TallyOutput {
     pub result: Vec<u8>,
@@ -813,8 +813,14 @@ pub enum RADType {
     HttpGet,
 }
 
+impl Default for RADType {
+    fn default() -> Self {
+        RADType::HttpGet
+    }
+}
+
 /// RAD request data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest",
     crate = "crate"
@@ -827,7 +833,7 @@ pub struct RADRequest {
     pub deliver: Vec<RADDeliver>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADRetrieve",
     crate = "crate"
@@ -838,7 +844,7 @@ pub struct RADRetrieve {
     pub script: Vec<u8>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADAggregate",
     crate = "crate"
@@ -847,7 +853,7 @@ pub struct RADAggregate {
     pub script: Vec<u8>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADConsensus",
     crate = "crate"
@@ -856,7 +862,7 @@ pub struct RADConsensus {
     pub script: Vec<u8>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADDeliver",
     crate = "crate"
@@ -1476,227 +1482,85 @@ impl ChainState {
     }
 }
 
+// Auxiliar functions for test
+pub fn transaction_example() -> Transaction {
+    let keyed_signature = vec![KeyedSignature::default()];
+    let reveal_input = Input::Reveal(RevealInput::default());
+    let commit_input = Input::Commit(CommitInput::default());
+    let data_request_input = Input::DataRequest(DataRequestInput::default());
+    let value_transfer_output = Output::ValueTransfer(ValueTransferOutput::default());
+
+    let rad_retrieve = RADRetrieve {
+        url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
+        ..RADRetrieve::default()
+    };
+
+    let rad_deliver_1 = RADDeliver {
+        kind: RADType::HttpGet,
+        url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
+    };
+
+    let rad_deliver_2 = RADDeliver {
+        kind: RADType::HttpGet,
+        url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
+    };
+
+    let rad_request = RADRequest {
+        retrieve: vec![rad_retrieve.clone(), rad_retrieve],
+        deliver: vec![rad_deliver_1, rad_deliver_2],
+        ..RADRequest::default()
+    };
+    let data_request_output = Output::DataRequest(DataRequestOutput {
+        data_request: rad_request,
+        ..DataRequestOutput::default()
+    });
+    let commit_output = Output::Commit(CommitOutput::default());
+    let reveal_output = Output::Reveal(RevealOutput::default());
+    let consensus_output = Output::Tally(TallyOutput::default());
+
+    let inputs = vec![commit_input, data_request_input, reveal_input];
+    let outputs = vec![
+        value_transfer_output,
+        data_request_output,
+        commit_output,
+        reveal_output,
+        consensus_output,
+    ];
+
+    Transaction::new(TransactionBody::new(0, inputs, outputs), keyed_signature)
+}
+
+pub fn block_example() -> Block {
+    let block_header = BlockHeader::default();
+    let proof = LeadershipProof::default();
+
+    let txns: Vec<Transaction> = vec![transaction_example()];
+
+    Block {
+        block_header,
+        proof,
+        txns,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_block_hashable_trait() {
-        let block_header = BlockHeader {
-            version: 0,
-            beacon: CheckpointBeacon {
-                checkpoint: 0,
-                hash_prev_block: Hash::default(),
-            },
-            hash_merkle_root: Hash::default(),
-        };
-        let signature = Signature::Secp256k1(Secp256k1Signature::default());
-        let proof = LeadershipProof {
-            block_sig: KeyedSignature {
-                public_key: PublicKey::default(),
-                signature: signature.clone(),
-            },
-        };
-        let keyed_signatures = vec![KeyedSignature {
-            public_key: PublicKey::default(),
-            signature,
-        }];
-        let commit_input = Input::Commit(CommitInput {
-            nonce: 0,
-            output_index: 0,
-            transaction_id: Hash::default(),
-        });
-        let reveal_input = Input::Reveal(RevealInput {
-            output_index: 0,
-            transaction_id: Hash::default(),
-        });
-        let data_request_input = Input::DataRequest(DataRequestInput {
-            output_index: 0,
-            poe: [0; 32],
-            transaction_id: Hash::default(),
-        });
-        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-            pkh: [0; 20],
-            value: 0,
-        });
-
-        let rad_aggregate = RADAggregate { script: vec![0] };
-
-        let rad_retrieve_1 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_retrieve_2 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_consensus = RADConsensus { script: vec![0] };
-
-        let rad_deliver_1 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-        };
-
-        let rad_deliver_2 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-        };
-
-        let rad_request = RADRequest {
-            aggregate: rad_aggregate,
-            not_before: 0,
-            retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-            consensus: rad_consensus,
-            deliver: vec![rad_deliver_1, rad_deliver_2],
-        };
-
-        let data_request_output = Output::DataRequest(DataRequestOutput {
-            backup_witnesses: 0,
-            commit_fee: 0,
-            data_request: rad_request,
-            pkh: [0; 20],
-            reveal_fee: 0,
-            tally_fee: 0,
-            time_lock: 0,
-            value: 0,
-            witnesses: 0,
-        });
-        let commit_output = Output::Commit(CommitOutput {
-            commitment: Hash::default(),
-            value: 0,
-        });
-        let reveal_output = Output::Reveal(RevealOutput {
-            pkh: [0; 20],
-            reveal: [0; 32].to_vec(),
-            value: 0,
-        });
-        let consensus_output = Output::Tally(TallyOutput {
-            pkh: [0; 20],
-            result: vec![0],
-            value: 0,
-        });
-        let inputs = vec![commit_input, data_request_input, reveal_input];
-        let outputs = vec![
-            value_transfer_output,
-            data_request_output,
-            commit_output,
-            reveal_output,
-            consensus_output,
-        ];
-        let txns: Vec<Transaction> = vec![Transaction {
-            body: TransactionBody::new(0, inputs, outputs),
-            signatures: keyed_signatures,
-        }];
-        let block = Block {
-            block_header,
-            proof,
-            txns,
-        };
+        let block = block_example();
         let expected = "41d36ff16318f17350b0f0a74afb907bda00b89035d12ccede8ca404a4afb1c0";
         assert_eq!(block.hash().to_string(), expected);
     }
 
     #[test]
     fn test_transaction_hashable_trait() {
-        let signature = Signature::Secp256k1(Secp256k1Signature::default());
-        let signatures = vec![KeyedSignature {
-            public_key: PublicKey::default(),
-            signature,
-        }];
-        let commit_input = Input::Commit(CommitInput {
-            nonce: 0,
-            output_index: 0,
-            transaction_id: Hash::default(),
-        });
-        let reveal_input = Input::Reveal(RevealInput {
-            output_index: 0,
-            transaction_id: Hash::default(),
-        });
-        let data_request_input = Input::DataRequest(DataRequestInput {
-            output_index: 0,
-            poe: [0; 32],
-            transaction_id: Hash::default(),
-        });
-        let value_transfer_output = Output::ValueTransfer(ValueTransferOutput {
-            pkh: [0; 20],
-            value: 0,
-        });
-
-        let rad_aggregate = RADAggregate { script: vec![0] };
-
-        let rad_retrieve_1 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_retrieve_2 = RADRetrieve {
-            kind: RADType::HttpGet,
-            url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
-            script: vec![0],
-        };
-
-        let rad_consensus = RADConsensus { script: vec![0] };
-        let rad_deliver_1 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-        };
-
-        let rad_deliver_2 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-        };
-
-        let rad_request = RADRequest {
-            aggregate: rad_aggregate,
-            not_before: 0,
-            retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-            consensus: rad_consensus,
-            deliver: vec![rad_deliver_1, rad_deliver_2],
-        };
-        let data_request_output = Output::DataRequest(DataRequestOutput {
-            backup_witnesses: 0,
-            commit_fee: 0,
-            data_request: rad_request,
-            pkh: [0; 20],
-            reveal_fee: 0,
-            tally_fee: 0,
-            time_lock: 0,
-            value: 0,
-            witnesses: 0,
-        });
-        let commit_output = Output::Commit(CommitOutput {
-            commitment: Hash::default(),
-            value: 0,
-        });
-        let reveal_output = Output::Reveal(RevealOutput {
-            pkh: [0; 20],
-            reveal: [0; 32].to_vec(),
-            value: 0,
-        });
-        let consensus_output = Output::Tally(TallyOutput {
-            pkh: [0; 20],
-            result: [0; 32].to_vec(),
-            value: 0,
-        });
-        let inputs = vec![commit_input, data_request_input, reveal_input];
-        let outputs = vec![
-            value_transfer_output,
-            data_request_output,
-            commit_output,
-            reveal_output,
-            consensus_output,
-        ];
-        let transaction_body = TransactionBody::new(0, inputs, outputs);
-        let transaction = Transaction::new(transaction_body.clone(), signatures);
-        let expected = "2ba55d09b0196a302c8cc65465e03bfc043bbcc0a94e2141d6f2579e6b290ed6";
+        let transaction = transaction_example();
+        let expected = "e8923072df4613294778ba071171e7fcf88368e98aa05a5d9a165dd87cb2bc52";
 
         // Signatures don't affect the hash of a transaction (SegWit style), thus both must be equal
-        assert_eq!(transaction_body.hash().to_string(), expected);
+        assert_eq!(transaction.body.hash().to_string(), expected);
         assert_eq!(transaction.hash().to_string(), expected);
     }
 
