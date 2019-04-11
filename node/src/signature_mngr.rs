@@ -68,6 +68,7 @@ impl SignatureManager {
     fn set_key(&mut self, key: SK) {
         let public_key = PK::from_secret_key(&SignContext::signing_only(), &key);
         self.keypair = Some((key, public_key));
+        log::debug!("Signature Manager received a key and is ready to sign");
     }
 }
 
@@ -120,8 +121,8 @@ impl Actor for SignatureManager {
             })
             .map_err(|e| log::error!("Couldn't initialize Signature Manager: {}", e))
             .into_actor(self)
-            .map(|secret_key, _, ctx| {
-                ctx.notify(SetKey(secret_key));
+            .map(|secret_key, act, _ctx| {
+                act.set_key(secret_key);
             })
             .wait(ctx);
     }
@@ -148,8 +149,6 @@ impl Handler<SetKey> for SignatureManager {
 
     fn handle(&mut self, SetKey(secret_key): SetKey, _ctx: &mut Self::Context) -> Self::Result {
         self.set_key(secret_key);
-
-        log::info!("Signature Manager received a key and is ready to sign");
 
         Ok(())
     }
