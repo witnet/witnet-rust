@@ -7,11 +7,12 @@ use witnet_crypto::{
 use std::collections::HashMap;
 use witnet_data_structures::{
     chain::{
-        Block, BlockError, BlockInChain, CheckpointBeacon, Epoch, Hash, Hashable, Input,
-        KeyedSignature, Output, OutputPointer, RADRequest, Transaction, TransactionBody,
-        TransactionError, TransactionType, TransactionsPool, UnspentOutputsPool,
+        Block, BlockInChain, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature,
+        Output, OutputPointer, RADRequest, Transaction, TransactionBody, TransactionType,
+        TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
+    error::{BlockError, TransactionError},
     serializers::decoders::{TryFrom, TryInto},
 };
 

@@ -9,12 +9,9 @@ use std::{
 use actix::{actors::resolver::ResolverError, dev::ToEnvelope, Actor, Addr, Handler, Message};
 use tokio::net::TcpStream;
 
-use witnet_data_structures::{
-    chain::{
-        Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, InventoryItem, RADConsensus,
-        RADRequest, Transaction,
-    },
-    error::ChainInfoResult,
+use witnet_data_structures::chain::{
+    Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, InventoryItem, RADConsensus, RADRequest,
+    Transaction,
 };
 use witnet_p2p::{
     peers::error::PeersResult,
@@ -43,7 +40,7 @@ pub type SessionUnitResult = ();
 pub struct GetHighestCheckpointBeacon;
 
 impl Message for GetHighestCheckpointBeacon {
-    type Result = ChainInfoResult<CheckpointBeacon>;
+    type Result = Result<CheckpointBeacon, failure::Error>;
 }
 
 /// Add a new block

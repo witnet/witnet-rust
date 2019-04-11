@@ -3,16 +3,15 @@ use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
-use witnet_util::error::WitnetError;
 use witnet_util::timestamp::get_timestamp;
 
-use crate::chain::{
-    Block, BlockHeader, CheckpointBeacon, InventoryEntry, LeadershipProof, Transaction,
-};
-use crate::error::{BuildersError, BuildersErrorKind, BuildersResult};
-use crate::types::{
-    Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress, LastBeacon,
-    Message, Peers, Ping, Pong, Verack, Version,
+use super::{
+    chain::{Block, BlockHeader, CheckpointBeacon, InventoryEntry, LeadershipProof, Transaction},
+    error::BuildersError,
+    types::{
+        Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress, LastBeacon,
+        Message, Peers, Ping, Pong, Verack, Version,
+    },
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -29,15 +28,6 @@ pub const USER_AGENT: &str = "full-node-desktop-edition";
 
 /// Genesis block
 pub const GENESIS: u64 = 0x0123_4567_89AB_CDEF;
-
-////////////////////////////////////////////////////////////////////////////////////////
-// ERROR MESSAGES
-////////////////////////////////////////////////////////////////////////////////////////
-/// Error message when trying to create an Inv message
-const BUILD_INV_ERR_MSG: &str = "No inventory vectors to be added to Inv";
-
-/// Error message when trying to create a GetData message
-const BUILD_GET_DATA_ERR_MSG: &str = "No inventory vectors to be added to GetData";
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // BUILDER PUBLIC FUNCTIONS
@@ -110,13 +100,10 @@ impl Message {
     pub fn build_inventory_announcement(
         magic: u16,
         inv_entries: Vec<InventoryEntry>,
-    ) -> BuildersResult<Message> {
+    ) -> Result<Message, failure::Error> {
         // Check there are some inventory vectors to be added to the message
         if inv_entries.is_empty() {
-            return Err(WitnetError::from(BuildersError::new(
-                BuildersErrorKind::NoInvVectors,
-                BUILD_INV_ERR_MSG.to_string(),
-            )));
+            Err(BuildersError::NoInvVectorsAnnouncement)?
         }
 
         // Build the message
@@ -132,13 +119,10 @@ impl Message {
     pub fn build_inventory_request(
         magic: u16,
         inv_entries: Vec<InventoryEntry>,
-    ) -> BuildersResult<Message> {
+    ) -> Result<Message, failure::Error> {
         // Check there are some inventory vectors to be added to the message
         if inv_entries.is_empty() {
-            return Err(WitnetError::from(BuildersError::new(
-                BuildersErrorKind::NoInvVectors,
-                BUILD_GET_DATA_ERR_MSG.to_string(),
-            )));
+            Err(BuildersError::NoInvVectorsRequest)?
         }
 
         // Build the message

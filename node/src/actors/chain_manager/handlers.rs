@@ -3,19 +3,22 @@ use log::{debug, error, warn};
 
 use witnet_data_structures::{
     chain::{CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem},
-    error::{ChainInfoError, ChainInfoErrorKind, ChainInfoResult},
+    error::ChainInfoError,
 };
-use witnet_util::error::WitnetError;
 use witnet_validations::validations::validate_block;
 
 use super::{ChainManager, ChainManagerError, StateMachine};
-use crate::actors::messages::{
-    AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, EpochNotification,
-    GetBlocksEpochRange, GetHighestCheckpointBeacon, PeersBeacons, SendLastBeacon,
-    SessionUnitResult,
+use crate::{
+    actors::{
+        messages::{
+            AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, EpochNotification,
+            GetBlocksEpochRange, GetHighestCheckpointBeacon, PeersBeacons, SendLastBeacon,
+            SessionUnitResult,
+        },
+        sessions_manager::SessionsManager,
+    },
+    utils::mode_consensus,
 };
-use crate::actors::sessions_manager::SessionsManager;
-use crate::utils::mode_consensus;
 use std::collections::HashMap;
 use witnet_validations::validations::validate_transaction;
 
@@ -166,7 +169,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
 /// Handler for GetHighestBlockCheckpoint message
 impl Handler<GetHighestCheckpointBeacon> for ChainManager {
-    type Result = ChainInfoResult<CheckpointBeacon>;
+    type Result = Result<CheckpointBeacon, failure::Error>;
 
     fn handle(
         &mut self,
@@ -177,10 +180,7 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
             Ok(chain_info.highest_block_checkpoint)
         } else {
             error!("No ChainInfo loaded in ChainManager");
-            Err(WitnetError::from(ChainInfoError::new(
-                ChainInfoErrorKind::ChainInfoNotFound,
-                "No ChainInfo loaded in ChainManager".to_string(),
-            )))
+            Err(ChainInfoError::ChainInfoNotFound)?
         }
     }
 }
