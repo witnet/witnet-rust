@@ -34,7 +34,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../../assets/images/favicon.ico">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.1.0">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
     
     
       
@@ -42,7 +42,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/application.11e41852.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/application.451f80e5.css">
       
         <link rel="stylesheet" href="../../assets/stylesheets/application-palette.22915126.css">
       
@@ -53,7 +53,7 @@
       
     
     
-      <script src="../../assets/javascripts/modernizr.20ef595d.js"></script>
+      <script src="../../assets/javascripts/modernizr.1aa3b519.js"></script>
     
     
       
@@ -63,7 +63,6 @@
       
     
     <link rel="stylesheet" href="../../assets/fonts/material-icons.css">
-    
     
     
   </head>
@@ -101,7 +100,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="#command-line-interface-cli" tabindex="1" class="md-skip">
+      <a href="../../#command-line-interface-cli" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -368,6 +367,18 @@
   <li class="md-nav__item">
     <a href="../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
       From source code
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../get-started/installation/cross-compilation/" title="Cross compilation" class="md-nav__link">
+      Cross compilation
     </a>
   </li>
 
@@ -1462,8 +1473,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#getoutput" title="getOutput" class="md-nav__link">
-    getOutput
+  <a href="#getblock" title="getBlock" class="md-nav__link">
+    getBlock
   </a>
   
     <nav class="md-nav">
@@ -1486,6 +1497,46 @@
         
           <li class="md-nav__item">
   <a href="#response" title="Response" class="md-nav__link">
+    Response
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getoutput" title="getOutput" class="md-nav__link">
+    getOutput
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example_1" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#request_1" title="Request" class="md-nav__link">
+    Request
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response_1" title="Response" class="md-nav__link">
     Response
   </a>
   
@@ -1530,6 +1581,18 @@
   <li class="md-nav__item">
     <a href="../json-rpc/" title="JSON-RPC" class="md-nav__link">
       JSON-RPC
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../pub-sub/" title="Pub/Sub API" class="md-nav__link">
+      Pub/Sub API
     </a>
   </li>
 
@@ -1758,8 +1821,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#getoutput" title="getOutput" class="md-nav__link">
-    getOutput
+  <a href="#getblock" title="getBlock" class="md-nav__link">
+    getBlock
   </a>
   
     <nav class="md-nav">
@@ -1782,6 +1845,46 @@
         
           <li class="md-nav__item">
   <a href="#response" title="Response" class="md-nav__link">
+    Response
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getoutput" title="getOutput" class="md-nav__link">
+    getOutput
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example_1" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#request_1" title="Request" class="md-nav__link">
+    Request
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response_1" title="Response" class="md-nav__link">
     Response
   </a>
   
@@ -1901,6 +2004,21 @@ For instance, to get the block for the last epoch:</p>
 <div class="codehilite"><pre><span></span>$ witnet cli getBlockChain -c witnet_01.toml -1
 </pre></div>
 
+<h4 id="getblock">getBlock<a class="headerlink" href="#getblock" title="Permanent link">&para;</a></h4>
+<p>Returns the block that matches the provided hash.</p>
+<div class="codehilite"><pre><span></span>$ witnet cli getBlock &lt;hash&gt;
+</pre></div>
+
+<p>The hash of the block should be provided as a hexadecimal string.</p>
+<h5 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h5>
+<h6 id="request">Request<a class="headerlink" href="#request" title="Permanent link">&para;</a></h6>
+<div class="codehilite"><pre><span></span>$ witnet cli getBlock 2dca073973d87dba3beec0ac5a4aeef22ae97d310cbcd6694d0197b292347d71
+</pre></div>
+
+<h6 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h6>
+<div class="codehilite"><pre><span></span><span class="p">{</span><span class="s2">&quot;jsonrpc&quot;</span><span class="o">:</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span><span class="s2">&quot;result&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;block_header&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;beacon&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;checkpoint&quot;</span><span class="o">:</span><span class="mi">279313</span><span class="p">,</span><span class="s2">&quot;hash_prev_block&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;SHA256&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">72</span><span class="p">,</span><span class="mi">57</span><span class="p">,</span><span class="mi">249</span><span class="p">,</span><span class="mi">156</span><span class="p">,</span><span class="mi">218</span><span class="p">,</span><span class="mi">72</span><span class="p">,</span><span class="mi">75</span><span class="p">,</span><span class="mi">103</span><span class="p">,</span><span class="mi">227</span><span class="p">,</span><span class="mi">231</span><span class="p">,</span><span class="mi">101</span><span class="p">,</span><span class="mi">175</span><span class="p">,</span><span class="mi">220</span><span class="p">,</span><span class="mi">170</span><span class="p">,</span><span class="mi">167</span><span class="p">,</span><span class="mi">221</span><span class="p">,</span><span class="mi">26</span><span class="p">,</span><span class="mi">113</span><span class="p">,</span><span class="mi">75</span><span class="p">,</span><span class="mi">32</span><span class="p">,</span><span class="mi">38</span><span class="p">,</span><span class="mi">46</span><span class="p">,</span><span class="mi">116</span><span class="p">,</span><span class="mi">180</span><span class="p">,</span><span class="mi">119</span><span class="p">,</span><span class="mi">254</span><span class="p">,</span><span class="mi">66</span><span class="p">,</span><span class="mi">83</span><span class="p">,</span><span class="mi">239</span><span class="p">,</span><span class="mi">73</span><span class="p">,</span><span class="mi">45</span><span class="p">,</span><span class="mi">186</span><span class="p">]}},</span><span class="s2">&quot;hash_merkle_root&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;SHA256&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">213</span><span class="p">,</span><span class="mi">120</span><span class="p">,</span><span class="mi">146</span><span class="p">,</span><span class="mi">54</span><span class="p">,</span><span class="mi">165</span><span class="p">,</span><span class="mi">218</span><span class="p">,</span><span class="mi">119</span><span class="p">,</span><span class="mi">82</span><span class="p">,</span><span class="mi">142</span><span class="p">,</span><span class="mi">198</span><span class="p">,</span><span class="mi">232</span><span class="p">,</span><span class="mi">156</span><span class="p">,</span><span class="mi">45</span><span class="p">,</span><span class="mi">174</span><span class="p">,</span><span class="mi">34</span><span class="p">,</span><span class="mi">203</span><span class="p">,</span><span class="mi">107</span><span class="p">,</span><span class="mi">87</span><span class="p">,</span><span class="mi">171</span><span class="p">,</span><span class="mi">204</span><span class="p">,</span><span class="mi">108</span><span class="p">,</span><span class="mi">233</span><span class="p">,</span><span class="mi">223</span><span class="p">,</span><span class="mi">198</span><span class="p">,</span><span class="mi">186</span><span class="p">,</span><span class="mi">218</span><span class="p">,</span><span class="mi">93</span><span class="p">,</span><span class="mi">102</span><span class="p">,</span><span class="mi">190</span><span class="p">,</span><span class="mi">186</span><span class="p">,</span><span class="mi">216</span><span class="p">,</span><span class="mi">27</span><span class="p">]},</span><span class="s2">&quot;version&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">},</span><span class="s2">&quot;proof&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;block_sig&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;Secp256k1&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;r&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">110</span><span class="p">,</span><span class="mi">242</span><span class="p">,</span><span class="mi">206</span><span class="p">,</span><span class="mi">28</span><span class="p">,</span><span class="mi">113</span><span class="p">,</span><span class="mi">89</span><span class="p">,</span><span class="mi">70</span><span class="p">,</span><span class="mi">255</span><span class="p">,</span><span class="mi">14</span><span class="p">,</span><span class="mi">223</span><span class="p">,</span><span class="mi">109</span><span class="p">,</span><span class="mi">187</span><span class="p">,</span><span class="mi">94</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">137</span><span class="p">,</span><span class="mi">221</span><span class="p">,</span><span class="mi">79</span><span class="p">,</span><span class="mi">193</span><span class="p">,</span><span class="mi">56</span><span class="p">,</span><span class="mi">184</span><span class="p">,</span><span class="mi">116</span><span class="p">,</span><span class="mi">142</span><span class="p">,</span><span class="mi">84</span><span class="p">,</span><span class="mi">146</span><span class="p">,</span><span class="mi">185</span><span class="p">,</span><span class="mi">143</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">66</span><span class="p">,</span><span class="mi">145</span><span class="p">,</span><span class="mi">26</span><span class="p">,</span><span class="mi">126</span><span class="p">,</span><span class="mi">58</span><span class="p">],</span><span class="s2">&quot;s&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">110</span><span class="p">,</span><span class="mi">242</span><span class="p">,</span><span class="mi">206</span><span class="p">,</span><span class="mi">28</span><span class="p">,</span><span class="mi">113</span><span class="p">,</span><span class="mi">89</span><span class="p">,</span><span class="mi">70</span><span class="p">,</span><span class="mi">255</span><span class="p">,</span><span class="mi">14</span><span class="p">,</span><span class="mi">223</span><span class="p">,</span><span class="mi">109</span><span class="p">,</span><span class="mi">187</span><span class="p">,</span><span class="mi">94</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">137</span><span class="p">,</span><span class="mi">221</span><span class="p">,</span><span class="mi">79</span><span class="p">,</span><span class="mi">193</span><span class="p">,</span><span class="mi">56</span><span class="p">,</span><span class="mi">184</span><span class="p">,</span><span class="mi">116</span><span class="p">,</span><span class="mi">142</span><span class="p">,</span><span class="mi">84</span><span class="p">,</span><span class="mi">146</span><span class="p">,</span><span class="mi">185</span><span class="p">,</span><span class="mi">143</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">66</span><span class="p">,</span><span class="mi">145</span><span class="p">,</span><span class="mi">26</span><span class="p">,</span><span class="mi">126</span><span class="p">,</span><span class="mi">58</span><span class="p">],</span><span class="s2">&quot;v&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">}},</span><span class="s2">&quot;influence&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">},</span><span class="s2">&quot;txns&quot;</span><span class="o">:</span><span class="p">[{</span><span class="s2">&quot;inputs&quot;</span><span class="o">:</span><span class="p">[],</span><span class="s2">&quot;outputs&quot;</span><span class="o">:</span><span class="p">[{</span><span class="s2">&quot;ValueTransfer&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;pkh&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span><span class="s2">&quot;value&quot;</span><span class="o">:</span><span class="mi">50000000000</span><span class="p">}}],</span><span class="s2">&quot;signatures&quot;</span><span class="o">:</span><span class="p">[],</span><span class="s2">&quot;version&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">}]},</span><span class="s2">&quot;id&quot;</span><span class="o">:</span><span class="s2">&quot;1&quot;</span><span class="p">}</span>
+</pre></div>
+
 <h4 id="getoutput">getOutput<a class="headerlink" href="#getoutput" title="Permanent link">&para;</a></h4>
 <p>Returns the output of the transaction that matches the provided output pointer.</p>
 <div class="codehilite"><pre><span></span>$ witnet cli getOutput &lt;output pointer&gt;
@@ -1911,12 +2029,12 @@ For instance, to get the block for the last epoch:</p>
 <li><code class="codehilite">transaction id</code>: Is the 32 hex digits of the transaction id</li>
 <li><code class="codehilite">output index</code>: Is a number identifying the index of the output in the transaction</li>
 </ul>
-<h5 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h5>
-<h6 id="request">Request<a class="headerlink" href="#request" title="Permanent link">&para;</a></h6>
+<h5 id="example_1">Example<a class="headerlink" href="#example_1" title="Permanent link">&para;</a></h5>
+<h6 id="request_1">Request<a class="headerlink" href="#request_1" title="Permanent link">&para;</a></h6>
 <div class="codehilite"><pre><span></span>$ witnet cli getOutput 1234567890abcdef111111111111111111111111111111111111111111111111:1
 </pre></div>
 
-<h6 id="response">Response<a class="headerlink" href="#response" title="Permanent link">&para;</a></h6>
+<h6 id="response_1">Response<a class="headerlink" href="#response_1" title="Permanent link">&para;</a></h6>
 <div class="codehilite"><pre><span></span><span class="p">{</span><span class="s2">&quot;jsonrpc&quot;</span><span class="o">:</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span><span class="s2">&quot;result&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;DataRequest&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;backup_witnesses&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;commit_fee&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;data_request&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;aggregate&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;script&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">0</span><span class="p">]},</span><span class="s2">&quot;consensus&quot;</span><span class="o">:</span><span class="p">{</span><span class="s2">&quot;script&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">0</span><span class="p">]},</span><span class="s2">&quot;deliver&quot;</span><span class="o">:</span><span class="p">[{</span><span class="s2">&quot;kind&quot;</span><span class="o">:</span><span class="s2">&quot;HTTP-GET&quot;</span><span class="p">,</span><span class="s2">&quot;url&quot;</span><span class="o">:</span><span class="s2">&quot;https://hooks.zapier.com/hooks/catch/3860543/l2awcd/&quot;</span><span class="p">}],</span><span class="s2">&quot;not_before&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;retrieve&quot;</span><span class="o">:</span><span class="p">[{</span><span class="s2">&quot;kind&quot;</span><span class="o">:</span><span class="s2">&quot;HTTP-GET&quot;</span><span class="p">,</span><span class="s2">&quot;script&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="s2">&quot;url&quot;</span><span class="o">:</span><span class="s2">&quot;https://openweathermap.org/data/2.5/weather?id=2950159&amp;appid=b6907d289e10d714a6e88b30761fae22&quot;</span><span class="p">}]},</span><span class="s2">&quot;pkh&quot;</span><span class="o">:</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span><span class="s2">&quot;reveal_fee&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;tally_fee&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;time_lock&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;value&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&quot;witnesses&quot;</span><span class="o">:</span><span class="mi">0</span><span class="p">}},</span><span class="s2">&quot;id&quot;</span><span class="o">:</span><span class="s2">&quot;1&quot;</span><span class="p">}</span>
 </pre></div>
                 
@@ -2005,7 +2123,7 @@ For instance, to get the block for the last epoch:</p>
       
     </div>
     
-      <script src="../../assets/javascripts/application.9e1f3b71.js"></script>
+      <script src="../../assets/javascripts/application.583bbe55.js"></script>
       
       <script>app.initialize({version:"1.0.4",url:{base:"../.."}})</script>
       

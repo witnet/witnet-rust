@@ -11,7 +11,7 @@
       <meta http-equiv="x-ua-compatible" content="ie=edge">
       
       
-        <link rel="canonical" href="https://docs.witnet.io/configuration/cli/">
+        <link rel="canonical" href="https://docs.witnet.io/interface/pub-sub/">
       
       
       
@@ -38,7 +38,7 @@
     
     
       
-        <title>Command Line Interface (CLI) - Witnet-rust Documentation</title>
+        <title>Pub/Sub API - Witnet-rust Documentation</title>
       
     
     
@@ -100,7 +100,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="../../#configuration-params-in-cli" tabindex="1" class="md-skip">
+      <a href="../../#publishsubscribe-api" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -126,7 +126,7 @@
                 Witnet-rust Documentation
               </span>
               <span class="md-header-nav__topic">
-                Command Line Interface (CLI)
+                Pub/Sub API
               </span>
             
           
@@ -1393,10 +1393,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
     
     <label class="md-nav__link" for="nav-5">
       Interface
@@ -1414,7 +1416,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../interface/cli/" title="Command Line Interface (CLI)" class="md-nav__link">
+    <a href="../cli/" title="Command Line Interface (CLI)" class="md-nav__link">
       Command Line Interface (CLI)
     </a>
   </li>
@@ -1426,7 +1428,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../interface/json-rpc/" title="JSON-RPC" class="md-nav__link">
+    <a href="../json-rpc/" title="JSON-RPC" class="md-nav__link">
       JSON-RPC
     </a>
   </li>
@@ -1436,11 +1438,177 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../../interface/pub-sub/" title="Pub/Sub API" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Pub/Sub API
+      </label>
+    
+    <a href="./" title="Pub/Sub API" class="md-nav__link md-nav__link--active">
       Pub/Sub API
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#methods" title="Methods" class="md-nav__link">
+    Methods
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#witnet_subscribe" title="witnet_subscribe" class="md-nav__link">
+    witnet_subscribe
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameters" title="Parameters" class="md-nav__link">
+    Parameters
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returns" title="Returns" class="md-nav__link">
+    Returns
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#witnet_unsubscribe" title="witnet_unsubscribe" class="md-nav__link">
+    witnet_unsubscribe
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameters_1" title="Parameters" class="md-nav__link">
+    Parameters
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returns_1" title="Returns" class="md-nav__link">
+    Returns
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_1" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subscriptions" title="Subscriptions" class="md-nav__link">
+    Subscriptions
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#newblocks" title="newBlocks" class="md-nav__link">
+    newBlocks
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameters_2" title="Parameters" class="md-nav__link">
+    Parameters
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returns_2" title="Returns" class="md-nav__link">
+    Returns
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_2" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -1450,7 +1618,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../interface/wallet/" title="Wallet" class="md-nav__link">
+    <a href="../wallet/" title="Wallet" class="md-nav__link">
       Wallet
     </a>
   </li>
@@ -1549,12 +1717,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-10" type="checkbox" id="nav-10" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-10" type="checkbox" id="nav-10">
     
     <label class="md-nav__link" for="nav-10">
       Configuration
@@ -1572,7 +1738,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../toml-file/" title="Custom toml file" class="md-nav__link">
+    <a href="../../configuration/toml-file/" title="Custom toml file" class="md-nav__link">
       Custom toml file
     </a>
   </li>
@@ -1582,20 +1748,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-    
-      
-    
-    
-    <a href="./" title="Command Line Interface (CLI)" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../../configuration/cli/" title="Command Line Interface (CLI)" class="md-nav__link">
       Command Line Interface (CLI)
     </a>
-    
   </li>
 
         
@@ -1605,7 +1762,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../environment/" title="Environment defaults" class="md-nav__link">
+    <a href="../../configuration/environment/" title="Environment defaults" class="md-nav__link">
       Environment defaults
     </a>
   </li>
@@ -1645,6 +1802,150 @@
     
   
   
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#methods" title="Methods" class="md-nav__link">
+    Methods
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#witnet_subscribe" title="witnet_subscribe" class="md-nav__link">
+    witnet_subscribe
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameters" title="Parameters" class="md-nav__link">
+    Parameters
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returns" title="Returns" class="md-nav__link">
+    Returns
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#witnet_unsubscribe" title="witnet_unsubscribe" class="md-nav__link">
+    witnet_unsubscribe
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameters_1" title="Parameters" class="md-nav__link">
+    Parameters
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returns_1" title="Returns" class="md-nav__link">
+    Returns
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_1" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subscriptions" title="Subscriptions" class="md-nav__link">
+    Subscriptions
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#newblocks" title="newBlocks" class="md-nav__link">
+    newBlocks
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameters_2" title="Parameters" class="md-nav__link">
+    Parameters
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returns_2" title="Returns" class="md-nav__link">
+    Returns
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_2" title="Example" class="md-nav__link">
+    Example
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1655,11 +1956,63 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/configuration/cli.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/interface/pub-sub.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="configuration-params-in-cli">Configuration params in CLI<a class="headerlink" href="#configuration-params-in-cli" title="Permanent link">&para;</a></h1>
-<p>When running the node, you can specify which configuration file to load using the command line option <code class="codehilite">-c</code> or <code class="codehilite">--config</code>. See the help (<code class="codehilite">--help</code>) for more information.</p>
+                <h1 id="publishsubscribe-api">Publish/Subscribe API<a class="headerlink" href="#publishsubscribe-api" title="Permanent link">&para;</a></h1>
+<p>The Witnet JSON-RPC API has support for subscriptions to certain events.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>Example: subscribe to new blocks. The client will get a notification every
+time a new block is consolidated.</p>
+<h2 id="methods">Methods<a class="headerlink" href="#methods" title="Permanent link">&para;</a></h2>
+<h3 id="witnet_subscribe">witnet_subscribe<a class="headerlink" href="#witnet_subscribe" title="Permanent link">&para;</a></h3>
+<p>Used to add new subscriptions.</p>
+<h4 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Permanent link">&para;</a></h4>
+<p><code class="codehilite">witnet_subscribe</code> expects an array:</p>
+<p><code class="codehilite">[methodName, methodParams]</code></p>
+<p><code class="codehilite">methodName</code> must be a string.</p>
+<p><code class="codehilite">methodParams</code> is optional, as some subscriptions don't accept any parameters.
+It must be either an object, an array, or null, depending on <code class="codehilite">methodName</code>.</p>
+<h4 id="returns">Returns<a class="headerlink" href="#returns" title="Permanent link">&para;</a></h4>
+<p>On success returns a string, the <code class="codehilite">subscriptionId</code>.</p>
+<h4 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h4>
+<p>Request: subscribe to new blocks.</p>
+<div class="codehilite"><pre><span></span><span class="p">{</span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="s2">&quot;witnet_subscribe&quot;</span><span class="p">,</span><span class="nt">&quot;params&quot;</span><span class="p">:[</span><span class="s2">&quot;newBlocks&quot;</span><span class="p">],</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="s2">&quot;1&quot;</span><span class="p">}</span>
+</pre></div>
+
+<p>Response: subscription id "9876"</p>
+<div class="codehilite"><pre><span></span><span class="p">{</span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span><span class="nt">&quot;result&quot;</span><span class="p">:</span><span class="s2">&quot;9876&quot;</span><span class="p">,</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="s2">&quot;1&quot;</span><span class="p">}</span>
+</pre></div>
+
+<h3 id="witnet_unsubscribe">witnet_unsubscribe<a class="headerlink" href="#witnet_unsubscribe" title="Permanent link">&para;</a></h3>
+<p>Used to remove subscriptions.</p>
+<h4 id="parameters_1">Parameters<a class="headerlink" href="#parameters_1" title="Permanent link">&para;</a></h4>
+<p><code class="codehilite">witnet_unsubscribe</code> expects a one-element array:</p>
+<p><code class="codehilite">[subscriptionId]</code></p>
+<p>Where <code class="codehilite">subscriptionId</code> is a string, previously returned by the
+<code class="codehilite">witnet_subscribe</code> method.</p>
+<h4 id="returns_1">Returns<a class="headerlink" href="#returns_1" title="Permanent link">&para;</a></h4>
+<p><code class="codehilite">true</code> on success, <code class="codehilite">false</code> if the subscription id does not exist.</p>
+<h4 id="example_1">Example<a class="headerlink" href="#example_1" title="Permanent link">&para;</a></h4>
+<p>Request: unsubscribe from subscription id "9876"</p>
+<div class="codehilite"><pre><span></span><span class="p">{</span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="s2">&quot;witnet_unsubscribe&quot;</span><span class="p">,</span><span class="nt">&quot;params&quot;</span><span class="p">:[</span><span class="s2">&quot;9876&quot;</span><span class="p">],</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="mi">1</span><span class="p">}</span>
+</pre></div>
+
+<p>Response: success
+<div class="codehilite"><pre><span></span><span class="p">{</span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="nt">&quot;result&quot;</span><span class="p">:</span><span class="kc">true</span><span class="p">}</span>
+</pre></div></p>
+<h2 id="subscriptions">Subscriptions<a class="headerlink" href="#subscriptions" title="Permanent link">&para;</a></h2>
+<p>These are currently the available subscriptions.</p>
+<h3 id="newblocks">newBlocks<a class="headerlink" href="#newblocks" title="Permanent link">&para;</a></h3>
+<p>Receive a notification every time a block is consolidated.</p>
+<h4 id="parameters_2">Parameters<a class="headerlink" href="#parameters_2" title="Permanent link">&para;</a></h4>
+<p>None.</p>
+<h4 id="returns_2">Returns<a class="headerlink" href="#returns_2" title="Permanent link">&para;</a></h4>
+<p>A block.</p>
+<h4 id="example_2">Example<a class="headerlink" href="#example_2" title="Permanent link">&para;</a></h4>
+<p>Notification: a new block has been consolidated.</p>
+<div class="codehilite"><pre><span></span><span class="p">{</span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="s2">&quot;witnet_subscription&quot;</span><span class="p">,</span><span class="nt">&quot;params&quot;</span><span class="p">:{</span><span class="nt">&quot;result&quot;</span><span class="p">:{</span><span class="nt">&quot;block_header&quot;</span><span class="p">:{</span><span class="nt">&quot;beacon&quot;</span><span class="p">:{</span><span class="nt">&quot;checkpoint&quot;</span><span class="p">:</span><span class="mi">274297</span><span class="p">,</span><span class="nt">&quot;hash_prev_block&quot;</span><span class="p">:{</span><span class="nt">&quot;SHA256&quot;</span><span class="p">:[</span><span class="mi">147</span><span class="p">,</span><span class="mi">238</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">62</span><span class="p">,</span><span class="mi">34</span><span class="p">,</span><span class="mi">70</span><span class="p">,</span><span class="mi">88</span><span class="p">,</span><span class="mi">121</span><span class="p">,</span><span class="mi">107</span><span class="p">,</span><span class="mi">43</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">106</span><span class="p">,</span><span class="mi">167</span><span class="p">,</span><span class="mi">20</span><span class="p">,</span><span class="mi">108</span><span class="p">,</span><span class="mi">200</span><span class="p">,</span><span class="mi">207</span><span class="p">,</span><span class="mi">29</span><span class="p">,</span><span class="mi">183</span><span class="p">,</span><span class="mi">254</span><span class="p">,</span><span class="mi">26</span><span class="p">,</span><span class="mi">98</span><span class="p">,</span><span class="mi">89</span><span class="p">,</span><span class="mi">183</span><span class="p">,</span><span class="mi">233</span><span class="p">,</span><span class="mi">58</span><span class="p">,</span><span class="mi">76</span><span class="p">,</span><span class="mi">76</span><span class="p">,</span><span class="mi">20</span><span class="p">,</span><span class="mi">61</span><span class="p">,</span><span class="mi">47</span><span class="p">,</span><span class="mi">165</span><span class="p">]}},</span><span class="nt">&quot;hash_merkle_root&quot;</span><span class="p">:{</span><span class="nt">&quot;SHA256&quot;</span><span class="p">:[</span><span class="mi">213</span><span class="p">,</span><span class="mi">120</span><span class="p">,</span><span class="mi">146</span><span class="p">,</span><span class="mi">54</span><span class="p">,</span><span class="mi">165</span><span class="p">,</span><span class="mi">218</span><span class="p">,</span><span class="mi">119</span><span class="p">,</span><span class="mi">82</span><span class="p">,</span><span class="mi">142</span><span class="p">,</span><span class="mi">198</span><span class="p">,</span><span class="mi">232</span><span class="p">,</span><span class="mi">156</span><span class="p">,</span><span class="mi">45</span><span class="p">,</span><span class="mi">174</span><span class="p">,</span><span class="mi">34</span><span class="p">,</span><span class="mi">203</span><span class="p">,</span><span class="mi">107</span><span class="p">,</span><span class="mi">87</span><span class="p">,</span><span class="mi">171</span><span class="p">,</span><span class="mi">204</span><span class="p">,</span><span class="mi">108</span><span class="p">,</span><span class="mi">233</span><span class="p">,</span><span class="mi">223</span><span class="p">,</span><span class="mi">198</span><span class="p">,</span><span class="mi">186</span><span class="p">,</span><span class="mi">218</span><span class="p">,</span><span class="mi">93</span><span class="p">,</span><span class="mi">102</span><span class="p">,</span><span class="mi">190</span><span class="p">,</span><span class="mi">186</span><span class="p">,</span><span class="mi">216</span><span class="p">,</span><span class="mi">27</span><span class="p">]},</span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="mi">0</span><span class="p">},</span><span class="nt">&quot;proof&quot;</span><span class="p">:{</span><span class="nt">&quot;block_sig&quot;</span><span class="p">:{</span><span class="nt">&quot;Secp256k1&quot;</span><span class="p">:{</span><span class="nt">&quot;r&quot;</span><span class="p">:[</span><span class="mi">235</span><span class="p">,</span><span class="mi">115</span><span class="p">,</span><span class="mi">251</span><span class="p">,</span><span class="mi">78</span><span class="p">,</span><span class="mi">16</span><span class="p">,</span><span class="mi">196</span><span class="p">,</span><span class="mi">71</span><span class="p">,</span><span class="mi">30</span><span class="p">,</span><span class="mi">21</span><span class="p">,</span><span class="mi">236</span><span class="p">,</span><span class="mi">76</span><span class="p">,</span><span class="mi">153</span><span class="p">,</span><span class="mi">62</span><span class="p">,</span><span class="mi">165</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">59</span><span class="p">,</span><span class="mi">177</span><span class="p">,</span><span class="mi">159</span><span class="p">,</span><span class="mi">23</span><span class="p">,</span><span class="mi">82</span><span class="p">,</span><span class="mi">111</span><span class="p">,</span><span class="mi">42</span><span class="p">,</span><span class="mi">134</span><span class="p">,</span><span class="mi">242</span><span class="p">,</span><span class="mi">189</span><span class="p">,</span><span class="mi">83</span><span class="p">,</span><span class="mi">91</span><span class="p">,</span><span class="mi">212</span><span class="p">,</span><span class="mi">155</span><span class="p">,</span><span class="mi">97</span><span class="p">,</span><span class="mi">88</span><span class="p">,</span><span class="mi">57</span><span class="p">],</span><span class="nt">&quot;s&quot;</span><span class="p">:[</span><span class="mi">235</span><span class="p">,</span><span class="mi">115</span><span class="p">,</span><span class="mi">251</span><span class="p">,</span><span class="mi">78</span><span class="p">,</span><span class="mi">16</span><span class="p">,</span><span class="mi">196</span><span class="p">,</span><span class="mi">71</span><span class="p">,</span><span class="mi">30</span><span class="p">,</span><span class="mi">21</span><span class="p">,</span><span class="mi">236</span><span class="p">,</span><span class="mi">76</span><span class="p">,</span><span class="mi">153</span><span class="p">,</span><span class="mi">62</span><span class="p">,</span><span class="mi">165</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">59</span><span class="p">,</span><span class="mi">177</span><span class="p">,</span><span class="mi">159</span><span class="p">,</span><span class="mi">23</span><span class="p">,</span><span class="mi">82</span><span class="p">,</span><span class="mi">111</span><span class="p">,</span><span class="mi">42</span><span class="p">,</span><span class="mi">134</span><span class="p">,</span><span class="mi">242</span><span class="p">,</span><span class="mi">189</span><span class="p">,</span><span class="mi">83</span><span class="p">,</span><span class="mi">91</span><span class="p">,</span><span class="mi">212</span><span class="p">,</span><span class="mi">155</span><span class="p">,</span><span class="mi">97</span><span class="p">,</span><span class="mi">88</span><span class="p">,</span><span class="mi">57</span><span class="p">],</span><span class="nt">&quot;v&quot;</span><span class="p">:</span><span class="mi">0</span><span class="p">}},</span><span class="nt">&quot;influence&quot;</span><span class="p">:</span><span class="mi">0</span><span class="p">},</span><span class="nt">&quot;txns&quot;</span><span class="p">:[{</span><span class="nt">&quot;inputs&quot;</span><span class="p">:[],</span><span class="nt">&quot;outputs&quot;</span><span class="p">:[{</span><span class="nt">&quot;ValueTransfer&quot;</span><span class="p">:{</span><span class="nt">&quot;pkh&quot;</span><span class="p">:[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span><span class="nt">&quot;value&quot;</span><span class="p">:</span><span class="mi">50000000000</span><span class="p">}}],</span><span class="nt">&quot;signatures&quot;</span><span class="p">:[],</span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="mi">0</span><span class="p">}]},</span><span class="nt">&quot;subscription&quot;</span><span class="p">:</span><span class="s2">&quot;9876&quot;</span><span class="p">}}</span>
+</pre></div>
                 
                   
                 
@@ -1680,7 +2033,7 @@
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../toml-file/" title="Custom toml file" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../json-rpc/" title="JSON-RPC" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -1689,19 +2042,19 @@
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Custom toml file
+                JSON-RPC
               </span>
             </div>
           </a>
         
         
-          <a href="../environment/" title="Environment defaults" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../wallet/" title="Wallet" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Environment defaults
+                Wallet
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
