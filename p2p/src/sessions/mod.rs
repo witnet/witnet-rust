@@ -1,19 +1,13 @@
 //! Library for managing the node sessions, including outbound and inbound sessions
 
-/// Errors module
-pub mod error;
-
 /// Bounded sessions module
 pub mod bounded_sessions;
 
-use std::net::SocketAddr;
-use std::time::Duration;
+use std::{net::SocketAddr, time::Duration};
 
 use rand::{thread_rng, Rng};
 
-use crate::sessions::bounded_sessions::BoundedSessions;
-use crate::sessions::error::{SessionsError, SessionsErrorKind, SessionsResult};
-use witnet_util::error::WitnetError;
+use super::{error::SessionsError, sessions::bounded_sessions::BoundedSessions};
 
 /// Session type
 #[derive(Copy, Clone, Debug)]
@@ -218,7 +212,7 @@ where
         session_type: SessionType,
         address: SocketAddr,
         reference: T,
-    ) -> SessionsResult<()> {
+    ) -> Result<(), failure::Error> {
         // Get map to insert session to
         let sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated);
 
@@ -233,7 +227,7 @@ where
         session_type: SessionType,
         status: SessionStatus,
         address: SocketAddr,
-    ) -> SessionsResult<()> {
+    ) -> Result<(), failure::Error> {
         // If this is an outbound consolidated session, try to remove it from the consensus list
         if let (SessionType::Outbound, SessionStatus::Consolidated) = (session_type, status) {
             match self.unconsensus_session(address) {
@@ -254,7 +248,7 @@ where
         &mut self,
         session_type: SessionType,
         address: SocketAddr,
-    ) -> SessionsResult<()> {
+    ) -> Result<(), failure::Error> {
         // Get map to remove session from
         let uncons_sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated);
 
@@ -268,7 +262,7 @@ where
         cons_sessions.register_session(address, session_info.reference)
     }
     /// Method to mark a session as consensus safe
-    pub fn consensus_session(&mut self, address: SocketAddr) -> SessionsResult<()> {
+    pub fn consensus_session(&mut self, address: SocketAddr) -> Result<(), failure::Error> {
         if let Some(session_info) = self.outbound_consolidated.collection.get(&address) {
             let session_info = session_info.reference.clone();
             // Get map to insert session to
@@ -276,15 +270,11 @@ where
             // Register session into consolidated collection
             cons_sessions.register_session(address, session_info)
         } else {
-            Err(WitnetError::from(SessionsError::new(
-                SessionsErrorKind::Update,
-                address.to_string(),
-                "Is not an outbound consolidated peer".to_string(),
-            )))
+            Err(SessionsError::NotOutboundConsolidatedPeer)?
         }
     }
     /// Method to mark a session as consensus unsafe
-    pub fn unconsensus_session(&mut self, address: SocketAddr) -> SessionsResult<()> {
+    pub fn unconsensus_session(&mut self, address: SocketAddr) -> Result<(), failure::Error> {
         // Get map to remove session from
         let cons_sessions = &mut self.outbound_consolidated_consensus;
 

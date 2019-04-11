@@ -166,7 +166,7 @@ pub enum OutputPointerParseError {
     #[fail(display = "output pointer has an invalid length")]
     InvalidHashLength,
     #[fail(
-    display = "output pointer has the wrong format, expected '<transaction id>:<output index>'"
+        display = "output pointer has the wrong format, expected '<transaction id>:<output index>'"
     )]
     MissingColon,
     #[fail(display = "could not parse output index as an integer")]

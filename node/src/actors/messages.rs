@@ -13,10 +13,7 @@ use witnet_data_structures::chain::{
     Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, InventoryItem, RADConsensus, RADRequest,
     Transaction,
 };
-use witnet_p2p::{
-    peers::error::PeersResult,
-    sessions::{error::SessionsResult, SessionStatus, SessionType},
-};
+use witnet_p2p::sessions::{SessionStatus, SessionType};
 use witnet_rad::error::RadError;
 
 use super::{
@@ -282,9 +279,9 @@ impl Message for GetItem {
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// One peer
-pub type PeersSocketAddrResult = PeersResult<Option<SocketAddr>>;
+pub type PeersSocketAddrResult = Result<Option<SocketAddr>, failure::Error>;
 /// One or more peer addresses
-pub type PeersSocketAddrsResult = PeersResult<Vec<SocketAddr>>;
+pub type PeersSocketAddrsResult = Result<Vec<SocketAddr>, failure::Error>;
 
 /// Message to add one or more peer addresses to the list
 pub struct AddPeers {
@@ -415,7 +412,7 @@ pub struct CloseSession;
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// Message result of unit
-pub type SessionsUnitResult = SessionsResult<()>;
+pub type SessionsUnitResult = Result<(), failure::Error>;
 
 /// Message indicating a new session needs to be created
 pub struct Create {

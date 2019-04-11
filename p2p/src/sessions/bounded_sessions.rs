@@ -1,9 +1,7 @@
 //! Library for managing the sessions
-use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::{collections::HashMap, net::SocketAddr};
 
-use crate::sessions::error::{SessionsError, SessionsErrorKind, SessionsResult};
-use witnet_util::error::WitnetError;
+use crate::error::SessionsError;
 
 /// Session info
 pub struct SessionInfo<T> {
@@ -37,26 +35,22 @@ impl<T> BoundedSessions<T> {
         self.limit = Some(limit);
     }
     /// Method to insert a new session
-    pub fn register_session(&mut self, address: SocketAddr, reference: T) -> SessionsResult<()> {
+    pub fn register_session(
+        &mut self,
+        address: SocketAddr,
+        reference: T,
+    ) -> Result<(), failure::Error> {
         // Check num peers
         if self
             .limit
             .map(|limit| self.collection.len() >= limit as usize)
             .unwrap_or(false)
         {
-            return Err(WitnetError::from(SessionsError::new(
-                SessionsErrorKind::Register,
-                address.to_string(),
-                "Max number of peers reached".to_string(),
-            )));
+            Err(SessionsError::MaxPeersReached)?
         }
         // Check if address is already in sessions collection
         if self.collection.contains_key(&address) {
-            return Err(WitnetError::from(SessionsError::new(
-                SessionsErrorKind::Register,
-                address.to_string(),
-                "Address already registered in sessions".to_string(),
-            )));
+            Err(SessionsError::AddressAlreadyRegistered)?
         }
         // Insert session into the right collection
         self.collection.insert(address, SessionInfo { reference });
@@ -65,15 +59,14 @@ impl<T> BoundedSessions<T> {
         Ok(())
     }
     /// Method to insert a new session
-    pub fn unregister_session(&mut self, address: SocketAddr) -> SessionsResult<SessionInfo<T>> {
+    pub fn unregister_session(
+        &mut self,
+        address: SocketAddr,
+    ) -> Result<SessionInfo<T>, failure::Error> {
         // Insert session into the right map (if not present)
         match self.collection.remove(&address) {
             Some(info) => Ok(info),
-            None => Err(WitnetError::from(SessionsError::new(
-                SessionsErrorKind::Unregister,
-                address.to_string(),
-                "Address could not be unregistered (not found in sessions)".to_string(),
-            ))),
+            None => Err(SessionsError::AddressNotFound)?,
         }
     }
 }

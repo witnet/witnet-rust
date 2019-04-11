@@ -9,10 +9,6 @@ use rand::{thread_rng, Rng};
 
 use witnet_util::timestamp::get_timestamp;
 
-use crate::peers::error::PeersResult;
-
-pub mod error;
-
 /// Peer information being used while listing available Witnet peers
 #[derive(Serialize, Deserialize)]
 struct PeerInfo {
@@ -31,7 +27,7 @@ impl Peers {
     /// Add multiple peer addresses and save timestamp
     /// If an address did already exist, it gets overwritten
     /// Returns all the overwritten addresses
-    pub fn add(&mut self, addrs: Vec<SocketAddr>) -> PeersResult<Vec<SocketAddr>> {
+    pub fn add(&mut self, addrs: Vec<SocketAddr>) -> Result<Vec<SocketAddr>, failure::Error> {
         // Insert address
         // Note: if the peer address exists, the peer info will be overwritten
         Ok(addrs
@@ -54,7 +50,7 @@ impl Peers {
 
     /// Remove a peer given an address
     /// Returns the removed addresses
-    pub fn remove(&mut self, addrs: &[SocketAddr]) -> PeersResult<Vec<SocketAddr>> {
+    pub fn remove(&mut self, addrs: &[SocketAddr]) -> Result<Vec<SocketAddr>, failure::Error> {
         Ok(addrs
             .iter()
             .filter_map(|address| self.peers.remove(&address).map(|info| info.address))
@@ -62,7 +58,7 @@ impl Peers {
     }
 
     /// Get a random socket address from the peers list
-    pub fn get_random(&mut self) -> PeersResult<Option<SocketAddr>> {
+    pub fn get_random(&mut self) -> Result<Option<SocketAddr>, failure::Error> {
         // Random index with range [0, len) of the peers vector
         let index = thread_rng().gen_range(0, std::cmp::max(self.peers.len(), 1));
 
@@ -83,7 +79,7 @@ impl Peers {
     }
 
     /// Get all the peers from the list
-    pub fn get_all(&self) -> PeersResult<Vec<SocketAddr>> {
+    pub fn get_all(&self) -> Result<Vec<SocketAddr>, failure::Error> {
         Ok(self.peers.values().map(|v| v.address).collect())
     }
 }
