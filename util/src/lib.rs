@@ -8,8 +8,6 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-pub mod error;
-
 /// Parse utilities
 pub mod parser;
 
