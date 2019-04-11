@@ -47,13 +47,14 @@ use crate::storage_mngr;
 use witnet_data_structures::{
     chain::{
         Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable,
-        InventoryItem, Output, OutputPointer, Transaction, TransactionsPool, UnspentOutputsPool,
+        InventoryItem, Output, OutputPointer, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;
-use witnet_validations::validations::{validate_block, validate_candidate};
+
+use witnet_validations::validations::{validate_block, validate_candidate, Diff};
 
 mod actor;
 mod handlers;
@@ -206,7 +207,7 @@ impl ChainManager {
     fn process_requested_block(
         &mut self,
         ctx: &mut Context<Self>,
-        block: Block,
+        block: &Block,
     ) -> Result<(), failure::Error> {
         if let (Some(current_epoch), Some(chain_info)) =
             (self.current_epoch, self.chain_state.chain_info.as_ref())
@@ -214,23 +215,16 @@ impl ChainManager {
             let chain_beacon = chain_info.highest_block_checkpoint;
 
             match validate_block(
-                &block,
+                block,
                 current_epoch,
                 chain_beacon,
                 self.genesis_block_hash,
                 &self.chain_state.unspent_outputs_pool,
-                &self.transactions_pool,
                 &self.chain_state.data_request_pool,
             ) {
-                Ok(block_in_chain) => {
+                Ok(utxo_diff) => {
                     // Persist block and update ChainState
-                    self.consolidate_block(
-                        ctx,
-                        block_in_chain.block,
-                        block_in_chain.utxo_set,
-                        block_in_chain.data_request_pool,
-                        false,
-                    );
+                    self.consolidate_block(ctx, block, utxo_diff);
 
                     Ok(())
                 }
@@ -259,14 +253,23 @@ impl ChainManager {
         }
     }
 
-    fn consolidate_block(
-        &mut self,
+    fn persist_blocks_batch(
+        &self,
         ctx: &mut Context<Self>,
-        block: Block,
-        utxo_set: UnspentOutputsPool,
-        dr_pool: DataRequestPool,
-        info_flag: bool,
+        blocks: Vec<Block>,
+        target_beacon: CheckpointBeacon,
     ) {
+        for block in blocks {
+            let block_hash = block.hash();
+            self.persist_item(ctx, InventoryItem::Block(block));
+
+            if block_hash == target_beacon.hash_prev_block {
+                break;
+            }
+        }
+    }
+
+    fn consolidate_block(&mut self, ctx: &mut Context<Self>, block: &Block, utxo_diff: Diff) {
         // Update chain_info
         match self.chain_state.chain_info.as_mut() {
             Some(chain_info) => {
@@ -278,67 +281,88 @@ impl ChainManager {
                     checkpoint: block_epoch,
                     hash_prev_block: block_hash,
                 };
+
                 chain_info.highest_block_checkpoint = beacon;
+                update_pools(
+                    &block,
+                    &mut self.chain_state.unspent_outputs_pool,
+                    &mut self.chain_state.data_request_pool,
+                    &mut self.transactions_pool,
+                    utxo_diff,
+                );
 
-                // Update UnspentOutputsPool
-                self.chain_state.unspent_outputs_pool = utxo_set;
+                // Insert candidate block into `block_chain` state
+                self.chain_state.block_chain.insert(block_epoch, block_hash);
 
-                // Update TransactionPool
-                update_transaction_pool(&mut self.transactions_pool, block.txns.as_ref());
-
-                // Update DataRequestPool
-                self.chain_state.data_request_pool = dr_pool;
-                let reveals = self
-                    .chain_state
-                    .data_request_pool
-                    .update_data_request_stages();
-                for reveal in reveals {
-                    // Send AddTransaction message to self
-                    // And broadcast it to all of peers
-                    ctx.address().do_send(AddTransaction {
-                        transaction: reveal,
-                    })
-                }
-                // Persist finished data requests into storage
-                let to_be_stored = self.chain_state.data_request_pool.finished_data_requests();
-                to_be_stored.into_iter().for_each(|dr| {
-                    self.persist_data_request(ctx, &dr);
-                    if info_flag {
+                if let StateMachine::Synced = self.sm_state {
+                    // Persist finished data requests into storage
+                    let to_be_stored = self.chain_state.data_request_pool.finished_data_requests();
+                    to_be_stored.into_iter().for_each(|dr| {
+                        self.persist_data_request(ctx, &dr);
                         show_info_tally(&self.chain_state.unspent_outputs_pool, dr, block_epoch);
-                    }
-                });
+                    });
 
-                if info_flag {
                     show_info_dr(&self.chain_state.data_request_pool, &block);
 
-                    debug!("{:?}", block);
+                    log::trace!("{:?}", block);
                     debug!("Mint transaction hash: {:?}", block.txns[0].hash());
-                }
 
-                // Insert candidate block into `block_chain` and persist it
-                self.chain_state.block_chain.insert(block_epoch, block_hash);
-                self.persist_item(ctx, InventoryItem::Block(block.clone()));
+                    let reveals = self
+                        .chain_state
+                        .data_request_pool
+                        .update_data_request_stages();
 
-                // Persist chain_info into storage
-                if let StateMachine::Synced = self.sm_state {
+                    for reveal in reveals {
+                        // Send AddTransaction message to self
+                        // And broadcast it to all of peers
+                        ctx.address().do_send(AddTransaction {
+                            transaction: reveal,
+                        })
+                    }
+                    self.persist_item(ctx, InventoryItem::Block(block.clone()));
+
+                    // Persist chain_info into storage
                     self.persist_chain_state(ctx);
-                }
 
-                // Send notification to JsonRpcServer
-                JsonRpcServer::from_registry().do_send(NewBlock { block })
+                    // Send notification to JsonRpcServer
+                    JsonRpcServer::from_registry().do_send(NewBlock {
+                        block: block.clone(),
+                    })
+                }
             }
             None => {
                 error!("No ChainInfo loaded in ChainManager");
             }
         }
     }
+
+    fn get_chain_beacon(&self) -> CheckpointBeacon {
+        self.chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .highest_block_checkpoint
+    }
 }
 
 // Helper methods
-fn update_transaction_pool(transactions_pool: &mut TransactionsPool, transactions: &[Transaction]) {
-    for transaction in transactions {
+fn update_pools(
+    block: &Block,
+    unspent_outputs_pool: &mut UnspentOutputsPool,
+    data_request_pool: &mut DataRequestPool,
+    transactions_pool: &mut TransactionsPool,
+    utxo_diff: Diff,
+) {
+    for transaction in block.txns.iter() {
+        data_request_pool.process_transaction(
+            transaction,
+            block.block_header.beacon.checkpoint,
+            &block.hash(),
+        );
         transactions_pool.remove(&transaction.hash());
     }
+
+    utxo_diff.apply(unspent_outputs_pool);
 }
 
 fn show_info_tally(

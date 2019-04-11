@@ -122,14 +122,6 @@ pub struct Block {
     pub txns: Vec<Transaction>,
 }
 
-/// Struct that keeps a block candidate and its modifications in the blockchain
-#[derive(Debug, Clone)]
-pub struct BlockInChain {
-    pub block: Block,
-    pub utxo_set: UnspentOutputsPool,
-    pub data_request_pool: DataRequestPool,
-}
-
 impl<T: AsRef<[u8]>> Hashable for T {
     fn hash(&self) -> Hash {
         calculate_sha256(self.as_ref()).into()

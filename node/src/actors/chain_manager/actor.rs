@@ -40,7 +40,7 @@ impl Actor for ChainManager {
 impl ChainManager {
     /// Get configuration from ConfigManager and try to initialize ChainManager state from Storage
     /// (initialize to Default values if empty)
-    fn initialize_from_storage(&mut self, ctx: &mut Context<ChainManager>) {
+    pub fn initialize_from_storage(&mut self, ctx: &mut Context<ChainManager>) {
         config_mngr::get().into_actor(self).and_then(|config, act, ctx| {
             // Get environment and consensus_constants parameters from config
             let environment = (&config.environment).clone();

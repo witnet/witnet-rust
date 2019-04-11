@@ -1,15 +1,17 @@
+use std::default::Default;
+
 use witnet_crypto::{
     hash::Sha256,
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use witnet_data_structures::{
     chain::{
-        Block, BlockInChain, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature,
-        Output, OutputPointer, RADRequest, Transaction, TransactionBody, TransactionType,
-        TransactionsPool, UnspentOutputsPool,
+        Block, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature, Output,
+        OutputPointer, RADRequest, Transaction, TransactionBody, TransactionType,
+        UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     error::{BlockError, TransactionError},
@@ -26,17 +28,17 @@ use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 /// it. If a Signature is invalid an error is returned too
 pub fn transaction_inputs_sum(
     tx: &TransactionBody,
-    pool: &UnspentOutputsPool,
+    utxo_diff: &UtxoDiff,
 ) -> Result<u64, failure::Error> {
     let mut total_value = 0;
 
     match transaction_tag(tx) {
         TransactionType::Commit => {
-            total_value = calculate_commit_input(&tx, pool)?;
+            total_value = calculate_commit_input(&tx, utxo_diff)?;
         }
         _ => {
             for input in &tx.inputs {
-                let pointed_value = pool
+                let pointed_value = utxo_diff
                     .get(&input.output_pointer())
                     .ok_or_else(|| TransactionError::OutputNotFound {
                         output: input.output_pointer(),
@@ -52,13 +54,13 @@ pub fn transaction_inputs_sum(
 
 fn calculate_commit_input(
     tx: &TransactionBody,
-    pool: &UnspentOutputsPool,
+    utxo_diff: &UtxoDiff,
 ) -> Result<u64, failure::Error> {
     match &tx.inputs[0] {
         Input::DataRequest(dr_input) => {
             // Get DataRequest information
             let dr_pointer = dr_input.output_pointer();
-            let dr_output = pool
+            let dr_output = utxo_diff
                 .get(&dr_pointer)
                 .ok_or(TransactionError::OutputNotFound {
                     output: dr_pointer.clone(),
@@ -84,11 +86,8 @@ pub fn transaction_outputs_sum(tx: &TransactionBody) -> u64 {
 /// of the transaction. The pool parameter is used to find the
 /// outputs pointed by the inputs and that contain the actual
 /// their value.
-pub fn transaction_fee(
-    tx: &TransactionBody,
-    pool: &UnspentOutputsPool,
-) -> Result<u64, failure::Error> {
-    let in_value = transaction_inputs_sum(tx, pool)?;
+pub fn transaction_fee(tx: &TransactionBody, utxo_diff: &UtxoDiff) -> Result<u64, failure::Error> {
+    let in_value = transaction_inputs_sum(tx, utxo_diff)?;
     let out_value = transaction_outputs_sum(tx);
 
     if out_value > in_value {
@@ -324,7 +323,7 @@ pub fn validate_reveal_transaction(
 pub fn validate_tally_transaction(
     tx: &TransactionBody,
     dr_pool: &DataRequestPool,
-    utxo: &UnspentOutputsPool,
+    utxo_diff: &UtxoDiff,
     fee: u64,
 ) -> Result<(()), failure::Error> {
     if (tx.outputs.len() - tx.inputs.len()) != 1 {
@@ -355,7 +354,7 @@ pub fn validate_tally_transaction(
                     Err(TransactionError::RevealsFromDifferentDataRequest)?
                 }
 
-                match utxo.get(&reveal_pointer) {
+                match utxo_diff.get(&reveal_pointer) {
                     Some(Output::Reveal(reveal_output)) => {
                         reveals.push(reveal_output.reveal.clone())
                     }
@@ -461,7 +460,7 @@ pub fn validate_transaction_signatures(transaction: &Transaction) -> Result<(), 
 /// Function to validate a transaction
 pub fn validate_transaction<S: ::std::hash::BuildHasher>(
     transaction: &Transaction,
-    utxo_set: &UnspentOutputsPool,
+    utxo_diff: &UtxoDiff,
     dr_pool: &DataRequestPool,
     block_commits: &mut WitnessesCounter<S>,
 ) -> Result<u64, failure::Error> {
@@ -472,37 +471,37 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
         TransactionType::InvalidType => Err(TransactionError::NotValidTransaction)?,
         TransactionType::ValueTransfer => {
             log::debug!("ValueTransfer Transaction validation");
-            let fee = transaction_fee(&transaction.body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
             validate_vt_transaction(&transaction.body)?;
             Ok(fee)
         }
         TransactionType::DataRequest => {
             log::debug!("DataRequest Transaction validation");
-            let fee = transaction_fee(&transaction.body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
             validate_dr_transaction(&transaction.body)?;
             Ok(fee)
         }
         TransactionType::Commit => {
             log::debug!("Commit Transaction validation");
-            let fee = transaction_fee(&transaction.body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
             validate_commit_transaction(&transaction.body, dr_pool, block_commits, fee)?;
             Ok(fee)
         }
         TransactionType::Reveal => {
             log::debug!("Reveal Transaction validation");
-            let fee = transaction_fee(&transaction.body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
             validate_reveal_transaction(&transaction.body, dr_pool, fee)?;
             Ok(fee)
         }
         TransactionType::Tally => {
             log::debug!("Tally Transaction validation");
-            let fee = transaction_fee(&transaction.body, utxo_set)?;
+            let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
-            validate_tally_transaction(&transaction.body, dr_pool, utxo_set, fee)?;
+            validate_tally_transaction(&transaction.body, dr_pool, utxo_diff, fee)?;
             Ok(fee)
         }
     }
@@ -511,10 +510,9 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
 pub fn validate_transactions(
     utxo_set: &UnspentOutputsPool,
-    _txn_pool: &TransactionsPool,
     data_request_pool: &DataRequestPool,
     block: &Block,
-) -> Result<BlockInChain, failure::Error> {
+) -> Result<Diff, failure::Error> {
     // Init Progressive merkle tree
     let mut mt = ProgressiveMerkleTree::sha256();
 
@@ -527,10 +525,7 @@ pub fn validate_transactions(
         _ => Err(BlockError::NoMint)?,
     }
 
-    let mut utxo_set = utxo_set.clone();
-    let mut data_request_pool = data_request_pool.clone();
-    let mut remove_later = vec![];
-
+    let mut utxo_diff = UtxoDiff::new(utxo_set);
     let mut commits_number: WitnessesCounter<_> = HashMap::new();
 
     // Init total fee
@@ -540,7 +535,7 @@ pub fn validate_transactions(
     for transaction in &block.txns[1..] {
         match validate_transaction(
             &transaction,
-            &utxo_set,
+            &utxo_diff,
             &data_request_pool,
             &mut commits_number,
         ) {
@@ -554,41 +549,30 @@ pub fn validate_transactions(
                 mt.push(Sha256(sha));
 
                 for input in &transaction.body.inputs {
-                    // Obtain the OuputPointer of each input and remove it from the utxo_set
+                    // Obtain the OuputPointer of each input and remove it from the utxo_diff
                     let output_pointer = input.output_pointer();
                     match input {
                         Input::DataRequest(..) => {
-                            remove_later.push(output_pointer);
+                            utxo_diff.remove_utxo_dr(output_pointer);
                         }
                         _ => {
-                            utxo_set.remove(&output_pointer);
+                            utxo_diff.remove_utxo(output_pointer);
                         }
                     }
                 }
 
                 for (index, output) in transaction.body.outputs.iter().enumerate() {
-                    // Add the new outputs to the utxo_set
+                    // Add the new outputs to the utxo_diff
                     let output_pointer = OutputPointer {
                         transaction_id: txn_hash,
                         output_index: index as u32,
                     };
 
-                    utxo_set.insert(output_pointer, output.clone());
+                    utxo_diff.insert_utxo(output_pointer, output.clone());
                 }
-
-                // Add DataRequests from the block into the data_request_pool
-                data_request_pool.process_transaction(
-                    transaction,
-                    block.block_header.beacon.checkpoint,
-                    &block.hash(),
-                );
             }
             Err(e) => Err(e)?,
         }
-    }
-
-    for output_pointer in remove_later {
-        utxo_set.remove(&output_pointer);
     }
 
     // Validate mint
@@ -604,7 +588,7 @@ pub fn validate_transactions(
         output_index: 0,
     };
     let mint_output = block.txns[0].body.outputs[0].clone();
-    utxo_set.insert(mint_output_pointer, mint_output);
+    utxo_diff.insert_utxo(mint_output_pointer, mint_output);
 
     // Validate commits number
     for WitnessesCount { current, target } in commits_number.values() {
@@ -622,11 +606,7 @@ pub fn validate_transactions(
         Err(BlockError::NotValidMerkleTree)?
     }
 
-    Ok(BlockInChain {
-        block: block.clone(),
-        utxo_set,
-        data_request_pool,
-    })
+    Ok(utxo_diff.take_diff())
 }
 
 /// Function to validate a block
@@ -636,9 +616,8 @@ pub fn validate_block(
     chain_beacon: CheckpointBeacon,
     genesis_block_hash: Hash,
     utxo_set: &UnspentOutputsPool,
-    txn_pool: &TransactionsPool,
     data_request_pool: &DataRequestPool,
-) -> Result<BlockInChain, failure::Error> {
+) -> Result<Diff, failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
 
@@ -663,7 +642,7 @@ pub fn validate_block(
     } else {
         validate_block_signature(&block)?;
 
-        validate_transactions(&utxo_set, &txn_pool, &data_request_pool, &block)
+        validate_transactions(&utxo_set, &data_request_pool, &block)
     }
 }
 
@@ -772,5 +751,88 @@ mod tests {
         assert_eq!(block_reward(1_750_000 * 63), 0);
         assert_eq!(block_reward(1_750_000 * 64), 0);
         assert_eq!(block_reward(1_750_000 * 100), 0);
+    }
+}
+
+/// Diffs to apply to an utxo set. This type does not contains a
+/// reference to the original utxo set.
+#[derive(Default)]
+pub struct Diff {
+    utxos_to_add: UnspentOutputsPool,
+    utxos_to_remove: HashSet<OutputPointer>,
+    utxos_to_remove_dr: Vec<OutputPointer>,
+}
+
+impl Diff {
+    pub fn apply(mut self, utxo_set: &mut UnspentOutputsPool) {
+        for (output_pointer, output) in self.utxos_to_add.drain() {
+            utxo_set.insert(output_pointer, output);
+        }
+
+        for output_pointer in self.utxos_to_remove.iter() {
+            utxo_set.remove(output_pointer);
+        }
+
+        for output_pointer in self.utxos_to_remove_dr.iter() {
+            utxo_set.remove(output_pointer);
+        }
+    }
+}
+
+/// Contains a reference to an UnspentOutputsPool plus subsequent
+/// insertions and deletions to performed on that pool.
+/// Use `.take_diff()` to obtain an instance of the `Diff` type.
+pub struct UtxoDiff<'a> {
+    diff: Diff,
+    utxo_pool: &'a UnspentOutputsPool,
+}
+
+impl<'a> UtxoDiff<'a> {
+    /// Create a new UtxoDiff without additional insertions or deletions
+    pub fn new(utxo_pool: &'a UnspentOutputsPool) -> Self {
+        UtxoDiff {
+            utxo_pool,
+            diff: Default::default(),
+        }
+    }
+
+    /// Record an insertion to perform on the utxo set
+    pub fn insert_utxo(&mut self, output_pointer: OutputPointer, output: Output) {
+        self.diff.utxos_to_add.insert(output_pointer, output);
+    }
+
+    /// Record a deletion to perform on the utxo set
+    pub fn remove_utxo(&mut self, output_pointer: OutputPointer) {
+        if self.diff.utxos_to_add.remove(&output_pointer).is_none() {
+            self.diff.utxos_to_remove.insert(output_pointer);
+        }
+    }
+
+    /// Record a deletion to perform on the utxo set but that it
+    /// doesn't count when getting an utxo with `get` method.
+    pub fn remove_utxo_dr(&mut self, output_pointer: OutputPointer) {
+        self.diff.utxos_to_remove_dr.push(output_pointer);
+    }
+
+    /// Get an utxo from the original utxo set or one that has been
+    /// recorded as inserted later. If the same utxo has been recorded
+    /// as removed, None will be returned.
+    pub fn get(&self, output_pointer: &OutputPointer) -> Option<&Output> {
+        self.utxo_pool
+            .get(output_pointer)
+            .or_else(|| self.diff.utxos_to_add.get(output_pointer))
+            .and_then(|output| {
+                if self.diff.utxos_to_remove.contains(output_pointer) {
+                    None
+                } else {
+                    Some(output)
+                }
+            })
+    }
+
+    /// Consumes the UtxoDiff and returns only the diffs, without the
+    /// reference to the utxo set.
+    pub fn take_diff(self) -> Diff {
+        self.diff
     }
 }

@@ -30,6 +30,7 @@ use witnet_data_structures::{
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
     block_reward, merkle_tree_root, transaction_fee, validate_block, verify_poe_data_request,
+    UtxoDiff,
 };
 
 impl ChainManager {
@@ -110,7 +111,6 @@ impl ChainManager {
                             beacon,
                             act.genesis_block_hash,
                             &act.chain_state.unspent_outputs_pool,
-                            &act.transactions_pool,
                             &act.chain_state.data_request_pool,
                         ) {
                             Ok(_) => {
@@ -328,7 +328,8 @@ fn build_block(
         debug!("Pushing transaction into block: {:?}", transaction);
         // Currently, 1 weight unit is equivalent to 1 byte
         let transaction_weight = transaction.size();
-        let transaction_fee = match transaction_fee(&transaction.body, unspent_outputs_pool) {
+        let utxo_diff = UtxoDiff::new(unspent_outputs_pool);
+        let transaction_fee = match transaction_fee(&transaction.body, &utxo_diff) {
             Ok(x) => x,
             Err(e) => {
                 warn!(
