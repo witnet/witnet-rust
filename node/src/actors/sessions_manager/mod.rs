@@ -185,7 +185,7 @@ impl SessionsManager {
             .map(|limit| pb.len() < limit as usize)
             .unwrap_or(true)
         {
-            debug!("PeersBeacons message delayed because not enoght peers sent their beacons");
+            debug!("PeersBeacons message delayed because not enough peers sent their beacons");
             return;
         }
 
