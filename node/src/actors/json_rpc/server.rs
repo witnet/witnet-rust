@@ -164,7 +164,7 @@ impl Handler<NewBlock> for JsonRpcServer {
     type Result = ();
 
     fn handle(&mut self, msg: NewBlock, ctx: &mut Self::Context) -> Self::Result {
-        info!("Got NewBlock message, sending notifications...");
+        debug!("Got NewBlock message, sending notifications...");
         let block = serde_json::to_value(msg.block).unwrap();
         if let Ok(subs) = self.subscriptions.lock() {
             let empty_map = HashMap::new();
