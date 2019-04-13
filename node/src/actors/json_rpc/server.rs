@@ -22,7 +22,7 @@ use crate::{
     config_mngr,
 };
 use jsonrpc_pubsub::{PubSubHandler, Session};
-
+//Test comment
 /// JSON RPC server
 #[derive(Default)]
 pub struct JsonRpcServer {
