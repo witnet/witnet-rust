@@ -22,11 +22,13 @@ directories = "*"
 ctrlc = "3.1.1"
 env_logger = "0.6.0"
 failure = "0.1.5"
-just = "0.3.13"
 log = "0.4.6"
 serde_json = "1.0.38"
 structopt = "0.2.14"
 toml = "0.4.10"
+
+[dev-dependencies]
+just = "0.3.13"
 
 witnet_config = { path = "./config" }
 witnet_node = { path = "./node" }
