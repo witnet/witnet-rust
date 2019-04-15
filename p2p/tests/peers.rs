@@ -66,15 +66,12 @@ fn p2p_peers_get_random() {
 
     // Get random address for a "big" number
     let mut diff: i16 = 0;
-    for _ in 0..100000 {
+    for _ in 0..100_000 {
         // Get a random address (there is only 1)
         match peers.get_random().unwrap() {
-            Some(addr) if addr == address1 => diff = diff + 1,
-            Some(addr) if addr == address2 => diff = diff - 1,
-            _ => assert!(
-                false,
-                "Get random function should retrieve a random address"
-            ),
+            Some(addr) if addr == address1 => diff += 1,
+            Some(addr) if addr == address2 => diff -= 1,
+            _ => panic!("Get random function should retrieve a random address"),
         }
     }
 

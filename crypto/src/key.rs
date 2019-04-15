@@ -277,11 +277,11 @@ mod tests {
 
         let account = extended_sk
             .derive(vec![
-                ChildNumber(0x8000002c), // purpose: BIP-44
-                ChildNumber(0x80000000), // coin_type: Bitcoin
-                ChildNumber(0x80000000), // account: hardened 0
-                ChildNumber(0),          // change: 0
-                ChildNumber(0),          // address: 0
+                ChildNumber(0x8000_002c), // purpose: BIP-44
+                ChildNumber(0x8000_0000), // coin_type: Bitcoin
+                ChildNumber(0x8000_0000), // account: hardened 0
+                ChildNumber(0),           // change: 0
+                ChildNumber(0),           // address: 0
             ])
             .unwrap();
 

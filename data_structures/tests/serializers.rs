@@ -3,7 +3,7 @@ use witnet_data_structures::{
     {chain::*, types::*},
 };
 
-const EXAMPLE_BLOCK_VECTOR: &'static [u8] = &[
+const EXAMPLE_BLOCK_VECTOR: &[u8] = &[
     8, 1, 18, 146, 6, 58, 143, 6, 10, 74, 18, 36, 18, 34, 10, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 34, 10, 32, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 43, 10,
@@ -181,7 +181,7 @@ fn message_get_peers_encode_decode() {
 fn message_get_peer_to_bytes() {
     let mut addresses = Vec::new();
     let address: Address = Address {
-        ip: IpAddress::Ipv4 { ip: 3232235777 },
+        ip: IpAddress::Ipv4 { ip: 3_232_235_777 },
         port: 8000,
     };
     addresses.push(address);
@@ -199,7 +199,7 @@ fn message_get_peer_to_bytes() {
 fn message_peer_from_bytes() {
     let buf: Vec<u8> = [18, 12, 34, 10, 10, 8, 10, 6, 192, 168, 1, 1, 31, 64].to_vec();
     let address: Address = Address {
-        ip: IpAddress::Ipv4 { ip: 3232235777 },
+        ip: IpAddress::Ipv4 { ip: 3_232_235_777 },
         port: 8000,
     };
     let mut addresses = Vec::new();
@@ -218,15 +218,15 @@ fn message_peer_from_bytes() {
 fn message_get_peer_encode_decode() {
     let mut addresses = Vec::new();
     let address_ipv4: Address = Address {
-        ip: IpAddress::Ipv4 { ip: 3232235777 },
+        ip: IpAddress::Ipv4 { ip: 3_232_235_777 },
         port: 8000,
     };
     let address_ipv6: Address = Address {
         ip: IpAddress::Ipv6 {
-            ip0: 3232235777,
-            ip1: 3232235776,
-            ip2: 3232235778,
-            ip3: 3232235777,
+            ip0: 3_232_235_777,
+            ip1: 3_232_235_776,
+            ip2: 3_232_235_778,
+            ip3: 3_232_235_777,
         },
         port: 8000,
     };
@@ -282,11 +282,11 @@ fn message_verack_encode_decode() {
 #[test]
 fn message_version_to_bytes() {
     let sender_address = Address {
-        ip: IpAddress::Ipv4 { ip: 3232235777 },
+        ip: IpAddress::Ipv4 { ip: 3_232_235_777 },
         port: 8000,
     };
     let receiver_address = Address {
-        ip: IpAddress::Ipv4 { ip: 3232235778 },
+        ip: IpAddress::Ipv4 { ip: 3_232_235_778 },
         port: 8001,
     };
     let msg = Message {
@@ -294,8 +294,8 @@ fn message_version_to_bytes() {
             version: 2,
             timestamp: 123,
             capabilities: 4,
-            sender_address: sender_address,
-            receiver_address: receiver_address,
+            sender_address,
+            receiver_address,
             user_agent: "asdf".to_string(),
             last_epoch: 8,
             nonce: 1,
@@ -316,11 +316,11 @@ fn message_version_to_bytes() {
 #[test]
 fn message_version_from_bytes() {
     let sender_address = Address {
-        ip: IpAddress::Ipv4 { ip: 3232235777 },
+        ip: IpAddress::Ipv4 { ip: 3_232_235_777 },
         port: 8000,
     };
     let receiver_address = Address {
-        ip: IpAddress::Ipv4 { ip: 3232235778 },
+        ip: IpAddress::Ipv4 { ip: 3_232_235_778 },
         port: 8001,
     };
     let expected_msg = Message {
@@ -328,8 +328,8 @@ fn message_version_from_bytes() {
             version: 2,
             timestamp: 123,
             capabilities: 4,
-            sender_address: sender_address,
-            receiver_address: receiver_address,
+            sender_address,
+            receiver_address,
             user_agent: "asdf".to_string(),
             last_epoch: 8,
             nonce: 1,
@@ -350,11 +350,11 @@ fn message_version_from_bytes() {
 #[test]
 fn message_version_encode_decode() {
     let sender_address = Address {
-        ip: IpAddress::Ipv4 { ip: 3232235777 },
+        ip: IpAddress::Ipv4 { ip: 3_232_235_777 },
         port: 8000,
     };
     let receiver_address = Address {
-        ip: IpAddress::Ipv4 { ip: 3232235778 },
+        ip: IpAddress::Ipv4 { ip: 3_232_235_778 },
         port: 8001,
     };
     let msg = Message {
@@ -362,8 +362,8 @@ fn message_version_encode_decode() {
             version: 2,
             timestamp: 123,
             capabilities: 4,
-            sender_address: sender_address,
-            receiver_address: receiver_address,
+            sender_address,
+            receiver_address,
             user_agent: "asdf".to_string(),
             last_epoch: 8,
             nonce: 1,

@@ -239,7 +239,7 @@ mod tests {
         let socket_addr: SocketAddr = "127.0.0.1:3000".parse().unwrap();
         let witnet_addr: Address = to_address(socket_addr);
 
-        assert_eq!(witnet_addr.ip, IpAddress::Ipv4 { ip: 2130706433 });
+        assert_eq!(witnet_addr.ip, IpAddress::Ipv4 { ip: 2_130_706_433 });
         assert_eq!(witnet_addr.port, 3000);
     }
 
@@ -263,7 +263,7 @@ mod tests {
     #[test]
     fn test_from_address_ipv4() {
         let witnet_addr: Address = Address {
-            ip: IpAddress::Ipv4 { ip: 2130706433 },
+            ip: IpAddress::Ipv4 { ip: 2_130_706_433 },
             port: 3000,
         };
         let socket_addr: SocketAddr = from_address(&witnet_addr);

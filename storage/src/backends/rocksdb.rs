@@ -61,13 +61,14 @@ mod rocksdb_mock {
 
     pub type Error = failure::Error;
 
+    #[derive(Default)]
     pub struct DB {
         data: Vec<(Vec<u8>, Vec<u8>)>,
     }
 
     impl DB {
         pub fn new() -> Self {
-            DB { data: Vec::new() }
+            DB::default()
         }
 
         fn search<K: AsRef<[u8]>>(&self, key: &K) -> Option<usize> {

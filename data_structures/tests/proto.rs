@@ -5,7 +5,7 @@ use witnet_data_structures::{proto::ProtobufConvert, types, types::IpAddress};
 fn address_proto() {
     // Serialize
     let addressv4 = types::Address {
-        ip: IpAddress::Ipv4 { ip: 0x10203040 },
+        ip: IpAddress::Ipv4 { ip: 0x1020_3040 },
         port: 21337,
     };
     let address_bytes = addressv4.to_pb_bytes().unwrap();
@@ -17,10 +17,10 @@ fn address_proto() {
 
     let addressv6 = types::Address {
         ip: IpAddress::Ipv6 {
-            ip0: 0x10203040,
+            ip0: 0x1020_3040,
             ip1: 0xabcd,
             ip2: 0x21,
-            ip3: 0x11111111,
+            ip3: 0x1111_1111,
         },
         port: 21337,
     };

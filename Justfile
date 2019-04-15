@@ -21,7 +21,8 @@ versions:
 
 # run clippy
 clippy:
-    cargo clippy --all-targets --all-features -- -D warnings
+    cargo clippy --all --all-features -- -D warnings
+    cargo clippy --all --all-targets --all-features -- -A clippy::cyclomatic_complexity
 
 # run formatter
 fmt:

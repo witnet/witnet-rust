@@ -126,12 +126,10 @@ fn get_attributes(orig: &[syn::Attribute]) -> (Vec<syn::Attribute>, Action) {
 
     for attr in orig {
         match attr.parse_meta() {
-            Ok(syn::Meta::List(ref meta)) if meta.ident.to_string() == "partial_struct" => {
+            Ok(syn::Meta::List(ref meta)) if &*meta.ident.to_string() == "partial_struct" => {
                 for nested in &meta.nested {
                     match nested {
-                        syn::NestedMeta::Meta(syn::Meta::Word(ident))
-                            if ident.to_string() == "skip" =>
-                        {
+                        syn::NestedMeta::Meta(syn::Meta::Word(ident)) if &*ident == "skip" => {
                             action = Action::Skip;
                         }
                         syn::NestedMeta::Meta(syn::Meta::NameValue(params)) => {
@@ -154,7 +152,7 @@ fn get_attributes(orig: &[syn::Attribute]) -> (Vec<syn::Attribute>, Action) {
                     }
                 }
             }
-            Ok(syn::Meta::List(ref meta)) if meta.ident.to_string() == "protobuf_convert" => {
+            Ok(syn::Meta::List(ref meta)) if &*meta.ident.to_string() == "protobuf_convert" => {
                 // Avoid error that appears when ProtoBuf and PartialStruct are used together
             }
             _ => attrs.push(attr.clone()),
@@ -174,26 +172,23 @@ fn get_attributes(orig: &[syn::Attribute]) -> (Vec<syn::Attribute>, Action) {
 fn get_data(orig: &syn::Data) -> syn::Data {
     let mut data = orig.clone();
 
-    match &mut data {
-        syn::Data::Struct(data) => {
-            for field in data.fields.iter_mut() {
-                let (attrs, action) = get_attributes(&field.attrs);
+    if let syn::Data::Struct(data) = &mut data {
+        for field in data.fields.iter_mut() {
+            let (attrs, action) = get_attributes(&field.attrs);
 
-                match action {
-                    Action::Skip => (),
-                    Action::WrapWithOption => {
-                        let orig_ty = field.ty.clone();
-                        field.ty = syn::parse_quote!(Option<#orig_ty>);
-                    }
-                    Action::ChangeToType(ty) => {
-                        field.ty = syn::parse_quote!(#ty);
-                    }
+            match action {
+                Action::Skip => (),
+                Action::WrapWithOption => {
+                    let orig_ty = field.ty.clone();
+                    field.ty = syn::parse_quote!(Option<#orig_ty>);
                 }
-                field.attrs = attrs;
+                Action::ChangeToType(ty) => {
+                    field.ty = syn::parse_quote!(#ty);
+                }
             }
+            field.attrs = attrs;
         }
-        _ => (),
-    };
+    }
 
     data
 }

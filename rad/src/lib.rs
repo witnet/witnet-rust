@@ -93,8 +93,8 @@ fn test_run_retrieval() {
 fn test_run_consensus_and_aggregation() {
     use crate::types::float::RadonFloat;
 
-    let f_1 = RadonTypes::Float(RadonFloat::from(1f64).into());
-    let f_3 = RadonTypes::Float(RadonFloat::from(3f64).into());
+    let f_1 = RadonTypes::Float(RadonFloat::from(1f64));
+    let f_3 = RadonTypes::Float(RadonFloat::from(3f64));
 
     let radon_types_vec = vec![f_1, f_3];
 

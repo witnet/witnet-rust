@@ -276,15 +276,12 @@ fn p2p_sessions_get_random_anycast_session() {
 
     // Get random session for a "big" number
     let mut diff: i16 = 0;
-    for _ in 0..100000 {
+    for _ in 0..100_000 {
         // Get a random anycast sessions (there are only 2)
         match &sessions.get_random_anycast_session(false) {
-            Some(reference) if reference == "reference1" => diff = diff + 1,
-            Some(reference) if reference == "reference2" => diff = diff - 1,
-            _ => assert!(
-                false,
-                "Get random function should retrieve a random session"
-            ),
+            Some(reference) if reference == "reference1" => diff += 1,
+            Some(reference) if reference == "reference2" => diff -= 1,
+            _ => panic!("Get random function should retrieve a random session"),
         }
     }
 
