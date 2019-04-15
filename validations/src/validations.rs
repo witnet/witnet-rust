@@ -674,7 +674,8 @@ pub fn transaction_tag(tx: &TransactionBody) -> TransactionType {
         Some(Output::Commit(_)) => TransactionType::Commit,
         Some(Output::Reveal(_)) => TransactionType::Reveal,
         Some(Output::Tally(_)) => TransactionType::Tally,
-        None => TransactionType::InvalidType,
+        // No outputs: donation to the miners
+        None => TransactionType::ValueTransfer,
     }
 }
 

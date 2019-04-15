@@ -443,6 +443,7 @@ pub struct Transaction {
 }
 
 /// Transaction tags for validation process
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum TransactionType {
     InvalidType,
     ValueTransfer,
@@ -603,14 +604,7 @@ impl Output {
         match self {
             Output::Commit(output) => output.value,
             Output::Tally(output) => output.value,
-            Output::DataRequest(output) => {
-                // The total cost of a data request is
-                // value (total reward to be divided between all the witnesses)
-                // + commit_fee (total commit fee to be divided between all commits)
-                // + reveal_fee (total reveal fee to be divided between all reveals)
-                // + tally_fee (fee for the tally transaction)
-                output.value + output.commit_fee + output.reveal_fee + output.tally_fee
-            }
+            Output::DataRequest(output) => output.value(),
             Output::Reveal(output) => output.value,
             Output::ValueTransfer(output) => output.value,
         }
@@ -638,6 +632,18 @@ pub struct DataRequestOutput {
     pub reveal_fee: u64,
     pub tally_fee: u64,
     pub time_lock: u64,
+}
+
+impl DataRequestOutput {
+    /// The total cost of a data request
+    pub fn value(&self) -> u64 {
+        // The total cost of a data request is
+        // value (total reward to be divided between all the witnesses)
+        // + commit_fee (total commit fee to be divided between all commits)
+        // + reveal_fee (total reveal fee to be divided between all reveals)
+        // + tally_fee (fee for the tally transaction)
+        self.value + self.commit_fee + self.reveal_fee + self.tally_fee
+    }
 }
 
 /// Commit output transaction data structure
@@ -1331,35 +1337,38 @@ impl ChainState {
 
         Ok(v)
     }
-    /// Method to update the unspent outputs pool
-    pub fn generate_unspent_outputs_pool(&self, block: &Block) -> UnspentOutputsPool {
-        // Create a copy of the state "unspent_outputs_pool"
-        let mut unspent_outputs = self.unspent_outputs_pool.clone();
+}
 
-        let transactions = &block.txns;
+/// Method to update the unspent outputs pool
+pub fn generate_unspent_outputs_pool(
+    unspent_outputs_pool: &UnspentOutputsPool,
+    transactions: &[Transaction],
+) -> UnspentOutputsPool {
+    // Create a copy of the state "unspent_outputs_pool"
+    let mut unspent_outputs = unspent_outputs_pool.clone();
 
-        for transaction in transactions {
-            let txn_hash = transaction.hash();
-            for input in &transaction.body.inputs {
-                // Obtain the OuputPointer of each input and remove it from the utxo_set
-                let output_pointer = input.output_pointer();
+    for transaction in transactions {
+        let txn_hash = transaction.hash();
+        for input in &transaction.body.inputs {
+            // Obtain the OutputPointer of each input and remove it from the utxo_set
+            let output_pointer = input.output_pointer();
 
-                unspent_outputs.remove(&output_pointer);
-            }
-
-            for (index, output) in transaction.body.outputs.iter().enumerate() {
-                // Add the new outputs to the utxo_set
-                let output_pointer = OutputPointer {
-                    transaction_id: txn_hash,
-                    output_index: index as u32,
-                };
-
-                unspent_outputs.insert(output_pointer, output.clone());
-            }
+            // This does not check for missing inputs
+            unspent_outputs.remove(&output_pointer);
         }
 
-        unspent_outputs
+        for (index, output) in transaction.body.outputs.iter().enumerate() {
+            // Add the new outputs to the utxo_set
+            let output_pointer = OutputPointer {
+                transaction_id: txn_hash,
+                output_index: index as u32,
+            };
+
+            unspent_outputs.insert(output_pointer, output.clone());
+        }
     }
+
+    unspent_outputs
 }
 
 // Auxiliar functions for test
