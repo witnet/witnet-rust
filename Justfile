@@ -1,7 +1,13 @@
+# run continuous integration checks
+ci +flags="":
+    just versions || just install-setup
+    cargo fmt --all -- --check
+    just clippy
+    cargo test --all --verbose {{flags}}
+
 # install clippy
 install-clippy:
     rustup component add clippy-preview
-
 
 # install rustfmt
 install-rustfmt:
@@ -20,17 +26,17 @@ versions:
     cargo clippy -- --version
 
 # run clippy
-clippy:
-    cargo clippy --all --all-features -- -D warnings
-    cargo clippy --all --all-targets --all-features -- -A clippy::cyclomatic_complexity
+clippy +flags="":
+    cargo clippy --all --all-features -- -D warnings {{flags}}
+    cargo clippy --all --all-targets --all-features -- -A clippy::cyclomatic_complexity {{flags}}
 
 # run formatter
-fmt:
-    cargo +nightly fmt -v --all
+fmt +flags:
+    cargo +nightly fmt -v --all {{flags}}
 
 # run node
-node:
-    RUST_LOG=witnet=info cargo run node 
+node +args:
+    RUST_LOG=witnet=info cargo run node {{args}}
 
 # run local documentation server at localhost:8000
 docs-dev:
@@ -44,13 +50,14 @@ docs-build:
 docs-deploy:
     mkdocs gh-deploy
 
-# run travis
-travis:
-    just install-setup
-    just versions
-    cargo fmt --all -- --check
-    just clippy
-    cargo test --all --verbose
+# run continuous integration checks on a different platform using docker
+docker-ci target="x86_64-unknown-linux-gnu" +flags="":
+    docker run \
+        -v $(pwd):/project:rw \
+        -v $(pwd)/target:/target \
+        -w /project \
+        -it witnet-rust/{{target}} \
+        just ci --target-dir=/target --target={{target}} {{flags}}
 
 # build docker images for all cross compilation targets
 docker-image-build-all:
@@ -73,6 +80,6 @@ cross-compile target profile="debug":
     -v $(pwd)/target:/target \
     -w /project \
     -i witnet-rust/{{target}} \
-    bash -c "cargo build `[[ {{profile}} == "release" ]] && echo "--release"` \--target={{target}} --target-dir=/target \
-    && [ -z "\$STRIP" ] \
-    && \$STRIP /target/{{target}}/{{profile}}/witnet"
+    bash -c "cargo build `[[ {{profile}} == "release" ]] && echo "--release"` --target={{target}} --target-dir=/target \
+    && [ ! -z "\$STRIP" ] \
+    && \$STRIP /target/{{target}}/{{profile}}/witnet || echo \"No STRIP environment variable is set, passing.\""
