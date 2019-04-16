@@ -261,11 +261,9 @@ impl ChainManager {
                     let tally_body =
                         create_tally_body(&dr_output, inputs, outputs, consensus.clone());
 
-                    signature_mngr::sign(&tally_body)
+                    sign_transaction(tally_body)
                         .map_err(|e| log::error!("Couldn't sign tally body: {}", e))
-                        .and_then(move |sig| {
-                            let tally_transaction = Transaction::new(tally_body, vec![sig]);
-
+                        .and_then(move |tally_transaction| {
                             let print_results: Vec<_> = results
                                 .into_iter()
                                 .map(|result| RadonTypes::try_from(result.as_slice()))
