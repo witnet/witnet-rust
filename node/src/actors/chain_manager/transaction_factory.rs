@@ -329,10 +329,6 @@ mod tests {
             build_vtt(vec![pay_bob(500)], 600, &own_utxos, own_pkh, &all_utxos),
             Err(1000)
         );
-        assert_eq!(
-            build_vtt(vec![pay_bob(500)], 600, &own_utxos, own_pkh, &all_utxos),
-            Err(1000)
-        );
     }
 
     #[test]
@@ -482,7 +478,6 @@ mod tests {
         assert_eq!(outputs_sum_not_mine(&t1.outputs), 1000);
 
         let t2 = build_vtt(vec![pay_bob(990)], 10, &own_utxos, own_pkh, &all_utxos).unwrap();
-
         assert_eq!(outputs_sum_not_mine(&t2.outputs), 990);
 
         let t3 = build_vtt(vec![], 1000, &own_utxos, own_pkh, &all_utxos).unwrap();

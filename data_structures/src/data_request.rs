@@ -612,73 +612,8 @@ pub fn create_tally_body(
 mod tests {
     use crate::{chain::*, data_request::DataRequestPool};
 
-    fn empty_data_request() -> DataRequestOutput {
-        let data_request = RADRequest {
-            not_before: 0,
-            retrieve: vec![],
-            aggregate: RADAggregate { script: vec![] },
-            consensus: RADConsensus { script: vec![] },
-            deliver: vec![],
-        };
-
-        DataRequestOutput {
-            data_request,
-            value: 0,
-            witnesses: 0,
-            backup_witnesses: 0,
-            commit_fee: 0,
-            reveal_fee: 0,
-            tally_fee: 0,
-            time_lock: 0,
-            pkh: PublicKeyHash::default(),
-        }
-    }
-
-    fn empty_commit_output() -> CommitOutput {
-        CommitOutput {
-            commitment: Hash::SHA256([50; 32]),
-            value: 4,
-        }
-    }
-
-    fn empty_reveal_output() -> RevealOutput {
-        RevealOutput {
-            reveal: vec![],
-            pkh: PublicKeyHash::default(),
-            value: 5,
-        }
-    }
-
-    fn empty_tally_output() -> TallyOutput {
-        TallyOutput {
-            result: vec![],
-            pkh: PublicKeyHash::default(),
-            value: 6,
-        }
-    }
-
-    fn empty_value_transfer_input() -> ValueTransferInput {
-        ValueTransferInput {
-            transaction_id: Hash::SHA256([9; 32]),
-            output_index: 0,
-        }
-    }
-
-    fn empty_value_transfer_output() -> ValueTransferOutput {
-        ValueTransferOutput {
-            pkh: PublicKeyHash::default(),
-            value: 7,
-        }
-    }
-
     fn fake_transaction_zip(z: Vec<(Input, Output)>) -> Transaction {
-        let mut inputs = vec![];
-        let mut outputs = vec![];
-
-        for t in z {
-            inputs.push(t.0);
-            outputs.push(t.1);
-        }
+        let (inputs, outputs) = z.into_iter().unzip();
 
         Transaction::new(
             TransactionBody::new(0, inputs, outputs),
@@ -690,10 +625,10 @@ mod tests {
     fn add_data_requests() {
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
-        let data_request = empty_data_request();
+        let data_request = DataRequestOutput::default();
         let empty_info = DataRequestInfo::default();
         let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(empty_value_transfer_input()),
+            Input::ValueTransfer(ValueTransferInput::default()),
             Output::DataRequest(data_request.clone()),
         )]);
         let dr_pointer = OutputPointer {
@@ -722,9 +657,9 @@ mod tests {
     fn from_commit_to_reveal() {
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
-        let data_request = empty_data_request();
+        let data_request = DataRequestOutput::default();
         let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(empty_value_transfer_input()),
+            Input::ValueTransfer(ValueTransferInput::default()),
             Output::DataRequest(data_request.clone()),
         )]);
         let dr_pointer = OutputPointer {
@@ -755,7 +690,7 @@ mod tests {
                 output_index: dr_pointer.output_index,
                 poe: [77; 32],
             }),
-            Output::Commit(empty_commit_output()),
+            Output::Commit(CommitOutput::default()),
         )]);
 
         let commit_pointer = OutputPointer {
@@ -807,9 +742,9 @@ mod tests {
     fn from_reveal_to_tally() {
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
-        let data_request = empty_data_request();
+        let data_request = DataRequestOutput::default();
         let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(empty_value_transfer_input()),
+            Input::ValueTransfer(ValueTransferInput::default()),
             Output::DataRequest(data_request.clone()),
         )]);
         let dr_pointer = OutputPointer {
@@ -832,7 +767,7 @@ mod tests {
             DataRequestStage::COMMIT
         );
 
-        let commit = empty_commit_output();
+        let commit = CommitOutput::default();
         let commit_transaction = fake_transaction_zip(vec![(
             Input::DataRequest(DataRequestInput {
                 transaction_id: dr_pointer.transaction_id,
@@ -867,7 +802,7 @@ mod tests {
             DataRequestStage::REVEAL
         );
 
-        let reveal = empty_reveal_output();
+        let reveal = RevealOutput::default();
         let reveal_transaction = fake_transaction_zip(vec![(
             Input::Commit(CommitInput {
                 transaction_id: commit_pointer.transaction_id,
@@ -926,9 +861,9 @@ mod tests {
     fn from_tally_to_storage() {
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
-        let data_request = empty_data_request();
+        let data_request = DataRequestOutput::default();
         let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(empty_value_transfer_input()),
+            Input::ValueTransfer(ValueTransferInput::default()),
             Output::DataRequest(data_request.clone()),
         )]);
         let dr_pointer = OutputPointer {
@@ -951,7 +886,7 @@ mod tests {
             DataRequestStage::COMMIT
         );
 
-        let commit = empty_commit_output();
+        let commit = CommitOutput::default();
         let commit_transaction = fake_transaction_zip(vec![(
             Input::DataRequest(DataRequestInput {
                 transaction_id: dr_pointer.transaction_id,
@@ -986,7 +921,7 @@ mod tests {
             DataRequestStage::REVEAL
         );
 
-        let reveal = empty_reveal_output();
+        let reveal = RevealOutput::default();
         let reveal_transaction = fake_transaction_zip(vec![(
             Input::Commit(CommitInput {
                 transaction_id: commit_pointer.transaction_id,
@@ -1018,13 +953,13 @@ mod tests {
             DataRequestStage::TALLY
         );
 
-        let tally = empty_tally_output();
+        let tally = TallyOutput::default();
         let mut tally_transaction = fake_transaction_zip(vec![(
             Input::Reveal(RevealInput {
                 transaction_id: reveal_pointer.transaction_id,
                 output_index: reveal_pointer.output_index,
             }),
-            Output::ValueTransfer(empty_value_transfer_output()),
+            Output::ValueTransfer(ValueTransferOutput::default()),
         )]);
         tally_transaction
             .body
@@ -1078,9 +1013,9 @@ mod tests {
         // Test the `add_own_reveal` function
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
-        let data_request = empty_data_request();
+        let data_request = DataRequestOutput::default();
         let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(empty_value_transfer_input()),
+            Input::ValueTransfer(ValueTransferInput::default()),
             Output::DataRequest(data_request.clone()),
         )]);
         let dr_pointer = OutputPointer {
@@ -1103,7 +1038,7 @@ mod tests {
             DataRequestStage::COMMIT
         );
 
-        let commit = empty_commit_output();
+        let commit = CommitOutput::default();
         let commit_transaction = fake_transaction_zip(vec![(
             Input::DataRequest(DataRequestInput {
                 transaction_id: dr_pointer.transaction_id,
@@ -1118,7 +1053,7 @@ mod tests {
             output_index: 0,
         };
 
-        let reveal = empty_reveal_output();
+        let reveal = RevealOutput::default();
         let reveal_transaction = fake_transaction_zip(vec![(
             Input::Commit(CommitInput {
                 transaction_id: commit_pointer.transaction_id,
@@ -1213,9 +1148,9 @@ mod tests {
         // Only the first consecutive call to update_data_request_stages should change the state
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
-        let data_request = empty_data_request();
+        let data_request = DataRequestOutput::default();
         let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(empty_value_transfer_input()),
+            Input::ValueTransfer(ValueTransferInput::default()),
             Output::DataRequest(data_request.clone()),
         )]);
         let dr_pointer = OutputPointer {
@@ -1245,7 +1180,7 @@ mod tests {
             DataRequestStage::COMMIT
         );
 
-        let commit = empty_commit_output();
+        let commit = CommitOutput::default();
         let commit_transaction = fake_transaction_zip(vec![(
             Input::DataRequest(DataRequestInput {
                 transaction_id: dr_pointer.transaction_id,
@@ -1289,7 +1224,7 @@ mod tests {
             DataRequestStage::REVEAL
         );
 
-        let reveal = empty_reveal_output();
+        let reveal = RevealOutput::default();
         let reveal_transaction = fake_transaction_zip(vec![(
             Input::Commit(CommitInput {
                 transaction_id: commit_pointer.transaction_id,
@@ -1330,13 +1265,13 @@ mod tests {
             DataRequestStage::TALLY
         );
 
-        let tally = empty_tally_output();
+        let tally = TallyOutput::default();
         let mut tally_transaction = fake_transaction_zip(vec![(
             Input::Reveal(RevealInput {
                 transaction_id: reveal_pointer.transaction_id,
                 output_index: reveal_pointer.output_index,
             }),
-            Output::ValueTransfer(empty_value_transfer_output()),
+            Output::ValueTransfer(ValueTransferOutput::default()),
         )]);
         tally_transaction
             .body
