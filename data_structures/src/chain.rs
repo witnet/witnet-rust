@@ -411,6 +411,17 @@ pub struct PublicKeyHash {
     hash: [u8; 20],
 }
 
+impl fmt::Display for PublicKeyHash {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(
+            self.hash
+                .iter()
+                .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x))
+                .as_str(),
+        )
+    }
+}
+
 impl PublicKeyHash {
     /// Calculate the hash of the provided public key
     pub fn from_public_key(pk: &PublicKey) -> Self {

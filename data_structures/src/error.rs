@@ -4,6 +4,7 @@ use failure::Fail;
 use std::num::ParseIntError;
 
 use super::chain::{Epoch, Hash, OutputPointer};
+use crate::chain::PublicKeyHash;
 
 /// The error type for operations on a [`ChainInfo`](ChainInfo)
 #[derive(Debug, PartialEq, Fail)]
@@ -95,6 +96,15 @@ pub enum TransactionError {
     /// Signature not found
     #[fail(display = "Transaction signature not found")]
     SignatureNotFound,
+    /// Public Key Hash does not match
+    #[fail(
+        display = "Public key hash mismatch: expected {} got {}",
+        expected_pkh, signature_pkh
+    )]
+    PublicKeyHashMismatch {
+        expected_pkh: PublicKeyHash,
+        signature_pkh: PublicKeyHash,
+    },
 }
 
 /// The error type for operations on a [`Block`](Block)

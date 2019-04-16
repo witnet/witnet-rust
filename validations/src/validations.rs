@@ -18,6 +18,7 @@ use witnet_data_structures::{
 
 use log;
 
+use witnet_data_structures::chain::PublicKeyHash;
 use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 
 /// Calculate the sum of the values of the outputs pointed by the
@@ -408,16 +409,30 @@ pub fn validate_block_signature(block: &Block) -> Result<(), failure::Error> {
 
 /// Function to validate a pkh signature
 pub fn validate_pkh_signature(
-    _input: &Input,
-    _keyed_signature: &KeyedSignature,
-    _tx_hash: &Hash,
+    input: &Input,
+    keyed_signature: &KeyedSignature,
+    utxo_diff: &UtxoDiff,
 ) -> Result<(), failure::Error> {
-    // TODO: Implement a properly pkh validation
+    let output = utxo_diff.get(&input.output_pointer());
+    // TODO: for now only validate value transfer outputs
+    if let Some(Output::ValueTransfer(x)) = output {
+        let signature_pkh = PublicKeyHash::from_public_key(&keyed_signature.public_key);
+        let expected_pkh = x.pkh;
+        if signature_pkh != expected_pkh {
+            Err(TransactionError::PublicKeyHashMismatch {
+                expected_pkh,
+                signature_pkh,
+            })?
+        }
+    }
     Ok(())
 }
 
 /// Function to validate transaction signatures
-pub fn validate_transaction_signatures(transaction: &Transaction) -> Result<(), failure::Error> {
+pub fn validate_transaction_signatures(
+    transaction: &Transaction,
+    utxo_set: &UtxoDiff,
+) -> Result<(), failure::Error> {
     let signatures = &transaction.signatures;
     let inputs = &transaction.body.inputs;
 
@@ -445,7 +460,7 @@ pub fn validate_transaction_signatures(transaction: &Transaction) -> Result<(), 
     }
 
     for (input, keyed_signature) in inputs.iter().zip(signatures.iter().next()) {
-        validate_pkh_signature(input, keyed_signature, &transaction.hash())?
+        validate_pkh_signature(input, keyed_signature, utxo_set)?
     }
 
     Ok(())
@@ -458,7 +473,7 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
     dr_pool: &DataRequestPool,
     block_commits: &mut WitnessesCounter<S>,
 ) -> Result<u64, failure::Error> {
-    validate_transaction_signatures(&transaction)?;
+    validate_transaction_signatures(&transaction, utxo_diff)?;
 
     match transaction_tag(&transaction.body) {
         TransactionType::Mint => Err(TransactionError::UnexpectedMint)?,
