@@ -26,6 +26,7 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::System;
+use crate::actors::messages::{BuildDrt, BuildVtt};
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
@@ -41,6 +42,12 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
     });
     io.add_method("getBlock", |params: Params| get_block(params.parse()));
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
+    io.add_method("buildDataRequest", |params: Params| {
+        build_data_request(params.parse()?)
+    });
+    io.add_method("buildValueTransfer", |params: Params| {
+        build_value_transfer(params.parse()?)
+    });
 
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -406,6 +413,25 @@ pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> Jso
     )
 }
 */
+/// Build data request transaction
+pub fn build_data_request(msg: BuildDrt) -> JsonRpcResult {
+    debug!("Creating data request from JSON-RPC.");
+
+    ChainManager::from_registry().do_send(msg);
+
+    // TODO: return a meaningful value
+    Ok(Value::Bool(true))
+}
+
+/// Build value transfer transaction
+pub fn build_value_transfer(msg: BuildVtt) -> JsonRpcResult {
+    debug!("Creating data request from JSON-RPC.");
+
+    ChainManager::from_registry().do_send(msg);
+
+    // TODO: return a meaningful value
+    Ok(Value::Bool(true))
+}
 
 #[cfg(test)]
 mod mock_actix {
@@ -884,5 +910,13 @@ mod tests {
         let hash_str = r#""0000000000000000000000000000000000000000000000000000000000000000""#;
         let h3 = serde_json::from_str(hash_str).unwrap();
         assert_eq!(h, h3);
+    }
+
+    #[test]
+    fn build_drt_example() {
+        let build_drt = BuildDrt::default();
+        let s = serde_json::to_string(&build_drt);
+        let expected = r#"{"dro":{"pkh":{"hash":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"data_request":{"not_before":0,"retrieve":[],"aggregate":{"script":[]},"consensus":{"script":[]},"deliver":[]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0},"fee":0}"#;
+        assert_eq!(s.unwrap(), expected);
     }
 }

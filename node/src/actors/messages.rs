@@ -7,11 +7,12 @@ use std::{
 };
 
 use actix::{actors::resolver::ResolverError, dev::ToEnvelope, Actor, Addr, Handler, Message};
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
 use witnet_data_structures::chain::{
-    Block, CheckpointBeacon, Epoch, Hash, InventoryEntry, InventoryItem, RADConsensus, RADRequest,
-    Transaction,
+    Block, CheckpointBeacon, DataRequestOutput, Epoch, Hash, InventoryEntry, InventoryItem,
+    RADConsensus, RADRequest, Transaction, ValueTransferOutput,
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 use witnet_rad::error::RadError;
@@ -135,6 +136,32 @@ pub struct PeersBeacons {
 impl Message for PeersBeacons {
     /// Result: list of peers out of consensus which will be unregistered
     type Result = Result<Vec<SocketAddr>, ()>;
+}
+
+/// Builds a `ValueTransferTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildVtt {
+    /// List of `ValueTransferOutput`s
+    pub vto: Vec<ValueTransferOutput>,
+    /// Fee
+    pub fee: u64,
+}
+
+impl Message for BuildVtt {
+    type Result = ();
+}
+
+/// Builds a `DataRequestTransaction` from a `DataRequestOutput`
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildDrt {
+    /// `DataRequestOutput`
+    pub dro: DataRequestOutput,
+    /// Fee
+    pub fee: u64,
+}
+
+impl Message for BuildDrt {
+    type Result = ();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

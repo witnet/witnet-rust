@@ -1,4 +1,4 @@
-use actix::{Actor, Context, Handler, Message, SystemService};
+use actix::prelude::*;
 use log::{debug, error, warn};
 
 use witnet_data_structures::{
@@ -8,6 +8,8 @@ use witnet_data_structures::{
 use witnet_validations::validations::{validate_block, validate_transaction, UtxoDiff};
 
 use super::{ChainManager, ChainManagerError, StateMachine};
+use crate::actors::chain_manager::transaction_factory;
+use crate::actors::messages::{BuildDrt, BuildVtt};
 use crate::{
     actors::{
         messages::{
@@ -19,6 +21,7 @@ use crate::{
     },
     utils::mode_consensus,
 };
+use actix::fut::WrapFuture;
 use std::collections::HashMap;
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -468,6 +471,74 @@ impl Handler<PeersBeacons> for ChainManager {
                         Ok(vec![])
                     }
                 }
+            }
+        }
+    }
+}
+
+impl Handler<BuildVtt> for ChainManager {
+    type Result = <BuildVtt as Message>::Result;
+
+    fn handle(&mut self, msg: BuildVtt, ctx: &mut Self::Context) -> Self::Result {
+        match transaction_factory::build_vtt(
+            msg.vto,
+            msg.fee,
+            &self.chain_state.own_utxos,
+            self.own_pkh.unwrap(),
+            &self.chain_state.unspent_outputs_pool,
+        ) {
+            Err(total_value) => error!(
+                "Cannot build value transfer transaction with cost > {}",
+                total_value
+            ),
+            Ok(vtt) => {
+                transaction_factory::sign_transaction(vtt)
+                    .into_actor(self)
+                    .then(|t, _act, ctx| {
+                        match t {
+                            Ok(transaction) => {
+                                ctx.notify(AddTransaction { transaction });
+                            }
+                            Err(e) => error!("{}", e),
+                        }
+
+                        actix::fut::ok(())
+                    })
+                    .wait(ctx);
+            }
+        }
+    }
+}
+impl Handler<BuildDrt> for ChainManager {
+    type Result = <BuildDrt as Message>::Result;
+
+    fn handle(&mut self, msg: BuildDrt, ctx: &mut Self::Context) -> Self::Result {
+        match transaction_factory::build_drt(
+            msg.dro,
+            msg.fee,
+            &self.chain_state.own_utxos,
+            self.own_pkh.unwrap(),
+            &self.chain_state.unspent_outputs_pool,
+        ) {
+            Err(total_value) => error!(
+                "Cannot build data request transaction with cost > {}",
+                total_value
+            ),
+            Ok(vtt) => {
+                debug!("Created vtt:\n{:?}", vtt);
+                transaction_factory::sign_transaction(vtt)
+                    .into_actor(self)
+                    .then(|t, _act, ctx| {
+                        match t {
+                            Ok(transaction) => {
+                                ctx.notify(AddTransaction { transaction });
+                            }
+                            Err(e) => error!("{}", e),
+                        }
+
+                        actix::fut::ok(())
+                    })
+                    .wait(ctx);
             }
         }
     }
