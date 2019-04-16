@@ -376,19 +376,6 @@ impl DataRequestPool {
                 output_index,
             };
             match s {
-                Output::DataRequest(dr) => {
-                    // A data request output should have a valid value transfer input
-                    // Which we assume valid as it should have been already verified
-                    // time_lock_epoch: The epoch during which we will start accepting
-                    // commitments for this data request
-                    // FIXME(#338): implement time lock
-                    // An enhancement to the epoch manager would be a handler GetState which returns
-                    // the needed constants to calculate the current epoch. This way we avoid all the
-                    // calls to GetEpoch
-                    let time_lock_epoch = 0;
-                    let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
-                    self.add_data_request(dr_epoch, pointer.clone(), dr.clone());
-                }
                 Output::Commit(_commit) => {
                     self.add_commit(z, pointer, block_hash);
                 }
@@ -412,6 +399,28 @@ impl DataRequestPool {
                     );
                 }
                 Output::ValueTransfer(_) => {}
+                Output::DataRequest(_) => {} // Handled later
+            }
+        }
+
+        for (i, s) in t.body.outputs.iter().enumerate() {
+            if let Output::DataRequest(dr) = s {
+                let output_index = i as u32;
+                let pointer = OutputPointer {
+                    transaction_id,
+                    output_index,
+                };
+                // A data request output should have a valid value transfer input
+                // Which we assume valid as it should have been already verified
+                // time_lock_epoch: The epoch during which we will start accepting
+                // commitments for this data request
+                // FIXME(#338): implement time lock
+                // An enhancement to the epoch manager would be a handler GetState which returns
+                // the needed constants to calculate the current epoch. This way we avoid all the
+                // calls to GetEpoch
+                let time_lock_epoch = 0;
+                let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
+                self.add_data_request(dr_epoch, pointer.clone(), dr.clone());
             }
         }
 

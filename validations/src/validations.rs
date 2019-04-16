@@ -170,11 +170,7 @@ pub fn validate_vt_transaction(_tx: &TransactionBody) -> Result<(), failure::Err
 
 /// Function to validate a data request transaction
 pub fn validate_dr_transaction(tx: &TransactionBody) -> Result<(), failure::Error> {
-    if tx.outputs.len() != 1 {
-        Err(TransactionError::InvalidDataRequestTransaction)?
-    }
-
-    if let Output::DataRequest(dr_output) = &tx.outputs[0] {
+    if let Some(Output::DataRequest(dr_output)) = &tx.outputs.last() {
         if dr_output.witnesses < 1 {
             Err(TransactionError::InsufficientWitnesses)?
         }
