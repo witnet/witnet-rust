@@ -190,7 +190,7 @@ impl Handler<AddBlocks> for ChainManager {
             StateMachine::WaitingConsensus => {}
             StateMachine::Synchronizing => {
                 if let Some(target_beacon) = self.target_beacon {
-                    let mut batch_succeded = true;
+                    let mut batch_succeeded = true;
                     for block in msg.blocks.iter() {
                         if let Err(e) = self.process_requested_block(ctx, block) {
                             log::error!("Error processing block: {}", e);
