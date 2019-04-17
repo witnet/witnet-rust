@@ -1,5 +1,3 @@
-use std::default::Default;
-
 use witnet_crypto::{
     hash::Sha256,
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
