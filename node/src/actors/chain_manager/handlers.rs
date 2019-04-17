@@ -238,7 +238,7 @@ impl Handler<AddCandidates> for ChainManager {
     fn handle(&mut self, msg: AddCandidates, _ctx: &mut Context<Self>) {
         // AddCandidates is needed in all states
         for block in msg.blocks {
-            self.process_candidate(block)
+            self.process_candidate(block);
         }
     }
 }
