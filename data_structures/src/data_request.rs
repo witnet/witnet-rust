@@ -10,6 +10,7 @@ use super::chain::{
     UnspentOutputsPool, ValueTransferOutput,
 };
 
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 type DataRequestsWithReveals = Vec<(
@@ -517,7 +518,7 @@ pub fn create_commit_body(
         transaction_id: dr_output_pointer.transaction_id,
         output_index: dr_output_pointer.output_index,
         // TODO: create a proper poe
-        poe: [0; 32],
+        poe: rand::thread_rng().gen(),
     });
 
     // Calculate reveal_value
