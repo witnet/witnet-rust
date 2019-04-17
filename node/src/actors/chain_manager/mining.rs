@@ -120,6 +120,12 @@ impl ChainManager {
                             Ok(_) => {
                                 // Send AddCandidates message to self
                                 // This will run all the validations again
+
+                                let block_hash = block.hash();
+                                log::info!(
+                                    "Proposed block candidate {}",
+                                    Yellow.bold().paint(block_hash.to_string())
+                                );
                                 act.handle(
                                     AddCandidates {
                                         blocks: vec![block],
