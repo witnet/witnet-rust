@@ -49,7 +49,7 @@ The supplied `(input: T): O` function can be either be a valid [subscript] over 
 
 ## `Array.flatten()`
 ```ts
-flatten(depth: Int): Array<T>
+flatten(depth?: Int): Array<T>
 ```
 ```ts
 ARRAY_FLATTEN
