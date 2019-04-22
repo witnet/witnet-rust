@@ -18,19 +18,19 @@ use crate::actors::{
 
 use crate::actors::chain_manager::transaction_factory::sign_transaction;
 use crate::signature_mngr;
+
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, CheckpointBeacon, Hashable, Input, LeadershipProof, Output,
-        OutputPointer, PublicKeyHash, Transaction, TransactionsPool, UnspentOutputsPool,
-        ValueTransferOutput,
+        Block, BlockHeader, CheckpointBeacon, Hashable, LeadershipProof, Output, OutputPointer,
+        PublicKeyHash, Transaction, TransactionsPool, TransactionType, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{create_commit_body, create_reveal_body, create_tally_body, create_vt_tally},
     serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
-    block_reward, merkle_tree_root, transaction_fee, validate_block, verify_poe_data_request,
-    UtxoDiff,
+    block_reward, merkle_tree_root, transaction_fee, transaction_tag, validate_block,
+    verify_poe_data_request, UtxoDiff,
 };
 
 impl ChainManager {
@@ -191,7 +191,7 @@ impl ChainManager {
                     })
                     .and_then(move |reveal_value, act, _ctx| {
                         // Create commitment transaction
-                        let commit_body = create_commit_body(&dr_output_pointer, &data_request_output, reveal_value.clone());
+                        let commit_body = create_commit_body(dr_output_pointer.clone(), &data_request_output, reveal_value.clone());
                         sign_transaction(commit_body)
                             .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
                             .into_actor(act)
@@ -348,7 +348,8 @@ fn build_block(
         let new_block_weight = block_weight + transaction_weight;
 
         if new_block_weight <= max_block_weight {
-            if let Input::DataRequest(dri) = &transaction.body.inputs[0] {
+            if let TransactionType::Commit = transaction_tag(&transaction.body) {
+                let dri = &transaction.body.inputs[0];
                 let dri_pointer = dri.output_pointer();
                 if let Some(dr) = unspent_outputs_pool.get(&dri_pointer) {
                     if let Output::DataRequest(dr) = dr {

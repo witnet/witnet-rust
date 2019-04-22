@@ -55,21 +55,17 @@ fn calculate_commit_input(
     tx: &TransactionBody,
     utxo_diff: &UtxoDiff,
 ) -> Result<u64, failure::Error> {
-    match &tx.inputs[0] {
-        Input::DataRequest(dr_input) => {
-            // Get DataRequest information
-            let dr_pointer = dr_input.output_pointer();
-            let dr_output = utxo_diff
-                .get(&dr_pointer)
-                .ok_or(TransactionError::OutputNotFound {
-                    output: dr_pointer.clone(),
-                })?;
+    let dr_input = &tx.inputs[0];
+    // Get DataRequest information
+    let dr_pointer = dr_input.output_pointer();
+    let dr_output = utxo_diff
+        .get(&dr_pointer)
+        .ok_or(TransactionError::OutputNotFound {
+            output: dr_pointer.clone(),
+        })?;
 
-            match dr_output {
-                Output::DataRequest(dr_state) => Ok(dr_state.value / u64::from(dr_state.witnesses)),
-                _ => Err(TransactionError::InvalidCommitTransaction)?,
-            }
-        }
+    match dr_output {
+        Output::DataRequest(dr_state) => Ok(dr_state.value / u64::from(dr_state.witnesses)),
         _ => Err(TransactionError::InvalidCommitTransaction)?,
     }
 }
@@ -234,42 +230,40 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
         Err(TransactionError::InvalidCommitTransaction)?
     }
 
-    match &tx.inputs[0] {
-        Input::DataRequest(dr_input) => {
-            // TODO: Complete PoE validation
-            let _poe = dr_input.poe;
-            if !verify_poe_data_request() {
-                Err(TransactionError::InvalidDataRequestPoe)?
-            }
+    let dr_input = &tx.inputs[0];
 
-            // Get DataRequest information
-            let dr_pointer = dr_input.output_pointer();
-            let dr_state = dr_pool.data_request_pool.get(&dr_pointer).ok_or(
-                TransactionError::OutputNotFound {
-                    output: dr_pointer.clone(),
-                },
-            )?;
-
-            // Validate fee
-            let expected_commit_fee = dr_state.data_request.commit_fee;
-            if fee != expected_commit_fee {
-                Err(TransactionError::InvalidFee {
-                    fee,
-                    expected_fee: expected_commit_fee,
-                })?
-            }
-
-            // Accumulate commits number
-            increment_witnesses_counter(
-                block_commits,
-                &dr_pointer,
-                u32::from(dr_state.data_request.witnesses),
-            );
-
-            Ok(())
-        }
-        _ => Err(TransactionError::NotDataRequestInputInCommit)?,
+    // TODO: Complete PoE validation
+    if !verify_poe_data_request() {
+        Err(TransactionError::InvalidDataRequestPoe)?
     }
+
+    // Get DataRequest information
+    let dr_pointer = dr_input.output_pointer();
+    let dr_state =
+        dr_pool
+            .data_request_pool
+            .get(&dr_pointer)
+            .ok_or(TransactionError::OutputNotFound {
+                output: dr_pointer.clone(),
+            })?;
+
+    // Validate fee
+    let expected_commit_fee = dr_state.data_request.commit_fee;
+    if fee != expected_commit_fee {
+        Err(TransactionError::InvalidFee {
+            fee,
+            expected_fee: expected_commit_fee,
+        })?
+    }
+
+    // Accumulate commits number
+    increment_witnesses_counter(
+        block_commits,
+        &dr_pointer,
+        u32::from(dr_state.data_request.witnesses),
+    );
+
+    Ok(())
 }
 
 /// Function to validate a reveal transaction
@@ -282,36 +276,36 @@ pub fn validate_reveal_transaction(
         Err(TransactionError::InvalidRevealTransaction)?
     }
 
-    match &tx.inputs[0] {
-        Input::Commit(commit_input) => {
-            // Get DataRequest information
-            let commit_pointer = commit_input.output_pointer();
-            let dr_pointer = dr_pool.dr_pointer_cache.get(&commit_pointer).ok_or(
-                TransactionError::OutputNotFound {
-                    output: commit_pointer.clone(),
-                },
-            )?;
-            let dr_state = dr_pool.data_request_pool.get(&dr_pointer).ok_or(
-                TransactionError::OutputNotFound {
-                    output: dr_pointer.clone(),
-                },
-            )?;
+    let commit_input = &tx.inputs[0];
+    // Get DataRequest information
+    let commit_pointer = commit_input.output_pointer();
+    let dr_pointer =
+        dr_pool
+            .dr_pointer_cache
+            .get(&commit_pointer)
+            .ok_or(TransactionError::OutputNotFound {
+                output: commit_pointer.clone(),
+            })?;
+    let dr_state =
+        dr_pool
+            .data_request_pool
+            .get(&dr_pointer)
+            .ok_or(TransactionError::OutputNotFound {
+                output: dr_pointer.clone(),
+            })?;
 
-            // Validate fee
-            let expected_reveal_fee = dr_state.data_request.reveal_fee;
-            if fee != expected_reveal_fee {
-                Err(TransactionError::InvalidFee {
-                    fee,
-                    expected_fee: expected_reveal_fee,
-                })?
-            }
-
-            // TODO: Validate commitment
-
-            Ok(())
-        }
-        _ => Err(TransactionError::NotCommitInputInReveal)?,
+    // Validate fee
+    let expected_reveal_fee = dr_state.data_request.reveal_fee;
+    if fee != expected_reveal_fee {
+        Err(TransactionError::InvalidFee {
+            fee,
+            expected_fee: expected_reveal_fee,
+        })?
     }
+
+    // TODO: Validate commitment
+
+    Ok(())
 }
 
 /// Function to validate a tally transaction
@@ -332,34 +326,26 @@ pub fn validate_tally_transaction(
     };
 
     for input in &tx.inputs {
-        match input {
-            Input::Reveal(reveal_input) => {
-                // Get DataRequest information
-                let reveal_pointer = reveal_input.output_pointer();
+        // Get DataRequest information
+        let reveal_pointer = input.output_pointer();
 
-                let dr_pointer = dr_pool.dr_pointer_cache.get(&reveal_pointer).ok_or(
-                    TransactionError::OutputNotFound {
-                        output: reveal_pointer.clone(),
-                    },
-                )?;
+        let dr_pointer = dr_pool.dr_pointer_cache.get(&reveal_pointer).ok_or(
+            TransactionError::OutputNotFound {
+                output: reveal_pointer.clone(),
+            },
+        )?;
 
-                if dr_pointer_aux.transaction_id == Hash::default() {
-                    dr_pointer_aux = dr_pointer;
-                } else if dr_pointer_aux != dr_pointer {
-                    Err(TransactionError::RevealsFromDifferentDataRequest)?
-                }
+        if dr_pointer_aux.transaction_id == Hash::default() {
+            dr_pointer_aux = dr_pointer;
+        } else if dr_pointer_aux != dr_pointer {
+            Err(TransactionError::RevealsFromDifferentDataRequest)?
+        }
 
-                match utxo_diff.get(&reveal_pointer) {
-                    Some(Output::Reveal(reveal_output)) => {
-                        reveals.push(reveal_output.reveal.clone())
-                    }
-                    _ => Err(TransactionError::OutputNotFound {
-                        output: reveal_pointer.clone(),
-                    })?,
-                }
-            }
-
-            _ => Err(TransactionError::NotRevealInputInTally)?,
+        match utxo_diff.get(&reveal_pointer) {
+            Some(Output::Reveal(reveal_output)) => reveals.push(reveal_output.reveal.clone()),
+            _ => Err(TransactionError::OutputNotFound {
+                output: reveal_pointer.clone(),
+            })?,
         }
     }
 
@@ -560,13 +546,10 @@ pub fn validate_transactions(
                 for input in &transaction.body.inputs {
                     // Obtain the OuputPointer of each input and remove it from the utxo_diff
                     let output_pointer = input.output_pointer();
-                    match input {
-                        Input::DataRequest(..) => {
-                            utxo_diff.remove_utxo_dr(output_pointer);
-                        }
-                        _ => {
-                            utxo_diff.remove_utxo(output_pointer);
-                        }
+                    if let TransactionType::Commit = transaction_tag(&transaction.body) {
+                        utxo_diff.remove_utxo_dr(output_pointer);
+                    } else {
+                        utxo_diff.remove_utxo(output_pointer);
                     }
                 }
 

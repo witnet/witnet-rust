@@ -4,13 +4,11 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use witnet_crypto::hash::calculate_sha256;
 
 use super::chain::{
-    CommitInput, CommitOutput, DataRequestInput, DataRequestOutput, DataRequestReport,
-    DataRequestStage, DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer,
-    PublicKeyHash, RevealInput, RevealOutput, TallyOutput, Transaction, TransactionBody,
-    UnspentOutputsPool, ValueTransferOutput,
+    CommitOutput, DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch,
+    Hash, Hashable, Input, Output, OutputPointer, PublicKeyHash, RevealOutput, TallyOutput, Transaction,
+    TransactionBody, UnspentOutputsPool, ValueTransferOutput,
 };
 
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 type DataRequestsWithReveals = Vec<(
@@ -118,8 +116,8 @@ impl DataRequestPool {
         // The reveal transaction can only have one input and one output
         if reveal.body.inputs.len() == 1 && reveal.body.outputs.len() == 1 {
             // Input: CommitInput, Output: RevealOutput
-            match (&reveal.body.inputs[0], &reveal.body.outputs[0]) {
-                (&Input::Commit(..), &Output::Reveal(..)) => {
+            match reveal.body.outputs[0] {
+                Output::Reveal(..) => {
                     Ok(self.waiting_for_reveal.insert(data_request_pointer, reveal))
                 }
                 _ => Err(reveal),
@@ -133,45 +131,31 @@ impl DataRequestPool {
     fn add_commit(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a commit output, we need to get the corresponding data request input
-        if let Input::DataRequest(dri) = z {
-            let dr_pointer = dri.output_pointer();
+        let dr_pointer = z.output_pointer();
 
-            // The data request must be from a previous block, and must not be timelocked.
-            // This is not checked here, as it should have made the block invalid.
-            if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-                dr.add_commit(pointer.clone());
-                // Save the commit output pointer into a cache, to be able to
-                // retrieve data requests when we have the commit output pointer
-                // but no data request output pointer
-                self.dr_pointer_cache.insert(pointer, dr_pointer);
-            } else {
-                // This can happen when a data request was not stored into the dr_pool.
-                // For example, a very old data request that just now got a commitment.
-                // Since we currently store all the data requests in memory, a failure
-                // here is a logic error, therefore we panic.
-                panic!(
-                    "Block contains a commitment for an unknown data request:\n\
-                     Block hash: {b}\n\
-                     Transaction hash: {t}\n\
-                     Commit output pointer: {p:?}\n\
-                     Data request pointer: {d:?}",
-                    b = block_hash,
-                    t = transaction_id,
-                    p = pointer,
-                    d = dr_pointer,
-                );
-            }
+        // The data request must be from a previous block, and must not be timelocked.
+        // This is not checked here, as it should have made the block invalid.
+        if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
+            dr.add_commit(pointer.clone());
+            // Save the commit output pointer into a cache, to be able to
+            // retrieve data requests when we have the commit output pointer
+            // but no data request output pointer
+            self.dr_pointer_cache.insert(pointer, dr_pointer);
         } else {
-            // This panic implies a logic error in the block validation
+            // This can happen when a data request was not stored into the dr_pool.
+            // For example, a very old data request that just now got a commitment.
+            // Since we currently store all the data requests in memory, a failure
+            // here is a logic error, therefore we panic.
             panic!(
-                "Invalid transaction got accepted into a valid block.\n\
-                 Missing Input::DataRequest\n\
+                "Block contains a commitment for an unknown data request:\n\
                  Block hash: {b}\n\
                  Transaction hash: {t}\n\
-                 Commit output pointer: {p:?}",
+                 Commit output pointer: {p:?}\n\
+                 Data request pointer: {d:?}",
                 b = block_hash,
                 t = transaction_id,
                 p = pointer,
+                d = dr_pointer,
             );
         }
     }
@@ -180,65 +164,51 @@ impl DataRequestPool {
     fn add_reveal(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a reveal output, we need to get the corresponding commit input
-        if let Input::Commit(commit_input) = z {
-            let commit_pointer = commit_input.output_pointer();
-            if let Some(dr_pointer) = self.dr_pointer_cache.get(&commit_pointer) {
-                if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-                    dr.add_reveal(pointer.clone());
-                    // Save the reveal output pointer into a cache
-                    self.dr_pointer_cache.insert(pointer, dr_pointer.clone());
-                } else {
-                    panic!(
-                        "Block contains a reveal for an unknown commitment:\n\
-                         Block hash: {b}\n\
-                         Transaction hash: {t}\n\
-                         Reveal output pointer: {p:?}\n\
-                         Commit output pointer: {c:?}\n\
-                         Data request pointer: {d:?}",
-                        b = block_hash,
-                        t = transaction_id,
-                        p = pointer,
-                        c = commit_pointer,
-                        d = dr_pointer,
-                    );
-                }
+        let commit_pointer = z.output_pointer();
+        if let Some(dr_pointer) = self.dr_pointer_cache.get(&commit_pointer) {
+            if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
+                dr.add_reveal(pointer.clone());
+                // Save the reveal output pointer into a cache
+                self.dr_pointer_cache.insert(pointer, dr_pointer.clone());
             } else {
-                // TODO: on cache miss we should query the storage for the required
-                // output pointer and retry the validation. Since this function should
-                // not depend on the storage, maybe a list of pending transactions similar
-                // to "to_be_stored" would be useful: we need to store pending transactions
-                // and missing output pointers. However that's currently unnecessary because
-                // we will always persist the cache
                 panic!(
-                    "Block contains a reveal for a commitment not in the cache:\n\
+                    "Block contains a reveal for an unknown commitment:\n\
                      Block hash: {b}\n\
                      Transaction hash: {t}\n\
                      Reveal output pointer: {p:?}\n\
-                     Commit output pointer: {c:?}",
+                     Commit output pointer: {c:?}\n\
+                     Data request pointer: {d:?}",
                     b = block_hash,
                     t = transaction_id,
                     p = pointer,
                     c = commit_pointer,
+                    d = dr_pointer,
                 );
             }
         } else {
-            // This panic implies a logic error in the block validation
+            // TODO: on cache miss we should query the storage for the required
+            // output pointer and retry the validation. Since this function should
+            // not depend on the storage, maybe a list of pending transactions similar
+            // to "to_be_stored" would be useful: we need to store pending transactions
+            // and missing output pointers. However that's currently unnecessary because
+            // we will always persist the cache
             panic!(
-                "Invalid transaction got accepted into a valid block:\n\
-                 Missing Input::Commit\n\
+                "Block contains a reveal for a commitment not in the cache:\n\
                  Block hash: {b}\n\
                  Transaction hash: {t}\n\
-                 Reveal output pointer: {p:?}",
+                 Reveal output pointer: {p:?}\n\
+                 Commit output pointer: {c:?}",
                 b = block_hash,
                 t = transaction_id,
                 p = pointer,
+                c = commit_pointer,
             );
         }
     }
 
     /// Add a tally transaction
     #[allow(clippy::needless_pass_by_value)]
-    fn add_tally(&mut self, reveal: &RevealInput, pointer: OutputPointer, block_hash: &Hash) {
+    fn add_tally(&mut self, reveal: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a tally output, we need to get the corresponding reveal input
         // Which is the previous transaction in the list
@@ -334,10 +304,7 @@ impl DataRequestPool {
                         if let Some(transaction) = waiting_for_reveal.remove(dr_pointer) {
                             // We submitted a commit for this data request!
                             // But has it been included into the block?
-                            let commit_pointer = match &transaction.body.inputs[0] {
-                                Input::Commit(commit) => commit.output_pointer(),
-                                _ => panic!("Invalid format for reveal transaction"),
-                            };
+                            let commit_pointer = &transaction.body.inputs[0].output_pointer();
                             if dr_state.info.commits.contains(&commit_pointer) {
                                 // We found our commit, return the reveal transaction to be sent
                                 return Some(transaction);
@@ -434,39 +401,22 @@ impl DataRequestPool {
 
         if possibly_tally {
             let tally_index = t.body.outputs.len() - 1;
-            match (
+
+            if let (reveal, Output::Tally(_tally)) = (
                 &t.body.inputs[tally_index - 1],
                 &t.body.outputs[tally_index],
             ) {
-                (Input::Reveal(reveal), Output::Tally(_tally)) => {
-                    // Assume that all the reveal inputs point to the same data request
-                    // (as that should have been already validated)
-                    // And assume that the tally transaction contains as many reveal inputs
-                    // as there are reveals for this data request (also should have been validated)
-                    let pointer = OutputPointer {
-                        transaction_id,
-                        output_index: tally_index as u32,
-                    };
-                    self.add_tally(reveal, pointer, block_hash);
-                }
-                (_, Output::Tally(_)) => {
-                    // This panic implies a logic error in the block validation
-                    panic!(
-                        "Tally transaction must be next to a transaction with reveal input \
-                         and value transfer output.\n\
-                         Block hash: {b}\n\
-                         Transaction hash: {t}\n\
-                         Inputs: {inputs:?}\n\
-                         Outputs: {outputs:?}",
-                        b = block_hash,
-                        t = transaction_id,
-                        inputs = t.body.inputs,
-                        outputs = t.body.outputs
-                    );
-                }
-                _ => {
-                    // Assume there is no tally in this transaction
-                }
+                // Assume that all the reveal inputs point to the same data request
+                // (as that should have been already validated)
+                // And assume that the tally transaction contains as many reveal inputs
+                // as there are reveals for this data request (also should have been validated)
+                let pointer = OutputPointer {
+                    transaction_id,
+                    output_index: tally_index as u32,
+                };
+                self.add_tally(reveal, pointer, block_hash);
+            } else {
+                // Assume there is no tally in this transaction
             }
         }
     }
@@ -509,17 +459,12 @@ pub fn calculate_tally_change(dr_output: &DataRequestOutput, n_reveals: u64) -> 
 
 /// Create data request commitment
 pub fn create_commit_body(
-    dr_output_pointer: &OutputPointer,
+    dr_output_pointer: OutputPointer,
     dr_output: &DataRequestOutput,
     reveal: Vec<u8>,
 ) -> TransactionBody {
     // Create input
-    let dr_input = Input::DataRequest(DataRequestInput {
-        transaction_id: dr_output_pointer.transaction_id,
-        output_index: dr_output_pointer.output_index,
-        // TODO: create a proper poe
-        poe: rand::thread_rng().gen(),
-    });
+    let dr_input = Input::new(dr_output_pointer);
 
     // Calculate reveal_value
     let commit_value = calculate_commit_reward(&dr_output);
@@ -542,11 +487,7 @@ pub fn create_reveal_body(
     reveal: Vec<u8>,
 ) -> TransactionBody {
     // Create input
-    let commit_input = Input::Commit(CommitInput {
-        transaction_id: commit_pointer.transaction_id,
-        output_index: commit_pointer.output_index,
-        nonce: 0,
-    });
+    let commit_input = Input::new(commit_pointer);
 
     // Calculate reveal_value
     let reveal_value = calculate_reveal_reward(&dr_output);
@@ -573,11 +514,8 @@ pub fn create_vt_tally(
     let reveal_reward = calculate_dr_vt_reward(dr_output);
 
     for (reveal_pointer, reveal) in reveals {
-        let reveal_input = RevealInput {
-            transaction_id: reveal_pointer.transaction_id,
-            output_index: reveal_pointer.output_index,
-        };
-        inputs.push(Input::Reveal(reveal_input));
+        let reveal_input = Input::new(reveal_pointer);
+        inputs.push(reveal_input);
 
         let vt_output = ValueTransferOutput {
             pkh: reveal.pkh,

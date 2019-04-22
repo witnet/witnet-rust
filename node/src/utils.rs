@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::hash::Hash;
-use witnet_data_structures::chain::{Input, Output};
+use witnet_data_structures::chain::Output;
 
 /// Check if an output is a consensus output
 pub fn is_tally_output(output: &Output) -> bool {
@@ -18,26 +18,10 @@ pub fn is_reveal_output(output: &Output) -> bool {
     }
 }
 
-/// Check if input is data request input
-pub fn is_data_request_input(input: &Input) -> bool {
-    match input {
-        Input::DataRequest(_) => true,
-        _ => false,
-    }
-}
-
 /// Check if output is commit output
 pub fn is_commit_output(output: &Output) -> bool {
     match output {
         Output::Commit(_) => true,
-        _ => false,
-    }
-}
-
-/// Check if input is commit input
-pub fn is_commit_input(input: &Input) -> bool {
-    match input {
-        Input::Commit(_) => true,
         _ => false,
     }
 }

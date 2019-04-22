@@ -530,72 +530,21 @@ impl AsRef<Transaction> for Transaction {
 }
 
 /// Input data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::TransactionBody_Input")]
-pub enum Input {
-    Commit(CommitInput),
-    DataRequest(DataRequestInput),
-    Reveal(RevealInput),
-    ValueTransfer(ValueTransferInput),
+pub struct Input {
+    output_pointer: OutputPointer,
 }
 
 impl Input {
+    /// Create a new Input from an OutputPointer
+    pub fn new(output_pointer: OutputPointer) -> Self {
+        Self { output_pointer }
+    }
     /// Return the [`OutputPointer`](OutputPointer) of an input.
     pub fn output_pointer(&self) -> OutputPointer {
-        // TODO: Potential refactor (redundant `match`)
-        match self {
-            Input::Commit(input) => OutputPointer {
-                transaction_id: input.transaction_id,
-                output_index: input.output_index,
-            },
-            Input::DataRequest(input) => OutputPointer {
-                transaction_id: input.transaction_id,
-                output_index: input.output_index,
-            },
-            Input::Reveal(input) => OutputPointer {
-                transaction_id: input.transaction_id,
-                output_index: input.output_index,
-            },
-            Input::ValueTransfer(input) => OutputPointer {
-                transaction_id: input.transaction_id,
-                output_index: input.output_index,
-            },
-        }
+        self.output_pointer.clone()
     }
-}
-
-/// Value transfer input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Input_ValueTransferInput")]
-pub struct ValueTransferInput {
-    pub transaction_id: Hash,
-    pub output_index: u32,
-}
-
-/// Commit input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Input_CommitInput")]
-pub struct CommitInput {
-    pub transaction_id: Hash,
-    pub output_index: u32,
-    pub nonce: u64,
-}
-
-/// Commit input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Input_DataRequestInput")]
-pub struct DataRequestInput {
-    pub transaction_id: Hash,
-    pub output_index: u32,
-    pub poe: [u8; 32],
-}
-
-/// Reveal input transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Input_RevealInput")]
-pub struct RevealInput {
-    pub transaction_id: Hash,
-    pub output_index: u32,
 }
 
 /// Output data structure
@@ -781,44 +730,6 @@ pub struct RADDeliver {
 
 type WeightedHash = (u64, Hash);
 type WeightedTransaction = (u64, Transaction);
-
-/// Auxiliar methods to get the output pointer from an input
-
-impl CommitInput {
-    pub fn output_pointer(&self) -> OutputPointer {
-        OutputPointer {
-            transaction_id: self.transaction_id,
-            output_index: self.output_index,
-        }
-    }
-}
-
-impl DataRequestInput {
-    pub fn output_pointer(&self) -> OutputPointer {
-        OutputPointer {
-            transaction_id: self.transaction_id,
-            output_index: self.output_index,
-        }
-    }
-}
-
-impl RevealInput {
-    pub fn output_pointer(&self) -> OutputPointer {
-        OutputPointer {
-            transaction_id: self.transaction_id,
-            output_index: self.output_index,
-        }
-    }
-}
-
-impl ValueTransferInput {
-    pub fn output_pointer(&self) -> OutputPointer {
-        OutputPointer {
-            transaction_id: self.transaction_id,
-            output_index: self.output_index,
-        }
-    }
-}
 
 /// A pool of validated transactions that supports constant access by
 /// [`Hash`](Hash) and iteration over the
@@ -1386,9 +1297,9 @@ pub fn generate_unspent_outputs_pool(
 // Auxiliar functions for test
 pub fn transaction_example() -> Transaction {
     let keyed_signature = vec![KeyedSignature::default()];
-    let reveal_input = Input::Reveal(RevealInput::default());
-    let commit_input = Input::Commit(CommitInput::default());
-    let data_request_input = Input::DataRequest(DataRequestInput::default());
+    let reveal_input = Input::default();
+    let commit_input = Input::default();
+    let data_request_input = Input::default();
     let value_transfer_output = Output::ValueTransfer(ValueTransferOutput::default());
 
     let rad_retrieve = RADRetrieve {
