@@ -368,25 +368,25 @@ fn update_pools(
             &block.hash(),
         );
         transactions_pool.remove(&transaction.hash());
+    }
 
-        // Update own_utxos:
-        if let Some(own_pkh) = own_pkh {
-            // Remove spent inputs
-            for input in &transaction.body.inputs {
-                own_utxos.remove(&input.output_pointer());
-            }
-            // Insert new outputs
-            for (i, output) in transaction.body.outputs.iter().enumerate() {
+    // Update own_utxos:
+    if let Some(own_pkh) = own_pkh {
+        utxo_diff.visit(
+            own_utxos,
+            |own_utxos, output_pointer, output| {
+                // Insert new outputs
                 if let Output::ValueTransfer(x) = output {
                     if x.pkh == own_pkh {
-                        own_utxos.insert(OutputPointer {
-                            transaction_id: transaction.hash(),
-                            output_index: i as u32,
-                        });
+                        own_utxos.insert(output_pointer.clone());
                     }
                 }
-            }
-        }
+            },
+            |own_utxos, output_pointer| {
+                // Remove spent inputs
+                own_utxos.remove(&output_pointer);
+            },
+        );
     }
 
     utxo_diff.apply(unspent_outputs_pool);

@@ -787,6 +787,35 @@ impl Diff {
             utxo_set.remove(output_pointer);
         }
     }
+    /// Iterate over all the utxos_to_add and utxos_to_remove while applying a function.
+    ///
+    /// Any shared mutable state used by `F1` and `F2` can be used as the first argument:
+    ///
+    /// ```
+    /// use std::collections::HashMap;
+    /// use witnet_validations::validations::Diff;
+    ///
+    /// let diff = Diff::default();
+    /// let mut hashmap = HashMap::new();
+    /// diff.visit(&mut hashmap, |hashmap, output_pointer, output| {
+    ///     hashmap.insert(output_pointer.clone(), output.clone());
+    /// }, |hashmap, output_pointer| {
+    ///     hashmap.remove(output_pointer);
+    /// });
+    /// ```
+    pub fn visit<A, F1, F2>(&self, args: &mut A, fn_add: F1, fn_remove: F2)
+    where
+        F1: Fn(&mut A, &OutputPointer, &Output) -> (),
+        F2: Fn(&mut A, &OutputPointer) -> (),
+    {
+        for (output_pointer, output) in self.utxos_to_add.iter() {
+            fn_add(args, output_pointer, output);
+        }
+
+        for output_pointer in self.utxos_to_remove.iter() {
+            fn_remove(args, output_pointer);
+        }
+    }
 }
 
 /// Contains a reference to an UnspentOutputsPool plus subsequent
