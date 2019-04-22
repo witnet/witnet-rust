@@ -1072,7 +1072,8 @@ impl TransactionsPool {
 
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
-#[derive(Default, Hash, Clone, Eq, PartialEq)]
+#[derive(Default, Hash, Clone, Eq, PartialEq, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::OutputPointer")]
 pub struct OutputPointer {
     pub transaction_id: Hash,
     pub output_index: u32,

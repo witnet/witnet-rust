@@ -81,34 +81,14 @@ message LastBeacon {
     CheckpointBeacon highest_block_checkpoint = 1;
 }
 
+message OutputPointer {
+    Hash transaction_id = 1;
+    uint32 output_index = 2;
+}
+
 message TransactionBody {
     message Input {
-        message ValueTransferInput {
-            Hash transaction_id = 1;
-            uint32 output_index = 2;
-        }
-        message DataRequestInput {
-            Hash transaction_id = 1;
-            uint32 output_index = 2;
-            bytes poe = 3;
-        }
-        message CommitInput {
-            Hash transaction_id = 1;
-            uint32 output_index = 2;
-            bytes reveal = 3;
-            fixed64 nonce = 4;
-        }
-        message RevealInput {
-            Hash transaction_id = 1;
-            uint32 output_index = 2;
-        }
-
-        oneof kind {
-            ValueTransferInput ValueTransfer = 1;
-            DataRequestInput DataRequest = 2;
-            CommitInput Commit = 3;
-            RevealInput Reveal = 4;
-        }
+        OutputPointer output_pointer = 1;
     }
     message Output {
         message ValueTransferOutput {
