@@ -179,7 +179,7 @@ impl Handler<GetPkh> for SignatureManager {
     fn handle(&mut self, _msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
         match self.keypair {
             Some((_secret, public)) => Ok(PublicKeyHash::from_public_key(&public.into())),
-            None => bail!("Signature Manager cannot sign because it contains no key"),
+            None => bail!("Tried to retrieve the public key hash for node's main keypar from Signature Manager, but it contains none (looks like it was not initialized properly)"),
         }
     }
 }

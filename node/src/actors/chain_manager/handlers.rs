@@ -487,10 +487,7 @@ impl Handler<BuildVtt> for ChainManager {
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
         ) {
-            Err(total_value) => error!(
-                "Cannot build value transfer transaction with cost > {}",
-                total_value
-            ),
+            Err(e) => error!("{}", e),
             Ok(vtt) => {
                 transaction_factory::sign_transaction(vtt)
                     .into_actor(self)
@@ -520,10 +517,7 @@ impl Handler<BuildDrt> for ChainManager {
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
         ) {
-            Err(total_value) => error!(
-                "Cannot build data request transaction with cost > {}",
-                total_value
-            ),
+            Err(e) => error!("{}", e),
             Ok(vtt) => {
                 debug!("Created vtt:\n{:?}", vtt);
                 transaction_factory::sign_transaction(vtt)

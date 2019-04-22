@@ -1,10 +1,23 @@
 use crate::signature_mngr;
+use failure::Fail;
 use futures::Future;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{
     DataRequestOutput, Input, Output, OutputPointer, PublicKeyHash, Transaction, TransactionBody,
     UnspentOutputsPool, ValueTransferInput, ValueTransferOutput,
 };
+
+/// Error when there is not enough balance to create a transaction
+#[derive(Copy, Clone, Debug, Fail, Eq, PartialEq)]
+#[fail(
+    display = "Cannot build a transaction transferring more value than the current available balance: {} + {} > {}",
+    transaction_outputs, transaction_fee, total_balance
+)]
+pub struct NoMoney {
+    transaction_outputs: u64,
+    transaction_fee: u64,
+    total_balance: u64,
+}
 
 /// Select enough UTXOs to sum up to `amount`.
 ///
@@ -56,7 +69,7 @@ pub fn build_vtt<S: std::hash::BuildHasher>(
     own_utxos: &HashSet<OutputPointer, S>,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
-) -> Result<TransactionBody, u64> {
+) -> Result<TransactionBody, NoMoney> {
     build_vtt_inner(outputs, None, fee, own_utxos, own_pkh, all_utxos)
 }
 
@@ -67,7 +80,7 @@ pub fn build_drt<S: std::hash::BuildHasher>(
     own_utxos: &HashSet<OutputPointer, S>,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
-) -> Result<TransactionBody, u64> {
+) -> Result<TransactionBody, NoMoney> {
     build_vtt_inner(vec![], Some(dr), fee, own_utxos, own_pkh, all_utxos)
 }
 
@@ -80,13 +93,17 @@ fn build_vtt_inner<S: std::hash::BuildHasher>(
     own_utxos: &HashSet<OutputPointer, S>,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
-) -> Result<TransactionBody, u64> {
+) -> Result<TransactionBody, NoMoney> {
     let output_value: u64 = outputs.iter().map(|x| x.value).sum::<u64>()
         + dr.as_ref()
             .map(DataRequestOutput::value)
             .unwrap_or_default();
     match take_enough_utxos(own_utxos, all_utxos, output_value + fee) {
-        Err(sum_of_own_utxos) => Err(sum_of_own_utxos),
+        Err(total_balance) => Err(NoMoney {
+            transaction_outputs: output_value,
+            transaction_fee: fee,
+            total_balance,
+        }),
         Ok((output_pointers, input_value)) => {
             let inputs = output_pointers
                 .into_iter()
@@ -259,17 +276,18 @@ mod tests {
 
         // Building a zero value transaction returns an error
         assert_eq!(
-            build_vtt(vec![], 0, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![], 0, &own_utxos, own_pkh, &all_utxos).map_err(|x| x.total_balance),
             Err(0)
         );
 
         // Building any transaction with an empty own_utxos returns an error
         assert_eq!(
-            build_vtt(vec![pay_bob(1000)], 0, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![pay_bob(1000)], 0, &own_utxos, own_pkh, &all_utxos)
+                .map_err(|x| x.total_balance),
             Err(0)
         );
         assert_eq!(
-            build_vtt(vec![], 50, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![], 50, &own_utxos, own_pkh, &all_utxos).map_err(|x| x.total_balance),
             Err(0)
         );
         assert_eq!(
@@ -279,7 +297,8 @@ mod tests {
                 &own_utxos,
                 own_pkh,
                 &all_utxos
-            ),
+            )
+            .map_err(|x| x.total_balance),
             Err(0)
         );
     }
@@ -304,7 +323,7 @@ mod tests {
 
         // The total value of own_utxos is 300, so trying to spend more than 300 will fail
         assert_eq!(
-            build_vtt(vec![], 301, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![], 301, &own_utxos, own_pkh, &all_utxos).map_err(|x| x.total_balance),
             Err(300)
         );
     }
@@ -318,15 +337,17 @@ mod tests {
         assert_eq!(own_utxos.len(), 1);
 
         assert_eq!(
-            build_vtt(vec![pay_bob(2000)], 0, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![pay_bob(2000)], 0, &own_utxos, own_pkh, &all_utxos)
+                .map_err(|x| x.total_balance),
             Err(1000)
         );
         assert_eq!(
-            build_vtt(vec![], 1001, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![], 1001, &own_utxos, own_pkh, &all_utxos).map_err(|x| x.total_balance),
             Err(1000)
         );
         assert_eq!(
-            build_vtt(vec![pay_bob(500)], 600, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![pay_bob(500)], 600, &own_utxos, own_pkh, &all_utxos)
+                .map_err(|x| x.total_balance),
             Err(1000)
         );
     }
@@ -411,7 +432,8 @@ mod tests {
                 &own_utxos,
                 own_pkh,
                 &all_utxos
-            ),
+            )
+            .map_err(|x| x.total_balance),
             Err(1_000_000 - 1_000)
         );
 
@@ -453,7 +475,8 @@ mod tests {
         assert_eq!(own_utxos.len(), 480);
 
         assert_eq!(
-            build_vtt(vec![], 480 + 1, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![], 480 + 1, &own_utxos, own_pkh, &all_utxos)
+                .map_err(|x| x.total_balance),
             Err(480)
         );
     }
@@ -490,7 +513,8 @@ mod tests {
         let (own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t4]);
         // This will create a change output with an unknown value, but the total available will be 1000 - 520
         assert_eq!(
-            build_vtt(vec![], 480 + 1, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![], 480 + 1, &own_utxos, own_pkh, &all_utxos)
+                .map_err(|x| x.total_balance),
             Err(480)
         );
 
@@ -502,7 +526,8 @@ mod tests {
         assert_eq!(own_utxos.len(), 1);
         assert_eq!(all_utxos[own_utxos.iter().next().unwrap()].value(), 480);
         assert_eq!(
-            build_vtt(vec![], 480 + 1, &own_utxos, own_pkh, &all_utxos),
+            build_vtt(vec![], 480 + 1, &own_utxos, own_pkh, &all_utxos)
+                .map_err(|x| x.total_balance),
             Err(480)
         );
 
@@ -631,7 +656,8 @@ mod tests {
                 &own_utxos,
                 own_pkh,
                 &all_utxos
-            ),
+            )
+            .map_err(|x| x.total_balance),
             Err(1_000_000 - 1_000)
         );
     }
