@@ -11,7 +11,7 @@ description = "An in-progress open source implementation of the Witnet protocol 
 edition = "2018"
 
 [workspace]
-members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected"]
+members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected", "reputation"]
 
 [badges]
 travis-ci = { repository = "https://github.com/witnet/witnet-rust", branch = "master" }
