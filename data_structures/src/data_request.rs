@@ -519,14 +519,13 @@ mod tests {
         )
     }
 
-    #[test]
-    fn add_data_requests() {
+    fn add_data_requests() -> (u32, Hash, DataRequestPool, OutputPointer) {
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
         let data_request = DataRequestOutput::default();
         let empty_info = DataRequestInfo::default();
         let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(ValueTransferInput::default()),
+            Input::default(),
             Output::DataRequest(data_request.clone()),
         )]);
         let dr_pointer = OutputPointer {
@@ -546,69 +545,34 @@ mod tests {
             DataRequestStage::COMMIT
         );
         assert!(p.to_be_stored.is_empty());
-        assert!(p.dr_pointer_cache.is_empty());
 
         assert!(p.update_data_request_stages().is_empty());
+
+        (epoch, fake_block_hash, p, dr_pointer)
     }
 
-    #[test]
-    fn from_commit_to_reveal() {
-        let fake_block_hash = Hash::SHA256([1; 32]);
-        let epoch = 0;
-        let data_request = DataRequestOutput::default();
-        let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(ValueTransferInput::default()),
-            Output::DataRequest(data_request.clone()),
-        )]);
-        let dr_pointer = OutputPointer {
-            transaction_id: transaction.hash(),
-            output_index: 0,
-        };
-
-        let mut p = DataRequestPool::default();
-        p.process_transaction(&transaction, epoch, &fake_block_hash);
-
-        assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-        // Since there are no commitments to the data request, it should stay in commit stage
-        assert!(p.update_data_request_stages().is_empty());
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-
+    fn from_commit_to_reveal(
+        epoch: u32,
+        fake_block_hash: Hash,
+        mut p: DataRequestPool,
+        dr_pointer: OutputPointer,
+    ) -> (u32, Hash, DataRequestPool, OutputPointer, CommitOutput) {
+        let commit_output = CommitOutput::default();
         let commit_transaction = fake_transaction_zip(vec![(
-            Input::DataRequest(DataRequestInput {
-                transaction_id: dr_pointer.transaction_id,
-                output_index: dr_pointer.output_index,
-                poe: [77; 32],
-            }),
-            Output::Commit(CommitOutput::default()),
+            Input::new(dr_pointer.clone()),
+            Output::Commit(commit_output.clone()),
         )]);
-
-        let commit_pointer = OutputPointer {
-            transaction_id: commit_transaction.hash(),
-            output_index: 0,
-        };
 
         p.process_transaction(&commit_transaction, epoch + 1, &fake_block_hash);
-
-        // Now we can get the data request pointer from the commit output pointer
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));
 
         // And we can also get all the commit pointers from the data request
         assert_eq!(
             p.data_request_pool[&dr_pointer]
                 .info
                 .commits
-                .iter()
+                .values()
                 .collect::<Vec<_>>(),
-            vec![&commit_pointer],
+            vec![&commit_output],
         );
 
         // Still in commit stage until we update
@@ -634,109 +598,41 @@ mod tests {
             .get(&epoch)
             .map(|x| x.contains(&dr_pointer))
             .unwrap_or(false));
+
+        (epoch, fake_block_hash, p, dr_pointer, commit_output)
     }
 
-    #[test]
-    fn from_reveal_to_tally() {
-        let fake_block_hash = Hash::SHA256([1; 32]);
-        let epoch = 0;
-        let data_request = DataRequestOutput::default();
-        let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(ValueTransferInput::default()),
-            Output::DataRequest(data_request.clone()),
-        )]);
-        let dr_pointer = OutputPointer {
-            transaction_id: transaction.hash(),
-            output_index: 0,
-        };
-
-        let mut p = DataRequestPool::default();
-        p.process_transaction(&transaction, epoch, &fake_block_hash);
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-        // Since there are no commitments to the data request, it should stay in commit stage
-        assert!(p.update_data_request_stages().is_empty());
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-
-        let commit = CommitOutput::default();
-        let commit_transaction = fake_transaction_zip(vec![(
-            Input::DataRequest(DataRequestInput {
-                transaction_id: dr_pointer.transaction_id,
-                output_index: dr_pointer.output_index,
-                poe: [77; 32],
-            }),
-            Output::Commit(commit),
-        )]);
-
-        let commit_pointer = OutputPointer {
-            transaction_id: commit_transaction.hash(),
-            output_index: 0,
-        };
-
-        p.process_transaction(&commit_transaction, epoch + 1, &fake_block_hash);
-
-        // Now we can get the data request pointer from the commit output pointer
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));
-
-        // Still in commit stage until we update
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
-
-        // Now in reveal stage
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::REVEAL
-        );
-
-        let reveal = RevealOutput::default();
+    fn from_reveal_to_tally(
+        epoch: u32,
+        fake_block_hash: Hash,
+        mut p: DataRequestPool,
+        dr_pointer: OutputPointer,
+        commit_output: CommitOutput,
+    ) -> (u32, Hash, DataRequestPool, OutputPointer) {
+        let reveal_output = RevealOutput::default();
         let reveal_transaction = fake_transaction_zip(vec![(
-            Input::Commit(CommitInput {
-                transaction_id: commit_pointer.transaction_id,
-                output_index: commit_pointer.output_index,
-                nonce: 444,
-            }),
-            Output::Reveal(reveal),
+            Input::new(dr_pointer.clone()),
+            Output::Reveal(reveal_output.clone()),
         )]);
-
-        let reveal_pointer = OutputPointer {
-            transaction_id: reveal_transaction.hash(),
-            output_index: 0,
-        };
 
         p.process_transaction(&reveal_transaction, epoch + 2, &fake_block_hash);
-
-        // Now we can get the data request pointer from the commit output pointer and the reveal pointer
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));
-        assert_eq!(p.dr_pointer_cache.get(&reveal_pointer), Some(&dr_pointer));
 
         // And we can also get all the commit/reveal pointers from the data request
         assert_eq!(
             p.data_request_pool[&dr_pointer]
                 .info
                 .commits
-                .iter()
+                .values()
                 .collect::<Vec<_>>(),
-            vec![&commit_pointer],
+            vec![&commit_output],
         );
         assert_eq!(
             p.data_request_pool[&dr_pointer]
                 .info
                 .reveals
-                .iter()
+                .values()
                 .collect::<Vec<_>>(),
-            vec![&reveal_pointer],
+            vec![&reveal_output],
         );
 
         // Still in reveal stage until we update
@@ -753,148 +649,31 @@ mod tests {
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::TALLY
         );
+
+        (epoch, fake_block_hash, p, dr_pointer)
     }
 
-    #[test]
-    fn from_tally_to_storage() {
-        let fake_block_hash = Hash::SHA256([1; 32]);
-        let epoch = 0;
-        let data_request = DataRequestOutput::default();
-        let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(ValueTransferInput::default()),
-            Output::DataRequest(data_request.clone()),
-        )]);
-        let dr_pointer = OutputPointer {
-            transaction_id: transaction.hash(),
-            output_index: 0,
-        };
-
-        let mut p = DataRequestPool::default();
-        p.process_transaction(&transaction, epoch, &fake_block_hash);
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-        // Since there are no commitments to the data request, it should stay in commit stage
-        assert!(p.update_data_request_stages().is_empty());
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-
-        let commit = CommitOutput::default();
-        let commit_transaction = fake_transaction_zip(vec![(
-            Input::DataRequest(DataRequestInput {
-                transaction_id: dr_pointer.transaction_id,
-                output_index: dr_pointer.output_index,
-                poe: [77; 32],
-            }),
-            Output::Commit(commit),
-        )]);
-
-        let commit_pointer = OutputPointer {
-            transaction_id: commit_transaction.hash(),
-            output_index: 0,
-        };
-
-        p.process_transaction(&commit_transaction, epoch + 1, &fake_block_hash);
-
-        // Now we can get the data request pointer from the commit output pointer
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer),);
-
-        // Still in commit stage until we update
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
-
-        // Now in reveal stage
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::REVEAL
-        );
-
-        let reveal = RevealOutput::default();
-        let reveal_transaction = fake_transaction_zip(vec![(
-            Input::Commit(CommitInput {
-                transaction_id: commit_pointer.transaction_id,
-                output_index: commit_pointer.output_index,
-                nonce: 444,
-            }),
-            Output::Reveal(reveal),
-        )]);
-
-        let reveal_pointer = OutputPointer {
-            transaction_id: reveal_transaction.hash(),
-            output_index: 0,
-        };
-
-        p.process_transaction(&reveal_transaction, epoch + 2, &fake_block_hash);
-
-        // Still in reveal stage until we update
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::REVEAL
-        );
-
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
-
-        // Now in tally stage
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::TALLY
-        );
-
-        let tally = TallyOutput::default();
+    fn from_tally_to_storage(
+        epoch: u32,
+        fake_block_hash: Hash,
+        mut p: DataRequestPool,
+        dr_pointer: OutputPointer,
+    ) {
+        let tally_output = TallyOutput::default();
         let mut tally_transaction = fake_transaction_zip(vec![(
-            Input::Reveal(RevealInput {
-                transaction_id: reveal_pointer.transaction_id,
-                output_index: reveal_pointer.output_index,
-            }),
+            Input::new(dr_pointer.clone()),
             Output::ValueTransfer(ValueTransferOutput::default()),
         )]);
         tally_transaction
             .body
             .outputs
-            .push(Output::Tally(tally.clone()));
-
-        // Now we can get the data request pointer from the commit/reveal pointers
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));
-        assert_eq!(p.dr_pointer_cache.get(&reveal_pointer), Some(&dr_pointer));
-
-        // And we can also get all the commit/reveal pointers from the data request
-        assert_eq!(
-            p.data_request_pool[&dr_pointer]
-                .info
-                .commits
-                .iter()
-                .collect::<Vec<_>>(),
-            vec![&commit_pointer],
-        );
-        assert_eq!(
-            p.data_request_pool[&dr_pointer]
-                .info
-                .reveals
-                .iter()
-                .collect::<Vec<_>>(),
-            vec![&reveal_pointer],
-        );
+            .push(Output::Tally(tally_output.clone()));
 
         // There is nothing to be stored yet
         assert_eq!(p.to_be_stored.len(), 0);
 
         // Process tally: this will remove the data request from the pool
         p.process_transaction(&tally_transaction, epoch + 2, &fake_block_hash);
-
-        // Now the cache has been cleared
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), None);
-        assert_eq!(p.dr_pointer_cache.get(&reveal_pointer), None);
 
         // And the data request has been removed from the pool
         assert_eq!(p.data_request_pool.get(&dr_pointer), None);
@@ -907,64 +686,53 @@ mod tests {
     }
 
     #[test]
+    fn test_add_data_requests() {
+        add_data_requests();
+    }
+
+    #[test]
+    fn test_from_commit_to_reveal() {
+        let (epoch, fake_block_hash, p, dr_pointer) = add_data_requests();
+
+        from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
+    }
+
+    #[test]
+    fn test_from_reveal_to_tally() {
+        let (epoch, fake_block_hash, p, dr_pointer) = add_data_requests();
+        let (epoch, fake_block_hash, p, dr_pointer, commit_output) =
+            from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
+
+        from_reveal_to_tally(epoch, fake_block_hash, p, dr_pointer, commit_output);
+    }
+
+    #[test]
+    fn test_from_tally_to_storage() {
+        let (epoch, fake_block_hash, p, dr_pointer) = add_data_requests();
+        let (epoch, fake_block_hash, p, dr_pointer, commit_output) =
+            from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
+        let (epoch, fake_block_hash, p, dr_pointer) =
+            from_reveal_to_tally(epoch, fake_block_hash, p, dr_pointer, commit_output);
+
+        from_tally_to_storage(epoch, fake_block_hash, p, dr_pointer);
+    }
+
+    #[test]
     fn my_claims() {
         // Test the `add_own_reveal` function
-        let fake_block_hash = Hash::SHA256([1; 32]);
-        let epoch = 0;
-        let data_request = DataRequestOutput::default();
-        let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(ValueTransferInput::default()),
-            Output::DataRequest(data_request.clone()),
-        )]);
-        let dr_pointer = OutputPointer {
-            transaction_id: transaction.hash(),
-            output_index: 0,
-        };
+        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
 
-        let mut p = DataRequestPool::default();
-        p.process_transaction(&transaction, epoch, &fake_block_hash);
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-        // Since there are no commitments to the data request, it should stay in commit stage
-        assert!(p.update_data_request_stages().is_empty());
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-
-        let commit = CommitOutput::default();
+        let commit_output = CommitOutput::default();
         let commit_transaction = fake_transaction_zip(vec![(
-            Input::DataRequest(DataRequestInput {
-                transaction_id: dr_pointer.transaction_id,
-                output_index: dr_pointer.output_index,
-                poe: [77; 32],
-            }),
-            Output::Commit(commit),
+            Input::new(dr_pointer.clone()),
+            Output::Commit(commit_output.clone()),
         )]);
 
-        let commit_pointer = OutputPointer {
-            transaction_id: commit_transaction.hash(),
-            output_index: 0,
-        };
-
-        let reveal = RevealOutput::default();
+        let reveal_output = RevealOutput::default();
         let reveal_transaction = fake_transaction_zip(vec![(
-            Input::Commit(CommitInput {
-                transaction_id: commit_pointer.transaction_id,
-                output_index: commit_pointer.output_index,
-                nonce: 444,
-            }),
-            Output::Reveal(reveal),
+            Input::new(dr_pointer.clone()),
+            Output::Reveal(reveal_output.clone()),
         )]);
-
-        let reveal_pointer = OutputPointer {
-            transaction_id: reveal_transaction.hash(),
-            output_index: 0,
-        };
 
         // Add reveal transaction for this commit, will be returned by the update_data_request_stages
         // function when the data request is in reveal stage
@@ -977,9 +745,6 @@ mod tests {
         );
 
         p.process_transaction(&commit_transaction, epoch + 1, &fake_block_hash);
-
-        // Now we can get the data request pointer from the commit output pointer
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));
 
         // Still in commit stage until we update
         assert_eq!(
@@ -1000,76 +765,13 @@ mod tests {
             DataRequestStage::REVEAL
         );
 
-        // Send the reveal we got from the update function
-        p.process_transaction(my_reveal, epoch + 2, &fake_block_hash);
-
-        // Now we can get the data request pointer from the commit output pointer and the reveal pointer
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));
-        assert_eq!(p.dr_pointer_cache.get(&reveal_pointer), Some(&dr_pointer));
-
-        // And we can also get all the commit/reveal pointers from the data request
-        assert_eq!(
-            p.data_request_pool[&dr_pointer]
-                .info
-                .commits
-                .iter()
-                .collect::<Vec<_>>(),
-            vec![&commit_pointer],
-        );
-        assert_eq!(
-            p.data_request_pool[&dr_pointer]
-                .info
-                .reveals
-                .iter()
-                .collect::<Vec<_>>(),
-            vec![&reveal_pointer],
-        );
-
-        // Still in reveal stage until we update
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::REVEAL
-        );
-
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
-
-        // Now in tally stage
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::TALLY
-        );
+        from_reveal_to_tally(epoch, fake_block_hash, p, dr_pointer, commit_output);
     }
 
     #[test]
     fn update_multiple_times() {
         // Only the first consecutive call to update_data_request_stages should change the state
-        let fake_block_hash = Hash::SHA256([1; 32]);
-        let epoch = 0;
-        let data_request = DataRequestOutput::default();
-        let transaction = fake_transaction_zip(vec![(
-            Input::ValueTransfer(ValueTransferInput::default()),
-            Output::DataRequest(data_request.clone()),
-        )]);
-        let dr_pointer = OutputPointer {
-            transaction_id: transaction.hash(),
-            output_index: 0,
-        };
-
-        let mut p = DataRequestPool::default();
-        p.process_transaction(&transaction, epoch, &fake_block_hash);
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
-        // Since there are no commitments to the data request, it should stay in commit stage
-        assert!(p.update_data_request_stages().is_empty());
-
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
+        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
 
         assert!(p.update_data_request_stages().is_empty());
 
@@ -1078,31 +780,8 @@ mod tests {
             DataRequestStage::COMMIT
         );
 
-        let commit = CommitOutput::default();
-        let commit_transaction = fake_transaction_zip(vec![(
-            Input::DataRequest(DataRequestInput {
-                transaction_id: dr_pointer.transaction_id,
-                output_index: dr_pointer.output_index,
-                poe: [77; 32],
-            }),
-            Output::Commit(commit),
-        )]);
-
-        let commit_pointer = OutputPointer {
-            transaction_id: commit_transaction.hash(),
-            output_index: 0,
-        };
-
-        p.process_transaction(&commit_transaction, epoch + 1, &fake_block_hash);
-
-        // Now we can get the data request pointer from the commit output pointer
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));
-
-        // Still in commit stage until we update
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::COMMIT
-        );
+        let (epoch, fake_block_hash, mut p, dr_pointer, commit_output) =
+            from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
 
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
@@ -1113,37 +792,8 @@ mod tests {
             DataRequestStage::REVEAL
         );
 
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
-
-        // Now in reveal stage
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::REVEAL
-        );
-
-        let reveal = RevealOutput::default();
-        let reveal_transaction = fake_transaction_zip(vec![(
-            Input::Commit(CommitInput {
-                transaction_id: commit_pointer.transaction_id,
-                output_index: commit_pointer.output_index,
-                nonce: 444,
-            }),
-            Output::Reveal(reveal),
-        )]);
-
-        let reveal_pointer = OutputPointer {
-            transaction_id: reveal_transaction.hash(),
-            output_index: 0,
-        };
-
-        p.process_transaction(&reveal_transaction, epoch + 2, &fake_block_hash);
-
-        // Still in reveal stage until we update
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::REVEAL
-        );
+        let (epoch, fake_block_hash, mut p, dr_pointer) =
+            from_reveal_to_tally(epoch, fake_block_hash, p, dr_pointer, commit_output);
 
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
@@ -1154,72 +804,6 @@ mod tests {
             DataRequestStage::TALLY
         );
 
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
-
-        // Now in tally stage
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::TALLY
-        );
-
-        let tally = TallyOutput::default();
-        let mut tally_transaction = fake_transaction_zip(vec![(
-            Input::Reveal(RevealInput {
-                transaction_id: reveal_pointer.transaction_id,
-                output_index: reveal_pointer.output_index,
-            }),
-            Output::ValueTransfer(ValueTransferOutput::default()),
-        )]);
-        tally_transaction
-            .body
-            .outputs
-            .push(Output::Tally(tally.clone()));
-
-        // Now we can get the data request pointer from the commit/reveal pointers
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), Some(&dr_pointer));
-        assert_eq!(p.dr_pointer_cache.get(&reveal_pointer), Some(&dr_pointer));
-
-        // And we can also get all the commit/reveal pointers from the data request
-        assert_eq!(
-            p.data_request_pool[&dr_pointer]
-                .info
-                .commits
-                .iter()
-                .collect::<Vec<_>>(),
-            vec![&commit_pointer],
-        );
-        assert_eq!(
-            p.data_request_pool[&dr_pointer]
-                .info
-                .reveals
-                .iter()
-                .collect::<Vec<_>>(),
-            vec![&reveal_pointer],
-        );
-
-        // There is nothing to be stored yet
-        assert_eq!(p.to_be_stored.len(), 0);
-
-        // Process tally: this will remove the data request from the pool
-        p.process_transaction(&tally_transaction, epoch + 2, &fake_block_hash);
-
-        // Now the cache has been cleared
-        assert_eq!(p.dr_pointer_cache.get(&commit_pointer), None);
-        assert_eq!(p.dr_pointer_cache.get(&reveal_pointer), None);
-
-        // And the data request has been removed from the pool
-        assert_eq!(p.data_request_pool.get(&dr_pointer), None);
-
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
-
-        assert_eq!(p.to_be_stored.len(), 1);
-        assert_eq!(p.to_be_stored[0].0, dr_pointer);
-
-        assert!(p.update_data_request_stages().is_empty());
-
-        assert_eq!(p.to_be_stored.len(), 1);
-        assert_eq!(p.to_be_stored[0].0, dr_pointer);
+        from_tally_to_storage(epoch, fake_block_hash, p, dr_pointer);
     }
 }

@@ -1352,7 +1352,7 @@ mod tests {
     #[test]
     fn test_transaction_hashable_trait() {
         let transaction = transaction_example();
-        let expected = "c6c3f9dd0f9522ff1b994424401448ce79e96b66b9f88741b534810631b51bcf";
+        let expected = "1fc485f4bb256a104e3d3b47ca0c5a5acacd3123a7d56fbac53efb69094d6353";
 
         // Signatures don't affect the hash of a transaction (SegWit style), thus both must be equal
         assert_eq!(transaction.body.hash().to_string(), expected);

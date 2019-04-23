@@ -172,9 +172,9 @@ mod tests {
             .map(Output::ValueTransfer)
             .collect::<Vec<_>>();
         // Add a fake input to avoid hash collisions
-        let fake_input = Input::ValueTransfer(ValueTransferInput {
+        let fake_input = Input::new(OutputPointer {
             output_index: TX_COUNTER.fetch_add(1, Ordering::SeqCst),
-            ..ValueTransferInput::default()
+            ..OutputPointer::default()
         });
         let mut txns: Vec<Transaction> = txns
             .into_iter()

@@ -21,7 +21,7 @@ use crate::signature_mngr;
 
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, CheckpointBeacon, LeadershipProof, Output, PublicKeyHash, Transaction,
+        Block, BlockHeader, CheckpointBeacon, Hashable, LeadershipProof, Output, PublicKeyHash, Transaction,
         TransactionType, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{create_commit_body, create_reveal_body, create_tally_body, create_vt_tally},
@@ -523,7 +523,7 @@ mod tests {
         let transaction_1 = Transaction::new(
             TransactionBody::new(
                 0,
-                vec![Input::ValueTransfer(ValueTransferInput {
+                vec![Input::new(OutputPointer {
                     transaction_id: Hash::SHA256([1; 32]),
                     output_index: 0,
                 })],
@@ -538,11 +538,11 @@ mod tests {
             TransactionBody::new(
                 0,
                 vec![
-                    Input::ValueTransfer(ValueTransferInput {
+                    Input::new(OutputPointer {
                         transaction_id: Hash::SHA256([2; 32]),
                         output_index: 0,
                     }),
-                    Input::ValueTransfer(ValueTransferInput {
+                    Input::new(OutputPointer {
                         transaction_id: Hash::SHA256([3; 32]),
                         output_index: 0,
                     }),
@@ -564,11 +564,11 @@ mod tests {
             TransactionBody::new(
                 0,
                 vec![
-                    Input::ValueTransfer(ValueTransferInput {
+                    Input::new(OutputPointer {
                         transaction_id: Hash::SHA256([4; 32]),
                         output_index: 0,
                     }),
-                    Input::ValueTransfer(ValueTransferInput {
+                    Input::new(OutputPointer {
                         transaction_id: Hash::SHA256([5; 32]),
                         output_index: 0,
                     }),
