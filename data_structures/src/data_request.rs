@@ -1,4 +1,5 @@
 use log::{debug, info};
+use rand::{thread_rng, Rng};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use witnet_crypto::hash::calculate_sha256;
@@ -423,7 +424,12 @@ pub fn create_commit_body(
     // Calculate reveal_value
     let commit_value = calculate_commit_reward(&dr_output);
 
-    let reveal_hash = calculate_sha256(reveal.as_slice()).into();
+    // TODO: Remove nonce after VRF implementation
+    let nonce: u8 = thread_rng().gen();
+    let mut v = vec![];
+    v.extend(&[nonce]);
+    v.extend(reveal.as_slice());
+    let reveal_hash = calculate_sha256(&v).into();
 
     // Create output
     let commit_output = Output::Commit(CommitOutput {
@@ -439,6 +445,7 @@ pub fn create_reveal_body(
     dr_pointer: OutputPointer,
     dr_output: &DataRequestOutput,
     reveal: Vec<u8>,
+    pkh: PublicKeyHash,
 ) -> TransactionBody {
     // Create input
     let reveal_input = Input::new(dr_pointer);
@@ -449,8 +456,7 @@ pub fn create_reveal_body(
     // Create output
     let reveal_output = Output::Reveal(RevealOutput {
         reveal,
-        // TODO: use a proper pkh
-        pkh: PublicKeyHash::default(),
+        pkh,
         value: reveal_value,
     });
 

@@ -21,9 +21,8 @@ use crate::signature_mngr;
 
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, CheckpointBeacon, Hashable, LeadershipProof, Output, OutputPointer,
-        PublicKeyHash, Transaction, TransactionType, TransactionsPool, UnspentOutputsPool,
-        ValueTransferOutput,
+        Block, BlockHeader, CheckpointBeacon, LeadershipProof, Output, PublicKeyHash, Transaction,
+        TransactionType, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{create_commit_body, create_reveal_body, create_tally_body, create_vt_tally},
     serializers::decoders::TryFrom,
@@ -148,11 +147,12 @@ impl ChainManager {
     /// Try to mine a data_request
     // TODO: refactor this procedure into multiple functions that can be tested separately.
     pub fn try_mine_data_request(&mut self, ctx: &mut Context<Self>) {
-        if self.current_epoch.is_none() {
-            warn!("Cannot mine a data request because current epoch is unknown");
+        if self.current_epoch.is_none() || self.own_pkh.is_none() {
+            warn!("Cannot mine a data request because current epoch or own pkh is unknown");
 
             return;
         }
+        let own_pkh = self.own_pkh.unwrap();
 
         let current_epoch = self.current_epoch.unwrap();
 
@@ -197,11 +197,7 @@ impl ChainManager {
                             .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
                             .into_actor(act)
                             .and_then(move |commit_transaction, act, _ctx| {
-                                let commit_pointer = OutputPointer {
-                                    transaction_id: commit_transaction.hash(),
-                                    output_index: 0,
-                                };
-                                let reveal_body = create_reveal_body(commit_pointer,  &data_request_output, reveal_value);
+                                let reveal_body = create_reveal_body(dr_output_pointer.clone(),  &data_request_output, reveal_value, own_pkh);
 
                                 sign_transaction(reveal_body)
                                     .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
