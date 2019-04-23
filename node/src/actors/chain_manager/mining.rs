@@ -237,11 +237,10 @@ impl ChainManager {
 
     fn create_tally_transactions(&mut self) -> impl Future<Item = Vec<Transaction>, Error = ()> {
         let data_request_pool = &self.chain_state.data_request_pool;
-        let utxo = &self.chain_state.unspent_outputs_pool;
 
         // Include Tally transactions, one for each data request in tally stage
         let mut future_tally_transactions = vec![];
-        let dr_reveals = data_request_pool.get_all_reveals(&utxo);
+        let dr_reveals = data_request_pool.get_all_reveals();
         for (dr_pointer, reveals) in dr_reveals {
             debug!("Building tally for data request {}", dr_pointer);
 

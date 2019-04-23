@@ -1060,12 +1060,13 @@ pub enum InventoryItem {
 
 /// Data request report to be persisted into Storage and
 /// using as index the Data Request OutputPointer
+// TODO: Review if this struct is needed
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestReport {
     /// List of commitment output pointers to resolve the data request
-    pub commits: Vec<OutputPointer>,
+    pub commits: Vec<CommitOutput>,
     /// List of reveal output pointers to the commitments (contains the data request result of the witnet)
-    pub reveals: Vec<OutputPointer>,
+    pub reveals: Vec<RevealOutput>,
     /// Tally output pointer (contains final result)
     pub tally: OutputPointer,
 }
@@ -1076,8 +1077,8 @@ impl TryFrom<DataRequestInfo> for DataRequestReport {
     fn try_from(x: DataRequestInfo) -> Result<Self, &'static str> {
         if let Some(tally) = x.tally {
             Ok(DataRequestReport {
-                commits: x.commits.into_iter().collect(),
-                reveals: x.reveals.into_iter().collect(),
+                commits: x.commits.values().cloned().collect(),
+                reveals: x.reveals.values().cloned().collect(),
                 tally,
             })
         } else {
@@ -1090,9 +1091,9 @@ impl TryFrom<DataRequestInfo> for DataRequestReport {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestInfo {
     /// List of commitments to resolve the data request
-    pub commits: HashSet<OutputPointer>,
+    pub commits: HashMap<PublicKeyHash, CommitOutput>,
     /// List of reveals to the commitments (contains the data request witnet result)
-    pub reveals: HashSet<OutputPointer>,
+    pub reveals: HashMap<PublicKeyHash, RevealOutput>,
     /// Tally of data request (contains final result)
     pub tally: Option<OutputPointer>,
 }
@@ -1126,15 +1127,15 @@ impl DataRequestState {
     }
 
     /// Add commit
-    pub fn add_commit(&mut self, output_pointer: OutputPointer) {
+    pub fn add_commit(&mut self, pkh: PublicKeyHash, commit_output: CommitOutput) {
         assert_eq!(self.stage, DataRequestStage::COMMIT);
-        self.info.commits.insert(output_pointer);
+        self.info.commits.insert(pkh, commit_output);
     }
 
     /// Add reveal
-    pub fn add_reveal(&mut self, output_pointer: OutputPointer) {
+    pub fn add_reveal(&mut self, pkh: PublicKeyHash, reveal_output: RevealOutput) {
         assert_eq!(self.stage, DataRequestStage::REVEAL);
-        self.info.reveals.insert(output_pointer);
+        self.info.reveals.insert(pkh, reveal_output);
     }
 
     /// Add tally and return the data request report

@@ -6,13 +6,10 @@ use witnet_crypto::hash::calculate_sha256;
 use super::chain::{
     CommitOutput, DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch,
     Hash, Hashable, Input, Output, OutputPointer, PublicKeyHash, RevealOutput, TallyOutput,
-    Transaction, TransactionBody, UnspentOutputsPool, ValueTransferOutput,
+    Transaction, TransactionBody, ValueTransferOutput,
 };
 
 use serde::{Deserialize, Serialize};
-
-// HashMap from DataRequest OutputPointer to RevealOutput vector
-type DataRequestsWithReveals = HashMap<OutputPointer, Vec<RevealOutput>>;
 
 /// Pool of active data requests
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -46,24 +43,10 @@ impl DataRequestPool {
     }
 
     /// Get all reveals related to a `DataRequestOuput` for a `OutputPointer`
-    pub fn get_reveals(
-        &self,
-        output_pointer: &OutputPointer,
-        utxo: &UnspentOutputsPool,
-    ) -> Option<Vec<RevealOutput>> {
-        self.data_request_pool.get(output_pointer).map(|dr_state| {
-            dr_state
-                .info
-                .reveals
-                .iter()
-                .map(|reveal_pointer| {
-                    match utxo.get(reveal_pointer) {
-                        Some(Output::Reveal(reveal_output)) => reveal_output.clone(),
-                        _ => panic!("Reveal not in utxo"), // TODO: remove panic
-                    }
-                })
-                .collect()
-        })
+    pub fn get_reveals(&self, output_pointer: &OutputPointer) -> Option<Vec<RevealOutput>> {
+        self.data_request_pool
+            .get(output_pointer)
+            .map(|dr_state| dr_state.info.reveals.values().cloned().collect())
     }
 
     /// Insert a reveal transaction into the pool
@@ -72,22 +55,12 @@ impl DataRequestPool {
     }
 
     /// Get all the reveals
-    pub fn get_all_reveals(&self, utxo: &UnspentOutputsPool) -> DataRequestsWithReveals {
+    pub fn get_all_reveals(&self) -> HashMap<OutputPointer, Vec<RevealOutput>> {
         self.data_request_pool
             .iter()
             .filter_map(|(dr_pointer, dr_state)| {
                 if let DataRequestStage::TALLY = dr_state.stage {
-                    let reveals = dr_state
-                        .info
-                        .reveals
-                        .iter()
-                        .map(|reveal_pointer| {
-                            match utxo.get(reveal_pointer) {
-                                Some(Output::Reveal(reveal_output)) => reveal_output.clone(),
-                                _ => panic!("Reveal not in utxo"), // TODO: remove panic
-                            }
-                        })
-                        .collect();
+                    let reveals = dr_state.info.reveals.values().cloned().collect();
                     Some((dr_pointer.clone(), reveals))
                 } else {
                     None
@@ -141,15 +114,20 @@ impl DataRequestPool {
     }
 
     /// Add a commit to the corresponding data request
-    fn add_commit(&mut self, commit_input: &Input, pointer: OutputPointer, block_hash: &Hash) {
-        let transaction_id = pointer.transaction_id;
+    fn add_commit(
+        &mut self,
+        pkh: PublicKeyHash,
+        commit_input: &Input,
+        commit_output: &CommitOutput,
+        tx_hash: &Hash,
+        block_hash: &Hash,
+    ) {
         // For a commit output, we need to get the corresponding data request input
         let dr_pointer = commit_input.output_pointer();
-
         // The data request must be from a previous block, and must not be timelocked.
         // This is not checked here, as it should have made the block invalid.
         if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-            dr.add_commit(pointer.clone());
+            dr.add_commit(pkh, commit_output.clone());
         } else {
             // This can happen when a data request was not stored into the dr_pool.
             // For example, a very old data request that just now got a commitment.
@@ -159,33 +137,45 @@ impl DataRequestPool {
                 "Block contains a commitment for an unknown data request:\n\
                  Block hash: {b}\n\
                  Transaction hash: {t}\n\
-                 Commit output pointer: {p:?}\n\
+                 Commit output: {o:?}\n\
                  Data request pointer: {d:?}",
                 b = block_hash,
-                t = transaction_id,
-                p = pointer,
+                t = tx_hash,
+                o = commit_output,
                 d = dr_pointer,
             );
         }
     }
 
     /// Add a reveal transaction
-    fn add_reveal(&mut self, reveal_input: &Input, pointer: OutputPointer, block_hash: &Hash) {
-        let transaction_id = pointer.transaction_id;
-        // For a reveal output, we need to get the corresponding commit input
+    fn add_reveal(
+        &mut self,
+        pkh: PublicKeyHash,
+        reveal_input: &Input,
+        reveal_output: &RevealOutput,
+        tx_hash: &Hash,
+        block_hash: &Hash,
+    ) {
+        // For a commit output, we need to get the corresponding data request input
         let dr_pointer = reveal_input.output_pointer();
+        // The data request must be from a previous block, and must not be timelocked.
+        // This is not checked here, as it should have made the block invalid.
         if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-            dr.add_reveal(pointer.clone());
+            dr.add_reveal(pkh, reveal_output.clone());
         } else {
+            // This can happen when a data request was not stored into the dr_pool.
+            // For example, a very old data request that just now got a commitment.
+            // Since we currently store all the data requests in memory, a failure
+            // here is a logic error, therefore we panic.
             panic!(
                 "Block contains a reveal for an unknown data request:\n\
                  Block hash: {b}\n\
                  Transaction hash: {t}\n\
-                 Reveal output pointer: {p:?}\n\
+                 Commit output pointer: {o:?}\n\
                  Data request pointer: {d:?}",
                 b = block_hash,
-                t = transaction_id,
-                p = pointer,
+                t = tx_hash,
+                o = reveal_output,
                 d = dr_pointer,
             );
         }
@@ -270,8 +260,10 @@ impl DataRequestPool {
                         if let Some(transaction) = waiting_for_reveal.remove(dr_pointer) {
                             // We submitted a commit for this data request!
                             // But has it been included into the block?
-                            let commit_pointer = &transaction.body.inputs[0].output_pointer();
-                            if dr_state.info.commits.contains(&commit_pointer) {
+                            let pkh = PublicKeyHash::from_public_key(
+                                &transaction.signatures[0].public_key,
+                            );
+                            if dr_state.info.commits.contains_key(&pkh) {
                                 // We found our commit, return the reveal transaction to be sent
                                 return Some(transaction);
                             } else {
@@ -281,9 +273,9 @@ impl DataRequestPool {
                                     dr_pointer
                                 );
                                 debug!(
-                                    "Commit {:?} removed from the list of commits waiting \
+                                    "Commit with pkh ({}) removed from the list of commits waiting \
                                      for reveal",
-                                    commit_pointer
+                                    pkh
                                 );
                             }
                         }
@@ -303,18 +295,14 @@ impl DataRequestPool {
     /// The block hash is only used for debugging purposes
     pub fn process_transaction(&mut self, t: &Transaction, epoch: Epoch, block_hash: &Hash) {
         let transaction_id = t.hash();
-        for (i, (z, s)) in t.body.inputs.iter().zip(t.body.outputs.iter()).enumerate() {
-            let output_index = i as u32;
-            let pointer = OutputPointer {
-                transaction_id,
-                output_index,
-            };
+        for (z, s) in t.body.inputs.iter().zip(t.body.outputs.iter()) {
+            let pkh = PublicKeyHash::from_public_key(&t.signatures[0].public_key);
             match s {
-                Output::Commit(_commit) => {
-                    self.add_commit(z, pointer, block_hash);
+                Output::Commit(commit_output) => {
+                    self.add_commit(pkh, z, commit_output, &transaction_id, block_hash);
                 }
-                Output::Reveal(_reveal) => {
-                    self.add_reveal(z, pointer, block_hash);
+                Output::Reveal(reveal_output) => {
+                    self.add_reveal(pkh, z, reveal_output, &transaction_id, block_hash);
                 }
                 Output::Tally(tally) => {
                     // It is impossible to have a tally in this iterator, because we are
