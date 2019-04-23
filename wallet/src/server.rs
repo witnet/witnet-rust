@@ -28,6 +28,7 @@ use std::{
     },
 };
 
+use witnet_crypto::mnemonic;
 /// List of subscriptions from the websockects client (sheikah)
 // TODO: this is defined twice: once here and once in node/json_rpc_methods?
 pub type Subscriptions = Arc<
@@ -86,16 +87,17 @@ fn start_ws_jsonrpc_server(
         ("inventory", |r, p| forward_call("inventory", r, p)),
         ("getBlock", |r, p| forward_call("getBlock", r, p)),
         ("getOutput", |r, p| forward_call("getOutput", r, p)),
-        ("getWalletInfos", get_wallet_infos),
         ("createMnemonics", create_mnemonics),
+
         ("importSeed", import_seed),
+        ("runRadRequest", run_rad_request),
+        ("getWalletInfos", get_wallet_infos),
         ("createWallet", create_wallet),
         ("unlockWallet", unlock_wallet),
         ("getTransactions", get_transactions),
         ("sendVTT", send_vtt),
         ("generateAddress", generate_address),
         ("createDataRequest", create_data_request),
-        ("runDataRequest", run_data_request),
         ("sendDataRequest", send_data_request),
         ("lockWallet", lock_wallet),
     );
@@ -244,19 +246,28 @@ fn send_data_request(
 }
 
 // TODO: radon crate
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct RadonValue {}
 
-fn run_data_request(
+fn run_rad_request(
     _registry: &SystemRegistry,
-    params: jsonrpc_core::Result<DataRequest>,
+    params: jsonrpc_core::Result<RadonValue>,
 ) -> impl Future<Item = Value, Error = jsonrpc_core::Error> {
-    let _params = match params {
-        Ok(x) => x,
+    let params = match params {
+        Ok(params) => {
+            // let result: Vec<_> = params.retrieve.iter().map(|source| {
+            //     let retrieval_result = run_retrieval(source.clone());
+
+            //     retrieval_result
+            // }).collect();
+
+            // result
+            params
+        },
         Err(e) => return Box::new(futures::failed(e)),
     };
-
-    let x = RadonValue {};
+    
+    let x = params; 
     Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
         let mut err = jsonrpc_core::Error::internal_error();
         err.message = e.to_string();
@@ -513,7 +524,7 @@ fn create_wallet(
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum ImportSeedParams {
-    Mnemonics { mnemonics: Mnemonics },
+    Mnemonic { mnemonics: String },
     Seed { seed: String },
 }
 
@@ -534,21 +545,24 @@ fn import_seed(
     })))
 }
 
-// TODO: implemented in PR #432
 #[derive(Debug, Deserialize, Serialize)]
-struct Mnemonics {}
+struct CreateMnemonicsParams {
+    length: mnemonic::Length
+}
 
 fn create_mnemonics(
     _registry: &SystemRegistry,
-    params: jsonrpc_core::Result<()>,
+    params: jsonrpc_core::Result<CreateMnemonicsParams>,
 ) -> impl Future<Item = Value, Error = jsonrpc_core::Error> {
+    println!("{:?}", params);
     match params {
         Ok(x) => x,
         Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let x = Mnemonics {};
-    Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
+    let mnemonic = mnemonic::MnemonicGen::new().generate();
+    let mnemonic_words = mnemonic.words(); 
+    Box::new(futures::done(serde_json::to_value(mnemonic_words).map_err(|e| {
         let mut err = jsonrpc_core::Error::internal_error();
         err.message = e.to_string();
         err
