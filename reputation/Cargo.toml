@@ -1,0 +1,19 @@
+[package]
+authors = ["Witnet Foundation <info@witnet.foundation>"]
+description = "Reputation engine"
+edition = "2018"
+name = "witnet_reputation"
+version = "0.2.0"
+workspace = ".."
+
+[dependencies]
+failure = "0.1.5"
+log = "0.4.6"
+
+[dev-dependencies]
+bencher = "0.1.5"
+
+[[bench]]
+name = "trs"
+harness = false
+
