@@ -5,16 +5,14 @@ use witnet_crypto::hash::calculate_sha256;
 
 use super::chain::{
     CommitOutput, DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch,
-    Hash, Hashable, Input, Output, OutputPointer, PublicKeyHash, RevealOutput, TallyOutput, Transaction,
-    TransactionBody, UnspentOutputsPool, ValueTransferOutput,
+    Hash, Hashable, Input, Output, OutputPointer, PublicKeyHash, RevealOutput, TallyOutput,
+    Transaction, TransactionBody, UnspentOutputsPool, ValueTransferOutput,
 };
 
 use serde::{Deserialize, Serialize};
 
-type DataRequestsWithReveals = Vec<(
-    (OutputPointer, DataRequestOutput),
-    Vec<(OutputPointer, RevealOutput)>,
-)>;
+// HashMap from DataRequest OutputPointer to RevealOutput vector
+type DataRequestsWithReveals = HashMap<OutputPointer, Vec<RevealOutput>>;
 
 /// Pool of active data requests
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -28,9 +26,6 @@ pub struct DataRequestPool {
     pub data_request_pool: HashMap<OutputPointer, DataRequestState>,
     /// List of data requests that should be persisted into storage
     pub to_be_stored: Vec<(OutputPointer, DataRequestReport)>,
-    /// Cache which maps commit_pointer to data_request_pointer
-    /// and reveal_pointer to data_request_pointer
-    pub dr_pointer_cache: HashMap<OutputPointer, OutputPointer>,
 }
 
 impl DataRequestPool {
@@ -50,6 +45,27 @@ impl DataRequestPool {
             .map(|dr_state| dr_state.data_request.clone())
     }
 
+    /// Get all reveals related to a `DataRequestOuput` for a `OutputPointer`
+    pub fn get_reveals(
+        &self,
+        output_pointer: &OutputPointer,
+        utxo: &UnspentOutputsPool,
+    ) -> Option<Vec<RevealOutput>> {
+        self.data_request_pool.get(output_pointer).map(|dr_state| {
+            dr_state
+                .info
+                .reveals
+                .iter()
+                .map(|reveal_pointer| {
+                    match utxo.get(reveal_pointer) {
+                        Some(Output::Reveal(reveal_output)) => reveal_output.clone(),
+                        _ => panic!("Reveal not in utxo"), // TODO: remove panic
+                    }
+                })
+                .collect()
+        })
+    }
+
     /// Insert a reveal transaction into the pool
     pub fn insert_reveal(&mut self, data_request_pointer: OutputPointer, reveal: Transaction) {
         self.waiting_for_reveal.insert(data_request_pointer, reveal);
@@ -66,16 +82,13 @@ impl DataRequestPool {
                         .reveals
                         .iter()
                         .map(|reveal_pointer| {
-                            (
-                                reveal_pointer.clone(),
-                                match utxo.get(reveal_pointer) {
-                                    Some(Output::Reveal(reveal_output)) => reveal_output.clone(),
-                                    _ => panic!("Reveal not in utxo"), // TODO: remove panic
-                                },
-                            )
+                            match utxo.get(reveal_pointer) {
+                                Some(Output::Reveal(reveal_output)) => reveal_output.clone(),
+                                _ => panic!("Reveal not in utxo"), // TODO: remove panic
+                            }
                         })
                         .collect();
-                    Some(((dr_pointer.clone(), dr_state.data_request.clone()), reveals))
+                    Some((dr_pointer.clone(), reveals))
                 } else {
                     None
                 }
@@ -128,19 +141,15 @@ impl DataRequestPool {
     }
 
     /// Add a commit to the corresponding data request
-    fn add_commit(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
+    fn add_commit(&mut self, commit_input: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a commit output, we need to get the corresponding data request input
-        let dr_pointer = z.output_pointer();
+        let dr_pointer = commit_input.output_pointer();
 
         // The data request must be from a previous block, and must not be timelocked.
         // This is not checked here, as it should have made the block invalid.
         if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
             dr.add_commit(pointer.clone());
-            // Save the commit output pointer into a cache, to be able to
-            // retrieve data requests when we have the commit output pointer
-            // but no data request output pointer
-            self.dr_pointer_cache.insert(pointer, dr_pointer);
         } else {
             // This can happen when a data request was not stored into the dr_pool.
             // For example, a very old data request that just now got a commitment.
@@ -161,96 +170,53 @@ impl DataRequestPool {
     }
 
     /// Add a reveal transaction
-    fn add_reveal(&mut self, z: &Input, pointer: OutputPointer, block_hash: &Hash) {
+    fn add_reveal(&mut self, reveal_input: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a reveal output, we need to get the corresponding commit input
-        let commit_pointer = z.output_pointer();
-        if let Some(dr_pointer) = self.dr_pointer_cache.get(&commit_pointer) {
-            if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-                dr.add_reveal(pointer.clone());
-                // Save the reveal output pointer into a cache
-                self.dr_pointer_cache.insert(pointer, dr_pointer.clone());
-            } else {
-                panic!(
-                    "Block contains a reveal for an unknown commitment:\n\
-                     Block hash: {b}\n\
-                     Transaction hash: {t}\n\
-                     Reveal output pointer: {p:?}\n\
-                     Commit output pointer: {c:?}\n\
-                     Data request pointer: {d:?}",
-                    b = block_hash,
-                    t = transaction_id,
-                    p = pointer,
-                    c = commit_pointer,
-                    d = dr_pointer,
-                );
-            }
+        let dr_pointer = reveal_input.output_pointer();
+        if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
+            dr.add_reveal(pointer.clone());
         } else {
-            // TODO: on cache miss we should query the storage for the required
-            // output pointer and retry the validation. Since this function should
-            // not depend on the storage, maybe a list of pending transactions similar
-            // to "to_be_stored" would be useful: we need to store pending transactions
-            // and missing output pointers. However that's currently unnecessary because
-            // we will always persist the cache
             panic!(
-                "Block contains a reveal for a commitment not in the cache:\n\
+                "Block contains a reveal for an unknown data request:\n\
                  Block hash: {b}\n\
                  Transaction hash: {t}\n\
                  Reveal output pointer: {p:?}\n\
-                 Commit output pointer: {c:?}",
+                 Data request pointer: {d:?}",
                 b = block_hash,
                 t = transaction_id,
                 p = pointer,
-                c = commit_pointer,
+                d = dr_pointer,
             );
         }
     }
 
     /// Add a tally transaction
     #[allow(clippy::needless_pass_by_value)]
-    fn add_tally(&mut self, reveal: &Input, pointer: OutputPointer, block_hash: &Hash) {
+    fn add_tally(&mut self, tally_input: &Input, pointer: OutputPointer, block_hash: &Hash) {
         let transaction_id = pointer.transaction_id;
         // For a tally output, we need to get the corresponding reveal input
         // Which is the previous transaction in the list
         // inputs[counter - 1] must exists because counter == min(inputs.len(), outputs.len())
-        let reveal_pointer = reveal.output_pointer();
+        let dr_pointer = tally_input.output_pointer();
 
-        if let Some(dr_pointer) = self.dr_pointer_cache.get(&reveal_pointer).cloned() {
-            if let Ok((_dr, dr_info)) = Self::resolve_data_request(
-                &mut self.data_request_pool,
-                &dr_pointer,
-                pointer.clone(),
-            ) {
-                // Since this method does not have access to the storage, we save the
-                // "to be stored" inside a vector and provide another method to store them
-                self.to_be_stored.push((dr_pointer, dr_info.clone()));
-                // Remove all the commit/reveal pointers from the dr_pointer_cache
-                for p in dr_info.commits.iter().chain(dr_info.reveals.iter()) {
-                    self.dr_pointer_cache.remove(p);
-                }
-            } else {
-                panic!(
-                    "Block contains a tally for an unknown data request:\n\
-                     Block hash: {b}\n\
-                     Transaction hash: {t}\n\
-                     Reveal output pointer: {p:?}\n\
-                     Data request pointer: {d:?}",
-                    b = block_hash,
-                    t = transaction_id,
-                    p = pointer,
-                    d = dr_pointer,
-                );
-            }
+        if let Ok((_dr, dr_info)) =
+            Self::resolve_data_request(&mut self.data_request_pool, &dr_pointer, pointer.clone())
+        {
+            // Since this method does not have access to the storage, we save the
+            // "to be stored" inside a vector and provide another method to store them
+            self.to_be_stored.push((dr_pointer, dr_info.clone()));
         } else {
-            // TODO: on cache miss
             panic!(
-                "Block contains a tally for a reveal not in the cache:\n\
+                "Block contains a tally for an unknown data request:\n\
                  Block hash: {b}\n\
                  Transaction hash: {t}\n\
-                 Reveal output pointer: {r:?}",
+                 Reveal output pointer: {p:?}\n\
+                 Data request pointer: {d:?}",
                 b = block_hash,
                 t = transaction_id,
-                r = reveal_pointer,
+                p = pointer,
+                d = dr_pointer,
             );
         }
     }
@@ -459,12 +425,12 @@ pub fn calculate_tally_change(dr_output: &DataRequestOutput, n_reveals: u64) -> 
 
 /// Create data request commitment
 pub fn create_commit_body(
-    dr_output_pointer: OutputPointer,
+    dr_pointer: OutputPointer,
     dr_output: &DataRequestOutput,
     reveal: Vec<u8>,
 ) -> TransactionBody {
     // Create input
-    let dr_input = Input::new(dr_output_pointer);
+    let commit_input = Input::new(dr_pointer);
 
     // Calculate reveal_value
     let commit_value = calculate_commit_reward(&dr_output);
@@ -477,17 +443,17 @@ pub fn create_commit_body(
         value: commit_value,
     });
 
-    TransactionBody::new(0, vec![dr_input], vec![commit_output])
+    TransactionBody::new(0, vec![commit_input], vec![commit_output])
 }
 
 /// Create data request reveal
 pub fn create_reveal_body(
-    commit_pointer: OutputPointer,
+    dr_pointer: OutputPointer,
     dr_output: &DataRequestOutput,
     reveal: Vec<u8>,
 ) -> TransactionBody {
     // Create input
-    let commit_input = Input::new(commit_pointer);
+    let reveal_input = Input::new(dr_pointer);
 
     // Calculate reveal_value
     let reveal_value = calculate_reveal_reward(&dr_output);
@@ -500,23 +466,20 @@ pub fn create_reveal_body(
         value: reveal_value,
     });
 
-    TransactionBody::new(0, vec![commit_input], vec![reveal_output])
+    TransactionBody::new(0, vec![reveal_input], vec![reveal_output])
 }
 
 pub fn create_vt_tally(
+    dr_pointer: OutputPointer,
     dr_output: &DataRequestOutput,
-    reveals: Vec<(OutputPointer, RevealOutput)>,
+    reveals: Vec<RevealOutput>,
 ) -> (Vec<Input>, Vec<Output>, Vec<Vec<u8>>) {
-    let mut inputs = vec![];
     let mut outputs = vec![];
     let mut results = vec![];
     // TODO: Do not reward dishonest witnesses
     let reveal_reward = calculate_dr_vt_reward(dr_output);
 
-    for (reveal_pointer, reveal) in reveals {
-        let reveal_input = Input::new(reveal_pointer);
-        inputs.push(reveal_input);
-
+    for reveal in reveals {
         let vt_output = ValueTransferOutput {
             pkh: reveal.pkh,
             value: reveal_reward,
@@ -525,6 +488,8 @@ pub fn create_vt_tally(
 
         results.push(reveal.reveal);
     }
+
+    let inputs = vec![Input::new(dr_pointer)];
 
     (inputs, outputs, results)
 }
@@ -535,7 +500,7 @@ pub fn create_tally_body(
     mut outputs: Vec<Output>,
     consensus: Vec<u8>,
 ) -> TransactionBody {
-    let change = calculate_tally_change(dr_output, inputs.len() as u64);
+    let change = calculate_tally_change(dr_output, outputs.len() as u64);
     let pkh = dr_output.pkh;
 
     let tally_output = TallyOutput {

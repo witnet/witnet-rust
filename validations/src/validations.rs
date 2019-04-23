@@ -230,7 +230,7 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
         Err(TransactionError::InvalidCommitTransaction)?
     }
 
-    let dr_input = &tx.inputs[0];
+    let commit_input = &tx.inputs[0];
 
     // TODO: Complete PoE validation
     if !verify_poe_data_request() {
@@ -238,7 +238,7 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
     }
 
     // Get DataRequest information
-    let dr_pointer = dr_input.output_pointer();
+    let dr_pointer = commit_input.output_pointer();
     let dr_state =
         dr_pool
             .data_request_pool
@@ -276,16 +276,9 @@ pub fn validate_reveal_transaction(
         Err(TransactionError::InvalidRevealTransaction)?
     }
 
-    let commit_input = &tx.inputs[0];
+    let reveal_input = &tx.inputs[0];
     // Get DataRequest information
-    let commit_pointer = commit_input.output_pointer();
-    let dr_pointer =
-        dr_pool
-            .dr_pointer_cache
-            .get(&commit_pointer)
-            .ok_or(TransactionError::OutputNotFound {
-                output: commit_pointer.clone(),
-            })?;
+    let dr_pointer = reveal_input.output_pointer();
     let dr_state =
         dr_pool
             .data_request_pool
@@ -315,47 +308,28 @@ pub fn validate_tally_transaction(
     utxo_diff: &UtxoDiff,
     fee: u64,
 ) -> Result<(()), failure::Error> {
-    if (tx.outputs.len() - tx.inputs.len()) != 1 {
+    if tx.inputs.len() != 1 {
         Err(TransactionError::InvalidTallyTransaction)?
     }
 
     let mut reveals: Vec<Vec<u8>> = vec![];
-    let mut dr_pointer_aux = &OutputPointer {
-        transaction_id: Hash::default(),
-        output_index: 0,
-    };
 
-    for input in &tx.inputs {
-        // Get DataRequest information
-        let reveal_pointer = input.output_pointer();
+    let dr_pointer = &tx.inputs[0].output_pointer();
+    let all_reveals = dr_pool.get_reveals(dr_pointer, &utxo_diff.utxo_pool);
 
-        let dr_pointer = dr_pool.dr_pointer_cache.get(&reveal_pointer).ok_or(
-            TransactionError::OutputNotFound {
-                output: reveal_pointer.clone(),
-            },
-        )?;
-
-        if dr_pointer_aux.transaction_id == Hash::default() {
-            dr_pointer_aux = dr_pointer;
-        } else if dr_pointer_aux != dr_pointer {
-            Err(TransactionError::RevealsFromDifferentDataRequest)?
-        }
-
-        match utxo_diff.get(&reveal_pointer) {
-            Some(Output::Reveal(reveal_output)) => reveals.push(reveal_output.reveal.clone()),
-            _ => Err(TransactionError::OutputNotFound {
-                output: reveal_pointer.clone(),
-            })?,
-        }
+    if let Some(all_reveals) = all_reveals {
+        reveals.extend(all_reveals.iter().map(|reveal| reveal.reveal.clone()));
+    } else {
+        Err(TransactionError::InvalidTallyTransaction)?
     }
 
     // Get DataRequestState
     let dr_state =
         dr_pool
             .data_request_pool
-            .get(dr_pointer_aux)
+            .get(dr_pointer)
             .ok_or(TransactionError::OutputNotFound {
-                output: dr_pointer_aux.clone(),
+                output: dr_pointer.clone(),
             })?;
 
     // Validate fee

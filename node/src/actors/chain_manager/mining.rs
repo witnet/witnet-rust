@@ -22,7 +22,8 @@ use crate::signature_mngr;
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, CheckpointBeacon, Hashable, LeadershipProof, Output, OutputPointer,
-        PublicKeyHash, Transaction, TransactionsPool, TransactionType, UnspentOutputsPool, ValueTransferOutput,
+        PublicKeyHash, Transaction, TransactionType, TransactionsPool, UnspentOutputsPool,
+        ValueTransferOutput,
     },
     data_request::{create_commit_body, create_reveal_body, create_tally_body, create_vt_tally},
     serializers::decoders::TryFrom,
@@ -241,10 +242,16 @@ impl ChainManager {
         // Include Tally transactions, one for each data request in tally stage
         let mut future_tally_transactions = vec![];
         let dr_reveals = data_request_pool.get_all_reveals(&utxo);
-        for ((dr_pointer, dr_output), reveals) in dr_reveals {
+        for (dr_pointer, reveals) in dr_reveals {
             debug!("Building tally for data request {}", dr_pointer);
 
-            let (inputs, outputs, results) = create_vt_tally(&dr_output, reveals);
+            // "get_all_reveals" return a HashMap with valid data request output pointer
+            // In this case "unwrap" method is not going to fail.
+            let dr_output = data_request_pool.data_request_pool[&dr_pointer]
+                .data_request
+                .clone();
+            let (inputs, outputs, results) =
+                create_vt_tally(dr_pointer.clone(), &dr_output, reveals);
 
             let rad_manager_addr = System::current().registry().get::<RadManager>();
             let fut = rad_manager_addr

@@ -4,7 +4,7 @@ use futures::Future;
 use std::collections::HashSet;
 use witnet_data_structures::chain::{
     DataRequestOutput, Input, Output, OutputPointer, PublicKeyHash, Transaction, TransactionBody,
-    UnspentOutputsPool, ValueTransferInput, ValueTransferOutput,
+    UnspentOutputsPool, ValueTransferOutput,
 };
 
 /// Error when there is not enough balance to create a transaction
@@ -105,15 +105,7 @@ fn build_vtt_inner<S: std::hash::BuildHasher>(
             total_balance,
         }),
         Ok((output_pointers, input_value)) => {
-            let inputs = output_pointers
-                .into_iter()
-                .map(|x| {
-                    Input::ValueTransfer(ValueTransferInput {
-                        transaction_id: x.transaction_id,
-                        output_index: x.output_index,
-                    })
-                })
-                .collect();
+            let inputs = output_pointers.into_iter().map(Input::new).collect();
             let mut outputs = outputs.into_iter().map(Output::ValueTransfer).collect();
             insert_change_output(&mut outputs, own_pkh, input_value - output_value - fee);
             if let Some(dro) = dr {

@@ -64,8 +64,6 @@ pub enum TransactionError {
     InvalidDataRequestValue { dr_value: i64, witnesses: i64 },
     #[fail(display = "Data Request witnesses number is not enough")]
     InsufficientWitnesses,
-    #[fail(display = "Reveals from different Data Requests")]
-    RevealsFromDifferentDataRequest,
     #[fail(
         display = "Mismatching between local tally ({:?}) and miner tally ({:?})",
         local_tally, miner_tally
