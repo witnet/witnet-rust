@@ -10,10 +10,11 @@ use crate::operators::{identity, map as map_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
 use crate::types::{mixed::RadonMixed, RadonType};
+use serde::Serialize;
 
 pub const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Default)]
 pub struct RadonMap {
     value: HashMap<String, RadonMixed>,
 }

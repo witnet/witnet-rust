@@ -1,9 +1,12 @@
 use crate::error::RadError;
 use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
-use crate::types::{mixed::RadonMixed, RadonType, RadonTypes};
+use crate::types::{
+    float::RadonFloat, map::RadonMap, mixed::RadonMixed, string::RadonString, RadonType, RadonTypes,
+};
 
 use rmpv::Value;
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt;
 use std::mem::{discriminant, Discriminant};
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
@@ -18,6 +21,30 @@ pub const RADON_ARRAY_TYPE_NAME: &str = "RadonArray";
 pub struct RadonArray {
     value: Vec<RadonTypes>,
     inner_type: Discriminant<RadonTypes>,
+}
+
+impl Serialize for RadonArray {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("RadonArray", 2)?;
+        state.serialize_field("value", &self.value)?;
+        // state.serialize_field("inner_type", &self.inner_type)?;
+        if self.inner_type() == discriminant(&RadonTypes::Float(RadonFloat::default())) {
+            state.serialize_field("inner_type", "RadonFloat")?;
+        } else if self.inner_type() == discriminant(&RadonTypes::Map(RadonMap::default())) {
+            state.serialize_field("innet_type", "RadonMap")?;
+        } else if self.inner_type() == discriminant(&RadonTypes::Mixed(RadonMixed::default())) {
+            state.serialize_field("inner_type", "RadonMixed")?;
+        } else if self.inner_type() == discriminant(&RadonTypes::String(RadonString::default())) {
+            state.serialize_field("inner_type", "RadonMixed")?;
+        } else {
+            state.serialize_field("inner_value", "RadonArray")?;
+        }
+
+        state.end()
+    }
 }
 
 impl RadonArray {

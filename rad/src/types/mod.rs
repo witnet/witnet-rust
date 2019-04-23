@@ -13,6 +13,8 @@ use witnet_data_structures::{
     serializers::decoders::{TryFrom, TryInto},
 };
 
+use serde::Serialize;
+
 pub mod array;
 pub mod float;
 pub mod map;
@@ -28,7 +30,7 @@ where
     fn radon_type_name() -> String;
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum RadonTypes {
     Array(RadonArray),
     Float(RadonFloat),

@@ -27,8 +27,14 @@ use std::{
         Arc, Mutex,
     },
 };
+use witnet_data_structures::serializers::decoders::TryFrom;
 
 use witnet_crypto::mnemonic;
+use witnet_data_structures::chain::RADRequest;
+use witnet_rad::{
+    run_aggregation, run_consensus, run_retrieval, types::RadonTypes,
+};
+
 /// List of subscriptions from the websockects client (sheikah)
 // TODO: this is defined twice: once here and once in node/json_rpc_methods?
 pub type Subscriptions = Arc<
@@ -88,7 +94,6 @@ fn start_ws_jsonrpc_server(
         ("getBlock", |r, p| forward_call("getBlock", r, p)),
         ("getOutput", |r, p| forward_call("getOutput", r, p)),
         ("createMnemonics", create_mnemonics),
-
         ("importSeed", import_seed),
         ("runRadRequest", run_rad_request),
         ("getWalletInfos", get_wallet_infos),
@@ -245,34 +250,42 @@ fn send_data_request(
     })))
 }
 
-// TODO: radon crate
-#[derive(Serialize, Deserialize)]
-struct RadonValue {}
-
 fn run_rad_request(
     _registry: &SystemRegistry,
-    params: jsonrpc_core::Result<RadonValue>,
+    params: jsonrpc_core::Result<RADRequest>,
 ) -> impl Future<Item = Value, Error = jsonrpc_core::Error> {
-    let params = match params {
-        Ok(params) => {
-            // let result: Vec<_> = params.retrieve.iter().map(|source| {
-            //     let retrieval_result = run_retrieval(source.clone());
 
-            //     retrieval_result
-            // }).collect();
+    let result = params
+        .and_then(|params| {
+            let retrieval_result: Result<Vec<_>, _> = params
+                .retrieve
+                .iter()
+                .map(|source| run_retrieval(source.clone()).map_err(build_serde_json_error))
+                .collect();
+            retrieval_result.and_then(|retrieval_result| {
+            run_aggregation(retrieval_result, params.aggregate.script.clone())
+                .map_err(build_serde_json_error)
+                .and_then(|aggregation_result| {
+                    RadonTypes::try_from(aggregation_result.as_slice())
+                        .and_then(|aggregation_result| {
+                            run_consensus(vec![aggregation_result], params.consensus.script)
+                                .and_then(|consensus_result| {
+                                    RadonTypes::try_from(consensus_result.as_slice())
+                                })
+                        })
+                .map_err(build_serde_json_error)
+                })
+            })
+        });
 
-            // result
-            params
-        },
-        Err(e) => return Box::new(futures::failed(e)),
-    };
-    
-    let x = params; 
-    Box::new(futures::done(serde_json::to_value(x).map_err(|e| {
-        let mut err = jsonrpc_core::Error::internal_error();
-        err.message = e.to_string();
-        err
-    })))
+    Box::new(futures::done(serde_json::to_value(result).map_err(build_serde_json_error)))
+}
+
+fn build_serde_json_error<T>(e: T) -> jsonrpc_core::Error
+where T: std::string::ToString {
+    let mut err = jsonrpc_core::Error::internal_error();
+    err.message = e.to_string();
+    err
 }
 
 #[derive(Debug, Deserialize)]
@@ -547,7 +560,7 @@ fn import_seed(
 
 #[derive(Debug, Deserialize, Serialize)]
 struct CreateMnemonicsParams {
-    length: mnemonic::Length
+    length: mnemonic::Length,
 }
 
 fn create_mnemonics(
@@ -561,12 +574,14 @@ fn create_mnemonics(
     };
 
     let mnemonic = mnemonic::MnemonicGen::new().generate();
-    let mnemonic_words = mnemonic.words(); 
-    Box::new(futures::done(serde_json::to_value(mnemonic_words).map_err(|e| {
-        let mut err = jsonrpc_core::Error::internal_error();
-        err.message = e.to_string();
-        err
-    })))
+    let mnemonic_words = mnemonic.words();
+    Box::new(futures::done(serde_json::to_value(mnemonic_words).map_err(
+        |e| {
+            let mut err = jsonrpc_core::Error::internal_error();
+            err.message = e.to_string();
+            err
+        },
+    )))
 }
 
 #[derive(Debug, Deserialize, Serialize)]

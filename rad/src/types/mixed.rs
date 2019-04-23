@@ -8,10 +8,26 @@ use std::fmt;
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
 pub const RADON_MIXED_TYPE_NAME: &str = "RadonMixed";
+use serde::{Serialize, Serializer};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadonMixed {
     value: Value,
+}
+
+impl Default for RadonMixed {
+    fn default() -> Self {
+        Self { value: Value::Nil }
+    }
+}
+
+impl Serialize for RadonMixed {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.value.to_string())
+    }
 }
 
 impl RadonType<Value> for RadonMixed {

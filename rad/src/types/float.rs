@@ -9,9 +9,11 @@ use crate::operators::{identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
+use serde::{Deserialize, Serialize};
+
 pub const RADON_FLOAT_TYPE_NAME: &str = "RadonFloat";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct RadonFloat {
     value: f64,
 }
