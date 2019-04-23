@@ -1,9 +1,9 @@
 # Contributing to Witnet-rust
 
-:tada: Thank you for being interested in contributing to Witnet! :tada:
+:tada: Thank you for joining the Witnet community and showing interest in making your first contribution! :tada:
 
-The following is a set of guidelines and helpful pointers for contributing to Witnet
-The keyword here is guidelines, not rules.
+The following is a set of guidelines and helpful pointers for contributing to Witnet.
+The keyword here is _guidelines_, not rules.
 As such, use your best judgement and feel free to propose changes to even this document.
 
 ## Code of conduct
@@ -14,22 +14,17 @@ By participating, you are expected to uphold this code as well.
 ## I just have a question
 
 Please don't file an issue with questions.
-It's easier for you and for us if you go directly to [our Gitter chatroom][gitter], since it will keep our repositories clean and you will get a faster response.
+It's easier for you and for us if you go directly to our [Discord server][discord] or [Telegram group][telegram], since it will keep our repositories clean and you will get a faster response.
 
 ## How can I contribute?
 
 Find an area you can help with and do it. Open source is about collaboration and open participation.
-Try to make your code look like what already exists and submit a pull request.
+Try to make your code look like what already exists and submit a pull request on [GitHub].
 
-The [list of issues][issues] is a good place to start, especially the ones tagged as "good first issue" or "help wanted" (but don't let that stop you from looking at others).
-If you're looking for additional ideas, the code includes `TODO` comments for minor to major improvements. Grep is your friend.
+The [list of issues][issues] is a good place to start, especially the ones tagged as "[good first issue][first-issue]" or "help wanted" (but don't let that stop you from looking at others).
+If you're looking for additional ideas, try to search `TODO` comments for suggestions on minor to major improvements. `grep` is your friend.
 
-Additional tests are rewarded with an immense amount of positive karma.
-
-More documentation or updates/fixes to existing documentation are also very welcome.
-However, if submitting a PR consisting of documentation changes only, please try to ensure that the change is significantly more substantial than one or two lines.
-For example, working through an install document and making changes and updates throughout as you find issues is worth a PR.
-For typos and other small changes, either contact one of the developers, or if you think it's a significant enough error to cause problems for other users, please feel free to open an issue.
+Pull requests adding more tests or documentation are rewarded with an immense amount of positive karma.
 
 ### Reporting bugs
 
@@ -58,10 +53,7 @@ Provide more context by answering these questions:
 * Did the problem start happening recently (e.g. after updating to a new version) or was this always a problem?
 * If the problem started happening recently, can you reproduce the problem in an older version of Witnet-rust? What's the most recent version in which the problem doesn't happen?
 * Can you reliably reproduce the issue? If not, provide details about how often the problem happens and under which conditions it normally happens.
-
-Include details about your configuration and environment:
-
-* Which version of `rustc` are you using? You can get the exact version by running `rustc --version --verbose` in your terminal.
+* Are you running `witnet-rust` from a pre-compiled binary or from the source code?
 * What's your operating system and version?
 
 ## Suggesting enhancements
@@ -82,12 +74,56 @@ Enhancement suggestions are tracked as GitHub issues. Create an issue on that re
 * Describe the current behavior and explain which behavior you expected to see instead and why.
 * Explain why this enhancement would be useful to most users and isn't something that can or should be implemented as a community package.
 
-
-## Your First Code Contribution
+### Your First Code Contribution
 
 Unsure where to begin contributing? You can start by looking through these good first issue issues:
 
 * [Good first issue][first-issue] - issues which should only require a few lines of code, and a test or two.
+
+## Sending a Pull Request
+
+### Commit messages convention
+
+We use a [commit message convention][convention] to make our commit history easier to understand for everyone and allow for automatic generation of changelogs.
+
+!!! examples
+    These are some examples of good commit messages:
+    
+    ```
+    feat(mining): use a random nonce as input in mint transactions
+    
+    BREAKING CHANGE: former mint transactions containing no inputs will be rendered invalid 
+    ```
+    ```
+    refactor(config): make `config` actor return settings as `Option`s
+    ```
+    ```
+    docs: add RADON `FLOAT_TOSTRING` opcode
+    
+    this operator converts any floating point number into a UTF8 string
+    ```
+    ```
+    chore(cargo): upgrade `actix` to version 0.8.1
+    
+    fix #503
+    ```
+
+### PGP-signing your commits
+ 
+All commits in the [witnet-rust][GitHub] project need to be signed by their authors using PGP.
+
+!!! tip
+    To configure your Git client to sign commits by default for a local repository, in Git versions 2.0.0 and above, run `git config commit.gpgsign true`.
+    To sign all commits by default in any local repository on your computer, run `git config --global commit.gpgsign true`.
+    
+    To store your GPG key passphrase so you don't have to enter it every time you sign a commit, we recommend using the following tools:
+    
+    - For Mac users, the [GPG Suite] allows you to store your GPG key passphrase in the Mac OS Keychain.
+    - For Windows users, the [Gpg4win] integrates with other Windows tools.
+    
+    You can also manually configure [gpg-agent] to save your GPG key passphrase, but this doesn't integrate with Mac OS Keychain like ssh-agent and requires more setup.
+
+If you have multiple keys or are attempting to sign commits or tags with a key that doesn't match your committer identity, you should [tell Git about your signing key][signing-key].
 
 ## Copyright
 These guidelines are inspired by:
@@ -97,8 +133,15 @@ These guidelines are inspired by:
 
 [code]: https://github.com/witnet/witnet-rust/blob/master/.github/CODE_OF_CONDUCT.md
 [issues]: https://github.com/witnet/rust-witnet/issues
-[gitter]: https://gitter.im/witnet/rust-witnet
+[discord]: https://discord.gg/FDPPv7H
+[telegram]: https://t.me/witnetio
+[GitHub]: https://github.com/witnet/witnet-rust
 [first-issue]: https://github.com/witnet/witnet-rust/labels/good%20first%20issue
+[convention]: https://www.conventionalcommits.org/en/v1.0.0-beta.2/
+[GPG Suite]: https://gpgtools.org/
+[Gpg4win]: https://www.gpg4win.org/
+[gpg-agent]: http://linux.die.net/man/1/gpg-agent
+[signing-key]: https://help.github.com/en/articles/telling-git-about-your-signing-key
 [grin]: https://github.com/mimblewimble/grin/blob/master/CONTRIBUTING.md
 [aragonjs]: https://wiki.aragon.one/submodules/aragon.js/CONTRIBUTING/
 [CC0]: https://github.com/aragon/aragon-wiki/blob/master/LICENSE
