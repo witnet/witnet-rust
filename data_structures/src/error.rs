@@ -174,3 +174,20 @@ pub enum OutputPointerParseError {
     #[fail(display = "could not parse output index as an integer")]
     ParseIntError(ParseIntError),
 }
+
+/// The error type for operations on a [`Secp256k1Signature`](Secp256k1Signature)
+#[derive(Debug, PartialEq, Fail)]
+pub enum Secp256k1ConversionError {
+    #[fail(
+        display = "Failed to convert `witnet_data_structures::Signature` into `secp256k1::Signature`"
+    )]
+    FailSignatureConversion,
+    #[fail(
+        display = " Failed to convert `witnet_data_structures::PublicKey` into `secp256k1::PublicKey`"
+    )]
+    FailPublicKeyConversion,
+    #[fail(
+        display = " Failed to convert `witnet_data_structures::SecretKey` into `secp256k1::SecretKey`"
+    )]
+    FailSecretKeyConversion,
+}

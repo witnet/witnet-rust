@@ -1,4 +1,3 @@
-use failure::Fail;
 use partial_struct::PartialStruct;
 use protobuf::Message;
 use secp256k1::{
@@ -21,7 +20,7 @@ use witnet_util::parser::parse_hex;
 
 use super::{
     data_request::DataRequestPool,
-    error::OutputPointerParseError,
+    error::{OutputPointerParseError, Secp256k1ConversionError},
     proto::{schema::witnet, ProtobufConvert},
     serializers::decoders::{TryFrom, TryInto},
 };
@@ -202,23 +201,6 @@ impl Default for Signature {
 pub struct Secp256k1Signature {
     /// The signature serialized in DER
     pub der: Vec<u8>,
-}
-
-/// The error type for operations on a [`Secp256k1Signature`](Secp256k1Signature)
-#[derive(Debug, PartialEq, Fail)]
-pub enum Secp256k1ConversionError {
-    #[fail(
-        display = "Failed to convert `witnet_data_structures::Signature` into `secp256k1::Signature`"
-    )]
-    FailSignatureConversion,
-    #[fail(
-        display = " Failed to convert `witnet_data_structures::PublicKey` into `secp256k1::PublicKey`"
-    )]
-    FailPublicKeyConversion,
-    #[fail(
-        display = " Failed to convert `witnet_data_structures::SecretKey` into `secp256k1::SecretKey`"
-    )]
-    FailSecretKeyConversion,
 }
 
 impl From<Secp256k1_Signature> for Signature {
