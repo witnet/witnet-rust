@@ -1245,6 +1245,32 @@ impl ChainState {
     }
 }
 
+/// Returns `true` if the transaction classifies as a _mint
+/// transaction_.  A mint transaction is one that has no inputs,
+/// only outputs, thus, is allowed to create new wits.
+pub fn transaction_is_mint(tx: &TransactionBody) -> bool {
+    tx.inputs.is_empty()
+}
+
+/// Function to assign tags to transactions
+pub fn transaction_tag(tx: &TransactionBody) -> TransactionType {
+    match tx.outputs.last() {
+        Some(Output::DataRequest(_)) => TransactionType::DataRequest,
+        Some(Output::ValueTransfer(_)) => {
+            if transaction_is_mint(tx) {
+                TransactionType::Mint
+            } else {
+                TransactionType::ValueTransfer
+            }
+        }
+        Some(Output::Commit(_)) => TransactionType::Commit,
+        Some(Output::Reveal(_)) => TransactionType::Reveal,
+        Some(Output::Tally(_)) => TransactionType::Tally,
+        // No outputs: donation to the miners
+        None => TransactionType::ValueTransfer,
+    }
+}
+
 /// Method to update the unspent outputs pool
 pub fn generate_unspent_outputs_pool(
     unspent_outputs_pool: &UnspentOutputsPool,

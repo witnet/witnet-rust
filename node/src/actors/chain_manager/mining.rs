@@ -21,16 +21,17 @@ use crate::signature_mngr;
 
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, CheckpointBeacon, Hashable, LeadershipProof, Output, PublicKeyHash, Transaction,
-        TransactionType, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        transaction_tag, Block, BlockHeader, CheckpointBeacon, Hashable, LeadershipProof, Output,
+        PublicKeyHash, Transaction, TransactionType, TransactionsPool, UnspentOutputsPool,
+        ValueTransferOutput,
     },
     data_request::{create_commit_body, create_reveal_body, create_tally_body, create_vt_tally},
     serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
-    block_reward, merkle_tree_root, transaction_fee, transaction_tag, validate_block,
-    verify_poe_data_request, UtxoDiff,
+    block_reward, merkle_tree_root, transaction_fee, validate_block, verify_poe_data_request,
+    UtxoDiff,
 };
 
 impl ChainManager {

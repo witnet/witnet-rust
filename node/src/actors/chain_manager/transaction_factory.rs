@@ -147,9 +147,9 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
     use witnet_data_structures::chain::{
-        generate_unspent_outputs_pool, Hashable, PublicKey, RADRequest, TransactionType,
+        generate_unspent_outputs_pool, transaction_tag, Hashable, PublicKey, RADRequest,
+        TransactionType,
     };
-    use witnet_validations::validations::transaction_tag;
 
     // Counter used to prevent creating two transactions with the same hash
     static TX_COUNTER: AtomicU32 = AtomicU32::new(0);

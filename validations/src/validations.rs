@@ -1,24 +1,20 @@
+use std::collections::{HashMap, HashSet};
+
 use witnet_crypto::{
     hash::Sha256,
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
-
-use std::collections::{HashMap, HashSet};
 use witnet_data_structures::{
     chain::{
-        Block, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature, Output,
-        OutputPointer, RADRequest, Transaction, TransactionBody, TransactionType,
-        UnspentOutputsPool,
+        transaction_is_mint, transaction_tag, Block, CheckpointBeacon, Epoch, Hash, Hashable,
+        Input, KeyedSignature, Output, OutputPointer, PublicKeyHash, RADRequest, Transaction,
+        TransactionBody, TransactionType, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     error::{BlockError, TransactionError},
     serializers::decoders::{TryFrom, TryInto},
 };
-
-use log;
-
-use witnet_data_structures::chain::PublicKeyHash;
 use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 
 /// Calculate the sum of the values of the outputs pointed by the
@@ -114,13 +110,6 @@ pub fn transaction_fee(tx: &TransactionBody, utxo_diff: &UtxoDiff) -> Result<u64
     } else {
         Ok(in_value - out_value)
     }
-}
-
-/// Returns `true` if the transaction classifies as a _mint
-/// transaction_.  A mint transaction is one that has no inputs,
-/// only outputs, thus, is allowed to create new wits.
-pub fn transaction_is_mint(tx: &TransactionBody) -> bool {
-    tx.inputs.is_empty()
 }
 
 /// Function to validate a mint transaction
@@ -462,35 +451,30 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
         TransactionType::Mint => Err(TransactionError::UnexpectedMint)?,
         TransactionType::InvalidType => Err(TransactionError::NotValidTransaction)?,
         TransactionType::ValueTransfer => {
-            log::debug!("ValueTransfer Transaction validation");
             let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
             validate_vt_transaction(&transaction.body)?;
             Ok(fee)
         }
         TransactionType::DataRequest => {
-            log::debug!("DataRequest Transaction validation");
             let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
             validate_dr_transaction(&transaction.body)?;
             Ok(fee)
         }
         TransactionType::Commit => {
-            log::debug!("Commit Transaction validation");
             let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
             validate_commit_transaction(&transaction.body, dr_pool, block_commits, fee)?;
             Ok(fee)
         }
         TransactionType::Reveal => {
-            log::debug!("Reveal Transaction validation");
             let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
             validate_reveal_transaction(&transaction.body, dr_pool, fee)?;
             Ok(fee)
         }
         TransactionType::Tally => {
-            log::debug!("Tally Transaction validation");
             let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
             validate_tally_transaction(&transaction.body, dr_pool, fee)?;
@@ -654,25 +638,6 @@ pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> Result<(), fai
         })?
     } else {
         Ok(())
-    }
-}
-
-/// Function to assign tags to transactions
-pub fn transaction_tag(tx: &TransactionBody) -> TransactionType {
-    match tx.outputs.last() {
-        Some(Output::DataRequest(_)) => TransactionType::DataRequest,
-        Some(Output::ValueTransfer(_)) => {
-            if transaction_is_mint(tx) {
-                TransactionType::Mint
-            } else {
-                TransactionType::ValueTransfer
-            }
-        }
-        Some(Output::Commit(_)) => TransactionType::Commit,
-        Some(Output::Reveal(_)) => TransactionType::Reveal,
-        Some(Output::Tally(_)) => TransactionType::Tally,
-        // No outputs: donation to the miners
-        None => TransactionType::ValueTransfer,
     }
 }
 
