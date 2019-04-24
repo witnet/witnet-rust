@@ -5,9 +5,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use witnet_crypto::hash::calculate_sha256;
 
 use super::chain::{
-    CommitOutput, DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch,
-    Hash, Hashable, Input, Output, OutputPointer, PublicKeyHash, RevealOutput, TallyOutput,
-    Transaction, TransactionBody, ValueTransferOutput,
+    transaction_tag, CommitOutput, DataRequestOutput, DataRequestReport, DataRequestStage,
+    DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer, PublicKeyHash,
+    RevealOutput, TallyOutput, Transaction, TransactionBody, TransactionType, ValueTransferOutput,
 };
 
 use serde::{Deserialize, Serialize};
@@ -184,16 +184,18 @@ impl DataRequestPool {
 
     /// Add a tally transaction
     #[allow(clippy::needless_pass_by_value)]
-    fn add_tally(&mut self, tally_input: &Input, pointer: OutputPointer, block_hash: &Hash) {
-        let transaction_id = pointer.transaction_id;
+    fn add_tally(&mut self, tally_input: &Input, tally_pointer: OutputPointer, block_hash: &Hash) {
+        let transaction_id = tally_pointer.transaction_id;
         // For a tally output, we need to get the corresponding reveal input
         // Which is the previous transaction in the list
         // inputs[counter - 1] must exists because counter == min(inputs.len(), outputs.len())
         let dr_pointer = tally_input.output_pointer();
 
-        if let Ok((_dr, dr_info)) =
-            Self::resolve_data_request(&mut self.data_request_pool, &dr_pointer, pointer.clone())
-        {
+        if let Ok((_dr, dr_info)) = Self::resolve_data_request(
+            &mut self.data_request_pool,
+            &dr_pointer,
+            tally_pointer.clone(),
+        ) {
             // Since this method does not have access to the storage, we save the
             // "to be stored" inside a vector and provide another method to store them
             self.to_be_stored.push((dr_pointer, dr_info.clone()));
@@ -206,7 +208,7 @@ impl DataRequestPool {
                  Data request pointer: {d:?}",
                 b = block_hash,
                 t = transaction_id,
-                p = pointer,
+                p = tally_pointer,
                 d = dr_pointer,
             );
         }
@@ -295,84 +297,55 @@ impl DataRequestPool {
     /// The epoch is needed as the key to the available data requests map
     /// The block hash is only used for debugging purposes
     pub fn process_transaction(&mut self, t: &Transaction, epoch: Epoch, block_hash: &Hash) {
-        let transaction_id = t.hash();
-        for (z, s) in t.body.inputs.iter().zip(t.body.outputs.iter()) {
-            let pkh = PublicKeyHash::from_public_key(&t.signatures[0].public_key);
-            match s {
-                Output::Commit(commit_output) => {
-                    self.add_commit(pkh, z, commit_output, &transaction_id, block_hash);
+        let tx_hash = t.hash();
+        match transaction_tag(&t.body) {
+            TransactionType::Commit => {
+                let pkh = PublicKeyHash::from_public_key(&t.signatures[0].public_key);
+                let commit_input = &t.body.inputs[0];
+                if let Output::Commit(commit_output) = &t.body.outputs[0] {
+                    self.add_commit(pkh, commit_input, commit_output, &tx_hash, block_hash);
                 }
-                Output::Reveal(reveal_output) => {
-                    self.add_reveal(pkh, z, reveal_output, &transaction_id, block_hash);
-                }
-                Output::Tally(tally) => {
-                    // It is impossible to have a tally in this iterator, because we are
-                    // iterating in pairs and the tally output does not have an input.
-                    // This panic implies a logic error in the block validation
-                    panic!(
-                        "Invalid transaction got accepted into a valid block:\n\
-                         Tally output {tally:?} has an invalid input:\n\
-                         {input:?}\n\
-                         Block hash: {b}\n\
-                         Transaction hash: {t}",
-                        tally = tally,
-                        input = z,
-                        b = block_hash,
-                        t = transaction_id,
-                    );
-                }
-                Output::ValueTransfer(_) => {}
-                Output::DataRequest(_) => {} // Handled later
             }
-        }
-
-        for (i, s) in t.body.outputs.iter().enumerate() {
-            if let Output::DataRequest(dr) = s {
-                let output_index = i as u32;
-                let pointer = OutputPointer {
-                    transaction_id,
-                    output_index,
-                };
-                // A data request output should have a valid value transfer input
-                // Which we assume valid as it should have been already verified
-                // time_lock_epoch: The epoch during which we will start accepting
-                // commitments for this data request
-                // FIXME(#338): implement time lock
-                // An enhancement to the epoch manager would be a handler GetState which returns
-                // the needed constants to calculate the current epoch. This way we avoid all the
-                // calls to GetEpoch
-                let time_lock_epoch = 0;
-                let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
-                self.add_data_request(dr_epoch, pointer.clone(), dr.clone());
+            TransactionType::Reveal => {
+                let pkh = PublicKeyHash::from_public_key(&t.signatures[0].public_key);
+                let reveal_input = &t.body.inputs[0];
+                if let Output::Reveal(reveal_output) = &t.body.outputs[0] {
+                    self.add_reveal(pkh, reveal_input, reveal_output, &tx_hash, block_hash);
+                }
             }
-        }
+            TransactionType::DataRequest => {
+                for (i, s) in t.body.outputs.iter().enumerate() {
+                    if let Output::DataRequest(dr) = s {
+                        let output_index = i as u32;
+                        let pointer = OutputPointer {
+                            transaction_id: tx_hash,
+                            output_index,
+                        };
+                        // A data request output should have a valid value transfer input
+                        // Which we assume valid as it should have been already verified
+                        // time_lock_epoch: The epoch during which we will start accepting
+                        // commitments for this data request
+                        // FIXME(#338): implement time lock
+                        // An enhancement to the epoch manager would be a handler GetState which returns
+                        // the needed constants to calculate the current epoch. This way we avoid all the
+                        // calls to GetEpoch
+                        let time_lock_epoch = 0;
+                        let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
+                        self.add_data_request(dr_epoch, pointer.clone(), dr.clone());
+                    }
+                }
+            }
+            TransactionType::Tally => {
+                let tally_input = &t.body.inputs[0];
+                let tally_index = t.body.outputs.len() - 1;
 
-        // Handle tally. A tally transaction has N inputs and N+1 outputs,
-        // at least 1 input and 2 outputs.
-        // The last output is the tally, with no corresponding input,
-        // and the last input-output pair is (RevealInput, ValueTransferOutput).
-        let possibly_tally =
-            t.body.outputs.len() >= 2 && t.body.inputs.len() == t.body.outputs.len() - 1;
-
-        if possibly_tally {
-            let tally_index = t.body.outputs.len() - 1;
-
-            if let (reveal, Output::Tally(_tally)) = (
-                &t.body.inputs[tally_index - 1],
-                &t.body.outputs[tally_index],
-            ) {
-                // Assume that all the reveal inputs point to the same data request
-                // (as that should have been already validated)
-                // And assume that the tally transaction contains as many reveal inputs
-                // as there are reveals for this data request (also should have been validated)
-                let pointer = OutputPointer {
-                    transaction_id,
+                let tally_pointer = OutputPointer {
+                    transaction_id: tx_hash,
                     output_index: tally_index as u32,
                 };
-                self.add_tally(reveal, pointer, block_hash);
-            } else {
-                // Assume there is no tally in this transaction
+                self.add_tally(tally_input, tally_pointer, block_hash);
             }
+            _ => {}
         }
     }
 
