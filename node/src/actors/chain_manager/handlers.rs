@@ -122,8 +122,8 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         self.consolidate_block(ctx, &block, utxo_diff);
                     } else {
                         warn!(
-                            "There is no valid block candidate to consolidate for epoch {}",
-                            msg.checkpoint
+                            "There was no valid block candidate to consolidate for epoch {}",
+                            msg.checkpoint - 1
                         );
                     }
 
