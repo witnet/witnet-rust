@@ -4,7 +4,7 @@ use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
 use rmpv::Value;
-use serde::{Deserialize, Serialize};
+use serde::{Serialize};
 use std::fmt;
 use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 pub const RADON_STRING_TYPE_NAME: &str = "RadonString";

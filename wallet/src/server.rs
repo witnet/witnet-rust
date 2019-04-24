@@ -32,7 +32,8 @@ use witnet_data_structures::serializers::decoders::TryFrom;
 use witnet_crypto::mnemonic;
 use witnet_data_structures::chain::RADRequest;
 use witnet_rad::{
-    run_aggregation, run_consensus, run_retrieval, types::RadonTypes,
+    run_aggregation, run_consensus, run_retrieval,
+    types::RadonTypes,
 };
 
 /// List of subscriptions from the websockects client (sheikah)
@@ -254,17 +255,15 @@ fn run_rad_request(
     _registry: &SystemRegistry,
     params: jsonrpc_core::Result<RADRequest>,
 ) -> impl Future<Item = Value, Error = jsonrpc_core::Error> {
-
-    let result = params
-        .and_then(|params| {
-            let retrieval_result: Result<Vec<_>, _> = params
-                .retrieve
-                .iter()
-                .map(|source| run_retrieval(source.clone()).map_err(build_serde_json_error))
-                .collect();
-            retrieval_result.and_then(|retrieval_result| {
-            run_aggregation(retrieval_result, params.aggregate.script.clone())
-                .map_err(build_serde_json_error)
+    let result = params.and_then(|params| {
+        params
+            .retrieve
+            .iter()
+            .map(|source| run_retrieval(source.clone()).map_err(|e| e.into()))
+            .collect::<Result<Vec<_>, _>>()
+            .and_then(|retrieval_result| {
+                run_aggregation(retrieval_result, params.aggregate.script.clone())
+                .map_err(|e| e.into())
                 .and_then(|aggregation_result| {
                     RadonTypes::try_from(aggregation_result.as_slice())
                         .and_then(|aggregation_result| {
@@ -273,19 +272,17 @@ fn run_rad_request(
                                     RadonTypes::try_from(consensus_result.as_slice())
                                 })
                         })
-                .map_err(build_serde_json_error)
+                        .map_err(|e| e.into())
                 })
-            })
-        });
+        })
+    });
 
-    Box::new(futures::done(serde_json::to_value(result).map_err(build_serde_json_error)))
-}
+    Box::new(futures::done(serde_json::to_value(result).map_err(|e| {
+        let mut err = jsonrpc_core::Error::internal_error();
+        err.message = e.to_string();
 
-fn build_serde_json_error<T>(e: T) -> jsonrpc_core::Error
-where T: std::string::ToString {
-    let mut err = jsonrpc_core::Error::internal_error();
-    err.message = e.to_string();
-    err
+        err
+    })))
 }
 
 #[derive(Debug, Deserialize)]

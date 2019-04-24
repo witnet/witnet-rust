@@ -1,7 +1,30 @@
 //! Error type definitions for the RAD module.
 
 use failure::{self, Fail};
+use jsonrpc_ws_server::jsonrpc_core;
 use rmpv::{Integer, Value};
+
+/// RAD error codes
+pub mod rad_error_codes{
+    /// RadError Codes
+    pub const DECODE: i64 = 100;
+    pub const ENCODE: i64 = 101;
+    pub const HASH: i64 = 102;
+    pub const HTTP: i64 = 103;
+    pub const JSON_PARSE: i64 = 104;
+    pub const MAP_KEY_NOT_FOUND: i64 = 105;
+    pub const MESSAGEPACK: i64 = 106;
+    pub const NO_OPERATOR_IN_COMPOUND_CALL: i64 = 107;
+    pub const NOT_INTEGER_OPERATOR: i64 = 108;
+    pub const NOT_NATURAL_OPERATOR: i64 = 109;
+    pub const PARSE_FLOAT: i64 = 110;
+    pub const SCRIPT_NOT_ARRAY: i64 = 111;
+    pub const UNKNOWN_OPERATOR: i64 = 112;
+    pub const UNSUPPORTED_HASH_FUNCTION: i64 = 113;
+    pub const UNSUPPORTED_OPERATOR: i64 = 114;
+    pub const UNSUPPORTED_REDUCER: i64 = 115;
+    pub const WRONG_ARGUMENTS: i64 = 116;
+}
 
 /// RAD errors.
 #[derive(Debug, PartialEq, Fail)]
@@ -103,6 +126,49 @@ impl From<std::num::ParseFloatError> for RadError {
     fn from(err: std::num::ParseFloatError) -> RadError {
         RadError::ParseFloat {
             message: err.to_string(),
+        }
+    }
+}
+
+impl Into<jsonrpc_core::Error> for RadError {
+    fn into(self) -> jsonrpc_core::Error {
+        let build_error = |rad_error: RadError, code: i64| {
+            let mut err =
+                jsonrpc_core::types::error::Error::new(jsonrpc_core::ErrorCode::from(code));
+            err.message = rad_error.to_string();
+            err
+        };
+
+        match &self {
+            RadError::Encode { .. } => build_error(self, rad_error_codes::ENCODE),
+            RadError::Decode { .. } => build_error(self, rad_error_codes::DECODE),
+            RadError::Hash => build_error(self, rad_error_codes::HASH),
+            RadError::JsonParse { .. } => build_error(self, rad_error_codes::JSON_PARSE),
+            RadError::MapKeyNotFound { .. } => build_error(self, rad_error_codes::MAP_KEY_NOT_FOUND),
+            RadError::MessagePack { .. } => build_error(self, rad_error_codes::MESSAGEPACK),
+            RadError::NoOperatorInCompoundCall { .. } => {
+                build_error(self, rad_error_codes::NO_OPERATOR_IN_COMPOUND_CALL)
+            }
+            RadError::NotIntegerOperator { .. } => {
+                build_error(self, rad_error_codes::NOT_INTEGER_OPERATOR)
+            }
+            RadError::NotNaturalOperator { .. } => {
+                build_error(self, rad_error_codes::NOT_NATURAL_OPERATOR)
+            }
+            RadError::ParseFloat { .. } => build_error(self, rad_error_codes::PARSE_FLOAT),
+            RadError::ScriptNotArray { .. } => build_error(self, rad_error_codes::SCRIPT_NOT_ARRAY),
+            RadError::UnknownOperator { .. } => build_error(self, rad_error_codes::UNKNOWN_OPERATOR),
+            RadError::UnsupportedHashFunction { .. } => {
+                build_error(self, rad_error_codes::UNSUPPORTED_HASH_FUNCTION)
+            }
+            RadError::UnsupportedOperator { .. } => {
+                build_error(self, rad_error_codes::UNSUPPORTED_OPERATOR)
+            }
+            RadError::UnsupportedReducer { .. } => {
+                build_error(self, rad_error_codes::UNSUPPORTED_REDUCER)
+            }
+            RadError::WrongArguments { .. } => build_error(self, rad_error_codes::WRONG_ARGUMENTS),
+            RadError::Http { .. } => build_error(self, rad_error_codes::HTTP),
         }
     }
 }
