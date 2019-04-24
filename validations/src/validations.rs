@@ -35,6 +35,9 @@ pub fn transaction_inputs_sum(
         TransactionType::Commit => {
             total_value = calculate_commit_input(&tx, utxo_diff)?;
         }
+        TransactionType::Reveal => {
+            total_value = calculate_reveal_input(&tx, utxo_diff)?;
+        }
         _ => {
             for input in &tx.inputs {
                 let pointed_value = utxo_diff
@@ -66,6 +69,27 @@ fn calculate_commit_input(
 
     match dr_output {
         Output::DataRequest(dr_state) => Ok(dr_state.value / u64::from(dr_state.witnesses)),
+        _ => Err(TransactionError::InvalidCommitTransaction)?,
+    }
+}
+
+fn calculate_reveal_input(
+    tx: &TransactionBody,
+    utxo_diff: &UtxoDiff,
+) -> Result<u64, failure::Error> {
+    let dr_input = &tx.inputs[0];
+    // Get DataRequest information
+    let dr_pointer = dr_input.output_pointer();
+    let dr_output = utxo_diff
+        .get(&dr_pointer)
+        .ok_or(TransactionError::OutputNotFound {
+            output: dr_pointer.clone(),
+        })?;
+
+    match dr_output {
+        Output::DataRequest(dr_state) => {
+            Ok((dr_state.value / u64::from(dr_state.witnesses)) - dr_state.commit_fee)
+        }
         _ => Err(TransactionError::InvalidCommitTransaction)?,
     }
 }
@@ -305,7 +329,6 @@ pub fn validate_reveal_transaction(
 pub fn validate_tally_transaction(
     tx: &TransactionBody,
     dr_pool: &DataRequestPool,
-    utxo_diff: &UtxoDiff,
     fee: u64,
 ) -> Result<(()), failure::Error> {
     if tx.inputs.len() != 1 {
@@ -315,7 +338,7 @@ pub fn validate_tally_transaction(
     let mut reveals: Vec<Vec<u8>> = vec![];
 
     let dr_pointer = &tx.inputs[0].output_pointer();
-    let all_reveals = dr_pool.get_reveals(dr_pointer, &utxo_diff.utxo_pool);
+    let all_reveals = dr_pool.get_reveals(dr_pointer);
 
     if let Some(all_reveals) = all_reveals {
         reveals.extend(all_reveals.iter().map(|reveal| reveal.reveal.clone()));
@@ -470,7 +493,7 @@ pub fn validate_transaction<S: ::std::hash::BuildHasher>(
             log::debug!("Tally Transaction validation");
             let fee = transaction_fee(&transaction.body, utxo_diff)?;
 
-            validate_tally_transaction(&transaction.body, dr_pool, utxo_diff, fee)?;
+            validate_tally_transaction(&transaction.body, dr_pool, fee)?;
             Ok(fee)
         }
     }
@@ -520,9 +543,10 @@ pub fn validate_transactions(
                 for input in &transaction.body.inputs {
                     // Obtain the OuputPointer of each input and remove it from the utxo_diff
                     let output_pointer = input.output_pointer();
-                    if let TransactionType::Commit = transaction_tag(&transaction.body) {
-                        utxo_diff.remove_utxo_dr(output_pointer);
-                    } else {
+                    if let TransactionType::ValueTransfer
+                    | TransactionType::DataRequest
+                    | TransactionType::Tally = transaction_tag(&transaction.body)
+                    {
                         utxo_diff.remove_utxo(output_pointer);
                     }
                 }
@@ -534,7 +558,12 @@ pub fn validate_transactions(
                         output_index: index as u32,
                     };
 
-                    utxo_diff.insert_utxo(output_pointer, output.clone());
+                    if let TransactionType::ValueTransfer
+                    | TransactionType::DataRequest
+                    | TransactionType::Tally = transaction_tag(&transaction.body)
+                    {
+                        utxo_diff.insert_utxo(output_pointer, output.clone());
+                    }
                 }
             }
             Err(e) => Err(e)?,
