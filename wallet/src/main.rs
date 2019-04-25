@@ -1,12 +1,12 @@
-pub mod server;
-use env_logger::Builder;
+use env_logger;
+use witnet_wallet as wallet;
 
-fn main() {
-    // Init app logger
-    Builder::from_default_env()
-        // Remove comments to sprint demo
-        //.default_format_timestamp(false)
-        //.default_format_module_path(false)
+fn main() -> std::io::Result<()> {
+    env_logger::Builder::from_default_env()
+        .default_format_timestamp(false)
+        .default_format_module_path(false)
+        .filter_level(log::LevelFilter::Info)
         .init();
-    server::websockets_actix_poc();
+
+    wallet::run()
 }
