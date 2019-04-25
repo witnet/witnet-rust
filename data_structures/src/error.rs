@@ -3,8 +3,7 @@
 use failure::Fail;
 use std::num::ParseIntError;
 
-use super::chain::{Epoch, Hash, OutputPointer};
-use crate::chain::PublicKeyHash;
+use super::chain::{CommitOutput, Epoch, Hash, OutputPointer, PublicKeyHash, RevealOutput};
 
 /// The error type for operations on a [`ChainInfo`](ChainInfo)
 #[derive(Debug, PartialEq, Fail)]
@@ -190,4 +189,62 @@ pub enum Secp256k1ConversionError {
         display = " Failed to convert `witnet_data_structures::SecretKey` into `secp256k1::SecretKey`"
     )]
     FailSecretKeyConversion,
+}
+
+/// The error type for operations on a [`DataRequestPool`](DataRequestPool)
+#[derive(Debug, PartialEq, Fail)]
+pub enum DataRequestError {
+    /// Add commit method failed.
+    #[fail(
+        display = "Block contains a commitment for an unknown data request:\n\
+                   Block hash: {}\n\
+                   Transaction hash: {}\n\
+                   Commit output: {:?}\n\
+                   Data request pointer: {:?}",
+        block_hash, tx_hash, commit_output, dr_pointer
+    )]
+    AddCommitFail {
+        block_hash: Hash,
+        tx_hash: Hash,
+        commit_output: CommitOutput,
+        dr_pointer: OutputPointer,
+    },
+    /// Add reveal method failed.
+    #[fail(
+        display = "Block contains a reveal for an unknown data request:\n\
+                   Block hash: {}\n\
+                   Transaction hash: {}\n\
+                   Reveal output: {:?}\n\
+                   Data request pointer: {:?}",
+        block_hash, tx_hash, reveal_output, dr_pointer
+    )]
+    AddRevealFail {
+        block_hash: Hash,
+        tx_hash: Hash,
+        reveal_output: RevealOutput,
+        dr_pointer: OutputPointer,
+    },
+    /// Add tally method failed.
+    #[fail(
+        display = "Block contains a tally for an unknown data request:\n\
+                   Block hash: {}\n\
+                   Transaction hash: {}\n\
+                   Tally output pointer: {:?}\n\
+                   Data request pointer: {:?}",
+        block_hash, tx_hash, tally_pointer, dr_pointer
+    )]
+    AddTallyFail {
+        block_hash: Hash,
+        tx_hash: Hash,
+        tally_pointer: OutputPointer,
+        dr_pointer: OutputPointer,
+    },
+    #[fail(display = "Received a commitment and Data Request is not in Commit stage")]
+    NotCommitStage,
+    #[fail(display = "Received a reveal and Data Request is not in Reveal stage")]
+    NotRevealStage,
+    #[fail(display = "Received a tally and Data Request is not in Tally stage")]
+    NotTallyStage,
+    #[fail(display = "Cannot persist unfinished data request (with no Tally)")]
+    UnfinishedDataRequest,
 }

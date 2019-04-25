@@ -362,11 +362,13 @@ fn update_pools(
     own_utxos: &mut HashSet<OutputPointer>,
 ) {
     for transaction in block.txns.iter() {
-        data_request_pool.process_transaction(
+        if let Err(e) = data_request_pool.process_transaction(
             transaction,
             block.block_header.beacon.checkpoint,
             &block.hash(),
-        );
+        ) {
+            log::error!("Error updating pools:\n{}", e)
+        }
         transactions_pool.remove(&transaction.hash());
     }
 

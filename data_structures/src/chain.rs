@@ -24,6 +24,7 @@ use super::{
     proto::{schema::witnet, ProtobufConvert},
     serializers::decoders::{TryFrom, TryInto},
 };
+use crate::error::DataRequestError;
 
 pub trait Hashable {
     fn hash(&self) -> Hash;
@@ -1072,9 +1073,9 @@ pub struct DataRequestReport {
 }
 
 impl TryFrom<DataRequestInfo> for DataRequestReport {
-    type Error = &'static str;
+    type Error = failure::Error;
 
-    fn try_from(x: DataRequestInfo) -> Result<Self, &'static str> {
+    fn try_from(x: DataRequestInfo) -> Result<Self, failure::Error> {
         if let Some(tally) = x.tally {
             Ok(DataRequestReport {
                 commits: x.commits.values().cloned().collect(),
@@ -1082,7 +1083,7 @@ impl TryFrom<DataRequestInfo> for DataRequestReport {
                 tally,
             })
         } else {
-            Err("Cannot persist unfinished data request (with no Tally)")
+            Err(DataRequestError::UnfinishedDataRequest)?
         }
     }
 }
@@ -1127,29 +1128,50 @@ impl DataRequestState {
     }
 
     /// Add commit
-    pub fn add_commit(&mut self, pkh: PublicKeyHash, commit_output: CommitOutput) {
-        assert_eq!(self.stage, DataRequestStage::COMMIT);
-        self.info.commits.insert(pkh, commit_output);
+    pub fn add_commit(
+        &mut self,
+        pkh: PublicKeyHash,
+        commit_output: CommitOutput,
+    ) -> Result<(), failure::Error> {
+        if let DataRequestStage::COMMIT = self.stage {
+            self.info.commits.insert(pkh, commit_output);
+        } else {
+            Err(DataRequestError::NotCommitStage)?
+        }
+
+        Ok(())
     }
 
     /// Add reveal
-    pub fn add_reveal(&mut self, pkh: PublicKeyHash, reveal_output: RevealOutput) {
-        assert_eq!(self.stage, DataRequestStage::REVEAL);
-        self.info.reveals.insert(pkh, reveal_output);
+    pub fn add_reveal(
+        &mut self,
+        pkh: PublicKeyHash,
+        reveal_output: RevealOutput,
+    ) -> Result<(), failure::Error> {
+        if let DataRequestStage::REVEAL = self.stage {
+            self.info.reveals.insert(pkh, reveal_output);
+        } else {
+            Err(DataRequestError::NotRevealStage)?
+        }
+
+        Ok(())
     }
 
     /// Add tally and return the data request report
     pub fn add_tally(
         mut self,
         output_pointer: OutputPointer,
-    ) -> (DataRequestOutput, DataRequestReport) {
-        assert_eq!(self.stage, DataRequestStage::TALLY);
-        self.info.tally = Some(output_pointer);
-        // This try_from can only fail if the tally is None, and we have just set it to Some
-        (
-            self.data_request,
-            DataRequestReport::try_from(self.info).unwrap(),
-        )
+    ) -> Result<(DataRequestOutput, DataRequestReport), failure::Error> {
+        if let DataRequestStage::TALLY = self.stage {
+            self.info.tally = Some(output_pointer);
+
+            // This try_from can only fail if the tally is None, and we have just set it to Some
+            let data_request_report = DataRequestReport::try_from(self.info)?;
+
+            Ok((self.data_request, data_request_report))
+        } else {
+            Err(DataRequestError::NotTallyStage)?
+        }
     }
 
     /// Advance to the next stage, returning true on success.

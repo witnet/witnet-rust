@@ -4,14 +4,17 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use witnet_crypto::hash::calculate_sha256;
 
-use super::chain::{
-    transaction_tag, CommitOutput, DataRequestOutput, DataRequestReport, DataRequestStage,
-    DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer, PublicKeyHash,
-    RevealOutput, TallyOutput, Transaction, TransactionBody, TransactionType, ValueTransferOutput,
+use super::{
+    chain::{
+        transaction_tag, CommitOutput, DataRequestOutput, DataRequestReport, DataRequestStage,
+        DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer, PublicKeyHash,
+        RevealOutput, TallyOutput, Transaction, TransactionBody, TransactionType,
+        ValueTransferOutput,
+    },
+    error::DataRequestError,
 };
 
 use serde::{Deserialize, Serialize};
-
 /// Pool of active data requests
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestPool {
@@ -122,30 +125,23 @@ impl DataRequestPool {
         commit_output: &CommitOutput,
         tx_hash: &Hash,
         block_hash: &Hash,
-    ) {
+    ) -> Result<(), failure::Error> {
         // For a commit output, we need to get the corresponding data request input
         let dr_pointer = commit_input.output_pointer();
         // The data request must be from a previous block, and must not be timelocked.
         // This is not checked here, as it should have made the block invalid.
         if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-            dr.add_commit(pkh, commit_output.clone());
+            dr.add_commit(pkh, commit_output.clone())?
         } else {
-            // This can happen when a data request was not stored into the dr_pool.
-            // For example, a very old data request that just now got a commitment.
-            // Since we currently store all the data requests in memory, a failure
-            // here is a logic error, therefore we panic.
-            panic!(
-                "Block contains a commitment for an unknown data request:\n\
-                 Block hash: {b}\n\
-                 Transaction hash: {t}\n\
-                 Commit output: {o:?}\n\
-                 Data request pointer: {d:?}",
-                b = block_hash,
-                t = tx_hash,
-                o = commit_output,
-                d = dr_pointer,
-            );
+            Err(DataRequestError::AddCommitFail {
+                block_hash: *block_hash,
+                tx_hash: *tx_hash,
+                commit_output: commit_output.clone(),
+                dr_pointer,
+            })?
         }
+
+        Ok(())
     }
 
     /// Add a reveal transaction
@@ -156,62 +152,47 @@ impl DataRequestPool {
         reveal_output: &RevealOutput,
         tx_hash: &Hash,
         block_hash: &Hash,
-    ) {
+    ) -> Result<(), failure::Error> {
         // For a commit output, we need to get the corresponding data request input
         let dr_pointer = reveal_input.output_pointer();
         // The data request must be from a previous block, and must not be timelocked.
         // This is not checked here, as it should have made the block invalid.
         if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-            dr.add_reveal(pkh, reveal_output.clone());
+            dr.add_reveal(pkh, reveal_output.clone())?
         } else {
-            // This can happen when a data request was not stored into the dr_pool.
-            // For example, a very old data request that just now got a commitment.
-            // Since we currently store all the data requests in memory, a failure
-            // here is a logic error, therefore we panic.
-            panic!(
-                "Block contains a reveal for an unknown data request:\n\
-                 Block hash: {b}\n\
-                 Transaction hash: {t}\n\
-                 Commit output pointer: {o:?}\n\
-                 Data request pointer: {d:?}",
-                b = block_hash,
-                t = tx_hash,
-                o = reveal_output,
-                d = dr_pointer,
-            );
+            Err(DataRequestError::AddRevealFail {
+                block_hash: *block_hash,
+                tx_hash: *tx_hash,
+                reveal_output: reveal_output.clone(),
+                dr_pointer,
+            })?
         }
+
+        Ok(())
     }
 
     /// Add a tally transaction
     #[allow(clippy::needless_pass_by_value)]
-    fn add_tally(&mut self, tally_input: &Input, tally_pointer: OutputPointer, block_hash: &Hash) {
-        let transaction_id = tally_pointer.transaction_id;
-        // For a tally output, we need to get the corresponding reveal input
-        // Which is the previous transaction in the list
-        // inputs[counter - 1] must exists because counter == min(inputs.len(), outputs.len())
+    fn add_tally(
+        &mut self,
+        tally_input: &Input,
+        tally_pointer: OutputPointer,
+        block_hash: &Hash,
+    ) -> Result<(), failure::Error> {
         let dr_pointer = tally_input.output_pointer();
 
-        if let Ok((_dr, dr_info)) = Self::resolve_data_request(
+        let (_dr, dr_info) = Self::resolve_data_request(
             &mut self.data_request_pool,
             &dr_pointer,
             tally_pointer.clone(),
-        ) {
-            // Since this method does not have access to the storage, we save the
-            // "to be stored" inside a vector and provide another method to store them
-            self.to_be_stored.push((dr_pointer, dr_info.clone()));
-        } else {
-            panic!(
-                "Block contains a tally for an unknown data request:\n\
-                 Block hash: {b}\n\
-                 Transaction hash: {t}\n\
-                 Reveal output pointer: {p:?}\n\
-                 Data request pointer: {d:?}",
-                b = block_hash,
-                t = transaction_id,
-                p = tally_pointer,
-                d = dr_pointer,
-            );
-        }
+            block_hash,
+        )?;
+
+        // Since this method does not have access to the storage, we save the
+        // "to be stored" inside a vector and provide another method to store them
+        self.to_be_stored.push((dr_pointer, dr_info.clone()));
+
+        Ok(())
     }
 
     /// Removes a resolved data request from the data request pool, returning the `DataRequestOutput`
@@ -220,11 +201,23 @@ impl DataRequestPool {
         data_request_pool: &mut HashMap<OutputPointer, DataRequestState>,
         dr_pointer: &OutputPointer,
         tally_pointer: OutputPointer,
-    ) -> Result<(DataRequestOutput, DataRequestReport), ()> {
-        let dr_state = data_request_pool.remove(dr_pointer).ok_or(())?;
-        let (dr, dr_info) = dr_state.add_tally(tally_pointer);
+        block_hash: &Hash,
+    ) -> Result<(DataRequestOutput, DataRequestReport), failure::Error> {
+        let transaction_id = tally_pointer.transaction_id;
 
-        Ok((dr, dr_info))
+        let dr_state: Result<DataRequestState, failure::Error> =
+            data_request_pool.remove(dr_pointer).ok_or_else(|| {
+                DataRequestError::AddTallyFail {
+                    block_hash: *block_hash,
+                    tx_hash: transaction_id,
+                    tally_pointer: tally_pointer.clone(),
+                    dr_pointer: dr_pointer.clone(),
+                }
+                .into()
+            });
+        let dr_state = dr_state?;
+
+        dr_state.add_tally(tally_pointer)
     }
 
     /// Return the list of data requests in which this node has participated and are ready
@@ -251,11 +244,11 @@ impl DataRequestPool {
                                 data_requests_by_epoch.remove(&dr_state.epoch);
                             }
                             if !present {
-                                // FIXME: This could be a warn! or a debug! instead of a panic
-                                panic!(
+                                log::error!(
                                     "Data request {:?} was not present in the \
                                      data_requests_by_epoch map (epoch #{})",
-                                    dr_pointer, dr_state.epoch
+                                    dr_pointer,
+                                    dr_state.epoch
                                 );
                             }
                         }
@@ -296,21 +289,26 @@ impl DataRequestPool {
     /// * New reveals are added to their respective data requests, updating the stage to tally
     /// The epoch is needed as the key to the available data requests map
     /// The block hash is only used for debugging purposes
-    pub fn process_transaction(&mut self, t: &Transaction, epoch: Epoch, block_hash: &Hash) {
+    pub fn process_transaction(
+        &mut self,
+        t: &Transaction,
+        epoch: Epoch,
+        block_hash: &Hash,
+    ) -> Result<(), failure::Error> {
         let tx_hash = t.hash();
         match transaction_tag(&t.body) {
             TransactionType::Commit => {
                 let pkh = PublicKeyHash::from_public_key(&t.signatures[0].public_key);
                 let commit_input = &t.body.inputs[0];
                 if let Output::Commit(commit_output) = &t.body.outputs[0] {
-                    self.add_commit(pkh, commit_input, commit_output, &tx_hash, block_hash);
+                    self.add_commit(pkh, commit_input, commit_output, &tx_hash, block_hash)?
                 }
             }
             TransactionType::Reveal => {
                 let pkh = PublicKeyHash::from_public_key(&t.signatures[0].public_key);
                 let reveal_input = &t.body.inputs[0];
                 if let Output::Reveal(reveal_output) = &t.body.outputs[0] {
-                    self.add_reveal(pkh, reveal_input, reveal_output, &tx_hash, block_hash);
+                    self.add_reveal(pkh, reveal_input, reveal_output, &tx_hash, block_hash)?
                 }
             }
             TransactionType::DataRequest => {
@@ -343,10 +341,12 @@ impl DataRequestPool {
                     transaction_id: tx_hash,
                     output_index: tally_index as u32,
                 };
-                self.add_tally(tally_input, tally_pointer, block_hash);
+                self.add_tally(tally_input, tally_pointer, block_hash)?
             }
             _ => {}
         }
+
+        Ok(())
     }
 
     /// Get the detailed state of a data request.
@@ -507,7 +507,7 @@ mod tests {
         };
 
         let mut p = DataRequestPool::default();
-        p.process_transaction(&transaction, epoch, &fake_block_hash);
+        let _aux = p.process_transaction(&transaction, epoch, &fake_block_hash);
 
         assert!(p.waiting_for_reveal.is_empty());
         assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
@@ -536,7 +536,7 @@ mod tests {
             Output::Commit(commit_output.clone()),
         )]);
 
-        p.process_transaction(&commit_transaction, epoch + 1, &fake_block_hash);
+        let _aux = p.process_transaction(&commit_transaction, epoch + 1, &fake_block_hash);
 
         // And we can also get all the commit pointers from the data request
         assert_eq!(
@@ -588,7 +588,7 @@ mod tests {
             Output::Reveal(reveal_output.clone()),
         )]);
 
-        p.process_transaction(&reveal_transaction, epoch + 2, &fake_block_hash);
+        let _aux = p.process_transaction(&reveal_transaction, epoch + 2, &fake_block_hash);
 
         // And we can also get all the commit/reveal pointers from the data request
         assert_eq!(
@@ -646,7 +646,7 @@ mod tests {
         assert_eq!(p.to_be_stored.len(), 0);
 
         // Process tally: this will remove the data request from the pool
-        p.process_transaction(&tally_transaction, epoch + 2, &fake_block_hash);
+        let _aux = p.process_transaction(&tally_transaction, epoch + 2, &fake_block_hash);
 
         // And the data request has been removed from the pool
         assert_eq!(p.data_request_pool.get(&dr_pointer), None);
@@ -717,7 +717,7 @@ mod tests {
             Some(&reveal_transaction)
         );
 
-        p.process_transaction(&commit_transaction, epoch + 1, &fake_block_hash);
+        let _aux = p.process_transaction(&commit_transaction, epoch + 1, &fake_block_hash);
 
         // Still in commit stage until we update
         assert_eq!(
