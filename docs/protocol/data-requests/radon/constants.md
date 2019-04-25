@@ -3,7 +3,7 @@
 ## Types
 
 | Byte   | Decimal | Constant       |
-|--------|---------|----------------|
+|:-------|:--------|:---------------|
 | `0x00` | `0`     | `TYPE_BOOLEAN` |
 | `0x01` | `1`     | `TYPE_INT`     |
 | `0x02` | `2`     | `TYPE_FLOAT`   |
@@ -16,130 +16,154 @@
 
 ## Operators
 
-### `Boolean` operators
-
-| Byte   | Decimal | Constant           |
-|--------|---------|--------------------|
-| `0x00` | `0`     | `BOOLEAN_MATCH`    |
-| `0x01` | `1`     | `BOOLEAN_NEG`      |
-| `0x02` | `2`     | `BOOLEAN_TOSTRING` |
-
-### `Int` operators
-
-| Byte   | Decimal | Constant         |
-|--------|---------|------------------|
-| `0x00` | `0`     | `INT_ABS`        |
-| `0x01` | `1`     | `INT_MATCH`      |
-| `0x02` | `2`     | `INT_MODULO`     |
-| `0x03` | `3`     | `INT_MULT`       |
-| `0x04` | `4`     | `INT_NEG`        |
-| `0x05` | `5`     | `INT_POW`        |
-| `0x06` | `6`     | `INT_RECIP`      |
-| `0x07` | `7`     | `INT_SUM`        |
-| `0x08` | `8`     | `INT_TOFLOAT`    |
-| `0x09` | `9`     | `INT_TOSTRING`   |
-
-### `Float` operators
-
-| Byte   | Decimal | Constant         |
-|--------|---------|------------------|
-| `0x00` | `0`     | `FLOAT_ABS`      |
-| `0x01` | `1`     | `FLOAT_CEIL`     |
-| `0x02` | `2`     | `FLOAT_FLOOR`    |
-| `0x03` | `3`     | `FLOAT_MODULO`   |
-| `0x04` | `4`     | `FLOAT_MULT`     |
-| `0x05` | `5`     | `FLOAT_NEG`      |
-| `0x06` | `6`     | `FLOAT_POW`      |
-| `0x07` | `7`     | `FLOAT_RECIP`    |
-| `0x08` | `8`     | `FLOAT_ROUND`    |
-| `0x09` | `9`     | `FLOAT_SUM`      |
-| `0x0a` | `10`    | `FLOAT_TOSTRING` |
-| `0x0b` | `11`    | `FLOAT_TRUNC`    |
-
-### `String` operators
-
-| Byte   | Decimal | Constant             |
-|--------|---------|----------------------|
-| `0x00` | `0`     | `STRING_HASH`        |
-| `0x01` | `1`     | `STRING_LENGTH`      |
-| `0x02` | `2`     | `STRING_MATCH`       |
-| `0x03` | `3`     | `STRING_PARSEJSON`   |
-| `0x04` | `4`     | `STRING_PARSEXML`    |
-| `0x05` | `5`     | `STRING_TOBOOLEAN`   |
-| `0x06` | `6`     | `STRING_TOFLOAT`     |
-| `0x07` | `7`     | `STRING_TOINT`       |
-| `0x08` | `8`     | `STRING_TOLOWERCASE` |
-| `0x09` | `9`     | `STRING_TOUPPERCASE` |
-
-### `Array` operators
-
-| Byte   | Decimal | Constant        |
-|--------|---------|-----------------|
-| `0x00` | `0`     | `ARRAY_COUNT`   |
-| `0x01` | `1`     | `ARRAY_EVERY`   |
-| `0x02` | `2`     | `ARRAY_FILTER`  |
-| `0x03` | `3`     | `ARRAY_FLATTEN` |
-| `0x04` | `4`     | `ARRAY_GET`     |
-| `0x05` | `5`     | `ARRAY_MAP`     |
-| `0x06` | `6`     | `ARRAY_REDUCE`  |
-| `0x07` | `7`     | `ARRAY_SOME`    |
-| `0x08` | `8`     | `ARRAY_SORT`    |
-| `0x09` | `9`     | `ARRAY_TAKE`    |
-
-### `Map` operators
+### Universal operators
+Range `0x00` to `0x0F` is reserved for operators that operate on any of
+the RADON type.
 
 | Byte   | Decimal | Constant      |
-|--------|---------|---------------|
-| `0x00` | `0`     | `MAP_ENTRIES` |
-| `0x00` | `0`     | `MAP_GET`     |
-| `0x00` | `0`     | `MAP_KEYS`    |
-| `0x00` | `0`     | `MAP_VALUES`  |
+|:-------|:--------|:--------------|
+| `0x00` | `0`     | `OP_ANY_NOOP` |
+
+### `Boolean` operators
+Range `0x10` to `0x1F` is reserved for operators that operate
+exclusively on the `Boolean` type.
+
+| Byte   | Decimal | Constant              |
+|:-------|:--------|:----------------------|
+| `0x10` | `16`    | `OP_BOOLEAN_MATCH`    |
+| `0x11` | `17`    | `OP_BOOLEAN_NEGATE`   |
+| `0x12` | `18`    | `OP_BOOLEAN_TOSTRING` |
+
+### `Integer` operators
+Range `0x20` to `0x2F` is reserved for operators that operate
+exclusively on the `Integer` type.
+
+| Byte   | Decimal | Constant                |
+|:-------|:--------|:------------------------|
+| `0x20` | `32`    | `OP_INTEGER_ABSOLUTE`   |
+| `0x21` | `33`    | `OP_INTEGER_MATCH`      |
+| `0x22` | `34`    | `OP_INTEGER_MODULO`     |
+| `0x23` | `35`    | `OP_INTEGER_MULTIPLY`   |
+| `0x24` | `36`    | `OP_INTEGER_NEGATE`     |
+| `0x25` | `37`    | `OP_INTEGER_POWER`      |
+| `0x26` | `38`    | `OP_INTEGER_RECIPROCAL` |
+| `0x27` | `39`    | `OP_INTEGER_SUM`        |
+| `0x28` | `40`    | `OP_INTEGER_TOFLOAT`    |
+| `0x29` | `41`    | `OP_INTEGER_TOSTRING`   |
+
+### `Float` operators
+Range `0x30` to `0x3F` is reserved for operators that operate
+exclusively on the `Float` type.
+
+| Byte   | Decimal | Constant              |
+|:-------|:--------|:----------------------|
+| `0x30` | `48`    | `OP_FLOAT_ABSOLUTE`   |
+| `0x31` | `49`    | `OP_FLOAT_CEILING`    |
+| `0x32` | `50`    | `OP_FLOAT_FLOOR`      |
+| `0x33` | `51`    | `OP_FLOAT_MODULO`     |
+| `0x34` | `52`    | `OP_FLOAT_MULTIPLY`   |
+| `0x35` | `53`    | `OP_FLOAT_NEGATE`     |
+| `0x36` | `54`    | `OP_FLOAT_POWER`      |
+| `0x37` | `55`    | `OP_FLOAT_RECIPROCAL` |
+| `0x38` | `56`    | `OP_FLOAT_ROUND`      |
+| `0x39` | `57`    | `OP_FLOAT_SUM`        |
+| `0x3A` | `58`    | `OP_FLOAT_TOSTRING`   |
+| `0x3B` | `59`    | `OP_FLOAT_TRUNCATE`   |
+
+### `String` operators
+Range `0x40` to `0x4F` is reserved for operators that operate
+exclusively on the `String` type.
+
+| Byte   | Decimal | Constant                |
+|:-------|:--------|:------------------------|
+| `0x40` | `64`    | `OP_STRING_HASH`        |
+| `0x41` | `65`    | `OP_STRING_LENGTH`      |
+| `0x42` | `66`    | `OP_STRING_MATCH`       |
+| `0x43` | `67`    | `OP_STRING_PARSEJSON`   |
+| `0x44` | `68`    | `OP_STRING_PARSEXML`    |
+| `0x45` | `69`    | `OP_STRING_TOBOOLEAN`   |
+| `0x46` | `70`    | `OP_STRING_TOFLOAT`     |
+| `0x47` | `71`    | `OP_STRING_TOINTEGER`   |
+| `0x48` | `72`    | `OP_STRING_TOLOWERCASE` |
+| `0x49` | `73`    | `OP_STRING_TOUPPERCASE` |
+
+### `Array` operators
+Range `0x50` to `0x5F` is reserved for operators that operate
+exclusively on the `Array` type.
+
+| Byte   | Decimal | Constant           |
+|:-------|:--------|:-------------------|
+| `0x50` | `80`    | `OP_ARRAY_COUNT`   |
+| `0x51` | `81`    | `OP_ARRAY_EVERY`   |
+| `0x52` | `82`    | `OP_ARRAY_FILTER`  |
+| `0x53` | `83`    | `OP_ARRAY_FLATTEN` |
+| `0x54` | `84`    | `OP_ARRAY_GET`     |
+| `0x55` | `85`    | `OP_ARRAY_MAP`     |
+| `0x56` | `86`    | `OP_ARRAY_REDUCE`  |
+| `0x57` | `87`    | `OP_ARRAY_SOME`    |
+| `0x58` | `88`    | `OP_ARRAY_SORT`    |
+| `0x59` | `89`    | `OP_ARRAY_TAKE`    |
+
+### `Map` operators
+Range `0x60` to `0x6F` is reserved for operators that operate
+exclusively on the `Map` type.
+
+| Byte   | Decimal | Constant         |
+|:-------|:--------|:-----------------|
+| `0x60` | `96`    | `OP_MAP_ENTRIES` |
+| `0x61` | `97`    | `OP_MAP_GET`     |
+| `0x62` | `98`    | `OP_MAP_KEYS`    |
+| `0x63` | `99`    | `OP_MAP_VALUES`  |
 
 ### `Mixed` operators
+Range `0x70` to `0x7F` is reserved for operators that operate
+exclusively on the `Mixed` type.
 
-| Byte   | Decimal | Constant          |
-|--------|---------|-------------------|
-| `0x00` | `0`     | `MIXED_TOARRAY`   |
-| `0x01` | `1`     | `MIXED_TOBOOLEAN` |
-| `0x02` | `2`     | `MIXED_TOFLOAT`   |
-| `0x03` | `3`     | `MIXED_TOINT`     |
-| `0x04` | `4`     | `MIXED_TOMAP`     |
+| Byte   | Decimal | Constant             |
+|:-------|:--------|:---------------------|
+| `0x70` | `112`   | `OP_MIXED_TOARRAY`   |
+| `0x71` | `113`   | `OP_MIXED_TOBOOLEAN` |
+| `0x72` | `114`   | `OP_MIXED_TOFLOAT`   |
+| `0x73` | `115`   | `OP_MIXED_TOINTEGER` |
+| `0x74` | `116`   | `OP_MIXED_TOMAP`     |
 
 ### `Result` operators
+Range `0x80` to `0x8F` is reserved for operators that operate
+exclusively on the `Result` type.
 
-| Byte   | Decimal | Constant       |
-|--------|---------|----------------|
-| `0x00` | `0`     | `RESULT_GET`   |
-| `0x01` | `1`     | `RESULT_GETOR` |
-| `0x02` | `2`     | `RESULT_ISOK`  |
+| Byte   | Decimal | Constant          |
+|:-------|:--------|:------------------|
+| `0x80` | `128`   | `OP_RESULT_GET`   |
+| `0x81` | `129`   | `OP_RESULT_GETOR` |
+| `0x82` | `130`   | `OP_RESULT_ISOK`  |
 
 ## Hash functions
 
-| Byte   | Decimal | Constant        |
-|--------|---------|-----------------|
-| `0x00` | `0`     | `BLAKE_256`     |
-| `0x01` | `1`     | `BLAKE_512`     |
-| `0x02` | `2`     | `BLAKE2S_256`   |
-| `0x03` | `3`     | `BLAKE2B_512`   |
-| `0x04` | `4`     | `MD5_128`       |
-| `0x05` | `5`     | `RIPEMD_128`    |
-| `0x06` | `6`     | `RIPEMD_160`    |
-| `0x07` | `7`     | `RIPEMD_320`    |
-| `0x08` | `8`     | `SHA1_160`      |
-| `0x09` | `9`     | `SHA2_224`      |
-| `0x0a` | `10`    | `SHA2_256`      |
-| `0x0b` | `11`    | `SHA2_384`      |
-| `0x0c` | `12`    | `SHA2_512`      |
-| `0x0d` | `13`    | `SHA3_224`      |
-| `0x0e` | `14`    | `SHA3_256`      |
-| `0x0f` | `15`    | `SHA3_384`      |
-| `0x10` | `16`    | `SHA3_512`      |
-| `0x11` | `17`    | `WHIRLPOOL_512` |
+| Byte   | Decimal | Constant             |
+|:-------|:--------|:---------------------|
+| `0x00` | `0`     | `HASH_BLAKE_256`     |
+| `0x01` | `1`     | `HASH_BLAKE_512`     |
+| `0x02` | `2`     | `HASH_BLAKE2S_256`   |
+| `0x03` | `3`     | `HASH_BLAKE2B_512`   |
+| `0x04` | `4`     | `HASH_MD5_128`       |
+| `0x05` | `5`     | `HASH_RIPEMD_128`    |
+| `0x06` | `6`     | `HASH_RIPEMD_160`    |
+| `0x07` | `7`     | `HASH_RIPEMD_320`    |
+| `0x08` | `8`     | `HASH_SHA1_160`      |
+| `0x09` | `9`     | `HASH_SHA2_224`      |
+| `0x0a` | `10`    | `HASH_SHA2_256`      |
+| `0x0b` | `11`    | `HASH_SHA2_384`      |
+| `0x0c` | `12`    | `HASH_SHA2_512`      |
+| `0x0d` | `13`    | `HASH_SHA3_224`      |
+| `0x0e` | `14`    | `HASH_SHA3_256`      |
+| `0x0f` | `15`    | `HASH_SHA3_384`      |
+| `0x10` | `16`    | `HASH_SHA3_512`      |
+| `0x11` | `17`    | `HASH_WHIRLPOOL_512` |
 
 ## Filtering functions
 
 | Byte   | Decimal | Constant             |
-|--------|---------|----------------------|
+|:-------|:--------|:---------------------|
 | `0x00` | `0`     | `FILTER_GT`          |
 | `0x01` | `1`     | `FILTER_LT`          |
 | `0x02` | `2`     | `FILTER_EQ`          |
@@ -163,7 +187,7 @@
 ## Reducing functions
 
 | Byte   | Decimal | Constant               |
-|--------|---------|------------------------|
+|:-------|:--------|:-----------------------|
 | `0x00` | `0`     | `REDUCER_MIN`          |
 | `0x01` | `1`     | `REDUCER_MAX`          |
 | `0x02` | `2`     | `REDUCER_MODE`         |

@@ -35,11 +35,11 @@ nav:
       - Overview: protocol/data-requests/overview.md
       - RADON:
         - Encoding: protocol/data-requests/radon/encoding.md
-        - Data types: 
+        - Types and operators:
           - Overview: protocol/data-requests/radon/types/overview.md
           - Array<V>: protocol/data-requests/radon/types/array.md
           - Boolean: protocol/data-requests/radon/types/boolean.md
-          - Int: protocol/data-requests/radon/types/int.md
+          - Integer: protocol/data-requests/radon/types/integer.md
           - Float: protocol/data-requests/radon/types/float.md
           - Map<V>: protocol/data-requests/radon/types/map.md
           - Mixed: protocol/data-requests/radon/types/mixed.md
@@ -52,7 +52,6 @@ nav:
         - Subscripts: protocol/data-requests/radon/subscripts.md
         - Examples: protocol/data-requests/radon/examples.md
         - Constants: protocol/data-requests/radon/constants.md
-      - RADlang: protocol/data-requests/radlang.md
     - Transactions:
       - Introduction: protocol/transactions.md
       - WitScript: protocol/witscript.md

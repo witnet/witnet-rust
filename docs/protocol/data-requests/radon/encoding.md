@@ -2,23 +2,41 @@
 
 RADON scripts are encoded using [MessagePack], a very efficient, compact and widely supported data structure encoding.
 
-Before encoding, a RADON script looks like this:
+Look for example at this impressively short (22 bytes) serialized RADON script:
+```ts
+// As bytes
+96 43 74 92 61 A7 77 65 61 74 68 65 72 74 92 61 A4 74 65 6D 70 72
+
+// As Base64 string
+"lkN0kmGnd2VhdGhlcnSSYaR0ZW1wcg=="
+
+```
+
+Once decoded, the resulting structure will actually represent this RADON script:
 ```ts
 [
-    STRING_PARSEJSON,
-    MIXED_TOMAP,
-    [ MAP_GET, "weather" ],
-    MIXED_TOMAP,
-    [ MAP_GET, "temp" ],
-    MIXED_TOFLOAT
+    STRING_PARSEJSON,       // 0x43
+    MIXED_TOMAP,            // 0x74
+    [ MAP_GET, "weather" ], // [ 0x61, "weather" ]
+    MIXED_TOMAP,            // 0x74
+    [ MAP_GET, "temp" ],    // [ 0x61, "temp" ]
+    MIXED_TOFLOAT           // 0x72
 ]
 ```
 
-After encoding, we get an impressively compact (22 bytes long) output:
-```
-// Base64
-lgMEkgCnd2VhdGhlcgSSAKR0ZW1wAg
-```
+!!! tip
+    RADON scripts are pure byte code sequences but at the same time represent high-level abstractions.
+    In an hypothetical Javascript-like representation of RADON operators, the script above may resemble:
+    
+    ```ts
+    retrieve(url)
+        .parseJSON()
+        .toMap()
+        .get("weather")
+        .toMap()
+        .get("temp")
+        .toFloat()
+    ```
 
 !!! info "Constants"
     All across this documentation, unquoted uppercase names like `STRING_PARSEJSON` identify different operators and

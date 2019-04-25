@@ -1,66 +1,72 @@
 # `Mixed` type
-The `Mixed` type represents a value or structure whose type is undecided and cannot be automatically inferred by the
-interpreter.
+The `Mixed` type represents a value or structure whose type is undecided
+and cannot be automatically inferred by the interpreter.
 
-The operators available for this type assist the interpreter to handle `Mixed` values and structures in a deterministic
-way so that it can be safely casted to other, more useful types.
+The operators available for this type assist the interpreter to handle
+`Mixed` values and structures in a deterministic way so that it can be
+safely casted to other, more useful types.
 
-## `Mixed.toArray(type)`
+## `Mixed.toArray()`
 ```ts
-toArray<T>(type?: String): Array<T>
+toArray(): Array<Mixed>
 ```
 ```ts
-[ MIXED_TOARRAY, type ]
+[ OP_MIXED_TOARRAY, type ]
 ```
-The `toArray` operator tries to cast the input `Mixed` to an `Array<T>` structure, where `T` is any of the RADON types,
-supplied by name as the `type: String` argument.
-
-!!! info ""
-    If no `type: String` is supplied, the output type will be `Array<Mixed>` by default.
+The `toArray` operator tries to cast the input `Mixed` to an 
+`Array<Mixed>` structure.
 
 !!! danger ""
-    This operator will throw a runtime exception if the input `Mixed` cannot be casted to a valid `Boolean` value.
-    Exceptions are handled as specified in the [Exception handling] section.
+    This operator will throw a runtime exception if the input `Mixed` 
+    cannot be casted to a valid `Array<Mixed>` value. Exceptions are 
+    handled as specified in the [Exception handling] section.
 
 ## `Mixed.toBoolean()`
 ```ts
 toBoolean(): Boolean
 ```
 ```ts
-MIXED_TOBOOLEAN
+OP_MIXED_TOBOOLEAN
 ```
-The `toBoolean` operator tries to cast the input `Mixed` to a `Boolean` value. That is, it returns `True` if the input
-is `True` as either `Boolean` or `String`; or `False` as `Boolean` if the input `Mixed` is `False` as either `Boolean`
-or `String`.
+The `toBoolean` operator tries to cast the input `Mixed` to a `Boolean`
+value. That is, it returns `true` if the input is `true` as either
+`Boolean` or `String`; or `false` as `Boolean` if the input `Mixed` is
+`false` as either `Boolean` or `String`.
 
 !!! danger ""
-    This operator will throw a runtime exception if the input `Mixed` cannot be casted to a valid `Boolean` value.
-    Exceptions are handled as specified in the [Exception handling] section.
+    This operator will throw a runtime exception if the input `Mixed` 
+    cannot be casted to a valid `Boolean` value. Exceptions are handled 
+    as specified in the [Exception handling] section.
 
 ## `Mixed.toFloat()`
 ```ts
 toFloat(): Float
 ```
 ```ts
-MIXED_TOFLOAT
+OP_MIXED_TOFLOAT
 ```
-The `toFloat` operator tries to cast the input `Mixed` to a `Float` value.
+The `toFloat` operator tries to cast the input `Mixed` to a `Float`
+value.
 
 !!! danger ""
-    This operator will throw a runtime exception if the input `Mixed` cannot be casted to a valid `Float` value for the
-    specified base or if the value overflows or underflows the range of the `Float` type.
-    Exceptions are handled as specified in the [Exception handling] section.
+    This operator will throw a runtime exception if the input `Mixed` 
+    cannot be casted to a valid `Float` value for the specified base or 
+    if the value overflows or underflows the range of the `Float` type.
+    Exceptions are handled as specified in the [Exception handling] 
+    section.
 
-## `Mixed.toInt()`
+## `Mixed.toInteger()`
 ```ts
-toInt(base?: Int): Int
+toInteger(base?: Integer): Integer
 ```
 ```ts
-[ MIXED_TOINT, base ]
+[ OP_MIXED_TOINTEGER, base ]
 ```
-The `toInt` operator parses the input `Mixed` as an integer of the specified base.
+The `toInteger` operator parses the input `Mixed` as an integer of the
+specified base.
 
-The accepted bases are the same as in [`String::toInt(base)`][StringToInt].
+The accepted bases are the same as in
+[`String::toInteger(base)`][StringToInteger].
 
 !!! tip ""
     If no base is specified, the default base will be `10` (decimal).
@@ -68,26 +74,24 @@ The accepted bases are the same as in [`String::toInt(base)`][StringToInt].
 !!! danger ""
     This operator will throw a runtime exception if:
     
-    - The input `Mixed` cannot be casted to a valid `Int` value for the specified base
-    - The value overflows or underflows the range of the `Int` type.
+    - The input `Mixed` cannot be casted to a valid `Integer` value for 
+    the specified base.
+    - The value overflows or underflows the range of the `Integer` type.
 
-    Exceptions are handled as specified in the [Exception handling] section.
+    Exceptions are handled as specified in the [Exception handling] 
+    section.
 
-## `Mixed.toMap(keyType, valueType)`
+## `Mixed.toMap()`
 ```ts
-toMap<K, T>(keyType?: String, valueType?: String): Map<K, T>
+toMap(): Map<String, Mixed>
 ```
 ```ts
-[ MIXED_TOMAP, keyType, valueType ]
+OP_MIXED_TOMAP
 ```
-The `toArray` operator tries to cast the input `Mixed` to a `Map<K, T>` structure, where `K` is only one of the RADON
-*[value types]*, supplied by name as the `keyType: String` argument; and `T` is any of the RADON types, supplied by
-name as the `valueType: String` argument.
-
-!!! info ""
-    - If no `keyType: String` is supplied, it will be assumed to be `String` by default.
-    - If no `valueType: String` is supplied, it will be assumed to be `Mixed` by default.
+The `toMap` operator tries to cast the input `Mixed` to a 
+`Map<String, Mixed>` structure.
 
 !!! danger ""
-    This operator will throw a runtime exception if the input `Mixed` cannot be casted to a valid `Map<K, T>` value.
-    Exceptions are handled as specified in the [Exception handling] section.
+    This operator will throw a runtime exception if the input `Mixed` 
+    cannot be casted to a valid `Map<String, Mixed>` value. Exceptions 
+    are handled as specified in the [Exception handling] section.
