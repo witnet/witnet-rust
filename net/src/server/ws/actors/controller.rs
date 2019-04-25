@@ -31,24 +31,18 @@ pub struct Controller {
 
 /// Function passed to a JsonRPC handler factory so the handlers are able to send notifications to
 /// other clients.
-fn notify<T>(msg: T)
-where
-    T: Into<Binary>,
-{
+fn notify(payload: Binary) {
     let n = Notifications::from_registry();
-    n.do_send(Notify {
-        payload: msg.into(),
-    });
+    n.do_send(Notify { payload });
 }
 
 impl Controller {
     /// Starts a JsonRPC Websockets server.
     ///
     /// The factory is used to create handlers for the json-rpc messages sent to the server.
-    pub fn run<F, T>(jsonrpc_handler_factory: F) -> io::Result<()>
+    pub fn run<F>(jsonrpc_handler_factory: F) -> io::Result<()>
     where
-        T: Into<Binary>,
-        F: Fn(fn(T)) -> rpc::IoHandler + Clone + Send + Sync + 'static,
+        F: Fn(fn(Binary)) -> rpc::IoHandler + Clone + Send + Sync + 'static,
     {
         let s = server::new(move || {
             // Ensure that the controller starts if no actor has started it yet. It will register with
@@ -61,8 +55,7 @@ impl Controller {
                 r.f(move |req| ws::start(req, Ws::new(factory(notify))))
             })
         })
-        .workers(1)
-        .bind("127.0.0.1:8080")?;
+        .bind("127.0.0.1:3030")?;
 
         s.run();
 

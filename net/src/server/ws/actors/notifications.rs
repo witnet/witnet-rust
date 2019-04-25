@@ -1,6 +1,4 @@
 //! Defines an actor that can be used to notify subscribers.
-use std::mem;
-
 use actix_web::{actix::*, Binary};
 use futures::{future, Future};
 
@@ -97,9 +95,6 @@ impl Handler<Refresh> for Notifications {
     type Result = <Refresh as Message>::Result;
 
     fn handle(&mut self, msg: Refresh, _ctx: &mut Self::Context) -> Self::Result {
-        mem::replace(
-            &mut self.subscribers,
-            msg.0.into_iter().filter_map(|x| x).collect(),
-        );
+        self.subscribers = msg.0.into_iter().filter_map(|x| x).collect();
     }
 }
