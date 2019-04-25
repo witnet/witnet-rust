@@ -1,6 +1,6 @@
 # run continuous integration checks
 ci +flags="":
-    just versions || just install-setup
+    just versions 2>/dev/null || just install-setup
     cargo fmt --all -- --check
     just clippy
     cargo test --all --verbose {{flags}}
@@ -31,11 +31,11 @@ clippy +flags="":
     cargo clippy --all --all-targets --all-features -- -A clippy::cyclomatic_complexity {{flags}}
 
 # run formatter
-fmt +flags:
+fmt +flags="":
     cargo +nightly fmt -v --all {{flags}}
 
 # run node
-node +args:
+node +args="":
     RUST_LOG=witnet=info cargo run node {{args}}
 
 # run local documentation server at localhost:8000
