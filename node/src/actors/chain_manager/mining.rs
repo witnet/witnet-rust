@@ -241,8 +241,7 @@ impl ChainManager {
         for (dr_pointer, reveals) in dr_reveals {
             debug!("Building tally for data request {}", dr_pointer);
 
-            // "get_all_reveals" return a HashMap with valid data request output pointer
-            // In this case "unwrap" method is not going to fail.
+            // "get_all_reveals" returns a HashMap with valid data request output pointer
             let dr_output = data_request_pool.data_request_pool[&dr_pointer]
                 .data_request
                 .clone();

@@ -300,40 +300,54 @@ impl ChainManager {
                 // Insert candidate block into `block_chain` state
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
 
-                if let StateMachine::Synced = self.sm_state {
-                    // Persist finished data requests into storage
-                    let to_be_stored = self.chain_state.data_request_pool.finished_data_requests();
-                    to_be_stored.into_iter().for_each(|dr| {
-                        self.persist_data_request(ctx, &dr);
-                        show_info_tally(&self.chain_state.unspent_outputs_pool, dr, block_epoch);
-                    });
+                match self.sm_state {
+                    StateMachine::Synchronizing => {
+                        let _reveals = self
+                            .chain_state
+                            .data_request_pool
+                            .update_data_request_stages();
+                    }
+                    StateMachine::Synced => {
+                        // Persist finished data requests into storage
+                        let to_be_stored =
+                            self.chain_state.data_request_pool.finished_data_requests();
+                        to_be_stored.into_iter().for_each(|dr| {
+                            self.persist_data_request(ctx, &dr);
+                            show_info_tally(
+                                &self.chain_state.unspent_outputs_pool,
+                                dr,
+                                block_epoch,
+                            );
+                        });
 
-                    show_info_dr(&self.chain_state.data_request_pool, &block);
+                        show_info_dr(&self.chain_state.data_request_pool, &block);
 
-                    log::trace!("{:?}", block);
-                    debug!("Mint transaction hash: {:?}", block.txns[0].hash());
+                        log::trace!("{:?}", block);
+                        debug!("Mint transaction hash: {:?}", block.txns[0].hash());
 
-                    let reveals = self
-                        .chain_state
-                        .data_request_pool
-                        .update_data_request_stages();
+                        let reveals = self
+                            .chain_state
+                            .data_request_pool
+                            .update_data_request_stages();
 
-                    for reveal in reveals {
-                        // Send AddTransaction message to self
-                        // And broadcast it to all of peers
-                        ctx.address().do_send(AddTransaction {
-                            transaction: reveal,
+                        for reveal in reveals {
+                            // Send AddTransaction message to self
+                            // And broadcast it to all of peers
+                            ctx.address().do_send(AddTransaction {
+                                transaction: reveal,
+                            })
+                        }
+                        self.persist_item(ctx, InventoryItem::Block(block.clone()));
+
+                        // Persist chain_info into storage
+                        self.persist_chain_state(ctx);
+
+                        // Send notification to JsonRpcServer
+                        JsonRpcServer::from_registry().do_send(NewBlock {
+                            block: block.clone(),
                         })
                     }
-                    self.persist_item(ctx, InventoryItem::Block(block.clone()));
-
-                    // Persist chain_info into storage
-                    self.persist_chain_state(ctx);
-
-                    // Send notification to JsonRpcServer
-                    JsonRpcServer::from_registry().do_send(NewBlock {
-                        block: block.clone(),
-                    })
+                    _ => {}
                 }
             }
             None => {
