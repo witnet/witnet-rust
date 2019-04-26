@@ -2,10 +2,10 @@
 //!
 //! This module provides a Storage Manager
 use actix::prelude::*;
+use bincode::{deserialize, serialize};
 use futures::future::Future;
 use log;
 use serde;
-use serde_json;
 
 use crate::config_mngr;
 use witnet_config::config;
@@ -31,12 +31,12 @@ where
 {
     let addr = actix::System::current().registry().get::<StorageManager>();
 
-    futures::future::result(serde_json::to_vec(key))
+    futures::future::result(serialize(key))
         .map_err(|e| as_failure!(e))
         .and_then(move |key_bytes| addr.send(Get(key_bytes)).flatten())
         .and_then(|opt| match opt {
-            Some(bytes) => match serde_json::from_slice(bytes.as_slice()) {
-                Ok(v) => futures::future::ok(v),
+            Some(bytes) => match deserialize(bytes.as_slice()) {
+                Ok(v) => futures::future::ok(Some(v)),
                 Err(e) => futures::future::err(as_failure!(e)),
             },
             None => futures::future::ok(None),
@@ -51,8 +51,8 @@ where
 {
     let addr = actix::System::current().registry().get::<StorageManager>();
 
-    futures::future::result(serde_json::to_vec(key))
-        .join(futures::future::result(serde_json::to_vec(value)))
+    futures::future::result(serialize(key))
+        .join(futures::future::result(serialize(value)))
         .map_err(|e| as_failure!(e))
         .and_then(move |(key_bytes, value_bytes)| addr.send(Put(key_bytes, value_bytes)).flatten())
 }
@@ -64,7 +64,7 @@ where
 {
     let addr = actix::System::current().registry().get::<StorageManager>();
 
-    futures::future::result(serde_json::to_vec(key))
+    futures::future::result(serialize(key))
         .map_err(|e| as_failure!(e))
         .and_then(move |key_bytes| addr.send(Delete(key_bytes)).flatten())
 }
