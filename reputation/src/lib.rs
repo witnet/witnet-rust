@@ -9,3 +9,6 @@
 
 pub mod trs;
 pub use trs::TotalReputationSet;
+
+pub mod ars;
+pub use ars::ActiveReputationSet;

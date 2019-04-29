@@ -17,17 +17,17 @@ use failure::Fail;
 /// Total Reputation Set
 ///
 /// This data structure keeps track of the total reputation `V`
-/// associated to every identity `K`. Reputation is issued in "coins" which
+/// associated to every identity `K`. Reputation is issued in "packets" which
 /// expire over time `A`. In order to keep track of what to expire and when,
-/// the reputation coins are stored in a queue ordered by expiration date.
+/// the reputation packets are stored in a queue ordered by expiration date.
 ///
 /// The method `gain(alpha, vec![(id1, diff1)])` will add a coin with value
 /// `diff1` to identity `id1`, which will expire at time `alpha`.
 ///
-/// The method `expire(alpha)` will invalidate all the coins with `expiration_time < alpha`.
+/// The method `expire(alpha)` will invalidate all the reputation packets with `expiration_time < alpha`.
 ///
 /// The method `penalize(id, f)` will apply a penalization function `f` to an identity `id`.
-/// The penalization amount will be subtracted from the most recent coins (those which will
+/// The penalization amount will be subtracted from the most recent reputation packets (those which will
 /// expire later).
 #[derive(Clone, Debug)]
 pub struct TotalReputationSet<K, V, A, S>
@@ -41,7 +41,7 @@ where
     // All the identities with reputation are in the cache: identities
     // not in the cache must have null reputation
     map: HashMap<K, V, S>,
-    // The list of reputation coins ordered by expiration
+    // The list of reputation packets ordered by expiration
     queue: VecDeque<(A, HashMap<K, V, S>)>,
 }
 
@@ -100,7 +100,7 @@ where
         self.queue.iter().map(|(a, h)| (a, h.iter()))
     }
 
-    /// Insert coins with expiration
+    /// Insert reputation packets with expiration
     pub fn gain<I>(&mut self, expiration: A, diff: I) -> Result<(), NonSortedAlpha<A>>
     where
         I: IntoIterator<Item = (K, V)>,
@@ -119,11 +119,11 @@ where
                 })
             }
             Some((max_alpha, back)) if *max_alpha == expiration => {
-                // Insert coins with the same expiration time as the most recent
-                // coins: merge the two maps
+                // Insert reputation packets with the same expiration time as the most recent
+                // packet: merge the two maps
                 for (k, v) in diff.into_iter().filter(|(_k, v)| *v > zero) {
                     // Update identity cache
-                    Self::inc_cache(&mut self.map, k.clone(), v.clone());
+                    increment_cache(&mut self.map, k.clone(), v.clone());
                     // Merge with previous entry, or insert new
                     *back.entry(k).or_default() += v;
                 }
@@ -135,7 +135,7 @@ where
                     HashMap::default(),
                     |mut back, (k, v)| {
                         // Update identity cache
-                        Self::inc_cache(&mut self.map, k.clone(), v.clone());
+                        increment_cache(&mut self.map, k.clone(), v.clone());
                         *back.entry(k).or_default() += v;
                         back
                     },
@@ -146,12 +146,12 @@ where
         }
     }
 
-    /// Expire all coins older than `alpha`, return the total expired amount
+    /// Expire all reputation packets older than `alpha`, return the total expired amount
     // This assumes that the queue is sorted by expiration
     pub fn expire(&mut self, alpha: &A) -> V {
         let mut total_expired = V::default();
         // We could compare alpha with self.queue.back(),
-        // because expiring all the coins is equivalent to self.clear()
+        // because expiring all the reputation packets is equivalent to self.clear()
         // but in practice that shouldn't happen very ofter
         while let Some((expiration, _)) = self.queue.front() {
             if expiration > alpha {
@@ -163,7 +163,7 @@ where
             // Update identity cache
             for (k, v) in front {
                 // If the cache is consistent, this unwrap cannot fail
-                Self::dec_cache(&mut self.map, k, v.clone()).unwrap();
+                decrement_cache(&mut self.map, k, v.clone()).unwrap();
                 total_expired += v;
             }
         }
@@ -211,7 +211,7 @@ where
                         let ts = old_v;
                         total_subtracted += ts.clone();
                         // Update cache. Cannot fail because we just checked for overflow
-                        Self::dec_cache(&mut self.map, id.clone(), ts.clone()).unwrap();
+                        decrement_cache(&mut self.map, id.clone(), ts.clone()).unwrap();
                         Some(Ok((id.clone(), ts)))
                     }
                 }
@@ -220,7 +220,7 @@ where
 
         // Iterate back to front
         for (_, rep_diff) in self.queue.iter_mut().rev() {
-            Self::spend_coins(rep_diff, &mut to_subtract);
+            Self::expire_packets(rep_diff, &mut to_subtract);
             // All the identities have been penalized, done
             if to_subtract.is_empty() {
                 break;
@@ -232,7 +232,7 @@ where
         Ok(total_subtracted)
     }
 
-    fn spend_coins(rep_diff: &mut HashMap<K, V, S>, to_subtract: &mut HashMap<K, V, S>) {
+    fn expire_packets(rep_diff: &mut HashMap<K, V, S>, to_subtract: &mut HashMap<K, V, S>) {
         // Retain those identities which still have some reputation to lose.
         // Here we are essentially operating on the intersection of the two maps,
         // removing some elements which pertain to both maps.
@@ -246,7 +246,7 @@ where
                     }
                     retain_ts
                 } else {
-                    // This identity has not gained any coins in this alpha, retain
+                    // This identity has not gained any reputation packet in this alpha, retain
                     true
                 }
             });
@@ -330,44 +330,54 @@ where
         self.map.clear();
         self.queue.clear();
     }
+}
 
-    // Increment a cache entry
-    fn inc_cache(map: &mut HashMap<K, V, S>, k: K, v: V) {
-        let zero = V::default();
-        if v != zero {
-            *map.entry(k).or_default() += v;
-        }
+/// Increment a cache entry
+pub fn increment_cache<K, V, S>(map: &mut HashMap<K, V, S>, k: K, v: V)
+where
+    K: Eq + Hash,
+    V: AddAssign + Default + PartialEq,
+    S: BuildHasher,
+{
+    let zero = V::default();
+    if v != zero {
+        *map.entry(k).or_default() += v;
     }
+}
 
-    // Decrement a cache entry.
-    // This function returns an error when there is not enough to subtract,
-    // or the identity does not exist
-    fn dec_cache(map: &mut HashMap<K, V, S>, k: K, v: V) -> Result<(), ()> {
-        let zero = V::default();
-        if v == zero {
-            // Decrementing zero always succeeds
-            Ok(())
-        } else if let Entry::Occupied(mut x) = map.entry(k) {
-            match x.get().cmp(&v) {
-                Ordering::Greater => {
-                    // Decrement entry
-                    *x.get_mut() -= v;
-                    Ok(())
-                }
-                Ordering::Equal => {
-                    // Back to the default value, remove entry from cache
-                    x.remove_entry();
-                    Ok(())
-                }
-                Ordering::Less => {
-                    // Error: not enough to subtract
-                    Err(())
-                }
+/// Decrement a cache entry.
+/// This function returns an error when there is not enough to subtract,
+/// or the identity does not exist
+pub fn decrement_cache<K, V, S>(map: &mut HashMap<K, V, S>, k: K, v: V) -> Result<(), ()>
+where
+    K: Eq + Hash,
+    V: Default + SubAssign + Ord,
+    S: BuildHasher,
+{
+    let zero = V::default();
+    if v == zero {
+        // Decrementing zero always succeeds
+        Ok(())
+    } else if let Entry::Occupied(mut x) = map.entry(k) {
+        match x.get().cmp(&v) {
+            Ordering::Greater => {
+                // Decrement entry
+                *x.get_mut() -= v;
+                Ok(())
             }
-        } else {
-            // Error: identity does not exist
-            Err(())
+            Ordering::Equal => {
+                // Back to the default value, remove entry from cache
+                x.remove_entry();
+                Ok(())
+            }
+            Ordering::Less => {
+                // Error: not enough to subtract
+                Err(())
+            }
         }
+    } else {
+        // Error: identity does not exist
+        Err(())
     }
 }
 
@@ -443,6 +453,7 @@ impl<V> Fail for RepError<V> where V: 'static + fmt::Debug + Send + Sync {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ActiveReputationSet;
 
     #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
     struct Reputation(u32);
@@ -897,5 +908,63 @@ mod tests {
         assert_eq!(a.get_sum(vec![&id1, &id2, &id3]), Reputation(4096));
         assert_eq!(a.get_sum(vec![&id1]), Reputation(1024));
         assert_eq!(a.num_identities(), 3);
+    }
+
+    #[test]
+    fn active_rep_sum() {
+        let mut trs = TotalReputationSet::new();
+        let mut ars = ActiveReputationSet::new(2);
+
+        let id1 = "Alice".to_string();
+        let id2 = "Bob".to_string();
+        let id3 = "Charlie".to_string();
+        let v4 = vec![
+            (id1.clone(), Reputation(1024)),
+            (id2.clone(), Reputation(1024)),
+            (id3.clone(), Reputation(1024)),
+            (id2.clone(), Reputation(1024)),
+        ];
+        assert_eq!(trs.get_total_sum(), Reputation(0));
+        assert_eq!(trs.num_identities(), 0);
+        assert_eq!(ars.contains(&id1), false);
+        assert_eq!(ars.contains(&id2), false);
+        assert_eq!(ars.contains(&id3), false);
+
+        trs.gain(Alpha(4), v4).unwrap();
+        assert_eq!(trs.get_total_sum(), Reputation(4096));
+        assert_eq!(trs.get_sum(vec![&id1, &id2, &id3]), Reputation(4096));
+        assert_eq!(trs.get_sum(vec![&id1]), Reputation(1024));
+        assert_eq!(trs.num_identities(), 3);
+
+        ars.push_activity(vec![id1.clone(), id2.clone(), id3.clone()]);
+        assert_eq!(ars.contains(&id1), true);
+        assert_eq!(ars.contains(&id2), true);
+        assert_eq!(ars.contains(&id3), true);
+        assert_eq!(ars.active_identities_number(), 3);
+        assert_eq!(trs.get_sum(ars.active_identities()), Reputation(4096));
+
+        ars.push_activity(vec![id2.clone(), id3.clone()]);
+        ars.push_activity(vec![id2.clone(), id3.clone()]);
+        assert_eq!(ars.contains(&id1), false);
+        assert_eq!(ars.contains(&id2), true);
+        assert_eq!(ars.contains(&id3), true);
+        assert_eq!(ars.active_identities_number(), 2);
+        assert_eq!(trs.get_sum(ars.active_identities()), Reputation(3072));
+
+        ars.push_activity(vec![id3.clone()]);
+        ars.push_activity(vec![id3.clone()]);
+        assert_eq!(ars.contains(&id1), false);
+        assert_eq!(ars.contains(&id2), false);
+        assert_eq!(ars.contains(&id3), true);
+        assert_eq!(ars.active_identities_number(), 1);
+        assert_eq!(trs.get_sum(ars.active_identities()), Reputation(1024));
+
+        ars.push_activity(vec![]);
+        ars.push_activity(vec![]);
+        assert_eq!(ars.contains(&id1), false);
+        assert_eq!(ars.contains(&id2), false);
+        assert_eq!(ars.contains(&id3), false);
+        assert_eq!(ars.active_identities_number(), 0);
+        assert_eq!(trs.get_sum(ars.active_identities()), Reputation(0));
     }
 }
