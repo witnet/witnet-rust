@@ -1,13 +1,14 @@
 //! Load the configuration from a file or a `String` written in [Toml format](Tomlhttps://en.wikipedia.org/wiki/TOML)
 
-use crate::config::PartialConfig;
-use failure::Fail;
-use std::io;
-use std::path::Path;
-use toml;
-
 #[cfg(test)]
 use std::cell::Cell;
+use std::io;
+use std::path::Path;
+
+use failure::Fail;
+pub use toml::to_string;
+
+use crate::config::PartialConfig;
 
 /// `toml::de::Error`, but loading that configuration from a file
 /// might also fail with a `std::io::Error`.
@@ -23,9 +24,13 @@ pub enum Error {
 }
 
 /// Load configuration from a file written in Toml format.
-pub fn from_file(file: &Path) -> Result<PartialConfig, Error> {
+pub fn from_file<S: AsRef<Path>>(file: S) -> Result<PartialConfig, Error> {
+    let f = file.as_ref();
     let mut contents = String::new();
-    read_file_contents(file, &mut contents).map_err(Error::IOError)?;
+
+    log::debug!("Loading config from `{}`", f.to_string_lossy());
+
+    read_file_contents(f, &mut contents).map_err(Error::IOError)?;
     from_str(&contents).map_err(Error::ParseError)
 }
 

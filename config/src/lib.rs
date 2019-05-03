@@ -13,4 +13,5 @@
 //! configuration.
 pub mod config;
 pub mod defaults;
+pub mod dirs;
 pub mod loaders;

@@ -107,6 +107,11 @@ pub trait Defaults {
     fn connections_blocks_timeout(&self) -> i64 {
         400
     }
+
+    /// Wallet server address
+    fn wallet_server_addr(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11212)
+    }
 }
 
 /// Struct that will implement all the mainnet defaults
