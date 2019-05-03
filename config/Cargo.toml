@@ -12,6 +12,7 @@ log = "0.4.6"
 toml = "0.4.10"
 partial_struct = { path = "../partial_struct" }
 witnet_protected = { path = "../protected" }
+directories = "1.0.2"
 
 [dependencies.serde]
 features = ["derive"]

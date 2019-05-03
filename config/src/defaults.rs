@@ -125,6 +125,11 @@ pub trait Defaults {
         // Lose half of the total reputation for every lie
         0.5
     }
+
+    /// Wallet server address
+    fn wallet_server_addr(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11212)
+    }
 }
 
 /// Struct that will implement all the mainnet defaults

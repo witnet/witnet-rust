@@ -44,9 +44,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use log::warn;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::defaults::{Defaults, Testnet1};
+use crate::dirs;
 use partial_struct::PartialStruct;
 use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
 use witnet_protected::Protected;
@@ -86,6 +87,11 @@ pub struct Config {
     #[partial_struct(ty = "PartialMining")]
     #[partial_struct(serde(default))]
     pub mining: Mining,
+
+    /// Wallet-related configuration
+    #[partial_struct(ty = "PartialWallet")]
+    #[partial_struct(serde(default))]
+    pub wallet: Wallet,
 }
 
 /// Connection-specific configuration.
@@ -253,6 +259,7 @@ impl Config {
             consensus_constants,
             jsonrpc: JsonRPC::from_partial(&config.jsonrpc, defaults),
             mining: Mining::from_partial(&config.mining, defaults),
+            wallet: Wallet::from_partial(&config.wallet, defaults),
         }
     }
 }
@@ -385,6 +392,44 @@ impl Mining {
                 .enabled
                 .to_owned()
                 .unwrap_or_else(|| defaults.mining_enabled()),
+        }
+    }
+}
+
+/// Wallet-specific configuration.
+#[derive(PartialStruct, Serialize, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+pub struct Wallet {
+    /// Websockets server address.
+    pub server_addr: SocketAddr,
+
+    /// Witnet node server address.
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub node_addr: Option<SocketAddr>,
+
+    /// The amount of server threads listening for connections.
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub workers: Option<usize>,
+
+    /// Storage-related configuration
+    pub db_path: PathBuf,
+}
+
+impl Wallet {
+    pub fn from_partial(config: &PartialWallet, defaults: &dyn Defaults) -> Self {
+        Wallet {
+            server_addr: config
+                .server_addr
+                .unwrap_or_else(|| defaults.wallet_server_addr()),
+            node_addr: config.node_addr,
+            workers: config.workers.or_else(|| Some(1)),
+            db_path: config
+                .db_path
+                .clone()
+                .unwrap_or_else(dirs::data_dir)
+                .join("wallet.db"),
         }
     }
 }

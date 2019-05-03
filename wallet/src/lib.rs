@@ -18,6 +18,7 @@ use futures::{future, Future};
 use jsonrpc_core as rpc;
 use serde_json as json;
 
+use witnet_config::config::Config;
 use witnet_net::server::ws;
 
 mod client;
@@ -28,8 +29,11 @@ mod routes;
 mod wallet;
 
 /// Run the websockets server for the Witnet wallet.
-pub fn run() -> std::io::Result<()> {
-    ws::run(|_notify| {
+pub fn run(config: &Config) -> std::io::Result<()> {
+    let workers = config.wallet.workers;
+    let addr = config.wallet.server_addr;
+
+    ws::build().workers(workers).run(addr, |_notify| {
         let mut io = rpc::IoHandler::default();
 
         forwarded_routes!(io, "getBlock", "getBlockChain", "getOutput", "inventory",);
