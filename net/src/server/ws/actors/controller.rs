@@ -1,16 +1,11 @@
 //! Defines an actor to control system run and shutdown.
 //!
 //! See the [`Controller`] struct for more information.
-use std::io;
 use std::time::Duration;
 
-use actix_web::{actix::*, server, ws, App, Binary};
+use actix_web::actix::*;
 use failure::Fail;
 use futures::{future, Future};
-
-use super::notifications::{Notifications, Notify};
-use super::ws::Ws;
-use crate::server::ws::{HandlerFactory, ServerConfig};
 
 /// Actor to start and gracefully stop an actix system.
 ///
@@ -29,43 +24,7 @@ pub struct Controller {
     subscribers: Vec<Recipient<Shutdown>>,
 }
 
-/// Function passed to a JsonRPC handler factory so the handlers are able to send notifications to
-/// other clients.
-fn notify(payload: Binary) {
-    let n = Notifications::from_registry();
-    n.do_send(Notify { payload });
-}
-
 impl Controller {
-    /// Starts a JsonRPC Websockets server.
-    ///
-    /// The factory is used to create handlers for the json-rpc messages sent to the server.
-    pub fn run<F>(config: ServerConfig<F>) -> io::Result<()>
-    where
-        F: HandlerFactory,
-    {
-        let handler_factory = config.handler_factory;
-        let mut s = server::new(move || {
-            // Ensure that the controller starts if no actor has started it yet. It will register with
-            // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
-            // controller will not be instanciated and our system will not listen for signals.
-            Controller::from_registry();
-
-            let factory = handler_factory.clone();
-            App::new().resource("/", move |r| {
-                r.f(move |req| ws::start(req, Ws::new(factory(notify))))
-            })
-        })
-        .bind(config.addr)?;
-
-        if let Some(workers) = config.workers {
-            s = s.workers(workers);
-        }
-
-        s.run();
-
-        Ok(())
-    }
     /// Performs a graceful shutdown with the given timeout.
     ///
     /// This sends a `Shutdown` message to all subscribed actors and

@@ -32,28 +32,33 @@ mod wallet;
 pub fn run(config: &Config) -> std::io::Result<()> {
     let workers = config.wallet.workers;
     let addr = config.wallet.server_addr;
+    let state = handlers::AppState;
 
-    ws::build().workers(workers).run(addr, |_notify| {
+    ws::Server::with_state(state, |ctx| {
         let mut io = rpc::IoHandler::default();
 
         forwarded_routes!(io, "getBlock", "getBlockChain", "getOutput", "inventory",);
 
         routes!(
             io,
+            ctx,
             ("getWalletInfos", handlers::get_wallet_infos),
-            ("createMnemonics", handlers::create_mnemonics),
-            ("importSeed", handlers::import_seed),
-            ("createWallet", handlers::create_wallet),
-            ("lockWallet", handlers::lock_wallet),
-            ("unlockWallet", handlers::unlock_wallet),
-            ("getTransactions", handlers::get_transactions),
-            ("sendVTT", handlers::send_vtt),
-            ("generateAddress", handlers::generate_address),
-            ("createDataRequest", handlers::create_data_request),
-            ("runDataRequest", handlers::run_data_request),
-            ("sendDataRequest", handlers::send_data_request),
+            // ("createMnemonics", handlers::create_mnemonics),
+            // ("importSeed", handlers::import_seed),
+            // ("createWallet", handlers::create_wallet),
+            // ("lockWallet", handlers::lock_wallet),
+            // ("unlockWallet", handlers::unlock_wallet),
+            // ("getTransactions", handlers::get_transactions),
+            // ("sendVTT", handlers::send_vtt),
+            // ("generateAddress", handlers::generate_address),
+            // ("createDataRequest", handlers::create_data_request),
+            // ("runDataRequest", handlers::run_data_request),
+            // ("sendDataRequest", handlers::send_data_request),
         );
 
         io
     })
+    .workers(workers)
+    .addr(addr)
+    .run()
 }

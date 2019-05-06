@@ -5,7 +5,7 @@
 macro_rules! routes {
     // No args: do nothing
     ($io:expr $(,)+) => {};
-    ($io:expr, ($method_jsonrpc:expr, $method_rust:expr $(,)*), $($args:tt)*) => {
+    ($io:expr, $ctx:expr, ($method_jsonrpc:expr, $method_rust:expr $(,)*), $($args:tt)*) => {
         // Base case:
         {
             $io.add_method($method_jsonrpc, move |params: rpc::Params| {

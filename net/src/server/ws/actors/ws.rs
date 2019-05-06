@@ -1,6 +1,7 @@
 //! Defines an actor that handles a Websocket connection.
 //!
 //! See the [`Ws`](Ws) struct for more information.
+use std::marker::PhantomData;
 use std::time::{Duration, Instant};
 
 use actix_web::{actix::*, ws};
@@ -9,16 +10,21 @@ use jsonrpc_core as rpc;
 use super::notifications as notify;
 
 /// Actor to handle a Websocket connection.
-pub struct Ws {
+pub struct Ws<S> {
     /// Client must send ping at least once per 10 seconds
     /// (CLIENT_TIMEOUT), otherwise we drop connection
     last_heartbeat: Instant,
 
     /// JsonRPC handler in charge of handling the requests received through websockets.
     pub jsonrpc_handler: rpc::IoHandler,
+
+    state: PhantomData<S>,
 }
 
-impl Ws {
+impl<S> Ws<S>
+where
+    S: 'static,
+{
     /// Create a new [`Ws`](Ws) instance with the given JsonRPC handler factory.
     ///
     /// The handler factory will invoked during the actor startup... TODO: continue
@@ -26,12 +32,16 @@ impl Ws {
         Self {
             last_heartbeat: Instant::now(),
             jsonrpc_handler,
+            state: PhantomData,
         }
     }
 }
 
-impl Actor for Ws {
-    type Context = ws::WebsocketContext<Self>;
+impl<S> Actor for Ws<S>
+where
+    S: 'static,
+{
+    type Context = ws::WebsocketContext<Self, S>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
         // Subscribe to Notify messages
@@ -53,7 +63,10 @@ impl Actor for Ws {
     }
 }
 
-impl Handler<notify::Notify> for Ws {
+impl<S> Handler<notify::Notify> for Ws<S>
+where
+    S: 'static,
+{
     type Result = <notify::Notify as Message>::Result;
 
     fn handle(&mut self, msg: notify::Notify, ctx: &mut Self::Context) {
@@ -61,7 +74,10 @@ impl Handler<notify::Notify> for Ws {
     }
 }
 
-impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
+impl<S> StreamHandler<ws::Message, ws::ProtocolError> for Ws<S>
+where
+    S: 'static,
+{
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         self.last_heartbeat = Instant::now();
         match msg {
