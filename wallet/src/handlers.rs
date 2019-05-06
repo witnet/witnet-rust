@@ -11,17 +11,17 @@ pub fn get_wallet_infos(_params: Params) -> impl Response<Vec<WalletInfo>> {
     future::ok(vec![])
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn create_mnemonics(_params: Params) -> impl Response<Mnemonics> {
     future::ok(Mnemonics {})
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn import_seed(_params: Params) -> impl Response<bool> {
     future::ok(true)
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn create_wallet(_params: Params) -> impl Response<Wallet> {
     future::ok(Wallet {
         version: 0,
@@ -36,7 +36,7 @@ pub fn create_wallet(_params: Params) -> impl Response<Wallet> {
     })
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn unlock_wallet(_params: Params) -> impl Response<Wallet> {
     future::ok(Wallet {
         version: 0,
@@ -51,37 +51,37 @@ pub fn unlock_wallet(_params: Params) -> impl Response<Wallet> {
     })
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn lock_wallet(_params: Params) -> impl Response<bool> {
     future::ok(true)
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn send_data_request(_params: Params) -> impl Response<Transaction> {
     future::ok(Transaction {})
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn run_data_request(_params: Params) -> impl Response<RadonValue> {
     future::ok(RadonValue {})
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn create_data_request(_params: Params) -> impl Response<DataRequest> {
     future::ok(DataRequest {})
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn generate_address(_params: Params) -> impl Response<Address> {
     future::ok(Address {})
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn send_vtt(_params: Params) -> impl Response<Transaction> {
     future::ok(Transaction {})
 }
 
-// TODO: doc
+/// TODO: doc
 pub fn get_transactions(_params: Params) -> impl Response<Vec<Transaction>> {
     future::ok(vec![])
 }
