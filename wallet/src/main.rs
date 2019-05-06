@@ -75,7 +75,7 @@ fn main() {
     }
 
     match matches.subcommand() {
-        ("run", _) => match wallet::run(&conf) {
+        ("run", _) => match wallet::run(conf) {
             Ok(_) => process::exit(0),
             Err(e) => {
                 eprintln!("{}", e);
