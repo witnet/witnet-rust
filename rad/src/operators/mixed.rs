@@ -1,9 +1,9 @@
-use witnet_data_structures::serializers::decoders::TryFrom;
-
 use crate::error::RadError;
 use crate::types::{
     array::RadonArray, float::RadonFloat, map::RadonMap, mixed::RadonMixed, RadonType,
 };
+
+use std::convert::TryFrom;
 
 pub fn to_float(input: RadonMixed) -> Result<RadonFloat, RadError> {
     RadonFloat::try_from(input.value())

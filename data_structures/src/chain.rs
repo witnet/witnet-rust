@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     cell::Cell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    convert::AsRef,
+    convert::{AsRef, TryFrom, TryInto},
     fmt,
     str::FromStr,
 };
@@ -22,7 +22,6 @@ use super::{
     data_request::DataRequestPool,
     error::{OutputPointerParseError, Secp256k1ConversionError},
     proto::{schema::witnet, ProtobufConvert},
-    serializers::decoders::{TryFrom, TryInto},
 };
 use crate::error::DataRequestError;
 

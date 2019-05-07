@@ -2,10 +2,9 @@
 
 use reqwest;
 
-use witnet_data_structures::{
-    chain::{RADRetrieve, RADType},
-    serializers::decoders::TryInto,
-};
+use std::convert::TryInto;
+
+use witnet_data_structures::chain::{RADRetrieve, RADType};
 
 use crate::error::RadError;
 use crate::script::{execute_radon_script, unpack_radon_script};

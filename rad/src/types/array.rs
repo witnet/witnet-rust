@@ -4,9 +4,11 @@ use crate::script::RadonCall;
 use crate::types::{mixed::RadonMixed, RadonType, RadonTypes};
 
 use rmpv::Value;
-use std::fmt;
-use std::mem::{discriminant, Discriminant};
-use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+    mem::{discriminant, Discriminant},
+};
 
 fn mixed_discriminant() -> Discriminant<RadonTypes> {
     discriminant(&RadonTypes::from(RadonMixed::from(Value::Nil)))
