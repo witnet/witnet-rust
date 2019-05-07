@@ -18,7 +18,6 @@ jsonrpc-pubsub = "10.1.0"
 log = "0.4.6"
 rand = "0.6.5"
 rust-crypto = "0.2.36"
-serde = "1.0.88"
 serde_json = "1.0.38"
 tokio = "0.1.15"
 secp256k1 = "0.12.2"
@@ -36,3 +35,7 @@ witnet_validations = { path = "../validations" }
 [dependencies.actix]
 git = "https://github.com/actix/actix.git"
 rev = "d28d286ac652f81e72c2aa413e7c0d3fc6c6099c"
+
+[dependencies.serde]
+features = ["derive"]
+version = "1.0.88"

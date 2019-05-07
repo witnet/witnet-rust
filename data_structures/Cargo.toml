@@ -12,8 +12,6 @@ failure = "0.1.5"
 protobuf = { version = "2.3.0", features = ["with-serde"] }
 protobuf-convert = "0.1.1"
 rand = "0.6.5"
-serde = "1.0.88"
-serde_derive = "1.0.88"
 toml = "0.4.10"
 log = "0.4.6"
 secp256k1 = "0.12.2"
@@ -29,3 +27,7 @@ path = "../util"
 
 [build-dependencies]
 exonum-build = "0.10.0"
+
+[dependencies.serde]
+features = ["derive"]
+version = "1.0.88"
