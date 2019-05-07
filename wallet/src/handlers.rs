@@ -5,17 +5,9 @@ use jsonrpc_core::Params;
 
 use super::response::Response;
 use super::wallet::*;
-use witnet_net::server::ws;
-
-/// foo
-#[derive(Clone)]
-pub struct AppState;
 
 /// TODO: doc
-pub fn get_wallet_infos(
-    _params: Params
-    // ctx: &ws::HandlerContext<'_, AppState>,
-) -> impl Response<Vec<WalletInfo>> {
+pub fn get_wallet_infos(_params: Params) -> impl Response<Vec<WalletInfo>> {
     future::ok(vec![])
 }
 
@@ -24,10 +16,10 @@ pub fn get_wallet_infos(
 //     future::ok(Mnemonics {})
 // }
 
-// /// TODO: doc
-// pub fn import_seed(_params: Params) -> impl Response<bool> {
-//     future::ok(true)
-// }
+/// TODO: doc
+pub fn import_seed(_params: Params) -> impl Response<bool> {
+    future::ok(true)
+}
 
 // /// TODO: doc
 // pub fn create_wallet(_params: Params) -> impl Response<Wallet> {

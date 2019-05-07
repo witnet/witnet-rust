@@ -18,3 +18,4 @@ clap = "2.33.0"
 
 witnet_net = { path = "../net" }
 witnet_config = { path = "../config" }
+witnet_storage = { path = "../storage" }
