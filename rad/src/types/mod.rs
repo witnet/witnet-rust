@@ -7,7 +7,7 @@ use crate::types::string::RadonString;
 
 use rmpv::{decode, encode, Value};
 use std::{
-    convert::{Infallible, TryFrom, TryInto},
+    convert::{TryFrom, TryInto},
     fmt,
     io::Cursor,
     mem,
