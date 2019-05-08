@@ -7,9 +7,10 @@ use crate::types::string::RadonString;
 
 use rmpv::{decode, encode, Value};
 use std::{
-    convert::{TryFrom, TryInto},
+    convert::{Infallible, TryFrom, TryInto},
     fmt,
     io::Cursor,
+    mem,
 };
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::Hash;
@@ -108,7 +109,12 @@ impl TryFrom<Value> for RadonTypes {
             Value::F64(_) => RadonFloat::try_from(value).map(Into::into),
             Value::Map(_) => RadonMap::try_from(value).map(Into::into),
             Value::String(_) => RadonString::try_from(value).map(Into::into),
-            _ => RadonMixed::try_from(value).map(Into::into),
+            _ => RadonMixed::try_from(value)
+                // This error mapping is safe. As the result error type is
+                // Infallible, the conversion should never result in an error.
+                .map_err(|_| unsafe { mem::zeroed::<Self::Error>() })
+                .map(Into::into),
+            // _ => RadonMixed::try_from(value).map(Into::into),
         }
     }
 }
