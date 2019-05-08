@@ -6,7 +6,7 @@ use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
 
 use futures::future::{join_all, Future};
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use super::ChainManager;
 use crate::actors::{
@@ -26,7 +26,6 @@ use witnet_data_structures::{
         ValueTransferOutput,
     },
     data_request::{create_commit_body, create_reveal_body, create_tally_body, create_vt_tally},
-    serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{

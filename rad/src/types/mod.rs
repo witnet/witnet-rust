@@ -114,7 +114,6 @@ impl TryFrom<Value> for RadonTypes {
                 // Infallible, the conversion should never result in an error.
                 .map_err(|_| unsafe { mem::zeroed::<Self::Error>() })
                 .map(Into::into),
-            // _ => RadonMixed::try_from(value).map(Into::into),
         }
     }
 }

@@ -29,17 +29,6 @@ impl From<Value> for RadonMixed {
     }
 }
 
-// TODO: remove
-/*
-impl TryFrom<Value> for RadonMixed {
-    type Error = RadError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        Ok(Self::from(value))
-    }
-}
-*/
-
 impl TryInto<Value> for RadonMixed {
     type Error = RadError;
 

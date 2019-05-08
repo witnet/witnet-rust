@@ -1,6 +1,6 @@
 //! Message handlers for `RadManager`
 use actix::{Handler, Message};
-use witnet_data_structures::serializers::decoders::TryFrom;
+use std::convert::TryFrom;
 use witnet_rad as rad;
 use witnet_rad::types::RadonTypes;
 

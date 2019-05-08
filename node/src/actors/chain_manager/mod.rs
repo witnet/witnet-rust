@@ -25,7 +25,10 @@
 //! * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryFrom,
+};
 
 use actix::prelude::*;
 use actix::{
@@ -50,7 +53,6 @@ use witnet_data_structures::{
         InventoryItem, Output, OutputPointer, PublicKeyHash, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
-    serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;
 
