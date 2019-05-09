@@ -4,8 +4,7 @@ use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
 use rmpv::Value;
-use std::fmt;
-use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
+use std::{convert::TryInto, fmt};
 
 pub const RADON_MIXED_TYPE_NAME: &str = "RadonMixed";
 
@@ -27,14 +26,6 @@ impl RadonType<Value> for RadonMixed {
 impl From<Value> for RadonMixed {
     fn from(value: Value) -> Self {
         RadonMixed { value }
-    }
-}
-
-impl TryFrom<Value> for RadonMixed {
-    type Error = RadError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        Ok(Self::from(value))
     }
 }
 

@@ -6,12 +6,13 @@ use crate::types::mixed::RadonMixed;
 use crate::types::string::RadonString;
 
 use rmpv::{decode, encode, Value};
-use std::{fmt, io::Cursor};
-use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::{
-    chain::Hash,
-    serializers::decoders::{TryFrom, TryInto},
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+    io::Cursor,
 };
+use witnet_crypto::hash::calculate_sha256;
+use witnet_data_structures::chain::Hash;
 
 pub mod array;
 pub mod float;
@@ -107,7 +108,7 @@ impl TryFrom<Value> for RadonTypes {
             Value::F64(_) => RadonFloat::try_from(value).map(Into::into),
             Value::Map(_) => RadonMap::try_from(value).map(Into::into),
             Value::String(_) => RadonString::try_from(value).map(Into::into),
-            _ => RadonMixed::try_from(value).map(Into::into),
+            _ => Ok(RadonMixed::from(value).into()),
         }
     }
 }

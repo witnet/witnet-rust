@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::{TryFrom, TryInto},
+};
 
 use witnet_crypto::{
     hash::Sha256,
@@ -13,7 +16,6 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     error::{BlockError, TransactionError},
-    serializers::decoders::{TryFrom, TryInto},
 };
 use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 

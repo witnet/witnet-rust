@@ -4,8 +4,10 @@ use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
 use rmpv::Value;
-use std::fmt;
-use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+};
 
 pub const RADON_STRING_TYPE_NAME: &str = "RadonString";
 

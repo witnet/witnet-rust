@@ -1,8 +1,9 @@
-use std::fmt;
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+};
 
 use rmpv::Value;
-
-use witnet_data_structures::serializers::decoders::{TryFrom, TryInto};
 
 use crate::error::RadError;
 use crate::operators::{identity, Operable, RadonOpCodes};

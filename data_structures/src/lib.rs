@@ -12,9 +12,6 @@ pub mod builders;
 /// Module containing Witnet's chain data types
 pub mod chain;
 
-/// Deprecated, we should move the TryFrom trait somewhere else
-pub mod serializers;
-
 /// Module containing functions to convert between Witnet's protocol messages and Protocol Buffers
 pub mod proto;
 

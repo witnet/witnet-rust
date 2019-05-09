@@ -1,5 +1,5 @@
 use rmpv::Value;
-use witnet_data_structures::serializers::decoders::TryFrom;
+use std::convert::TryFrom;
 use witnet_rad::types::RadonTypes;
 
 #[test]

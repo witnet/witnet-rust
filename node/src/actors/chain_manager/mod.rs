@@ -44,13 +44,13 @@ use crate::actors::{
     storage_keys::CHAIN_STATE_KEY,
 };
 use crate::storage_mngr;
+use std::convert::TryFrom;
 use witnet_data_structures::{
     chain::{
         Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable,
         InventoryItem, Output, OutputPointer, PublicKeyHash, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
-    serializers::decoders::TryFrom,
 };
 use witnet_rad::types::RadonTypes;
 
