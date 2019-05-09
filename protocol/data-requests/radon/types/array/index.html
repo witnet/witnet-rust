@@ -34,7 +34,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../../../../../assets/images/favicon.ico">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.1.0">
     
     
       
@@ -42,7 +42,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../../../assets/stylesheets/application.451f80e5.css">
+      <link rel="stylesheet" href="../../../../../assets/stylesheets/application.11e41852.css">
       
         <link rel="stylesheet" href="../../../../../assets/stylesheets/application-palette.22915126.css">
       
@@ -53,7 +53,7 @@
       
     
     
-      <script src="../../../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../../../../assets/javascripts/modernizr.20ef595d.js"></script>
     
     
       
@@ -63,6 +63,7 @@
       
     
     <link rel="stylesheet" href="../../../../../assets/fonts/material-icons.css">
+    
     
     
   </head>
@@ -100,7 +101,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="../../../../../#arrayt-type" tabindex="1" class="md-skip">
+      <a href="#arrayt-type" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -696,11 +697,11 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2-2" type="checkbox" id="nav-3-2-2-2" checked>
     
     <label class="md-nav__link" for="nav-3-2-2-2">
-      Data types
+      Types and operators
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="4">
       <label class="md-nav__title" for="nav-3-2-2-2">
-        Data types
+        Types and operators
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -848,8 +849,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../int/" title="Int" class="md-nav__link">
-      Int
+    <a href="../integer/" title="Integer" class="md-nav__link">
+      Integer
     </a>
   </li>
 
@@ -1008,18 +1009,6 @@
   </li>
 
         
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../../radlang/" title="RADlang" class="md-nav__link">
-      RADlang
-    </a>
-  </li>
-
-        
       </ul>
     </nav>
   </li>
@@ -1062,7 +1051,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../../witscript/" title="WitScript" class="md-nav__link">
+    <a href="../../../../witscript.md" title="WitScript" class="md-nav__link">
       WitScript
     </a>
   </li>
@@ -1838,22 +1827,26 @@
                 <h1 id="arrayt-type"><code class="codehilite">Array&lt;T&gt;</code> type<a class="headerlink" href="#arrayt-type" title="Permanent link">&para;</a></h1>
 <p>An <code class="codehilite">Array&lt;T&gt;</code> is an ordered sequence of zero, one or more values or data structures of the same type, <code class="codehilite">T</code>.</p>
 <h2 id="arraycount"><code class="codehilite">Array.count()</code><a class="headerlink" href="#arraycount" title="Permanent link">&para;</a></h2>
-<p><div class="codehilite"><pre><span></span><span class="nx">count</span><span class="p">()</span><span class="o">:</span> <span class="nx">Int</span>
+<p><div class="codehilite"><pre><span></span><span class="nx">count</span><span class="p">()</span><span class="o">:</span> <span class="nx">Integer</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="nx">ARRAY_COUNT</span>
+<div class="codehilite"><pre><span></span><span class="nx">OP_ARRAY_COUNT</span>
 </pre></div>
-The <code class="codehilite">count</code> operator just takes an <code class="codehilite">Array&lt;T&gt;</code> and returns its length as an <code class="codehilite">Int</code>.</p>
+The <code class="codehilite">count</code> operator just takes an <code class="codehilite">Array&lt;T&gt;</code> and returns its length as
+an <code class="codehilite">Integer</code>.</p>
 <h2 id="arrayeveryfunction"><code class="codehilite">Array.every(function)</code><a class="headerlink" href="#arrayeveryfunction" title="Permanent link">&para;</a></h2>
 <p><div class="codehilite"><pre><span></span><span class="nx">every</span><span class="p">(</span><span class="kd">function</span><span class="o">:</span> <span class="p">(</span><span class="nx">item</span>: <span class="kt">T</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nb">Boolean</span><span class="p">))</span><span class="o">:</span> <span class="nb">Boolean</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_EVERY</span><span class="p">,</span> <span class="kd">function</span> <span class="p">]</span>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_EVERY</span><span class="p">,</span> <span class="kd">function</span> <span class="p">]</span>
 </pre></div>
-The <code class="codehilite"><span class="na">.every</span></code> operator returns <code class="codehilite">True</code> if the result of applying a function on every each of the items in a given
-<code class="codehilite">Array&lt;T&gt;</code> is <code class="codehilite">True</code>. It returns <code class="codehilite">False</code> otherwise.</p>
-<p>The supplied <code class="codehilite">(input: T): O</code> function can be either be a valid <a href="../../subscripts">subscript</a> over type <code class="codehilite">T</code> or one of the
+The <code class="codehilite">every</code> operator returns <code class="codehilite">true</code> if the result of applying a function
+on every each of the items in a given <code class="codehilite">Array&lt;T&gt;</code> is <code class="codehilite">true</code>. It returns
+<code class="codehilite">false</code> otherwise.</p>
+<p>The supplied <code class="codehilite">(input: T): O</code> function can be either be a valid
+<a href="../../subscripts">subscript</a> over type <code class="codehilite">T</code> or one of the
 <a href="../../functions#filtering-functions">predefined filtering functions</a>.</p>
 <div class="admonition danger">
-<p>This operator can throw a runtime exception under several circumstances, including:</p>
+<p>This operator can throw a runtime exception under several
+circumstances, including:</p>
 <ul>
 <li><code class="codehilite">T</code> in the input <code class="codehilite">Array&lt;T&gt;</code> is <code class="codehilite">Mixed</code></li>
 </ul>
@@ -1861,166 +1854,191 @@ The <code class="codehilite"><span class="na">.every</span></code> operator retu
 <h2 id="arrayfilterfunction"><code class="codehilite">Array.filter(function)</code><a class="headerlink" href="#arrayfilterfunction" title="Permanent link">&para;</a></h2>
 <p><div class="codehilite"><pre><span></span><span class="nx">filter</span><span class="p">(</span><span class="kd">function</span><span class="o">:</span> <span class="p">(</span><span class="nx">item</span>: <span class="kt">T</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nb">Boolean</span><span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_FILTER</span><span class="p">,</span> <span class="kd">function</span> <span class="p">]</span>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_FILTER</span><span class="p">,</span> <span class="kd">function</span> <span class="p">]</span>
 </pre></div>
-This operator applies a filtering function on an <code class="codehilite">Array</code>. That is, it will apply the function on every item in the
-<code class="codehilite">Array</code> and drop those returning <code class="codehilite">False</code> values.</p>
-<p>The supplied <code class="codehilite">(input: T): O</code> function can be either be a valid <a href="../../subscripts">subscript</a> over type <code class="codehilite">T</code> or one of the
+This operator applies a filtering function on an <code class="codehilite">Array</code>. That is, it
+will apply the function on every item in the <code class="codehilite">Array</code> and drop those
+returning <code class="codehilite">false</code> values.</p>
+<p>The supplied <code class="codehilite">(input: T): O</code> function can be either be a valid
+<a href="../../subscripts">subscript</a> over type <code class="codehilite">T</code> or one of the
 <a href="../../functions#filtering-functions">predefined filtering functions</a>.</p>
 <div class="admonition danger">
-<p>This operator can throw a runtime exception under several circumstances, including:</p>
+<p>This operator can throw a runtime exception under several
+circumstances, including:</p>
 <ul>
 <li><code class="codehilite">T</code> in the input <code class="codehilite">Array&lt;T&gt;</code> is <code class="codehilite">Mixed</code></li>
 </ul>
 </div>
 <h2 id="arrayflatten"><code class="codehilite">Array.flatten()</code><a class="headerlink" href="#arrayflatten" title="Permanent link">&para;</a></h2>
-<p><div class="codehilite"><pre><span></span><span class="nx">flatten</span><span class="p">(</span><span class="nx">depth</span>: <span class="kt">Int</span><span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span>
+<p><div class="codehilite"><pre><span></span><span class="nx">flatten</span><span class="p">(</span><span class="nx">depth?</span>: <span class="kt">Integer</span><span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="nx">ARRAY_FLATTEN</span>
+<div class="codehilite"><pre><span></span><span class="nx">OP_ARRAY_FLATTEN</span>
 </pre></div>
-The <code class="codehilite">flatten</code> operator returns a new <code class="codehilite">Array&lt;T&gt;</code> with all the contained <code class="codehilite">Array&lt;T&gt;</code> concatenated into it recursively up
-to the supplied <code class="codehilite"><span class="n">depth</span><span class="o">:</span> <span class="n">Int</span></code>.</p>
-<p>As <code class="codehilite">Result&lt;T&gt;</code> is equivalent to an <code class="codehilite">Array&lt;T&gt;</code> with zero or one item, applying <code class="codehilite">flatten</code> on an <code class="codehilite">Array&lt;Result&lt;T&gt;&gt;</code>
-conveniently returns an <code class="codehilite">Array&lt;T&gt;</code> containing only the unwrapped positive results.</p>
-<div class="admonition example">
-<p class="admonition-title">Example: flattening <code class="codehilite">Array&lt;Result&lt;T&gt;&gt;</code> into <code class="codehilite">Array&lt;T&gt;</code></p>
-<div class="codehilite"><pre><span></span><span class="p">[</span>                                       <span class="c1">// Array&lt;Int&gt;</span>
-    <span class="p">[</span> <span class="nx">ARRAY_MAP</span><span class="p">,</span> <span class="p">[</span>                      <span class="c1">// Int</span>
-        <span class="p">[</span> <span class="nx">INT_MULT</span><span class="p">,</span> <span class="mi">2</span> <span class="p">]</span>                 <span class="c1">// Int</span>
-    <span class="p">]</span> <span class="p">],</span>                                <span class="c1">// Array&lt;Result&lt;Int&gt;&gt;</span>
-    <span class="nx">ARRAY_FLATTEN</span> <span class="p">,</span>                     <span class="c1">// Array&lt;Int&gt;&gt;</span>
-    <span class="p">[</span> <span class="nx">ARRAY_REDUCE</span><span class="p">,</span> <span class="nx">REDUCER_AVG_MEAN</span> <span class="p">]</span>  <span class="c1">// Int</span>
-<span class="p">]</span>                                       <span class="c1">// Result&lt;Int&gt;</span>
-</pre></div>
-
+The <code class="codehilite">flatten</code> operator returns a new <code class="codehilite">Array&lt;T&gt;</code> with all the contained
+<code class="codehilite">Array&lt;T&gt;</code> concatenated into it recursively up to the supplied <code class="codehilite"><span class="n">depth</span><span class="o">:</span><span class="n">Integer</span></code>.</p>
+<div class="admonition tip">
+<p class="admonition-title">Flattening <code class="codehilite">Array&lt;Result&lt;T&gt;&gt;</code> into <code class="codehilite">Array&lt;T&gt;</code></p>
+<p>As a <code class="codehilite">Result&lt;T&gt;</code> is roughly equivalent to an <code class="codehilite">Array&lt;T&gt;</code> with zero 
+or one item, applying <code class="codehilite">flatten</code> on an <code class="codehilite">Array&lt;Result&lt;T&gt;&gt;</code> 
+conveniently returns an <code class="codehilite">Array&lt;T&gt;</code> containing only the unwrapped 
+positive results, that is, it will drop all the errors.</p>
+</div>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+<p>If the <code class="codehilite">depth</code> argument is not specified, it is assumed to be <code class="codehilite">1</code>, 
+i.e. <code class="codehilite">flatten</code> will only concatenate the first level of nesting.</p>
+</div>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+<p>Applying <code class="codehilite">flatten</code> on an <code class="codehilite">Array&lt;T&gt;</code> will yield exactly the same 
+<code class="codehilite">Array&lt;T&gt;</code> if <code class="codehilite">T</code> is not a <code class="codehilite">Array&lt;U&gt;</code> or <code class="codehilite">Result&lt;U&gt;</code>, where <code class="codehilite">U</code> 
+can be any type.</p>
 </div>
 <h2 id="arraygetindex"><code class="codehilite">Array.get(index)</code><a class="headerlink" href="#arraygetindex" title="Permanent link">&para;</a></h2>
-<p><div class="codehilite"><pre><span></span><span class="nx">get</span><span class="p">(</span><span class="nx">index</span>: <span class="kt">Int</span><span class="p">)</span><span class="o">:</span> <span class="nx">T</span>
+<p><div class="codehilite"><pre><span></span><span class="nx">get</span><span class="p">(</span><span class="nx">index</span>: <span class="kt">Integer</span><span class="p">)</span><span class="o">:</span> <span class="nx">T</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_GET</span><span class="p">,</span> <span class="nx">index</span> <span class="p">]</span>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_GET</span><span class="p">,</span> <span class="nx">index</span> <span class="p">]</span>
 </pre></div>
-The <code class="codehilite">get</code> operator returns the <code class="codehilite">T</code> item at <code class="codehilite"><span class="n">index</span><span class="o">:</span> <span class="n">Int</span></code> in an <code class="codehilite">Array&lt;T&gt;</code>.</p>
+The <code class="codehilite">get</code> operator returns the <code class="codehilite">T</code> item at <code class="codehilite"><span class="n">index</span><span class="o">:</span> <span class="n">Integer</span></code> in an
+<code class="codehilite">Array&lt;T&gt;</code>.</p>
 <div class="admonition danger">
-<p>This operator can throw a runtime exception if the supplied <code class="codehilite"><span class="n">index</span><span class="o">:</span> <span class="n">Int</span></code> is out of the range of the input
-<code class="codehilite">Array&lt;T&gt;</code>.
-Exceptions are handled as specified in the [Exception handling] section.</p>
+<p>This operator can throw a runtime exception if the supplied 
+<code class="codehilite"><span class="n">index</span><span class="o">:</span> <span class="n">Integer</span></code> is out of the range of the input <code class="codehilite">Array&lt;T&gt;</code>.
+Exceptions are handled as specified in the [Exception handling] 
+section.</p>
 </div>
 <div class="admonition danger">
 <p class="admonition-title">Incentive safety</p>
-<p>This operator may introduce adverse incentives if used in the aggregation or consensus stages.</p>
+<p>This operator may introduce adverse incentives if used in the 
+aggregation or consensus stages.</p>
 </div>
 <h2 id="arraymapoperator"><code class="codehilite">Array.map(operator)</code><a class="headerlink" href="#arraymapoperator" title="Permanent link">&para;</a></h2>
-<p><div class="codehilite"><pre><span></span><span class="nx">map</span><span class="o">&lt;</span><span class="nx">O</span><span class="o">&gt;</span><span class="p">(</span><span class="kd">function</span><span class="o">:</span> <span class="p">(</span><span class="nx">item</span>: <span class="kt">T</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">O</span><span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">Result</span><span class="o">&lt;</span><span class="nx">O</span><span class="o">&gt;&gt;</span>
+<p><div class="codehilite"><pre><span></span><span class="nx">map</span><span class="o">&lt;</span><span class="nx">O</span><span class="o">&gt;</span><span class="p">(</span><span class="kd">function</span><span class="o">:</span> <span class="p">(</span><span class="nx">item</span>: <span class="kt">T</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">O</span><span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">O</span><span class="o">&gt;</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_MAP</span><span class="p">,</span> <span class="nx">operator</span> <span class="p">]</span>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_MAP</span><span class="p">,</span> <span class="nx">subscript</span> <span class="p">]</span>
 </pre></div>
-The <code class="codehilite">map</code> operator returns a new <code class="codehilite">Array</code> with the results of executing a supplied <code class="codehilite">(item: T): O</code> function on every <code class="codehilite">T</code>
-element in the input <code class="codehilite">Array&lt;T&gt;</code>, each wrapped in a <code class="codehilite">Result</code>.</p>
-<p>The supplied <code class="codehilite">(input: T): O</code> function must be a valid <a href="../../subscripts">subscript</a> over type <code class="codehilite">T</code>.</p>
-<p>It could happen that the supplied operator failed on some of the <code class="codehilite">T</code> values in the input <code class="codehilite">Array&lt;T&gt;</code>. In such case,
-breaking the data flow and throwing a runtime exception would be unacceptable. Instead, the <code class="codehilite">map</code> operator wraps each
-of the items in the returned <code class="codehilite">Array</code> into a <code class="codehilite">Result</code>. Therefore, the return type of the <code class="codehilite">map</code> operator is
-<code class="codehilite">Array&lt;Result&lt;O&gt;&gt;</code>, where <code class="codehilite">O</code> is the return type of the supplied <code class="codehilite">(item: T): O</code> operator.</p>
+The <code class="codehilite">map</code> operator returns a new <code class="codehilite">Array</code> with the results of executing a
+supplied <code class="codehilite">(item: T): O</code> function on every <code class="codehilite">T</code> element in the input
+<code class="codehilite">Array&lt;T&gt;</code>.</p>
+<p>The supplied <code class="codehilite">(input: T): O</code> function must be a valid <a href="../../subscripts">subscript</a> over
+type <code class="codehilite">T</code>.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="codehilite"><pre><span></span><span class="p">[</span>                                       <span class="c1">// String</span>
-    <span class="nx">STRING_PARSEJSON</span><span class="p">,</span>                   <span class="c1">// Mixed</span>
-    <span class="p">[</span> <span class="nx">MIXED_TOARRAY</span><span class="p">,</span> <span class="nx">TYPE_FLOAT</span> <span class="p">],</span>      <span class="c1">// Array&lt;Float&gt;</span>
-    <span class="p">[</span> <span class="nx">ARRAY_MAP</span><span class="p">,</span> <span class="nx">FLOAT_TRUNC</span> <span class="p">],</span>         <span class="c1">// Array&lt;Result&lt;Float&gt;&gt;</span>
-    <span class="p">[</span> <span class="nx">ARRAY_FLATMAP</span> <span class="p">],</span>                  <span class="c1">// Array&lt;Float&gt;,</span>
-    <span class="p">[</span> <span class="nx">ARRAY_REDUCE</span><span class="p">,</span> <span class="nx">REDUCER_AVG_MEAN</span> <span class="p">]</span>  <span class="c1">// Float</span>
-<span class="p">]</span>                                       <span class="c1">// Result&lt;Float&gt;</span>
+<p><div class="codehilite"><pre><span></span><span class="mi">95</span> <span class="mi">43</span> <span class="mi">70</span> <span class="mi">92</span> <span class="mi">55</span> <span class="mi">92</span> <span class="mi">72</span> <span class="mi">3</span><span class="nx">B</span> <span class="mi">53</span> <span class="mi">92</span> <span class="mi">56</span> <span class="mi">03</span>
 </pre></div>
-
+<div class="codehilite"><pre><span></span><span class="p">[</span>
+    <span class="nx">OP_STRING_PARSEJSON</span><span class="p">,</span>                    <span class="c1">// 0x43,</span>
+    <span class="nx">OP_MIXED_TOARRAY</span><span class="p">,</span>                       <span class="c1">// 0x70,</span>
+    <span class="p">[</span> <span class="nx">OP_ARRAY_MAP</span><span class="p">,</span> <span class="p">[</span>                       <span class="c1">// [ 0x55, [</span>
+        <span class="nx">OP_MIXED_TOFLOAT</span><span class="p">,</span>                   <span class="c1">//      0x72,</span>
+        <span class="nx">OP_FLOAT_TRUNCATE</span>                   <span class="c1">//      0x3B</span>
+    <span class="p">]</span> <span class="p">],</span>                                    <span class="c1">// ] ]</span>
+    <span class="p">[</span> <span class="nx">OP_ARRAY_REDUCE</span><span class="p">,</span> <span class="nx">REDUCER_AVG_MEAN</span> <span class="p">]</span>   <span class="c1">// [ 0x56, 0x03 ]</span>
+<span class="p">]</span>
+</pre></div></p>
 </div>
 <h2 id="arrayreducefunction"><code class="codehilite">Array.reduce(function)</code><a class="headerlink" href="#arrayreducefunction" title="Permanent link">&para;</a></h2>
 <p><div class="codehilite"><pre><span></span><span class="nx">reduce</span><span class="p">(</span><span class="kd">function</span><span class="o">:</span> <span class="p">(</span><span class="nx">item</span>: <span class="kt">T</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">T</span><span class="p">))</span><span class="o">:</span> <span class="nx">T</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_REDUCE</span><span class="p">,</span> <span class="kd">function</span> <span class="p">]</span>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_REDUCE</span><span class="p">,</span> <span class="kd">function</span> <span class="p">]</span>
 </pre></div>
-The <code class="codehilite">reduce</code> operator aggregates the items in the input <code class="codehilite">Array&lt;T&gt;</code> using a the supplied <code class="codehilite">(input: T): O</code> function and
-returns a single item of type <code class="codehilite">T</code>.</p>
-<p>The supplied <code class="codehilite">(input: T): O</code> function can be either a valid <a href="../../subscripts">subscript</a> over type <code class="codehilite">T</code> or one of the
-[predefined reducing functions][reducer].</p>
+The <code class="codehilite">reduce</code> operator aggregates the items in the input <code class="codehilite">Array&lt;T&gt;</code> using
+a the supplied <code class="codehilite">(input: T): O</code> function and returns a single item of
+type <code class="codehilite">T</code>.</p>
+<p>The supplied <code class="codehilite">(input: T): O</code> function can be either a valid <a href="../../subscripts">subscript</a>
+over type <code class="codehilite">T</code> or one of the [predefined reducing functions][reducer].</p>
 <div class="admonition danger">
-<p>This operator can throw a runtime exception under several circumstances, including:</p>
+<p>This operator can throw a runtime exception under several
+circumstances, including:</p>
 <ul>
 <li><code class="codehilite">T</code> in the input <code class="codehilite">Array&lt;T&gt;</code> is <code class="codehilite">Mixed</code></li>
-<li>the reduction function is not <code class="codehilite">mode</code> and <code class="codehilite">T</code> in the input <code class="codehilite">Array&lt;T&gt;</code> is not <code class="codehilite">Int</code> or <code class="codehilite">Float</code></li>
+<li>the reducing function is not <code class="codehilite">mode</code> and <code class="codehilite">T</code> in the input
+<code class="codehilite">Array&lt;T&gt;</code> is not <code class="codehilite">Integer</code> or <code class="codehilite">Float</code></li>
 </ul>
 </div>
 <h2 id="arraysomefunction"><code class="codehilite">Array.some(function)</code><a class="headerlink" href="#arraysomefunction" title="Permanent link">&para;</a></h2>
 <p><div class="codehilite"><pre><span></span><span class="nx">some</span><span class="p">(</span><span class="kd">function</span><span class="o">:</span> <span class="p">(</span><span class="nx">item</span>: <span class="kt">T</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nb">Boolean</span><span class="p">)</span><span class="o">:</span> <span class="nb">Boolean</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_SOME</span><span class="p">,</span> <span class="kd">function</span> <span class="p">]</span>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_SOME</span><span class="p">,</span> <span class="kd">function</span> <span class="p">]</span>
 </pre></div>
-The <code class="codehilite">some</code> operator returns <code class="codehilite">True</code> if the result of applying a function on at least one of the items in a given
-<code class="codehilite">Array&lt;T&gt;</code> is <code class="codehilite">True</code>. It returns <code class="codehilite">False</code> otherwise.</p>
-<p>The supplied <code class="codehilite">(item: T): Boolean</code> function can be either one of the <a href="../../functions#filtering-functions">predefined filtering functions</a> or a
-valid <a href="../../subscripts">subscript</a> with input type <code class="codehilite">T</code> and output type <code class="codehilite">Boolean</code>.</p>
+The <code class="codehilite">some</code> operator returns <code class="codehilite">true</code> if the result of applying a function
+on at least one of the items in a given <code class="codehilite">Array&lt;T&gt;</code> is <code class="codehilite">true</code>. It returns
+<code class="codehilite">false</code> otherwise.</p>
+<p>The supplied <code class="codehilite">(item: T): Boolean</code> function can be either one of the
+<a href="../../functions#filtering-functions">predefined filtering functions</a> or a valid <a href="../../subscripts">subscript</a> with
+input type <code class="codehilite">T</code> and output type <code class="codehilite">Boolean</code>.</p>
 <h2 id="arraysortmapfunction-ascending"><code class="codehilite">Array.sort(mapFunction, ascending)</code><a class="headerlink" href="#arraysortmapfunction-ascending" title="Permanent link">&para;</a></h2>
 <p><div class="codehilite"><pre><span></span><span class="nx">sort</span><span class="o">&lt;</span><span class="nx">V</span><span class="o">&gt;</span><span class="p">(</span>
     <span class="nx">mapFunction</span><span class="o">:</span> <span class="p">(</span><span class="nx">item</span>: <span class="kt">T</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">V</span><span class="p">,</span>
-    <span class="nx">ascending</span>: <span class="kt">Boolean</span> <span class="o">=</span> <span class="nx">True</span>
+    <span class="nx">ascending</span>: <span class="kt">Boolean</span> <span class="o">=</span> <span class="kc">true</span>
 <span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_SORT</span><span class="p">,</span> <span class="nx">mapFunction</span><span class="p">,</span> <span class="nx">ascending</span> <span class="p">]</span>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_SORT</span><span class="p">,</span> <span class="nx">mapFunction</span><span class="p">,</span> <span class="nx">ascending</span> <span class="p">]</span>
 </pre></div>
-The <code class="codehilite">sort</code> operator returns a new <code class="codehilite">Array&lt;T&gt;</code> with the very same items from the input <code class="codehilite">Array&lt;T&gt;</code> but ordered according
-to the sorting criteria defined by the supplied <code class="codehilite">mapFunction: (item: T) =&gt; V</code> and <code class="codehilite"><span class="n">ascending</span><span class="o">:</span> <span class="n">Boolean</span></code> arguments.</p>
-<p>The supplied <code class="codehilite">mapFunction: (item: T) =&gt; V</code> must be a valid <a href="../../subscripts">subscript</a> over type <code class="codehilite">T</code>, and its <code class="codehilite">V</code> output type must be
-one of the value types: <code class="codehilite">Boolean</code>, <code class="codehilite">Int</code>, <code class="codehilite">Float</code> or <code class="codehilite">String</code>. This function gives the <code class="codehilite">sort</code> operator the power to
-sort the items in the input <code class="codehilite">Array&lt;T&gt;</code> not by their values but by the values resulting from applying some computation
-on them.</p>
+The <code class="codehilite">sort</code> operator returns a new <code class="codehilite">Array&lt;T&gt;</code> with the very same items
+from the input <code class="codehilite">Array&lt;T&gt;</code> but ordered according to the sorting criteria
+defined by the supplied <code class="codehilite">mapFunction: (item: T) =&gt; V</code> and <code class="codehilite"><span class="n">ascending</span><span class="o">:</span><span class="n">Boolean</span></code> arguments.</p>
+<p>The supplied <code class="codehilite">mapFunction: (item: T) =&gt; V</code> must be a valid <a href="../../subscripts">subscript</a>
+over type <code class="codehilite">T</code>, and its <code class="codehilite">V</code> output type must be one of the value types:
+<code class="codehilite">Boolean</code>, <code class="codehilite">Integer</code>, <code class="codehilite">Float</code> or <code class="codehilite">String</code>. This function gives the
+<code class="codehilite">sort</code> operator the power to sort the items in the input <code class="codehilite">Array&lt;T&gt;</code> not
+by their values but by the values resulting from applying some
+computation on them.</p>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<div class="codehilite"><pre><span></span><span class="p">[</span>                           <span class="c1">// Array&lt;Map&lt;String, Int&gt;&gt;</span>
-    <span class="p">[</span> <span class="nx">ARRAY_SORT</span><span class="p">,</span> <span class="p">[</span>         <span class="c1">// Map&lt;String, Int&gt;</span>
-        <span class="p">[</span> <span class="nx">MAP_GET</span><span class="p">,</span> <span class="s2">&quot;age&quot;</span> <span class="p">]</span>  <span class="c1">// Int</span>
-    <span class="p">],</span> <span class="nx">False</span> <span class="p">]</span>              <span class="c1">// Array&lt;Map&lt;String, Int&gt;&gt;</span>
-<span class="p">]</span>                           <span class="c1">// Result&lt;Array&lt;Map&lt;String, Int&gt;&gt;&gt;</span>
+<p><div class="codehilite"><pre><span></span><span class="mi">93</span> <span class="mi">58</span> <span class="mi">92</span> <span class="mi">61</span> <span class="nx">A3</span> <span class="mi">61</span> <span class="mi">67</span> <span class="mi">65</span> <span class="nx">C3</span>
 </pre></div>
-
+<div class="codehilite"><pre><span></span><span class="p">[</span>
+    <span class="p">[</span> <span class="nx">OP_ARRAY_SORT</span><span class="p">,</span> <span class="p">[</span>          <span class="c1">// [ 0x58, [</span>
+        <span class="p">[</span> <span class="nx">OP_MAP_GET</span><span class="p">,</span> <span class="s2">&quot;age&quot;</span> <span class="p">]</span>   <span class="c1">//      [ 0x61, &quot;age&quot; ]</span>
+    <span class="p">],</span> <span class="kc">false</span> <span class="p">]</span>                  <span class="c1">// ], false ]</span>
+<span class="p">]</span>
+</pre></div></p>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Remember</p>
-<p>The "identity" subscript (one that returns its own input without any transformation) is expressed in RADON as an
-empty <code class="codehilite">Array</code>:</p>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_SORT</span><span class="p">,</span> <span class="p">[]</span> <span class="p">]</span>
+<p>The "identity" subscript (one that returns its own input without 
+any transformation) is expressed in RADON as an empty <code class="codehilite">Array</code>:</p>
+<p><div class="codehilite"><pre><span></span><span class="mi">92</span> <span class="mi">58</span> <span class="mi">90</span>
 </pre></div>
-
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_SORT</span><span class="p">,</span> <span class="p">[]</span> <span class="p">]</span>   <span class="c1">// [ 0x58, [] ]</span>
+</pre></div></p>
 </div>
 <div class="admonition danger">
 <p class="admonition-title">Incentive safety</p>
-<p>This operator may introduce adverse incentives if used in the aggregation or consensus stages.</p>
+<p>This operator may introduce adverse incentives if used in the
+aggregation or consensus stages.</p>
 </div>
 <h2 id="arraytakemin-max"><code class="codehilite">Array.take(min, max)</code><a class="headerlink" href="#arraytakemin-max" title="Permanent link">&para;</a></h2>
-<p><div class="codehilite"><pre><span></span><span class="nx">take</span><span class="p">(</span><span class="nx">min?</span>: <span class="kt">Int</span><span class="p">,</span> <span class="nx">max?</span>: <span class="kt">Int</span><span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span>
+<p><div class="codehilite"><pre><span></span><span class="nx">take</span><span class="p">(</span><span class="nx">min?</span>: <span class="kt">Integer</span><span class="p">,</span> <span class="nx">max?</span>: <span class="kt">Integer</span><span class="p">)</span><span class="o">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_TAKE</span><span class="p">,</span> <span class="nx">min</span><span class="p">,</span> <span class="nx">max</span> <span class="p">]</span> <span class="c1">// Providing both a minimum and a maximum</span>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_TAKE</span><span class="p">,</span> <span class="nx">min</span><span class="p">,</span> <span class="nx">max</span> <span class="p">]</span> <span class="c1">// Providing both a minimum and a maximum</span>
 </pre></div>
-The <code class="codehilite">take</code> operator returns a new <code class="codehilite">Array&lt;T&gt;</code> with at least the <code class="codehilite"><span class="n">min</span><span class="o">:</span> <span class="n">Int</span></code> first items in the input <code class="codehilite">Array&lt;T&gt;</code> and at
-most <code class="codehilite"><span class="n">max</span><span class="o">:</span> <span class="n">Int</span></code> items.</p>
+The <code class="codehilite">take</code> operator returns a new <code class="codehilite">Array&lt;T&gt;</code> with at least the <code class="codehilite"><span class="n">min</span><span class="o">:</span><span class="n">Integer</span></code> first items in the input <code class="codehilite">Array&lt;T&gt;</code> and at most <code class="codehilite"><span class="n">max</span><span class="o">:</span> <span class="n">Integer</span></code>
+items.</p>
 <div class="admonition tip">
 <p class="admonition-title">Take at least / Take at most / Take exactly</p>
-<p>This operator can be easily used to reproduce the <em>"take at least N items"</em> and <em>"take at most N items"</em> behaviors
-separately:</p>
-<p><div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_TAKE</span><span class="p">,</span> <span class="mi">5</span> <span class="p">]</span> <span class="c1">// &quot;take at least 5 items&quot;</span>
+<p>This operator can be easily used to reproduce the <em>"take at least N
+items"</em> and <em>"take at most N items"</em> behaviors separately:</p>
+<p><div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_TAKE</span><span class="p">,</span> <span class="mi">5</span> <span class="p">]</span>    <span class="c1">// &quot;take at least 5 items&quot;</span>
 </pre></div>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_TAKE</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span> <span class="p">]</span> <span class="c1">// &quot;take at most 10 items&quot;</span>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_TAKE</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span> <span class="p">]</span>    <span class="c1">// &quot;take at most 10 items&quot;</span>
 </pre></div>
-Conversely, this will take <strong>exactly</strong> <code class="codehilite">7</code> item (or fail if there are not enough items):</p>
-<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">ARRAY_TAKE</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">7</span> <span class="p">]</span>
+Conversely, this will take <strong>only</strong> the item at position <code class="codehilite">7</code> (or
+fail if there are not enough items):</p>
+<div class="codehilite"><pre><span></span><span class="p">[</span> <span class="nx">OP_ARRAY_TAKE</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">7</span> <span class="p">]</span>
 </pre></div>
 
 </div>
 <div class="admonition danger">
-<p>This operator can throw a runtime exception if the input <code class="codehilite">Array&lt;T&gt;</code> does not contain enough items to satisfy the
-minimum amount of items required by the supplied <code class="codehilite"><span class="n">min</span><span class="o">:</span> <span class="n">Int</span></code> argument.</p>
+<p>This operator can throw a runtime exception if the input <code class="codehilite">Array&lt;T&gt;</code> 
+does not contain enough items to satisfy the minimum amount of
+items required by the supplied <code class="codehilite"><span class="n">min</span><span class="o">:</span> <span class="n">Integer</span></code> argument.</p>
 </div>
 <div class="admonition danger">
 <p class="admonition-title">Incentive safety</p>
-<p>This operator may introduce adverse incentives if used in the aggregation or consensus stages.</p>
+<p>This operator may introduce adverse incentives if used in the 
+aggregation or consensus stages.</p>
 </div>
                 
                   
@@ -2108,7 +2126,7 @@ minimum amount of items required by the supplied <code class="codehilite"><span 
       
     </div>
     
-      <script src="../../../../../assets/javascripts/application.583bbe55.js"></script>
+      <script src="../../../../../assets/javascripts/application.9e1f3b71.js"></script>
       
       <script>app.initialize({version:"1.0.4",url:{base:"../../../../.."}})</script>
       

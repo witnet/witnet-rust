@@ -34,7 +34,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../../../../assets/images/favicon.ico">
-      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.0.4">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.1.0">
     
     
       
@@ -42,7 +42,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../../assets/stylesheets/application.451f80e5.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/application.11e41852.css">
       
         <link rel="stylesheet" href="../../../../assets/stylesheets/application-palette.22915126.css">
       
@@ -53,7 +53,7 @@
       
     
     
-      <script src="../../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../../../assets/javascripts/modernizr.20ef595d.js"></script>
     
     
       
@@ -63,6 +63,7 @@
       
     
     <link rel="stylesheet" href="../../../../assets/fonts/material-icons.css">
+    
     
     
   </head>
@@ -100,7 +101,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="../../../../#radon-encoding" tabindex="1" class="md-skip">
+      <a href="#radon-encoding" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -703,11 +704,11 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2-2-2" type="checkbox" id="nav-3-2-2-2">
     
     <label class="md-nav__link" for="nav-3-2-2-2">
-      Data types
+      Types and operators
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="4">
       <label class="md-nav__title" for="nav-3-2-2-2">
-        Data types
+        Types and operators
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -754,8 +755,8 @@
 
 
   <li class="md-nav__item">
-    <a href="../types/int/" title="Int" class="md-nav__link">
-      Int
+    <a href="../types/integer/" title="Integer" class="md-nav__link">
+      Integer
     </a>
   </li>
 
@@ -914,18 +915,6 @@
   </li>
 
         
-          
-          
-          
-
-
-  <li class="md-nav__item">
-    <a href="../../radlang/" title="RADlang" class="md-nav__link">
-      RADlang
-    </a>
-  </li>
-
-        
       </ul>
     </nav>
   </li>
@@ -968,7 +957,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../witscript/" title="WitScript" class="md-nav__link">
+    <a href="../../../witscript.md" title="WitScript" class="md-nav__link">
       WitScript
     </a>
   </li>
@@ -1664,20 +1653,37 @@
                 
                 <h1 id="radon-encoding">RADON encoding<a class="headerlink" href="#radon-encoding" title="Permanent link">&para;</a></h1>
 <p>RADON scripts are encoded using <a href="https://msgpack.org">MessagePack</a>, a very efficient, compact and widely supported data structure encoding.</p>
-<p>Before encoding, a RADON script looks like this:
+<p>Look for example at this impressively short (22 bytes) serialized RADON script:
+<div class="codehilite"><pre><span></span><span class="c1">// As bytes</span>
+<span class="mi">96</span> <span class="mi">43</span> <span class="mi">74</span> <span class="mi">92</span> <span class="mi">61</span> <span class="nx">A7</span> <span class="mi">77</span> <span class="mi">65</span> <span class="mi">61</span> <span class="mi">74</span> <span class="mi">68</span> <span class="mi">65</span> <span class="mi">72</span> <span class="mi">74</span> <span class="mi">92</span> <span class="mi">61</span> <span class="nx">A4</span> <span class="mi">74</span> <span class="mi">65</span> <span class="mi">6</span><span class="nx">D</span> <span class="mi">70</span> <span class="mi">72</span>
+
+<span class="c1">// As Base64 string</span>
+<span class="s2">&quot;lkN0kmGnd2VhdGhlcnSSYaR0ZW1wcg==&quot;</span>
+</pre></div></p>
+<p>Once decoded, the resulting structure will actually represent this RADON script:
 <div class="codehilite"><pre><span></span><span class="p">[</span>
-    <span class="nx">STRING_PARSEJSON</span><span class="p">,</span>
-    <span class="nx">MIXED_TOMAP</span><span class="p">,</span>
-    <span class="p">[</span> <span class="nx">MAP_GET</span><span class="p">,</span> <span class="s2">&quot;weather&quot;</span> <span class="p">],</span>
-    <span class="nx">MIXED_TOMAP</span><span class="p">,</span>
-    <span class="p">[</span> <span class="nx">MAP_GET</span><span class="p">,</span> <span class="s2">&quot;temp&quot;</span> <span class="p">],</span>
-    <span class="nx">MIXED_TOFLOAT</span>
+    <span class="nx">STRING_PARSEJSON</span><span class="p">,</span>       <span class="c1">// 0x43</span>
+    <span class="nx">MIXED_TOMAP</span><span class="p">,</span>            <span class="c1">// 0x74</span>
+    <span class="p">[</span> <span class="nx">MAP_GET</span><span class="p">,</span> <span class="s2">&quot;weather&quot;</span> <span class="p">],</span> <span class="c1">// [ 0x61, &quot;weather&quot; ]</span>
+    <span class="nx">MIXED_TOMAP</span><span class="p">,</span>            <span class="c1">// 0x74</span>
+    <span class="p">[</span> <span class="nx">MAP_GET</span><span class="p">,</span> <span class="s2">&quot;temp&quot;</span> <span class="p">],</span>    <span class="c1">// [ 0x61, &quot;temp&quot; ]</span>
+    <span class="nx">MIXED_TOFLOAT</span>           <span class="c1">// 0x72</span>
 <span class="p">]</span>
 </pre></div></p>
-<p>After encoding, we get an impressively compact (22 bytes long) output:
-<div class="codehilite"><pre><span></span>// Base64
-lgMEkgCnd2VhdGhlcgSSAKR0ZW1wAg
-</pre></div></p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>RADON scripts are pure byte code sequences but at the same time represent high-level abstractions.
+In an hypothetical Javascript-like representation of RADON operators, the script above may resemble:</p>
+<div class="codehilite"><pre><span></span><span class="nx">retrieve</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">parseJSON</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">toMap</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s2">&quot;weather&quot;</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">toMap</span><span class="p">()</span>
+    <span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s2">&quot;temp&quot;</span><span class="p">)</span>
+    <span class="p">.</span><span class="nx">toFloat</span><span class="p">()</span>
+</pre></div>
+
+</div>
 <div class="admonition info">
 <p class="admonition-title">Constants</p>
 <p>All across this documentation, unquoted uppercase names like <code class="codehilite">STRING_PARSEJSON</code> identify different operators and
@@ -1770,7 +1776,7 @@ constants that equate to a single byte when encoded.</p>
       
     </div>
     
-      <script src="../../../../assets/javascripts/application.583bbe55.js"></script>
+      <script src="../../../../assets/javascripts/application.9e1f3b71.js"></script>
       
       <script>app.initialize({version:"1.0.4",url:{base:"../../../.."}})</script>
       
