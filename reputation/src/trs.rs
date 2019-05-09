@@ -13,6 +13,8 @@ use std::{
 };
 
 use failure::Fail;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Total Reputation Set
 ///
@@ -29,6 +31,7 @@ use failure::Fail;
 /// The method `penalize(id, f)` will apply a penalization function `f` to an identity `id`.
 /// The penalization amount will be subtracted from the most recent reputation packets (those which will
 /// expire later).
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[derive(Clone, Debug)]
 pub struct TotalReputationSet<K, V, A, S>
 where

@@ -1,10 +1,11 @@
 //! Active Reputation Set
 
-use queues::{CircularBuffer, IsQueue};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use crate::trs::{decrement_cache, increment_cache};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     hash::Hash,
 };
 
@@ -17,6 +18,7 @@ use std::{
 /// The method `push_activity` insert a vector of identities in the structure
 /// and also update with the identities that are expired.
 
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[derive(Debug)]
 pub struct ActiveReputationSet<K>
 where
@@ -26,7 +28,9 @@ where
     // All the identities with activity are in the cache
     map: HashMap<K, u16>,
     // The list of active identities ordered by time
-    queue: CircularBuffer<HashSet<K>>,
+    queue: VecDeque<HashSet<K>>,
+    // Capacity
+    capacity: usize,
 }
 
 impl<K> ActiveReputationSet<K>
@@ -49,19 +53,20 @@ where
     pub fn new(capacity: usize) -> Self {
         Self {
             map: HashMap::new(),
-            queue: CircularBuffer::new(capacity),
+            queue: VecDeque::with_capacity(capacity),
+            capacity,
         }
     }
 
     /// Gets the capacity of the buffer: the number of insertions
     /// that it takes to start dropping old entries.
     pub fn buffer_capacity(&self) -> usize {
-        self.queue.capacity()
+        self.capacity
     }
 
     /// Gets the size of the `ActiveReputationSet<K>`
     pub fn buffer_size(&self) -> usize {
-        self.queue.size()
+        self.queue.len()
     }
 
     /// Contains method for `ActiveReputationSet<K>`
@@ -85,25 +90,20 @@ where
     where
         M: IntoIterator<Item = K>,
     {
+        if self.queue.len() >= self.capacity {
+            self.queue.pop_front().unwrap().into_iter().for_each(|id| {
+                // If the cache is consistent, this unwrap cannot fail
+                decrement_cache(&mut self.map, id, 1).unwrap();
+            });
+        }
+
         // Update new identities added to the queue
         let identities: HashSet<K> = identities.into_iter().collect();
         identities.iter().for_each(|id| {
             increment_cache(&mut self.map, id.clone(), 1);
         });
 
-        if let Some(identities_with_expired_reputation) = self
-            .queue
-            .add(identities)
-            // This operation can not fail (add method only returns ok)
-            .unwrap()
-        {
-            identities_with_expired_reputation
-                .into_iter()
-                .for_each(|id| {
-                    // If the cache is consistent, this unwrap cannot fail
-                    decrement_cache(&mut self.map, id, 1).unwrap();
-                });
-        }
+        self.queue.push_back(identities);
     }
 }
 
