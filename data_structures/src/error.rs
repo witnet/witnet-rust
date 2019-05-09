@@ -4,6 +4,7 @@ use failure::Fail;
 use std::num::ParseIntError;
 
 use super::chain::{CommitOutput, Epoch, Hash, OutputPointer, PublicKeyHash, RevealOutput};
+use crate::chain::HashParseError;
 
 /// The error type for operations on a [`ChainInfo`](ChainInfo)
 #[derive(Debug, PartialEq, Fail)]
@@ -164,13 +165,13 @@ pub enum BlockError {
 
 #[derive(Debug, Fail)]
 pub enum OutputPointerParseError {
-    #[fail(display = "output pointer has an invalid length")]
-    InvalidHashLength,
+    #[fail(display = "Failed to parse transaction hash: {}", _0)]
+    Hash(HashParseError),
     #[fail(
-        display = "output pointer has the wrong format, expected '<transaction id>:<output index>'"
+        display = "Output pointer has the wrong format, expected '<transaction id>:<output index>'"
     )]
     MissingColon,
-    #[fail(display = "could not parse output index as an integer")]
+    #[fail(display = "Could not parse output index as an integer: {}", _0)]
     ParseIntError(ParseIntError),
 }
 

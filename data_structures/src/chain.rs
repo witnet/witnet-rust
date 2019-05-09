@@ -24,6 +24,7 @@ use super::{
     proto::{schema::witnet, ProtobufConvert},
 };
 use crate::error::DataRequestError;
+use failure::Fail;
 
 pub trait Hashable {
     fn hash(&self) -> Hash;
@@ -300,7 +301,7 @@ impl Into<ExtendedSK> for ExtendedSecretKey {
 }
 
 /// Hash
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Serialize, Hash, ProtobufConvert)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Hash")]
 pub enum Hash {
     /// SHA-256 Hash
@@ -334,22 +335,65 @@ impl fmt::Display for Hash {
     }
 }
 
+/// Error when parsing hash from string
+#[derive(Debug, Fail)]
+pub enum HashParseError {
+    #[fail(display = "Invalid hash length: expected 32 bytes but got {}", _0)]
+    InvalidLength(usize),
+}
+
+impl FromStr for Hash {
+    type Err = HashParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut sha256: SHA256 = [0; 32];
+        let sha256_bytes = parse_hex(&s);
+        if sha256_bytes.len() != 32 {
+            Err(HashParseError::InvalidLength(sha256_bytes.len()))
+        } else {
+            sha256.copy_from_slice(&sha256_bytes);
+            Ok(Hash::SHA256(sha256))
+        }
+    }
+}
+
 impl fmt::Debug for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
     }
 }
 
-/// Helper type to allow deserialization of hashes in string format:
-/// "01234abcd..." instead of [0x01, 0x23, 0x4a, 0xbc, ...]
-#[derive(Deserialize)]
-#[serde(untagged)]
+/// This is a copy of the Hash definition used to derive Serialize, Deserialize
+#[derive(Deserialize, Serialize)]
 enum HashSerializationHelper {
-    Normal {
-        #[serde(rename = "SHA256")]
-        hash: SHA256,
-    },
-    AsString(String),
+    /// SHA-256 Hash
+    SHA256(SHA256),
+}
+
+impl From<Hash> for HashSerializationHelper {
+    fn from(x: Hash) -> Self {
+        match x {
+            Hash::SHA256(a) => HashSerializationHelper::SHA256(a),
+        }
+    }
+}
+
+impl Into<Hash> for HashSerializationHelper {
+    fn into(self) -> Hash {
+        match self {
+            HashSerializationHelper::SHA256(a) => Hash::SHA256(a),
+        }
+    }
+}
+
+impl Serialize for Hash {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if serializer.is_human_readable() {
+            serializer.collect_str(&self)
+        } else {
+            HashSerializationHelper::from(*self).serialize(serializer)
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for Hash {
@@ -357,24 +401,13 @@ impl<'de> Deserialize<'de> for Hash {
     where
         D: Deserializer<'de>,
     {
-        let hash_deser = HashSerializationHelper::deserialize(deserializer)?;
-
-        match hash_deser {
-            HashSerializationHelper::Normal { hash } => Ok(Hash::SHA256(hash)),
-            HashSerializationHelper::AsString(hash_str) => {
-                let mut sha256: SHA256 = [0; 32];
-                let sha256_bytes = parse_hex(&hash_str);
-                if sha256_bytes.len() != 32 {
-                    Err(<D::Error as serde::de::Error>::invalid_length(
-                        sha256_bytes.len(),
-                        &"32",
-                    ))
-                } else {
-                    sha256.copy_from_slice(&sha256_bytes);
-
-                    Ok(Hash::SHA256(sha256))
-                }
-            }
+        use serde::de;
+        if deserializer.is_human_readable() {
+            String::deserialize(deserializer)?
+                .parse::<Hash>()
+                .map_err(de::Error::custom)
+        } else {
+            HashSerializationHelper::deserialize(deserializer).map(Into::into)
         }
     }
 }
@@ -993,9 +1026,13 @@ impl FromStr for OutputPointer {
 
         let mut tokens = s.trim().split(':');
 
-        let transaction_id: &str = tokens
+        let transaction_id = tokens
             .next()
-            .ok_or(OutputPointerParseError::InvalidHashLength)?;
+            .ok_or(OutputPointerParseError::Hash(
+                HashParseError::InvalidLength(0),
+            ))?
+            .parse()
+            .map_err(OutputPointerParseError::Hash)?;
         let output_index = tokens
             .next()
             .ok_or(OutputPointerParseError::MissingColon)?
@@ -1004,16 +1041,7 @@ impl FromStr for OutputPointer {
 
         Ok(OutputPointer {
             output_index,
-            transaction_id: {
-                let mut sha256: SHA256 = [0; 32];
-                let sha256_bytes = parse_hex(&transaction_id);
-                if sha256_bytes.len() != 32 {
-                    return Err(OutputPointerParseError::InvalidHashLength);
-                }
-                sha256.copy_from_slice(&sha256_bytes);
-
-                Hash::SHA256(sha256)
-            },
+            transaction_id,
         })
     }
 }
