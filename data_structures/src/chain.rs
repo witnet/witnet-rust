@@ -1046,12 +1046,38 @@ impl FromStr for OutputPointer {
     }
 }
 
+/// This is a copy of the Hash definition used to derive Serialize, Deserialize
+#[derive(Deserialize, Serialize)]
+struct OutputPointerSerializationHelper {
+    pub transaction_id: Hash,
+    pub output_index: u32,
+}
+
+impl From<OutputPointer> for OutputPointerSerializationHelper {
+    fn from(x: OutputPointer) -> Self {
+        OutputPointerSerializationHelper {
+            transaction_id: x.transaction_id,
+            output_index: x.output_index,
+        }
+    }
+}
+
+impl Into<OutputPointer> for OutputPointerSerializationHelper {
+    fn into(self) -> OutputPointer {
+        OutputPointer {
+            transaction_id: self.transaction_id,
+            output_index: self.output_index,
+        }
+    }
+}
+
 impl Serialize for OutputPointer {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if serializer.is_human_readable() {
+            serializer.collect_str(&self)
+        } else {
+            OutputPointerSerializationHelper::from(self.clone()).serialize(serializer)
+        }
     }
 }
 
@@ -1060,9 +1086,14 @@ impl<'de> Deserialize<'de> for OutputPointer {
     where
         D: Deserializer<'de>,
     {
-        let output_pointer_as_str = String::deserialize(deserializer)?;
-
-        Self::from_str(&output_pointer_as_str).map_err(<D::Error as serde::de::Error>::custom)
+        use serde::de;
+        if deserializer.is_human_readable() {
+            String::deserialize(deserializer)?
+                .parse::<OutputPointer>()
+                .map_err(de::Error::custom)
+        } else {
+            OutputPointerSerializationHelper::deserialize(deserializer).map(Into::into)
+        }
     }
 }
 
