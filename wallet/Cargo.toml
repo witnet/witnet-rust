@@ -15,7 +15,11 @@ futures = "0.1.26"
 serde = { version = "1.0.90", features = ["derive"] }
 serde_json = "1.0.39"
 clap = "2.33.0"
+rocksdb = "0.12.2"
+failure = "0.1.5"
 
 witnet_net = { path = "../net" }
 witnet_config = { path = "../config" }
 witnet_storage = { path = "../storage" }
+bincode = "1.1.3"
+

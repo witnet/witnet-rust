@@ -59,7 +59,7 @@ where
     /// Starts a JsonRPC Websockets server.
     ///
     /// The factory is used to create handlers for the json-rpc messages sent to the server.
-    pub fn run(self) -> io::Result<()> {
+    pub fn start(self) -> io::Result<Addr<actix_net::server::Server>> {
         let Server {
             factory,
             workers,
@@ -74,7 +74,17 @@ where
 
             let f = factory.clone();
 
-            App::new().resource("/", move |r| r.f(move |req| ws::start(req, Ws::new(f()))))
+            App::new().resource("/", move |r| {
+                r.f(move |req| {
+                    let remote = req
+                        .connection_info()
+                        .remote()
+                        .map(ToString::to_string)
+                        .unwrap_or_else(|| "[unknown ip]".to_string());
+                    let actor = Ws::new(remote, f());
+                    ws::start(req, actor)
+                })
+            })
         })
         .bind(addr)?;
 
@@ -82,9 +92,7 @@ where
             s = s.workers(workers);
         }
 
-        s.run();
-
-        Ok(())
+        Ok(s.start())
     }
 }
 

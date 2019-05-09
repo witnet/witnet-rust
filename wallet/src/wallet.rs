@@ -1,4 +1,8 @@
-//! Wallet type definitions.
+//! # Wallet related structs
+
+// TODO: Remove allow atribute when all strucst are used.
+#![allow(dead_code)]
+
 use jsonrpc_core::Value;
 use serde::{Deserialize, Serialize};
 

@@ -7,11 +7,18 @@ use env_logger;
 use witnet_config as config;
 use witnet_wallet as wallet;
 
+#[cfg(debug_assertions)]
+const DEFAULT_LEVEL: log::LevelFilter = log::LevelFilter::Trace;
+
+#[cfg(not(debug_assertions))]
+const DEFAULT_LEVEL: log::LevelFilter = log::LevelFilter::Info;
+
 fn main() {
-    env_logger::Builder::from_default_env()
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("witnet"))
         .default_format_timestamp(false)
         .default_format_module_path(false)
         .filter_level(log::LevelFilter::Info)
+        .filter_module("witnet", DEFAULT_LEVEL)
         .init();
 
     let app = app_definition();
@@ -76,7 +83,7 @@ fn main() {
 
     match matches.subcommand() {
         ("run", _) => match wallet::run(conf) {
-            Ok(_) => process::exit(0),
+            Ok(code) => process::exit(code),
             Err(e) => {
                 eprintln!("{}", e);
                 process::exit(1);

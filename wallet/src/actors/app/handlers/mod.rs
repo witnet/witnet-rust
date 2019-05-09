@@ -1,7 +1,4 @@
 //! TODO: doc
-use actix::prelude::*;
-
-use super::App;
 
 mod create_data_request;
 mod create_mnemonics;

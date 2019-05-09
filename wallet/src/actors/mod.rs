@@ -1,4 +1,4 @@
-/// TODO: doc
+//! # Module containing all the application actors.
 pub mod app;
 pub mod storage;
 

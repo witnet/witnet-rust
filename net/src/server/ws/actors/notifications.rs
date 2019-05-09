@@ -9,12 +9,15 @@ use futures::{future, Future};
 pub struct Notifications {
     /// Subscribed actors for the notification message.
     subscribers: Vec<Recipient<Notify>>,
+    /// Field used to check before
+    version: Version,
 }
 
 impl Default for Notifications {
     fn default() -> Self {
         Self {
             subscribers: Vec::new(),
+            version: Version::new(),
         }
     }
 }
@@ -41,22 +44,31 @@ impl Handler<Notify> for Notifications {
     type Result = <Notify as Message>::Result;
 
     fn handle(&mut self, msg: Notify, ctx: &mut Self::Context) -> Self::Result {
+        let current_version = self.version;
         let futures: Vec<_> = self
             .subscribers
             .iter()
+            .cloned()
             .map(|subscriber| {
-                let s = subscriber.clone();
-                subscriber.send(msg.clone()).map(|_| Some(s)).or_else(|e| {
-                    log::error!("Couldn't notify client: {}", e);
-                    future::ok(None)
-                })
+                subscriber
+                    .send(msg.clone())
+                    .map(|_| Some(subscriber))
+                    .or_else(|e| {
+                        log::error!("Couldn't notify client: {}", e);
+                        future::ok(None)
+                    })
             })
             .collect();
 
+        // Increment version so the returned future's Refresh-Update doesn't override another ones
+        self.version.increment();
         future::join_all(futures)
             .into_actor(self)
-            .and_then(|subscriptions, _, ctx| {
-                ctx.notify(Refresh(subscriptions));
+            .and_then(move |subscriptions, _, ctx| {
+                ctx.notify(Refresh {
+                    version: current_version,
+                    subscribers: subscriptions.into_iter().filter_map(|x| x).collect(),
+                });
                 fut::ok(())
             })
             .spawn(ctx);
@@ -77,7 +89,8 @@ impl Handler<Subscribe> for Notifications {
     type Result = <Subscribe as Message>::Result;
 
     fn handle(&mut self, msg: Subscribe, _ctx: &mut Self::Context) -> Self::Result {
-        self.subscribers.push(msg.0)
+        self.version.increment();
+        self.subscribers.push(msg.0);
     }
 }
 
@@ -85,7 +98,10 @@ impl Handler<Subscribe> for Notifications {
 ///
 /// It tells the [`Notifications`](Notifications) to replace its list of recipients by the received
 /// one.
-struct Refresh(Vec<Option<Recipient<Notify>>>);
+struct Refresh {
+    version: Version,
+    subscribers: Vec<Recipient<Notify>>,
+}
 
 impl Message for Refresh {
     type Result = ();
@@ -95,6 +111,25 @@ impl Handler<Refresh> for Notifications {
     type Result = <Refresh as Message>::Result;
 
     fn handle(&mut self, msg: Refresh, _ctx: &mut Self::Context) -> Self::Result {
-        self.subscribers = msg.0.into_iter().filter_map(|x| x).collect();
+        // Update subscribers only to the last ones we know are responding
+        if self.version == msg.version {
+            self.subscribers = msg.subscribers;
+        }
+    }
+}
+
+/// Helper type for handling version numbers.
+#[derive(Eq, PartialEq, Copy, Clone)]
+struct Version(u8);
+
+impl Version {
+    /// Create a new version instance.
+    fn new() -> Self {
+        Self(0)
+    }
+
+    /// Increment the version
+    fn increment(&mut self) {
+        self.0 = self.0.wrapping_add(1);
     }
 }

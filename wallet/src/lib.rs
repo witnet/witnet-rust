@@ -13,9 +13,8 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 #![deny(missing_docs)]
-
 use actix::prelude::*;
-use futures::{future, Future};
+use futures::{future, Future as _};
 use jsonrpc_core as rpc;
 use serde_json as json;
 
@@ -25,8 +24,20 @@ use witnet_net::server::ws;
 mod actors;
 mod client;
 mod err_codes;
+mod error;
 mod response;
 mod wallet;
+
+/// Helper macro to build jsonrpc internal-error types
+macro_rules! internal_error {
+    () => {
+        rpc::Error {
+            code: rpc::ErrorCode::ServerError(err_codes::INTERNAL_ERROR),
+            message: "Internal error.".into(),
+            data: None,
+        }
+    };
+}
 
 /// Helper macro to add multiple JSON-RPC methods at once
 macro_rules! routes {
@@ -37,36 +48,42 @@ macro_rules! routes {
         {
             let app_addr = $app.clone();
             $io.add_method($method_jsonrpc, move |params: rpc::Params| {
+                log::debug!("Received request {}(params: {:?})", $method_jsonrpc, params);
                 let addr = app_addr.clone();
                 // Try to parse the request params into the actor message
                 future::result(params.parse::<$actor_msg>())
                     .and_then(move |msg| {
                         // Then send the parsed message to the actor
                         addr.send(msg)
-                            .map_err(|mb_err| {
-                                // If communication fails send an internal error. The websockets
-                                // server probably will catch this error and close the socket
-                                // connection since the App actor seems to have died
-                                log::error!("Error communicating with App actor: {}", mb_err);
-                                rpc::Error {
-                                    code: rpc::ErrorCode::ServerError(err_codes::INTERNAL_ERROR),
-                                    message: "Internal error".into(),
-                                    data: None,
+                            .map_err(error::Error::Mailbox)
+                            .flatten()
+                            .and_then(
+                                |x|
+                                future::result(json::to_value(x)).map_err(error::Error::Serialization)
+                            )
+                            .map_err(|err| match err {
+                                error::Error::Mailbox(MailboxError::Closed) => {
+                                    log::error!("Mailbox closed");
+                                    internal_error!()
+                                }
+                                error::Error::Mailbox(MailboxError::Timeout) => {
+                                    log::error!("Mailbox timed out");
+                                    rpc::Error {
+                                        code: rpc::ErrorCode::ServerError(err_codes::TIMEOUT_ERROR),
+                                        message: "Timeout error.".into(),
+                                        data: None,
+                                    }
+                                }
+                                error::Error::Storage(err) => {
+                                    log::error!("Database: {}", err);
+                                    internal_error!()
+                                }
+                                error::Error::Serialization(err) => {
+                                    log::error!("Serialization: {}", err);
+                                    internal_error!()
                                 }
                             })
-                            .and_then(
-                                |response|
-                                future::result(json::to_value(response))
-                                    .map_err(|err| {
-                                        /// Json serialization failed for some reason, tell the client that.
-                                        log::error!("Error serializing the response result: {}", err);
-                                        rpc::Error {
-                                            code: rpc::ErrorCode::ServerError(err_codes::SERIALIZATION_ERROR),
-                                            message: "Failed to serialize the response".into(),
-                                            data: None,
-                                        }
-                                    })
-                            )
+                            .inspect(|r| log::debug!("Sending response {:?}", r))
                     })
             });
         }
@@ -91,15 +108,15 @@ macro_rules! forwarded_routes {
 }
 
 /// Run the websockets server for the Witnet wallet.
-pub fn run(conf: Config) -> std::io::Result<()> {
+pub fn run(conf: Config) -> Result<i32, failure::Error> {
     let workers = conf.wallet.workers;
     let addr = conf.wallet.server_addr;
     let db_path = conf.wallet.db_path;
 
-    ws::Server::new(move || {
-        let thread_db_path = db_path.clone();
-        let storage = SyncArbiter::start(1, move || actors::Storage::new(thread_db_path.clone()));
-        let app = actors::App::new(storage).start();
+    let system = System::new("witnet-wallet");
+    let app = actors::App::build().start(db_path);
+
+    let _server = ws::Server::new(move || {
         let mut io = rpc::IoHandler::default();
 
         forwarded_routes!(io, "getBlock", "getBlockChain", "getOutput", "inventory",);
@@ -125,5 +142,7 @@ pub fn run(conf: Config) -> std::io::Result<()> {
     })
     .workers(workers)
     .addr(addr)
-    .run()
+    .start()?;
+
+    Ok(system.run())
 }

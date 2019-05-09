@@ -11,21 +11,26 @@ use super::notifications as notify;
 /// Actor to handle a Websocket connection.
 pub struct Ws {
     /// Client must send ping at least once per 10 seconds
-    /// (CLIENT_TIMEOUT), otherwise we drop connection
+    /// (`CLIENT_TIMEOUT`), otherwise we drop connection
     last_heartbeat: Instant,
 
     /// JsonRPC handler in charge of handling the requests received through websockets.
     pub jsonrpc_handler: rpc::IoHandler,
+
+    /// Remote IP of client.
+    remote: String,
 }
 
 impl Ws {
     /// Create a new [`Ws`](Ws) instance with the given JsonRPC handler factory.
     ///
-    /// The handler factory will invoked during the actor startup... TODO: continue
-    pub fn new(jsonrpc_handler: rpc::IoHandler) -> Self {
+    /// The handler factory will be invoked during the actor startup in order to obtain the request
+    /// handler (`jsonrpc_core::IoHandler`) for the websocket requests.
+    pub fn new(remote: String, jsonrpc_handler: rpc::IoHandler) -> Self {
         Self {
             last_heartbeat: Instant::now(),
             jsonrpc_handler,
+            remote,
         }
     }
 }
@@ -34,6 +39,7 @@ impl Actor for Ws {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        log::info!("Received connection from {}", self.remote);
         // Subscribe to Notify messages
         notify::Notifications::from_registry()
             .do_send(notify::Subscribe(ctx.address().recipient()));
@@ -50,6 +56,10 @@ impl Actor for Ws {
                 ctx.ping("");
             }
         });
+    }
+
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        log::info!("Closed connection to {}", self.remote);
     }
 }
 
@@ -68,11 +78,13 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Ws {
             ws::Message::Ping(msg) => ctx.pong(&msg),
             ws::Message::Pong(_) => {}
             ws::Message::Text(req) => {
+                log::trace!("Received request: {}", req);
                 self.jsonrpc_handler
                     .handle_request(req.as_ref())
                     .into_actor(self)
                     .and_then(|resp_opt, _act, ctx| {
                         if let Some(resp) = resp_opt {
+                            log::trace!("Sending response: {}", resp);
                             ctx.text(resp);
                         }
                         fut::ok(())

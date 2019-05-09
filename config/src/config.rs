@@ -425,11 +425,7 @@ impl Wallet {
                 .unwrap_or_else(|| defaults.wallet_server_addr()),
             node_addr: config.node_addr,
             workers: config.workers.or_else(|| Some(1)),
-            db_path: config
-                .db_path
-                .clone()
-                .unwrap_or_else(dirs::data_dir)
-                .join("wallet.db"),
+            db_path: config.db_path.clone().unwrap_or_else(dirs::data_dir),
         }
     }
 }
