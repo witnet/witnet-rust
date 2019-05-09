@@ -418,9 +418,7 @@ pub type SHA256 = [u8; 32];
 /// Public Key Hash: slice of the digest of a public key (20 bytes).
 ///
 /// It is the first 20 bytes of the SHA256 hash of the PublicKey.
-#[derive(
-    Copy, Clone, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize, ProtobufConvert,
-)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::PublicKeyHash")]
 pub struct PublicKeyHash {
     hash: [u8; 20],
@@ -437,6 +435,28 @@ impl fmt::Display for PublicKeyHash {
     }
 }
 
+/// Error when parsing hash from string
+#[derive(Debug, Fail)]
+pub enum PublicKeyHashParseError {
+    #[fail(display = "Invalid PKH length: expected 20 bytes but got {}", _0)]
+    InvalidLength(usize),
+}
+
+impl FromStr for PublicKeyHash {
+    type Err = PublicKeyHashParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut hash = [0; 20];
+        let h_bytes = parse_hex(&s);
+        if h_bytes.len() != 20 {
+            Err(PublicKeyHashParseError::InvalidLength(h_bytes.len()))
+        } else {
+            hash.copy_from_slice(&h_bytes);
+            Ok(PublicKeyHash { hash })
+        }
+    }
+}
+
 impl PublicKeyHash {
     /// Calculate the hash of the provided public key
     pub fn from_public_key(pk: &PublicKey) -> Self {
@@ -445,6 +465,50 @@ impl PublicKeyHash {
         pkh.copy_from_slice(&h[..20]);
 
         Self { hash: pkh }
+    }
+}
+
+/// This is a copy of the Hash definition used to derive Serialize, Deserialize
+#[derive(Deserialize, Serialize)]
+struct PublicKeyHashSerializationHelper {
+    hash: [u8; 20],
+}
+
+impl From<PublicKeyHash> for PublicKeyHashSerializationHelper {
+    fn from(x: PublicKeyHash) -> Self {
+        Self { hash: x.hash }
+    }
+}
+
+impl Into<PublicKeyHash> for PublicKeyHashSerializationHelper {
+    fn into(self) -> PublicKeyHash {
+        PublicKeyHash { hash: self.hash }
+    }
+}
+
+impl Serialize for PublicKeyHash {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if serializer.is_human_readable() {
+            serializer.collect_str(&self)
+        } else {
+            PublicKeyHashSerializationHelper::from(*self).serialize(serializer)
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for PublicKeyHash {
+    fn deserialize<D>(deserializer: D) -> Result<PublicKeyHash, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de;
+        if deserializer.is_human_readable() {
+            String::deserialize(deserializer)?
+                .parse::<PublicKeyHash>()
+                .map_err(de::Error::custom)
+        } else {
+            PublicKeyHashSerializationHelper::deserialize(deserializer).map(Into::into)
+        }
     }
 }
 
