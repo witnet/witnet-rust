@@ -398,9 +398,9 @@ pub fn create_commit_body(
     let commit_value = calculate_commit_reward(&dr_output);
 
     // TODO: Remove nonce after VRF implementation
-    let nonce: u8 = thread_rng().gen();
+    let nonce: [u8; 16] = thread_rng().gen();
     let mut v = vec![];
-    v.extend(&[nonce]);
+    v.extend(&nonce);
     v.extend(reveal.as_slice());
     let reveal_hash = calculate_sha256(&v).into();
 
