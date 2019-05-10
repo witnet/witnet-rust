@@ -54,6 +54,11 @@ use witnet_data_structures::{
 };
 use witnet_rad::types::RadonTypes;
 
+use itertools::Itertools;
+use witnet_data_structures::chain::{
+    transaction_tag, Alpha, Reputation, ReputationEngine, RevealOutput, TallyOutput, Transaction,
+    TransactionType,
+};
 use witnet_validations::validations::{validate_block, validate_candidate, Diff};
 
 mod actor;
@@ -287,7 +292,7 @@ impl ChainManager {
                 };
 
                 chain_info.highest_block_checkpoint = beacon;
-                update_pools(
+                let rep_info = update_pools(
                     &block,
                     &mut self.chain_state.unspent_outputs_pool,
                     &mut self.chain_state.data_request_pool,
@@ -296,6 +301,8 @@ impl ChainManager {
                     self.own_pkh,
                     &mut self.chain_state.own_utxos,
                 );
+
+                update_reputation(&mut self.chain_state.reputation_engine, rep_info);
 
                 // Insert candidate block into `block_chain` state
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
@@ -365,6 +372,54 @@ impl ChainManager {
     }
 }
 
+#[derive(Debug, Default)]
+struct ReputationInfo {
+    // Counter of "witnessing acts".
+    // For every data request with a tally in this block, increment alpha_diff
+    // by the number of witnesses specified in the data request.
+    alpha_diff: Alpha,
+
+    // Map used to count the number of lies of every identity that participated
+    // in data requests with a tally in this block.
+    // Honest identities are also inserted into this map, with lie count = 0.
+    lie_count: HashMap<PublicKeyHash, u32>,
+}
+
+impl ReputationInfo {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn update(&mut self, transaction: &Transaction, data_request_pool: &DataRequestPool) {
+        let dr_pointer = transaction.body.inputs[0].output_pointer();
+        let dr_state = &data_request_pool.data_request_pool[&dr_pointer];
+        let reveals = &dr_state.info.reveals;
+        let replication_factor = dr_state.data_request.witnesses;
+        self.alpha_diff += Alpha(u32::from(replication_factor));
+        let tally = transaction.body.outputs.last().unwrap();
+        let tally = match tally {
+            Output::Tally(tally) => tally,
+            _ => unreachable!(),
+        };
+
+        for (pkh, reveal_output) in reveals {
+            // FIXME(#640): replace with real truthness check function from radon engine
+            // (currently we assume that all nodes are honest)
+            fn true_revealer(_reveal: &RevealOutput, _tally: &TallyOutput) -> bool {
+                true
+            }
+            let liar = if true_revealer(reveal_output, tally) {
+                0
+            } else {
+                1
+            };
+            // Insert all the revealers, and increment their lie count by 1 if they lied.
+            // lie_count can contain identities which never lied, with lie_count = 0
+            *self.lie_count.entry(*pkh).or_insert(0) += liar;
+        }
+    }
+}
+
 // Helper methods
 fn update_pools(
     block: &Block,
@@ -374,8 +429,16 @@ fn update_pools(
     utxo_diff: Diff,
     own_pkh: Option<PublicKeyHash>,
     own_utxos: &mut HashSet<OutputPointer>,
-) {
+) -> ReputationInfo {
+    let mut rep_info = ReputationInfo::new();
+
     for transaction in block.txns.iter() {
+        // Process tally transactions: used to update reputation engine
+        if let TransactionType::Tally = transaction_tag(&transaction.body) {
+            rep_info.update(transaction, data_request_pool);
+        }
+
+        // Update the data request pool after processing the tally
         if let Err(e) = data_request_pool.process_transaction(
             transaction,
             block.block_header.beacon.checkpoint,
@@ -406,6 +469,142 @@ fn update_pools(
     }
 
     utxo_diff.apply(unspent_outputs_pool);
+
+    rep_info
+}
+
+fn separate_honest_liars<K, V, I>(rep_info: I) -> (Vec<K>, Vec<(K, V)>)
+where
+    V: Default + PartialEq,
+    I: IntoIterator<Item = (K, V)>,
+{
+    let mut honests = vec![];
+    let mut liars = vec![];
+    for (pkh, num_lies) in rep_info {
+        if num_lies == V::default() {
+            honests.push(pkh);
+        } else {
+            liars.push((pkh, num_lies));
+        }
+    }
+
+    (honests, liars)
+}
+
+fn update_reputation(
+    rep_eng: &mut ReputationEngine,
+    ReputationInfo {
+        alpha_diff,
+        lie_count,
+    }: ReputationInfo,
+) {
+    let old_alpha = rep_eng.current_alpha;
+    let new_alpha = Alpha(old_alpha.0 + alpha_diff.0);
+    log::info!("Reputation Engine Update:\n");
+    log::info!(
+        "Witnessing acts: Total {} + new {}",
+        old_alpha.0,
+        alpha_diff.0
+    );
+    log::info!("Lie count: {{");
+    for (pkh, num_lies) in lie_count
+        .iter()
+        .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
+    {
+        log::info!("    {}: {}", pkh, num_lies);
+    }
+    log::info!("}}");
+    let (honest, liars) = separate_honest_liars(lie_count.clone());
+    let revealers = lie_count.into_iter().map(|(pkh, _num_lies)| pkh);
+    // Leftover reputation from the previous epoch
+    let extra_rep_previous_epoch = rep_eng.extra_reputation;
+    // Expire in old_alpha to maximize reputation lost in penalizations.
+    // Example: we are in old_alpha 10000, new_alpha 5 and some reputation expires in
+    // alpha 10002. This reputation will expire in the next epoch.
+    let expired_rep = rep_eng.trs.expire(&old_alpha);
+    // There is some reputation issued for every witnessing act
+    let issued_rep = reputation_issuance(old_alpha, new_alpha);
+    // Penalize liars and accumulate the reputation
+    let liars_f = liars
+        .iter()
+        .map(|(pkh, num_lies)| (pkh, penalize_factor(*num_lies)));
+    let penalized_rep = rep_eng.trs.penalize_many(liars_f).unwrap();
+
+    let mut reputation_bounty = extra_rep_previous_epoch;
+    reputation_bounty += expired_rep;
+    reputation_bounty += issued_rep;
+    reputation_bounty += penalized_rep;
+
+    let num_honest = honest.len() as u32;
+
+    log::info!("+ {:9} rep from previous epoch", extra_rep_previous_epoch.0);
+    log::info!("+ {:9} expired rep", expired_rep.0);
+    log::info!("+ {:9} issued rep", issued_rep.0);
+    log::info!("+ {:9} penalized rep", penalized_rep.0);
+    log::info!("= {:9} reputation bounty", reputation_bounty.0);
+
+    // Gain reputation
+    if num_honest > 0 {
+        let rep_reward = reputation_bounty.0 / num_honest;
+        // TODO: extract magic numbers
+        // 20_000 witnessing acts
+        const EXPIRATION_ALPHA_DIFF: u32 = 20_000;
+        // Expiration starts counting from new_alpha.
+        // All the reputation earned in this block will expire at the same time.
+        let expire_alpha = Alpha(new_alpha.0 + EXPIRATION_ALPHA_DIFF);
+        let honest_gain = honest.into_iter().map(|pkh| (pkh, Reputation(rep_reward)));
+        rep_eng.trs.gain(expire_alpha, honest_gain).unwrap();
+
+        let gained_rep = Reputation(rep_reward * num_honest);
+        reputation_bounty -= gained_rep;
+
+        log::info!(
+            "({} rep x {} revealers = {})",
+            rep_reward,
+            num_honest,
+            gained_rep.0
+        );
+        log::info!("- {:9} gained rep", gained_rep.0);
+    } else {
+        log::info!("(no revealers for this epoch)");
+        log::info!("- {:9} gained rep", 0);
+    }
+
+    let extra_reputation = reputation_bounty;
+    rep_eng.extra_reputation = extra_reputation;
+    log::info!("= {:9} extra rep for next epoch", extra_reputation.0);
+
+    // Update active reputation set
+    rep_eng.ars.push_activity(revealers);
+
+    log::info!("Total Reputation: {{");
+    for (pkh, rep) in rep_eng
+        .trs
+        .identities()
+        .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
+    {
+        let active = if rep_eng.ars.contains(pkh) { 'A' } else { ' ' };
+        log::info!("    [{}] {}: {}", active, pkh, rep.0);
+    }
+    log::info!("}}");
+
+    rep_eng.current_alpha = new_alpha;
+}
+
+fn reputation_issuance(old_alpha: Alpha, new_alpha: Alpha) -> Reputation {
+    // TODO: extract magic numbers
+    const D: u32 = 1000; // 1000 reputation points per witnessing act
+    let alpha_diff = new_alpha.0 - old_alpha.0;
+    Reputation(alpha_diff * D)
+}
+
+// Factor: lose half of the reputation for each lie
+fn penalize_factor(num_lies: u32) -> impl Fn(Reputation) -> Reputation {
+    // TODO: extract magic numbers
+    const PENALIZATION_FACTOR: f64 = 0.5;
+    move |Reputation(r)| {
+        Reputation((f64::from(r) * PENALIZATION_FACTOR.powf(f64::from(num_lies))) as u32)
+    }
 }
 
 fn show_info_tally(
