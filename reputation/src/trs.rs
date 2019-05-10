@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 /// expire later).
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[derive(Clone, Debug)]
-pub struct TotalReputationSet<K, V, A, S>
+pub struct TotalReputationSet<K, V, A, S = RandomState>
 where
     K: Clone + Eq + Hash,
     V: AddAssign + Clone + Default + Ord + SubAssign,
@@ -43,8 +43,22 @@ where
     // A cache of <identity: total_reputation>
     // All the identities with reputation are in the cache: identities
     // not in the cache must have null reputation
+    #[cfg_attr(
+        feature = "serde",
+        serde(bound(
+            serialize = "HashMap<K, V, S>: Serialize",
+            deserialize = "HashMap<K, V, S>: Deserialize<'de>"
+        ))
+    )]
     map: HashMap<K, V, S>,
     // The list of reputation packets ordered by expiration
+    #[cfg_attr(
+        feature = "serde",
+        serde(bound(
+            serialize = " VecDeque<(A, HashMap<K, V, S>)>: Serialize",
+            deserialize = " VecDeque<(A, HashMap<K, V, S>)>: Deserialize<'de>"
+        ))
+    )]
     queue: VecDeque<(A, HashMap<K, V, S>)>,
 }
 
@@ -185,10 +199,11 @@ where
     }
 
     /// The more efficient version of `penalize`.
-    pub fn penalize_many<'a, F, I>(&'a mut self, ids_fs: I) -> Result<V, RepError<V>>
+    pub fn penalize_many<'a, F, I>(&mut self, ids_fs: I) -> Result<V, RepError<V>>
     where
         F: FnMut(V) -> V,
         I: IntoIterator<Item = (&'a K, F)>,
+        K: 'a,
     {
         let mut total_subtracted = V::default();
         let mut to_subtract = ids_fs

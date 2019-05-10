@@ -107,6 +107,16 @@ where
     }
 }
 
+impl<K> PartialEq for ActiveReputationSet<K>
+where
+    K: Clone + Eq + Hash,
+{
+    fn eq(&self, other: &Self) -> bool {
+        // Equality is fully defined by equality of queues
+        self.capacity == other.capacity && self.queue == other.queue
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
