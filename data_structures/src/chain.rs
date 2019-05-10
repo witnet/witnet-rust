@@ -16,6 +16,7 @@ use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     key::ExtendedSK,
 };
+use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 use witnet_util::parser::parse_hex;
 
 use super::{
@@ -25,6 +26,7 @@ use super::{
 };
 use crate::error::DataRequestError;
 use failure::Fail;
+use std::ops::{AddAssign, SubAssign};
 
 pub trait Hashable {
     fn hash(&self) -> Hash;
@@ -1202,7 +1204,7 @@ pub type UnspentOutputsPool = HashMap<OutputPointer, Output>;
 pub type Blockchain = BTreeMap<Epoch, Hash>;
 
 /// Blockchain state (valid at a certain epoch)
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct ChainState {
     /// Blockchain information data structure
     pub chain_info: Option<ChainInfo>,
@@ -1214,6 +1216,67 @@ pub struct ChainState {
     pub block_chain: Blockchain,
     /// List of unspent outputs that can be spent by this node
     pub own_utxos: HashSet<OutputPointer>,
+    /// Reputation engine
+    pub reputation_engine: ReputationEngine,
+}
+
+/// State related to the Reputation Engine
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct ReputationEngine {
+    /// Total number of witnessing acts
+    pub current_alpha: Alpha,
+    /// Reputation to be split between honest identities in the next epoch
+    pub extra_reputation: Reputation,
+    /// Total Reputation Set
+    pub trs: TotalReputationSet<PublicKeyHash, Reputation, Alpha>,
+    /// Active Reputation Set
+    pub ars: ActiveReputationSet<PublicKeyHash>,
+}
+
+impl ReputationEngine {
+    /// Initial state of the Reputation Engine at epoch 0
+    pub fn new() -> Self {
+        Self {
+            current_alpha: Alpha(0),
+            extra_reputation: Reputation(0),
+            trs: TotalReputationSet::default(),
+            // TODO: extract magic numbers
+            // 1000 epochs at 90 seconds = 2 days
+            ars: ActiveReputationSet::new(1000),
+        }
+    }
+}
+
+impl Default for ReputationEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Witnessing Acts Counter
+#[derive(Debug, Default, Serialize, Deserialize, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Alpha(pub u32);
+
+impl AddAssign for Alpha {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0
+    }
+}
+
+/// Reputation value
+#[derive(Debug, Default, Serialize, Deserialize, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Reputation(pub u32);
+
+impl AddAssign for Reputation {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0
+    }
+}
+
+impl SubAssign for Reputation {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 -= rhs.0
+    }
 }
 
 impl ChainState {

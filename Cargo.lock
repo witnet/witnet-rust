@@ -2652,6 +2652,7 @@ dependencies = [
  "serde 1.0.90 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "witnet_crypto 0.2.1",
+ "witnet_reputation 0.2.0",
  "witnet_util 0.2.1",
 ]
 
