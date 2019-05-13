@@ -278,10 +278,10 @@ pub fn consensus_constants_from_partial(
             .max_block_weight
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_max_block_weight()),
-        activity_epoch_limit: config
-            .activity_epoch_limit
+        activity_period: config
+            .activity_period
             .to_owned()
-            .unwrap_or_else(|| defaults.consensus_constants_activity_epoch_limit()),
+            .unwrap_or_else(|| defaults.consensus_constants_activity_period()),
         reputation_expire_alpha_diff: config
             .reputation_expire_alpha_diff
             .to_owned()
@@ -290,6 +290,10 @@ pub fn consensus_constants_from_partial(
             .reputation_issuance
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_reputation_issuance()),
+        reputation_issuance_stop: config
+            .reputation_issuance_stop
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_reputation_issuance_stop()),
         reputation_penalization_factor: config
             .reputation_penalization_factor
             .to_owned()

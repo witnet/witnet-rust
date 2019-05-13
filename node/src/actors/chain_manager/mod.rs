@@ -540,7 +540,8 @@ fn update_reputation(
     let expired_rep = rep_eng.trs.expire(&old_alpha);
     // There is some reputation issued for every witnessing act
     let issued_rep = reputation_issuance(
-        Reputation(consensus_constants.reputation_expire_alpha_diff),
+        Reputation(consensus_constants.reputation_issuance),
+        Alpha(consensus_constants.reputation_issuance_stop),
         old_alpha,
         new_alpha,
     );
@@ -625,10 +626,12 @@ fn update_reputation(
 
 fn reputation_issuance(
     reputation_issuance: Reputation,
+    reputation_issuance_stop: Alpha,
     old_alpha: Alpha,
     new_alpha: Alpha,
 ) -> Reputation {
-    let alpha_diff = new_alpha.0 - old_alpha.0;
+    let new = std::cmp::min(reputation_issuance_stop.0, new_alpha.0);
+    let alpha_diff = new - old_alpha.0;
     Reputation(alpha_diff * reputation_issuance.0)
 }
 

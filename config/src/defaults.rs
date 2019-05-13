@@ -96,8 +96,8 @@ pub trait Defaults {
         400
     }
 
-    /// An identity is considered active if it participated in the last N epoch
-    fn consensus_constants_activity_epoch_limit(&self) -> u32 {
+    /// An identity is considered active if it participated in the witnessing protocol at least once in the last `activity_period` epochs
+    fn consensus_constants_activity_period(&self) -> u32 {
         // 1000 epochs at 90 seconds/epoch = 2 days
         1000
     }
@@ -110,8 +110,14 @@ pub trait Defaults {
 
     /// Reputation issuance
     fn consensus_constants_reputation_issuance(&self) -> u32 {
-        // Issue 1000 reputation points per witnessing act
-        1000
+        // Issue 1 reputation point per witnessing act
+        1
+    }
+
+    /// When to stop issuing new reputation
+    fn consensus_constants_reputation_issuance_stop(&self) -> u32 {
+        // Issue reputation points for the first 2^20 witnessing acts
+        1 << 20
     }
 
     /// Penalization factor: fraction of reputation lost by liars for out of consensus claims

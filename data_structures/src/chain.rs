@@ -88,14 +88,17 @@ pub struct ConsensusConstants {
     /// will be used.
     pub max_block_weight: u32,
 
-    /// An identity is considered active if it participated in the last N epoch
-    pub activity_epoch_limit: u32,
+    /// An identity is considered active if it participated in the witnessing protocol at least once in the last `activity_period` epochs
+    pub activity_period: u32,
 
     /// Reputation will expire after N witnessing acts
     pub reputation_expire_alpha_diff: u32,
 
     /// Reputation issuance
     pub reputation_issuance: u32,
+
+    /// When to stop issuing new reputation
+    pub reputation_issuance_stop: u32,
 
     /// Penalization factor: fraction of reputation lost by liars for out of consensus claims
     // TODO Use fixed point arithmetic (see Issue #172)
