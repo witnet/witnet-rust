@@ -72,18 +72,6 @@ pub trait Defaults {
         Hash::SHA256([0; 32])
     }
 
-    /// Default demurrage value for reputation algorithm
-    // TODO Decide an appropriate default value
-    fn consensus_constants_reputation_demurrage(&self) -> f64 {
-        0.0
-    }
-
-    /// Default punishment value for reputation algorithm
-    // TODO Decide an appropriate default value
-    fn consensus_constants_reputation_punishment(&self) -> f64 {
-        0.0
-    }
-
     /// JSON-RPC server enabled by default
     fn jsonrpc_enabled(&self) -> bool {
         true
@@ -106,6 +94,30 @@ pub trait Defaults {
     /// Sending 500 blocks should take less than 400 seconds.
     fn connections_blocks_timeout(&self) -> i64 {
         400
+    }
+
+    /// An identity is considered active if it participated in the last N epoch
+    fn consensus_constants_activity_epoch_limit(&self) -> u32 {
+        // 1000 epochs at 90 seconds/epoch = 2 days
+        1000
+    }
+
+    /// Reputation will expire after N witnessing acts
+    fn consensus_constants_reputation_expire_alpha_diff(&self) -> u32 {
+        // 20_000 witnessing acts
+        20_000
+    }
+
+    /// Reputation issuance
+    fn consensus_constants_reputation_issuance(&self) -> u32 {
+        // Issue 1000 reputation points per witnessing act
+        1000
+    }
+
+    /// Penalization factor: fraction of reputation lost by liars for out of consensus claims
+    fn consensus_constants_reputation_penalization_factor(&self) -> f64 {
+        // Lose half of the total reputation for every lie
+        0.5
     }
 }
 

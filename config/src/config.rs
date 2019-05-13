@@ -274,18 +274,26 @@ pub fn consensus_constants_from_partial(
             .genesis_hash
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_genesis_hash()),
-        reputation_demurrage: config
-            .reputation_demurrage
-            .to_owned()
-            .unwrap_or_else(|| defaults.consensus_constants_reputation_demurrage()),
-        reputation_punishment: config
-            .reputation_punishment
-            .to_owned()
-            .unwrap_or_else(|| defaults.consensus_constants_reputation_punishment()),
         max_block_weight: config
             .max_block_weight
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_max_block_weight()),
+        activity_epoch_limit: config
+            .activity_epoch_limit
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_activity_epoch_limit()),
+        reputation_expire_alpha_diff: config
+            .reputation_expire_alpha_diff
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_reputation_expire_alpha_diff()),
+        reputation_issuance: config
+            .reputation_issuance
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_reputation_issuance()),
+        reputation_penalization_factor: config
+            .reputation_penalization_factor
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_reputation_penalization_factor()),
     }
 }
 

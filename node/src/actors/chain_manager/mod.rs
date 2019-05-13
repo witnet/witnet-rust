@@ -56,8 +56,8 @@ use witnet_rad::types::RadonTypes;
 
 use itertools::Itertools;
 use witnet_data_structures::chain::{
-    transaction_tag, Alpha, Reputation, ReputationEngine, RevealOutput, TallyOutput, Transaction,
-    TransactionType,
+    transaction_tag, Alpha, ConsensusConstants, Reputation, ReputationEngine, RevealOutput,
+    TallyOutput, Transaction, TransactionType,
 };
 use witnet_validations::validations::{validate_block, validate_candidate, Diff};
 
@@ -302,7 +302,11 @@ impl ChainManager {
                     &mut self.chain_state.own_utxos,
                 );
 
-                update_reputation(&mut self.chain_state.reputation_engine, rep_info);
+                update_reputation(
+                    &mut self.chain_state.reputation_engine,
+                    &chain_info.consensus_constants,
+                    rep_info,
+                );
 
                 // Insert candidate block into `block_chain` state
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
@@ -493,6 +497,7 @@ where
 
 fn update_reputation(
     rep_eng: &mut ReputationEngine,
+    consensus_constants: &ConsensusConstants,
     ReputationInfo {
         alpha_diff,
         lie_count,
@@ -523,11 +528,21 @@ fn update_reputation(
     // alpha 10002. This reputation will expire in the next epoch.
     let expired_rep = rep_eng.trs.expire(&old_alpha);
     // There is some reputation issued for every witnessing act
-    let issued_rep = reputation_issuance(old_alpha, new_alpha);
+    let issued_rep = reputation_issuance(
+        Reputation(consensus_constants.reputation_expire_alpha_diff),
+        old_alpha,
+        new_alpha,
+    );
     // Penalize liars and accumulate the reputation
-    let liars_f = liars
-        .iter()
-        .map(|(pkh, num_lies)| (pkh, penalize_factor(*num_lies)));
+    let liars_f = liars.iter().map(|(pkh, num_lies)| {
+        (
+            pkh,
+            penalize_factor(
+                consensus_constants.reputation_penalization_factor,
+                *num_lies,
+            ),
+        )
+    });
     let penalized_rep = rep_eng.trs.penalize_many(liars_f).unwrap();
 
     let mut reputation_bounty = extra_rep_previous_epoch;
@@ -546,12 +561,9 @@ fn update_reputation(
     // Gain reputation
     if num_honest > 0 {
         let rep_reward = reputation_bounty.0 / num_honest;
-        // TODO: extract magic numbers
-        // 20_000 witnessing acts
-        const EXPIRATION_ALPHA_DIFF: u32 = 20_000;
         // Expiration starts counting from new_alpha.
         // All the reputation earned in this block will expire at the same time.
-        let expire_alpha = Alpha(new_alpha.0 + EXPIRATION_ALPHA_DIFF);
+        let expire_alpha = Alpha(new_alpha.0 + consensus_constants.reputation_expire_alpha_diff);
         let honest_gain = honest.into_iter().map(|pkh| (pkh, Reputation(rep_reward)));
         rep_eng.trs.gain(expire_alpha, honest_gain).unwrap();
 
@@ -591,19 +603,19 @@ fn update_reputation(
     rep_eng.current_alpha = new_alpha;
 }
 
-fn reputation_issuance(old_alpha: Alpha, new_alpha: Alpha) -> Reputation {
-    // TODO: extract magic numbers
-    const D: u32 = 1000; // 1000 reputation points per witnessing act
+fn reputation_issuance(
+    reputation_issuance: Reputation,
+    old_alpha: Alpha,
+    new_alpha: Alpha,
+) -> Reputation {
     let alpha_diff = new_alpha.0 - old_alpha.0;
-    Reputation(alpha_diff * D)
+    Reputation(alpha_diff * reputation_issuance.0)
 }
 
 // Factor: lose half of the reputation for each lie
-fn penalize_factor(num_lies: u32) -> impl Fn(Reputation) -> Reputation {
-    // TODO: extract magic numbers
-    const PENALIZATION_FACTOR: f64 = 0.5;
+fn penalize_factor(penalization_factor: f64, num_lies: u32) -> impl Fn(Reputation) -> Reputation {
     move |Reputation(r)| {
-        Reputation((f64::from(r) * PENALIZATION_FACTOR.powf(f64::from(num_lies))) as u32)
+        Reputation((f64::from(r) * penalization_factor.powf(f64::from(num_lies))) as u32)
     }
 }
 

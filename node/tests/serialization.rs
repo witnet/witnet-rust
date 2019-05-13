@@ -21,9 +21,11 @@ fn chain_state() {
             checkpoint_zero_timestamp: 0,
             checkpoints_period: 0,
             genesis_hash,
-            reputation_demurrage: 0.0,
-            reputation_punishment: 0.0,
             max_block_weight: 0,
+            activity_epoch_limit: 0,
+            reputation_expire_alpha_diff: 0,
+            reputation_issuance: 0,
+            reputation_penalization_factor: 0.0,
         },
         highest_block_checkpoint: CheckpointBeacon {
             checkpoint: 0,

@@ -223,7 +223,9 @@ message ConsensusConstants {
     int64 checkpoint_zero_timestamp = 1;
     uint32 checkpoints_period = 2;
     Hash genesis_hash = 3;
-    double reputation_demurrage = 4;
-    double reputation_punishment = 5;
-    uint32 max_block_weight = 6;
+    uint32 max_block_weight = 4;
+    uint32 activity_epoch_limit = 5;
+    uint32 reputation_expire_alpha_diff = 6;
+    uint32 reputation_issuance = 7;
+    double reputation_penalization_factor = 8;
 }

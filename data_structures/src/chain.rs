@@ -78,14 +78,6 @@ pub struct ConsensusConstants {
     // is solved
     pub genesis_hash: Hash,
 
-    /// Decay value for reputation demurrage function
-    // TODO Use fixed point arithmetic (see Issue #172)
-    pub reputation_demurrage: f64,
-
-    /// Punishment value for claims out of the consensus bounds
-    // TODO Use fixed point arithmetic (see Issue #172)
-    pub reputation_punishment: f64,
-
     /// Maximum weight a block can have, this affects the number of
     /// transactions a block can contain: there will be as many
     /// transactions as the sum of _their_ weights is less than, or
@@ -95,6 +87,19 @@ pub struct ConsensusConstants {
     /// This is only configurable in testnet, in mainnet the default
     /// will be used.
     pub max_block_weight: u32,
+
+    /// An identity is considered active if it participated in the last N epoch
+    pub activity_epoch_limit: u32,
+
+    /// Reputation will expire after N witnessing acts
+    pub reputation_expire_alpha_diff: u32,
+
+    /// Reputation issuance
+    pub reputation_issuance: u32,
+
+    /// Penalization factor: fraction of reputation lost by liars for out of consensus claims
+    // TODO Use fixed point arithmetic (see Issue #172)
+    pub reputation_penalization_factor: f64,
 }
 
 /// Checkpoint beacon structure
