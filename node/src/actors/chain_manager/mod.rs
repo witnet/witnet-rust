@@ -291,6 +291,14 @@ impl ChainManager {
                     hash_prev_block: block_hash,
                 };
 
+                // Print reputation logs on debug level on synced state,
+                // but on trace level while synchronizing
+                let log_level = if let StateMachine::Synced = self.sm_state {
+                    log::Level::Debug
+                } else {
+                    log::Level::Trace
+                };
+
                 chain_info.highest_block_checkpoint = beacon;
                 let rep_info = update_pools(
                     &block,
@@ -306,6 +314,7 @@ impl ChainManager {
                     &mut self.chain_state.reputation_engine,
                     &chain_info.consensus_constants,
                     rep_info,
+                    log_level,
                 );
 
                 // Insert candidate block into `block_chain` state
@@ -502,23 +511,25 @@ fn update_reputation(
         alpha_diff,
         lie_count,
     }: ReputationInfo,
+    log_level: log::Level,
 ) {
     let old_alpha = rep_eng.current_alpha;
     let new_alpha = Alpha(old_alpha.0 + alpha_diff.0);
-    log::info!("Reputation Engine Update:\n");
-    log::info!(
+    log::log!(log_level, "Reputation Engine Update:\n");
+    log::log!(
+        log_level,
         "Witnessing acts: Total {} + new {}",
         old_alpha.0,
         alpha_diff.0
     );
-    log::info!("Lie count: {{");
+    log::log!(log_level, "Lie count: {{");
     for (pkh, num_lies) in lie_count
         .iter()
         .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
     {
-        log::info!("    {}: {}", pkh, num_lies);
+        log::log!(log_level, "    {}: {}", pkh, num_lies);
     }
-    log::info!("}}");
+    log::log!(log_level, "}}");
     let (honest, liars) = separate_honest_liars(lie_count.clone());
     let revealers = lie_count.into_iter().map(|(pkh, _num_lies)| pkh);
     // Leftover reputation from the previous epoch
@@ -552,11 +563,15 @@ fn update_reputation(
 
     let num_honest = honest.len() as u32;
 
-    log::info!("+ {:9} rep from previous epoch", extra_rep_previous_epoch.0);
-    log::info!("+ {:9} expired rep", expired_rep.0);
-    log::info!("+ {:9} issued rep", issued_rep.0);
-    log::info!("+ {:9} penalized rep", penalized_rep.0);
-    log::info!("= {:9} reputation bounty", reputation_bounty.0);
+    log::log!(
+        log_level,
+        "+ {:9} rep from previous epoch",
+        extra_rep_previous_epoch.0
+    );
+    log::log!(log_level, "+ {:9} expired rep", expired_rep.0);
+    log::log!(log_level, "+ {:9} issued rep", issued_rep.0);
+    log::log!(log_level, "+ {:9} penalized rep", penalized_rep.0);
+    log::log!(log_level, "= {:9} reputation bounty", reputation_bounty.0);
 
     // Gain reputation
     if num_honest > 0 {
@@ -570,35 +585,40 @@ fn update_reputation(
         let gained_rep = Reputation(rep_reward * num_honest);
         reputation_bounty -= gained_rep;
 
-        log::info!(
+        log::log!(
+            log_level,
             "({} rep x {} revealers = {})",
             rep_reward,
             num_honest,
             gained_rep.0
         );
-        log::info!("- {:9} gained rep", gained_rep.0);
+        log::log!(log_level, "- {:9} gained rep", gained_rep.0);
     } else {
-        log::info!("(no revealers for this epoch)");
-        log::info!("- {:9} gained rep", 0);
+        log::log!(log_level, "(no revealers for this epoch)");
+        log::log!(log_level, "- {:9} gained rep", 0);
     }
 
     let extra_reputation = reputation_bounty;
     rep_eng.extra_reputation = extra_reputation;
-    log::info!("= {:9} extra rep for next epoch", extra_reputation.0);
+    log::log!(
+        log_level,
+        "= {:9} extra rep for next epoch",
+        extra_reputation.0
+    );
 
     // Update active reputation set
     rep_eng.ars.push_activity(revealers);
 
-    log::info!("Total Reputation: {{");
+    log::log!(log_level, "Total Reputation: {{");
     for (pkh, rep) in rep_eng
         .trs
         .identities()
         .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
     {
         let active = if rep_eng.ars.contains(pkh) { 'A' } else { ' ' };
-        log::info!("    [{}] {}: {}", active, pkh, rep.0);
+        log::log!(log_level, "    [{}] {}: {}", active, pkh, rep.0);
     }
-    log::info!("}}");
+    log::log!(log_level, "}}");
 
     rep_eng.current_alpha = new_alpha;
 }
