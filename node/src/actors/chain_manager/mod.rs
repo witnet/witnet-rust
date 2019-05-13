@@ -56,8 +56,8 @@ use witnet_rad::types::RadonTypes;
 
 use itertools::Itertools;
 use witnet_data_structures::chain::{
-    transaction_tag, Alpha, ConsensusConstants, Reputation, ReputationEngine, RevealOutput,
-    TallyOutput, Transaction, TransactionType,
+    penalize_factor, reputation_issuance, transaction_tag, Alpha, ConsensusConstants, Reputation,
+    ReputationEngine, RevealOutput, TallyOutput, Transaction, TransactionType,
 };
 use witnet_validations::validations::{validate_block, validate_candidate, Diff};
 
@@ -546,7 +546,8 @@ fn update_reputation(
         new_alpha,
     );
     // Penalize liars and accumulate the reputation
-    let liars_f = liars.iter().map(|(pkh, num_lies)| {
+    // The penalization depends on the number of lies from the last epoch
+    let liars_and_penalize_function = liars.iter().map(|(pkh, num_lies)| {
         (
             pkh,
             penalize_factor(
@@ -555,7 +556,10 @@ fn update_reputation(
             ),
         )
     });
-    let penalized_rep = rep_eng.trs.penalize_many(liars_f).unwrap();
+    let penalized_rep = rep_eng
+        .trs
+        .penalize_many(liars_and_penalize_function)
+        .unwrap();
 
     let mut reputation_bounty = extra_rep_previous_epoch;
     reputation_bounty += expired_rep;
@@ -622,24 +626,6 @@ fn update_reputation(
     log::log!(log_level, "}}");
 
     rep_eng.current_alpha = new_alpha;
-}
-
-fn reputation_issuance(
-    reputation_issuance: Reputation,
-    reputation_issuance_stop: Alpha,
-    old_alpha: Alpha,
-    new_alpha: Alpha,
-) -> Reputation {
-    let new = std::cmp::min(reputation_issuance_stop.0, new_alpha.0);
-    let alpha_diff = new - old_alpha.0;
-    Reputation(alpha_diff * reputation_issuance.0)
-}
-
-// Factor: lose half of the reputation for each lie
-fn penalize_factor(penalization_factor: f64, num_lies: u32) -> impl Fn(Reputation) -> Reputation {
-    move |Reputation(r)| {
-        Reputation((f64::from(r) * penalization_factor.powf(f64::from(num_lies))) as u32)
-    }
 }
 
 fn show_info_tally(

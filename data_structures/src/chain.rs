@@ -1228,6 +1228,35 @@ pub struct ChainState {
     pub reputation_engine: ReputationEngine,
 }
 
+impl ChainState {
+    /// Method to check that all inputs point to unspent outputs
+    pub fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
+        inputs.iter().all(|tx_input| {
+            let output_pointer = tx_input.output_pointer();
+
+            self.unspent_outputs_pool.contains_key(&output_pointer)
+        })
+    }
+    /// Retrieve the output pointed by the output pointer in an input
+    pub fn get_output_from_input(&self, input: &Input) -> Option<&Output> {
+        let output_pointer = input.output_pointer();
+
+        self.unspent_outputs_pool.get(&output_pointer)
+    }
+    /// Map a vector of inputs to a the vector of outputs pointed by the inputs' output pointers
+    pub fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Result<Vec<Output>, Input> {
+        let v = inputs
+            .iter()
+            .map(|i| self.get_output_from_input(i))
+            .fuse()
+            .flatten()
+            .cloned()
+            .collect();
+
+        Ok(v)
+    }
+}
+
 /// State related to the Reputation Engine
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReputationEngine {
@@ -1287,32 +1316,30 @@ impl SubAssign for Reputation {
     }
 }
 
-impl ChainState {
-    /// Method to check that all inputs point to unspent outputs
-    pub fn find_unspent_outputs(&self, inputs: &[Input]) -> bool {
-        inputs.iter().all(|tx_input| {
-            let output_pointer = tx_input.output_pointer();
-
-            self.unspent_outputs_pool.contains_key(&output_pointer)
-        })
+/// Calculate the new issued reputation
+pub fn reputation_issuance(
+    reputation_issuance: Reputation,
+    reputation_issuance_stop: Alpha,
+    old_alpha: Alpha,
+    new_alpha: Alpha,
+) -> Reputation {
+    if old_alpha >= reputation_issuance_stop {
+        Reputation(0)
+    } else {
+        let new = std::cmp::min(reputation_issuance_stop.0, new_alpha.0);
+        let alpha_diff = new - old_alpha.0;
+        Reputation(alpha_diff * reputation_issuance.0)
     }
-    /// Retrieve the output pointed by the output pointer in an input
-    pub fn get_output_from_input(&self, input: &Input) -> Option<&Output> {
-        let output_pointer = input.output_pointer();
+}
 
-        self.unspent_outputs_pool.get(&output_pointer)
-    }
-    /// Map a vector of inputs to a the vector of outputs pointed by the inputs' output pointers
-    pub fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Result<Vec<Output>, Input> {
-        let v = inputs
-            .iter()
-            .map(|i| self.get_output_from_input(i))
-            .fuse()
-            .flatten()
-            .cloned()
-            .collect();
-
-        Ok(v)
+/// Penalization function.
+/// Multiply total reputation by `penalization_factor` for each lie.
+pub fn penalize_factor(
+    penalization_factor: f64,
+    num_lies: u32,
+) -> impl Fn(Reputation) -> Reputation {
+    move |Reputation(r)| {
+        Reputation((f64::from(r) * penalization_factor.powf(f64::from(num_lies))) as u32)
     }
 }
 
