@@ -17,7 +17,7 @@ use witnet_data_structures::chain::{ChainInfo, ChainState, CheckpointBeacon};
 
 use witnet_util::timestamp::pretty_print;
 
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -189,6 +189,7 @@ impl ChainManager {
             .and_then(|res, act, _ctx| {
                 act.own_pkh = Some(res);
                 debug!("Public key hash successfully loaded from signature manager");
+                info!("PublicKeyHash: {}", res);
                 actix::fut::ok(())
             })
             .wait(ctx);
