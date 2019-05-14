@@ -11,7 +11,7 @@ use log::{debug, error, info, trace, warn};
 
 use witnet_data_structures::{
     builders::from_address,
-    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem, Transaction},
+    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem},
     proto::ProtobufConvert,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
@@ -34,6 +34,7 @@ use crate::actors::{
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
+use witnet_data_structures::transaction::Transaction;
 use witnet_util::timestamp::get_timestamp;
 
 /// Implement WriteHandler for Session

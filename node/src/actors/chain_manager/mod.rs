@@ -27,38 +27,38 @@
 //!     - Adding a new UTXO for every output in the transaction.
 use std::collections::{HashMap, HashSet};
 
-use actix::prelude::*;
 use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System, SystemService,
-    WrapFuture,
+    prelude::*, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System,
+    SystemService, WrapFuture,
 };
 use ansi_term::Color::{Purple, White, Yellow};
 use failure::Fail;
 use log::{debug, error, info, warn};
 
-use crate::actors::{
-    inventory_manager::InventoryManager,
-    json_rpc::JsonRpcServer,
-    messages::{AddItem, AddTransaction, Broadcast, NewBlock, SendInventoryItem},
-    sessions_manager::SessionsManager,
-    storage_keys::CHAIN_STATE_KEY,
+use crate::{
+    actors::{
+        inventory_manager::InventoryManager,
+        json_rpc::JsonRpcServer,
+        messages::{AddItem, AddTransaction, Broadcast, NewBlock, SendInventoryItem},
+        sessions_manager::SessionsManager,
+        storage_keys::CHAIN_STATE_KEY,
+    },
+    storage_mngr,
 };
-use crate::storage_mngr;
 use std::convert::TryFrom;
 use witnet_data_structures::{
     chain::{
-        Block, ChainState, CheckpointBeacon, DataRequestReport, Epoch, Hash, Hashable,
-        InventoryItem, Output, OutputPointer, PublicKeyHash, TransactionsPool, UnspentOutputsPool,
+        penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
+        ConsensusConstants, DataRequestReport, Epoch, Hash, Hashable, InventoryItem, OutputPointer,
+        PublicKeyHash, Reputation, ReputationEngine, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
+    transaction::{TallyTransaction, Transaction},
 };
 use witnet_rad::types::RadonTypes;
 
 use itertools::Itertools;
-use witnet_data_structures::chain::{
-    penalize_factor, reputation_issuance, transaction_tag, Alpha, ConsensusConstants, Reputation,
-    ReputationEngine, RevealOutput, TallyOutput, Transaction, TransactionType,
-};
+use witnet_data_structures::transaction::RevealTransaction;
 use witnet_validations::validations::{validate_block, validate_candidate, Diff};
 
 mod actor;
@@ -188,16 +188,17 @@ impl ChainManager {
     }
 
     /// Method to persist a Data Request into the Storage
-    fn persist_data_request(
-        &self,
-        ctx: &mut Context<Self>,
-        (output_pointer, data_request_report): &(OutputPointer, DataRequestReport),
-    ) {
-        storage_mngr::put(output_pointer, data_request_report)
+    fn persist_data_request(&self, ctx: &mut Context<Self>, dr_report: &DataRequestReport) {
+        let dr_pointer = &dr_report.tally.dr_pointer;
+        let dr_pointer_string = dr_pointer.to_string();
+        storage_mngr::put(dr_pointer, dr_report)
             .into_actor(self)
-            .map_err(|e, _, _| error!("Failed to persist block_chain into storage: {}", e))
-            .and_then(|_, _, _| {
-                debug!("Successfully persisted block_chain into storage");
+            .map_err(|e, _, _| error!("Failed to persist data request report into storage: {}", e))
+            .and_then(move |_, _, _| {
+                debug!(
+                    "Successfully persisted report for data request {} into storage",
+                    dr_pointer_string
+                );
                 fut::ok(())
             })
             .wait(ctx);
@@ -335,13 +336,9 @@ impl ChainManager {
                         // Persist finished data requests into storage
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
-                        to_be_stored.into_iter().for_each(|dr| {
-                            self.persist_data_request(ctx, &dr);
-                            show_info_tally(
-                                &self.chain_state.unspent_outputs_pool,
-                                dr,
-                                block_epoch,
-                            );
+                        to_be_stored.into_iter().for_each(|dr_report| {
+                            show_info_tally(&dr_report.tally, block_epoch);
+                            self.persist_data_request(ctx, &dr_report);
                         });
 
                         show_info_dr(&self.chain_state.data_request_pool, &block);
@@ -358,7 +355,7 @@ impl ChainManager {
                             // Send AddTransaction message to self
                             // And broadcast it to all of peers
                             ctx.address().do_send(AddTransaction {
-                                transaction: reveal,
+                                transaction: Transaction::Reveal(reveal),
                             })
                         }
                         self.persist_item(ctx, InventoryItem::Block(block.clone()));
@@ -407,25 +404,26 @@ impl ReputationInfo {
         Self::default()
     }
 
-    fn update(&mut self, transaction: &Transaction, data_request_pool: &DataRequestPool) {
-        let dr_pointer = transaction.body.inputs[0].output_pointer();
+    fn update(
+        &mut self,
+        tally_transaction: &TallyTransaction,
+        data_request_pool: &DataRequestPool,
+    ) {
+        let dr_pointer = tally_transaction.dr_pointer;
         let dr_state = &data_request_pool.data_request_pool[&dr_pointer];
         let reveals = &dr_state.info.reveals;
         let replication_factor = dr_state.data_request.witnesses;
         self.alpha_diff += Alpha(u32::from(replication_factor));
-        let tally = transaction.body.outputs.last().unwrap();
-        let tally = match tally {
-            Output::Tally(tally) => tally,
-            _ => unreachable!(),
-        };
 
-        for (pkh, reveal_output) in reveals {
+        let tally = &tally_transaction.tally;
+
+        for (pkh, reveal_tx) in reveals {
             // FIXME(#640): replace with real truthness check function from radon engine
             // (currently we assume that all nodes are honest)
-            fn true_revealer(_reveal: &RevealOutput, _tally: &TallyOutput) -> bool {
+            fn true_revealer(_reveal: &RevealTransaction, _tally: &[u8]) -> bool {
                 true
             }
-            let liar = if true_revealer(reveal_output, tally) {
+            let liar = if true_revealer(reveal_tx, tally) {
                 0
             } else {
                 1
@@ -451,8 +449,8 @@ fn update_pools(
 
     for transaction in block.txns.iter() {
         // Process tally transactions: used to update reputation engine
-        if let TransactionType::Tally = transaction_tag(&transaction.body) {
-            rep_info.update(transaction, data_request_pool);
+        if let Transaction::Tally(tally_tx) = transaction {
+            rep_info.update(tally_tx, data_request_pool);
         }
 
         // Update the data request pool after processing the tally
@@ -472,10 +470,8 @@ fn update_pools(
             own_utxos,
             |own_utxos, output_pointer, output| {
                 // Insert new outputs
-                if let Output::ValueTransfer(x) = output {
-                    if x.pkh == own_pkh {
-                        own_utxos.insert(output_pointer.clone());
-                    }
+                if output.pkh == own_pkh {
+                    own_utxos.insert(output_pointer.clone());
                 }
             },
             |own_utxos, output_pointer| {
@@ -632,25 +628,17 @@ fn update_reputation(
     rep_eng.current_alpha = new_alpha;
 }
 
-fn show_info_tally(
-    unspent_outputs_pool: &UnspentOutputsPool,
-    dr: (OutputPointer, DataRequestReport),
-    block_epoch: Epoch,
-) {
-    let tally_output_pointer = dr.1.tally;
-    let tr = unspent_outputs_pool.get(&tally_output_pointer);
-    if let Some(Output::Tally(tally_output)) = tr {
-        let result = RadonTypes::try_from(tally_output.result.as_slice())
-            .map(|x| x.to_string())
-            .unwrap_or_else(|_| "RADError".to_string());
-        info!(
-            "{} {} completed at epoch #{} with result: {}",
-            Yellow.bold().paint("[Data Request]"),
-            Yellow.bold().paint(&dr.0.to_string()),
-            Yellow.bold().paint(block_epoch.to_string()),
-            Yellow.bold().paint(result),
-        );
-    }
+fn show_info_tally(tally_tx: &TallyTransaction, block_epoch: Epoch) {
+    let result = RadonTypes::try_from(tally_tx.tally.as_slice())
+        .map(|x| x.to_string())
+        .unwrap_or_else(|_| "RADError".to_string());
+    info!(
+        "{} {} completed at epoch #{} with result: {}",
+        Yellow.bold().paint("[Data Request]"),
+        Yellow.bold().paint(tally_tx.dr_pointer.to_string()),
+        Yellow.bold().paint(block_epoch.to_string()),
+        Yellow.bold().paint(result),
+    );
 }
 
 fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {

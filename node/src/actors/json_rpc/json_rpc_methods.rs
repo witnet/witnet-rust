@@ -12,13 +12,15 @@ use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 
-use witnet_data_structures::chain::{self, Block, Hash, InventoryEntry, Transaction};
+use witnet_data_structures::chain::{self, Block, Hash, InventoryEntry};
 
 use crate::actors::{
     chain_manager::{ChainManager, ChainManagerError},
     epoch_manager::EpochManager,
     inventory_manager::InventoryManager,
-    messages::{AddCandidates, AddTransaction, GetBlocksEpochRange, GetEpoch, GetItem},
+    messages::{
+        AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBlocksEpochRange, GetEpoch, GetItem,
+    },
 };
 
 //use std::str::FromStr;
@@ -26,7 +28,7 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::System;
-use crate::actors::messages::{BuildDrt, BuildVtt};
+use witnet_data_structures::transaction::Transaction;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
@@ -167,6 +169,8 @@ fn internal_error<T: std::fmt::Debug>(e: T) -> jsonrpc_core::Error {
 
 /// Inventory element: block, transaction, etc
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+// TODO Remove Clippy allow
+#[allow(clippy::large_enum_variant)]
 pub enum InventoryItem {
     /// Error
     #[serde(rename = "error")]
@@ -469,6 +473,7 @@ mod tests {
     use witnet_data_structures::chain::RADRequest;
 
     use super::*;
+    use witnet_data_structures::transaction::*;
 
     #[test]
     fn empty_string_parse_error() {
@@ -627,7 +632,7 @@ mod tests {
         };
         let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem).unwrap();
-        let expected = r#"{"block":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":"0404040404040404040404040404040404040404040404040404040404040404"},"hash_merkle_root":"0303030303030303030303030303030303030303030303030303030303030303"},"proof":{"block_sig":{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}},"txns":[{"body":{"version":0,"inputs":[{"output_pointer":"0000000000000000000000000000000000000000000000000000000000000000:0"},{"output_pointer":"0000000000000000000000000000000000000000000000000000000000000000:0"},{"output_pointer":"0000000000000000000000000000000000000000000000000000000000000000:0"}],"outputs":[{"ValueTransfer":{"pkh":"0000000000000000000000000000000000000000","value":0}},{"DataRequest":{"pkh":"0000000000000000000000000000000000000000","data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[]}],"aggregate":{"script":[]},"consensus":{"script":[]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}},{"Commit":{"commitment":"0000000000000000000000000000000000000000000000000000000000000000","value":0}},{"Reveal":{"reveal":[],"pkh":"0000000000000000000000000000000000000000","value":0}},{"Tally":{"result":[],"pkh":"0000000000000000000000000000000000000000","value":0}}]},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}]}}"#;
+        let expected = r#"{"block":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":"0404040404040404040404040404040404040404040404040404040404040404"},"hash_merkle_root":"0303030303030303030303030303030303030303030303030303030303030303"},"proof":{"block_sig":{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}},"txns":[{"DataRequest":{"body":{"inputs":[{"output_pointer":"0000000000000000000000000000000000000000000000000000000000000000:0"}],"outputs":[{"pkh":"0000000000000000000000000000000000000000","value":0}],"dr_output":{"pkh":"0000000000000000000000000000000000000000","data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[]}],"aggregate":{"script":[]},"consensus":{"script":[]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}}]}}"#;
         assert_eq!(s, expected, "\n{}\n", s);
     }
 
@@ -672,7 +677,7 @@ mod tests {
 
         let inv_elem = InventoryItem::Transaction(transaction);
         let s = serde_json::to_string(&inv_elem).unwrap();
-        let expected = r#"{"transaction":{"body":{"version":0,"inputs":[{"output_pointer":"0909090909090909090909090909090909090909090909090909090909090909:0"}],"outputs":[{"DataRequest":{"pkh":"0000000000000000000000000000000000000000","data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]}],"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}}]},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}}"#;
+        let expected = r#"{"transaction":{"DataRequest":{"body":{"inputs":[{"output_pointer":"0909090909090909090909090909090909090909090909090909090909090909:0"}],"outputs":[],"dr_output":{"pkh":"0000000000000000000000000000000000000000","data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]}],"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}}}"#;
         assert_eq!(s, expected, "\n{}\n", s);
     }
 
@@ -689,15 +694,17 @@ mod tests {
             output_index: 0,
         });
 
-        let data_request_output = Output::DataRequest(DataRequestOutput {
+        let data_request_output = DataRequestOutput {
             data_request,
             ..DataRequestOutput::default()
-        });
+        };
 
         let inputs = vec![value_transfer_input];
-        let outputs = vec![data_request_output];
 
-        Transaction::new(TransactionBody::new(0, inputs, outputs), keyed_signatures)
+        Transaction::DataRequest(DRTransaction::new(
+            DRTransactionBody::new(inputs, vec![], data_request_output),
+            keyed_signatures,
+        ))
     }
 
     #[test]

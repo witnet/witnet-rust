@@ -10,9 +10,12 @@ use actix::{actors::resolver::ResolverError, dev::ToEnvelope, Actor, Addr, Handl
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
-use witnet_data_structures::chain::{
-    Block, CheckpointBeacon, DataRequestOutput, Epoch, Hash, InventoryEntry, InventoryItem,
-    RADConsensus, RADRequest, Transaction, ValueTransferOutput,
+use witnet_data_structures::{
+    chain::{
+        Block, CheckpointBeacon, DataRequestOutput, Epoch, Hash, InventoryEntry, InventoryItem,
+        RADConsensus, RADRequest, ValueTransferOutput,
+    },
+    transaction::Transaction,
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 use witnet_rad::error::RadError;

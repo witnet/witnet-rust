@@ -1,6 +1,6 @@
-use actix::prelude::*;
 use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture,
+    prelude::*, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System,
+    WrapFuture,
 };
 use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
@@ -8,24 +8,26 @@ use log::{debug, error, info, warn};
 use futures::future::{join_all, Future};
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
-use super::ChainManager;
-use crate::actors::{
-    messages::{
-        AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunConsensus,
+use crate::{
+    actors::{
+        chain_manager::{transaction_factory::sign_transaction, ChainManager},
+        messages::{
+            AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunConsensus,
+        },
+        rad_manager::RadManager,
     },
-    rad_manager::RadManager,
+    signature_mngr,
 };
-
-use crate::actors::chain_manager::transaction_factory::sign_transaction;
-use crate::signature_mngr;
 
 use witnet_data_structures::{
     chain::{
-        transaction_tag, Block, BlockHeader, CheckpointBeacon, Hashable, LeadershipProof, Output,
-        PublicKeyHash, Transaction, TransactionType, TransactionsPool, UnspentOutputsPool,
-        ValueTransferOutput,
+        Block, BlockHeader, CheckpointBeacon, Hashable, LeadershipProof, PublicKeyHash,
+        TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
-    data_request::{create_commit_body, create_reveal_body, create_tally_body, create_vt_tally},
+    data_request::{
+        create_commit_body, create_reveal_body, create_tally_body, create_vt_tally, DataRequestPool,
+    },
+    transaction::{CommitTransaction, MintTransaction, RevealTransaction, Transaction},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
@@ -100,8 +102,11 @@ impl ChainManager {
 
                         // Build the block using the supplied beacon and eligibility proof
                         let block = build_block(
-                            &act.transactions_pool,
-                            &act.chain_state.unspent_outputs_pool,
+                            (
+                                &act.transactions_pool,
+                                &act.chain_state.unspent_outputs_pool,
+                                &act.chain_state.data_request_pool,
+                            ),
                             act.max_block_weight,
                             beacon,
                             leadership_proof,
@@ -157,16 +162,16 @@ impl ChainManager {
         let current_epoch = self.current_epoch.unwrap();
 
         // Data Request mining
-        let dr_output_pointers = self
+        let dr_pointers = self
             .chain_state
             .data_request_pool
             .get_dr_output_pointers_by_epoch(current_epoch);
 
-        for dr_output_pointer in dr_output_pointers {
+        for dr_pointer in dr_pointers {
             let data_request_output = self
                 .chain_state
                 .data_request_pool
-                .get_dr_output(&dr_output_pointer);
+                .get_dr_output(&dr_pointer);
 
             if data_request_output.is_some() && verify_poe_data_request() {
                 let data_request_output = data_request_output.unwrap();
@@ -192,29 +197,31 @@ impl ChainManager {
                     })
                     .and_then(move |reveal_value, act, _ctx| {
                         // Create commitment transaction
-                        let commit_body = create_commit_body(dr_output_pointer.clone(), &data_request_output, reveal_value.clone());
-                        sign_transaction(commit_body)
+                        let commit_body = create_commit_body(dr_pointer, reveal_value.clone());
+                        sign_transaction(&commit_body, 1)
                             .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
                             .into_actor(act)
-                            .and_then(move |commit_transaction, act, _ctx| {
-                                let reveal_body = create_reveal_body(dr_output_pointer.clone(),  &data_request_output, reveal_value, own_pkh);
+                            .and_then(move |commit_signatures, act, _ctx| {
+                                let reveal_body = create_reveal_body(dr_pointer,reveal_value, own_pkh);
 
-                                sign_transaction(reveal_body)
+                                sign_transaction(&reveal_body, 1)
                                     .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
                                     .into_actor(act)
-                                    .and_then(move |reveal_transaction, act, ctx| {
+                                    .and_then(move |reveal_signatures, act, ctx| {
+                                        let reveal_transaction = RevealTransaction::new(reveal_body, reveal_signatures);
                                         // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
-                                        act.chain_state.data_request_pool.insert_reveal(dr_output_pointer.clone(), reveal_transaction);
+                                        act.chain_state.data_request_pool.insert_reveal(dr_pointer, reveal_transaction);
 
                                         info!(
                                             "{} Discovered eligibility for mining a data request {} for epoch #{}",
                                             Yellow.bold().paint("[Mining]"),
-                                            Yellow.bold().paint(dr_output_pointer.to_string()),
+                                            Yellow.bold().paint(dr_pointer.to_string()),
                                             Yellow.bold().paint(current_epoch.to_string())
                                         );
 
                                         // Send AddTransaction message to self
                                         // And broadcast it to all of peers
+                                        let commit_transaction = Transaction::Commit(CommitTransaction::new(commit_body, commit_signatures));
                                         act.handle(
                                             AddTransaction {
                                                 transaction: commit_transaction,
@@ -244,8 +251,7 @@ impl ChainManager {
             let dr_output = data_request_pool.data_request_pool[&dr_pointer]
                 .data_request
                 .clone();
-            let (inputs, outputs, results) =
-                create_vt_tally(dr_pointer.clone(), &dr_output, reveals);
+            let (outputs, results) = create_vt_tally(&dr_output, reveals);
 
             let rad_manager_addr = System::current().registry().get::<RadManager>();
             let fut = rad_manager_addr
@@ -265,40 +271,35 @@ impl ChainManager {
                     }
                 })
                 .and_then(move |consensus| {
-                    let tally_body =
-                        create_tally_body(&dr_output, inputs, outputs, consensus.clone());
+                    let tally = create_tally_body(dr_pointer, outputs, consensus.clone());
 
-                    sign_transaction(tally_body)
-                        .map_err(|e| log::error!("Couldn't sign tally body: {}", e))
-                        .and_then(move |tally_transaction| {
-                            let print_results: Vec<_> = results
+                    let print_results: Vec<_> = results
+                        .into_iter()
+                        .map(|result| RadonTypes::try_from(result.as_slice()))
+                        .collect();
+                    info!(
+                        "{} Created Tally for Data Request {} with result: {}\n{}",
+                        Yellow.bold().paint("[Data Request]"),
+                        Yellow.bold().paint(&dr_pointer.to_string()),
+                        Yellow.bold().paint(
+                            RadonTypes::try_from(consensus.as_slice())
+                                .map(|x| x.to_string())
+                                .unwrap_or_else(|_| "RADError".to_string())
+                        ),
+                        White.bold().paint(
+                            print_results
                                 .into_iter()
-                                .map(|result| RadonTypes::try_from(result.as_slice()))
-                                .collect();
-                            info!(
-                                "{} Created Tally for Data Request {} with result: {}\n{}",
-                                Yellow.bold().paint("[Data Request]"),
-                                Yellow.bold().paint(&dr_pointer.to_string()),
-                                Yellow.bold().paint(
-                                    RadonTypes::try_from(consensus.as_slice())
-                                        .map(|x| x.to_string())
-                                        .unwrap_or_else(|_| "RADError".to_string())
-                                ),
-                                White.bold().paint(
-                                    print_results
-                                        .into_iter()
-                                        .map(|result| result
-                                            .map(|x| x.to_string())
-                                            .unwrap_or_else(|_| "RADError".to_string()))
-                                        .fold("Reveals:".to_string(), |acc, item| format!(
-                                            "{}\n\t* {}",
-                                            acc, item
-                                        ))
-                                ),
-                            );
+                                .map(|result| result
+                                    .map(|x| x.to_string())
+                                    .unwrap_or_else(|_| "RADError".to_string()))
+                                .fold("Reveals:".to_string(), |acc, item| format!(
+                                    "{}\n\t* {}",
+                                    acc, item
+                                ))
+                        ),
+                    );
 
-                            futures::future::ok(tally_transaction)
-                        })
+                    futures::future::ok(Transaction::Tally(tally))
                 });
             future_tally_transactions.push(fut);
         }
@@ -310,21 +311,22 @@ impl ChainManager {
 /// Build a new Block using the supplied leadership proof and by filling transactions from the
 /// `transaction_pool`
 fn build_block(
-    transactions_pool: &TransactionsPool,
-    unspent_outputs_pool: &UnspentOutputsPool,
+    pools_ref: (&TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
     max_block_weight: u32,
     beacon: CheckpointBeacon,
     proof: LeadershipProof,
     tally_transactions: &[Transaction],
     own_pkh: PublicKeyHash,
 ) -> Block {
+    let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
+
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
     let mut block_weight = 0;
     let mut transactions = Vec::new();
 
     // Insert empty Transaction (future Mint Transaction)
-    transactions.push(Transaction::default());
+    transactions.push(Transaction::Mint(MintTransaction::default()));
 
     // Keep track of the commitments for each data request
     let mut witnesses_per_dr = HashMap::new();
@@ -336,7 +338,7 @@ fn build_block(
         // Currently, 1 weight unit is equivalent to 1 byte
         let transaction_weight = transaction.size();
         let utxo_diff = UtxoDiff::new(unspent_outputs_pool);
-        let transaction_fee = match transaction_fee(&transaction.body, &utxo_diff) {
+        let transaction_fee = match transaction_fee(&transaction, &utxo_diff, dr_pool) {
             Ok(x) => x,
             Err(e) => {
                 warn!(
@@ -349,13 +351,12 @@ fn build_block(
         let new_block_weight = block_weight + transaction_weight;
 
         if new_block_weight <= max_block_weight {
-            if let TransactionType::Commit = transaction_tag(&transaction.body) {
-                let dri = &transaction.body.inputs[0];
-                let dri_pointer = dri.output_pointer();
-                if let Some(dr) = unspent_outputs_pool.get(&dri_pointer) {
-                    if let Output::DataRequest(dr) = dr {
-                        let w = dr.witnesses;
-                        let new_w = witnesses_per_dr.entry(dri_pointer).or_insert(0);
+            match transaction {
+                Transaction::Commit(co_tx) => {
+                    let dr_pointer = &co_tx.body.dr_pointer;
+                    if let Some(dr_state) = dr_pool.data_request_pool.get(dr_pointer) {
+                        let w = dr_state.data_request.witnesses;
+                        let new_w = witnesses_per_dr.entry(dr_pointer).or_insert(0);
                         if *new_w < w {
                             // Ok, push commitment
                             *new_w += 1;
@@ -365,10 +366,11 @@ fn build_block(
                         }
                     }
                 }
-            } else {
-                transactions.push(transaction.clone());
-                transaction_fees += transaction_fee;
-                block_weight += transaction_weight;
+                _ => {
+                    transactions.push(transaction.clone());
+                    transaction_fees += transaction_fee;
+                    block_weight += transaction_weight;
+                }
             }
 
             if new_block_weight == max_block_weight {
@@ -382,13 +384,14 @@ fn build_block(
     let reward = block_reward(epoch) + transaction_fees;
 
     // Build Mint Transaction
-    transactions[0]
-        .body
-        .outputs
-        .push(Output::ValueTransfer(ValueTransferOutput {
+    let mint_tx = Transaction::Mint(MintTransaction::new(
+        epoch,
+        vec![ValueTransferOutput {
             pkh: own_pkh,
             value: reward,
-        }));
+        }],
+    ));
+    transactions[0] = mint_tx;
 
     // Compute `hash_merkle_root` and build block header
     let hash_merkle_root = merkle_tree_root(&transactions);
@@ -413,6 +416,7 @@ mod tests {
     };
     use witnet_crypto::signature::{sign, verify};
     use witnet_data_structures::chain::*;
+    use witnet_data_structures::transaction::*;
     use witnet_validations::validations::validate_block_signature;
 
     #[test]
@@ -422,10 +426,11 @@ mod tests {
         // In protocol buffers, when version is 0 and all the other fields are empty vectors, the
         // transaction size is 0 bytes (since missing fields are initialized with the default
         // values). Therefore version cannot be 0.
-        let transaction = Transaction::default();
+        let transaction = Transaction::ValueTransfer(VTTransaction::default());
         transaction_pool.insert(transaction.hash(), transaction.clone());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
+        let dr_pool = DataRequestPool::default();
 
         // Set `max_block_weight` to zero (no transaction should be included)
         let max_block_weight = 0;
@@ -436,8 +441,7 @@ mod tests {
 
         // Build empty block (because max weight is zero)
         let block = build_block(
-            &transaction_pool,
-            &unspent_outputs_pool,
+            (&transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
             block_proof,
@@ -447,10 +451,11 @@ mod tests {
 
         // Check if block only contains the Mint Transaction
         assert_eq!(block.txns.len(), 1);
-        assert_eq!(block.txns[0].body.inputs.len(), 0);
-        assert_eq!(block.txns[0].body.outputs.len(), 1);
-        assert_eq!(block.txns[0].signatures.len(), 0);
-
+        if let Transaction::Mint(mint_tx) = &block.txns[0] {
+            assert_eq!(mint_tx.outputs.len(), 1);
+        } else {
+            panic!("No Mint Transaction");
+        }
         // Check that transaction in block is not the transaction in `transactions_pool`
         assert_ne!(block.txns[0], transaction);
     }
@@ -459,10 +464,11 @@ mod tests {
     fn build_signed_empty_block() {
         // Initialize transaction_pool with 1 transaction
         let mut transaction_pool = TransactionsPool::default();
-        let transaction = Transaction::default();
+        let transaction = Transaction::ValueTransfer(VTTransaction::default());
         transaction_pool.insert(transaction.hash(), transaction.clone());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
+        let dr_pool = DataRequestPool::default();
 
         // Set `max_block_weight` to zero (no transaction should be included)
         let max_block_weight = 0;
@@ -493,8 +499,7 @@ mod tests {
 
         // Build empty block (because max weight is zero)
         let block = build_block(
-            &transaction_pool,
-            &unspent_outputs_pool,
+            (&transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
             block_proof,
@@ -504,9 +509,11 @@ mod tests {
 
         // Check if block only contains the Mint Transaction
         assert_eq!(block.txns.len(), 1);
-        assert_eq!(block.txns[0].body.inputs.len(), 0);
-        assert_eq!(block.txns[0].body.outputs.len(), 1);
-        assert_eq!(block.txns[0].signatures.len(), 0);
+        if let Transaction::Mint(mint_tx) = &block.txns[0] {
+            assert_eq!(mint_tx.outputs.len(), 1);
+        } else {
+            panic!("No mint transaction in block");
+        }
 
         // Check that transaction in block is not the transaction in `transactions_pool`
         assert_ne!(block.txns[0], transaction);
@@ -519,23 +526,21 @@ mod tests {
     #[ignore]
     fn build_block_with_transactions() {
         // Build sample transactions
-        let transaction_1 = Transaction::new(
-            TransactionBody::new(
-                0,
+        let transaction_1 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(
                 vec![Input::new(OutputPointer {
                     transaction_id: Hash::SHA256([1; 32]),
                     output_index: 0,
                 })],
-                vec![Output::ValueTransfer(ValueTransferOutput {
+                vec![ValueTransferOutput {
                     pkh: PublicKeyHash::default(),
                     value: 1,
-                })],
+                }],
             ),
             vec![],
-        );
-        let transaction_2 = Transaction::new(
-            TransactionBody::new(
-                0,
+        ));
+        let transaction_2 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(
                 vec![
                     Input::new(OutputPointer {
                         transaction_id: Hash::SHA256([2; 32]),
@@ -547,21 +552,20 @@ mod tests {
                     }),
                 ],
                 vec![
-                    Output::ValueTransfer(ValueTransferOutput {
+                    ValueTransferOutput {
                         pkh: PublicKeyHash::default(),
                         value: 2,
-                    }),
-                    Output::ValueTransfer(ValueTransferOutput {
+                    },
+                    ValueTransferOutput {
                         pkh: PublicKeyHash::default(),
                         value: 3,
-                    }),
+                    },
                 ],
             ),
             vec![],
-        );
-        let transaction_3 = Transaction::new(
-            TransactionBody::new(
-                0,
+        ));
+        let transaction_3 = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(
                 vec![
                     Input::new(OutputPointer {
                         transaction_id: Hash::SHA256([4; 32]),
@@ -573,18 +577,18 @@ mod tests {
                     }),
                 ],
                 vec![
-                    Output::ValueTransfer(ValueTransferOutput {
+                    ValueTransferOutput {
                         pkh: PublicKeyHash::default(),
                         value: 4,
-                    }),
-                    Output::ValueTransfer(ValueTransferOutput {
+                    },
+                    ValueTransferOutput {
                         pkh: PublicKeyHash::default(),
                         value: 5,
-                    }),
+                    },
                 ],
             ),
             vec![],
-        );
+        ));
 
         // Insert transactions into `transactions_pool`
         // TODO: Currently the insert function does not take into account the fees to compute the transaction's weight
@@ -594,6 +598,7 @@ mod tests {
         transaction_pool.insert(transaction_3.hash(), transaction_3.clone());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
+        let dr_pool = DataRequestPool::default();
 
         // Set `max_block_weight` to fit only `transaction_1` size
         let max_block_weight = transaction_1.size();
@@ -606,8 +611,7 @@ mod tests {
 
         // Build block with
         let block = build_block(
-            &transaction_pool,
-            &unspent_outputs_pool,
+            (&transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
             block_proof,
@@ -619,9 +623,11 @@ mod tests {
         assert_eq!(block.txns.len(), 2);
 
         // Check that first transaction is the Mint Transaction
-        assert_eq!(block.txns[0].body.inputs.len(), 0);
-        assert_eq!(block.txns[0].body.outputs.len(), 1);
-        assert_eq!(block.txns[0].signatures.len(), 0);
+        if let Transaction::Mint(mint_tx) = &block.txns[0] {
+            assert_eq!(mint_tx.outputs.len(), 1);
+        } else {
+            panic!("No mint transaction in block");
+        }
         // Check that transaction in block is not a transaction from `transactions_pool`
         assert_ne!(block.txns[0], transaction_1);
         assert_ne!(block.txns[0], transaction_2);

@@ -1,27 +1,26 @@
-use actix::prelude::*;
+use actix::{fut::WrapFuture, prelude::*};
 use log::{debug, error, warn};
 
 use witnet_data_structures::{
     chain::{CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem},
     error::ChainInfoError,
+    transaction::{DRTransaction, Transaction, VTTransaction},
 };
 use witnet_validations::validations::{validate_block, validate_transaction, UtxoDiff};
 
 use super::{ChainManager, ChainManagerError, StateMachine};
-use crate::actors::chain_manager::transaction_factory;
-use crate::actors::messages::{BuildDrt, BuildVtt};
 use crate::{
     actors::{
+        chain_manager::transaction_factory,
         messages::{
-            AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, EpochNotification,
-            GetBlocksEpochRange, GetHighestCheckpointBeacon, PeersBeacons, SendLastBeacon,
-            SessionUnitResult,
+            AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, BuildDrt, BuildVtt,
+            EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, PeersBeacons,
+            SendLastBeacon, SessionUnitResult,
         },
         sessions_manager::SessionsManager,
     },
     utils::mode_consensus,
 };
-use actix::fut::WrapFuture;
 use std::collections::HashMap;
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -489,11 +488,13 @@ impl Handler<BuildVtt> for ChainManager {
         ) {
             Err(e) => error!("{}", e),
             Ok(vtt) => {
-                transaction_factory::sign_transaction(vtt)
+                transaction_factory::sign_transaction(&vtt, vtt.inputs.len())
                     .into_actor(self)
-                    .then(|t, _act, ctx| {
-                        match t {
-                            Ok(transaction) => {
+                    .then(|s, _act, ctx| {
+                        match s {
+                            Ok(signatures) => {
+                                let transaction =
+                                    Transaction::ValueTransfer(VTTransaction::new(vtt, signatures));
                                 ctx.notify(AddTransaction { transaction });
                             }
                             Err(e) => error!("{}", e),
@@ -518,13 +519,15 @@ impl Handler<BuildDrt> for ChainManager {
             &self.chain_state.unspent_outputs_pool,
         ) {
             Err(e) => error!("{}", e),
-            Ok(vtt) => {
-                debug!("Created vtt:\n{:?}", vtt);
-                transaction_factory::sign_transaction(vtt)
+            Ok(drt) => {
+                debug!("Created vtt:\n{:?}", drt);
+                transaction_factory::sign_transaction(&drt, drt.inputs.len())
                     .into_actor(self)
-                    .then(|t, _act, ctx| {
-                        match t {
-                            Ok(transaction) => {
+                    .then(|s, _act, ctx| {
+                        match s {
+                            Ok(signatures) => {
+                                let transaction =
+                                    Transaction::DataRequest(DRTransaction::new(drt, signatures));
                                 ctx.notify(AddTransaction { transaction });
                             }
                             Err(e) => error!("{}", e),
