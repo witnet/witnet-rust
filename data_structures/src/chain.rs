@@ -538,38 +538,18 @@ impl Input {
         Self { output_pointer }
     }
     /// Return the [`OutputPointer`](OutputPointer) of an input.
-    pub fn output_pointer(&self) -> OutputPointer {
-        self.output_pointer.clone()
+    pub fn output_pointer(&self) -> &OutputPointer {
+        &self.output_pointer
     }
-}
-
-/// Output data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Output")]
-pub enum Output {
-    ValueTransfer(ValueTransferOutput),
-    DataRequest(DataRequestOutput),
-    Commit(CommitOutput),
-    Reveal(RevealOutput),
-    Tally(TallyOutput),
-}
-
-impl Output {
-    /// Return the value of an output.
-    pub fn value(&self) -> u64 {
-        match self {
-            Output::Commit(output) => output.value,
-            Output::Tally(output) => output.value,
-            Output::DataRequest(output) => output.value(),
-            Output::Reveal(output) => output.value,
-            Output::ValueTransfer(output) => output.value,
-        }
+    /// Return the [`OutputPointer`](OutputPointer) of an input.
+    pub fn into_output_pointer(self) -> OutputPointer {
+        self.output_pointer
     }
 }
 
 /// Value transfer output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Output_ValueTransferOutput")]
+#[protobuf_convert(pb = "witnet::ValueTransferOutput")]
 pub struct ValueTransferOutput {
     pub pkh: PublicKeyHash,
     pub value: u64,
@@ -588,43 +568,6 @@ pub struct DataRequestOutput {
     pub reveal_fee: u64,
     pub tally_fee: u64,
     pub time_lock: u64,
-}
-
-impl DataRequestOutput {
-    /// The total cost of a data request
-    pub fn value(&self) -> u64 {
-        // The total cost of a data request is
-        // value (total reward to be divided between all the witnesses)
-        // + commit_fee (total commit fee to be divided between all commits)
-        // + reveal_fee (total reveal fee to be divided between all reveals)
-        // + tally_fee (fee for the tally transaction)
-        self.value + self.commit_fee + self.reveal_fee + self.tally_fee
-    }
-}
-
-/// Commit output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Output_CommitOutput")]
-pub struct CommitOutput {
-    pub commitment: Hash,
-    pub value: u64,
-}
-
-/// Reveal output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Output_RevealOutput")]
-pub struct RevealOutput {
-    pub reveal: Vec<u8>,
-    pub pkh: PublicKeyHash,
-    pub value: u64,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Output_TallyOutput")]
-pub struct TallyOutput {
-    pub result: Vec<u8>,
-    pub pkh: PublicKeyHash,
-    pub value: u64,
 }
 
 /// Keyed signature data structure
@@ -1207,7 +1150,7 @@ pub enum DataRequestStage {
     TALLY,
 }
 
-pub type UnspentOutputsPool = HashMap<OutputPointer, Output>;
+pub type UnspentOutputsPool = HashMap<OutputPointer, ValueTransferOutput>;
 
 pub type Blockchain = BTreeMap<Epoch, Hash>;
 
@@ -1238,13 +1181,16 @@ impl ChainState {
         })
     }
     /// Retrieve the output pointed by the output pointer in an input
-    pub fn get_output_from_input(&self, input: &Input) -> Option<&Output> {
+    pub fn get_output_from_input(&self, input: &Input) -> Option<&ValueTransferOutput> {
         let output_pointer = input.output_pointer();
 
         self.unspent_outputs_pool.get(&output_pointer)
     }
-    /// Map a vector of inputs to a the vector of outputs pointed by the inputs' output pointers
-    pub fn get_outputs_from_inputs(&self, inputs: &[Input]) -> Result<Vec<Output>, Input> {
+    /// Map a vector of inputs to a the vector of ValueTransferOutputs pointed by the inputs' output pointers
+    pub fn get_outputs_from_inputs(
+        &self,
+        inputs: &[Input],
+    ) -> Result<Vec<ValueTransferOutput>, Input> {
         let v = inputs
             .iter()
             .map(|i| self.get_output_from_input(i))
@@ -1335,29 +1281,29 @@ pub fn penalize_factor(
     }
 }
 
-/// Returns `true` if the transaction classifies as a _mint
-/// transaction_.  A mint transaction is one that has no inputs,
-/// only outputs, thus, is allowed to create new wits.
-pub fn transaction_is_mint(tx: &TransactionBody) -> bool {
-    tx.inputs.is_empty()
+fn update_utxo_inputs(utxo: &mut UnspentOutputsPool, inputs: &[Input]) {
+    for input in inputs {
+        // Obtain the OutputPointer of each input and remove it from the utxo_set
+        let output_pointer = input.output_pointer();
+
+        // This does not check for missing inputs
+        utxo.remove(&output_pointer);
+    }
 }
 
-/// Function to assign tags to transactions
-pub fn transaction_tag(tx: &TransactionBody) -> TransactionType {
-    match tx.outputs.last() {
-        Some(Output::DataRequest(_)) => TransactionType::DataRequest,
-        Some(Output::ValueTransfer(_)) => {
-            if transaction_is_mint(tx) {
-                TransactionType::Mint
-            } else {
-                TransactionType::ValueTransfer
-            }
-        }
-        Some(Output::Commit(_)) => TransactionType::Commit,
-        Some(Output::Reveal(_)) => TransactionType::Reveal,
-        Some(Output::Tally(_)) => TransactionType::Tally,
-        // No outputs: donation to the miners
-        None => TransactionType::ValueTransfer,
+fn update_utxo_outputs(
+    utxo: &mut UnspentOutputsPool,
+    outputs: &[ValueTransferOutput],
+    txn_hash: Hash,
+) {
+    for (index, output) in outputs.iter().enumerate() {
+        // Add the new outputs to the utxo_set
+        let output_pointer = OutputPointer {
+            transaction_id: txn_hash,
+            output_index: index as u32,
+        };
+
+        utxo.insert(output_pointer, output.clone());
     }
 }
 
@@ -1396,10 +1342,8 @@ pub fn generate_unspent_outputs_pool(
 // Auxiliar functions for test
 pub fn transaction_example() -> Transaction {
     let keyed_signature = vec![KeyedSignature::default()];
-    let reveal_input = Input::default();
-    let commit_input = Input::default();
     let data_request_input = Input::default();
-    let value_transfer_output = Output::ValueTransfer(ValueTransferOutput::default());
+    let value_transfer_output = ValueTransferOutput::default();
 
     let rad_retrieve = RADRetrieve {
         url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
