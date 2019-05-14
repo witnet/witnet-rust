@@ -41,21 +41,17 @@ pub trait ProtobufConvert: Sized {
 }
 
 impl ProtobufConvert for chain::RADType {
-    type ProtoStruct = witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADType;
+    type ProtoStruct = witnet::DataRequestOutput_RADRequest_RADType;
 
     fn to_pb(&self) -> Self::ProtoStruct {
         match self {
-            chain::RADType::HttpGet => {
-                witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADType::HttpGet
-            }
+            chain::RADType::HttpGet => witnet::DataRequestOutput_RADRequest_RADType::HttpGet,
         }
     }
 
     fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
         Ok(match pb {
-            witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADType::HttpGet => {
-                chain::RADType::HttpGet
-            }
+            witnet::DataRequestOutput_RADRequest_RADType::HttpGet => chain::RADType::HttpGet,
         })
     }
 }

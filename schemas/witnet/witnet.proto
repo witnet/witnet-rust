@@ -86,87 +86,121 @@ message OutputPointer {
     uint32 output_index = 2;
 }
 
-message TransactionBody {
-    message Input {
-        OutputPointer output_pointer = 1;
-    }
-    message Output {
-        message ValueTransferOutput {
-            PublicKeyHash pkh = 1;
-            uint64 value = 2;
-        }
-        message DataRequestOutput {
-            message RADRequest {
-                enum RADType {
-                    HttpGet = 0;
-                }
-                message RADRetrieve {
-                    RADType kind = 1;
-                    string url = 2;
-                    // TODO: RADScript should maybe be a type?
-                    bytes script = 3;
-                }
-                message RADAggregate {
-                    bytes script = 1;
-                }
-                message RADConsensus {
-                    bytes script = 1;
-                }
-                message RADDeliver {
-                     RADType kind = 1;
-                     string url = 2;
-                }
+message ValueTransferOutput {
+    PublicKeyHash pkh = 1;
+    uint64 value = 2;
+}
 
-                uint64 not_before = 1;
-                repeated RADRetrieve retrieve = 2;
-                RADAggregate aggregate = 3;
-                RADConsensus consensus = 4;
-                repeated RADDeliver deliver = 5;
-            }
-
-            PublicKeyHash pkh = 1;
-            RADRequest data_request = 2;
-            uint64 value = 3;
-            uint32 witnesses = 4;
-            uint32 backup_witnesses = 5;
-            uint64 commit_fee = 6;
-            uint64 reveal_fee = 7;
-            uint64 tally_fee = 8;
-            uint64 time_lock = 9;
+message DataRequestOutput {
+    message RADRequest {
+        enum RADType {
+            HttpGet = 0;
         }
-        message CommitOutput {
-            Hash commitment = 1;
-            uint64 value = 2;
+        message RADRetrieve {
+            RADType kind = 1;
+            string url = 2;
+            // TODO: RADScript should maybe be a type?
+            bytes script = 3;
         }
-        message RevealOutput {
-            bytes reveal = 1;
-            PublicKeyHash pkh = 2;
-            uint64 value = 3;
+        message RADAggregate {
+            bytes script = 1;
+        }
+        message RADConsensus {
+            bytes script = 1;
+        }
+        message RADDeliver {
+            RADType kind = 1;
+            string url = 2;
         }
 
-        message TallyOutput {
-            bytes result = 1;
-            PublicKeyHash pkh = 2;
-            uint64 value = 3;
-        }
-
-        oneof kind {
-            ValueTransferOutput ValueTransfer = 1;
-            DataRequestOutput DataRequest = 2;
-            CommitOutput Commit = 3;
-            RevealOutput Reveal = 4;
-            TallyOutput Tally = 5;
-        }
+        uint64 not_before = 1;
+        repeated RADRetrieve retrieve = 2;
+        RADAggregate aggregate = 3;
+        RADConsensus consensus = 4;
+        repeated RADDeliver deliver = 5;
     }
 
-    uint32 version = 1;
-    repeated Input inputs = 2;
-    repeated Output outputs = 3;
+    PublicKeyHash pkh = 1;
+    RADRequest data_request = 2;
+    uint64 value = 3;
+    uint32 witnesses = 4;
+    uint32 backup_witnesses = 5;
+    uint64 commit_fee = 6;
+    uint64 reveal_fee = 7;
+    uint64 tally_fee = 8;
+    uint64 time_lock = 9;
+}
+
+message Input {
+    OutputPointer output_pointer = 1;
+}
+
+// Transaction types
+message VTTransactionBody {
+    repeated Input inputs = 1;
+    repeated ValueTransferOutput outputs = 2;
+}
+
+message VTTransaction {
+    VTTransactionBody body = 1;
+    repeated KeyedSignature signatures = 2;
+}
+
+message DRTransactionBody {
+    repeated Input inputs = 1;
+    repeated ValueTransferOutput outputs = 2;
+    DataRequestOutput dr_output = 3;
+}
+
+message DRTransaction {
+    DRTransactionBody body = 1;
+    repeated KeyedSignature signatures = 2;
+}
+
+message CommitTransactionBody {
+    // TODO: Discussion about collateral
+    // repeated Input collateral = 1;
+    Hash dr_pointer = 1;
+    Hash commitment = 2;
+    Hash repoe = 3;
+}
+
+message CommitTransaction {
+    CommitTransactionBody body = 1;
+    repeated KeyedSignature signatures = 2;
+}
+
+message RevealTransactionBody {
+    Hash dr_pointer = 1;
+    bytes reveal = 2;
+    PublicKeyHash pkh = 3;
+}
+
+message RevealTransaction {
+    RevealTransactionBody body = 1;
+    repeated KeyedSignature signatures = 2;
+}
+
+message TallyTransaction {
+    Hash dr_pointer = 1;
+    bytes tally = 2;
+    repeated ValueTransferOutput outputs = 3;
+}
+
+message MintTransaction {
+    fixed32 epoch = 1;
+    repeated ValueTransferOutput outputs = 2;
 }
 
 message Transaction {
-    TransactionBody body = 1;
-    repeated KeyedSignature signatures = 2;
+    oneof kind {
+        VTTransaction ValueTransfer = 1;
+        DRTransaction DataRequest = 2;
+        CommitTransaction Commit = 3;
+        RevealTransaction Reveal = 4;
+        TallyTransaction Tally = 5;
+        MintTransaction Mint = 6;
+    }
 }
 
 // Helper structures (not meant to be sent directly as messages)
