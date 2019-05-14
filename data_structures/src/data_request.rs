@@ -4,34 +4,36 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use witnet_crypto::hash::calculate_sha256;
 
-use super::{
+use crate::{
     chain::{
-        transaction_tag, CommitOutput, DataRequestOutput, DataRequestReport, DataRequestStage,
-        DataRequestState, Epoch, Hash, Hashable, Input, Output, OutputPointer, PublicKeyHash,
-        RevealOutput, TallyOutput, Transaction, TransactionBody, TransactionType,
-        ValueTransferOutput,
+        DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch, Hash,
+        Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::DataRequestError,
+    transaction::{
+        CommitTransaction, CommitTransactionBody, DRTransaction, RevealTransaction,
+        RevealTransactionBody, TallyTransaction, Transaction,
+    },
 };
-
 use serde::{Deserialize, Serialize};
+
 /// Pool of active data requests
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestPool {
     /// Current active data request, in which this node has announced commitments.
-    /// Key: Data Request Pointer, Value: Reveal Transaction
-    pub waiting_for_reveal: HashMap<OutputPointer, Transaction>,
+    /// Key: DRTransaction hash, Value: Reveal Transaction
+    pub waiting_for_reveal: HashMap<Hash, RevealTransaction>,
     /// List of active data request output pointers ordered by epoch (for mining purposes)
-    pub data_requests_by_epoch: BTreeMap<Epoch, HashSet<OutputPointer>>,
+    pub data_requests_by_epoch: BTreeMap<Epoch, HashSet<Hash>>,
     /// List of active data requests indexed by output pointer
-    pub data_request_pool: HashMap<OutputPointer, DataRequestState>,
+    pub data_request_pool: HashMap<Hash, DataRequestState>,
     /// List of data requests that should be persisted into storage
-    pub to_be_stored: Vec<(OutputPointer, DataRequestReport)>,
+    pub to_be_stored: Vec<DataRequestReport>,
 }
 
 impl DataRequestPool {
     /// Get all available data requests output pointers for an epoch
-    pub fn get_dr_output_pointers_by_epoch(&self, epoch: Epoch) -> Vec<OutputPointer> {
+    pub fn get_dr_output_pointers_by_epoch(&self, epoch: Epoch) -> Vec<Hash> {
         let range = 0..=epoch;
         self.data_requests_by_epoch
             .range(range)
@@ -39,33 +41,33 @@ impl DataRequestPool {
             .collect()
     }
 
-    /// Get a `DataRequestOuput` for a `OutputPointer`
-    pub fn get_dr_output(&self, output_pointer: &OutputPointer) -> Option<DataRequestOutput> {
+    /// Get a `DataRequestOuput` for a DRTransaction `Hash`
+    pub fn get_dr_output(&self, dr_pointer: &Hash) -> Option<DataRequestOutput> {
         self.data_request_pool
-            .get(output_pointer)
+            .get(dr_pointer)
             .map(|dr_state| dr_state.data_request.clone())
     }
 
-    /// Get all reveals related to a `DataRequestOuput` for a `OutputPointer`
-    pub fn get_reveals(&self, output_pointer: &OutputPointer) -> Option<Vec<RevealOutput>> {
+    /// Get all reveals related to a `DataRequestOuput`
+    pub fn get_reveals(&self, dr_pointer: &Hash) -> Option<Vec<RevealTransaction>> {
         self.data_request_pool
-            .get(output_pointer)
+            .get(dr_pointer)
             .map(|dr_state| dr_state.info.reveals.values().cloned().collect())
     }
 
     /// Insert a reveal transaction into the pool
-    pub fn insert_reveal(&mut self, data_request_pointer: OutputPointer, reveal: Transaction) {
-        self.waiting_for_reveal.insert(data_request_pointer, reveal);
+    pub fn insert_reveal(&mut self, dr_pointer: Hash, reveal: RevealTransaction) {
+        self.waiting_for_reveal.insert(dr_pointer, reveal);
     }
 
     /// Get all the reveals
-    pub fn get_all_reveals(&self) -> HashMap<OutputPointer, Vec<RevealOutput>> {
+    pub fn get_all_reveals(&self) -> HashMap<Hash, Vec<RevealTransaction>> {
         self.data_request_pool
             .iter()
             .filter_map(|(dr_pointer, dr_state)| {
                 if let DataRequestStage::TALLY = dr_state.stage {
                     let reveals = dr_state.info.reveals.values().cloned().collect();
-                    Some((dr_pointer.clone(), reveals))
+                    Some((*dr_pointer, reveals))
                 } else {
                     None
                 }
@@ -351,16 +353,13 @@ impl DataRequestPool {
 
     /// Get the detailed state of a data request.
     #[allow(unused)]
-    pub fn data_request_state(
-        &self,
-        data_request_pointer: &OutputPointer,
-    ) -> Option<&DataRequestState> {
-        self.data_request_pool.get(data_request_pointer)
+    pub fn data_request_state(&self, dr_pointer: &Hash) -> Option<&DataRequestState> {
+        self.data_request_pool.get(dr_pointer)
     }
 
     /// Get the data request info of the finished data requests, to be persisted to the storage
     #[allow(unused)]
-    pub fn finished_data_requests(&mut self) -> Vec<(OutputPointer, DataRequestReport)> {
+    pub fn finished_data_requests(&mut self) -> Vec<DataRequestReport> {
         std::mem::replace(&mut self.to_be_stored, vec![])
     }
 }
