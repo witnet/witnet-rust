@@ -279,9 +279,13 @@ impl ChainManager {
     }
 
     fn consolidate_block(&mut self, ctx: &mut Context<Self>, block: &Block, utxo_diff: Diff) {
-        // Update chain_info
-        match self.chain_state.chain_info.as_mut() {
-            Some(chain_info) => {
+        // Update chain_info and reputation_engine
+        match self.chain_state {
+            ChainState {
+                chain_info: Some(ref mut chain_info),
+                reputation_engine: Some(ref mut reputation_engine),
+                ..
+            } => {
                 let block_hash = block.hash();
                 let block_epoch = block.block_header.beacon.checkpoint;
 
@@ -311,7 +315,7 @@ impl ChainManager {
                 );
 
                 update_reputation(
-                    &mut self.chain_state.reputation_engine,
+                    reputation_engine,
                     &chain_info.consensus_constants,
                     rep_info,
                     log_level,
@@ -370,7 +374,7 @@ impl ChainManager {
                     _ => {}
                 }
             }
-            None => {
+            _ => {
                 error!("No ChainInfo loaded in ChainManager");
             }
         }

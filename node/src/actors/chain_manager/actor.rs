@@ -13,7 +13,7 @@ use crate::actors::{
 use crate::config_mngr;
 use crate::signature_mngr;
 use crate::storage_mngr;
-use witnet_data_structures::chain::{ChainInfo, ChainState, CheckpointBeacon};
+use witnet_data_structures::chain::{ChainInfo, ChainState, CheckpointBeacon, ReputationEngine};
 
 use witnet_util::timestamp::pretty_print;
 
@@ -53,60 +53,72 @@ impl ChainManager {
                 .map_err(|e, _, _| error!("Error while getting chain state from storage: {}", e))
                 .and_then(move |chain_state_from_storage, act, _ctx| {
                     // chain_info_from_storage can be None if the storage does not contain that key
-                    if chain_state_from_storage.is_some()
-                        && chain_state_from_storage
-                        .as_ref()
-                        .unwrap()
-                        .chain_info
-                        .is_some()
-                    {
-                        let chain_state_from_storage = chain_state_from_storage.unwrap();
-                        let chain_info_from_storage =
-                            chain_state_from_storage.chain_info.as_ref().unwrap();
+                    match chain_state_from_storage {
+                        Some(
+                            ChainState {
+                                chain_info: Some(..),
+                                reputation_engine: Some(..),
+                                ..
+                            }
+                        ) => {
+                            let chain_state_from_storage = chain_state_from_storage.unwrap();
+                            let chain_info_from_storage =
+                                chain_state_from_storage.chain_info.as_ref().unwrap();
 
-                        if environment == chain_info_from_storage.environment {
-                            if consensus_constants == chain_info_from_storage.consensus_constants {
-                                // Update Chain Info from storage
-                                act.chain_state = chain_state_from_storage;
-                                debug!("ChainInfo successfully obtained from storage");
+                            if environment == chain_info_from_storage.environment {
+                                if consensus_constants == chain_info_from_storage.consensus_constants {
+                                    // Update Chain Info from storage
+                                    act.chain_state = chain_state_from_storage;
+                                    debug!("ChainInfo successfully obtained from storage");
+                                } else {
+                                    // Mismatching consensus constants between config and storage
+                                    panic!(
+                                        "Mismatching consensus constants: tried to run a node using \
+                                         different consensus constants than the ones that were used when \
+                                         the local chain was initialized.\nNode constants: {:#?}\nChain \
+                                         constants: {:#?}",
+                                        consensus_constants, chain_info_from_storage.consensus_constants
+                                    );
+                                }
                             } else {
-                                // Mismatching consensus constants between config and storage
+                                // Mismatching environment names between config and storage
                                 panic!(
-                                    "Mismatching consensus constants: tried to run a node using \
-                                     different consensus constants than the ones that were used when \
-                                     the local chain was initialized.\nNode constants: {:#?}\nChain \
-                                     constants: {:#?}",
-                                    consensus_constants, chain_info_from_storage.consensus_constants
+                                    "Mismatching environments: tried to run a node on environment \
+                                    \"{:?}\" with a chain that was initialized with environment \
+                                    \"{:?}\".",
+                                    environment, chain_info_from_storage.environment
                                 );
                             }
-                        } else {
-                            // Mismatching environment names between config and storage
-                            panic!(
-                                "Mismatching environments: tried to run a node on environment \
-                                 \"{:?}\" with a chain that was initialized with environment \
-                                 \"{:?}\".",
-                                environment, chain_info_from_storage.environment
-                            );
                         }
-                    } else {
-                        debug!(
-                            "Uninitialized local chain (no ChainInfo in storage). Proceeding to \
-                             initialize and store a new chain."
-                        );
-                        // Create a new ChainInfo
-                        let genesis_hash = consensus_constants.genesis_hash;
-                        let chain_info = ChainInfo {
-                            environment,
-                            consensus_constants,
-                            highest_block_checkpoint: CheckpointBeacon {
-                                checkpoint: 0,
-                                hash_prev_block: genesis_hash,
-                            },
-                        };
-                        act.chain_state = ChainState {
-                            chain_info: Some(chain_info),
-                            ..ChainState::default()
-                        };
+                        x => {
+                            if x.is_some() {
+                                debug!(
+                                    "Uninitialized local chain the ChainInfo in storage is incomplete. Proceeding to \
+                                     initialize and store a new chain."
+                                );
+                            } else {
+                                debug!(
+                                    "Uninitialized local chain (no ChainInfo in storage). Proceeding to \
+                                     initialize and store a new chain."
+                                );
+                            }
+                            // Create a new ChainInfo
+                            let genesis_hash = consensus_constants.genesis_hash;
+                            let reputation_engine = ReputationEngine::new(consensus_constants.activity_period as usize);
+                            let chain_info = ChainInfo {
+                                environment,
+                                consensus_constants,
+                                highest_block_checkpoint: CheckpointBeacon {
+                                    checkpoint: 0,
+                                    hash_prev_block: genesis_hash,
+                                },
+                            };
+                            act.chain_state = ChainState {
+                                chain_info: Some(chain_info),
+                                reputation_engine: Some(reputation_engine),
+                                ..ChainState::default()
+                            };
+                        }
                     }
 
                     fut::ok(())

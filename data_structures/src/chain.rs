@@ -1225,7 +1225,7 @@ pub struct ChainState {
     /// List of unspent outputs that can be spent by this node
     pub own_utxos: HashSet<OutputPointer>,
     /// Reputation engine
-    pub reputation_engine: ReputationEngine,
+    pub reputation_engine: Option<ReputationEngine>,
 }
 
 impl ChainState {
@@ -1272,21 +1272,13 @@ pub struct ReputationEngine {
 
 impl ReputationEngine {
     /// Initial state of the Reputation Engine at epoch 0
-    pub fn new() -> Self {
+    pub fn new(activity_period: usize) -> Self {
         Self {
             current_alpha: Alpha(0),
             extra_reputation: Reputation(0),
             trs: TotalReputationSet::default(),
-            // TODO: extract magic numbers
-            // 1000 epochs at 90 seconds = 2 days
-            ars: ActiveReputationSet::new(1000),
+            ars: ActiveReputationSet::new(activity_period),
         }
-    }
-}
-
-impl Default for ReputationEngine {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
