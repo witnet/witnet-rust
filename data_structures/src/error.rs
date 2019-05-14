@@ -3,8 +3,7 @@
 use failure::Fail;
 use std::num::ParseIntError;
 
-use super::chain::{CommitOutput, Epoch, Hash, OutputPointer, PublicKeyHash, RevealOutput};
-use crate::chain::HashParseError;
+use crate::chain::{Epoch, Hash, HashParseError, OutputPointer, PublicKeyHash};
 
 /// The error type for operations on a [`ChainInfo`](ChainInfo)
 #[derive(Debug, PartialEq, Fail)]
@@ -39,16 +38,10 @@ pub enum TransactionError {
     /// An output with the given index wasn't found in a transaction.
     #[fail(display = "Output not found: {}", output)]
     OutputNotFound { output: OutputPointer },
+    #[fail(display = "Data Request not found: {}", hash)]
+    DataRequestNotFound { hash: Hash },
     #[fail(display = "The transaction signature is invalid")]
     InvalidSignature,
-    #[fail(display = "Mint transaction is invalid")]
-    InvalidMintTransaction,
-    #[fail(display = "Data Request transaction is invalid")]
-    InvalidDataRequestTransaction,
-    #[fail(display = "Commit transaction is invalid")]
-    InvalidCommitTransaction,
-    #[fail(display = "Reveal transaction is invalid")]
-    InvalidRevealTransaction,
     #[fail(display = "Tally transaction is invalid")]
     InvalidTallyTransaction,
     #[fail(display = "Commit transaction has a invalid Proof of Eligibility")]
@@ -105,9 +98,12 @@ pub enum BlockError {
     /// The block has no transactions in it.
     #[fail(display = "The block has no transactions")]
     Empty,
-    /// The first transaction of the block is no mint.
-    #[fail(display = "The block first transaction is not a mint transactions")]
+    ///The first transaction in the block is not a mint transaction.
+    #[fail(display = "The first transaction in the block is not a mint transaction.")]
     NoMint,
+    /// There are more than one mint transactions in the block.
+    #[fail(display = "There are more than one mint transactions in the block.")]
+    DoubleMint,
     /// The total value created by the mint transaction of the block,
     /// and the output value of the rest of the transactions, plus the
     /// block reward, don't add up
@@ -200,45 +196,39 @@ pub enum DataRequestError {
         display = "Block contains a commitment for an unknown data request:\n\
                    Block hash: {}\n\
                    Transaction hash: {}\n\
-                   Commit output: {:?}\n\
-                   Data request pointer: {:?}",
-        block_hash, tx_hash, commit_output, dr_pointer
+                   Data request: {}",
+        block_hash, tx_hash, dr_pointer
     )]
     AddCommitFail {
         block_hash: Hash,
         tx_hash: Hash,
-        commit_output: CommitOutput,
-        dr_pointer: OutputPointer,
+        dr_pointer: Hash,
     },
     /// Add reveal method failed.
     #[fail(
         display = "Block contains a reveal for an unknown data request:\n\
                    Block hash: {}\n\
                    Transaction hash: {}\n\
-                   Reveal output: {:?}\n\
-                   Data request pointer: {:?}",
-        block_hash, tx_hash, reveal_output, dr_pointer
+                   Data request: {}",
+        block_hash, tx_hash, dr_pointer
     )]
     AddRevealFail {
         block_hash: Hash,
         tx_hash: Hash,
-        reveal_output: RevealOutput,
-        dr_pointer: OutputPointer,
+        dr_pointer: Hash,
     },
     /// Add tally method failed.
     #[fail(
         display = "Block contains a tally for an unknown data request:\n\
                    Block hash: {}\n\
                    Transaction hash: {}\n\
-                   Tally output pointer: {:?}\n\
-                   Data request pointer: {:?}",
-        block_hash, tx_hash, tally_pointer, dr_pointer
+                   Data request: {}",
+        block_hash, tx_hash, dr_pointer
     )]
     AddTallyFail {
         block_hash: Hash,
         tx_hash: Hash,
-        tally_pointer: OutputPointer,
-        dr_pointer: OutputPointer,
+        dr_pointer: Hash,
     },
     #[fail(display = "Received a commitment and Data Request is not in Commit stage")]
     NotCommitStage,

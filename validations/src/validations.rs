@@ -10,12 +10,15 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        transaction_is_mint, transaction_tag, Block, CheckpointBeacon, Epoch, Hash, Hashable,
-        Input, KeyedSignature, Output, OutputPointer, PublicKeyHash, RADRequest, Transaction,
-        TransactionBody, TransactionType, UnspentOutputsPool,
+        Block, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature, OutputPointer,
+        PublicKeyHash, RADRequest, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::DataRequestPool,
     error::{BlockError, TransactionError},
+    transaction::{
+        mint, CommitTransactionBody, DRTransactionBody, MintTransaction, RevealTransactionBody,
+        TallyTransaction, Transaction, VTTransactionBody,
+    },
 };
 use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 
@@ -24,77 +27,26 @@ use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 /// found in `pool`, then an error is returned instead indicating
 /// it. If a Signature is invalid an error is returned too
 pub fn transaction_inputs_sum(
-    tx: &TransactionBody,
+    inputs: &[Input],
     utxo_diff: &UtxoDiff,
 ) -> Result<u64, failure::Error> {
     let mut total_value = 0;
 
-    match transaction_tag(tx) {
-        TransactionType::Commit => {
-            total_value = calculate_commit_input(&tx, utxo_diff)?;
-        }
-        TransactionType::Reveal => {
-            total_value = calculate_reveal_input(&tx, utxo_diff)?;
-        }
-        _ => {
-            for input in &tx.inputs {
-                let pointed_value = utxo_diff
-                    .get(&input.output_pointer())
-                    .ok_or_else(|| TransactionError::OutputNotFound {
-                        output: input.output_pointer(),
-                    })?
-                    .value();
-                total_value += pointed_value;
+    for input in inputs {
+        let vt_output = utxo_diff.get(&input.output_pointer()).ok_or_else(|| {
+            TransactionError::OutputNotFound {
+                output: input.output_pointer().clone(),
             }
-        }
+        })?;
+        total_value += vt_output.value;
     }
 
     Ok(total_value)
 }
 
-fn calculate_commit_input(
-    tx: &TransactionBody,
-    utxo_diff: &UtxoDiff,
-) -> Result<u64, failure::Error> {
-    let dr_input = &tx.inputs[0];
-    // Get DataRequest information
-    let dr_pointer = dr_input.output_pointer();
-    let dr_output = utxo_diff
-        .get(&dr_pointer)
-        .ok_or(TransactionError::OutputNotFound {
-            output: dr_pointer.clone(),
-        })?;
-
-    match dr_output {
-        Output::DataRequest(dr_state) => Ok(dr_state.value / u64::from(dr_state.witnesses)),
-        _ => Err(TransactionError::InvalidCommitTransaction)?,
-    }
-}
-
-fn calculate_reveal_input(
-    tx: &TransactionBody,
-    utxo_diff: &UtxoDiff,
-) -> Result<u64, failure::Error> {
-    let dr_input = &tx.inputs[0];
-    // Get DataRequest information
-    let dr_pointer = dr_input.output_pointer();
-    let dr_output = utxo_diff
-        .get(&dr_pointer)
-        .ok_or(TransactionError::OutputNotFound {
-            output: dr_pointer.clone(),
-        })?;
-
-    match dr_output {
-        Output::DataRequest(dr_state) => {
-            Ok((dr_state.value / u64::from(dr_state.witnesses)) - dr_state.commit_fee)
-        }
-        _ => Err(TransactionError::InvalidCommitTransaction)?,
-    }
-}
-
 /// Calculate the sum of the values of the outputs of a transaction.
-pub fn transaction_outputs_sum(tx: &TransactionBody) -> u64 {
-    tx.outputs.iter().map(Output::value).sum()
+pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> u64 {
+    outputs.iter().map(|o| o.value).sum()
 }
 
 /// Returns the fee of a transaction.
@@ -103,28 +55,78 @@ pub fn transaction_outputs_sum(tx: &TransactionBody) -> u64 {
 /// of the transaction. The pool parameter is used to find the
 /// outputs pointed by the inputs and that contain the actual
 /// their value.
-pub fn transaction_fee(tx: &TransactionBody, utxo_diff: &UtxoDiff) -> Result<u64, failure::Error> {
-    let in_value = transaction_inputs_sum(tx, utxo_diff)?;
-    let out_value = transaction_outputs_sum(tx);
+pub fn transaction_fee(
+    tx: &Transaction,
+    utxo_diff: &UtxoDiff,
+    dr_pool: &DataRequestPool,
+) -> Result<u64, failure::Error> {
+    match tx {
+        Transaction::ValueTransfer(vt_tx) => {
+            let in_value = transaction_inputs_sum(&vt_tx.body.inputs, utxo_diff)?;
+            let out_value = transaction_outputs_sum(&vt_tx.body.outputs);
 
-    if out_value > in_value {
-        Err(TransactionError::NegativeFee)?
-    } else {
-        Ok(in_value - out_value)
+            if out_value > in_value {
+                Err(TransactionError::NegativeFee)?
+            } else {
+                Ok(in_value - out_value)
+            }
+        }
+        Transaction::DataRequest(dr_tx) => {
+            let in_value = transaction_inputs_sum(&dr_tx.body.inputs, utxo_diff)?;
+            let out_value = dr_tx.body.dr_output.value;
+
+            if out_value > in_value {
+                Err(TransactionError::NegativeFee)?
+            } else {
+                Ok(in_value - out_value)
+            }
+        }
+
+        // TODO: In the future, when we insert all commits and reveals together
+        // It has not sense to specify a fee for each commit and reveal
+        Transaction::Commit(co_tx) => {
+            let dr_pointer = co_tx.body.dr_pointer;
+
+            let dr_state = dr_pool
+                .data_request_pool
+                .get(&dr_pointer)
+                .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
+
+            Ok(dr_state.data_request.commit_fee)
+        }
+        Transaction::Reveal(re_tx) => {
+            let dr_pointer = re_tx.body.dr_pointer;
+
+            let dr_state = dr_pool
+                .data_request_pool
+                .get(&dr_pointer)
+                .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
+
+            Ok(dr_state.data_request.reveal_fee)
+        }
+        Transaction::Tally(ta_tx) => {
+            let dr_pointer = ta_tx.dr_pointer;
+
+            let dr_state = dr_pool
+                .data_request_pool
+                .get(&dr_pointer)
+                .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
+
+            Ok(dr_state.data_request.tally_fee)
+        }
+        Transaction::Mint(mint_tx) => Ok(mint_tx.outputs[0].value),
     }
 }
 
 /// Function to validate a mint transaction
 pub fn validate_mint_transaction(
-    tx: &TransactionBody,
+    mint_tx: &MintTransaction,
     total_fees: u64,
     block_reward: u64,
 ) -> Result<(), failure::Error> {
-    let mint_value = transaction_outputs_sum(tx);
+    let mint_value = transaction_outputs_sum(&mint_tx.outputs);
 
-    if !transaction_is_mint(tx) {
-        Err(TransactionError::InvalidMintTransaction)?
-    } else if mint_value != total_fees + block_reward {
+    if mint_value != total_fees + block_reward {
         Err(BlockError::MismatchedMintValue {
             mint_value,
             fees_value: total_fees,
@@ -175,48 +177,54 @@ pub fn validate_consensus(
 }
 
 /// Function to validate a value transfer transaction
-pub fn validate_vt_transaction(_tx: &TransactionBody) -> Result<(), failure::Error> {
+pub fn validate_vt_transaction(_tx: &VTTransactionBody) -> Result<(), failure::Error> {
     // TODO(#514): Implement value transfer transaction validation
     Ok(())
 }
 
 /// Function to validate a data request transaction
-pub fn validate_dr_transaction(tx: &TransactionBody) -> Result<(), failure::Error> {
-    if let Some(Output::DataRequest(dr_output)) = &tx.outputs.last() {
-        if dr_output.witnesses < 1 {
-            Err(TransactionError::InsufficientWitnesses)?
-        }
+pub fn validate_dr_transaction(tx: &DRTransactionBody) -> Result<(), failure::Error> {
+    let dr_output = &tx.dr_output;
 
-        let witnesses = i64::from(dr_output.witnesses);
-        let dr_value = dr_output.value as i64;
-        let commit_fee = dr_output.commit_fee as i64;
-        let reveal_fee = dr_output.reveal_fee as i64;
-        let tally_fee = dr_output.tally_fee as i64;
-
-        if ((dr_value - tally_fee) % witnesses) != 0 {
-            Err(TransactionError::InvalidDataRequestValue {
-                dr_value,
-                witnesses,
-            })?
-        }
-
-        let witness_reward = ((dr_value - tally_fee) / witnesses) - commit_fee - reveal_fee;
-        if witness_reward <= 0 {
-            Err(TransactionError::InvalidDataRequestReward {
-                reward: witness_reward,
-            })?
-        }
-
-        validate_rad_request(&dr_output.data_request)
-    } else {
-        Err(TransactionError::InvalidDataRequestTransaction)?
+    if dr_output.witnesses < 1 {
+        Err(TransactionError::InsufficientWitnesses)?
     }
+
+    let witnesses = i64::from(dr_output.witnesses);
+    let dr_value = dr_output.value as i64;
+    let commit_fee = dr_output.commit_fee as i64;
+    let reveal_fee = dr_output.reveal_fee as i64;
+    let tally_fee = dr_output.tally_fee as i64;
+
+    if ((dr_value - tally_fee) % witnesses) != 0 {
+        Err(TransactionError::InvalidDataRequestValue {
+            dr_value,
+            witnesses,
+        })?
+    }
+
+    // TODO: Review after use a unique commit/reveal fee for group not for each
+    let witness_reward = ((dr_value - tally_fee) / witnesses) - commit_fee - reveal_fee;
+    if witness_reward <= 0 {
+        Err(TransactionError::InvalidDataRequestReward {
+            reward: witness_reward,
+        })?
+    }
+
+    validate_rad_request(&dr_output.data_request)
 }
+
+/// HashMap to count commit transactions need for a Data Request
+pub struct WitnessesCount {
+    current: u32,
+    target: u32,
+}
+pub type WitnessesCounter<S> = HashMap<Hash, WitnessesCount, S>;
 
 // Add 1 in the number assigned to a OutputPointer
 pub fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
     hm: &mut WitnessesCounter<S>,
-    k: &OutputPointer,
+    k: &Hash,
     rf: u32,
 ) {
     hm.entry(k.clone())
@@ -227,40 +235,24 @@ pub fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
         .current += 1;
 }
 
-/// HashMap to count commit transactions need for a Data Request
-pub struct WitnessesCount {
-    current: u32,
-    target: u32,
-}
-pub type WitnessesCounter<S> = HashMap<OutputPointer, WitnessesCount, S>;
-
 /// Function to validate a commit transaction
 pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
-    tx: &TransactionBody,
+    tx: &CommitTransactionBody,
     dr_pool: &DataRequestPool,
     block_commits: &mut WitnessesCounter<S>,
     fee: u64,
 ) -> Result<(), failure::Error> {
-    if (tx.inputs.len() != 1) || (tx.outputs.len() != 1) {
-        Err(TransactionError::InvalidCommitTransaction)?
-    }
-
-    let commit_input = &tx.inputs[0];
-
     // TODO: Complete PoE validation
     if !verify_poe_data_request() {
         Err(TransactionError::InvalidDataRequestPoe)?
     }
 
     // Get DataRequest information
-    let dr_pointer = commit_input.output_pointer();
-    let dr_state =
-        dr_pool
-            .data_request_pool
-            .get(&dr_pointer)
-            .ok_or(TransactionError::OutputNotFound {
-                output: dr_pointer.clone(),
-            })?;
+    let dr_pointer = tx.dr_pointer;
+    let dr_state = dr_pool
+        .data_request_pool
+        .get(&dr_pointer)
+        .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
     // Validate fee
     let expected_commit_fee = dr_state.data_request.commit_fee;
@@ -283,24 +275,16 @@ pub fn validate_commit_transaction<S: ::std::hash::BuildHasher>(
 
 /// Function to validate a reveal transaction
 pub fn validate_reveal_transaction(
-    tx: &TransactionBody,
+    tx: &RevealTransactionBody,
     dr_pool: &DataRequestPool,
     fee: u64,
 ) -> Result<(), failure::Error> {
-    if (tx.inputs.len() != 1) || (tx.outputs.len() != 1) {
-        Err(TransactionError::InvalidRevealTransaction)?
-    }
-
-    let reveal_input = &tx.inputs[0];
     // Get DataRequest information
-    let dr_pointer = reveal_input.output_pointer();
-    let dr_state =
-        dr_pool
-            .data_request_pool
-            .get(&dr_pointer)
-            .ok_or(TransactionError::OutputNotFound {
-                output: dr_pointer.clone(),
-            })?;
+    let dr_pointer = tx.dr_pointer;
+    let dr_state = dr_pool
+        .data_request_pool
+        .get(&dr_pointer)
+        .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
     // Validate fee
     let expected_reveal_fee = dr_state.data_request.reveal_fee;
@@ -318,33 +302,26 @@ pub fn validate_reveal_transaction(
 
 /// Function to validate a tally transaction
 pub fn validate_tally_transaction(
-    tx: &TransactionBody,
+    tx: &TallyTransaction,
     dr_pool: &DataRequestPool,
     fee: u64,
 ) -> Result<(()), failure::Error> {
-    if tx.inputs.len() != 1 {
-        Err(TransactionError::InvalidTallyTransaction)?
-    }
-
     let mut reveals: Vec<Vec<u8>> = vec![];
 
-    let dr_pointer = &tx.inputs[0].output_pointer();
-    let all_reveals = dr_pool.get_reveals(dr_pointer);
+    let dr_pointer = tx.dr_pointer;
+    let all_reveals = dr_pool.get_reveals(&dr_pointer);
 
     if let Some(all_reveals) = all_reveals {
-        reveals.extend(all_reveals.iter().map(|reveal| reveal.reveal.clone()));
+        reveals.extend(all_reveals.iter().map(|reveal| reveal.body.reveal.clone()));
     } else {
         Err(TransactionError::InvalidTallyTransaction)?
     }
 
     // Get DataRequestState
-    let dr_state =
-        dr_pool
-            .data_request_pool
-            .get(dr_pointer)
-            .ok_or(TransactionError::OutputNotFound {
-                output: dr_pointer.clone(),
-            })?;
+    let dr_state = dr_pool
+        .data_request_pool
+        .get(&dr_pointer)
+        .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
     // Validate fee
     let expected_tally_fee = dr_state.data_request.tally_fee;
@@ -358,14 +335,10 @@ pub fn validate_tally_transaction(
     //TODO: Check Tally convergence
 
     // Validate tally result
-    if let Some(Output::Tally(tally_output)) = tx.outputs.last() {
-        let miner_tally = tally_output.result.clone();
-        let tally_stage = dr_state.data_request.data_request.consensus.script.clone();
+    let miner_tally = tx.tally.clone();
+    let tally_stage = dr_state.data_request.data_request.consensus.script.clone();
 
-        validate_consensus(reveals, miner_tally, tally_stage)
-    } else {
-        Err(TransactionError::InvalidTallyTransaction)?
-    }
+    validate_consensus(reveals, miner_tally, tally_stage)
 }
 
 /// Function to validate a block signature
@@ -388,8 +361,7 @@ pub fn validate_pkh_signature(
     utxo_diff: &UtxoDiff,
 ) -> Result<(), failure::Error> {
     let output = utxo_diff.get(&input.output_pointer());
-    // TODO: for now only validate value transfer outputs
-    if let Some(Output::ValueTransfer(x)) = output {
+    if let Some(x) = output {
         let signature_pkh = PublicKeyHash::from_public_key(&keyed_signature.public_key);
         let expected_pkh = x.pkh;
         if signature_pkh != expected_pkh {
@@ -401,31 +373,19 @@ pub fn validate_pkh_signature(
     }
     Ok(())
 }
-
-/// Function to validate transaction signatures
-pub fn validate_transaction_signatures(
-    transaction: &Transaction,
-    utxo_set: &UtxoDiff,
+/// Function to validate a commit/reveal transaction signature
+pub fn validate_commit_reveal_signature(
+    tx_hash: Hash,
+    signatures: &[KeyedSignature],
 ) -> Result<(), failure::Error> {
-    let signatures = &transaction.signatures;
-    let inputs = &transaction.body.inputs;
-
-    if signatures.len() != inputs.len() {
-        Err(TransactionError::MismatchingSignaturesNumber {
-            signatures_n: signatures.len() as u8,
-            inputs_n: inputs.len() as u8,
-        })?
-    }
-
-    // Validate transaction signature
     if let Some(tx_keyed_signature) = signatures.get(0) {
         let signature = tx_keyed_signature.signature.clone().try_into()?;
         let public_key = tx_keyed_signature.public_key.clone().try_into()?;
-        let Hash::SHA256(message) = transaction.hash();
+        let Hash::SHA256(message) = tx_hash;
 
         verify(&public_key, &message, &signature).map_err(|_| {
             TransactionError::VerifyTransactionSignatureFail {
-                hash: transaction.hash(),
+                hash: tx_hash,
                 index: 0,
             }
         })?;
@@ -433,75 +393,121 @@ pub fn validate_transaction_signatures(
         Err(TransactionError::SignatureNotFound)?
     }
 
-    for (input, keyed_signature) in inputs.iter().zip(signatures.iter().next()) {
+    Ok(())
+}
+
+/// Function to validate a transaction signature
+pub fn validate_transaction_signature(
+    signatures: &[KeyedSignature],
+    inputs: &[Input],
+    utxo_set: &UtxoDiff,
+) -> Result<(), failure::Error> {
+    if signatures.len() != inputs.len() {
+        Err(TransactionError::MismatchingSignaturesNumber {
+            signatures_n: signatures.len() as u8,
+            inputs_n: inputs.len() as u8,
+        })?
+    }
+
+    for (input, keyed_signature) in inputs.iter().zip(signatures.iter()) {
         validate_pkh_signature(input, keyed_signature, utxo_set)?
     }
 
     Ok(())
 }
 
-/// Function to validate a transaction
-pub fn validate_transaction<S: ::std::hash::BuildHasher>(
+/// Function to validate transaction signatures
+pub fn validate_transaction_signatures(
     transaction: &Transaction,
+    utxo_set: &UtxoDiff,
+) -> Result<(), failure::Error> {
+    match transaction {
+        Transaction::ValueTransfer(tx) => {
+            validate_transaction_signature(&tx.signatures, &tx.body.inputs, utxo_set)
+        }
+        Transaction::DataRequest(tx) => {
+            validate_transaction_signature(&tx.signatures, &tx.body.inputs, utxo_set)
+        }
+        Transaction::Commit(tx) => {
+            validate_commit_reveal_signature(transaction.hash(), &tx.signatures)
+        }
+        Transaction::Reveal(tx) => {
+            validate_commit_reveal_signature(transaction.hash(), &tx.signatures)
+        }
+        _ => Ok(()),
+    }
+}
+/// Function to validate a transaction
+pub fn validate_transaction<'a, S: ::std::hash::BuildHasher>(
+    transaction: &'a Transaction,
     utxo_diff: &UtxoDiff,
     dr_pool: &DataRequestPool,
     block_commits: &mut WitnessesCounter<S>,
-) -> Result<u64, failure::Error> {
-    validate_transaction_signatures(&transaction, utxo_diff)?;
+) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    validate_transaction_signatures(&transaction, &utxo_diff)?;
 
-    match transaction_tag(&transaction.body) {
-        TransactionType::Mint => Err(TransactionError::UnexpectedMint)?,
-        TransactionType::InvalidType => Err(TransactionError::NotValidTransaction)?,
-        TransactionType::ValueTransfer => {
-            let fee = transaction_fee(&transaction.body, utxo_diff)?;
+    let fee = transaction_fee(&transaction, &utxo_diff, dr_pool)?;
 
-            validate_vt_transaction(&transaction.body)?;
-            Ok(fee)
+    let empty_inputs: Vec<&Input> = vec![];
+    let empty_outputs: Vec<&ValueTransferOutput> = vec![];
+    match transaction {
+        Transaction::ValueTransfer(vt_tx) => {
+            validate_vt_transaction(&vt_tx.body)?;
+
+            Ok((
+                vt_tx.body.inputs.iter().collect(),
+                vt_tx.body.outputs.iter().collect(),
+                fee,
+            ))
         }
-        TransactionType::DataRequest => {
-            let fee = transaction_fee(&transaction.body, utxo_diff)?;
+        Transaction::DataRequest(dr_tx) => {
+            validate_dr_transaction(&dr_tx.body)?;
 
-            validate_dr_transaction(&transaction.body)?;
-            Ok(fee)
+            Ok((
+                dr_tx.body.inputs.iter().collect(),
+                dr_tx.body.outputs.iter().collect(),
+                fee,
+            ))
         }
-        TransactionType::Commit => {
-            let fee = transaction_fee(&transaction.body, utxo_diff)?;
+        Transaction::Commit(co_tx) => {
+            validate_commit_transaction(&co_tx.body, dr_pool, block_commits, fee)?;
 
-            validate_commit_transaction(&transaction.body, dr_pool, block_commits, fee)?;
-            Ok(fee)
+            Ok((empty_inputs, empty_outputs, fee))
         }
-        TransactionType::Reveal => {
-            let fee = transaction_fee(&transaction.body, utxo_diff)?;
+        Transaction::Reveal(re_tx) => {
+            validate_reveal_transaction(&re_tx.body, dr_pool, fee)?;
 
-            validate_reveal_transaction(&transaction.body, dr_pool, fee)?;
-            Ok(fee)
+            Ok((empty_inputs, empty_outputs, fee))
         }
-        TransactionType::Tally => {
-            let fee = transaction_fee(&transaction.body, utxo_diff)?;
+        Transaction::Tally(ta_tx) => {
+            validate_tally_transaction(&ta_tx, dr_pool, fee)?;
 
-            validate_tally_transaction(&transaction.body, dr_pool, fee)?;
-            Ok(fee)
+            Ok((empty_inputs, ta_tx.outputs.iter().collect(), fee))
         }
+        Transaction::Mint(_) => Err(BlockError::DoubleMint)?,
     }
 }
 
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
 pub fn validate_transactions(
     utxo_set: &UnspentOutputsPool,
-    data_request_pool: &DataRequestPool,
+    dr_pool: &DataRequestPool,
     block: &Block,
 ) -> Result<Diff, failure::Error> {
     // Init Progressive merkle tree
     let mut mt = ProgressiveMerkleTree::sha256();
 
-    match block.txns.get(0).map(|tx| {
-        let Hash::SHA256(sha) = tx.hash();
-        mt.push(Sha256(sha));
-        transaction_tag(&tx.body)
-    }) {
-        Some(TransactionType::Mint) => (),
-        _ => Err(BlockError::NoMint)?,
-    }
+    let mint = block
+        .txns
+        .get(0)
+        .map(|tx| {
+            let Hash::SHA256(sha) = tx.hash();
+            mt.push(Sha256(sha));
+
+            tx
+        })
+        .and_then(|tx| mint(tx))
+        .ok_or(BlockError::NoMint)?;
 
     let mut utxo_diff = UtxoDiff::new(utxo_set);
     let mut commits_number: WitnessesCounter<_> = HashMap::new();
@@ -511,65 +517,46 @@ pub fn validate_transactions(
 
     // TODO: replace for loop with a try_fold
     for transaction in &block.txns[1..] {
-        match validate_transaction(
-            &transaction,
-            &utxo_diff,
-            &data_request_pool,
-            &mut commits_number,
-        ) {
-            Ok(fee) => {
-                // Add transaction fee
-                total_fee += fee;
+        let (inputs, outputs, fee) =
+            validate_transaction(transaction, &utxo_diff, dr_pool, &mut commits_number)?;
+        total_fee += fee;
 
-                // Add new hash to merkle tree
-                let txn_hash = transaction.hash();
-                let Hash::SHA256(sha) = txn_hash;
-                mt.push(Sha256(sha));
+        // Add new hash to merkle tree
+        let txn_hash = transaction.hash();
+        let Hash::SHA256(sha) = txn_hash;
+        mt.push(Sha256(sha));
 
-                for input in &transaction.body.inputs {
-                    // Obtain the OuputPointer of each input and remove it from the utxo_diff
-                    let output_pointer = input.output_pointer();
-                    if let TransactionType::ValueTransfer
-                    | TransactionType::DataRequest
-                    | TransactionType::Tally = transaction_tag(&transaction.body)
-                    {
-                        utxo_diff.remove_utxo(output_pointer);
-                    }
-                }
+        for input in inputs {
+            // Obtain the OuputPointer of each input and remove it from the utxo_diff
+            let output_pointer = input.output_pointer();
 
-                for (index, output) in transaction.body.outputs.iter().enumerate() {
-                    // Add the new outputs to the utxo_diff
-                    let output_pointer = OutputPointer {
-                        transaction_id: txn_hash,
-                        output_index: index as u32,
-                    };
+            utxo_diff.remove_utxo(output_pointer.clone());
+        }
 
-                    if let TransactionType::ValueTransfer
-                    | TransactionType::DataRequest
-                    | TransactionType::Tally = transaction_tag(&transaction.body)
-                    {
-                        utxo_diff.insert_utxo(output_pointer, output.clone());
-                    }
-                }
-            }
-            Err(e) => Err(e)?,
+        for (index, output) in outputs.into_iter().enumerate() {
+            // Add the new outputs to the utxo_diff
+            let output_pointer = OutputPointer {
+                transaction_id: transaction.hash(),
+                output_index: index as u32,
+            };
+
+            utxo_diff.insert_utxo(output_pointer, output.clone());
         }
     }
 
     // Validate mint
     validate_mint_transaction(
-        &block.txns[0].body,
+        mint,
         total_fee,
         block_reward(block.block_header.beacon.checkpoint),
     )?;
 
     // Insert mint in utxo
     let mint_output_pointer = OutputPointer {
-        transaction_id: block.txns[0].hash(),
+        transaction_id: mint.hash(),
         output_index: 0,
     };
-    let mint_output = block.txns[0].body.outputs[0].clone();
-    utxo_diff.insert_utxo(mint_output_pointer, mint_output);
+    utxo_diff.insert_utxo(mint_output_pointer, mint.outputs[0].clone());
 
     // Validate commits number
     for WitnessesCount { current, target } in commits_number.values() {
@@ -758,7 +745,7 @@ impl Diff {
     /// ```
     pub fn visit<A, F1, F2>(&self, args: &mut A, fn_add: F1, fn_remove: F2)
     where
-        F1: Fn(&mut A, &OutputPointer, &Output) -> (),
+        F1: Fn(&mut A, &OutputPointer, &ValueTransferOutput) -> (),
         F2: Fn(&mut A, &OutputPointer) -> (),
     {
         for (output_pointer, output) in self.utxos_to_add.iter() {
@@ -789,7 +776,7 @@ impl<'a> UtxoDiff<'a> {
     }
 
     /// Record an insertion to perform on the utxo set
-    pub fn insert_utxo(&mut self, output_pointer: OutputPointer, output: Output) {
+    pub fn insert_utxo(&mut self, output_pointer: OutputPointer, output: ValueTransferOutput) {
         self.diff.utxos_to_add.insert(output_pointer, output);
     }
 
@@ -809,7 +796,7 @@ impl<'a> UtxoDiff<'a> {
     /// Get an utxo from the original utxo set or one that has been
     /// recorded as inserted later. If the same utxo has been recorded
     /// as removed, None will be returned.
-    pub fn get(&self, output_pointer: &OutputPointer) -> Option<&Output> {
+    pub fn get(&self, output_pointer: &OutputPointer) -> Option<&ValueTransferOutput> {
         self.utxo_pool
             .get(output_pointer)
             .or_else(|| self.diff.utxos_to_add.get(output_pointer))
