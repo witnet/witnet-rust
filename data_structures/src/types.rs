@@ -1,7 +1,10 @@
 use std::fmt;
 
-use crate::chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, Transaction};
-use crate::proto::{schema::witnet, ProtobufConvert};
+use crate::{
+    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry},
+    proto::{schema::witnet, ProtobufConvert},
+    transaction::Transaction,
+};
 
 /// Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
@@ -14,6 +17,8 @@ pub struct Message {
 /// Commands for the Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Message_Command")]
+// FIXME(#649): Remove clippy skip error
+#[allow(clippy::large_enum_variant)]
 pub enum Command {
     // Peer discovery messages
     GetPeers(GetPeers),
@@ -48,7 +53,16 @@ impl fmt::Display for Command {
             Command::InventoryAnnouncement(_) => f.write_str(&"INVENTORY_ANNOUNCEMENT".to_string()),
             Command::InventoryRequest(_) => f.write_str(&"INVENTORY_REQUEST".to_string()),
             Command::LastBeacon(_) => f.write_str(&"LAST_BEACON".to_string()),
-            Command::Transaction(_) => f.write_str(&"TRANSACTION".to_string()),
+            Command::Transaction(tx) => match tx {
+                Transaction::Commit(_) => f.write_str(&"COMMIT_TRANSACTION".to_string()),
+                Transaction::ValueTransfer(_) => {
+                    f.write_str(&"VALUE_TRANSFER_TRANSACTION".to_string())
+                }
+                Transaction::DataRequest(_) => f.write_str(&"DATA_REQUEST_TRANSACTION".to_string()),
+                Transaction::Reveal(_) => f.write_str(&"REVEAL_TRANSACTION".to_string()),
+                Transaction::Tally(_) => f.write_str(&"TALLY_TRANSACTION".to_string()),
+                Transaction::Mint(_) => f.write_str(&"MINT_TRANSACTION".to_string()),
+            },
         }
     }
 }

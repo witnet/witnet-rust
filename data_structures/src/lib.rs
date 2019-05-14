@@ -24,6 +24,9 @@ pub mod error;
 /// Module containing data_request structures
 pub mod data_request;
 
+/// Module containing transaction structures
+pub mod transaction;
+
 /// Serialization boilerplate to allow serializing some data structures as
 /// strings or bytes depending on the serializer.
 mod serialization_helpers;

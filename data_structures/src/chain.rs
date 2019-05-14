@@ -1,15 +1,15 @@
+use failure::Fail;
 use partial_struct::PartialStruct;
-use protobuf::Message;
 use secp256k1::{
     PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
     Signature as Secp256k1_Signature,
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::Cell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    convert::{AsRef, TryFrom, TryInto},
+    convert::{TryFrom, TryInto},
     fmt,
+    ops::{AddAssign, SubAssign},
     str::FromStr,
 };
 use witnet_crypto::{
@@ -19,14 +19,15 @@ use witnet_crypto::{
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 use witnet_util::parser::parse_hex;
 
-use super::{
+use crate::{
     data_request::DataRequestPool,
-    error::{OutputPointerParseError, Secp256k1ConversionError},
+    error::{DataRequestError, OutputPointerParseError, Secp256k1ConversionError},
     proto::{schema::witnet, ProtobufConvert},
+    transaction::{
+        CommitTransaction, DRTransaction, DRTransactionBody, RevealTransaction, TallyTransaction,
+        Transaction,
+    },
 };
-use crate::error::DataRequestError;
-use failure::Fail;
-use std::ops::{AddAssign, SubAssign};
 
 pub trait Hashable {
     fn hash(&self) -> Hash;
@@ -132,12 +133,6 @@ pub struct Block {
     pub txns: Vec<Transaction>,
 }
 
-impl<T: AsRef<[u8]>> Hashable for T {
-    fn hash(&self) -> Hash {
-        calculate_sha256(self.as_ref()).into()
-    }
-}
-
 impl Hashable for Block {
     fn hash(&self) -> Hash {
         calculate_sha256(&self.block_header.to_pb_bytes().unwrap()).into()
@@ -147,18 +142,6 @@ impl Hashable for Block {
 impl Hashable for CheckpointBeacon {
     fn hash(&self) -> Hash {
         calculate_sha256(&self.to_pb_bytes().unwrap()).into()
-    }
-}
-
-impl Hashable for TransactionBody {
-    fn hash(&self) -> Hash {
-        self.cached_hash()
-    }
-}
-
-impl Hashable for Transaction {
-    fn hash(&self) -> Hash {
-        self.body.hash()
     }
 }
 
@@ -429,105 +412,9 @@ impl PublicKeyHash {
     }
 }
 
-/// Transaction data structure
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::TransactionBody")]
-pub struct TransactionBody {
-    pub version: u32,
-    pub inputs: Vec<Input>,
-    pub outputs: Vec<Output>,
-    #[protobuf_convert(skip)]
-    #[serde(skip)]
-    hash: Cell<Option<Hash>>,
-}
-
-/// Signed transaction data structure
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Transaction")]
-pub struct Transaction {
-    pub body: TransactionBody,
-    pub signatures: Vec<KeyedSignature>,
-}
-
-/// Transaction tags for validation process
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum TransactionType {
-    InvalidType,
-    ValueTransfer,
-    DataRequest,
-    Commit,
-    Reveal,
-    Tally,
-    Mint,
-}
-
-impl TransactionBody {
-    /// Creates a new transaction from inputs and outputs.
-    pub fn new(version: u32, inputs: Vec<Input>, outputs: Vec<Output>) -> Self {
-        TransactionBody {
-            version,
-            inputs,
-            outputs,
-            hash: Cell::new(None),
-        }
-    }
-    /// Returns the size a transaction body will have on the wire in bytes
-    pub fn size(&self) -> u32 {
-        self.to_pb().write_to_bytes().unwrap().len() as u32
-    }
-
-    /// Return the value of the output with index `index`.
-    pub fn get_output_value(&self, index: usize) -> Option<u64> {
-        self.outputs.get(index).map(Output::value)
-    }
-
-    /// Return the cached hash of the transaction or compute it on-the-fly
-    pub fn cached_hash(&self) -> Hash {
-        match self.hash.get() {
-            Some(hash) => hash,
-            None => {
-                let hash = self
-                    .to_pb_bytes()
-                    .map(|bytes| calculate_sha256(&*bytes).into())
-                    .ok();
-                self.hash.set(hash);
-
-                hash.unwrap()
-            }
-        }
-    }
-}
-
-impl AsRef<TransactionBody> for TransactionBody {
-    fn as_ref(&self) -> &Self {
-        self
-    }
-}
-
-impl Transaction {
-    /// Attaches signatures to a transaction data structure and returns the result as a SignedTransaction structure
-    pub fn new(transaction: TransactionBody, signatures: Vec<KeyedSignature>) -> Self {
-        Transaction {
-            body: transaction,
-            signatures,
-        }
-    }
-
-    /// Returns the size a transaction will have on the wire in bytes
-    pub fn size(&self) -> u32 {
-        self.to_pb().write_to_bytes().unwrap().len() as u32
-    }
-}
-
-impl AsRef<Transaction> for Transaction {
-    fn as_ref(&self) -> &Self {
-        self
-    }
-}
-
 /// Input data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Input")]
+#[protobuf_convert(pb = "witnet::Input")]
 pub struct Input {
     output_pointer: OutputPointer,
 }
@@ -557,10 +444,11 @@ pub struct ValueTransferOutput {
 
 /// Data request output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "witnet::TransactionBody_Output_DataRequestOutput")]
+#[protobuf_convert(pb = "witnet::DataRequestOutput")]
 pub struct DataRequestOutput {
     pub pkh: PublicKeyHash,
     pub data_request: RADRequest,
+    // Total DataRequest value, included fees
     pub value: u64,
     pub witnesses: u16,
     pub backup_witnesses: u16,
@@ -616,10 +504,7 @@ impl Default for RADType {
 
 /// RAD request data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(
-    pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest",
-    crate = "crate"
-)]
+#[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest", crate = "crate")]
 pub struct RADRequest {
     pub not_before: u64,
     pub retrieve: Vec<RADRetrieve>,
@@ -630,7 +515,7 @@ pub struct RADRequest {
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
-    pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADRetrieve",
+    pb = "witnet::DataRequestOutput_RADRequest_RADRetrieve",
     crate = "crate"
 )]
 pub struct RADRetrieve {
@@ -641,7 +526,7 @@ pub struct RADRetrieve {
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
-    pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADAggregate",
+    pb = "witnet::DataRequestOutput_RADRequest_RADAggregate",
     crate = "crate"
 )]
 pub struct RADAggregate {
@@ -650,7 +535,7 @@ pub struct RADAggregate {
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
-    pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADConsensus",
+    pb = "witnet::DataRequestOutput_RADRequest_RADConsensus",
     crate = "crate"
 )]
 pub struct RADConsensus {
@@ -659,7 +544,7 @@ pub struct RADConsensus {
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
-    pb = "witnet::TransactionBody_Output_DataRequestOutput_RADRequest_RADDeliver",
+    pb = "witnet::DataRequestOutput_RADRequest_RADDeliver",
     crate = "crate"
 )]
 pub struct RADDeliver {
@@ -748,10 +633,11 @@ impl TransactionsPool {
     /// # Examples:
     ///
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, TransactionBody, Hash, Transaction};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
     ///
-    /// let transaction = Transaction::default();
+    /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     ///
     /// assert_eq!(pool.len(), 0);
     ///
@@ -770,10 +656,11 @@ impl TransactionsPool {
     ///
     /// # Examples:
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, TransactionBody, Hash, Transaction};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
     /// let hash = Hash::SHA256([0 as u8; 32]);
-    /// let transaction = Transaction::default();
+    /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     /// assert!(!pool.contains(&hash));
     ///
     /// pool.insert(hash, transaction);
@@ -791,10 +678,11 @@ impl TransactionsPool {
     ///
     /// # Examples:
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, TransactionBody, Hash, Transaction};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
     /// let hash = Hash::SHA256([0 as u8; 32]);
-    /// let transaction = Transaction::default();
+    /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     /// pool.insert(hash, transaction.clone());
     ///
     /// assert!(pool.contains(&hash));
@@ -816,9 +704,10 @@ impl TransactionsPool {
     /// # Examples:
     ///
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, TransactionBody, Hash, Transaction};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
-    /// let transaction = Transaction::default();
+    /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction);
     ///
     /// assert!(!pool.is_empty());
@@ -836,10 +725,11 @@ impl TransactionsPool {
     /// Examples:
     ///
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, TransactionBody, Hash, Transaction};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
     ///
-    /// let transaction = Transaction::default();
+    /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     ///
     /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction.clone());
     /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction);
@@ -862,11 +752,12 @@ impl TransactionsPool {
     /// Examples:
     ///
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, TransactionBody, Hash, Transaction};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
     /// let hash = Hash::SHA256([0 as u8; 32]);
     ///
-    /// let transaction = Transaction::default();
+    /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     ///
     /// assert!(pool.get(&hash).is_none());
     ///
@@ -888,11 +779,12 @@ impl TransactionsPool {
     /// # Examples
     ///
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, TransactionBody, Hash, Transaction};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     ///
     /// let mut pool = TransactionsPool::new();
     ///
-    /// let transaction = Transaction::default();
+    /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     ///
     /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction.clone());
     /// pool.insert(Hash::SHA256([1 as u8; 32]), transaction);
@@ -996,11 +888,11 @@ pub enum InventoryItem {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestReport {
     /// List of commitment output pointers to resolve the data request
-    pub commits: Vec<CommitOutput>,
+    pub commits: Vec<CommitTransaction>,
     /// List of reveal output pointers to the commitments (contains the data request result of the witnet)
-    pub reveals: Vec<RevealOutput>,
+    pub reveals: Vec<RevealTransaction>,
     /// Tally output pointer (contains final result)
-    pub tally: OutputPointer,
+    pub tally: TallyTransaction,
 }
 
 impl TryFrom<DataRequestInfo> for DataRequestReport {
@@ -1023,11 +915,11 @@ impl TryFrom<DataRequestInfo> for DataRequestReport {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestInfo {
     /// List of commitments to resolve the data request
-    pub commits: HashMap<PublicKeyHash, CommitOutput>,
+    pub commits: HashMap<PublicKeyHash, CommitTransaction>,
     /// List of reveals to the commitments (contains the data request witnet result)
-    pub reveals: HashMap<PublicKeyHash, RevealOutput>,
+    pub reveals: HashMap<PublicKeyHash, RevealTransaction>,
     /// Tally of data request (contains final result)
-    pub tally: Option<OutputPointer>,
+    pub tally: Option<TallyTransaction>,
 }
 
 /// State of data requests in progress (stored in memory)
@@ -1062,10 +954,10 @@ impl DataRequestState {
     pub fn add_commit(
         &mut self,
         pkh: PublicKeyHash,
-        commit_output: CommitOutput,
+        commit: CommitTransaction,
     ) -> Result<(), failure::Error> {
         if let DataRequestStage::COMMIT = self.stage {
-            self.info.commits.insert(pkh, commit_output);
+            self.info.commits.insert(pkh, commit);
         } else {
             Err(DataRequestError::NotCommitStage)?
         }
@@ -1077,10 +969,10 @@ impl DataRequestState {
     pub fn add_reveal(
         &mut self,
         pkh: PublicKeyHash,
-        reveal_output: RevealOutput,
+        reveal: RevealTransaction,
     ) -> Result<(), failure::Error> {
         if let DataRequestStage::REVEAL = self.stage {
-            self.info.reveals.insert(pkh, reveal_output);
+            self.info.reveals.insert(pkh, reveal);
         } else {
             Err(DataRequestError::NotRevealStage)?
         }
@@ -1091,15 +983,15 @@ impl DataRequestState {
     /// Add tally and return the data request report
     pub fn add_tally(
         mut self,
-        output_pointer: OutputPointer,
-    ) -> Result<(DataRequestOutput, DataRequestReport), failure::Error> {
+        tally: TallyTransaction,
+    ) -> Result<DataRequestReport, failure::Error> {
         if let DataRequestStage::TALLY = self.stage {
-            self.info.tally = Some(output_pointer);
+            self.info.tally = Some(tally);
 
             // This try_from can only fail if the tally is None, and we have just set it to Some
             let data_request_report = DataRequestReport::try_from(self.info)?;
 
-            Ok((self.data_request, data_request_report))
+            Ok(data_request_report)
         } else {
             Err(DataRequestError::NotTallyStage)?
         }
@@ -1317,22 +1209,22 @@ pub fn generate_unspent_outputs_pool(
 
     for transaction in transactions {
         let txn_hash = transaction.hash();
-        for input in &transaction.body.inputs {
-            // Obtain the OutputPointer of each input and remove it from the utxo_set
-            let output_pointer = input.output_pointer();
-
-            // This does not check for missing inputs
-            unspent_outputs.remove(&output_pointer);
-        }
-
-        for (index, output) in transaction.body.outputs.iter().enumerate() {
-            // Add the new outputs to the utxo_set
-            let output_pointer = OutputPointer {
-                transaction_id: txn_hash,
-                output_index: index as u32,
-            };
-
-            unspent_outputs.insert(output_pointer, output.clone());
+        match transaction {
+            Transaction::ValueTransfer(vt_transaction) => {
+                update_utxo_inputs(&mut unspent_outputs, &vt_transaction.body.inputs);
+                update_utxo_outputs(&mut unspent_outputs, &vt_transaction.body.outputs, txn_hash);
+            }
+            Transaction::DataRequest(dr_transaction) => {
+                update_utxo_inputs(&mut unspent_outputs, &dr_transaction.body.inputs);
+                update_utxo_outputs(&mut unspent_outputs, &dr_transaction.body.outputs, txn_hash);
+            }
+            Transaction::Tally(tally_transaction) => {
+                update_utxo_outputs(&mut unspent_outputs, &tally_transaction.outputs, txn_hash);
+            }
+            Transaction::Mint(mint_transaction) => {
+                update_utxo_outputs(&mut unspent_outputs, &mint_transaction.outputs, txn_hash);
+            }
+            _ => {}
         }
     }
 
@@ -1365,24 +1257,18 @@ pub fn transaction_example() -> Transaction {
         deliver: vec![rad_deliver_1, rad_deliver_2],
         ..RADRequest::default()
     };
-    let data_request_output = Output::DataRequest(DataRequestOutput {
+    let data_request_output = DataRequestOutput {
         data_request: rad_request,
         ..DataRequestOutput::default()
-    });
-    let commit_output = Output::Commit(CommitOutput::default());
-    let reveal_output = Output::Reveal(RevealOutput::default());
-    let consensus_output = Output::Tally(TallyOutput::default());
+    };
 
-    let inputs = vec![commit_input, data_request_input, reveal_input];
-    let outputs = vec![
-        value_transfer_output,
-        data_request_output,
-        commit_output,
-        reveal_output,
-        consensus_output,
-    ];
+    let inputs = vec![data_request_input];
+    let outputs = vec![value_transfer_output];
 
-    Transaction::new(TransactionBody::new(0, inputs, outputs), keyed_signature)
+    Transaction::DataRequest(DRTransaction::new(
+        DRTransactionBody::new(inputs, outputs, data_request_output),
+        keyed_signature,
+    ))
 }
 
 pub fn block_example() -> Block {
@@ -1412,11 +1298,13 @@ mod tests {
     #[test]
     fn test_transaction_hashable_trait() {
         let transaction = transaction_example();
-        let expected = "1fc485f4bb256a104e3d3b47ca0c5a5acacd3123a7d56fbac53efb69094d6353";
+        let expected = "fcaf1179b0697ce0a300adab2a3a22c6132692e348a2bd4654b72b73df090c20";
 
         // Signatures don't affect the hash of a transaction (SegWit style), thus both must be equal
-        assert_eq!(transaction.body.hash().to_string(), expected);
         assert_eq!(transaction.hash().to_string(), expected);
+        if let Transaction::DataRequest(dr_tx) = transaction {
+            assert_eq!(dr_tx.body.hash().to_string(), expected);
+        }
     }
 
     #[test]

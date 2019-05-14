@@ -5,9 +5,10 @@ use rand::{thread_rng, Rng};
 
 use witnet_util::timestamp::get_timestamp;
 
-use super::{
-    chain::{Block, BlockHeader, CheckpointBeacon, InventoryEntry, LeadershipProof, Transaction},
+use crate::{
+    chain::{Block, BlockHeader, CheckpointBeacon, InventoryEntry, LeadershipProof},
     error::BuildersError,
+    transaction::Transaction,
     types::{
         Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress, LastBeacon,
         Message, Peers, Ping, Pong, Verack, Version,
