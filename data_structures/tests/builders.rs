@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 
-use witnet_data_structures::builders::*;
-use witnet_data_structures::{chain::*, types::*};
+use witnet_data_structures::{builders::*, chain::*, transaction::Transaction, types::*};
 
 #[test]
 fn builders_build_last_beacon() {

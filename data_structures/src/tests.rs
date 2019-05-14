@@ -1,19 +1,5 @@
 use super::chain::*;
 
-#[test]
-fn test_block_hashable_trait() {
-    let block = block_example();
-    let expected = "41d36ff16318f17350b0f0a74afb907bda00b89035d12ccede8ca404a4afb1c0";
-    assert_eq!(block.hash().to_string(), expected);
-}
-
-#[test]
-fn test_transaction_hashable_trait() {
-    let transaction = transaction_example();
-    let expected = "1fc485f4bb256a104e3d3b47ca0c5a5acacd3123a7d56fbac53efb69094d6353";
-    assert_eq!(transaction.hash().to_string(), expected);
-}
-
 // TODO(#522): Uncomment and review block/transaction validation tests
 /*
 mod transaction {
@@ -298,19 +284,9 @@ fn test_input_output_pointer() {
 
     assert_eq!(
         input.output_pointer(),
-        OutputPointer {
+        &OutputPointer {
             transaction_id: Hash::default(),
             output_index: 123
         }
     );
-}
-
-#[test]
-fn test_output_value() {
-    let output = Output::Commit(CommitOutput {
-        commitment: Hash::default(),
-        value: 123,
-    });
-
-    assert_eq!(output.value(), 123);
 }
