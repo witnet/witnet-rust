@@ -33,6 +33,7 @@ impl SystemService for Notifications {}
 /// Message sent to the [`Notifications`](Notifications) actor to notify all subscribed actors.
 #[derive(Clone)]
 pub struct Notify {
+    /// Payload of the notification message sent to the subscribers.
     pub payload: Binary,
 }
 

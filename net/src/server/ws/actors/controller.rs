@@ -16,12 +16,20 @@ use futures::{future, Future};
 /// shutdown signal is sent to the process, they will receive a [`Shutdown`] message with an
 /// optional timeout. They can respond with a future, after which they will be stopped. Once all
 /// registered actors have stopped successfully, the entire system will stop.
-#[derive(Default)]
 pub struct Controller {
     /// Configured timeout for graceful shutdown
     timeout: Duration,
     /// Subscribed actors for the shutdown message.
     subscribers: Vec<Recipient<Shutdown>>,
+}
+
+impl Default for Controller {
+    fn default() -> Self {
+        Controller {
+            timeout: Duration::from_secs(10),
+            subscribers: Vec::new(),
+        }
+    }
 }
 
 impl Controller {
@@ -69,17 +77,16 @@ impl Handler<signal::Signal> for Controller {
 
     fn handle(&mut self, message: signal::Signal, ctx: &mut Self::Context) -> Self::Result {
         match message.0 {
-            signal::SignalType::Int => {
-                log::info!("SIGINT received, exiting");
-                self.shutdown(ctx, None)
-            }
             signal::SignalType::Quit => {
                 log::info!("SIGQUIT received, exiting");
                 self.shutdown(ctx, None);
             }
-            signal::SignalType::Term => {
+            signal::SignalType::Term | signal::SignalType::Int => {
                 let timeout = self.timeout;
-                log::info!("SIGTERM received, stopping in {}s", timeout.as_secs());
+                log::info!(
+                    "SIGTERM/SIGINT received, stopping with timeout: {}s",
+                    timeout.as_secs()
+                );
                 self.shutdown(ctx, Some(timeout));
             }
             _ => (),
@@ -122,6 +129,9 @@ impl Message for Shutdown {
     type Result = ShutdownResult;
 }
 
+/// Error to indicate a timeout in a shutdown.
+///
+/// See [`Shutdown`](Shutdown) for more information.
 #[derive(Debug, Fail, Copy, Clone, Eq, PartialEq)]
 #[fail(display = "timed out")]
 pub struct TimeoutError;

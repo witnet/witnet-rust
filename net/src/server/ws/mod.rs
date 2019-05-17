@@ -5,7 +5,7 @@ use std::net;
 use actix_web::{actix::*, server, ws, App, Binary};
 use jsonrpc_core as rpc;
 
-mod actors;
+pub mod actors;
 
 use self::actors::{
     controller::Controller,
