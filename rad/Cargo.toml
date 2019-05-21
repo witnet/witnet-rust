@@ -20,4 +20,5 @@ rust-crypto = "0.2.36"
 witnet_crypto = { path = "../crypto" }
 witnet_data_structures = { path = "../data_structures" }
 witnet_util = { path = "../util" }
+serde = "1.0.91"
 

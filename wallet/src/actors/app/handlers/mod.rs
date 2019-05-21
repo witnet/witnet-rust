@@ -1,4 +1,8 @@
-//! TODO: doc
+//! # Handlers for App actor
+//!
+//! Each handler corresponds to a json-rpc message exposed by the wallet server. Take a look at
+//! `wallet/src/lib.rs`, the `routes!(...)` macro there matches each json-rpc method name to a
+//! handler defined in this module.
 
 mod create_data_request;
 mod create_mnemonics;
@@ -8,7 +12,7 @@ mod get_transactions;
 mod get_wallet_infos;
 mod import_seed;
 mod lock_wallet;
-mod run_data_request;
+mod run_rad_request;
 mod send_data_request;
 mod send_vtt;
 mod unlock_wallet;
@@ -21,7 +25,7 @@ pub use get_transactions::GetTransactions;
 pub use get_wallet_infos::GetWalletInfos;
 pub use import_seed::ImportSeed;
 pub use lock_wallet::LockWallet;
-pub use run_data_request::RunDataRequest;
+pub use run_rad_request::RunRadRequest;
 pub use send_data_request::SendDataRequest;
 pub use send_vtt::SendVtt;
 pub use unlock_wallet::UnlockWallet;

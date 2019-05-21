@@ -1,13 +1,14 @@
 //! # RAD Engine
 
-use reqwest;
 use std::convert::TryInto;
+use std::result;
 
-use witnet_data_structures::chain::{RADRetrieve, RADType};
+use reqwest;
 
 use crate::error::RadError;
 use crate::script::{execute_radon_script, unpack_radon_script};
 use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
+use witnet_data_structures::chain::{RADAggregate, RADConsensus, RADRetrieve, RADType};
 
 pub mod error;
 pub mod hash_functions;
@@ -16,8 +17,11 @@ pub mod reducers;
 pub mod script;
 pub mod types;
 
+/// Result type where error is `RadError`.
+pub type Result<T> = result::Result<T, RadError>;
+
 /// Run retrieval stage of a data request.
-pub fn run_retrieval(retrieve: RADRetrieve) -> Result<RadonTypes, RadError> {
+pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
     match retrieve.kind {
         RADType::HttpGet => {
             let response = reqwest::get(&retrieve.url)
@@ -36,9 +40,9 @@ pub fn run_retrieval(retrieve: RADRetrieve) -> Result<RadonTypes, RadError> {
 /// Run aggregate stage of a data request.
 pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
-    script: Vec<u8>,
-) -> Result<Vec<u8>, RadError> {
-    let radon_script = unpack_radon_script(&script)?;
+    aggregate: &RADAggregate,
+) -> Result<Vec<u8>> {
+    let radon_script = unpack_radon_script(aggregate.script.as_slice())?;
 
     let radon_array = RadonArray::from(radon_types_vec);
 
@@ -51,9 +55,9 @@ pub fn run_aggregation(
 /// Run consensus stage of a data request.
 pub fn run_consensus(
     radon_types_vec: Vec<RadonTypes>,
-    script: Vec<u8>,
-) -> Result<Vec<u8>, RadError> {
-    let radon_script = unpack_radon_script(&script)?;
+    consensus: &RADConsensus,
+) -> Result<Vec<u8>> {
+    let radon_script = unpack_radon_script(consensus.script.as_slice())?;
 
     let radon_array = RadonArray::from(radon_types_vec);
 
@@ -79,7 +83,7 @@ fn test_run_retrieval() {
         script
     };
 
-    let result = run_retrieval(retrieve).unwrap();
+    let result = run_retrieval(&retrieve).unwrap();
 
     match result {
         RadonTypes::Float(_) => {}
@@ -100,8 +104,20 @@ fn test_run_consensus_and_aggregation() {
 
     let expected = RadonTypes::Float(RadonFloat::from(2f64)).try_into().ok();
 
-    let output_consensus = run_consensus(radon_types_vec.clone(), packed_script.clone()).ok();
-    let output_aggregate = run_aggregation(radon_types_vec, packed_script).ok();
+    let output_consensus = run_consensus(
+        radon_types_vec.clone(),
+        &RADConsensus {
+            script: packed_script.clone(),
+        },
+    )
+    .ok();
+    let output_aggregate = run_aggregation(
+        radon_types_vec,
+        &RADAggregate {
+            script: packed_script,
+        },
+    )
+    .ok();
 
     assert_eq!(output_consensus, expected);
     assert_eq!(output_aggregate, expected);
@@ -119,7 +135,7 @@ fn test_run_retrieval_random_api() {
         script,
     };
 
-    let result = run_retrieval(retrieve).unwrap();
+    let result = run_retrieval(&retrieve).unwrap();
 
     match result {
         RadonTypes::Float(_) => {}

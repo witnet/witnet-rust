@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use actix::prelude::*;
 
-use super::storage::Storage;
+use super::{rad_executor::RadExecutor, storage::Storage};
 use witnet_net::server::ws::actors::controller;
 
 mod handlers;
@@ -19,6 +19,7 @@ pub use handlers::*;
 /// service actors, e.g.: storage, node client, and so on.
 pub struct App {
     storage: Addr<Storage>,
+    rad_executor: Addr<RadExecutor>,
 }
 
 impl App {
@@ -47,8 +48,12 @@ impl AppBuilder {
     /// Start the [`App`](App) actor and its service actors, e.g.: storage, node client, and so on.
     pub fn start(self, db_path: PathBuf) -> Addr<App> {
         let storage = Storage::start(db_path);
+        let rad_executor = RadExecutor::start();
 
-        let app = App { storage };
+        let app = App {
+            storage,
+            rad_executor,
+        };
 
         app.start()
     }

@@ -1,13 +1,17 @@
-use crate::error::RadError;
-use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
-use crate::script::RadonCall;
-use crate::types::{mixed::RadonMixed, RadonType, RadonTypes};
-
-use rmpv::Value;
 use std::{
     convert::{TryFrom, TryInto},
     fmt,
     mem::{discriminant, Discriminant},
+};
+
+use rmpv::Value;
+use serde::ser::{Serialize, SerializeStruct, Serializer};
+
+use crate::error::RadError;
+use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
+use crate::script::RadonCall;
+use crate::types::{
+    float::RadonFloat, map::RadonMap, mixed::RadonMixed, string::RadonString, RadonType, RadonTypes,
 };
 
 fn mixed_discriminant() -> Discriminant<RadonTypes> {
@@ -29,6 +33,31 @@ impl RadonArray {
 
     pub fn is_homogeneous(&self) -> bool {
         self.inner_type != mixed_discriminant()
+    }
+}
+
+impl Serialize for RadonArray {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("RadonArray", 2)?;
+
+        state.serialize_field("value", &self.value)?;
+
+        if self.inner_type() == discriminant(&RadonTypes::Float(RadonFloat::default())) {
+            state.serialize_field("inner_type", "RadonFloat")?;
+        } else if self.inner_type() == discriminant(&RadonTypes::Map(RadonMap::default())) {
+            state.serialize_field("inner_type", "RadonMap")?;
+        } else if self.inner_type() == discriminant(&RadonTypes::Mixed(RadonMixed::default()))
+            || self.inner_type() == discriminant(&RadonTypes::String(RadonString::default()))
+        {
+            state.serialize_field("inner_type", "RadonMixed")?;
+        } else {
+            state.serialize_field("inner_value", "RadonArray")?;
+        }
+
+        state.end()
     }
 }
 

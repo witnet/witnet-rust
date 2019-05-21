@@ -11,7 +11,7 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature, OutputPointer,
-        PublicKeyHash, RADRequest, UnspentOutputsPool, ValueTransferOutput,
+        PublicKeyHash, RADConsensus, RADRequest, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::DataRequestPool,
     error::{BlockError, TransactionError},
@@ -164,7 +164,12 @@ pub fn validate_consensus(
         .filter_map(|input| RadonTypes::try_from(input.as_slice()).ok())
         .collect();
 
-    let local_tally = run_consensus(radon_types_vec, tally_stage)?;
+    let local_tally = run_consensus(
+        radon_types_vec,
+        &RADConsensus {
+            script: tally_stage,
+        },
+    )?;
 
     if local_tally == miner_tally {
         Ok(())

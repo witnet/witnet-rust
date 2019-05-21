@@ -74,6 +74,13 @@ macro_rules! routes {
                                         data: None,
                                     }
                                 }
+                                error::Error::Rad(err) => {
+                                    rpc::Error {
+                                        code: rpc::ErrorCode::ServerError(err_codes::RAD_ERROR),
+                                        message: format!("{}", err),
+                                        data: None,
+                                    }
+                                }
                                 error::Error::Storage(err) => {
                                     log::error!("Database: {}", err);
                                     internal_error!()
@@ -134,7 +141,7 @@ pub fn run(conf: Config) -> Result<i32, failure::Error> {
             ("sendVTT", actors::app::SendVtt),
             ("generateAddress", actors::app::GenerateAddress),
             ("createDataRequest", actors::app::CreateDataRequest),
-            ("runDataRequest", actors::app::RunDataRequest),
+            ("runRadRequest", actors::app::RunRadRequest),
             ("sendDataRequest", actors::app::SendDataRequest),
         );
 

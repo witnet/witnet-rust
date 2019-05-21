@@ -4,6 +4,7 @@ use std::{
 };
 
 use rmpv::Value;
+use serde::{Deserialize, Serialize};
 
 use crate::error::RadError;
 use crate::operators::{identity, Operable, RadonOpCodes};
@@ -12,7 +13,7 @@ use crate::types::{RadonType, RadonTypes};
 
 pub const RADON_FLOAT_TYPE_NAME: &str = "RadonFloat";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct RadonFloat {
     value: f64,
 }

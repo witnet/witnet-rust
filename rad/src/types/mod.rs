@@ -1,16 +1,18 @@
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+    io::Cursor,
+};
+
+use rmpv::{decode, encode, Value};
+use serde::Serialize;
+
 use crate::error::RadError;
 use crate::types::array::RadonArray;
 use crate::types::float::RadonFloat;
 use crate::types::map::RadonMap;
 use crate::types::mixed::RadonMixed;
 use crate::types::string::RadonString;
-
-use rmpv::{decode, encode, Value};
-use std::{
-    convert::{TryFrom, TryInto},
-    fmt,
-    io::Cursor,
-};
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::Hash;
 
@@ -29,7 +31,7 @@ where
     fn radon_type_name() -> String;
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum RadonTypes {
     Array(RadonArray),
     Float(RadonFloat),

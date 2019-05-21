@@ -1,17 +1,19 @@
-use crate::error::RadError;
-use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
-use crate::script::RadonCall;
-use crate::types::{RadonType, RadonTypes};
-
-use rmpv::Value;
 use std::{
     convert::{TryFrom, TryInto},
     fmt,
 };
 
+use rmpv::Value;
+use serde::Serialize;
+
+use crate::error::RadError;
+use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
+use crate::script::RadonCall;
+use crate::types::{RadonType, RadonTypes};
+
 pub const RADON_STRING_TYPE_NAME: &str = "RadonString";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Default)]
 pub struct RadonString {
     value: String,
 }

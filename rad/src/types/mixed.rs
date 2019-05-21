@@ -1,16 +1,33 @@
+use std::{convert::TryInto, fmt};
+
+use rmpv::Value;
+use serde::{Serialize, Serializer};
+
 use crate::error::RadError;
 use crate::operators::{identity, mixed as mixed_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
-
-use rmpv::Value;
-use std::{convert::TryInto, fmt};
 
 pub const RADON_MIXED_TYPE_NAME: &str = "RadonMixed";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RadonMixed {
     value: Value,
+}
+
+impl Default for RadonMixed {
+    fn default() -> Self {
+        Self { value: Value::Nil }
+    }
+}
+
+impl Serialize for RadonMixed {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.value.to_string())
+    }
 }
 
 impl RadonType<Value> for RadonMixed {

@@ -38,7 +38,7 @@ impl Controller {
     /// This sends a `Shutdown` message to all subscribed actors and
     /// waits for them to finish. As soon as all actors have
     /// completed, `Controller::stop` is called.
-    pub fn shutdown(&mut self, ctx: &mut Context<Self>, timeout: Option<Duration>) {
+    fn shutdown(&mut self, ctx: &mut Context<Self>, timeout: Option<Duration>) {
         let futures: Vec<_> = self
             .subscribers
             .iter()
