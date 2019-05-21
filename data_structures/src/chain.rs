@@ -288,13 +288,8 @@ impl TryInto<Secp256k1_Signature> for Secp256k1Signature {
 impl From<Secp256k1_PublicKey> for PublicKey {
     fn from(secp256k1_pk: Secp256k1_PublicKey) -> Self {
         let serialize = secp256k1_pk.serialize();
-        let mut bytes: [u8; 32] = [0; 32];
-        bytes.copy_from_slice(&serialize[1..]);
 
-        PublicKey {
-            compressed: serialize[0],
-            bytes,
-        }
+        PublicKey::from_bytes(serialize)
     }
 }
 
@@ -302,12 +297,7 @@ impl TryInto<Secp256k1_PublicKey> for PublicKey {
     type Error = failure::Error;
 
     fn try_into(self) -> Result<Secp256k1_PublicKey, Self::Error> {
-        let mut pk_ser = vec![];
-
-        pk_ser.extend_from_slice(&[self.compressed]);
-        pk_ser.extend_from_slice(&self.bytes);
-
-        Secp256k1_PublicKey::from_slice(&pk_ser)
+        Secp256k1_PublicKey::from_slice(&self.to_bytes())
             .map_err(|_| Secp256k1ConversionError::FailPublicKeyConversion.into())
     }
 }
@@ -525,6 +515,39 @@ pub struct KeyedSignature {
 pub struct PublicKey {
     pub compressed: u8,
     pub bytes: [u8; 32],
+}
+
+impl PublicKey {
+    /// Serialize the Public Key for interoperability with OpenSSL.
+    pub fn to_bytes(&self) -> [u8; 33] {
+        let mut v = [0; 33];
+        v[0] = self.compressed;
+        v[1..].copy_from_slice(&self.bytes);
+        v
+    }
+
+    /// Deserialize the Public Key for interoperability with OpenSSL.
+    pub fn from_bytes(serialized: [u8; 33]) -> Self {
+        Self::try_from_slice(&serialized[..]).unwrap()
+    }
+
+    /// Deserialize the Public Key for interoperability with OpenSSL.
+    /// Returns an error if the slice is not 33 bytes long.
+    pub fn try_from_slice(serialized: &[u8]) -> Result<Self, Secp256k1ConversionError> {
+        if serialized.len() != 33 {
+            Err(Secp256k1ConversionError::FailPublicKeyFromSlice {
+                size: serialized.len(),
+            })
+        } else {
+            let mut x = [0; 32];
+            x.copy_from_slice(&serialized[1..]);
+
+            Ok(PublicKey {
+                compressed: serialized[0],
+                bytes: x,
+            })
+        }
+    }
 }
 
 /// Secret Key data structure
