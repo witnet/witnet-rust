@@ -21,7 +21,6 @@ use crate::{
     },
     utils::mode_consensus,
 };
-use std::collections::HashMap;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -261,39 +260,63 @@ impl Handler<AddTransaction> for ChainManager {
         );
         // Ignore AddTransaction when not in Synced state
         match self.sm_state {
-            StateMachine::WaitingConsensus => {
-                return;
-            }
-            StateMachine::Synchronizing => {
-                return;
-            }
             StateMachine::Synced => {}
+            _ => {
+                return;
+            }
         };
 
-        let transaction_hash = &msg.transaction.hash();
-        if self.transactions_pool.contains(transaction_hash) {
-            debug!("Transaction is already in the pool: {}", transaction_hash);
-            return;
-        } else {
-            let utxo_diff = UtxoDiff::new(&self.chain_state.unspent_outputs_pool);
-            match validate_transaction(
-                &msg.transaction,
-                &utxo_diff,
-                &self.chain_state.data_request_pool,
-                &mut HashMap::new(),
-            ) {
-                Ok(_) => {
-                    debug!("Transaction added successfully");
-                    // Broadcast valid transaction
-                    self.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
+        let transaction = &msg.transaction;
+        let tx_hash = transaction.hash();
 
-                    // Add valid transaction to transactions_pool
-                    self.transactions_pool
-                        .insert(*transaction_hash, msg.transaction);
+        match transaction {
+            Transaction::ValueTransfer(_) | Transaction::DataRequest(_) => {
+                if self.transactions_pool.contains(&tx_hash) {
+                    debug!("Transaction is already in the pool: {}", tx_hash);
+                    return;
                 }
-
-                Err(e) => warn!("{}", e),
             }
+            Transaction::Commit(tx) => {
+                let dr_pointer = tx.body.dr_pointer;
+
+                if self
+                    .transactions_pool
+                    .contains_commit_reveal(&dr_pointer, &tx_hash)
+                {
+                    debug!("Transaction is already in the pool: {}", tx_hash);
+                    return;
+                }
+            }
+            Transaction::Reveal(tx) => {
+                let dr_pointer = tx.body.dr_pointer;
+
+                if self
+                    .transactions_pool
+                    .contains_commit_reveal(&dr_pointer, &tx_hash)
+                {
+                    debug!("Transaction is already in the pool: {}", tx_hash);
+                    return;
+                }
+            }
+            _ => {}
+        }
+
+        let utxo_diff = UtxoDiff::new(&self.chain_state.unspent_outputs_pool);
+        match validate_transaction(
+            &msg.transaction,
+            &utxo_diff,
+            &self.chain_state.data_request_pool,
+        ) {
+            Ok(_) => {
+                debug!("Transaction added successfully");
+                // Broadcast valid transaction
+                self.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
+
+                // Add valid transaction to transactions_pool
+                self.transactions_pool.insert(msg.transaction);
+            }
+
+            Err(e) => warn!("{}", e),
         }
     }
 }

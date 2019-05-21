@@ -6,7 +6,7 @@ use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
 
 use futures::future::{join_all, Future};
-use std::{collections::HashMap, convert::TryFrom, time::Duration};
+use std::{convert::TryFrom, time::Duration};
 
 use crate::{
     actors::{
@@ -27,12 +27,14 @@ use witnet_data_structures::{
     data_request::{
         create_commit_body, create_reveal_body, create_tally_body, create_vt_tally, DataRequestPool,
     },
-    transaction::{CommitTransaction, MintTransaction, RevealTransaction, Transaction},
+    transaction::{
+        CommitTransaction, MintTransaction, RevealTransaction, TallyTransaction, Transaction,
+    },
 };
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
-    block_reward, merkle_tree_root, transaction_fee, validate_block, verify_poe_data_request,
-    UtxoDiff,
+    block_reward, dr_transaction_fee, merkle_tree_root, validate_block, verify_poe_data_request,
+    vt_transaction_fee, UtxoDiff,
 };
 
 impl ChainManager {
@@ -103,7 +105,7 @@ impl ChainManager {
                         // Build the block using the supplied beacon and eligibility proof
                         let block = build_block(
                             (
-                                &act.transactions_pool,
+                                &mut act.transactions_pool,
                                 &act.chain_state.unspent_outputs_pool,
                                 &act.chain_state.data_request_pool,
                             ),
@@ -238,7 +240,9 @@ impl ChainManager {
         }
     }
 
-    fn create_tally_transactions(&mut self) -> impl Future<Item = Vec<Transaction>, Error = ()> {
+    fn create_tally_transactions(
+        &mut self,
+    ) -> impl Future<Item = Vec<TallyTransaction>, Error = ()> {
         let data_request_pool = &self.chain_state.data_request_pool;
 
         // Include Tally transactions, one for each data request in tally stage
@@ -299,7 +303,7 @@ impl ChainManager {
                         ),
                     );
 
-                    futures::future::ok(Transaction::Tally(tally))
+                    futures::future::ok(tally)
                 });
             future_tally_transactions.push(fut);
         }
@@ -311,14 +315,15 @@ impl ChainManager {
 /// Build a new Block using the supplied leadership proof and by filling transactions from the
 /// `transaction_pool`
 fn build_block(
-    pools_ref: (&TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
+    pools_ref: (&mut TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
     max_block_weight: u32,
     beacon: CheckpointBeacon,
     proof: LeadershipProof,
-    tally_transactions: &[Transaction],
+    tally_transactions: &[TallyTransaction],
     own_pkh: PublicKeyHash,
 ) -> Block {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
+    let utxo_diff = UtxoDiff::new(unspent_outputs_pool);
 
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
@@ -328,17 +333,11 @@ fn build_block(
     // Insert empty Transaction (future Mint Transaction)
     transactions.push(Transaction::Mint(MintTransaction::default()));
 
-    // Keep track of the commitments for each data request
-    let mut witnesses_per_dr = HashMap::new();
-
-    // Push transactions from pool until `max_block_weight` is reached
-    // TODO: refactor this statement into a functional `try_fold`
-    for transaction in tally_transactions.iter().chain(transactions_pool.iter()) {
-        debug!("Pushing transaction into block: {:?}", transaction);
+    // Currently only value transfer transactions weight is taking into account
+    for vt_tx in transactions_pool.vt_iter() {
         // Currently, 1 weight unit is equivalent to 1 byte
-        let transaction_weight = transaction.size();
-        let utxo_diff = UtxoDiff::new(unspent_outputs_pool);
-        let transaction_fee = match transaction_fee(&transaction, &utxo_diff, dr_pool) {
+        let transaction_weight = vt_tx.size();
+        let transaction_fee = match vt_transaction_fee(&vt_tx, &utxo_diff) {
             Ok(x) => x,
             Err(e) => {
                 warn!(
@@ -348,36 +347,52 @@ fn build_block(
                 continue;
             }
         };
+
         let new_block_weight = block_weight + transaction_weight;
 
         if new_block_weight <= max_block_weight {
-            match transaction {
-                Transaction::Commit(co_tx) => {
-                    let dr_pointer = &co_tx.body.dr_pointer;
-                    if let Some(dr_state) = dr_pool.data_request_pool.get(dr_pointer) {
-                        let w = dr_state.data_request.witnesses;
-                        let new_w = witnesses_per_dr.entry(dr_pointer).or_insert(0);
-                        if *new_w < w {
-                            // Ok, push commitment
-                            *new_w += 1;
-                            transactions.push(transaction.clone());
-                            transaction_fees += transaction_fee;
-                            block_weight += transaction_weight;
-                        }
-                    }
-                }
-                _ => {
-                    transactions.push(transaction.clone());
-                    transaction_fees += transaction_fee;
-                    block_weight += transaction_weight;
-                }
-            }
+            transactions.push(Transaction::ValueTransfer(vt_tx.clone()));
+            transaction_fees += transaction_fee;
+            block_weight += transaction_weight;
+        }
 
-            if new_block_weight == max_block_weight {
-                break;
-            }
+        if new_block_weight == max_block_weight {
+            break;
         }
     }
+
+    for dr_tx in transactions_pool.dr_iter() {
+        let transaction_fee = match dr_transaction_fee(&dr_tx, &utxo_diff) {
+            Ok(x) => x,
+            Err(e) => {
+                warn!(
+                    "Error when calculating transaction fee for transaction: {}",
+                    e
+                );
+                continue;
+            }
+        };
+
+        transactions.push(Transaction::DataRequest(dr_tx.clone()));
+        transaction_fees += transaction_fee;
+    }
+
+    for ta_tx in tally_transactions {
+        if let Some(dr_output) = dr_pool.get_dr_output(&ta_tx.dr_pointer) {
+            transactions.push(Transaction::Tally(ta_tx.clone()));
+            transaction_fees += dr_output.tally_fee;
+        } else {
+            warn!("Data Request pointed by tally transaction doesn't exist in DataRequestPool");
+        }
+    }
+
+    let (commits, commits_fees) = transactions_pool.remove_commits(dr_pool);
+    transactions.extend(commits.into_iter().map(Transaction::Commit));
+    transaction_fees += commits_fees;
+
+    let (reveals, reveals_fees) = transactions_pool.remove_reveals(dr_pool);
+    transactions.extend(reveals.into_iter().map(Transaction::Reveal));
+    transaction_fees += reveals_fees;
 
     // Include Mint Transaction by miner
     let epoch = beacon.checkpoint;
@@ -427,7 +442,7 @@ mod tests {
         // transaction size is 0 bytes (since missing fields are initialized with the default
         // values). Therefore version cannot be 0.
         let transaction = Transaction::ValueTransfer(VTTransaction::default());
-        transaction_pool.insert(transaction.hash(), transaction.clone());
+        transaction_pool.insert(transaction.clone());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -441,7 +456,7 @@ mod tests {
 
         // Build empty block (because max weight is zero)
         let block = build_block(
-            (&transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
             block_proof,
@@ -465,7 +480,7 @@ mod tests {
         // Initialize transaction_pool with 1 transaction
         let mut transaction_pool = TransactionsPool::default();
         let transaction = Transaction::ValueTransfer(VTTransaction::default());
-        transaction_pool.insert(transaction.hash(), transaction.clone());
+        transaction_pool.insert(transaction.clone());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -499,7 +514,7 @@ mod tests {
 
         // Build empty block (because max weight is zero)
         let block = build_block(
-            (&transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
             block_proof,
@@ -593,9 +608,9 @@ mod tests {
         // Insert transactions into `transactions_pool`
         // TODO: Currently the insert function does not take into account the fees to compute the transaction's weight
         let mut transaction_pool = TransactionsPool::default();
-        transaction_pool.insert(transaction_1.hash(), transaction_1.clone());
-        transaction_pool.insert(transaction_2.hash(), transaction_2.clone());
-        transaction_pool.insert(transaction_3.hash(), transaction_3.clone());
+        transaction_pool.insert(transaction_1.clone());
+        transaction_pool.insert(transaction_2.clone());
+        transaction_pool.insert(transaction_3.clone());
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -611,7 +626,7 @@ mod tests {
 
         // Build block with
         let block = build_block(
-            (&transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
             block_proof,

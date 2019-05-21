@@ -448,21 +448,32 @@ fn update_pools(
     let mut rep_info = ReputationInfo::new();
 
     for transaction in block.txns.iter() {
-        // Process tally transactions: used to update reputation engine
-        if let Transaction::Tally(tally_tx) = transaction {
-            rep_info.update(tally_tx, data_request_pool);
-        }
-
         // Update the data request pool after processing the tally
         if let Err(e) = data_request_pool.process_transaction(
             transaction,
             block.block_header.beacon.checkpoint,
             &block.hash(),
         ) {
-            log::error!("Error updating pools:\n{}", e)
+            log::error!("Error updating pools:\n{}", e);
         }
-        transactions_pool.remove(&transaction.hash());
+
+        match transaction {
+            // Process tally transactions: used to update reputation engine
+            Transaction::Tally(tally_tx) => {
+                rep_info.update(tally_tx, data_request_pool);
+            }
+            Transaction::ValueTransfer(vt_tx) => {
+                transactions_pool.vt_remove(&vt_tx.hash());
+            }
+            Transaction::DataRequest(dr_tx) => {
+                transactions_pool.dr_remove(&dr_tx.hash());
+            }
+            _ => {}
+        }
     }
+
+    // Remove commits and reveals because they expire in one epoch
+    transactions_pool.clear_commits_reveals();
 
     // Update own_utxos:
     if let Some(own_pkh) = own_pkh {

@@ -25,7 +25,7 @@ use crate::{
     proto::{schema::witnet, ProtobufConvert},
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, RevealTransaction, TallyTransaction,
-        Transaction,
+        Transaction, VTTransaction,
     },
 };
 
@@ -553,7 +553,7 @@ pub struct RADDeliver {
 }
 
 type WeightedHash = (u64, Hash);
-type WeightedTransaction = (u64, Transaction);
+type WeightedVTTransaction = (u64, VTTransaction);
 
 /// A pool of validated transactions that supports constant access by
 /// [`Hash`](Hash) and iteration over the
@@ -561,8 +561,14 @@ type WeightedTransaction = (u64, Transaction);
 /// transactions with smaller fees.
 #[derive(Debug, Default, Clone)]
 pub struct TransactionsPool {
-    transactions: HashMap<Hash, WeightedTransaction>,
+    vt_transactions: HashMap<Hash, WeightedVTTransaction>,
     sorted_index: BTreeSet<WeightedHash>,
+    // Currently transactions related with data requests don't use weight
+    dr_transactions: HashMap<Hash, DRTransaction>,
+    // A map of `data_request_hash` to a map of `commit_hash` to `CommitTransaction`
+    co_transactions: HashMap<Hash, HashMap<Hash, CommitTransaction>>,
+    // A map of `data_request_hash` to a map of `reveal_hash` to `RevealTransaction`
+    re_transactions: HashMap<Hash, HashMap<Hash, RevealTransaction>>,
 }
 
 impl TransactionsPool {
@@ -575,10 +581,7 @@ impl TransactionsPool {
     /// let pool = TransactionsPool::new();
     /// ```
     pub fn new() -> Self {
-        TransactionsPool {
-            transactions: HashMap::new(),
-            sorted_index: BTreeSet::new(),
-        }
+        TransactionsPool::default()
     }
 
     /// Makes a new pool of transactions with the specified capacity.
@@ -591,7 +594,10 @@ impl TransactionsPool {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         TransactionsPool {
-            transactions: HashMap::with_capacity(capacity),
+            vt_transactions: HashMap::with_capacity(capacity),
+            dr_transactions: HashMap::with_capacity(capacity),
+            co_transactions: HashMap::with_capacity(capacity),
+            re_transactions: HashMap::with_capacity(capacity),
             sorted_index: BTreeSet::new(),
         }
     }
@@ -611,7 +617,7 @@ impl TransactionsPool {
     /// assert!(pool.capacity() >= 20);
     /// ```
     pub fn capacity(&self) -> usize {
-        self.transactions.capacity()
+        self.vt_transactions.capacity()
     }
 
     /// Returns `true` if the pool contains no transactions.
@@ -625,7 +631,10 @@ impl TransactionsPool {
     /// assert!(pool.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
-        self.transactions.is_empty()
+        self.vt_transactions.is_empty()
+            && self.dr_transactions.is_empty()
+            && self.co_transactions.is_empty()
+            && self.re_transactions.is_empty()
     }
 
     /// Returns the number of transactions in the pool.
@@ -639,64 +648,186 @@ impl TransactionsPool {
     ///
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     ///
-    /// assert_eq!(pool.len(), 0);
+    /// assert_eq!(pool.vt_len(), 0);
     ///
-    /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction);
+    /// pool.insert(transaction);
     ///
-    /// assert_eq!(pool.len(), 1);
+    /// assert_eq!(pool.vt_len(), 1);
     /// ```
-    pub fn len(&self) -> usize {
-        self.transactions.len()
+    pub fn vt_len(&self) -> usize {
+        self.vt_transactions.len()
     }
 
-    /// Returns `true` if the pool contains a transaction for the specified hash.
+    /// Clear commit and reveal transactions in TransactionsPool
+    pub fn clear_commits_reveals(&mut self) {
+        self.co_transactions.clear();
+        self.re_transactions.clear();
+    }
+
+    /// Returns `true` if the pool contains a value transfer
+    /// transaction for the specified hash.
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
     /// `Eq` on the borrowed form must match those for the key type.
     ///
     /// # Examples:
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
     /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
-    /// let hash = Hash::SHA256([0 as u8; 32]);
+    ///
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
-    /// assert!(!pool.contains(&hash));
+    /// let hash = transaction.hash();
+    /// assert!(!pool.vt_contains(&hash));
     ///
-    /// pool.insert(hash, transaction);
+    /// pool.insert(transaction);
     ///
-    /// assert!(pool.contains(&hash));
+    /// assert!(pool.vt_contains(&hash));
     /// ```
-    pub fn contains(&self, key: &Hash) -> bool {
-        self.transactions.contains_key(key)
+    pub fn vt_contains(&self, key: &Hash) -> bool {
+        self.vt_transactions.contains_key(key)
     }
 
-    /// Returns an `Option` with the transaction for the specified hash or `None` if not exist.
+    /// Returns `true` if the pool contains a data request
+    /// transaction for the specified hash.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    pub fn dr_contains(&self, key: &Hash) -> bool {
+        self.dr_transactions.contains_key(key)
+    }
+
+    /// Returns `true` if the pool contains a commit transaction for the specified hash
+    /// and the specified data request pointer.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    pub fn commit_contains(&self, dr_pointer: &Hash, key: &Hash) -> bool {
+        self.co_transactions
+            .get(dr_pointer)
+            .map(|hm| hm.contains_key(key))
+            .unwrap_or(false)
+    }
+
+    /// Returns `true` if the pool contains a reveal transaction for the specified hash
+    /// and the specified data request pointer.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    pub fn reveal_contains(&self, dr_pointer: &Hash, key: &Hash) -> bool {
+        self.re_transactions
+            .get(dr_pointer)
+            .map(|hm| hm.contains_key(key))
+            .unwrap_or(false)
+    }
+
+    /// Returns an `Option` with the value transfer transaction for the specified hash or `None` if not exist.
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
     /// `Eq` on the borrowed form must match those for the key type.
     ///
     /// # Examples:
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
     /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
-    /// let hash = Hash::SHA256([0 as u8; 32]);
-    /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
-    /// pool.insert(hash, transaction.clone());
+    /// let vt_transaction = VTTransaction::default();
+    /// let transaction = Transaction::ValueTransfer(vt_transaction.clone());
+    /// pool.insert(transaction.clone());
     ///
-    /// assert!(pool.contains(&hash));
+    /// assert!(pool.vt_contains(&transaction.hash()));
     ///
-    /// let op_transaction_removed = pool.remove(&hash);
+    /// let op_transaction_removed = pool.vt_remove(&transaction.hash());
     ///
-    /// assert_eq!(Some(transaction), op_transaction_removed);
-    /// assert!(!pool.contains(&hash));
+    /// assert_eq!(Some(vt_transaction), op_transaction_removed);
+    /// assert!(!pool.vt_contains(&transaction.hash()));
     /// ```
-    pub fn remove(&mut self, key: &Hash) -> Option<Transaction> {
-        self.transactions.remove(key).map(|(weight, transaction)| {
-            self.sorted_index.remove(&(weight, *key));
-            transaction
-        })
+    pub fn vt_remove(&mut self, key: &Hash) -> Option<VTTransaction> {
+        self.vt_transactions
+            .remove(key)
+            .map(|(weight, transaction)| {
+                self.sorted_index.remove(&(weight, *key));
+                transaction
+            })
+    }
+
+    /// Returns an `Option` with the data request transaction for the specified hash or `None` if not exist.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    ///
+    /// # Examples:
+    /// ```
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
+    /// # use witnet_data_structures::transaction::{Transaction, DRTransaction};
+    /// let mut pool = TransactionsPool::new();
+    /// let dr_transaction = DRTransaction::default();
+    /// let transaction = Transaction::DataRequest(dr_transaction.clone());
+    /// pool.insert(transaction.clone());
+    ///
+    /// assert!(pool.dr_contains(&transaction.hash()));
+    ///
+    /// let op_transaction_removed = pool.dr_remove(&transaction.hash());
+    ///
+    /// assert_eq!(Some(dr_transaction), op_transaction_removed);
+    /// assert!(!pool.dr_contains(&transaction.hash()));
+    /// ```
+    pub fn dr_remove(&mut self, key: &Hash) -> Option<DRTransaction> {
+        self.dr_transactions.remove(key)
+    }
+
+    /// Returns a tuple with a vector of commit transactions that achieve the minimum specify
+    /// by the data request, and the value of all the fees obtained with those commits
+    pub fn remove_commits(&mut self, dr_pool: &DataRequestPool) -> (Vec<CommitTransaction>, u64) {
+        let mut total_fee = 0;
+        let commits_vector = self
+            .co_transactions
+            .iter_mut()
+            // TODO: Decide with optimal capacity
+            .fold(
+                Vec::with_capacity(20),
+                |mut commits_vec, (dr_pointer, commits)| {
+                    if let Some(dr_output) = dr_pool.get_dr_output(&dr_pointer) {
+                        let n_commits = dr_output.witnesses as usize;
+
+                        if commits.len() >= n_commits {
+                            commits_vec.extend(commits.drain().map(|(_h, c)| c).take(n_commits));
+
+                            total_fee += dr_output.commit_fee;
+                        } else {
+                            commits.clear();
+                        }
+                    }
+                    commits_vec
+                },
+            );
+
+        (commits_vector, total_fee)
+    }
+
+    /// Returns a tuple with a vector of reveal transactions and the value
+    /// of all the fees obtained with those reveals
+    pub fn remove_reveals(&mut self, dr_pool: &DataRequestPool) -> (Vec<RevealTransaction>, u64) {
+        let mut total_fee = 0;
+        let reveals_vector = self
+            .re_transactions
+            .iter_mut()
+            // TODO: Decide with optimal capacity
+            .fold(
+                Vec::with_capacity(20),
+                |mut reveals_vec, (dr_pointer, reveals)| {
+                    if let Some(dr_output) = dr_pool.get_dr_output(&dr_pointer) {
+                        //TODO: Check if there are a commit associated
+                        reveals_vec.extend(reveals.drain().map(|(_h, r)| r));
+
+                        total_fee += dr_output.reveal_fee;
+                    }
+
+                    reveals_vec
+                },
+            );
+
+        (reveals_vector, total_fee)
     }
 
     /// Insert a transaction identified by `key` into the pool.
@@ -708,19 +839,51 @@ impl TransactionsPool {
     /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
-    /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction);
+    /// pool.insert(transaction);
     ///
     /// assert!(!pool.is_empty());
     /// ```
-    pub fn insert(&mut self, key: Hash, transaction: Transaction) {
+    pub fn insert(&mut self, transaction: Transaction) {
         let weight = 0; // TODO: weight = transaction-fee / transaction-weight
-        self.transactions.insert(key, (weight, transaction));
-        self.sorted_index.insert((weight, key));
+        let key = transaction.hash();
+
+        match transaction {
+            Transaction::ValueTransfer(vt_tx) => {
+                self.vt_transactions.insert(key, (weight, vt_tx));
+                self.sorted_index.insert((weight, key));
+            }
+            Transaction::DataRequest(dr_tx) => {
+                self.dr_transactions.insert(key, dr_tx);
+            }
+            Transaction::Commit(co_tx) => {
+                let dr_pointer = co_tx.body.dr_pointer;
+
+                if let Some(hm) = self.co_transactions.get_mut(&dr_pointer) {
+                    hm.entry(co_tx.hash()).or_insert(co_tx);
+                } else {
+                    let mut hm = HashMap::new();
+                    hm.insert(co_tx.hash(), co_tx);
+                    self.co_transactions.insert(dr_pointer, hm);
+                }
+            }
+            Transaction::Reveal(re_tx) => {
+                let dr_pointer = re_tx.body.dr_pointer;
+
+                if let Some(hm) = self.re_transactions.get_mut(&dr_pointer) {
+                    hm.entry(re_tx.hash()).or_insert(re_tx);
+                } else {
+                    let mut hm = HashMap::new();
+                    hm.insert(re_tx.hash(), re_tx);
+                    self.re_transactions.insert(dr_pointer, hm);
+                }
+            }
+            _ => {}
+        }
     }
 
-    /// An iterator visiting all the transactions in the pool in
-    /// descending-fee order, that is, transactions with bigger fees
-    /// come first.
+    /// An iterator visiting all the value transfer transactions
+    /// in the pool in descending-fee order, that is, transactions
+    /// with bigger fees come first.
     ///
     /// Examples:
     ///
@@ -731,20 +894,26 @@ impl TransactionsPool {
     ///
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
     ///
-    /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction.clone());
-    /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction);
+    /// pool.insert(transaction.clone());
+    /// pool.insert(transaction);
     ///
-    /// let mut iter = pool.iter();
+    /// let mut iter = pool.vt_iter();
     /// let tx1 = iter.next();
     /// let tx2 = iter.next();
     ///
     /// // TODO: assert!(tx1.weight() >= tx2.weight());
     /// ```
-    pub fn iter(&self) -> impl Iterator<Item = &Transaction> {
+    pub fn vt_iter(&self) -> impl Iterator<Item = &VTTransaction> {
         self.sorted_index
             .iter()
             .rev()
-            .filter_map(move |(_, h)| self.transactions.get(h).map(|(_, t)| t))
+            .filter_map(move |(_, h)| self.vt_transactions.get(h).map(|(_, t)| t))
+    }
+
+    /// An iterator visiting all the data request transactions
+    /// in the pool
+    pub fn dr_iter(&self) -> impl Iterator<Item = &DRTransaction> {
+        self.dr_transactions.values()
     }
 
     /// Returns a reference to the value corresponding to the key.
@@ -752,21 +921,21 @@ impl TransactionsPool {
     /// Examples:
     ///
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, Hashable};
     /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
     /// let mut pool = TransactionsPool::new();
-    /// let hash = Hash::SHA256([0 as u8; 32]);
     ///
     /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
+    /// let hash = transaction.hash();
     ///
-    /// assert!(pool.get(&hash).is_none());
+    /// assert!(pool.vt_get(&hash).is_none());
     ///
-    /// pool.insert(hash, transaction);
+    /// pool.insert(transaction);
     ///
-    /// assert!(pool.get(&hash).is_some());
+    /// assert!(pool.vt_get(&hash).is_some());
     /// ```
-    pub fn get(&self, key: &Hash) -> Option<&Transaction> {
-        self.transactions
+    pub fn vt_get(&self, key: &Hash) -> Option<&VTTransaction> {
+        self.vt_transactions
             .get(key)
             .map(|(_, transaction)| transaction)
     }
@@ -779,30 +948,37 @@ impl TransactionsPool {
     /// # Examples
     ///
     /// ```
-    /// # use witnet_data_structures::chain::{TransactionsPool, Hash};
-    /// # use witnet_data_structures::transaction::{Transaction, VTTransaction};
+    /// # use witnet_data_structures::chain::{TransactionsPool, Hash, ValueTransferOutput};
+    /// # use witnet_data_structures::transaction::{Transaction, VTTransaction, VTTransactionBody};
+    /// use witnet_data_structures::transaction::Transaction::ValueTransfer;
     ///
     /// let mut pool = TransactionsPool::new();
     ///
-    /// let transaction = Transaction::ValueTransfer(VTTransaction::default());
+    /// let transaction1 = Transaction::ValueTransfer(VTTransaction::default());
+    /// let transaction2 = Transaction::ValueTransfer(VTTransaction::new(VTTransactionBody::new(vec![], vec![ValueTransferOutput {
+    /// value:3,
+    /// ..ValueTransferOutput::default()
+    /// }]),
+    /// vec![]));
     ///
-    /// pool.insert(Hash::SHA256([0 as u8; 32]), transaction.clone());
-    /// pool.insert(Hash::SHA256([1 as u8; 32]), transaction);
-    /// assert_eq!(pool.len(), 2);
-    /// pool.retain(|h, _| match h { Hash::SHA256(n) => n[0]== 0 });
-    /// assert_eq!(pool.len(), 1);
+    /// pool.insert(transaction1);
+    /// pool.insert(transaction2);
+    /// assert_eq!(pool.vt_len(), 2);
+    /// pool.vt_retain(|tx| tx.body.outputs.len()>0);
+    /// assert_eq!(pool.vt_len(), 1);
     /// ```
-    pub fn retain<F>(&mut self, mut f: F)
+    pub fn vt_retain<F>(&mut self, mut f: F)
     where
-        F: FnMut(&Hash, &Transaction) -> bool,
+        F: FnMut(&VTTransaction) -> bool,
     {
         let TransactionsPool {
-            ref mut transactions,
+            ref mut vt_transactions,
             ref mut sorted_index,
+            ..
         } = *self;
 
-        transactions.retain(|hash, (weight, transaction)| {
-            let retain = f(hash, transaction);
+        vt_transactions.retain(|hash, (weight, vt_transaction)| {
+            let retain = f(vt_transaction);
             if !retain {
                 sorted_index.remove(&(*weight, *hash));
             }

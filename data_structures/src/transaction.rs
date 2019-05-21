@@ -90,6 +90,11 @@ impl VTTransaction {
     pub fn new(body: VTTransactionBody, signatures: Vec<KeyedSignature>) -> Self {
         VTTransaction { body, signatures }
     }
+
+    /// Returns the byte size that a transaction will have on the wire
+    pub fn size(&self) -> u32 {
+        self.to_pb().write_to_bytes().unwrap().len() as u32
+    }
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
