@@ -6,7 +6,10 @@ use witnet_data_structures::{
     error::ChainInfoError,
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
-use witnet_validations::validations::{validate_block, validate_transaction, UtxoDiff};
+use witnet_validations::validations::{
+    validate_block, validate_commit_transaction, validate_dr_transaction,
+    validate_reveal_transaction, validate_vt_transaction, UtxoDiff,
+};
 
 use super::{ChainManager, ChainManagerError, StateMachine};
 use crate::{
@@ -21,6 +24,7 @@ use crate::{
     },
     utils::mode_consensus,
 };
+use witnet_data_structures::error::TransactionError;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -268,45 +272,56 @@ impl Handler<AddTransaction> for ChainManager {
 
         let transaction = &msg.transaction;
         let tx_hash = transaction.hash();
+        let utxo_diff = UtxoDiff::new(&self.chain_state.unspent_outputs_pool);
 
-        match transaction {
-            Transaction::ValueTransfer(_) | Transaction::DataRequest(_) => {
-                if self.transactions_pool.contains(&tx_hash) {
+        let validation_result: Result<(), failure::Error> = match transaction {
+            Transaction::ValueTransfer(tx) => {
+                if self.transactions_pool.vt_contains(&tx_hash) {
                     debug!("Transaction is already in the pool: {}", tx_hash);
                     return;
                 }
+
+                validate_vt_transaction(tx, &utxo_diff).map(|_| ())
+            }
+
+            Transaction::DataRequest(tx) => {
+                if self.transactions_pool.dr_contains(&tx_hash) {
+                    debug!("Transaction is already in the pool: {}", tx_hash);
+                    return;
+                }
+
+                validate_dr_transaction(tx, &utxo_diff).map(|_| ())
             }
             Transaction::Commit(tx) => {
                 let dr_pointer = tx.body.dr_pointer;
 
                 if self
                     .transactions_pool
-                    .contains_commit_reveal(&dr_pointer, &tx_hash)
+                    .commit_contains(&dr_pointer, &tx_hash)
                 {
                     debug!("Transaction is already in the pool: {}", tx_hash);
                     return;
                 }
+
+                validate_commit_transaction(tx, &self.chain_state.data_request_pool).map(|_| ())
             }
             Transaction::Reveal(tx) => {
                 let dr_pointer = tx.body.dr_pointer;
 
                 if self
                     .transactions_pool
-                    .contains_commit_reveal(&dr_pointer, &tx_hash)
+                    .reveal_contains(&dr_pointer, &tx_hash)
                 {
                     debug!("Transaction is already in the pool: {}", tx_hash);
                     return;
                 }
-            }
-            _ => {}
-        }
 
-        let utxo_diff = UtxoDiff::new(&self.chain_state.unspent_outputs_pool);
-        match validate_transaction(
-            &msg.transaction,
-            &utxo_diff,
-            &self.chain_state.data_request_pool,
-        ) {
+                validate_reveal_transaction(tx, &self.chain_state.data_request_pool).map(|_| ())
+            }
+            _ => Err(TransactionError::NotValidTransaction.into()),
+        };
+
+        match validation_result {
             Ok(_) => {
                 debug!("Transaction added successfully");
                 // Broadcast valid transaction

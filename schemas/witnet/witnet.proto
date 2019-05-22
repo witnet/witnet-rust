@@ -57,16 +57,34 @@ message Pong {
 
 message Block {
     message BlockHeader {
+        message BlockMerkleRoots {
+            Hash mint_hash_merkle_root = 1;
+            Hash vt_hash_merkle_root = 2;
+            Hash dr_hash_merkle_root = 3;
+            Hash commit_hash_merkle_root = 4;
+            Hash reveal_hash_merkle_root = 5;
+            Hash tally_hash_merkle_root = 6;
+        }
         uint32 version = 1;
         CheckpointBeacon beacon = 2;
-        Hash hash_merkle_root = 3;
+        BlockMerkleRoots merkle_roots = 3;
+
     }
     message LeadershipProof {
         KeyedSignature block_sig = 1;
     }
+
+    message BlockTransactions {
+        MintTransaction mint = 1;
+        repeated VTTransaction value_transfer_txns = 2;
+        repeated DRTransaction data_request_txns = 3;
+        repeated CommitTransaction commit_txns = 4;
+        repeated RevealTransaction reveal_txns = 5;
+        repeated TallyTransaction tally_txns = 6;
+    }
     BlockHeader block_header = 1;
     LeadershipProof proof = 2;
-    repeated Transaction txns = 3;
+    BlockTransactions txns = 3;
 }
 
 message InventoryAnnouncement {

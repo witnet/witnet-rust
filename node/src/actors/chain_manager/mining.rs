@@ -21,8 +21,8 @@ use crate::{
 
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, CheckpointBeacon, Hashable, LeadershipProof, PublicKeyHash,
-        TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, Hashable,
+        LeadershipProof, PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{
         create_commit_body, create_reveal_body, create_tally_body, create_vt_tally, DataRequestPool,
@@ -328,10 +328,9 @@ fn build_block(
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
     let mut block_weight = 0;
-    let mut transactions = Vec::new();
-
-    // Insert empty Transaction (future Mint Transaction)
-    transactions.push(Transaction::Mint(MintTransaction::default()));
+    let mut value_transfer_txns = Vec::new();
+    let mut data_request_txns = Vec::new();
+    let mut tally_txns = Vec::new();
 
     // Currently only value transfer transactions weight is taking into account
     for vt_tx in transactions_pool.vt_iter() {
@@ -351,7 +350,7 @@ fn build_block(
         let new_block_weight = block_weight + transaction_weight;
 
         if new_block_weight <= max_block_weight {
-            transactions.push(Transaction::ValueTransfer(vt_tx.clone()));
+            value_transfer_txns.push(vt_tx.clone());
             transaction_fees += transaction_fee;
             block_weight += transaction_weight;
         }
@@ -373,25 +372,23 @@ fn build_block(
             }
         };
 
-        transactions.push(Transaction::DataRequest(dr_tx.clone()));
+        data_request_txns.push(dr_tx.clone());
         transaction_fees += transaction_fee;
     }
 
     for ta_tx in tally_transactions {
         if let Some(dr_output) = dr_pool.get_dr_output(&ta_tx.dr_pointer) {
-            transactions.push(Transaction::Tally(ta_tx.clone()));
+            tally_txns.push(ta_tx.clone());
             transaction_fees += dr_output.tally_fee;
         } else {
             warn!("Data Request pointed by tally transaction doesn't exist in DataRequestPool");
         }
     }
 
-    let (commits, commits_fees) = transactions_pool.remove_commits(dr_pool);
-    transactions.extend(commits.into_iter().map(Transaction::Commit));
+    let (commit_txns, commits_fees) = transactions_pool.remove_commits(dr_pool);
     transaction_fees += commits_fees;
 
-    let (reveals, reveals_fees) = transactions_pool.remove_reveals(dr_pool);
-    transactions.extend(reveals.into_iter().map(Transaction::Reveal));
+    let (reveal_txns, reveals_fees) = transactions_pool.remove_reveals(dr_pool);
     transaction_fees += reveals_fees;
 
     // Include Mint Transaction by miner
@@ -399,27 +396,49 @@ fn build_block(
     let reward = block_reward(epoch) + transaction_fees;
 
     // Build Mint Transaction
-    let mint_tx = Transaction::Mint(MintTransaction::new(
+    let mint = MintTransaction::new(
         epoch,
         vec![ValueTransferOutput {
             pkh: own_pkh,
             value: reward,
         }],
-    ));
-    transactions[0] = mint_tx;
+    );
 
     // Compute `hash_merkle_root` and build block header
-    let hash_merkle_root = merkle_tree_root(&transactions);
+    let mint_hash_merkle_root = merkle_tree_root(&[mint.clone()]);
+    let vt_hash_merkle_root = merkle_tree_root(&value_transfer_txns);
+    let dr_hash_merkle_root = merkle_tree_root(&data_request_txns);
+    let commit_hash_merkle_root = merkle_tree_root(&commit_txns);
+    let reveal_hash_merkle_root = merkle_tree_root(&reveal_txns);
+    let tally_hash_merkle_root = merkle_tree_root(&tally_txns);
+    let merkle_roots = BlockMerkleRoots {
+        mint_hash_merkle_root,
+        vt_hash_merkle_root,
+        dr_hash_merkle_root,
+        commit_hash_merkle_root,
+        reveal_hash_merkle_root,
+        tally_hash_merkle_root,
+    };
+
     let block_header = BlockHeader {
         version: 0,
         beacon,
-        hash_merkle_root,
+        merkle_roots,
+    };
+
+    let txns = BlockTransactions {
+        mint,
+        value_transfer_txns,
+        data_request_txns,
+        commit_txns,
+        reveal_txns,
+        tally_txns,
     };
 
     Block {
         block_header,
         proof,
-        txns: transactions,
+        txns,
     }
 }
 
@@ -465,14 +484,15 @@ mod tests {
         );
 
         // Check if block only contains the Mint Transaction
-        assert_eq!(block.txns.len(), 1);
-        if let Transaction::Mint(mint_tx) = &block.txns[0] {
-            assert_eq!(mint_tx.outputs.len(), 1);
-        } else {
-            panic!("No Mint Transaction");
-        }
+        assert_eq!(block.txns.mint.outputs.len(), 1);
+        assert_eq!(block.txns.value_transfer_txns.len(), 0);
+        assert_eq!(block.txns.data_request_txns.len(), 0);
+        assert_eq!(block.txns.commit_txns.len(), 0);
+        assert_eq!(block.txns.reveal_txns.len(), 0);
+        assert_eq!(block.txns.tally_txns.len(), 0);
+
         // Check that transaction in block is not the transaction in `transactions_pool`
-        assert_ne!(block.txns[0], transaction);
+        assert_ne!(Transaction::Mint(block.txns.mint), transaction);
     }
 
     #[test]
@@ -523,15 +543,12 @@ mod tests {
         );
 
         // Check if block only contains the Mint Transaction
-        assert_eq!(block.txns.len(), 1);
-        if let Transaction::Mint(mint_tx) = &block.txns[0] {
-            assert_eq!(mint_tx.outputs.len(), 1);
-        } else {
-            panic!("No mint transaction in block");
-        }
-
-        // Check that transaction in block is not the transaction in `transactions_pool`
-        assert_ne!(block.txns[0], transaction);
+        assert_eq!(block.txns.mint.len(), 1);
+        assert_eq!(block.txns.value_transfer_txns.len(), 0);
+        assert_eq!(block.txns.data_request_txns.len(), 0);
+        assert_eq!(block.txns.commit_txns.len(), 0);
+        assert_eq!(block.txns.reveal_txns.len(), 0);
+        assert_eq!(block.txns.tally_txns.len(), 0);
 
         // Validate block signature
         assert!(validate_block_signature(&block).is_ok());
@@ -541,7 +558,7 @@ mod tests {
     #[ignore]
     fn build_block_with_transactions() {
         // Build sample transactions
-        let transaction_1 = Transaction::ValueTransfer(VTTransaction::new(
+        let vt_tx1 = VTTransaction::new(
             VTTransactionBody::new(
                 vec![Input::new(OutputPointer {
                     transaction_id: Hash::SHA256([1; 32]),
@@ -553,8 +570,9 @@ mod tests {
                 }],
             ),
             vec![],
-        ));
-        let transaction_2 = Transaction::ValueTransfer(VTTransaction::new(
+        );
+
+        let vt_tx2 = VTTransaction::new(
             VTTransactionBody::new(
                 vec![
                     Input::new(OutputPointer {
@@ -578,8 +596,8 @@ mod tests {
                 ],
             ),
             vec![],
-        ));
-        let transaction_3 = Transaction::ValueTransfer(VTTransaction::new(
+        );
+        let vt_tx3 = VTTransaction::new(
             VTTransactionBody::new(
                 vec![
                     Input::new(OutputPointer {
@@ -603,7 +621,11 @@ mod tests {
                 ],
             ),
             vec![],
-        ));
+        );
+
+        let transaction_1 = Transaction::ValueTransfer(vt_tx1.clone());
+        let transaction_2 = Transaction::ValueTransfer(vt_tx2);
+        let transaction_3 = Transaction::ValueTransfer(vt_tx3);
 
         // Insert transactions into `transactions_pool`
         // TODO: Currently the insert function does not take into account the fees to compute the transaction's weight
@@ -637,19 +659,11 @@ mod tests {
         // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
         assert_eq!(block.txns.len(), 2);
 
-        // Check that first transaction is the Mint Transaction
-        if let Transaction::Mint(mint_tx) = &block.txns[0] {
-            assert_eq!(mint_tx.outputs.len(), 1);
-        } else {
-            panic!("No mint transaction in block");
-        }
-        // Check that transaction in block is not a transaction from `transactions_pool`
-        assert_ne!(block.txns[0], transaction_1);
-        assert_ne!(block.txns[0], transaction_2);
-        assert_ne!(block.txns[0], transaction_3);
+        // Check that exist Mint Transaction
+        assert_eq!(block.txns.mint.is_empty(), false);
 
         // Check that the included transaction is the only one that fits the `max_block_weight`
-        assert_eq!(block.txns[1], transaction_1);
+        assert_eq!(block.txns.value_transfer_txns[0], vt_tx1);
     }
 
     #[test]

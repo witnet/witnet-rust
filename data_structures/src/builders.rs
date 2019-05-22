@@ -6,7 +6,9 @@ use rand::{thread_rng, Rng};
 use witnet_util::timestamp::get_timestamp;
 
 use crate::{
-    chain::{Block, BlockHeader, CheckpointBeacon, InventoryEntry, LeadershipProof},
+    chain::{
+        Block, BlockHeader, BlockTransactions, CheckpointBeacon, InventoryEntry, LeadershipProof,
+    },
     error::BuildersError,
     transaction::Transaction,
     types::{
@@ -140,7 +142,7 @@ impl Message {
         magic: u16,
         block_header: BlockHeader,
         proof: LeadershipProof,
-        txns: Vec<Transaction>,
+        txns: BlockTransactions,
     ) -> Message {
         Message::build_message(
             magic,

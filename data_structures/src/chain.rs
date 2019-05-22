@@ -24,8 +24,8 @@ use crate::{
     error::{DataRequestError, OutputPointerParseError, Secp256k1ConversionError},
     proto::{schema::witnet, ProtobufConvert},
     transaction::{
-        CommitTransaction, DRTransaction, DRTransactionBody, RevealTransaction, TallyTransaction,
-        Transaction, VTTransaction,
+        CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
+        TallyTransaction, Transaction, VTTransaction,
     },
 };
 
@@ -130,7 +130,44 @@ pub struct Block {
     /// A miner-provided proof of leadership
     pub proof: LeadershipProof,
     /// A non-empty list of signed transactions
-    pub txns: Vec<Transaction>,
+    pub txns: BlockTransactions,
+}
+/// Block transactions
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Block_BlockTransactions")]
+pub struct BlockTransactions {
+    /// Mint transaction,
+    pub mint: MintTransaction,
+    /// A list of signed value transfer transactions
+    pub value_transfer_txns: Vec<VTTransaction>,
+    /// A list of signed data request transactions
+    pub data_request_txns: Vec<DRTransaction>,
+    /// A list of signed commit transactions
+    pub commit_txns: Vec<CommitTransaction>,
+    /// A list of signed reveal transactions
+    pub reveal_txns: Vec<RevealTransaction>,
+    /// A list of signed tally transactions
+    pub tally_txns: Vec<TallyTransaction>,
+}
+
+impl BlockTransactions {
+    pub fn len(&self) -> usize {
+        self.mint.len()
+            + self.value_transfer_txns.len()
+            + self.data_request_txns.len()
+            + self.commit_txns.len()
+            + self.reveal_txns.len()
+            + self.tally_txns.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.mint.is_empty()
+            && self.value_transfer_txns.is_empty()
+            && self.data_request_txns.is_empty()
+            && self.commit_txns.is_empty()
+            && self.reveal_txns.is_empty()
+            && self.tally_txns.is_empty()
+    }
 }
 
 impl Hashable for Block {
@@ -163,8 +200,25 @@ pub struct BlockHeader {
     pub version: u32,
     /// A checkpoint beacon for the epoch that this block is closing
     pub beacon: CheckpointBeacon,
-    /// A 256-bit hash based on all of the transactions committed to this block
-    pub hash_merkle_root: Hash,
+    /// A 256-bit hashes based on all of the transactions committed to this block
+    pub merkle_roots: BlockMerkleRoots,
+}
+/// Block merkle tree roots
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
+#[protobuf_convert(pb = "witnet::Block_BlockHeader_BlockMerkleRoots")]
+pub struct BlockMerkleRoots {
+    /// A 256-bit hash based on the mint transaction committed to this block
+    pub mint_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the value transfer transactions committed to this block
+    pub vt_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the data request transactions committed to this block
+    pub dr_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the commit transactions committed to this block
+    pub commit_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the reveal transactions committed to this block
+    pub reveal_hash_merkle_root: Hash,
+    /// A 256-bit hash based on all of the tally transactions committed to this block
+    pub tally_hash_merkle_root: Hash,
 }
 
 /// Proof of leadership structure
@@ -1451,7 +1505,15 @@ pub fn block_example() -> Block {
     let block_header = BlockHeader::default();
     let proof = LeadershipProof::default();
 
-    let txns: Vec<Transaction> = vec![transaction_example()];
+    let mut dr_txns = vec![];
+    if let Transaction::DataRequest(dr_tx) = transaction_example() {
+        dr_txns.push(dr_tx);
+    }
+
+    let txns = BlockTransactions {
+        data_request_txns: dr_txns,
+        ..BlockTransactions::default()
+    };
 
     Block {
         block_header,
@@ -1467,7 +1529,7 @@ mod tests {
     #[test]
     fn test_block_hashable_trait() {
         let block = block_example();
-        let expected = "41d36ff16318f17350b0f0a74afb907bda00b89035d12ccede8ca404a4afb1c0";
+        let expected = "4e299bdce2d1adca570efe5f1526b5fb161891041ad77b812c4400aa6b53b477";
         assert_eq!(block.hash().to_string(), expected);
     }
 

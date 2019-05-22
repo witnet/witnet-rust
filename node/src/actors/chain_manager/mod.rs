@@ -25,7 +25,10 @@
 //! * Updating the UTXO set with valid transactions that have already been anchored into a valid block. This includes:
 //!     - Removing the UTXOs that the transaction spends as inputs.
 //!     - Adding a new UTXO for every output in the transaction.
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryFrom,
+};
 
 use actix::{
     prelude::*, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System,
@@ -45,7 +48,6 @@ use crate::{
     },
     storage_mngr,
 };
-use std::convert::TryFrom;
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
@@ -53,13 +55,12 @@ use witnet_data_structures::{
         PublicKeyHash, Reputation, ReputationEngine, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
-    transaction::{TallyTransaction, Transaction},
+    transaction::{RevealTransaction, TallyTransaction, Transaction},
 };
 use witnet_rad::types::RadonTypes;
+use witnet_validations::validations::{validate_block, validate_candidate, Diff};
 
 use itertools::Itertools;
-use witnet_data_structures::transaction::RevealTransaction;
-use witnet_validations::validations::{validate_block, validate_candidate, Diff};
 
 mod actor;
 mod handlers;
@@ -344,7 +345,7 @@ impl ChainManager {
                         show_info_dr(&self.chain_state.data_request_pool, &block);
 
                         log::trace!("{:?}", block);
-                        debug!("Mint transaction hash: {:?}", block.txns[0].hash());
+                        debug!("Mint transaction hash: {:?}", block.txns.mint.hash());
 
                         let reveals = self
                             .chain_state
@@ -447,28 +448,35 @@ fn update_pools(
 ) -> ReputationInfo {
     let mut rep_info = ReputationInfo::new();
 
-    for transaction in block.txns.iter() {
-        // Update the data request pool after processing the tally
-        if let Err(e) = data_request_pool.process_transaction(
-            transaction,
-            block.block_header.beacon.checkpoint,
-            &block.hash(),
-        ) {
+    for ta_tx in &block.txns.tally_txns {
+        // Process tally transactions: used to update reputation engine
+        rep_info.update(&ta_tx, data_request_pool);
+
+        // IMPORTANT: Update the data request pool after updating reputation info
+        if let Err(e) = data_request_pool.process_tally(&ta_tx, &block.hash()) {
             log::error!("Error updating pools:\n{}", e);
         }
+    }
 
-        match transaction {
-            // Process tally transactions: used to update reputation engine
-            Transaction::Tally(tally_tx) => {
-                rep_info.update(tally_tx, data_request_pool);
-            }
-            Transaction::ValueTransfer(vt_tx) => {
-                transactions_pool.vt_remove(&vt_tx.hash());
-            }
-            Transaction::DataRequest(dr_tx) => {
-                transactions_pool.dr_remove(&dr_tx.hash());
-            }
-            _ => {}
+    for vt_tx in &block.txns.value_transfer_txns {
+        transactions_pool.vt_remove(&vt_tx.hash());
+    }
+
+    for dr_tx in &block.txns.data_request_txns {
+        data_request_pool.process_data_request(&dr_tx, block.block_header.beacon.checkpoint);
+
+        transactions_pool.dr_remove(&dr_tx.hash());
+    }
+
+    for co_tx in &block.txns.commit_txns {
+        if let Err(e) = data_request_pool.process_commit(&co_tx, &block.hash()) {
+            log::error!("Error updating pools:\n{}", e);
+        }
+    }
+
+    for re_tx in &block.txns.reveal_txns {
+        if let Err(e) = data_request_pool.process_reveal(&re_tx, &block.hash()) {
+            log::error!("Error updating pools:\n{}", e);
         }
     }
 

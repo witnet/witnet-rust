@@ -290,6 +290,18 @@ impl MintTransaction {
             hash: MemoHash::new(),
         }
     }
+
+    pub fn len(&self) -> usize {
+        if self.is_empty() {
+            0
+        } else {
+            1
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.outputs.is_empty()
+    }
 }
 
 impl MemoizedHashable for VTTransactionBody {

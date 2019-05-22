@@ -12,7 +12,7 @@ use crate::{
     error::DataRequestError,
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransaction, RevealTransaction,
-        RevealTransactionBody, TallyTransaction, Transaction,
+        RevealTransactionBody, TallyTransaction,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -239,49 +239,49 @@ impl DataRequestPool {
             .collect()
     }
 
-    /// Process a transaction from a block and update the data request pool accordingly:
-    /// * New data requests are inserted and wait for commitments
-    /// * New commitments are added to their respective data requests, updating the stage to reveal
-    /// * New reveals are added to their respective data requests, updating the stage to tally
-    /// The epoch is needed as the key to the available data requests map
-    /// The block hash is only used for debugging purposes
-    pub fn process_transaction(
+    /// New commitments are added to their respective data requests, updating the stage to reveal
+    pub fn process_commit(
         &mut self,
-        transaction: &Transaction,
-        epoch: Epoch,
+        commit_transaction: &CommitTransaction,
         block_hash: &Hash,
     ) -> Result<(), failure::Error> {
-        match transaction {
-            Transaction::Commit(commit_transaction) => {
-                let pkh =
-                    PublicKeyHash::from_public_key(&commit_transaction.signatures[0].public_key);
-                self.add_commit(pkh, commit_transaction.clone(), block_hash)?
-            }
-            Transaction::Reveal(reveal_transaction) => {
-                let pkh =
-                    PublicKeyHash::from_public_key(&reveal_transaction.signatures[0].public_key);
-                self.add_reveal(pkh, reveal_transaction.clone(), block_hash)?
-            }
-            Transaction::DataRequest(dr_transaction) => {
-                // A data request output should have a valid value transfer input
-                // Which we assume valid as it should have been already verified
-                // time_lock_epoch: The epoch during which we will start accepting
-                // commitments for this data request
-                // FIXME(#338): implement time lock
-                // An enhancement to the epoch manager would be a handler GetState which returns
-                // the needed constants to calculate the current epoch. This way we avoid all the
-                // calls to GetEpoch
-                let time_lock_epoch = 0;
-                let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
-                self.add_data_request(dr_epoch, dr_transaction.clone());
-            }
-            Transaction::Tally(tally_transaction) => {
-                self.add_tally(tally_transaction.clone(), block_hash)?
-            }
-            _ => {}
-        }
+        let pkh = PublicKeyHash::from_public_key(&commit_transaction.signatures[0].public_key);
+        self.add_commit(pkh, commit_transaction.clone(), block_hash)
+    }
 
-        Ok(())
+    /// New reveals are added to their respective data requests, updating the stage to tally
+    pub fn process_reveal(
+        &mut self,
+        reveal_transaction: &RevealTransaction,
+        block_hash: &Hash,
+    ) -> Result<(), failure::Error> {
+        let pkh = PublicKeyHash::from_public_key(&reveal_transaction.signatures[0].public_key);
+        self.add_reveal(pkh, reveal_transaction.clone(), block_hash)
+    }
+
+    /// New data requests are inserted and wait for commitments
+    /// The epoch is needed as the key to the available data requests map
+    pub fn process_data_request(&mut self, dr_transaction: &DRTransaction, epoch: Epoch) {
+        // A data request output should have a valid value transfer input
+        // Which we assume valid as it should have been already verified
+        // time_lock_epoch: The epoch during which we will start accepting
+        // commitments for this data request
+        // FIXME(#338): implement time lock
+        // An enhancement to the epoch manager would be a handler GetState which returns
+        // the needed constants to calculate the current epoch. This way we avoid all the
+        // calls to GetEpoch
+        let time_lock_epoch = 0;
+        let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
+        self.add_data_request(dr_epoch, dr_transaction.clone());
+    }
+
+    /// New tallies are added to their respective data requests and finish them
+    pub fn process_tally(
+        &mut self,
+        tally_transaction: &TallyTransaction,
+        block_hash: &Hash,
+    ) -> Result<(), failure::Error> {
+        self.add_tally(tally_transaction.clone(), block_hash)
     }
 
     /// Get the detailed state of a data request.
@@ -385,11 +385,10 @@ mod tests {
             DRTransactionBody::new(vec![Input::default()], vec![], DataRequestOutput::default()),
             vec![KeyedSignature::default()],
         );
-        let transaction = Transaction::DataRequest(dr_transaction);
-        let dr_pointer = transaction.hash();
+        let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::default();
-        let _aux = p.process_transaction(&transaction, epoch, &fake_block_hash);
+        p.process_data_request(&dr_transaction, epoch);
 
         assert!(p.waiting_for_reveal.is_empty());
         assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
@@ -402,7 +401,7 @@ mod tests {
 
         assert!(p.update_data_request_stages().is_empty());
 
-        (epoch, fake_block_hash, p, transaction.hash())
+        (epoch, fake_block_hash, p, dr_transaction.hash())
     }
 
     fn from_commit_to_reveal(
@@ -410,14 +409,13 @@ mod tests {
         fake_block_hash: Hash,
         mut p: DataRequestPool,
         dr_pointer: Hash,
-    ) -> (u32, Hash, DataRequestPool, Hash) {
+    ) -> (Hash, DataRequestPool, Hash) {
         let commit_transaction = CommitTransaction::new(
             CommitTransactionBody::new(dr_pointer, Hash::default(), Hash::default()),
             vec![KeyedSignature::default()],
         );
-        let transaction = Transaction::Commit(commit_transaction.clone());
 
-        let _aux = p.process_transaction(&transaction, epoch + 1, &fake_block_hash);
+        let _aux = p.process_commit(&commit_transaction, &fake_block_hash);
 
         // And we can also get all the commit pointers from the data request
         assert_eq!(
@@ -453,22 +451,20 @@ mod tests {
             .map(|x| x.contains(&dr_pointer))
             .unwrap_or(false));
 
-        (epoch, fake_block_hash, p, dr_pointer)
+        (fake_block_hash, p, dr_pointer)
     }
 
     fn from_reveal_to_tally(
-        epoch: u32,
         fake_block_hash: Hash,
         mut p: DataRequestPool,
         dr_pointer: Hash,
-    ) -> (u32, Hash, DataRequestPool, Hash) {
+    ) -> (Hash, DataRequestPool, Hash) {
         let reveal_transaction = RevealTransaction::new(
             RevealTransactionBody::new(dr_pointer, vec![], PublicKeyHash::default()),
             vec![KeyedSignature::default()],
         );
-        let transaction = Transaction::Reveal(reveal_transaction.clone());
 
-        let _aux = p.process_transaction(&transaction, epoch + 2, &fake_block_hash);
+        let _aux = p.process_reveal(&reveal_transaction, &fake_block_hash);
 
         assert_eq!(
             p.data_request_pool[&dr_pointer]
@@ -494,23 +490,17 @@ mod tests {
             DataRequestStage::TALLY
         );
 
-        (epoch, fake_block_hash, p, dr_pointer)
+        (fake_block_hash, p, dr_pointer)
     }
 
-    fn from_tally_to_storage(
-        epoch: u32,
-        fake_block_hash: Hash,
-        mut p: DataRequestPool,
-        dr_pointer: Hash,
-    ) {
+    fn from_tally_to_storage(fake_block_hash: Hash, mut p: DataRequestPool, dr_pointer: Hash) {
         let tally_transaction = TallyTransaction::new(dr_pointer, vec![], vec![]);
-        let transaction = Transaction::Tally(tally_transaction);
 
         // There is nothing to be stored yet
         assert_eq!(p.to_be_stored.len(), 0);
 
         // Process tally: this will remove the data request from the pool
-        let _aux = p.process_transaction(&transaction, epoch + 2, &fake_block_hash);
+        let _aux = p.process_tally(&tally_transaction, &fake_block_hash);
 
         // And the data request has been removed from the pool
         assert_eq!(p.data_request_pool.get(&dr_pointer), None);
@@ -537,33 +527,31 @@ mod tests {
     #[test]
     fn test_from_reveal_to_tally() {
         let (epoch, fake_block_hash, p, dr_pointer) = add_data_requests();
-        let (epoch, fake_block_hash, p, dr_pointer) =
+        let (fake_block_hash, p, dr_pointer) =
             from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
 
-        from_reveal_to_tally(epoch, fake_block_hash, p, dr_pointer);
+        from_reveal_to_tally(fake_block_hash, p, dr_pointer);
     }
 
     #[test]
     fn test_from_tally_to_storage() {
         let (epoch, fake_block_hash, p, dr_pointer) = add_data_requests();
-        let (epoch, fake_block_hash, p, dr_pointer) =
+        let (fake_block_hash, p, dr_pointer) =
             from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
-        let (epoch, fake_block_hash, p, dr_pointer) =
-            from_reveal_to_tally(epoch, fake_block_hash, p, dr_pointer);
+        let (fake_block_hash, p, dr_pointer) = from_reveal_to_tally(fake_block_hash, p, dr_pointer);
 
-        from_tally_to_storage(epoch, fake_block_hash, p, dr_pointer);
+        from_tally_to_storage(fake_block_hash, p, dr_pointer);
     }
 
     #[test]
     fn my_claims() {
         // Test the `add_own_reveal` function
-        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
+        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
 
         let commit_transaction = CommitTransaction::new(
             CommitTransactionBody::new(dr_pointer, Hash::default(), Hash::default()),
             vec![KeyedSignature::default()],
         );
-        let transaction = Transaction::Commit(commit_transaction);
 
         let reveal_transaction = RevealTransaction::new(
             RevealTransactionBody::new(dr_pointer, vec![], PublicKeyHash::default()),
@@ -579,7 +567,7 @@ mod tests {
             Some(&reveal_transaction)
         );
 
-        let _aux = p.process_transaction(&transaction, epoch + 1, &fake_block_hash);
+        let _aux = p.process_commit(&commit_transaction, &fake_block_hash);
 
         // Still in commit stage until we update
         assert_eq!(
@@ -600,7 +588,7 @@ mod tests {
             DataRequestStage::REVEAL
         );
 
-        from_reveal_to_tally(epoch, fake_block_hash, p, dr_pointer);
+        from_reveal_to_tally(fake_block_hash, p, dr_pointer);
     }
 
     #[test]
@@ -615,7 +603,7 @@ mod tests {
             DataRequestStage::COMMIT
         );
 
-        let (epoch, fake_block_hash, mut p, dr_pointer) =
+        let (fake_block_hash, mut p, dr_pointer) =
             from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
 
         // Update stages
@@ -627,8 +615,8 @@ mod tests {
             DataRequestStage::REVEAL
         );
 
-        let (epoch, fake_block_hash, mut p, dr_pointer) =
-            from_reveal_to_tally(epoch, fake_block_hash, p, dr_pointer);
+        let (fake_block_hash, mut p, dr_pointer) =
+            from_reveal_to_tally(fake_block_hash, p, dr_pointer);
 
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
@@ -639,6 +627,6 @@ mod tests {
             DataRequestStage::TALLY
         );
 
-        from_tally_to_storage(epoch, fake_block_hash, p, dr_pointer);
+        from_tally_to_storage(fake_block_hash, p, dr_pointer);
     }
 }

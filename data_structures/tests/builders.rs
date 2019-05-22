@@ -23,11 +23,18 @@ fn builders_build_block() {
     let block_header = BlockHeader {
         version: 0x0000_0001,
         beacon: CheckpointBeacon::default(),
-        hash_merkle_root: Hash::default(),
+        merkle_roots: BlockMerkleRoots::default(),
     };
     let proof = LeadershipProof::default();
 
-    let txns: Vec<Transaction> = vec![transaction_example()];
+    let mut data_request_txns = vec![];
+    if let Transaction::DataRequest(dr_tx) = transaction_example() {
+        data_request_txns.push(dr_tx);
+    }
+    let txns = BlockTransactions {
+        data_request_txns,
+        ..BlockTransactions::default()
+    };
 
     // Expected message
     let msg = Message {

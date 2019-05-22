@@ -494,19 +494,7 @@ mod tests {
     fn inventory_method() {
         // The expected behaviour of the inventory method
         use witnet_data_structures::chain::*;
-        let txns = vec![transaction_example()];
-        let block = Block {
-            block_header: BlockHeader {
-                version: 1,
-                beacon: CheckpointBeacon {
-                    checkpoint: 2,
-                    hash_prev_block: Hash::SHA256([4; 32]),
-                },
-                hash_merkle_root: Hash::SHA256([3; 32]),
-            },
-            proof: LeadershipProof::default(),
-            txns,
-        };
+        let block = block_example();
 
         let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem).unwrap();
@@ -617,22 +605,10 @@ mod tests {
     fn serialize_block() {
         // Check that the serialization of `Block` doesn't change
         use witnet_data_structures::chain::*;
-        let txns = vec![transaction_example()];
-        let block = Block {
-            block_header: BlockHeader {
-                version: 1,
-                beacon: CheckpointBeacon {
-                    checkpoint: 2,
-                    hash_prev_block: Hash::SHA256([4; 32]),
-                },
-                hash_merkle_root: Hash::SHA256([3; 32]),
-            },
-            proof: LeadershipProof::default(),
-            txns,
-        };
+        let block = block_example();
         let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem).unwrap();
-        let expected = r#"{"block":{"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block":"0404040404040404040404040404040404040404040404040404040404040404"},"hash_merkle_root":"0303030303030303030303030303030303030303030303030303030303030303"},"proof":{"block_sig":{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}},"txns":[{"DataRequest":{"body":{"inputs":[{"output_pointer":"0000000000000000000000000000000000000000000000000000000000000000:0"}],"outputs":[{"pkh":"0000000000000000000000000000000000000000","value":0}],"dr_output":{"pkh":"0000000000000000000000000000000000000000","data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[]}],"aggregate":{"script":[]},"consensus":{"script":[]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}}]}}"#;
+        let expected = r#"{"block":{"block_header":{"version":0,"beacon":{"checkpoint":0,"hash_prev_block":"0000000000000000000000000000000000000000000000000000000000000000"},"merkle_roots":{"mint_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","vt_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","dr_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","commit_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","reveal_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","tally_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000"}},"proof":{"block_sig":{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}},"txns":{"mint":{"epoch":0,"outputs":[]},"value_transfer_txns":[],"data_request_txns":[{"body":{"inputs":[{"output_pointer":"0000000000000000000000000000000000000000000000000000000000000000:0"}],"outputs":[{"pkh":"0000000000000000000000000000000000000000","value":0}],"dr_output":{"pkh":"0000000000000000000000000000000000000000","data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[]}],"aggregate":{"script":[]},"consensus":{"script":[]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}],"commit_txns":[],"reveal_txns":[],"tally_txns":[]}}}"#;
         assert_eq!(s, expected, "\n{}\n", s);
     }
 

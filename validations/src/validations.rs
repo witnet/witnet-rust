@@ -8,6 +8,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
+use witnet_data_structures::chain::BlockMerkleRoots;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature, OutputPointer,
@@ -16,8 +17,8 @@ use witnet_data_structures::{
     data_request::DataRequestPool,
     error::{BlockError, TransactionError},
     transaction::{
-        mint, CommitTransactionBody, DRTransaction, DRTransactionBody, MintTransaction,
-        RevealTransactionBody, TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
+        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
+        VTTransaction,
     },
 };
 use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
@@ -153,14 +154,33 @@ pub fn validate_consensus(
 }
 
 /// Function to validate a value transfer transaction
-pub fn validate_vt_transaction(_tx: &VTTransactionBody) -> Result<(), failure::Error> {
+pub fn validate_vt_transaction<'a>(
+    vt_tx: &'a VTTransaction,
+    utxo_diff: &UtxoDiff,
+) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    validate_transaction_signature(&vt_tx.signatures, &vt_tx.body.inputs, utxo_diff)?;
+
+    let fee = vt_transaction_fee(vt_tx, utxo_diff)?;
+
     // TODO(#514): Implement value transfer transaction validation
-    Ok(())
+
+    Ok((
+        vt_tx.body.inputs.iter().collect(),
+        vt_tx.body.outputs.iter().collect(),
+        fee,
+    ))
 }
 
 /// Function to validate a data request transaction
-pub fn validate_dr_transaction(tx: &DRTransactionBody) -> Result<(), failure::Error> {
-    let dr_output = &tx.dr_output;
+pub fn validate_dr_transaction<'a>(
+    dr_tx: &'a DRTransaction,
+    utxo_diff: &UtxoDiff,
+) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    validate_transaction_signature(&dr_tx.signatures, &dr_tx.body.inputs, utxo_diff)?;
+
+    let fee = dr_transaction_fee(dr_tx, utxo_diff)?;
+
+    let dr_output = &dr_tx.body.dr_output;
 
     if dr_output.witnesses < 1 {
         Err(TransactionError::InsufficientWitnesses)?
@@ -179,29 +199,36 @@ pub fn validate_dr_transaction(tx: &DRTransactionBody) -> Result<(), failure::Er
         })?
     }
 
-    // TODO: Review after use a unique commit/reveal fee for group not for each
-    let witness_reward = ((dr_value - tally_fee) / witnesses) - commit_fee - reveal_fee;
+    let witness_reward = (dr_value - tally_fee - commit_fee - reveal_fee) / witnesses;
     if witness_reward <= 0 {
         Err(TransactionError::InvalidDataRequestReward {
             reward: witness_reward,
         })?
     }
 
-    validate_rad_request(&dr_output.data_request)
+    validate_rad_request(&dr_output.data_request)?;
+
+    Ok((
+        dr_tx.body.inputs.iter().collect(),
+        dr_tx.body.outputs.iter().collect(),
+        fee,
+    ))
 }
 
 /// Function to validate a commit transaction
 pub fn validate_commit_transaction(
-    tx: &CommitTransactionBody,
+    co_tx: &CommitTransaction,
     dr_pool: &DataRequestPool,
 ) -> Result<(Hash, u16, u64), failure::Error> {
+    validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures)?;
+
     // TODO: Complete PoE validation
     if !verify_poe_data_request() {
         Err(TransactionError::InvalidDataRequestPoe)?
     }
 
     // Get DataRequest information
-    let dr_pointer = tx.dr_pointer;
+    let dr_pointer = co_tx.body.dr_pointer;
     let dr_output = dr_pool
         .get_dr_output(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
@@ -211,11 +238,13 @@ pub fn validate_commit_transaction(
 
 /// Function to validate a reveal transaction
 pub fn validate_reveal_transaction(
-    tx: &RevealTransactionBody,
+    re_tx: &RevealTransaction,
     dr_pool: &DataRequestPool,
 ) -> Result<(Hash, u16, u64), failure::Error> {
+    validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures)?;
+
     // Get DataRequest information
-    let dr_pointer = tx.dr_pointer;
+    let dr_pointer = re_tx.body.dr_pointer;
     let dr_output = dr_pool
         .get_dr_output(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
@@ -226,13 +255,13 @@ pub fn validate_reveal_transaction(
 }
 
 /// Function to validate a tally transaction
-pub fn validate_tally_transaction(
-    tx: &TallyTransaction,
+pub fn validate_tally_transaction<'a>(
+    ta_tx: &'a TallyTransaction,
     dr_pool: &DataRequestPool,
-) -> Result<(u64), failure::Error> {
+) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     let mut reveals: Vec<Vec<u8>> = vec![];
 
-    let dr_pointer = tx.dr_pointer;
+    let dr_pointer = ta_tx.dr_pointer;
     let all_reveals = dr_pool.get_reveals(&dr_pointer);
 
     if let Some(all_reveals) = all_reveals {
@@ -249,12 +278,12 @@ pub fn validate_tally_transaction(
     //TODO: Check Tally convergence
 
     // Validate tally result
-    let miner_tally = tx.tally.clone();
+    let miner_tally = ta_tx.tally.clone();
     let tally_stage = dr_output.data_request.consensus.script.clone();
 
     validate_consensus(reveals, miner_tally, tally_stage)?;
 
-    Ok(dr_output.tally_fee)
+    Ok((ta_tx.outputs.iter().collect(), dr_output.tally_fee))
 }
 
 /// Function to validate a block signature
@@ -332,77 +361,6 @@ pub fn validate_transaction_signature(
     Ok(())
 }
 
-/// Function to validate transaction signatures
-pub fn validate_transaction_signatures(
-    transaction: &Transaction,
-    utxo_set: &UtxoDiff,
-) -> Result<(), failure::Error> {
-    match transaction {
-        Transaction::ValueTransfer(tx) => {
-            validate_transaction_signature(&tx.signatures, &tx.body.inputs, utxo_set)
-        }
-        Transaction::DataRequest(tx) => {
-            validate_transaction_signature(&tx.signatures, &tx.body.inputs, utxo_set)
-        }
-        Transaction::Commit(tx) => {
-            validate_commit_reveal_signature(transaction.hash(), &tx.signatures)
-        }
-        Transaction::Reveal(tx) => {
-            validate_commit_reveal_signature(transaction.hash(), &tx.signatures)
-        }
-        _ => Ok(()),
-    }
-}
-/// Function to validate a transaction
-pub fn validate_transaction<'a>(
-    transaction: &'a Transaction,
-    utxo_diff: &UtxoDiff,
-    dr_pool: &DataRequestPool,
-) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
-    validate_transaction_signatures(&transaction, &utxo_diff)?;
-
-    let empty_inputs: Vec<&Input> = vec![];
-    let empty_outputs: Vec<&ValueTransferOutput> = vec![];
-    match transaction {
-        Transaction::ValueTransfer(vt_tx) => {
-            let fee = vt_transaction_fee(vt_tx, utxo_diff)?;
-            validate_vt_transaction(&vt_tx.body)?;
-
-            Ok((
-                vt_tx.body.inputs.iter().collect(),
-                vt_tx.body.outputs.iter().collect(),
-                fee,
-            ))
-        }
-        Transaction::DataRequest(dr_tx) => {
-            let fee = dr_transaction_fee(dr_tx, utxo_diff)?;
-            validate_dr_transaction(&dr_tx.body)?;
-
-            Ok((
-                dr_tx.body.inputs.iter().collect(),
-                dr_tx.body.outputs.iter().collect(),
-                fee,
-            ))
-        }
-        Transaction::Commit(co_tx) => {
-            validate_commit_transaction(&co_tx.body, dr_pool)?;
-
-            Ok((empty_inputs, empty_outputs, 0))
-        }
-        Transaction::Reveal(re_tx) => {
-            validate_reveal_transaction(&re_tx.body, dr_pool)?;
-
-            Ok((empty_inputs, empty_outputs, 0))
-        }
-        Transaction::Tally(ta_tx) => {
-            let fee = validate_tally_transaction(&ta_tx, dr_pool)?;
-
-            Ok((empty_inputs, ta_tx.outputs.iter().collect(), fee))
-        }
-        Transaction::Mint(_) => Err(BlockError::DoubleMint)?,
-    }
-}
-
 /// HashMap to count commit transactions need for a Data Request
 struct WitnessesCount {
     current: u32,
@@ -427,90 +385,91 @@ fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
         .current += 1;
 }
 
+fn update_utxo_diff(
+    utxo_diff: &mut UtxoDiff,
+    inputs: Vec<&Input>,
+    outputs: Vec<&ValueTransferOutput>,
+    tx_hash: Hash,
+) {
+    for input in inputs {
+        // Obtain the OuputPointer of each input and remove it from the utxo_diff
+        let output_pointer = input.output_pointer();
+
+        utxo_diff.remove_utxo(output_pointer.clone());
+    }
+
+    for (index, output) in outputs.into_iter().enumerate() {
+        // Add the new outputs to the utxo_diff
+        let output_pointer = OutputPointer {
+            transaction_id: tx_hash,
+            output_index: index as u32,
+        };
+
+        utxo_diff.insert_utxo(output_pointer, output.clone());
+    }
+}
+
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
 pub fn validate_block_transactions(
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
     block: &Block,
 ) -> Result<Diff, failure::Error> {
-    // Init Progressive merkle tree
-    let mut mt = ProgressiveMerkleTree::sha256();
-
-    let mint = block
-        .txns
-        .get(0)
-        .map(|tx| {
-            let Hash::SHA256(sha) = tx.hash();
-            mt.push(Sha256(sha));
-
-            tx
-        })
-        .and_then(|tx| mint(tx))
-        .ok_or(BlockError::NoMint)?;
-
     let mut utxo_diff = UtxoDiff::new(utxo_set);
 
     // Init total fee
     let mut total_fee = 0;
 
-    let mut commits_number = HashMap::new();
-    let mut reveals_number = HashMap::new();
-
     // TODO: replace for loop with a try_fold
-    for transaction in &block.txns[1..] {
-        match transaction {
-            Transaction::Commit(commit) => {
-                let (dr_pointer, dr_witnesses, fee) =
-                    validate_commit_transaction(&commit.body, dr_pool)?;
+    // Validate value transfer transactions in a block
+    let mut vt_mt = ProgressiveMerkleTree::sha256();
+    for transaction in &block.txns.value_transfer_txns {
+        let (inputs, outputs, fee) = validate_vt_transaction(transaction, &utxo_diff)?;
+        total_fee += fee;
 
-                increment_witnesses_counter(
-                    &mut commits_number,
-                    &dr_pointer,
-                    u32::from(dr_witnesses),
-                    fee,
-                );
-            }
-
-            Transaction::Reveal(reveal) => {
-                let (dr_pointer, dr_witnesses, fee) =
-                    validate_reveal_transaction(&reveal.body, dr_pool)?;
-
-                increment_witnesses_counter(
-                    &mut reveals_number,
-                    &dr_pointer,
-                    u32::from(dr_witnesses),
-                    fee,
-                );
-            }
-            
-            _ => {
-                let (inputs, outputs, fee) = validate_transaction(transaction, &utxo_diff, dr_pool)?;
-                total_fee += fee;
-
-                for input in inputs {
-                    // Obtain the OuputPointer of each input and remove it from the utxo_diff
-                    let output_pointer = input.output_pointer();
-
-                    utxo_diff.remove_utxo(output_pointer.clone());
-                }
-
-                for (index, output) in outputs.into_iter().enumerate() {
-                    // Add the new outputs to the utxo_diff
-                    let output_pointer = OutputPointer {
-                        transaction_id: transaction.hash(),
-                        output_index: index as u32,
-                    };
-
-                    utxo_diff.insert_utxo(output_pointer, output.clone());
-                }
-            }
-        }
+        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
 
         // Add new hash to merkle tree
         let txn_hash = transaction.hash();
         let Hash::SHA256(sha) = txn_hash;
-        mt.push(Sha256(sha));
+        vt_mt.push(Sha256(sha));
     }
+    let vt_hash_merkle_root = vt_mt.root();
+
+    // Validate data request transactions in a block
+    let mut dr_mt = ProgressiveMerkleTree::sha256();
+    for transaction in &block.txns.data_request_txns {
+        let (inputs, outputs, fee) = validate_dr_transaction(transaction, &utxo_diff)?;
+        total_fee += fee;
+
+        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+
+        // Add new hash to merkle tree
+        let txn_hash = transaction.hash();
+        let Hash::SHA256(sha) = txn_hash;
+        dr_mt.push(Sha256(sha));
+    }
+    let dr_hash_merkle_root = dr_mt.root();
+
+    // Validate commit transactions in a block
+    let mut co_mt = ProgressiveMerkleTree::sha256();
+    let mut commits_number = HashMap::new();
+    for transaction in &block.txns.commit_txns {
+        let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(&transaction, dr_pool)?;
+
+        increment_witnesses_counter(
+            &mut commits_number,
+            &dr_pointer,
+            u32::from(dr_witnesses),
+            fee,
+        );
+
+        // Add new hash to merkle tree
+        let txn_hash = transaction.hash();
+        let Hash::SHA256(sha) = txn_hash;
+        co_mt.push(Sha256(sha));
+    }
+    let co_hash_merkle_root = co_mt.root();
 
     // Validate commits number and add commit fees
     for WitnessesCount {
@@ -529,28 +488,73 @@ pub fn validate_block_transactions(
         }
     }
 
+    // Validate reveal transactions in a block
+    let mut re_mt = ProgressiveMerkleTree::sha256();
+    let mut reveals_number = HashMap::new();
+    for transaction in &block.txns.reveal_txns {
+        let (dr_pointer, dr_witnesses, fee) = validate_reveal_transaction(&transaction, dr_pool)?;
+
+        increment_witnesses_counter(
+            &mut reveals_number,
+            &dr_pointer,
+            u32::from(dr_witnesses),
+            fee,
+        );
+
+        // Add new hash to merkle tree
+        let txn_hash = transaction.hash();
+        let Hash::SHA256(sha) = txn_hash;
+        re_mt.push(Sha256(sha));
+    }
+    let re_hash_merkle_root = re_mt.root();
+
     // Add reveal fees
     for WitnessesCount { fee, .. } in reveals_number.values() {
         total_fee += fee;
     }
 
+    // Validate tally transactions in a block
+    let mut ta_mt = ProgressiveMerkleTree::sha256();
+    for transaction in &block.txns.tally_txns {
+        let (outputs, fee) = validate_tally_transaction(transaction, dr_pool)?;
+        total_fee += fee;
+
+        update_utxo_diff(&mut utxo_diff, vec![], outputs, transaction.hash());
+
+        // Add new hash to merkle tree
+        let txn_hash = transaction.hash();
+        let Hash::SHA256(sha) = txn_hash;
+        ta_mt.push(Sha256(sha));
+    }
+    let ta_hash_merkle_root = ta_mt.root();
+
     // Validate mint
     validate_mint_transaction(
-        mint,
+        &block.txns.mint,
         total_fee,
         block_reward(block.block_header.beacon.checkpoint),
     )?;
+    let mint_hash_merkle_root = hash_merkle_tree_root(&[block.txns.mint.hash()]);
 
     // Insert mint in utxo
-    let mint_output_pointer = OutputPointer {
-        transaction_id: mint.hash(),
-        output_index: 0,
-    };
-    utxo_diff.insert_utxo(mint_output_pointer, mint.outputs[0].clone());
+    update_utxo_diff(
+        &mut utxo_diff,
+        vec![],
+        block.txns.mint.outputs.iter().collect(),
+        block.txns.mint.hash(),
+    );
 
     // Validate Merkle Root
-    let Hash::SHA256(mr) = block.block_header.hash_merkle_root;
-    if mt.root() != Sha256(mr) {
+    let merkle_roots = BlockMerkleRoots {
+        mint_hash_merkle_root,
+        vt_hash_merkle_root: Hash::from(vt_hash_merkle_root),
+        dr_hash_merkle_root: Hash::from(dr_hash_merkle_root),
+        commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
+        reveal_hash_merkle_root: Hash::from(re_hash_merkle_root),
+        tally_hash_merkle_root: Hash::from(ta_hash_merkle_root),
+    };
+
+    if merkle_roots != block.block_header.merkle_roots {
         Err(BlockError::NotValidMerkleTree)?
     }
 
@@ -613,7 +617,7 @@ pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> Result<(), fai
 /// Function to calculate a merkle tree from a transaction vector
 pub fn merkle_tree_root<T>(transactions: &[T]) -> Hash
 where
-    T: std::convert::AsRef<Transaction> + Hashable,
+    T: Hashable,
 {
     let transactions_hashes: Vec<Sha256> = transactions
         .iter()
@@ -625,12 +629,31 @@ where
     Hash::from(crypto_merkle_tree_root(&transactions_hashes))
 }
 
+/// Function to calculate a merkle tree from a transaction vector
+pub fn hash_merkle_tree_root(hashes: &[Hash]) -> Hash {
+    let hashes: Vec<Sha256> = hashes
+        .iter()
+        .map(|x| match x {
+            Hash::SHA256(x) => Sha256(*x),
+        })
+        .collect();
+
+    Hash::from(crypto_merkle_tree_root(&hashes))
+}
+
 /// Function to validate block's merkle tree
 pub fn validate_merkle_tree(block: &Block) -> bool {
-    let merkle_tree = block.block_header.hash_merkle_root;
-    let transactions = &block.txns;
+    // Compute `hash_merkle_root` and build block header
+    let merkle_roots = BlockMerkleRoots {
+        mint_hash_merkle_root: merkle_tree_root(&[block.txns.mint.clone()]),
+        vt_hash_merkle_root: merkle_tree_root(&block.txns.value_transfer_txns),
+        dr_hash_merkle_root: merkle_tree_root(&block.txns.data_request_txns),
+        commit_hash_merkle_root: merkle_tree_root(&block.txns.commit_txns),
+        reveal_hash_merkle_root: merkle_tree_root(&block.txns.reveal_txns),
+        tally_hash_merkle_root: merkle_tree_root(&block.txns.tally_txns),
+    };
 
-    merkle_tree == merkle_tree_root(transactions)
+    merkle_roots == block.block_header.merkle_roots
 }
 
 /// 1 satowit is the minimal unit of value
