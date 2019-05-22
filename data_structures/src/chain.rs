@@ -1698,4 +1698,13 @@ mod tests {
         assert_eq!(extended_sk, extended_sk_into);
     }
 
+    #[test]
+    fn hash_ord() {
+        // Make sure that the Ord implementation of Hash compares the hashes left to right
+        let a = Hash::from_str("1111111111111111111111111111111111111111111111111111111111111111")
+            .unwrap();
+        let b = Hash::from_str("2111111111111111111111111111111111111111111111111111111111111110")
+            .unwrap();
+        assert!(a < b);
+    }
 }
