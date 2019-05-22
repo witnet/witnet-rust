@@ -16,6 +16,7 @@
 //! ```
 use bip39;
 use failure::Error;
+use serde::{Deserialize, Serialize};
 
 /// BIP39 Mnemonic
 pub struct Mnemonic(bip39::Mnemonic);
@@ -63,7 +64,7 @@ impl AsRef<[u8]> for Seed {
 /// * `192 bits` generates `18 words` mnemonic
 /// * `224 bits` generates `21 words` mnemonic
 /// * `256 bits` generates `24 words` mnemonic
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub enum Length {
     /// 12 words length
     Words12,

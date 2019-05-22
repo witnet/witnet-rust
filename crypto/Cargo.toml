@@ -16,3 +16,4 @@ tiny-bip39 = "0.6.0"
 memzero = "0.1.0"
 rand = "0.6.5"
 witnet_protected = { path = "../protected" }
+serde = "1.0.91"
