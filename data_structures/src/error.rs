@@ -46,6 +46,11 @@ pub enum TransactionError {
     InvalidTallyTransaction,
     #[fail(display = "Commit transaction has a invalid Proof of Eligibility")]
     InvalidDataRequestPoe,
+    #[fail(
+        display = "The data request eligibility claim VRF proof hash is greater than the target hash: {} > {}",
+        vrf_hash, target_hash
+    )]
+    DataRequestEligibilityDoesNotMeetTarget { vrf_hash: Hash, target_hash: Hash },
     #[fail(display = "Invalid fee found: {}. Expected fee: {}", fee, expected_fee)]
     InvalidFee { fee: u64, expected_fee: u64 },
     #[fail(display = "Invalid Data Request reward: {}", reward)]
@@ -118,6 +123,11 @@ pub enum BlockError {
     },
     #[fail(display = "The block has an invalid PoE")]
     NotValidPoe,
+    #[fail(
+        display = "The block eligibility claim VRF proof hash is greater than the target hash: {} > {}",
+        vrf_hash, target_hash
+    )]
+    BlockEligibilityDoesNotMeetTarget { vrf_hash: Hash, target_hash: Hash },
     #[fail(display = "The block has an invalid Merkle Tree")]
     NotValidMerkleTree,
     #[fail(

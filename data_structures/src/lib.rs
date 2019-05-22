@@ -27,6 +27,9 @@ pub mod data_request;
 /// Module containing transaction structures
 pub mod transaction;
 
+/// Module containing VRF-related structures
+pub mod vrf;
+
 /// Serialization boilerplate to allow serializing some data structures as
 /// strings or bytes depending on the serializer.
 mod serialization_helpers;

@@ -282,3 +282,17 @@ message ConsensusConstants {
     uint32 reputation_issuance_stop = 8;
     double reputation_penalization_factor = 9;
 }
+
+message VrfProof {
+    bytes proof = 1;
+    PublicKey public_key = 2;
+}
+
+message DataRequestVrfMessage {
+    CheckpointBeacon beacon = 1;
+    Hash dr_hash = 2;
+}
+
+message DataRequestEligibilityClaim {
+    VrfProof proof = 1;
+}
