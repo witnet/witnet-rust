@@ -48,7 +48,7 @@ macro_rules! routes {
         {
             let app_addr = $app.clone();
             $io.add_method($method_jsonrpc, move |params: rpc::Params| {
-                log::debug!("Received request {}(params: {:?})", $method_jsonrpc, params);
+                log::debug!("Handling request for method: {}", $method_jsonrpc);
                 let addr = app_addr.clone();
                 // Try to parse the request params into the actor message
                 future::result(params.parse::<$actor_msg>())
@@ -90,7 +90,6 @@ macro_rules! routes {
                                     internal_error!()
                                 }
                             })
-                            .inspect(|r| log::debug!("Sending response {:?}", r))
                     })
             });
         }
