@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use witnet_data_structures::{builders::*, chain::*, transaction::Transaction, types::*};
+use witnet_data_structures::{builders::*, chain::*, transaction::Transaction, types::*, vrf::*};
 
 #[test]
 fn builders_build_last_beacon() {
@@ -24,8 +24,9 @@ fn builders_build_block() {
         version: 0x0000_0001,
         beacon: CheckpointBeacon::default(),
         merkle_roots: BlockMerkleRoots::default(),
+        proof: BlockEligibilityClaim::default(),
     };
-    let proof = LeadershipProof::default();
+    let block_sig = KeyedSignature::default();
 
     let mut data_request_txns = vec![];
     if let Transaction::DataRequest(dr_tx) = transaction_example() {
@@ -40,14 +41,17 @@ fn builders_build_block() {
     let msg = Message {
         kind: Command::Block(Block {
             block_header: block_header.clone(),
-            proof: LeadershipProof::default(),
+            block_sig: KeyedSignature::default(),
             txns: txns.clone(),
         }),
         magic: 0xABCD,
     };
 
     // Check that the build_block function builds the expected message
-    assert_eq!(msg, Message::build_block(0xABCD, block_header, proof, txns));
+    assert_eq!(
+        msg,
+        Message::build_block(0xABCD, block_header, block_sig, txns)
+    );
 }
 
 #[test]

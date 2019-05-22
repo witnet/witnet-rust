@@ -537,13 +537,14 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
 
 fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
     match item {
-        InventoryItem::Block(block) => {
-            let block_header = block.block_header;
-            let proof = block.proof;
-            let txns = block.txns;
+        InventoryItem::Block(Block {
+            block_header,
+            block_sig,
+            txns,
+        }) => {
             // Build Block msg
             let block_msg =
-                WitnetMessage::build_block(session.magic_number, block_header, proof, txns);
+                WitnetMessage::build_block(session.magic_number, block_header, block_sig, txns);
             // Send Block msg
             session.send_message(block_msg);
         }

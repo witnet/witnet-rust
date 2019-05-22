@@ -1,6 +1,5 @@
 use actix::{
-    prelude::*, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System,
-    WrapFuture,
+    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture,
 };
 use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
@@ -22,7 +21,7 @@ use crate::{
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, Hashable,
-        LeadershipProof, PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{
         create_commit_body, create_reveal_body, create_tally_body, create_vt_tally, DataRequestPool,
@@ -30,11 +29,12 @@ use witnet_data_structures::{
     transaction::{
         CommitTransaction, MintTransaction, RevealTransaction, TallyTransaction, Transaction,
     },
+    vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
-    block_reward, dr_transaction_fee, merkle_tree_root, validate_block, verify_poe_data_request,
-    vt_transaction_fee, UtxoDiff,
+    block_reward, dr_transaction_fee, merkle_tree_root, validate_block, vt_transaction_fee,
+    UtxoDiff,
 };
 
 impl ChainManager {
@@ -75,92 +75,116 @@ impl ChainManager {
         // The highest checkpoint beacon should contain the current epoch
         beacon.checkpoint = current_epoch;
 
-        // TODO: Use a real PoE
-        let poe = true;
-        if poe {
-            // FIXME (tmpolaczyk): block creation must happen after data request mining
-            // (we must wait for all the potential nodes to sent their transactions)
-            // The best way would be to start mining a few seconds _before_ the epoch
-            // checkpoint, but for simplicity we just wait for 5 seconds after the checkpoint
-            ctx.run_later(Duration::from_secs(5), move |act, ctx| {
-                info!(
-                    "{} Discovered eligibility for mining a block for epoch #{}",
-                    Yellow.bold().paint("[Mining]"),
-                    Yellow.bold().paint(beacon.checkpoint.to_string())
-                );
-                // Send proof of eligibility to chain manager,
-                // which will construct and broadcast the block
+        // FIXME (tmpolaczyk): block creation must happen after data request mining
+        // (we must wait for all the potential nodes to send their transactions)
+        // The best way would be to start mining a few seconds _before_ the epoch
+        // checkpoint, but for simplicity we just wait for 5 seconds after the checkpoint
+        ctx.run_later(Duration::from_secs(5), move |act, ctx| {
+            info!(
+                "{} Discovered eligibility for mining a block for epoch #{}",
+                Yellow.bold().paint("[Mining]"),
+                Yellow.bold().paint(beacon.checkpoint.to_string())
+            );
+            // Send proof of eligibility to chain manager,
+            // which will construct and broadcast the block
+            signature_mngr::vrf_prove(VrfMessage::block_mining(beacon))
+                .map_err(|e| error!("Failed to create block eligibility proof: {}", e))
+                .map(|vrf_proof| {
+                    // FIXME(#655): if the vrf_proof does not meet the target, stop here
+                    let proof_valid = true;
+                    if proof_valid {
+                        Ok(vrf_proof)
+                    } else {
+                        Err(())
+                    }
+                })
+                .flatten()
+                .into_actor(act)
+                .and_then(move |vrf_proof, act, _ctx| {
+                    act.create_tally_transactions().into_actor(act).and_then(
+                        move |tally_transactions, act, _ctx| {
+                            let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
 
-                act.create_tally_transactions()
-                    .join(
-                        signature_mngr::sign(&beacon)
-                            .map_err(|e| error!("Couldn't sign beacon: {}", e)),
+                            // Build the block using the supplied beacon and eligibility proof
+                            let (block_header, txns) = build_block(
+                                (
+                                    &mut act.transactions_pool,
+                                    &act.chain_state.unspent_outputs_pool,
+                                    &act.chain_state.data_request_pool,
+                                ),
+                                act.max_block_weight,
+                                beacon,
+                                eligibility_claim,
+                                &tally_transactions,
+                                act.own_pkh.unwrap_or_default(),
+                            );
+
+                            // Sign the block hash
+                            signature_mngr::sign(&block_header)
+                                .map_err(|e| error!("Couldn't sign beacon: {}", e))
+                                .into_actor(act)
+                                .and_then(move |block_sig, act, ctx| {
+                                    let block = Block {
+                                        block_header,
+                                        block_sig,
+                                        txns,
+                                    };
+                                    match validate_block(
+                                        &block,
+                                        current_epoch,
+                                        beacon,
+                                        act.genesis_block_hash,
+                                        &act.chain_state.unspent_outputs_pool,
+                                        &act.chain_state.data_request_pool,
+                                        // The unwrap is safe because if there is no VRF context,
+                                        // the actor should have stopped execution
+                                        act.vrf_ctx.as_mut().unwrap(),
+                                    ) {
+                                        Ok(_) => {
+                                            // Send AddCandidates message to self
+                                            // This will run all the validations again
+
+                                            let block_hash = block.hash();
+                                            log::info!(
+                                                "Proposed block candidate {}",
+                                                Yellow.bold().paint(block_hash.to_string())
+                                            );
+                                            act.handle(
+                                                AddCandidates {
+                                                    blocks: vec![block],
+                                                },
+                                                ctx,
+                                            );
+                                        }
+
+                                        Err(e) => error!("Error trying to mine a block: {}", e),
+                                    }
+                                    actix::fut::ok(())
+                                })
+                        },
                     )
-                    .into_actor(act)
-                    .and_then(move |(tally_transactions, keyed_signature), act, ctx| {
-                        let leadership_proof = LeadershipProof {
-                            block_sig: keyed_signature,
-                        };
-
-                        // Build the block using the supplied beacon and eligibility proof
-                        let block = build_block(
-                            (
-                                &mut act.transactions_pool,
-                                &act.chain_state.unspent_outputs_pool,
-                                &act.chain_state.data_request_pool,
-                            ),
-                            act.max_block_weight,
-                            beacon,
-                            leadership_proof,
-                            &tally_transactions,
-                            act.own_pkh.unwrap_or_default(),
-                        );
-
-                        match validate_block(
-                            &block,
-                            current_epoch,
-                            beacon,
-                            act.genesis_block_hash,
-                            &act.chain_state.unspent_outputs_pool,
-                            &act.chain_state.data_request_pool,
-                        ) {
-                            Ok(_) => {
-                                // Send AddCandidates message to self
-                                // This will run all the validations again
-
-                                let block_hash = block.hash();
-                                log::info!(
-                                    "Proposed block candidate {}",
-                                    Yellow.bold().paint(block_hash.to_string())
-                                );
-                                act.handle(
-                                    AddCandidates {
-                                        blocks: vec![block],
-                                    },
-                                    ctx,
-                                );
-                            }
-
-                            Err(e) => error!("Error trying to mine a block: {}", e),
-                        }
-
-                        actix::fut::ok(())
-                    })
-                    .wait(ctx);
-            });
-        }
+                })
+                .wait(ctx);
+        });
     }
 
     /// Try to mine a data_request
     // TODO: refactor this procedure into multiple functions that can be tested separately.
     pub fn try_mine_data_request(&mut self, ctx: &mut Context<Self>) {
-        if self.current_epoch.is_none() || self.own_pkh.is_none() {
+        let beacon = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .map(|x| x.highest_block_checkpoint);
+
+        if self.current_epoch.is_none() || self.own_pkh.is_none() || beacon.is_none() {
             warn!("Cannot mine a data request because current epoch or own pkh is unknown");
 
             return;
         }
-        let own_pkh = self.own_pkh.unwrap();
 
+        let beacon = beacon.unwrap();
+        let own_pkh = self.own_pkh.unwrap();
         let current_epoch = self.current_epoch.unwrap();
 
         // Data Request mining
@@ -170,72 +194,94 @@ impl ChainManager {
             .get_dr_output_pointers_by_epoch(current_epoch);
 
         for dr_pointer in dr_pointers {
-            let data_request_output = self
+            if let Some(data_request_output) = self
                 .chain_state
                 .data_request_pool
-                .get_dr_output(&dr_pointer);
-
-            if data_request_output.is_some() && verify_poe_data_request() {
-                let data_request_output = data_request_output.unwrap();
-                let rad_request = data_request_output.data_request.clone();
-
-                // Send ResolveRA message to RADManager
-                let rad_manager_addr = System::current().registry().get::<RadManager>();
-                rad_manager_addr
-                    .send(ResolveRA {
-                        rad_request,
+                .get_dr_output(&dr_pointer)
+            {
+                signature_mngr::vrf_prove(VrfMessage::data_request(beacon, dr_pointer))
+                    .map_err(move |e| {
+                        error!(
+                            "Couldn't create VRF proof for data request {}: {}",
+                            dr_pointer, e
+                        )
                     })
-                    .into_actor(self)
-                    .then(|result, _, _| match result {
-                        Ok(Ok(value)) => fut::ok(value),
-                        Ok(Err(e)) => {
-                            log::error!("Couldn't resolve rad request: {}", e);
-                            fut::err(())
-                        }
-                        Err(e) => {
-                            log::error!("Couldn't resolve rad request: {}", e);
-                            fut::err(())
+                    .map(|vrf_proof| {
+                        // FIXME(#656): if the vrf_proof does not meet the target, stop here
+                        let proof_valid = true;
+                        if proof_valid {
+                            Ok(vrf_proof)
+                        } else {
+                            Err(())
                         }
                     })
-                    .and_then(move |reveal_value, act, _ctx| {
+                    .flatten()
+                    .and_then(move |vrf_proof| {
+                        let rad_request = data_request_output.data_request.clone();
+
+                        // Send ResolveRA message to RADManager
+                        let rad_manager_addr = System::current().registry().get::<RadManager>();
+                        rad_manager_addr
+                            .send(ResolveRA { rad_request })
+                            .map(|result| match result {
+                                Ok(value) => Ok((vrf_proof, value)),
+                                Err(e) => {
+                                    log::error!("Couldn't resolve rad request: {}", e);
+                                    Err(())
+                                }
+                            })
+                            .map_err(|e| log::error!("Couldn't resolve rad request: {}", e))
+                    })
+                    .flatten()
+                    .and_then(move |(vrf_proof, reveal_value)| {
+                        let vrf_proof_dr = DataRequestEligibilityClaim { proof: vrf_proof };
                         // Create commitment transaction
-                        let commit_body = create_commit_body(dr_pointer, reveal_value.clone());
+                        let commit_body =
+                            create_commit_body(dr_pointer, reveal_value.clone(), vrf_proof_dr);
                         sign_transaction(&commit_body, 1)
                             .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
-                            .into_actor(act)
-                            .and_then(move |commit_signatures, act, _ctx| {
-                                let reveal_body = create_reveal_body(dr_pointer,reveal_value, own_pkh);
+                            .and_then(move |commit_signatures| {
+                                let reveal_body =
+                                    create_reveal_body(dr_pointer, reveal_value, own_pkh);
 
                                 sign_transaction(&reveal_body, 1)
-                                    .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
-                                    .into_actor(act)
-                                    .and_then(move |reveal_signatures, act, ctx| {
-                                        let reveal_transaction = RevealTransaction::new(reveal_body, reveal_signatures);
-                                        // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
-                                        act.chain_state.data_request_pool.insert_reveal(dr_pointer, reveal_transaction);
-
-                                        info!(
-                                            "{} Discovered eligibility for mining a data request {} for epoch #{}",
-                                            Yellow.bold().paint("[Mining]"),
-                                            Yellow.bold().paint(dr_pointer.to_string()),
-                                            Yellow.bold().paint(current_epoch.to_string())
+                                    .map(|reveal_signatures| {
+                                        let commit_transaction = Transaction::Commit(
+                                            CommitTransaction::new(commit_body, commit_signatures),
                                         );
-
-                                        // Send AddTransaction message to self
-                                        // And broadcast it to all of peers
-                                        let commit_transaction = Transaction::Commit(CommitTransaction::new(commit_body, commit_signatures));
-                                        act.handle(
-                                            AddTransaction {
-                                                transaction: commit_transaction,
-                                            },
-                                            ctx,
-                                        );
-
-                                        actix::fut::ok(())
+                                        let reveal_transaction =
+                                            RevealTransaction::new(reveal_body, reveal_signatures);
+                                        (commit_transaction, reveal_transaction)
                                     })
+                                    .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
                             })
                     })
-                    .wait(ctx)
+                    .into_actor(self)
+                    .and_then(move |(commit_transaction, reveal_transaction), act, ctx| {
+                        // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
+                        act.chain_state
+                            .data_request_pool
+                            .insert_reveal(dr_pointer, reveal_transaction);
+
+                        info!(
+                            "{} Discovered eligibility for mining a data request {} for epoch #{}",
+                            Yellow.bold().paint("[Mining]"),
+                            Yellow.bold().paint(dr_pointer.to_string()),
+                            Yellow.bold().paint(current_epoch.to_string())
+                        );
+
+                        // Send AddTransaction message to self
+                        // And broadcast it to all of peers
+                        act.handle(
+                            AddTransaction {
+                                transaction: commit_transaction,
+                            },
+                            ctx,
+                        );
+
+                        actix::fut::ok(())
+                    })
+                    .wait(ctx);
             }
         }
     }
@@ -314,14 +360,15 @@ impl ChainManager {
 
 /// Build a new Block using the supplied leadership proof and by filling transactions from the
 /// `transaction_pool`
+/// Returns an unsigned block!
 fn build_block(
     pools_ref: (&mut TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
     max_block_weight: u32,
     beacon: CheckpointBeacon,
-    proof: LeadershipProof,
+    proof: BlockEligibilityClaim,
     tally_transactions: &[TallyTransaction],
     own_pkh: PublicKeyHash,
-) -> Block {
+) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool);
 
@@ -423,6 +470,7 @@ fn build_block(
         version: 0,
         beacon,
         merkle_roots,
+        proof,
     };
 
     let txns = BlockTransactions {
@@ -434,22 +482,14 @@ fn build_block(
         tally_txns,
     };
 
-    Block {
-        block_header,
-        proof,
-        txns,
-    }
+    (block_header, txns)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secp256k1::{
-        PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
-    };
     use witnet_crypto::signature::{sign, verify};
-    use witnet_data_structures::chain::*;
-    use witnet_data_structures::transaction::*;
+    use witnet_data_structures::{chain::*, transaction::*, vrf::VrfProof};
     use witnet_validations::validations::validate_block_signature;
 
     #[test]
@@ -470,10 +510,10 @@ mod tests {
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
-        let block_proof = LeadershipProof::default();
+        let block_proof = BlockEligibilityClaim::default();
 
         // Build empty block (because max weight is zero)
-        let block = build_block(
+        let (block_header, txns) = build_block(
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
@@ -481,6 +521,11 @@ mod tests {
             &[],
             PublicKeyHash::default(),
         );
+        let block = Block {
+            block_header,
+            block_sig: KeyedSignature::default(),
+            txns,
+        };
 
         // Check if block only contains the Mint Transaction
         assert_eq!(block.txns.mint.outputs.len(), 1);
@@ -496,6 +541,10 @@ mod tests {
 
     #[test]
     fn build_signed_empty_block() {
+        use secp256k1::{
+            PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
+        };
+
         // Initialize transaction_pool with 1 transaction
         let mut transaction_pool = TransactionsPool::default();
         let transaction = Transaction::ValueTransfer(VTTransaction::default());
@@ -510,29 +559,13 @@ mod tests {
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
 
-        // Create a KeyedSignature
-        let Hash::SHA256(data) = block_beacon.hash();
-        let secp = Secp256k1::new();
-        let secret_key =
-            Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &secret_key);
-        let signature = sign(secret_key, &data);
-
-        // Check Signature
-        assert!(verify(&public_key, &data, &signature).is_ok());
-
-        let witnet_signature: Signature = Signature::from(signature);
-        let witnet_pk: PublicKey = PublicKey::from(public_key);
-
-        let block_proof = LeadershipProof {
-            block_sig: KeyedSignature {
-                signature: witnet_signature,
-                public_key: witnet_pk,
-            },
+        let block_proof = BlockEligibilityClaim {
+            proof: VrfProof::default(),
         };
 
         // Build empty block (because max weight is zero)
-        let block = build_block(
+
+        let (block_header, txns) = build_block(
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
@@ -540,6 +573,28 @@ mod tests {
             &[],
             PublicKeyHash::default(),
         );
+
+        // Create a KeyedSignature
+        let Hash::SHA256(data) = block_header.hash();
+        let secp = Secp256k1::new();
+        let secret_key =
+            Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &secret_key);
+        let signature = sign(secret_key, &data);
+        let witnet_pk = PublicKey::from(public_key);
+        let witnet_signature = Signature::from(signature);
+
+        let block = Block {
+            block_header,
+            block_sig: KeyedSignature {
+                signature: witnet_signature,
+                public_key: witnet_pk,
+            },
+            txns,
+        };
+
+        // Check Signature
+        assert!(verify(&public_key, &data, &signature).is_ok());
 
         // Check if block only contains the Mint Transaction
         assert_eq!(block.txns.mint.len(), 1);
@@ -641,12 +696,11 @@ mod tests {
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
-        let block_proof = LeadershipProof {
-            block_sig: KeyedSignature::default(),
-        };
+        let block_proof = BlockEligibilityClaim::default();
 
         // Build block with
-        let block = build_block(
+
+        let (block_header, txns) = build_block(
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_block_weight,
             block_beacon,
@@ -654,6 +708,11 @@ mod tests {
             &[],
             PublicKeyHash::default(),
         );
+        let block = Block {
+            block_header,
+            block_sig: KeyedSignature::default(),
+            txns,
+        };
 
         // Check if block contains only 2 transactions (Mint Transaction + 1 included transaction)
         assert_eq!(block.txns.len(), 2);

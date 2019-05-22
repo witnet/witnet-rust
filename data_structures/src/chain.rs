@@ -27,6 +27,7 @@ use crate::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
         TallyTransaction, Transaction, VTTransaction,
     },
+    vrf::BlockEligibilityClaim,
 };
 
 pub trait Hashable {
@@ -127,8 +128,8 @@ pub type Epoch = u32;
 pub struct Block {
     /// The header of the block
     pub block_header: BlockHeader,
-    /// A miner-provided proof of leadership
-    pub proof: LeadershipProof,
+    /// A miner-provided signature of the block header, for the sake of integrity
+    pub block_sig: KeyedSignature,
     /// A non-empty list of signed transactions
     pub txns: BlockTransactions,
 }
@@ -170,9 +171,15 @@ impl BlockTransactions {
     }
 }
 
+impl Hashable for BlockHeader {
+    fn hash(&self) -> Hash {
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    }
+}
+
 impl Hashable for Block {
     fn hash(&self) -> Hash {
-        calculate_sha256(&self.block_header.to_pb_bytes().unwrap()).into()
+        self.block_header.hash()
     }
 }
 
@@ -200,8 +207,10 @@ pub struct BlockHeader {
     pub version: u32,
     /// A checkpoint beacon for the epoch that this block is closing
     pub beacon: CheckpointBeacon,
-    /// A 256-bit hashes based on all of the transactions committed to this block
+    /// 256-bit hashes of all of the transactions committed to this block, so as to prove their belonging and integrity
     pub merkle_roots: BlockMerkleRoots,
+    /// A miner-provided proof of leadership
+    pub proof: BlockEligibilityClaim,
 }
 /// Block merkle tree roots
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
@@ -219,14 +228,6 @@ pub struct BlockMerkleRoots {
     pub reveal_hash_merkle_root: Hash,
     /// A 256-bit hash based on all of the tally transactions committed to this block
     pub tally_hash_merkle_root: Hash,
-}
-
-/// Proof of leadership structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "witnet::Block_LeadershipProof")]
-pub struct LeadershipProof {
-    /// An enveloped signature of the block header except the `proof` part
-    pub block_sig: KeyedSignature,
 }
 
 /// Digital signatures structure (based on supported cryptosystems)
@@ -1128,6 +1129,7 @@ pub enum InventoryEntry {
 
 /// Inventory element: block, txns
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum InventoryItem {
     #[serde(rename = "transaction")]
     Transaction(Transaction),
@@ -1526,7 +1528,7 @@ pub fn transaction_example() -> Transaction {
 
 pub fn block_example() -> Block {
     let block_header = BlockHeader::default();
-    let proof = LeadershipProof::default();
+    let block_sig = KeyedSignature::default();
 
     let mut dr_txns = vec![];
     if let Transaction::DataRequest(dr_tx) = transaction_example() {
@@ -1540,7 +1542,7 @@ pub fn block_example() -> Block {
 
     Block {
         block_header,
-        proof,
+        block_sig,
         txns,
     }
 }
@@ -1552,7 +1554,7 @@ mod tests {
     #[test]
     fn test_block_hashable_trait() {
         let block = block_example();
-        let expected = "4e299bdce2d1adca570efe5f1526b5fb161891041ad77b812c4400aa6b53b477";
+        let expected = "c7cb6dd8477459271c1e80eb6bf8f23ae2ebb38541ed614642441da4aa7aa6bd";
         assert_eq!(block.hash().to_string(), expected);
     }
 

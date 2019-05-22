@@ -110,6 +110,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             self.genesis_block_hash,
                             &self.chain_state.unspent_outputs_pool,
                             &self.chain_state.data_request_pool,
+                            self.vrf_ctx.as_mut().unwrap(),
                         ) {
                             Ok(utxo_diff) => {
                                 chosen_candidate = Some((key, block_candidate, utxo_diff))
@@ -303,7 +304,16 @@ impl Handler<AddTransaction> for ChainManager {
                     return;
                 }
 
-                validate_commit_transaction(tx, &self.chain_state.data_request_pool).map(|_| ())
+                let beacon = self.get_chain_beacon();
+                validate_commit_transaction(
+                    tx,
+                    &self.chain_state.data_request_pool,
+                    beacon,
+                    // The unwrap is safe because if there is no VRF context,
+                    // the actor should have stopped execution
+                    self.vrf_ctx.as_mut().unwrap(),
+                )
+                .map(|_| ())
             }
             Transaction::Reveal(tx) => {
                 let dr_pointer = tx.body.dr_pointer;

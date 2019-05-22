@@ -7,7 +7,7 @@ use witnet_util::timestamp::get_timestamp;
 
 use crate::{
     chain::{
-        Block, BlockHeader, BlockTransactions, CheckpointBeacon, InventoryEntry, LeadershipProof,
+        Block, BlockHeader, BlockTransactions, CheckpointBeacon, InventoryEntry, KeyedSignature,
     },
     error::BuildersError,
     transaction::Transaction,
@@ -141,14 +141,14 @@ impl Message {
     pub fn build_block(
         magic: u16,
         block_header: BlockHeader,
-        proof: LeadershipProof,
+        block_sig: KeyedSignature,
         txns: BlockTransactions,
     ) -> Message {
         Message::build_message(
             magic,
             Command::Block(Block {
                 block_header,
-                proof,
+                block_sig,
                 txns,
             }),
         )

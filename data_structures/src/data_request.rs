@@ -14,6 +14,7 @@ use crate::{
         CommitTransaction, CommitTransactionBody, DRTransaction, RevealTransaction,
         RevealTransactionBody, TallyTransaction,
     },
+    vrf::DataRequestEligibilityClaim,
 };
 use serde::{Deserialize, Serialize};
 
@@ -318,7 +319,11 @@ pub fn calculate_tally_change(dr_output: &DataRequestOutput, n_reveals: u64) -> 
 }
 // TODO: [After VRF]. Review if it is need to keep these methods to create transactions body
 /// Create data request commitment
-pub fn create_commit_body(dr_pointer: Hash, reveal: Vec<u8>) -> CommitTransactionBody {
+pub fn create_commit_body(
+    dr_pointer: Hash,
+    reveal: Vec<u8>,
+    proof: DataRequestEligibilityClaim,
+) -> CommitTransactionBody {
     // TODO: Remove nonce after VRF implementation
     let nonce: [u8; 16] = thread_rng().gen();
     let mut v = vec![];
@@ -326,10 +331,7 @@ pub fn create_commit_body(dr_pointer: Hash, reveal: Vec<u8>) -> CommitTransactio
     v.extend(reveal.as_slice());
     let commitment = calculate_sha256(&v).into();
 
-    // TODO Add real poe
-    let repoe = Hash::default();
-
-    CommitTransactionBody::new(dr_pointer, commitment, repoe)
+    CommitTransactionBody::new(dr_pointer, commitment, proof)
 }
 
 /// Create data request reveal
@@ -373,9 +375,9 @@ pub fn create_tally_body(
 
 #[cfg(test)]
 mod tests {
-    use crate::transaction::*;
-    use crate::{chain::*, data_request::DataRequestPool};
-    use std::iter::Rev;
+    use super::*;
+    use crate::chain::*;
+    use crate::transaction::DRTransactionBody;
 
     fn add_data_requests() -> (u32, Hash, DataRequestPool, Hash) {
         let fake_block_hash = Hash::SHA256([1; 32]);
@@ -411,7 +413,11 @@ mod tests {
         dr_pointer: Hash,
     ) -> (Hash, DataRequestPool, Hash) {
         let commit_transaction = CommitTransaction::new(
-            CommitTransactionBody::new(dr_pointer, Hash::default(), Hash::default()),
+            CommitTransactionBody::new(
+                dr_pointer,
+                Hash::default(),
+                DataRequestEligibilityClaim::default(),
+            ),
             vec![KeyedSignature::default()],
         );
 
@@ -549,7 +555,11 @@ mod tests {
         let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
 
         let commit_transaction = CommitTransaction::new(
-            CommitTransactionBody::new(dr_pointer, Hash::default(), Hash::default()),
+            CommitTransactionBody::new(
+                dr_pointer,
+                Hash::default(),
+                DataRequestEligibilityClaim::default(),
+            ),
             vec![KeyedSignature::default()],
         );
 

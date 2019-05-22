@@ -56,6 +56,9 @@ message Pong {
 }
 
 message Block {
+    message BlockEligibilityClaim {
+        VrfProof proof = 1;
+    }
     message BlockHeader {
         message BlockMerkleRoots {
             Hash mint_hash = 1;
@@ -68,12 +71,8 @@ message Block {
         uint32 version = 1;
         CheckpointBeacon beacon = 2;
         BlockMerkleRoots merkle_roots = 3;
-
+        BlockEligibilityClaim proof = 4;
     }
-    message LeadershipProof {
-        KeyedSignature block_sig = 1;
-    }
-
     message BlockTransactions {
         MintTransaction mint = 1;
         repeated VTTransaction value_transfer_txns = 2;
@@ -82,8 +81,9 @@ message Block {
         repeated RevealTransaction reveal_txns = 5;
         repeated TallyTransaction tally_txns = 6;
     }
+
     BlockHeader block_header = 1;
-    LeadershipProof proof = 2;
+    KeyedSignature block_sig = 2;
     BlockTransactions txns = 3;
 }
 
@@ -180,7 +180,7 @@ message CommitTransactionBody {
     // repeated Input collateral = 1;
     Hash dr_pointer = 1;
     Hash commitment = 2;
-    Hash repoe = 3;
+    DataRequestEligibilityClaim proof = 3;
 }
 
 message CommitTransaction {

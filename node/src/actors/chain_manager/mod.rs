@@ -36,6 +36,7 @@ use actix::{
 };
 use ansi_term::Color::{Purple, White, Yellow};
 use failure::Fail;
+use itertools::Itertools;
 use log::{debug, error, info, warn};
 
 use crate::{
@@ -56,11 +57,10 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     transaction::{RevealTransaction, TallyTransaction, Transaction},
+    vrf::VrfCtx,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{validate_block, validate_candidate, Diff};
-
-use itertools::Itertools;
 
 mod actor;
 mod handlers;
@@ -106,7 +106,7 @@ impl Default for StateMachine {
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
 /// ChainManager actor
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct ChainManager {
     /// Blockchain state data structure
     chain_state: ChainState,
@@ -128,6 +128,8 @@ pub struct ChainManager {
     candidates: HashMap<Hash, Block>,
     /// Our public key hash, used to create the mint transaction
     own_pkh: Option<PublicKeyHash>,
+    /// VRF context
+    vrf_ctx: Option<VrfCtx>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -232,6 +234,7 @@ impl ChainManager {
                 self.genesis_block_hash,
                 &self.chain_state.unspent_outputs_pool,
                 &self.chain_state.data_request_pool,
+                self.vrf_ctx.as_mut().unwrap(),
             ) {
                 Ok(utxo_diff) => {
                     // Persist block and update ChainState
@@ -251,7 +254,7 @@ impl ChainManager {
             let hash_block = block.hash();
 
             if !self.candidates.contains_key(&hash_block) {
-                match validate_candidate(&block, current_epoch) {
+                match validate_candidate(&block, current_epoch, self.vrf_ctx.as_mut().unwrap()) {
                     Ok(()) => {
                         self.candidates.insert(hash_block, block.clone());
                         self.broadcast_item(InventoryItem::Block(block));

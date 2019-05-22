@@ -6,6 +6,7 @@ use crate::{
         ValueTransferOutput,
     },
     proto::{schema::witnet, ProtobufConvert},
+    vrf::DataRequestEligibilityClaim,
 };
 use protobuf::Message;
 use std::cell::Cell;
@@ -183,8 +184,8 @@ pub struct CommitTransactionBody {
     pub dr_pointer: Hash, // DTTransaction hash
     // Outputs
     pub commitment: Hash,
-    // Proofs
-    pub repoe: Hash, // Proof of elegibility for this pkh and this data request
+    // Proof of elegibility for this pkh, epoch, and data request
+    pub proof: DataRequestEligibilityClaim,
 
     #[protobuf_convert(skip)]
     #[serde(skip)]
@@ -193,11 +194,11 @@ pub struct CommitTransactionBody {
 
 impl CommitTransactionBody {
     /// Creates a new commit transaction body.
-    pub fn new(dr_pointer: Hash, commitment: Hash, repoe: Hash) -> Self {
+    pub fn new(dr_pointer: Hash, commitment: Hash, proof: DataRequestEligibilityClaim) -> Self {
         CommitTransactionBody {
             dr_pointer,
             commitment,
-            repoe,
+            proof,
             hash: MemoHash::new(),
         }
     }

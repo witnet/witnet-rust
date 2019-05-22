@@ -13,7 +13,10 @@ use crate::actors::{
 use crate::config_mngr;
 use crate::signature_mngr;
 use crate::storage_mngr;
-use witnet_data_structures::chain::{ChainInfo, ChainState, CheckpointBeacon, ReputationEngine};
+use witnet_data_structures::{
+    chain::{ChainInfo, ChainState, CheckpointBeacon, ReputationEngine},
+    vrf::VrfCtx,
+};
 
 use witnet_util::timestamp::pretty_print;
 
@@ -33,6 +36,14 @@ impl Actor for ChainManager {
         self.subscribe_to_epoch_manager(ctx);
 
         self.get_pkh(ctx);
+
+        self.vrf_ctx = VrfCtx::secp256k1()
+            .map_err(|e| {
+                error!("Failed to create VRF context: {}", e);
+                // Stop the node
+                ctx.stop();
+            })
+            .ok();
     }
 }
 
@@ -45,7 +56,6 @@ impl ChainManager {
             // Get environment and consensus_constants parameters from config
             let environment = (&config.environment).clone();
             let consensus_constants = (&config.consensus_constants).clone();
-
             act.max_block_weight = consensus_constants.max_block_weight;
 
             storage_mngr::get::<_, ChainState>(&CHAIN_STATE_KEY)

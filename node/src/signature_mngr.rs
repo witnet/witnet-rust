@@ -16,8 +16,12 @@ use witnet_crypto::{
     mnemonic::MnemonicGen,
     signature,
 };
-use witnet_data_structures::chain::{
-    ExtendedSecretKey, Hash, Hashable, KeyedSignature, PublicKey, PublicKeyHash, Signature,
+use witnet_data_structures::{
+    chain::{
+        ExtendedSecretKey, Hash, Hashable, KeyedSignature, PublicKey, PublicKeyHash, SecretKey,
+        Signature,
+    },
+    vrf::{VrfCtx, VrfMessage, VrfProof},
 };
 
 /// Start the signature manager
@@ -59,9 +63,20 @@ pub fn pkh() -> impl Future<Item = PublicKeyHash, Error = failure::Error> {
     addr.send(GetPkh).flatten()
 }
 
+/// Create a VRF proof for the provided message with the stored key
+pub fn vrf_prove(message: VrfMessage) -> impl Future<Item = VrfProof, Error = failure::Error> {
+    let addr = actix::System::current()
+        .registry()
+        .get::<SignatureManager>();
+    addr.send(VrfProve(message)).flatten()
+}
+
 #[derive(Debug, Default)]
 struct SignatureManager {
+    /// Secret and public key
     keypair: Option<(SK, PK)>,
+    /// VRF context
+    vrf_ctx: Option<VrfCtx>,
 }
 
 impl SignatureManager {
@@ -75,6 +90,7 @@ impl SignatureManager {
 struct SetKey(SK);
 struct Sign(Vec<u8>);
 struct GetPkh;
+struct VrfProve(VrfMessage);
 
 fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = failure::Error> {
     let master_key = ExtendedSecretKey::from(master_key);
@@ -110,6 +126,14 @@ impl Actor for SignatureManager {
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("Signature Manager actor has been started!");
 
+        self.vrf_ctx = VrfCtx::secp256k1()
+            .map_err(|e| {
+                log::error!("Failed to initialize VRF context: {}", e);
+                // Stop the node
+                ctx.stop();
+            })
+            .ok();
+
         storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY)
             .and_then(move |master_key_from_storage| {
                 master_key_from_storage.map_or_else(create_master_key, |master_key| {
@@ -142,6 +166,10 @@ impl Message for Sign {
 
 impl Message for GetPkh {
     type Result = Result<PublicKeyHash, failure::Error>;
+}
+
+impl Message for VrfProve {
+    type Result = Result<VrfProof, failure::Error>;
 }
 
 impl Handler<SetKey> for SignatureManager {
@@ -179,7 +207,32 @@ impl Handler<GetPkh> for SignatureManager {
     fn handle(&mut self, _msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
         match self.keypair {
             Some((_secret, public)) => Ok(PublicKeyHash::from_public_key(&public.into())),
-            None => bail!("Tried to retrieve the public key hash for node's main keypar from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+            None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+        }
+    }
+}
+
+impl Handler<VrfProve> for SignatureManager {
+    type Result = <VrfProve as Message>::Result;
+
+    fn handle(&mut self, VrfProve(message): VrfProve, _ctx: &mut Self::Context) -> Self::Result {
+        match self {
+            Self {
+                keypair: Some((secret, _public)),
+                vrf_ctx: Some(vrf),
+            } => {
+                // This conversion is cheap, it's just a memcpy
+                let sk = SecretKey::from(*secret);
+                VrfProof::create(vrf, &sk, &message)
+            }
+            Self {
+                keypair: None,
+                ..
+            } => bail!("Signature Manager cannot create VRF proofs because it contains no key"),
+            Self {
+                vrf_ctx: None,
+                ..
+            } => bail!("Signature Manager cannot create VRF proofs because it does not contain a vrf context"),
         }
     }
 }

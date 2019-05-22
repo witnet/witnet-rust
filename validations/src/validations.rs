@@ -8,11 +8,11 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
-use witnet_data_structures::chain::BlockMerkleRoots;
 use witnet_data_structures::{
     chain::{
-        Block, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature, OutputPointer,
-        PublicKeyHash, RADConsensus, RADRequest, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockMerkleRoots, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature,
+        OutputPointer, PublicKeyHash, RADConsensus, RADRequest, UnspentOutputsPool,
+        ValueTransferOutput,
     },
     data_request::DataRequestPool,
     error::{BlockError, TransactionError},
@@ -20,6 +20,7 @@ use witnet_data_structures::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
         VTTransaction,
     },
+    vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
 use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 
@@ -219,13 +220,20 @@ pub fn validate_dr_transaction<'a>(
 pub fn validate_commit_transaction(
     co_tx: &CommitTransaction,
     dr_pool: &DataRequestPool,
+    beacon: CheckpointBeacon,
+    vrf: &mut VrfCtx,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures)?;
 
-    // TODO: Complete PoE validation
-    if !verify_poe_data_request() {
-        Err(TransactionError::InvalidDataRequestPoe)?
-    }
+    // FIXME(#656): calculate target hash based on number of active identities and reputation
+    let target_hash = Hash::SHA256([0xFF; 32]);
+    verify_poe_data_request(
+        vrf,
+        &co_tx.body.proof,
+        beacon,
+        co_tx.body.dr_pointer,
+        target_hash,
+    )?;
 
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -288,12 +296,12 @@ pub fn validate_tally_transaction<'a>(
 
 /// Function to validate a block signature
 pub fn validate_block_signature(block: &Block) -> Result<(), failure::Error> {
-    let keyed_signature = &block.proof.block_sig;
+    let keyed_signature = &block.block_sig;
 
     let signature = keyed_signature.signature.clone().try_into()?;
     let public_key = keyed_signature.public_key.clone().try_into()?;
 
-    let Hash::SHA256(message) = block.block_header.beacon.hash();
+    let Hash::SHA256(message) = block.hash();
 
     verify(&public_key, &message, &signature)
         .map_err(|_| BlockError::VerifySignatureFail { hash: block.hash() }.into())
@@ -414,6 +422,7 @@ pub fn validate_block_transactions(
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
     block: &Block,
+    vrf: &mut VrfCtx,
 ) -> Result<Diff, failure::Error> {
     let mut utxo_diff = UtxoDiff::new(utxo_set);
 
@@ -454,8 +463,10 @@ pub fn validate_block_transactions(
     // Validate commit transactions in a block
     let mut co_mt = ProgressiveMerkleTree::sha256();
     let mut commits_number = HashMap::new();
+    let beacon = block.block_header.beacon;
     for transaction in &block.txns.commit_txns {
-        let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(&transaction, dr_pool)?;
+        let (dr_pointer, dr_witnesses, fee) =
+            validate_commit_transaction(&transaction, dr_pool, beacon, vrf)?;
 
         increment_witnesses_counter(
             &mut commits_number,
@@ -568,6 +579,7 @@ pub fn validate_block(
     genesis_block_hash: Hash,
     utxo_set: &UnspentOutputsPool,
     data_request_pool: &DataRequestPool,
+    vrf: &mut VrfCtx,
 ) -> Result<Diff, failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -588,26 +600,42 @@ pub fn validate_block(
         Err(BlockError::PreviousHashNotKnown {
             hash: hash_prev_block,
         })?
-    } else if !verify_poe_block() {
-        Err(BlockError::NotValidPoe)?
     } else {
+        // FIXME(#655): calculate target hash based on number of active identities
+        let target_hash = Hash::SHA256([0xFF; 32]);
+        verify_poe_block(
+            vrf,
+            &block.block_header.proof,
+            block.block_header.beacon,
+            target_hash,
+        )?;
         validate_block_signature(&block)?;
 
-        validate_block_transactions(&utxo_set, &data_request_pool, &block)
+        validate_block_transactions(&utxo_set, &data_request_pool, &block, vrf)
     }
 }
 
 /// Function to validate a block candidate
-pub fn validate_candidate(block: &Block, current_epoch: Epoch) -> Result<(), failure::Error> {
-    let block_epoch = block.block_header.beacon.checkpoint;
+pub fn validate_candidate(
+    block: &Block,
+    current_epoch: Epoch,
+    vrf: &mut VrfCtx,
+) -> Result<(), BlockError> {
+    // FIXME(#655): calculate target hash based on number of active identities
+    let target_hash = Hash::SHA256([0xFF; 32]);
+    verify_poe_block(
+        vrf,
+        &block.block_header.proof,
+        block.block_header.beacon,
+        target_hash,
+    )?;
 
-    if !verify_poe_block() {
-        Err(BlockError::NotValidPoe)?
-    } else if block_epoch != current_epoch {
+    let block_epoch = block.block_header.beacon.checkpoint;
+    if block_epoch != current_epoch {
         Err(BlockError::CandidateFromDifferentEpoch {
             block_epoch,
             current_epoch,
-        })?
+        })
     } else {
         Ok(())
     }
@@ -672,15 +700,44 @@ pub fn block_reward(epoch: Epoch) -> u64 {
 }
 
 /// Function to check poe validation for blocks
-// TODO: Implement logic for this function
-pub fn verify_poe_block() -> bool {
-    true
+pub fn verify_poe_block(
+    vrf: &mut VrfCtx,
+    proof: &BlockEligibilityClaim,
+    beacon: CheckpointBeacon,
+    target_hash: Hash,
+) -> Result<(), BlockError> {
+    let vrf_hash = proof
+        .verify(vrf, beacon)
+        .map_err(|_| BlockError::NotValidPoe)?;
+    if vrf_hash > target_hash {
+        Err(BlockError::BlockEligibilityDoesNotMeetTarget {
+            vrf_hash,
+            target_hash,
+        })
+    } else {
+        Ok(())
+    }
 }
 
 /// Function to check poe validation for data requests
-// TODO: Implement logic for this function
-pub fn verify_poe_data_request() -> bool {
-    true
+pub fn verify_poe_data_request(
+    vrf: &mut VrfCtx,
+    proof: &DataRequestEligibilityClaim,
+    beacon: CheckpointBeacon,
+    dr_hash: Hash,
+    target_hash: Hash,
+) -> Result<(), TransactionError> {
+    let vrf_hash = proof
+        .verify(vrf, beacon, dr_hash)
+        .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
+    if vrf_hash > target_hash {
+        Err(TransactionError::DataRequestEligibilityDoesNotMeetTarget {
+            vrf_hash,
+            target_hash,
+        })
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
