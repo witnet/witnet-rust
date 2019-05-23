@@ -4,7 +4,7 @@ use actix::prelude::*;
 use futures::{future, Future};
 use jsonrpc_core as rpc;
 
-use crate::err_codes;
+use crate::error;
 
 mod actor;
 
@@ -14,14 +14,9 @@ pub fn send(req: actor::Request) -> impl Future<Item = rpc::Value, Error = rpc::
     rpc.send(req).then(|resp| match resp {
         Ok(Ok(res)) => future::ok(res),
         Ok(Err(err)) => future::err(err),
-        Err(e) => {
-            log::error!("{}", e);
-            let err = rpc::Error {
-                code: rpc::ErrorCode::ServerError(err_codes::INTERNAL_ERROR),
-                message: "Internal error".into(),
-                data: None,
-            };
-            future::err(err)
+        Err(err) => {
+            log::error!("{}", err);
+            future::err(error::ApiError::Execution(error::Error::Mailbox(err)).into())
         }
     })
 }

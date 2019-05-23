@@ -8,7 +8,7 @@ use async_jsonrpc_client::{
 use futures::Future;
 use jsonrpc_core as rpc;
 
-use crate::err_codes;
+use crate::error;
 
 /// JsonRPC client.
 #[derive(Debug)]
@@ -84,13 +84,9 @@ impl Handler<Request> for JsonRpc {
         };
         log::debug!("Calling node method {} with params {}", method, params);
 
-        let fut = self.s.execute(&method, params.clone()).map_err(|e| {
-            log::error!("Error received from node: {}", e);
-            rpc::Error {
-                code: rpc::ErrorCode::ServerError(err_codes::NODE_ERROR),
-                message: format!("{}", e),
-                data: Some(params),
-            }
+        let fut = self.s.execute(&method, params.clone()).map_err(|err| {
+            log::error!("Error received from node: {}", err);
+            error::ApiError::Node(err).into()
         });
 
         Box::new(fut)

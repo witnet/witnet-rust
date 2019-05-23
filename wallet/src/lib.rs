@@ -23,21 +23,9 @@ use witnet_net::server::ws;
 
 mod actors;
 mod client;
-mod err_codes;
 mod error;
 mod response;
 mod wallet;
-
-/// Helper macro to build jsonrpc internal-error types
-macro_rules! internal_error {
-    () => {
-        rpc::Error {
-            code: rpc::ErrorCode::ServerError(err_codes::INTERNAL_ERROR),
-            message: "Internal error.".into(),
-            data: None,
-        }
-    };
-}
 
 /// Helper macro to add multiple JSON-RPC methods at once
 macro_rules! routes {
@@ -61,35 +49,7 @@ macro_rules! routes {
                                 |x|
                                 future::result(json::to_value(x)).map_err(error::Error::Serialization)
                             )
-                            .map_err(|err| match err {
-                                error::Error::Mailbox(MailboxError::Closed) => {
-                                    log::error!("Mailbox closed");
-                                    internal_error!()
-                                }
-                                error::Error::Mailbox(MailboxError::Timeout) => {
-                                    log::error!("Mailbox timed out");
-                                    rpc::Error {
-                                        code: rpc::ErrorCode::ServerError(err_codes::TIMEOUT_ERROR),
-                                        message: "Timeout error.".into(),
-                                        data: None,
-                                    }
-                                }
-                                error::Error::Rad(err) => {
-                                    rpc::Error {
-                                        code: rpc::ErrorCode::ServerError(err_codes::RAD_ERROR),
-                                        message: format!("{}", err),
-                                        data: None,
-                                    }
-                                }
-                                error::Error::Storage(err) => {
-                                    log::error!("Database: {}", err);
-                                    internal_error!()
-                                }
-                                error::Error::Serialization(err) => {
-                                    log::error!("Serialization: {}", err);
-                                    internal_error!()
-                                }
-                            })
+                            .map_err(|err| error::ApiError::Execution(err).into())
                     })
             });
         }
