@@ -100,69 +100,70 @@ impl ChainManager {
                 })
                 .flatten()
                 .into_actor(act)
-                .and_then(move |vrf_proof, act, _ctx| {
-                    act.create_tally_transactions().into_actor(act).and_then(
-                        move |tally_transactions, act, _ctx| {
-                            let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
+                .and_then(|vrf_proof, act, _ctx| {
+                    act.create_tally_transactions()
+                        .map(|tally_transactions| (vrf_proof, tally_transactions))
+                        .into_actor(act)
+                })
+                .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
+                    let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
 
-                            // Build the block using the supplied beacon and eligibility proof
-                            let (block_header, txns) = build_block(
-                                (
-                                    &mut act.transactions_pool,
-                                    &act.chain_state.unspent_outputs_pool,
-                                    &act.chain_state.data_request_pool,
-                                ),
-                                act.max_block_weight,
-                                beacon,
-                                eligibility_claim,
-                                &tally_transactions,
-                                act.own_pkh.unwrap_or_default(),
+                    // Build the block using the supplied beacon and eligibility proof
+                    let (block_header, txns) = build_block(
+                        (
+                            &mut act.transactions_pool,
+                            &act.chain_state.unspent_outputs_pool,
+                            &act.chain_state.data_request_pool,
+                        ),
+                        act.max_block_weight,
+                        beacon,
+                        eligibility_claim,
+                        &tally_transactions,
+                        act.own_pkh.unwrap_or_default(),
+                    );
+
+                    // Sign the block hash
+                    signature_mngr::sign(&block_header)
+                        .map_err(|e| error!("Couldn't sign beacon: {}", e))
+                        .map(|block_sig| Block {
+                            block_header,
+                            block_sig,
+                            txns,
+                        })
+                        .into_actor(act)
+                })
+                .and_then(move |block, act, ctx| {
+                    match validate_block(
+                        &block,
+                        current_epoch,
+                        beacon,
+                        act.genesis_block_hash,
+                        &act.chain_state.unspent_outputs_pool,
+                        &act.chain_state.data_request_pool,
+                        // The unwrap is safe because if there is no VRF context,
+                        // the actor should have stopped execution
+                        act.vrf_ctx.as_mut().unwrap(),
+                    ) {
+                        Ok(_) => {
+                            // Send AddCandidates message to self
+                            // This will run all the validations again
+
+                            let block_hash = block.hash();
+                            log::info!(
+                                "Proposed block candidate {}",
+                                Yellow.bold().paint(block_hash.to_string())
                             );
+                            act.handle(
+                                AddCandidates {
+                                    blocks: vec![block],
+                                },
+                                ctx,
+                            );
+                        }
 
-                            // Sign the block hash
-                            signature_mngr::sign(&block_header)
-                                .map_err(|e| error!("Couldn't sign beacon: {}", e))
-                                .into_actor(act)
-                                .and_then(move |block_sig, act, ctx| {
-                                    let block = Block {
-                                        block_header,
-                                        block_sig,
-                                        txns,
-                                    };
-                                    match validate_block(
-                                        &block,
-                                        current_epoch,
-                                        beacon,
-                                        act.genesis_block_hash,
-                                        &act.chain_state.unspent_outputs_pool,
-                                        &act.chain_state.data_request_pool,
-                                        // The unwrap is safe because if there is no VRF context,
-                                        // the actor should have stopped execution
-                                        act.vrf_ctx.as_mut().unwrap(),
-                                    ) {
-                                        Ok(_) => {
-                                            // Send AddCandidates message to self
-                                            // This will run all the validations again
-
-                                            let block_hash = block.hash();
-                                            log::info!(
-                                                "Proposed block candidate {}",
-                                                Yellow.bold().paint(block_hash.to_string())
-                                            );
-                                            act.handle(
-                                                AddCandidates {
-                                                    blocks: vec![block],
-                                                },
-                                                ctx,
-                                            );
-                                        }
-
-                                        Err(e) => error!("Error trying to mine a block: {}", e),
-                                    }
-                                    actix::fut::ok(())
-                                })
-                        },
-                    )
+                        Err(e) => error!("Error trying to mine a block: {}", e),
+                    }
+                    actix::fut::ok(())
                 })
                 .wait(ctx);
         });
@@ -193,96 +194,95 @@ impl ChainManager {
             .data_request_pool
             .get_dr_output_pointers_by_epoch(current_epoch);
 
-        for dr_pointer in dr_pointers {
-            if let Some(data_request_output) = self
-                .chain_state
+        for (dr_pointer, data_request_output) in dr_pointers.into_iter().filter_map(|dr_pointer| {
+            // Filter data requests that are not in data_request_pool
+            self.chain_state
                 .data_request_pool
                 .get_dr_output(&dr_pointer)
-            {
-                signature_mngr::vrf_prove(VrfMessage::data_request(beacon, dr_pointer))
-                    .map_err(move |e| {
-                        error!(
-                            "Couldn't create VRF proof for data request {}: {}",
-                            dr_pointer, e
-                        )
-                    })
-                    .map(|vrf_proof| {
-                        // FIXME(#656): if the vrf_proof does not meet the target, stop here
-                        let proof_valid = true;
-                        if proof_valid {
-                            Ok(vrf_proof)
-                        } else {
-                            Err(())
-                        }
-                    })
-                    .flatten()
-                    .and_then(move |vrf_proof| {
-                        let rad_request = data_request_output.data_request.clone();
+                .map(|data_request_output| (dr_pointer, data_request_output))
+        }) {
+            signature_mngr::vrf_prove(VrfMessage::data_request(beacon, dr_pointer))
+                .map_err(move |e| {
+                    error!(
+                        "Couldn't create VRF proof for data request {}: {}",
+                        dr_pointer, e
+                    )
+                })
+                .map(|vrf_proof| {
+                    // FIXME(#656): if the vrf_proof does not meet the target, stop here
+                    let proof_valid = true;
+                    if proof_valid {
+                        Ok(vrf_proof)
+                    } else {
+                        Err(())
+                    }
+                })
+                .flatten()
+                .and_then(move |vrf_proof| {
+                    let rad_request = data_request_output.data_request.clone();
 
-                        // Send ResolveRA message to RADManager
-                        let rad_manager_addr = System::current().registry().get::<RadManager>();
-                        rad_manager_addr
-                            .send(ResolveRA { rad_request })
-                            .map(|result| match result {
-                                Ok(value) => Ok((vrf_proof, value)),
-                                Err(e) => {
-                                    log::error!("Couldn't resolve rad request: {}", e);
-                                    Err(())
-                                }
-                            })
-                            .map_err(|e| log::error!("Couldn't resolve rad request: {}", e))
-                    })
-                    .flatten()
-                    .and_then(move |(vrf_proof, reveal_value)| {
-                        let vrf_proof_dr = DataRequestEligibilityClaim { proof: vrf_proof };
-                        // Create commitment transaction
-                        let commit_body =
-                            create_commit_body(dr_pointer, reveal_value.clone(), vrf_proof_dr);
-                        sign_transaction(&commit_body, 1)
-                            .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
-                            .and_then(move |commit_signatures| {
-                                let reveal_body =
-                                    create_reveal_body(dr_pointer, reveal_value, own_pkh);
+                    // Send ResolveRA message to RADManager
+                    let rad_manager_addr = System::current().registry().get::<RadManager>();
+                    rad_manager_addr
+                        .send(ResolveRA { rad_request })
+                        .map(|result| match result {
+                            Ok(value) => Ok((vrf_proof, value)),
+                            Err(e) => {
+                                log::error!("Couldn't resolve rad request: {}", e);
+                                Err(())
+                            }
+                        })
+                        .map_err(|e| log::error!("Couldn't resolve rad request: {}", e))
+                })
+                .flatten()
+                .and_then(move |(vrf_proof, reveal_value)| {
+                    let vrf_proof_dr = DataRequestEligibilityClaim { proof: vrf_proof };
+                    // Create commitment transaction
+                    let commit_body =
+                        create_commit_body(dr_pointer, reveal_value.clone(), vrf_proof_dr);
+                    sign_transaction(&commit_body, 1)
+                        .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
+                        .and_then(move |commit_signatures| {
+                            let reveal_body = create_reveal_body(dr_pointer, reveal_value, own_pkh);
 
-                                sign_transaction(&reveal_body, 1)
-                                    .map(|reveal_signatures| {
-                                        let commit_transaction = Transaction::Commit(
-                                            CommitTransaction::new(commit_body, commit_signatures),
-                                        );
-                                        let reveal_transaction =
-                                            RevealTransaction::new(reveal_body, reveal_signatures);
-                                        (commit_transaction, reveal_transaction)
-                                    })
-                                    .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
-                            })
-                    })
-                    .into_actor(self)
-                    .and_then(move |(commit_transaction, reveal_transaction), act, ctx| {
-                        // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
-                        act.chain_state
-                            .data_request_pool
-                            .insert_reveal(dr_pointer, reveal_transaction);
+                            sign_transaction(&reveal_body, 1)
+                                .map(|reveal_signatures| {
+                                    let commit_transaction = Transaction::Commit(
+                                        CommitTransaction::new(commit_body, commit_signatures),
+                                    );
+                                    let reveal_transaction =
+                                        RevealTransaction::new(reveal_body, reveal_signatures);
+                                    (commit_transaction, reveal_transaction)
+                                })
+                                .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
+                        })
+                })
+                .into_actor(self)
+                .and_then(move |(commit_transaction, reveal_transaction), act, ctx| {
+                    // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
+                    act.chain_state
+                        .data_request_pool
+                        .insert_reveal(dr_pointer, reveal_transaction);
 
-                        info!(
-                            "{} Discovered eligibility for mining a data request {} for epoch #{}",
-                            Yellow.bold().paint("[Mining]"),
-                            Yellow.bold().paint(dr_pointer.to_string()),
-                            Yellow.bold().paint(current_epoch.to_string())
-                        );
+                    info!(
+                        "{} Discovered eligibility for mining a data request {} for epoch #{}",
+                        Yellow.bold().paint("[Mining]"),
+                        Yellow.bold().paint(dr_pointer.to_string()),
+                        Yellow.bold().paint(current_epoch.to_string())
+                    );
 
-                        // Send AddTransaction message to self
-                        // And broadcast it to all of peers
-                        act.handle(
-                            AddTransaction {
-                                transaction: commit_transaction,
-                            },
-                            ctx,
-                        );
+                    // Send AddTransaction message to self
+                    // And broadcast it to all of peers
+                    act.handle(
+                        AddTransaction {
+                            transaction: commit_transaction,
+                        },
+                        ctx,
+                    );
 
-                        actix::fut::ok(())
-                    })
-                    .wait(ctx);
-            }
+                    actix::fut::ok(())
+                })
+                .wait(ctx);
         }
     }
 
