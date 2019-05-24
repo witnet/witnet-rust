@@ -208,7 +208,7 @@ pub struct BlockHeader {
 #[protobuf_convert(pb = "witnet::Block_BlockHeader_BlockMerkleRoots")]
 pub struct BlockMerkleRoots {
     /// A 256-bit hash based on the mint transaction committed to this block
-    pub mint_hash_merkle_root: Hash,
+    pub mint_hash: Hash,
     /// A 256-bit hash based on all of the value transfer transactions committed to this block
     pub vt_hash_merkle_root: Hash,
     /// A 256-bit hash based on all of the data request transactions committed to this block

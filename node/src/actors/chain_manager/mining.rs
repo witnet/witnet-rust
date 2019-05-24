@@ -405,14 +405,13 @@ fn build_block(
     );
 
     // Compute `hash_merkle_root` and build block header
-    let mint_hash_merkle_root = merkle_tree_root(&[mint.clone()]);
     let vt_hash_merkle_root = merkle_tree_root(&value_transfer_txns);
     let dr_hash_merkle_root = merkle_tree_root(&data_request_txns);
     let commit_hash_merkle_root = merkle_tree_root(&commit_txns);
     let reveal_hash_merkle_root = merkle_tree_root(&reveal_txns);
     let tally_hash_merkle_root = merkle_tree_root(&tally_txns);
     let merkle_roots = BlockMerkleRoots {
-        mint_hash_merkle_root,
+        mint_hash: mint.hash(),
         vt_hash_merkle_root,
         dr_hash_merkle_root,
         commit_hash_merkle_root,

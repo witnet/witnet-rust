@@ -58,7 +58,7 @@ message Pong {
 message Block {
     message BlockHeader {
         message BlockMerkleRoots {
-            Hash mint_hash_merkle_root = 1;
+            Hash mint_hash = 1;
             Hash vt_hash_merkle_root = 2;
             Hash dr_hash_merkle_root = 3;
             Hash commit_hash_merkle_root = 4;

@@ -534,7 +534,6 @@ pub fn validate_block_transactions(
         total_fee,
         block_reward(block.block_header.beacon.checkpoint),
     )?;
-    let mint_hash_merkle_root = hash_merkle_tree_root(&[block.txns.mint.hash()]);
 
     // Insert mint in utxo
     update_utxo_diff(
@@ -546,7 +545,7 @@ pub fn validate_block_transactions(
 
     // Validate Merkle Root
     let merkle_roots = BlockMerkleRoots {
-        mint_hash_merkle_root,
+        mint_hash: block.txns.mint.hash(),
         vt_hash_merkle_root: Hash::from(vt_hash_merkle_root),
         dr_hash_merkle_root: Hash::from(dr_hash_merkle_root),
         commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
@@ -645,7 +644,7 @@ pub fn hash_merkle_tree_root(hashes: &[Hash]) -> Hash {
 pub fn validate_merkle_tree(block: &Block) -> bool {
     // Compute `hash_merkle_root` and build block header
     let merkle_roots = BlockMerkleRoots {
-        mint_hash_merkle_root: merkle_tree_root(&[block.txns.mint.clone()]),
+        mint_hash: block.txns.mint.hash(),
         vt_hash_merkle_root: merkle_tree_root(&block.txns.value_transfer_txns),
         dr_hash_merkle_root: merkle_tree_root(&block.txns.data_request_txns),
         commit_hash_merkle_root: merkle_tree_root(&block.txns.commit_txns),
