@@ -291,70 +291,92 @@ impl ChainManager {
     ) -> impl Future<Item = Vec<TallyTransaction>, Error = ()> {
         let data_request_pool = &self.chain_state.data_request_pool;
 
-        // Include Tally transactions, one for each data request in tally stage
-        let mut future_tally_transactions = vec![];
-        let dr_reveals = data_request_pool.get_all_reveals();
-        for (dr_pointer, reveals) in dr_reveals {
-            debug!("Building tally for data request {}", dr_pointer);
+        let dr_reveals = data_request_pool
+            .get_all_reveals()
+            .into_iter()
+            .map(|(dr_pointer, reveals)| {
+                (
+                    dr_pointer,
+                    reveals,
+                    // "get_all_reveals" returns a HashMap with valid data request output pointer
+                    data_request_pool.data_request_pool[&dr_pointer]
+                        .data_request
+                        .clone(),
+                )
+            })
+            .collect::<Vec<_>>();
 
-            // "get_all_reveals" returns a HashMap with valid data request output pointer
-            let dr_output = data_request_pool.data_request_pool[&dr_pointer]
-                .data_request
-                .clone();
-            let (outputs, results) = create_vt_tally(&dr_output, reveals);
+        let future_tally_transactions =
+            dr_reveals
+                .into_iter()
+                .map(|(dr_pointer, reveals, dr_output)| {
+                    debug!("Building tally for data request {}", dr_pointer);
 
-            let rad_manager_addr = System::current().registry().get::<RadManager>();
-            let fut = rad_manager_addr
-                .send(RunConsensus {
-                    script: dr_output.data_request.consensus.clone(),
-                    reveals: results.clone(),
-                })
-                .then(|result| match result {
-                    Ok(Ok(value)) => futures::future::ok(value),
-                    Ok(Err(e)) => {
-                        log::error!("Couldn't run consensus: {}", e);
-                        futures::future::err(())
-                    }
-                    Err(e) => {
-                        log::error!("Couldn't run consensus: {}", e);
-                        futures::future::err(())
-                    }
-                })
-                .and_then(move |consensus| {
-                    let tally = create_tally_body(dr_pointer, outputs, consensus.clone());
+                    let (outputs, results) = create_vt_tally(&dr_output, reveals);
 
-                    let print_results: Vec<_> = results
-                        .into_iter()
-                        .map(|result| RadonTypes::try_from(result.as_slice()))
-                        .collect();
-                    info!(
-                        "{} Created Tally for Data Request {} with result: {}\n{}",
-                        Yellow.bold().paint("[Data Request]"),
-                        Yellow.bold().paint(&dr_pointer.to_string()),
-                        Yellow.bold().paint(
-                            RadonTypes::try_from(consensus.as_slice())
-                                .map(|x| x.to_string())
-                                .unwrap_or_else(|_| "RADError".to_string())
-                        ),
-                        White.bold().paint(
-                            print_results
+                    let rad_manager_addr = System::current().registry().get::<RadManager>();
+                    rad_manager_addr
+                        .send(RunConsensus {
+                            script: dr_output.data_request.consensus.clone(),
+                            reveals: results.clone(),
+                        })
+                        .then(|result| match result {
+                            // If the result of `RunConsensus` is `Ok`, it will be published as tally
+                            Ok(Ok(value)) => futures::future::ok(value),
+                            // If the result of `RunConsensus` is `Err`, we ignore this data request.
+                            // If a data request has an invalid consensus script, it will never resolve.
+                            // The Radon engine should return `Ok(RadonError)` for errors which should
+                            // be published as the result of the data request, or we could use a
+                            // special radon value to indicate "generic error"
+                            Ok(Err(e)) => {
+                                log::warn!("Couldn't run consensus: {}", e);
+                                futures::future::err(())
+                            }
+                            Err(e) => {
+                                log::error!("Couldn't run consensus: {}", e);
+                                futures::future::err(())
+                            }
+                        })
+                        .and_then(move |consensus| {
+                            let tally = create_tally_body(dr_pointer, outputs, consensus.clone());
+
+                            let print_results: Vec<_> = results
                                 .into_iter()
-                                .map(|result| result
-                                    .map(|x| x.to_string())
-                                    .unwrap_or_else(|_| "RADError".to_string()))
-                                .fold("Reveals:".to_string(), |acc, item| format!(
-                                    "{}\n\t* {}",
-                                    acc, item
-                                ))
-                        ),
-                    );
+                                .map(|result| RadonTypes::try_from(result.as_slice()))
+                                .collect();
+                            info!(
+                                "{} Created Tally for Data Request {} with result: {}\n{}",
+                                Yellow.bold().paint("[Data Request]"),
+                                Yellow.bold().paint(&dr_pointer.to_string()),
+                                Yellow.bold().paint(
+                                    RadonTypes::try_from(consensus.as_slice())
+                                        .map(|x| x.to_string())
+                                        .unwrap_or_else(|_| "RADError".to_string())
+                                ),
+                                White.bold().paint(
+                                    print_results
+                                        .into_iter()
+                                        .map(|result| result
+                                            .map(|x| x.to_string())
+                                            .unwrap_or_else(|_| "RADError".to_string()))
+                                        .fold("Reveals:".to_string(), |acc, item| format!(
+                                            "{}\n\t* {}",
+                                            acc, item
+                                        ))
+                                ),
+                            );
 
-                    futures::future::ok(tally)
+                            futures::future::ok(tally)
+                        })
+                        // This future should always return Ok because join_all short-circuits on the
+                        // first Err, and we want to keep creating tallies after the first error
+                        // Map Result<T, E> to Result<Option<T>, ()>
+                        .then(|x| futures::future::ok(x.ok()))
                 });
-            future_tally_transactions.push(fut);
-        }
 
         join_all(future_tally_transactions)
+            // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
+            .map(|x| x.into_iter().flatten().collect())
     }
 }
 
