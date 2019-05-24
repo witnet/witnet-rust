@@ -16,9 +16,6 @@ members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wal
 [badges]
 travis-ci = { repository = "https://github.com/witnet/witnet-rust", branch = "master" }
 
-[dev-dependencies]
-just = "0.3.13"
-
 [dependencies]
 bytecount = "0.5.1"
 directories = "*"
