@@ -1,5 +1,6 @@
 use crate::error::RadError;
 use crate::reducers::{self, RadonReducers};
+use crate::script::{execute_radon_script, unpack_radon_call};
 use crate::types::{array::RadonArray, RadonType, RadonTypes};
 use num_traits::FromPrimitive;
 use rmpv::Value;
@@ -32,6 +33,20 @@ pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
             args: args.to_vec(),
         }),
     }
+}
+
+pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
+    let mut subscript = vec![];
+    for arg in args {
+        subscript.push(unpack_radon_call(arg).unwrap())
+    }
+
+    let mut result = vec![];
+    for item in input.value() {
+        result.push(execute_radon_script(item, subscript.as_slice()).unwrap());
+    }
+
+    Ok(RadonArray::from(result).into())
 }
 
 #[test]
@@ -96,7 +111,7 @@ fn test_reduce_average_mean_float() {
         RadonFloat::from(1f64).into(),
         RadonFloat::from(2f64).into(),
     ]);
-    let args = &[Value::from(0x20)]; // This is RadonReducers::AverageMean
+    let args = &[Value::from(0x03)]; // This is RadonReducers::AverageMean
     let expected = RadonTypes::from(RadonFloat::from(1.5f64));
 
     let output = reduce(input, args).unwrap();

@@ -36,7 +36,7 @@ pub fn unpack_radon_script(packed: &[u8]) -> Result<RadonScript, RadError> {
     }
 }
 
-fn unpack_radon_call(packed_call: &Value) -> Result<RadonCall, RadError> {
+pub fn unpack_radon_call(packed_call: &Value) -> Result<RadonCall, RadError> {
     match packed_call {
         Value::Array(array) => unpack_compound_call(array),
         Value::Integer(integer) => integer.as_u64().map_or_else(
@@ -84,12 +84,12 @@ fn test_execute_radon_script() {
 
     let input = RadonString::from(r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#).into();
     let script = vec![
-        (RadonOpCodes::ParseJson, None),
-        (RadonOpCodes::ToMap, None),
+        (RadonOpCodes::StringParseJson, None),
+        (RadonOpCodes::MixedToMap, None),
         (RadonOpCodes::Get, Some(vec![Value::from("main")])),
-        (RadonOpCodes::ToMap, None),
+        (RadonOpCodes::MixedToMap, None),
         (RadonOpCodes::Get, Some(vec![Value::from("temp")])),
-        (RadonOpCodes::ToFloat, None),
+        (RadonOpCodes::MixedToFloat, None),
     ];
     let output = execute_radon_script(input, &script).unwrap();
 
@@ -101,17 +101,17 @@ fn test_execute_radon_script() {
 #[test]
 fn test_unpack_radon_script() {
     let packed = [
-        150, 83, 204, 132, 146, 1, 164, 109, 97, 105, 110, 204, 132, 146, 1, 164, 116, 101, 109,
-        112, 204, 130,
+        150, 67, 116, 146, 1, 164, 109, 97, 105, 110, 116, 146, 1, 164, 116, 101, 109, 112, 114,
     ];
     let expected = vec![
-        (RadonOpCodes::ParseJson, None),
-        (RadonOpCodes::ToMap, None),
+        (RadonOpCodes::StringParseJson, None),
+        (RadonOpCodes::MixedToMap, None),
         (RadonOpCodes::Get, Some(vec![Value::from("main")])),
-        (RadonOpCodes::ToMap, None),
+        (RadonOpCodes::MixedToMap, None),
         (RadonOpCodes::Get, Some(vec![Value::from("temp")])),
-        (RadonOpCodes::ToFloat, None),
+        (RadonOpCodes::MixedToFloat, None),
     ];
+    println!("{:?}", expected);
 
     let output = unpack_radon_script(&packed).unwrap();
 

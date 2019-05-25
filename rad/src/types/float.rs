@@ -1,12 +1,14 @@
 use std::{
     convert::{TryFrom, TryInto},
     fmt,
+    str::FromStr,
 };
 
 use rmpv::Value;
 use serde::{Deserialize, Serialize};
 
 use crate::error::RadError;
+use crate::operators::float as float_operators;
 use crate::operators::{identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
@@ -36,6 +38,9 @@ impl TryFrom<Value> for RadonFloat {
             Value::F64(f64_value) => Some(Self::from(f64_value)),
             Value::F32(f32_value) => Some(Self::from(f64::from(f32_value))),
             Value::Integer(integer_value) => integer_value.as_f64().map(Self::from),
+            Value::String(string_value) => string_value
+                .as_str()
+                .map_or_else(|| None, |value| Self::try_from(value).ok()),
             _ => None,
         }
         .ok_or_else(|| RadError::Decode {
@@ -59,11 +64,28 @@ impl<'a> From<f64> for RadonFloat {
     }
 }
 
+impl TryFrom<&str> for RadonFloat {
+    type Error = RadError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        f64::from_str(value).map(Into::into).map_err(Into::into)
+    }
+}
+
 impl<'a> Operable for RadonFloat {
     fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Float(self)),
+            (RadonOpCodes::FloatGreaterThan, Some(args)) => {
+                float_operators::greater_than(&self, args).map(Into::into)
+            }
+            (RadonOpCodes::FloatLessThan, Some(args)) => {
+                float_operators::less_than(&self, args).map(Into::into)
+            }
+            (RadonOpCodes::FloatMultiply, Some(args)) => {
+                float_operators::multiply(&self, args.as_slice()).map(Into::into)
+            }
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_FLOAT_TYPE_NAME.to_string(),

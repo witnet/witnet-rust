@@ -9,6 +9,8 @@ use num_derive::FromPrimitive;
 use std::fmt;
 
 pub mod array;
+pub mod boolean;
+pub mod float;
 pub mod map;
 pub mod mixed;
 pub mod string;
@@ -20,25 +22,35 @@ pub enum RadonOpCodes {
     // Multi-type operator codes start at 0x00
     /// Identity operator code
     Identity = 0x00,
+    //Equals = 0x01,
     /// Array::get, Map::get, Result::get
     Get = 0x01,
     // Boolean operator codes start at 0x10
+    BooleanNegate = 0x11,
     // Integer operator codes start at 0x20
     // Float operator codes start at 0x30
-    // Null operator codes start at 0x40
-    // String operator codes start at 0x50
+    FloatGreaterThan = 0x32,
+    FloatLessThan = 0x34,
+    FloatMultiply = 0x36,
+    // String operator codes start at 0x40
     /// Compute the hash of a string
-    Hash = 0x50,
+    StringHash = 0x40,
     /// Parse Mixed from JSON string
-    ParseJson = 0x53,
-    // Array operator codes start at 0x60
-    Reduce = 0x66,
-    // Map operator codes start at 0x70
-    // Mixed operator codes start at 0x80
-    ToArray = 0x80,
-    ToFloat = 0x82,
-    ToMap = 0x84,
-    // Result operator codes start at 0x90
+    StringParseJson = 0x43,
+    StringToFloat = 0x46,
+    // Array operator codes start at 0x50
+    ArrayGet = 0x54,
+    ArrayMap = 0x55,
+    ArrayReduce = 0x56,
+    // Map operator codes start at 0x60
+    MapGet = 0x61,
+    /// Flatten a map into an Array containing only the values but not the keys
+    MapValues = 0x63,
+    // Mixed operator codes start at 0x70
+    MixedToArray = 0x70,
+    MixedToFloat = 0x72,
+    MixedToMap = 0x74,
+    // Result operator codes start at 0x80
 }
 
 impl fmt::Display for RadonOpCodes {
@@ -54,6 +66,7 @@ pub trait Operable {
 pub fn operate(input: RadonTypes, call: &RadonCall) -> Result<RadonTypes, RadError> {
     match input {
         RadonTypes::Array(radon_array) => radon_array.operate(call),
+        RadonTypes::Boolean(radon_boolean) => radon_boolean.operate(call),
         RadonTypes::Float(radon_float) => radon_float.operate(call),
         RadonTypes::Map(radon_map) => radon_map.operate(call),
         RadonTypes::String(radon_string) => radon_string.operate(call),

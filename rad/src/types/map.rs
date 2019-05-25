@@ -89,7 +89,7 @@ impl Operable for RadonMap {
     fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(self.into()),
-            (RadonOpCodes::Get, Some(args)) => {
+            (RadonOpCodes::Get, Some(args)) | (RadonOpCodes::MapGet, Some(args)) => {
                 map_operators::get(&self, args.as_slice()).map(Into::into)
             }
             (op_code, args) => Err(RadError::UnsupportedOperator {

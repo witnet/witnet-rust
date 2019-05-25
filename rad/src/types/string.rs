@@ -66,10 +66,10 @@ impl Operable for RadonString {
     fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::String(self)),
-            (RadonOpCodes::ParseJson, None) => {
+            (RadonOpCodes::StringParseJson, None) => {
                 string_operators::parse_json(&self).map(RadonTypes::Mixed)
             }
-            (RadonOpCodes::ToFloat, None) => string_operators::to_float(&self)
+            (RadonOpCodes::StringToFloat, None) => string_operators::to_float(&self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (op_code, args) => Err(RadError::UnsupportedOperator {
@@ -103,7 +103,7 @@ fn test_operate_parsejson() {
     let valid_string = RadonString::from(r#"{ "Hello": "world" }"#);
     let invalid_string = RadonString::from(r#"{ "Not a JSON": }"#);
 
-    let call = (RadonOpCodes::ParseJson, None);
+    let call = (RadonOpCodes::StringParseJson, None);
     let valid_object = valid_string.operate(&call).unwrap();
     let invalid_object = invalid_string.operate(&call);
 

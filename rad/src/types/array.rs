@@ -138,8 +138,12 @@ impl Operable for RadonArray {
     fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(self.into()),
-            (RadonOpCodes::Reduce, Some(args)) => array_operators::reduce(&self, args.as_slice()),
             (RadonOpCodes::Get, Some(args)) => array_operators::get(&self, args.as_slice()),
+            (RadonOpCodes::ArrayGet, Some(args)) => array_operators::get(&self, args.as_slice()),
+            (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(&self, args.as_slice()),
+            (RadonOpCodes::ArrayReduce, Some(args)) => {
+                array_operators::reduce(&self, args.as_slice())
+            }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_ARRAY_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
@@ -170,8 +174,30 @@ fn test_operate_reduce_average_mean_float() {
         RadonFloat::from(1f64).into(),
         RadonFloat::from(2f64).into(),
     ]);
-    let call = (RadonOpCodes::Reduce, Some(vec![Value::from(0x20)]));
+    let call = (RadonOpCodes::ArrayReduce, Some(vec![Value::from(0x03)]));
     let expected = RadonTypes::from(RadonFloat::from(1.5f64));
+
+    let output = input.operate(&call).unwrap();
+
+    assert_eq!(output, expected);
+}
+
+#[test]
+fn test_operate_map_float_multiply() {
+    let input = RadonArray::from(vec![
+        RadonFloat::from(1f64).into(),
+        RadonFloat::from(2f64).into(),
+    ]);
+    let call = (
+        RadonOpCodes::ArrayMap,
+        Some(vec![
+            Value::from(vec![Value::from(0x36), Value::from(2f64)]), // [ OP_FLOAT_MULTIPLY, 2 ]
+        ]),
+    );
+    let expected = RadonTypes::from(RadonArray::from(vec![
+        RadonFloat::from(2f64).into(),
+        RadonFloat::from(4f64).into(),
+    ]));
 
     let output = input.operate(&call).unwrap();
 

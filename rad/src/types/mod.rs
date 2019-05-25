@@ -9,6 +9,7 @@ use serde::Serialize;
 
 use crate::error::RadError;
 use crate::types::array::RadonArray;
+use crate::types::boolean::RadonBoolean;
 use crate::types::float::RadonFloat;
 use crate::types::map::RadonMap;
 use crate::types::mixed::RadonMixed;
@@ -17,6 +18,7 @@ use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::Hash;
 
 pub mod array;
+pub mod boolean;
 pub mod float;
 pub mod map;
 pub mod mixed;
@@ -34,6 +36,7 @@ where
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum RadonTypes {
     Array(RadonArray),
+    Boolean(RadonBoolean),
     Float(RadonFloat),
     Map(RadonMap),
     Mixed(RadonMixed),
@@ -51,6 +54,7 @@ impl RadonTypes {
     pub fn radon_type_name(self) -> String {
         match self {
             RadonTypes::Array(_) => RadonArray::radon_type_name(),
+            RadonTypes::Boolean(_) => RadonBoolean::radon_type_name(),
             RadonTypes::Float(_) => RadonFloat::radon_type_name(),
             RadonTypes::Map(_) => RadonMap::radon_type_name(),
             RadonTypes::Mixed(_) => RadonMixed::radon_type_name(),
@@ -63,6 +67,7 @@ impl fmt::Display for RadonTypes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RadonTypes::Array(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::Boolean(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Float(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Map(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Mixed(inner) => write!(f, "RadonTypes::{}", inner),
@@ -74,6 +79,12 @@ impl fmt::Display for RadonTypes {
 impl From<RadonArray> for RadonTypes {
     fn from(array: RadonArray) -> Self {
         RadonTypes::Array(array)
+    }
+}
+
+impl From<RadonBoolean> for RadonTypes {
+    fn from(boolean: RadonBoolean) -> Self {
+        RadonTypes::Boolean(boolean)
     }
 }
 
@@ -107,6 +118,7 @@ impl TryFrom<Value> for RadonTypes {
     fn try_from(value: Value) -> Result<RadonTypes, Self::Error> {
         match value {
             Value::Array(_) => RadonArray::try_from(value).map(Into::into),
+            Value::Boolean(_) => RadonBoolean::try_from(value).map(Into::into),
             Value::F64(_) => RadonFloat::try_from(value).map(Into::into),
             Value::Map(_) => RadonMap::try_from(value).map(Into::into),
             Value::String(_) => RadonString::try_from(value).map(Into::into),
@@ -121,6 +133,7 @@ impl TryInto<Value> for RadonTypes {
     fn try_into(self) -> Result<Value, Self::Error> {
         match self {
             RadonTypes::Array(radon_array) => radon_array.try_into(),
+            RadonTypes::Boolean(radon_boolean) => radon_boolean.try_into(),
             RadonTypes::Float(radon_float) => radon_float.try_into(),
             RadonTypes::Map(radon_map) => radon_map.try_into(),
             RadonTypes::Mixed(radon_mixed) => radon_mixed.try_into(),

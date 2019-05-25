@@ -11,16 +11,17 @@ use std::fmt;
 
 #[derive(Debug, FromPrimitive, PartialEq)]
 pub enum RadonReducers {
-    Identity = 0x00,
-    Mode = 0x10,
-    AverageMean = 0x20,
-    AverageMeanWeighted = 0x21,
-    AverageMedian = 0x22,
-    AverageMedianWeighted = 0x23,
-    DeviationStandard = 0x30,
-    DeviationAverageAbsolute = 0x31,
-    DeviationMedianAbsolute = 0x32,
-    DeviationMaximumAbsolute = 0x33,
+    Min = 0x00,
+    Max = 0x01,
+    Mode = 0x02,
+    AverageMean = 0x03,
+    AverageMeanWeighted = 0x04,
+    AverageMedian = 0x05,
+    AverageMedianWeighted = 0x06,
+    DeviationStandard = 0x07,
+    DeviationAverageAbsolute = 0x08,
+    DeviationMedianAbsolute = 0x09,
+    DeviationMaximumAbsolute = 0x10,
 }
 
 impl fmt::Display for RadonReducers {

@@ -60,15 +60,15 @@ impl Operable for RadonMixed {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Mixed(self)),
             // To Float
-            (RadonOpCodes::ToFloat, None) => mixed_operators::to_float(self)
+            (RadonOpCodes::MixedToFloat, None) => mixed_operators::to_float(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // To Array
-            (RadonOpCodes::ToArray, None) => mixed_operators::to_array(self)
+            (RadonOpCodes::MixedToArray, None) => mixed_operators::to_array(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // To Map
-            (RadonOpCodes::ToMap, None) => mixed_operators::to_map(self)
+            (RadonOpCodes::MixedToMap, None) => mixed_operators::to_map(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // Unsupported / unimplemented
