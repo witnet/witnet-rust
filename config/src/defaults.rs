@@ -99,7 +99,9 @@ pub trait Defaults {
     /// An identity is considered active if it participated in the witnessing protocol at least once in the last `activity_period` epochs
     fn consensus_constants_activity_period(&self) -> u32 {
         // 1000 epochs at 90 seconds/epoch = 2 days
-        1000
+        //1000
+        // 40 epochs = 2 hours
+        40
     }
 
     /// Reputation will expire after N witnessing acts
