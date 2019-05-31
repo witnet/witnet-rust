@@ -97,7 +97,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     // Decide the best candidate
                     // TODO: replace for loop with a try_fold
                     let mut chosen_candidate = None;
-                    let total_identities = rep_engine.ars.active_identities_number() as u32;
                     for (key, block_candidate) in self.candidates.drain() {
                         if let Some((chosen_key, _, _)) = chosen_candidate {
                             if chosen_key < key {
@@ -113,7 +112,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             &self.chain_state.unspent_outputs_pool,
                             &self.chain_state.data_request_pool,
                             self.vrf_ctx.as_mut().unwrap(),
-                            total_identities,
+                            rep_engine,
                         ) {
                             Ok(utxo_diff) => {
                                 chosen_candidate = Some((key, block_candidate, utxo_diff))
@@ -309,6 +308,7 @@ impl Handler<AddTransaction> for ChainManager {
                 }
 
                 let beacon = self.get_chain_beacon();
+                let rep_eng = self.chain_state.reputation_engine.as_ref().unwrap();
                 validate_commit_transaction(
                     tx,
                     &self.chain_state.data_request_pool,
@@ -316,6 +316,7 @@ impl Handler<AddTransaction> for ChainManager {
                     // The unwrap is safe because if there is no VRF context,
                     // the actor should have stopped execution
                     self.vrf_ctx.as_mut().unwrap(),
+                    rep_eng,
                 )
                 .map(|_| ())
             }

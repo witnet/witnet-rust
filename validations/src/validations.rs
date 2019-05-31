@@ -8,6 +8,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
+use witnet_data_structures::chain::{Reputation, ReputationEngine};
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature,
@@ -222,11 +223,27 @@ pub fn validate_commit_transaction(
     dr_pool: &DataRequestPool,
     beacon: CheckpointBeacon,
     vrf: &mut VrfCtx,
+    rep_eng: &ReputationEngine,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures)?;
 
-    // FIXME(#656): calculate target hash based on number of active identities and reputation
-    let target_hash = Hash::SHA256([0xFF; 32]);
+    // Get DataRequest information
+    let dr_pointer = co_tx.body.dr_pointer;
+    let dr_output = dr_pool
+        .get_dr_output(&dr_pointer)
+        .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
+
+    let pkh = co_tx.body.proof.proof.pkh();
+    let my_reputation = rep_eng.trs.get(&pkh);
+    let total_active_reputation = rep_eng.trs.get_sum(rep_eng.ars.active_identities());
+    let num_witnesses = dr_output.witnesses + dr_output.backup_witnesses;
+    let num_active_identities = rep_eng.ars.active_identities_number() as u32;
+    let target_hash = calculate_reppoe_threshold(
+        my_reputation,
+        total_active_reputation,
+        num_witnesses,
+        num_active_identities,
+    );
     verify_poe_data_request(
         vrf,
         &co_tx.body.proof,
@@ -234,12 +251,6 @@ pub fn validate_commit_transaction(
         co_tx.body.dr_pointer,
         target_hash,
     )?;
-
-    // Get DataRequest information
-    let dr_pointer = co_tx.body.dr_pointer;
-    let dr_output = dr_pool
-        .get_dr_output(&dr_pointer)
-        .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
     Ok((dr_pointer, dr_output.witnesses, dr_output.commit_fee))
 }
@@ -423,6 +434,7 @@ pub fn validate_block_transactions(
     dr_pool: &DataRequestPool,
     block: &Block,
     vrf: &mut VrfCtx,
+    rep_eng: &ReputationEngine,
 ) -> Result<Diff, failure::Error> {
     let mut utxo_diff = UtxoDiff::new(utxo_set);
 
@@ -466,7 +478,7 @@ pub fn validate_block_transactions(
     let beacon = block.block_header.beacon;
     for transaction in &block.txns.commit_txns {
         let (dr_pointer, dr_witnesses, fee) =
-            validate_commit_transaction(&transaction, dr_pool, beacon, vrf)?;
+            validate_commit_transaction(&transaction, dr_pool, beacon, vrf, rep_eng)?;
 
         increment_witnesses_counter(
             &mut commits_number,
@@ -581,7 +593,7 @@ pub fn validate_block(
     utxo_set: &UnspentOutputsPool,
     data_request_pool: &DataRequestPool,
     vrf: &mut VrfCtx,
-    total_identities: u32,
+    rep_eng: &ReputationEngine,
 ) -> Result<Diff, failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -603,6 +615,7 @@ pub fn validate_block(
             hash: hash_prev_block,
         })?
     } else {
+        let total_identities = rep_eng.ars.active_identities_number() as u32;
         let target_hash = calculate_randpoe_threshold(total_identities);
         verify_poe_block(
             vrf,
@@ -612,7 +625,7 @@ pub fn validate_block(
         )?;
         validate_block_signature(&block)?;
 
-        validate_block_transactions(&utxo_set, &data_request_pool, &block, vrf)
+        validate_block_transactions(&utxo_set, &data_request_pool, &block, vrf, rep_eng)
     }
 }
 
@@ -648,6 +661,44 @@ pub fn calculate_randpoe_threshold(total_identities: u32) -> Hash {
         max
     } else {
         max / total_identities
+    };
+
+    let mut proof: [u8; 32] = [0; 32];
+    proof[0] = (target >> 24) as u8;
+    proof[1] = (target >> 16) as u8;
+    proof[2] = (target >> 8) as u8;
+    proof[3] = target as u8;
+
+    Hash::SHA256(proof)
+}
+
+pub fn calculate_reppoe_threshold(
+    my_reputation: Reputation,
+    total_active_reputation: Reputation,
+    num_witnesses: u16,
+    num_active_identities: u32,
+) -> Hash {
+    // Add 1 to reputation because otherwise a node with 0 reputation would
+    // never be eligible for a data request
+    let my_reputation = my_reputation.0 + 1;
+
+    // Add N to the total active reputation to account for the +1 to my_reputation
+    // This is equivalent to adding 1 reputation to every active identity
+    let total_active_reputation = total_active_reputation.0 + num_active_identities;
+
+    // The number of witnesses for the data request.
+    // If num_witnesses is zero, it will be impossible to commit to this data request
+    // However that is impossible because there is a data request validation that prevents it
+    let num_witnesses = u32::from(num_witnesses);
+
+    let max = u32::max_value();
+    // Check for overflow: when the probability is more than 100%, cap it to 100%
+    let target = if num_witnesses * my_reputation >= total_active_reputation {
+        max
+    } else {
+        // First divide and then multiply. This introduces a small rounding error.
+        // We could multiply first if we cast everything to u64.
+        (max / total_active_reputation) * num_witnesses * my_reputation
     };
 
     let mut proof: [u8; 32] = [0; 32];
@@ -924,5 +975,33 @@ mod tests {
         c4b(t05, 0x003F_FFFF);
         let t06 = calculate_randpoe_threshold(1024 * 1024);
         c4b(t06, 0x0000_0FFF);
+    }
+
+    #[test]
+    fn target_reppoe() {
+        fn c4b(h: Hash, t: u32) {
+            let mut x: [u8; 32] = [0; 32];
+            x[0] = (t >> 24) as u8;
+            x[1] = (t >> 16) as u8;
+            x[2] = (t >> 8) as u8;
+            x[3] = t as u8;
+            let b = Hash::SHA256(x);
+            assert_eq!(h, b);
+        }
+
+        let mut x = [0x00; 32];
+        x[0] = 0xFF;
+        x[1] = 0xFF;
+        x[2] = 0xFF;
+        x[3] = 0xFF;
+        let max_hash = Hash::SHA256(x);
+        let t00 = calculate_reppoe_threshold(Reputation(0), Reputation(0), 1, 0);
+        let t01 = calculate_reppoe_threshold(Reputation(0), Reputation(0), 100, 0);
+        assert_eq!(t00, max_hash);
+        assert_eq!(t00, t01);
+        let t02 = calculate_reppoe_threshold(Reputation(0), Reputation(0), 100, 1);
+        c4b(t02, 0xFFFF_FFFF);
+        let t03 = calculate_reppoe_threshold(Reputation(0), Reputation(1), 100, 1);
+        c4b(t03, 0xFFFF_FFFF);
     }
 }

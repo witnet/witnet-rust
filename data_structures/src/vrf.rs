@@ -8,7 +8,7 @@ use vrf::{
 };
 
 use crate::{
-    chain::{CheckpointBeacon, Hash, PublicKey, SecretKey},
+    chain::{CheckpointBeacon, Hash, PublicKey, PublicKeyHash, SecretKey},
     proto::{schema::witnet, ProtobufConvert},
 };
 
@@ -66,6 +66,10 @@ impl VrfProof {
         let mut x = [0; 32];
         x.copy_from_slice(&h);
         Hash::SHA256(x)
+    }
+
+    pub fn pkh(&self) -> PublicKeyHash {
+        PublicKeyHash::from_public_key(&self.public_key)
     }
 }
 

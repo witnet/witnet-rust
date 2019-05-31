@@ -33,8 +33,8 @@ use witnet_data_structures::{
 };
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
-    block_reward, calculate_randpoe_threshold, dr_transaction_fee, merkle_tree_root,
-    validate_block, vt_transaction_fee, UtxoDiff,
+    block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
+    merkle_tree_root, validate_block, vt_transaction_fee, UtxoDiff,
 };
 
 impl ChainManager {
@@ -168,7 +168,7 @@ impl ChainManager {
                         // The unwrap is safe because if there is no VRF context,
                         // the actor should have stopped execution
                         act.vrf_ctx.as_mut().unwrap(),
-                        total_identities,
+                        act.chain_state.reputation_engine.as_ref().unwrap(),
                     ) {
                         Ok(_) => {
                             // Send AddCandidates message to self
@@ -220,6 +220,16 @@ impl ChainManager {
             .data_request_pool
             .get_dr_output_pointers_by_epoch(current_epoch);
 
+        let rep_eng = self.chain_state.reputation_engine.as_ref().unwrap();
+        let my_reputation = rep_eng.trs.get(&own_pkh);
+        let total_active_reputation = rep_eng.trs.get_sum(rep_eng.ars.active_identities());
+        let num_active_identities = rep_eng.ars.active_identities_number() as u32;
+        debug!("{} data requests for this epoch", dr_pointers.len());
+        debug!(
+            "Reputation: {}, total: {}, active identities: {}",
+            my_reputation.0, total_active_reputation.0, num_active_identities,
+        );
+
         for (dr_pointer, data_request_output) in dr_pointers.into_iter().filter_map(|dr_pointer| {
             // Filter data requests that are not in data_request_pool
             self.chain_state
@@ -227,75 +237,123 @@ impl ChainManager {
                 .get_dr_output(&dr_pointer)
                 .map(|data_request_output| (dr_pointer, data_request_output))
         }) {
+            let num_witnesses =
+                data_request_output.witnesses + data_request_output.backup_witnesses;
             signature_mngr::vrf_prove(VrfMessage::data_request(beacon, dr_pointer))
-                .map_err(move |e| {
+                .into_actor(self)
+                .map_err(move |e, _, _| {
                     error!(
                         "Couldn't create VRF proof for data request {}: {}",
                         dr_pointer, e
                     )
                 })
-                .map(|vrf_proof| {
-                    // FIXME(#656): if the vrf_proof does not meet the target, stop here
-                    let proof_valid = true;
-                    if proof_valid {
-                        Ok(vrf_proof)
-                    } else {
+                .map(move |vrf_proof, act, _ctx| {
+                    // invalid: vrf_hash > target_hash
+                    let target_hash = calculate_reppoe_threshold(
+                        my_reputation,
+                        total_active_reputation,
+                        num_witnesses,
+                        num_active_identities,
+                    );
+                    let vrf_proof_hash = vrf_proof.hash(act.vrf_ctx.as_mut().unwrap());
+                    let proof_invalid = vrf_proof_hash > target_hash;
+
+                    debug!("{} witnesses", num_witnesses);
+                    debug!("[DR] Target hash: {}", target_hash);
+                    debug!("[DR] Our proof:   {}", vrf_proof_hash);
+                    if proof_invalid {
+                        debug!("No eligibility for data request {}", dr_pointer);
                         Err(())
+                    } else {
+                        info!(
+                            "{} Discovered eligibility for mining a data request {} for epoch #{}",
+                            Yellow.bold().paint("[Mining]"),
+                            Yellow.bold().paint(dr_pointer.to_string()),
+                            Yellow.bold().paint(current_epoch.to_string())
+                        );
+                        Ok(vrf_proof)
                     }
                 })
-                .flatten()
-                .and_then(move |vrf_proof| {
-                    let rad_request = data_request_output.data_request.clone();
+                .then(move |vrf_proof, act, _| {
+                    match vrf_proof {
+                        Ok(Ok(vrf_proof)) => {
+                            let rad_request = data_request_output.data_request.clone();
 
-                    // Send ResolveRA message to RADManager
-                    let rad_manager_addr = System::current().registry().get::<RadManager>();
-                    rad_manager_addr
-                        .send(ResolveRA { rad_request })
-                        .map(|result| match result {
-                            Ok(value) => Ok((vrf_proof, value)),
-                            Err(e) => {
-                                log::error!("Couldn't resolve rad request: {}", e);
-                                Err(())
-                            }
-                        })
-                        .map_err(|e| log::error!("Couldn't resolve rad request: {}", e))
+                            // Send ResolveRA message to RADManager
+                            let rad_manager_addr = System::current().registry().get::<RadManager>();
+                            let fut: Box<dyn ActorFuture<Item = _, Error = _, Actor = _>> =
+                                Box::new(
+                                    rad_manager_addr
+                                        .send(ResolveRA { rad_request })
+                                        .map(|result| match result {
+                                            Ok(value) => Ok((vrf_proof, value)),
+                                            Err(e) => {
+                                                log::error!("Couldn't resolve rad request: {}", e);
+                                                Err(())
+                                            }
+                                        })
+                                        .map_err(|e| {
+                                            log::error!("Couldn't resolve rad request: {}", e)
+                                        })
+                                        .into_actor(act),
+                                );
+                            fut
+                        }
+                        Ok(Err(())) => Box::new(actix::fut::err(())),
+                        Err(_e) => Box::new(actix::fut::err(())),
+                    }
                 })
-                .flatten()
-                .and_then(move |(vrf_proof, reveal_value)| {
-                    let vrf_proof_dr = DataRequestEligibilityClaim { proof: vrf_proof };
-                    // Create commitment transaction
-                    let commit_body =
-                        create_commit_body(dr_pointer, reveal_value.clone(), vrf_proof_dr);
-                    sign_transaction(&commit_body, 1)
-                        .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
-                        .and_then(move |commit_signatures| {
-                            let reveal_body = create_reveal_body(dr_pointer, reveal_value, own_pkh);
+                .and_then(move |res, act, _| {
+                    match res {
+                        Ok((vrf_proof, reveal_value)) => {
+                            let vrf_proof_dr = DataRequestEligibilityClaim { proof: vrf_proof };
+                            // Create commitment transaction
+                            let commit_body =
+                                create_commit_body(dr_pointer, reveal_value.clone(), vrf_proof_dr);
+                            let fut: Box<dyn ActorFuture<Item = _, Error = _, Actor = _>> =
+                                Box::new(
+                                    sign_transaction(&commit_body, 1)
+                                        .map_err(|e| {
+                                            log::error!("Couldn't sign commit body: {}", e)
+                                        })
+                                        .into_actor(act)
+                                        .and_then(move |commit_signatures, act, _ctx| {
+                                            let reveal_body = create_reveal_body(
+                                                dr_pointer,
+                                                reveal_value,
+                                                own_pkh,
+                                            );
 
-                            sign_transaction(&reveal_body, 1)
-                                .map(|reveal_signatures| {
-                                    let commit_transaction = Transaction::Commit(
-                                        CommitTransaction::new(commit_body, commit_signatures),
-                                    );
-                                    let reveal_transaction =
-                                        RevealTransaction::new(reveal_body, reveal_signatures);
-                                    (commit_transaction, reveal_transaction)
-                                })
-                                .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
-                        })
+                                            sign_transaction(&reveal_body, 1)
+                                                .map(|reveal_signatures| {
+                                                    let commit_transaction = Transaction::Commit(
+                                                        CommitTransaction::new(
+                                                            commit_body,
+                                                            commit_signatures,
+                                                        ),
+                                                    );
+                                                    let reveal_transaction = RevealTransaction::new(
+                                                        reveal_body,
+                                                        reveal_signatures,
+                                                    );
+                                                    (commit_transaction, reveal_transaction)
+                                                })
+                                                .map_err(|e| {
+                                                    log::error!("Couldn't sign reveal body: {}", e)
+                                                })
+                                                .into_actor(act)
+                                        }),
+                                );
+                            fut
+                        }
+                        Err(_e) => Box::new(actix::fut::err(())),
+                    }
                 })
-                .into_actor(self)
                 .and_then(move |(commit_transaction, reveal_transaction), act, ctx| {
                     // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
                     act.chain_state
                         .data_request_pool
                         .insert_reveal(dr_pointer, reveal_transaction);
-
-                    info!(
-                        "{} Discovered eligibility for mining a data request {} for epoch #{}",
-                        Yellow.bold().paint("[Mining]"),
-                        Yellow.bold().paint(dr_pointer.to_string()),
-                        Yellow.bold().paint(current_epoch.to_string())
-                    );
 
                     // Send AddTransaction message to self
                     // And broadcast it to all of peers

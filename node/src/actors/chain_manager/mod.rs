@@ -228,7 +228,6 @@ impl ChainManager {
             self.chain_state.reputation_engine.as_ref(),
         ) {
             let chain_beacon = chain_info.highest_block_checkpoint;
-            let total_identities = rep_engine.ars.active_identities_number() as u32;
 
             match validate_block(
                 block,
@@ -238,7 +237,7 @@ impl ChainManager {
                 &self.chain_state.unspent_outputs_pool,
                 &self.chain_state.data_request_pool,
                 self.vrf_ctx.as_mut().unwrap(),
-                total_identities,
+                rep_engine,
             ) {
                 Ok(utxo_diff) => {
                     // Persist block and update ChainState
