@@ -64,7 +64,9 @@ pub fn pkh() -> impl Future<Item = PublicKeyHash, Error = failure::Error> {
 }
 
 /// Create a VRF proof for the provided message with the stored key
-pub fn vrf_prove(message: VrfMessage) -> impl Future<Item = VrfProof, Error = failure::Error> {
+pub fn vrf_prove(
+    message: VrfMessage,
+) -> impl Future<Item = (VrfProof, Hash), Error = failure::Error> {
     let addr = actix::System::current()
         .registry()
         .get::<SignatureManager>();
@@ -169,7 +171,7 @@ impl Message for GetPkh {
 }
 
 impl Message for VrfProve {
-    type Result = Result<VrfProof, failure::Error>;
+    type Result = Result<(VrfProof, Hash), failure::Error>;
 }
 
 impl Handler<SetKey> for SignatureManager {

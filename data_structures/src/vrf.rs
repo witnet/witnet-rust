@@ -8,7 +8,7 @@ use vrf::{
 };
 
 use crate::{
-    chain::{CheckpointBeacon, Hash, PublicKey, PublicKeyHash, SecretKey},
+    chain::{CheckpointBeacon, Hash, HashParseError, PublicKey, PublicKeyHash, SecretKey},
     proto::{schema::witnet, ProtobufConvert},
 };
 
@@ -40,13 +40,23 @@ impl VrfProof {
         vrf: &mut VrfCtx,
         secret_key: &SecretKey,
         message: &VrfMessage,
-    ) -> Result<VrfProof, failure::Error> {
+    ) -> Result<(VrfProof, Hash), failure::Error> {
         // The public key is derived from the secret key
         let public_key_bytes = vrf.0.derive_public_key(&secret_key.bytes)?;
         let public_key = PublicKey::try_from_slice(&public_key_bytes)?;
         let proof = vrf.0.prove(&secret_key.bytes, &message.0)?;
+        let proof_hash = vrf.0.proof_to_hash(&proof)?;
+        let vrf_proof = VrfProof { proof, public_key };
 
-        Ok(VrfProof { proof, public_key })
+        if proof_hash.len() != 32 {
+            Err(HashParseError::InvalidLength(proof_hash.len()))?
+        } else {
+            let mut x = [0; 32];
+            x.copy_from_slice(&proof_hash);
+            let proof_hash = Hash::SHA256(x);
+
+            Ok((vrf_proof, proof_hash))
+        }
     }
 
     /// Verify the proof. The message must be exactly the same as the one used to create the proof.
@@ -58,14 +68,6 @@ impl VrfProof {
         Ok(vrf
             .0
             .verify(&self.public_key.to_bytes(), &self.proof, &message.0)?)
-    }
-
-    // TODO: remove unwraps
-    pub fn hash(&self, vrf: &mut VrfCtx) -> Hash {
-        let h = vrf.0.proof_to_hash(&self.proof).unwrap();
-        let mut x = [0; 32];
-        x.copy_from_slice(&h);
-        Hash::SHA256(x)
     }
 
     pub fn pkh(&self) -> PublicKeyHash {
@@ -111,7 +113,7 @@ impl BlockEligibilityClaim {
     ) -> Result<Self, failure::Error> {
         let message = VrfMessage::block_mining(beacon);
         Ok(Self {
-            proof: VrfProof::create(vrf, secret_key, &message)?,
+            proof: VrfProof::create(vrf, secret_key, &message)?.0,
         })
     }
 
@@ -158,7 +160,7 @@ impl DataRequestEligibilityClaim {
     ) -> Result<Self, failure::Error> {
         let message = VrfMessage::data_request(beacon, dr_hash);
         Ok(Self {
-            proof: VrfProof::create(vrf, secret_key, &message)?,
+            proof: VrfProof::create(vrf, secret_key, &message)?.0,
         })
     }
 
@@ -203,7 +205,7 @@ mod tests {
 
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let vrf_proof = VrfProof::create(vrf, &witnet_sk, &VrfMessage(b"test".to_vec())).unwrap();
-        let vrf_pk = vrf_proof.public_key;
+        let vrf_pk = vrf_proof.0.public_key;
 
         assert_eq!(witnet_pk, vrf_pk);
     }

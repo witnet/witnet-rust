@@ -96,12 +96,10 @@ impl ChainManager {
             // Send proof of eligibility to chain manager,
             // which will construct and broadcast the block
             signature_mngr::vrf_prove(VrfMessage::block_mining(beacon))
-                .into_actor(act)
-                .map_err(|e, _, _| error!("Failed to create block eligibility proof: {}", e))
-                .map(move |vrf_proof, act, _ctx| {
+                .map_err(|e| error!("Failed to create block eligibility proof: {}", e))
+                .map(move |(vrf_proof, vrf_proof_hash)| {
                     // invalid: vrf_hash > target_hash
                     let target_hash = calculate_randpoe_threshold(total_identities);
-                    let vrf_proof_hash = vrf_proof.hash(act.vrf_ctx.as_mut().unwrap());
                     let proof_invalid = vrf_proof_hash > target_hash;
 
                     debug!("Target hash: {}", target_hash);
@@ -118,17 +116,12 @@ impl ChainManager {
                         Ok(vrf_proof)
                     }
                 })
-                .then(|vrf_proof, act, _ctx| match vrf_proof {
-                    Ok(Ok(vrf_proof)) => Box::new(
-                        act.create_tally_transactions()
-                            .map(|tally_transactions| (vrf_proof, tally_transactions))
-                            .into_actor(act),
-                    ),
-                    _ => {
-                        let fut: Box<dyn ActorFuture<Item = _, Error = _, Actor = _>> =
-                            Box::new(actix::fut::err(()));
-                        fut
-                    }
+                .flatten()
+                .into_actor(act)
+                .and_then(|vrf_proof, act, _ctx| {
+                    act.create_tally_transactions()
+                        .map(|tally_transactions| (vrf_proof, tally_transactions))
+                        .into_actor(act)
                 })
                 .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
                     let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
@@ -240,14 +233,13 @@ impl ChainManager {
             let num_witnesses =
                 data_request_output.witnesses + data_request_output.backup_witnesses;
             signature_mngr::vrf_prove(VrfMessage::data_request(beacon, dr_pointer))
-                .into_actor(self)
-                .map_err(move |e, _, _| {
+                .map_err(move |e| {
                     error!(
                         "Couldn't create VRF proof for data request {}: {}",
                         dr_pointer, e
                     )
                 })
-                .map(move |vrf_proof, act, _ctx| {
+                .map(move |(vrf_proof, vrf_proof_hash)| {
                     // invalid: vrf_hash > target_hash
                     let target_hash = calculate_reppoe_threshold(
                         my_reputation,
@@ -255,7 +247,6 @@ impl ChainManager {
                         num_witnesses,
                         num_active_identities,
                     );
-                    let vrf_proof_hash = vrf_proof.hash(act.vrf_ctx.as_mut().unwrap());
                     let proof_invalid = vrf_proof_hash > target_hash;
 
                     debug!("{} witnesses", num_witnesses);
@@ -274,81 +265,47 @@ impl ChainManager {
                         Ok(vrf_proof)
                     }
                 })
-                .then(move |vrf_proof, act, _| {
-                    match vrf_proof {
-                        Ok(Ok(vrf_proof)) => {
-                            let rad_request = data_request_output.data_request.clone();
+                .flatten()
+                .and_then(move |vrf_proof| {
+                    let rad_request = data_request_output.data_request.clone();
 
-                            // Send ResolveRA message to RADManager
-                            let rad_manager_addr = System::current().registry().get::<RadManager>();
-                            let fut: Box<dyn ActorFuture<Item = _, Error = _, Actor = _>> =
-                                Box::new(
-                                    rad_manager_addr
-                                        .send(ResolveRA { rad_request })
-                                        .map(|result| match result {
-                                            Ok(value) => Ok((vrf_proof, value)),
-                                            Err(e) => {
-                                                log::error!("Couldn't resolve rad request: {}", e);
-                                                Err(())
-                                            }
-                                        })
-                                        .map_err(|e| {
-                                            log::error!("Couldn't resolve rad request: {}", e)
-                                        })
-                                        .into_actor(act),
-                                );
-                            fut
-                        }
-                        Ok(Err(())) => Box::new(actix::fut::err(())),
-                        Err(_e) => Box::new(actix::fut::err(())),
-                    }
+                    // Send ResolveRA message to RADManager
+                    let rad_manager_addr = System::current().registry().get::<RadManager>();
+                    rad_manager_addr
+                        .send(ResolveRA { rad_request })
+                        .map(|result| match result {
+                            Ok(value) => Ok((vrf_proof, value)),
+                            Err(e) => {
+                                log::error!("Couldn't resolve rad request: {}", e);
+                                Err(())
+                            }
+                        })
+                        .map_err(|e| log::error!("Couldn't resolve rad request: {}", e))
                 })
-                .and_then(move |res, act, _| {
-                    match res {
-                        Ok((vrf_proof, reveal_value)) => {
-                            let vrf_proof_dr = DataRequestEligibilityClaim { proof: vrf_proof };
-                            // Create commitment transaction
-                            let commit_body =
-                                create_commit_body(dr_pointer, reveal_value.clone(), vrf_proof_dr);
-                            let fut: Box<dyn ActorFuture<Item = _, Error = _, Actor = _>> =
-                                Box::new(
-                                    sign_transaction(&commit_body, 1)
-                                        .map_err(|e| {
-                                            log::error!("Couldn't sign commit body: {}", e)
-                                        })
-                                        .into_actor(act)
-                                        .and_then(move |commit_signatures, act, _ctx| {
-                                            let reveal_body = create_reveal_body(
-                                                dr_pointer,
-                                                reveal_value,
-                                                own_pkh,
-                                            );
+                .flatten()
+                .and_then(move |(vrf_proof, reveal_value)| {
+                    let vrf_proof_dr = DataRequestEligibilityClaim { proof: vrf_proof };
+                    // Create commitment transaction
+                    let commit_body =
+                        create_commit_body(dr_pointer, reveal_value.clone(), vrf_proof_dr);
+                    sign_transaction(&commit_body, 1)
+                        .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
+                        .and_then(move |commit_signatures| {
+                            let reveal_body = create_reveal_body(dr_pointer, reveal_value, own_pkh);
 
-                                            sign_transaction(&reveal_body, 1)
-                                                .map(|reveal_signatures| {
-                                                    let commit_transaction = Transaction::Commit(
-                                                        CommitTransaction::new(
-                                                            commit_body,
-                                                            commit_signatures,
-                                                        ),
-                                                    );
-                                                    let reveal_transaction = RevealTransaction::new(
-                                                        reveal_body,
-                                                        reveal_signatures,
-                                                    );
-                                                    (commit_transaction, reveal_transaction)
-                                                })
-                                                .map_err(|e| {
-                                                    log::error!("Couldn't sign reveal body: {}", e)
-                                                })
-                                                .into_actor(act)
-                                        }),
-                                );
-                            fut
-                        }
-                        Err(_e) => Box::new(actix::fut::err(())),
-                    }
+                            sign_transaction(&reveal_body, 1)
+                                .map(|reveal_signatures| {
+                                    let commit_transaction = Transaction::Commit(
+                                        CommitTransaction::new(commit_body, commit_signatures),
+                                    );
+                                    let reveal_transaction =
+                                        RevealTransaction::new(reveal_body, reveal_signatures);
+                                    (commit_transaction, reveal_transaction)
+                                })
+                                .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
+                        })
                 })
+                .into_actor(self)
                 .and_then(move |(commit_transaction, reveal_transaction), act, ctx| {
                     // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
                     act.chain_state
