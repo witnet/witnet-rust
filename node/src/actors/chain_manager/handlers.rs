@@ -89,12 +89,15 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             }
             StateMachine::Synchronizing => {}
             StateMachine::Synced => {
-                if let (Some(current_epoch), Some(chain_info)) =
-                    (self.current_epoch, self.chain_state.chain_info.as_ref())
-                {
+                if let (Some(current_epoch), Some(chain_info), Some(rep_engine)) = (
+                    self.current_epoch,
+                    self.chain_state.chain_info.as_ref(),
+                    self.chain_state.reputation_engine.as_ref(),
+                ) {
                     // Decide the best candidate
                     // TODO: replace for loop with a try_fold
                     let mut chosen_candidate = None;
+                    let total_identities = rep_engine.ars.active_identities_number() as u32;
                     for (key, block_candidate) in self.candidates.drain() {
                         if let Some((chosen_key, _, _)) = chosen_candidate {
                             if chosen_key < key {
@@ -110,6 +113,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             &self.chain_state.unspent_outputs_pool,
                             &self.chain_state.data_request_pool,
                             self.vrf_ctx.as_mut().unwrap(),
+                            total_identities,
                         ) {
                             Ok(utxo_diff) => {
                                 chosen_candidate = Some((key, block_candidate, utxo_diff))

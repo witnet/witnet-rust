@@ -572,6 +572,7 @@ pub fn validate_block_transactions(
 }
 
 /// Function to validate a block
+#[allow(clippy::too_many_arguments)]
 pub fn validate_block(
     block: &Block,
     current_epoch: Epoch,
@@ -580,6 +581,7 @@ pub fn validate_block(
     utxo_set: &UnspentOutputsPool,
     data_request_pool: &DataRequestPool,
     vrf: &mut VrfCtx,
+    total_identities: u32,
 ) -> Result<Diff, failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -601,8 +603,7 @@ pub fn validate_block(
             hash: hash_prev_block,
         })?
     } else {
-        // FIXME(#655): calculate target hash based on number of active identities
-        let target_hash = Hash::SHA256([0xFF; 32]);
+        let target_hash = calculate_randpoe_threshold(total_identities);
         verify_poe_block(
             vrf,
             &block.block_header.proof,
@@ -620,9 +621,9 @@ pub fn validate_candidate(
     block: &Block,
     current_epoch: Epoch,
     vrf: &mut VrfCtx,
+    total_identities: u32,
 ) -> Result<(), BlockError> {
-    // FIXME(#655): calculate target hash based on number of active identities
-    let target_hash = Hash::SHA256([0xFF; 32]);
+    let target_hash = calculate_randpoe_threshold(total_identities);
     verify_poe_block(
         vrf,
         &block.block_header.proof,
@@ -639,6 +640,23 @@ pub fn validate_candidate(
     } else {
         Ok(())
     }
+}
+
+pub fn calculate_randpoe_threshold(total_identities: u32) -> Hash {
+    let max = u32::max_value();
+    let target = if total_identities == 0 {
+        max
+    } else {
+        max / total_identities
+    };
+
+    let mut proof: [u8; 32] = [0; 32];
+    proof[0] = (target >> 24) as u8;
+    proof[1] = (target >> 16) as u8;
+    proof[2] = (target >> 8) as u8;
+    proof[3] = target as u8;
+
+    Hash::SHA256(proof)
 }
 
 /// Function to calculate a merkle tree from a transaction vector
@@ -737,29 +755,6 @@ pub fn verify_poe_data_request(
         })
     } else {
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_block_reward() {
-        // Satowits per wit
-        let spw = 100_000_000;
-
-        assert_eq!(block_reward(0), 500 * spw);
-        assert_eq!(block_reward(1), 500 * spw);
-        assert_eq!(block_reward(1_749_999), 500 * spw);
-        assert_eq!(block_reward(1_750_000), 250 * spw);
-        assert_eq!(block_reward(3_499_999), 250 * spw);
-        assert_eq!(block_reward(3_500_000), 125 * spw);
-        assert_eq!(block_reward(1_750_000 * 35), 1);
-        assert_eq!(block_reward(1_750_000 * 36), 0);
-        assert_eq!(block_reward(1_750_000 * 63), 0);
-        assert_eq!(block_reward(1_750_000 * 64), 0);
-        assert_eq!(block_reward(1_750_000 * 100), 0);
     }
 }
 
@@ -872,5 +867,62 @@ impl<'a> UtxoDiff<'a> {
     /// reference to the utxo set.
     pub fn take_diff(self) -> Diff {
         self.diff
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_block_reward() {
+        // Satowits per wit
+        let spw = 100_000_000;
+
+        assert_eq!(block_reward(0), 500 * spw);
+        assert_eq!(block_reward(1), 500 * spw);
+        assert_eq!(block_reward(1_749_999), 500 * spw);
+        assert_eq!(block_reward(1_750_000), 250 * spw);
+        assert_eq!(block_reward(3_499_999), 250 * spw);
+        assert_eq!(block_reward(3_500_000), 125 * spw);
+        assert_eq!(block_reward(1_750_000 * 35), 1);
+        assert_eq!(block_reward(1_750_000 * 36), 0);
+        assert_eq!(block_reward(1_750_000 * 63), 0);
+        assert_eq!(block_reward(1_750_000 * 64), 0);
+        assert_eq!(block_reward(1_750_000 * 100), 0);
+    }
+
+    #[test]
+    fn target_randpoe() {
+        fn c4b(h: Hash, t: u32) {
+            let mut x: [u8; 32] = [0; 32];
+            x[0] = (t >> 24) as u8;
+            x[1] = (t >> 16) as u8;
+            x[2] = (t >> 8) as u8;
+            x[3] = t as u8;
+            let b = Hash::SHA256(x);
+            assert_eq!(h, b);
+        }
+
+        let mut x = [0x00; 32];
+        x[0] = 0xFF;
+        x[1] = 0xFF;
+        x[2] = 0xFF;
+        x[3] = 0xFF;
+        let max_hash = Hash::SHA256(x);
+        let t00 = calculate_randpoe_threshold(0);
+        let t01 = calculate_randpoe_threshold(1);
+        assert_eq!(t00, max_hash);
+        assert_eq!(t00, t01);
+        let t02 = calculate_randpoe_threshold(2);
+        c4b(t02, 0x7FFF_FFFF);
+        let t03 = calculate_randpoe_threshold(3);
+        c4b(t03, 0x5555_5555);
+        let t04 = calculate_randpoe_threshold(4);
+        c4b(t04, 0x3FFF_FFFF);
+        let t05 = calculate_randpoe_threshold(1024);
+        c4b(t05, 0x003F_FFFF);
+        let t06 = calculate_randpoe_threshold(1024 * 1024);
+        c4b(t06, 0x0000_0FFF);
     }
 }

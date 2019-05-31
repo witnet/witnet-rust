@@ -33,8 +33,8 @@ use witnet_data_structures::{
 };
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
-    block_reward, dr_transaction_fee, merkle_tree_root, validate_block, vt_transaction_fee,
-    UtxoDiff,
+    block_reward, calculate_randpoe_threshold, dr_transaction_fee, merkle_tree_root,
+    validate_block, vt_transaction_fee, UtxoDiff,
 };
 
 impl ChainManager {
@@ -48,6 +48,19 @@ impl ChainManager {
         if self.own_pkh.is_none() {
             warn!("PublicKeyHash is not set. All mined wits will be lost!");
         }
+
+        if self.chain_state.reputation_engine.is_none() {
+            warn!("Reputation engine is not set");
+
+            return;
+        }
+        let total_identities = self
+            .chain_state
+            .reputation_engine
+            .as_ref()
+            .unwrap()
+            .ars
+            .active_identities_number() as u32;
 
         let current_epoch = self.current_epoch.unwrap();
 
@@ -80,30 +93,42 @@ impl ChainManager {
         // The best way would be to start mining a few seconds _before_ the epoch
         // checkpoint, but for simplicity we just wait for 5 seconds after the checkpoint
         ctx.run_later(Duration::from_secs(5), move |act, ctx| {
-            info!(
-                "{} Discovered eligibility for mining a block for epoch #{}",
-                Yellow.bold().paint("[Mining]"),
-                Yellow.bold().paint(beacon.checkpoint.to_string())
-            );
             // Send proof of eligibility to chain manager,
             // which will construct and broadcast the block
             signature_mngr::vrf_prove(VrfMessage::block_mining(beacon))
-                .map_err(|e| error!("Failed to create block eligibility proof: {}", e))
-                .map(|vrf_proof| {
-                    // FIXME(#655): if the vrf_proof does not meet the target, stop here
-                    let proof_valid = true;
-                    if proof_valid {
-                        Ok(vrf_proof)
-                    } else {
+                .into_actor(act)
+                .map_err(|e, _, _| error!("Failed to create block eligibility proof: {}", e))
+                .map(move |vrf_proof, act, _ctx| {
+                    // invalid: vrf_hash > target_hash
+                    let target_hash = calculate_randpoe_threshold(total_identities);
+                    let vrf_proof_hash = vrf_proof.hash(act.vrf_ctx.as_mut().unwrap());
+                    let proof_invalid = vrf_proof_hash > target_hash;
+
+                    debug!("Target hash: {}", target_hash);
+                    debug!("Our proof:   {}", vrf_proof_hash);
+                    if proof_invalid {
+                        debug!("No eligibility for mining");
                         Err(())
+                    } else {
+                        info!(
+                            "{} Discovered eligibility for mining a block for epoch #{}",
+                            Yellow.bold().paint("[Mining]"),
+                            Yellow.bold().paint(beacon.checkpoint.to_string())
+                        );
+                        Ok(vrf_proof)
                     }
                 })
-                .flatten()
-                .into_actor(act)
-                .and_then(|vrf_proof, act, _ctx| {
-                    act.create_tally_transactions()
-                        .map(|tally_transactions| (vrf_proof, tally_transactions))
-                        .into_actor(act)
+                .then(|vrf_proof, act, _ctx| match vrf_proof {
+                    Ok(Ok(vrf_proof)) => Box::new(
+                        act.create_tally_transactions()
+                            .map(|tally_transactions| (vrf_proof, tally_transactions))
+                            .into_actor(act),
+                    ),
+                    _ => {
+                        let fut: Box<dyn ActorFuture<Item = _, Error = _, Actor = _>> =
+                            Box::new(actix::fut::err(()));
+                        fut
+                    }
                 })
                 .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
                     let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
@@ -143,6 +168,7 @@ impl ChainManager {
                         // The unwrap is safe because if there is no VRF context,
                         // the actor should have stopped execution
                         act.vrf_ctx.as_mut().unwrap(),
+                        total_identities,
                     ) {
                         Ok(_) => {
                             // Send AddCandidates message to self

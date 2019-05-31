@@ -59,6 +59,14 @@ impl VrfProof {
             .0
             .verify(&self.public_key.to_bytes(), &self.proof, &message.0)?)
     }
+
+    // TODO: remove unwraps
+    pub fn hash(&self, vrf: &mut VrfCtx) -> Hash {
+        let h = vrf.0.proof_to_hash(&self.proof).unwrap();
+        let mut x = [0; 32];
+        x.copy_from_slice(&h);
+        Hash::SHA256(x)
+    }
 }
 
 /// Wrapper type to prevent creating VRF proofs of arbitrary data

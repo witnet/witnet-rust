@@ -222,10 +222,13 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         block: &Block,
     ) -> Result<(), failure::Error> {
-        if let (Some(current_epoch), Some(chain_info)) =
-            (self.current_epoch, self.chain_state.chain_info.as_ref())
-        {
+        if let (Some(current_epoch), Some(chain_info), Some(rep_engine)) = (
+            self.current_epoch,
+            self.chain_state.chain_info.as_ref(),
+            self.chain_state.reputation_engine.as_ref(),
+        ) {
             let chain_beacon = chain_info.highest_block_checkpoint;
+            let total_identities = rep_engine.ars.active_identities_number() as u32;
 
             match validate_block(
                 block,
@@ -235,6 +238,7 @@ impl ChainManager {
                 &self.chain_state.unspent_outputs_pool,
                 &self.chain_state.data_request_pool,
                 self.vrf_ctx.as_mut().unwrap(),
+                total_identities,
             ) {
                 Ok(utxo_diff) => {
                     // Persist block and update ChainState
@@ -250,11 +254,20 @@ impl ChainManager {
     }
 
     fn process_candidate(&mut self, block: Block) {
-        if let Some(current_epoch) = self.current_epoch {
+        if let (Some(current_epoch), Some(rep_engine)) = (
+            self.current_epoch,
+            self.chain_state.reputation_engine.as_ref(),
+        ) {
             let hash_block = block.hash();
+            let total_identities = rep_engine.ars.active_identities_number() as u32;
 
             if !self.candidates.contains_key(&hash_block) {
-                match validate_candidate(&block, current_epoch, self.vrf_ctx.as_mut().unwrap()) {
+                match validate_candidate(
+                    &block,
+                    current_epoch,
+                    self.vrf_ctx.as_mut().unwrap(),
+                    total_identities,
+                ) {
                     Ok(()) => {
                         self.candidates.insert(hash_block, block.clone());
                         self.broadcast_item(InventoryItem::Block(block));
