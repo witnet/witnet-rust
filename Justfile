@@ -61,15 +61,15 @@ docker-ci target="x86_64-unknown-linux-gnu" +flags="":
 
 # build docker images for all cross compilation targets
 docker-image-build-all:
-    find ./docker -type d -ls | tail -n +2 | sed -En "s/^(.*)\.\/docker\/(.*)/\2/p" | xargs -n1 just docker-build
+    find ./docker/cross-compilation -type d -ls | tail -n +2 | sed -En "s/^(.*)\.\/docker\/cross-compilation\/(.*)/\2/p" | xargs -n1 just docker-image-build
 
 # build docker image for a specific compilation target
 docker-image-build target:
-    docker build -t witnet-rust/{{target}} -f docker/{{target}}/Dockerfile docker
+    docker build -t witnet-rust/{{target}} -f docker/cross-compilation/{{target}}/Dockerfile docker/cross-compilation
 
 # cross compile witnet-rust for all cross compilation targets
 cross-compile-all:
-    find ./docker -type d -ls | tail -n +2 | sed -En "s/^(.*)\.\/docker\/(.*)/\2/p" | xargs -n1 just cross-compile
+    find ./docker/cross-compilation -type d -ls | tail -n +2 | sed -En "s/^(.*)\.\/docker\/cross-compilation\/(.*)/\2/p" | xargs -n1 just cross-compile
 
 # cross compile witnet-rust for a specific compilation target
 # - this assumes the container to set the `$STRIP` variable to be the path for binutils `strip` tool
