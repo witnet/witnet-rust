@@ -373,6 +373,20 @@ impl fmt::Display for Hash {
     }
 }
 
+impl Hash {
+    /// Create a Hash which is all zeros except the first 4 bytes,
+    /// which correspond to the bytes of `x` in big endian
+    pub fn with_first_u32(x: u32) -> Hash {
+        let mut h: [u8; 32] = [0; 32];
+        h[0] = (x >> 24) as u8;
+        h[1] = (x >> 16) as u8;
+        h[2] = (x >> 8) as u8;
+        h[3] = x as u8;
+
+        Hash::SHA256(h)
+    }
+}
+
 /// Error when parsing hash from string
 #[derive(Debug, Fail)]
 pub enum HashParseError {

@@ -663,13 +663,7 @@ pub fn calculate_randpoe_threshold(total_identities: u32) -> Hash {
         max / total_identities
     };
 
-    let mut proof: [u8; 32] = [0; 32];
-    proof[0] = (target >> 24) as u8;
-    proof[1] = (target >> 16) as u8;
-    proof[2] = (target >> 8) as u8;
-    proof[3] = target as u8;
-
-    Hash::SHA256(proof)
+    Hash::with_first_u32(target)
 }
 
 pub fn calculate_reppoe_threshold(
@@ -701,13 +695,7 @@ pub fn calculate_reppoe_threshold(
         (max / total_active_reputation) * num_witnesses * my_reputation
     };
 
-    let mut proof: [u8; 32] = [0; 32];
-    proof[0] = (target >> 24) as u8;
-    proof[1] = (target >> 16) as u8;
-    proof[2] = (target >> 8) as u8;
-    proof[3] = target as u8;
-
-    Hash::SHA256(proof)
+    Hash::with_first_u32(target)
 }
 
 /// Function to calculate a merkle tree from a transaction vector
