@@ -332,9 +332,12 @@ impl ChainManager {
                     &mut self.chain_state.own_utxos,
                 );
 
+                let miner_pkh = block.txns.mint.outputs[0].pkh;
+
                 update_reputation(
                     reputation_engine,
                     &chain_info.consensus_constants,
+                    miner_pkh,
                     rep_info,
                     log_level,
                 );
@@ -542,6 +545,7 @@ where
 fn update_reputation(
     rep_eng: &mut ReputationEngine,
     consensus_constants: &ConsensusConstants,
+    miner_pkh: PublicKeyHash,
     ReputationInfo {
         alpha_diff,
         lie_count,
@@ -647,7 +651,8 @@ fn update_reputation(
     );
 
     // Update active reputation set
-    rep_eng.ars.push_activity(revealers);
+    // Add block miner pkh to active identities
+    rep_eng.ars.push_activity(revealers.chain(vec![miner_pkh]));
 
     log::log!(log_level, "Total Reputation: {{");
     for (pkh, rep) in rep_eng
