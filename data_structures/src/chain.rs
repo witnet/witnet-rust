@@ -644,9 +644,9 @@ pub struct TransactionsPool {
     // Currently transactions related with data requests don't use weight
     dr_transactions: HashMap<Hash, DRTransaction>,
     // A map of `data_request_hash` to a map of `commit_hash` to `CommitTransaction`
-    co_transactions: HashMap<Hash, HashMap<Hash, CommitTransaction>>,
+    co_transactions: HashMap<Hash, HashMap<PublicKeyHash, CommitTransaction>>,
     // A map of `data_request_hash` to a map of `reveal_hash` to `RevealTransaction`
-    re_transactions: HashMap<Hash, HashMap<Hash, RevealTransaction>>,
+    re_transactions: HashMap<Hash, HashMap<PublicKeyHash, RevealTransaction>>,
 }
 
 impl TransactionsPool {
@@ -780,10 +780,16 @@ impl TransactionsPool {
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
     /// `Eq` on the borrowed form must match those for the key type.
-    pub fn commit_contains(&self, dr_pointer: &Hash, key: &Hash) -> bool {
+    pub fn commit_contains(&self, dr_pointer: &Hash, key: &PublicKeyHash, tx_hash: &Hash) -> bool {
         self.co_transactions
             .get(dr_pointer)
-            .map(|hm| hm.contains_key(key))
+            .map(|hm| {
+                if hm.contains_key(key) {
+                    hm.get(key).unwrap().hash() == *tx_hash
+                } else {
+                    false
+                }
+            })
             .unwrap_or(false)
     }
 
@@ -792,10 +798,16 @@ impl TransactionsPool {
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
     /// `Eq` on the borrowed form must match those for the key type.
-    pub fn reveal_contains(&self, dr_pointer: &Hash, key: &Hash) -> bool {
+    pub fn reveal_contains(&self, dr_pointer: &Hash, key: &PublicKeyHash, tx_hash: &Hash) -> bool {
         self.re_transactions
             .get(dr_pointer)
-            .map(|hm| hm.contains_key(key))
+            .map(|hm| {
+                if hm.contains_key(key) {
+                    hm.get(key).unwrap().hash() == *tx_hash
+                } else {
+                    false
+                }
+            })
             .unwrap_or(false)
     }
 
@@ -935,23 +947,25 @@ impl TransactionsPool {
             }
             Transaction::Commit(co_tx) => {
                 let dr_pointer = co_tx.body.dr_pointer;
+                let pkh = PublicKeyHash::from_public_key(&co_tx.signatures[0].public_key);
 
                 if let Some(hm) = self.co_transactions.get_mut(&dr_pointer) {
-                    hm.entry(co_tx.hash()).or_insert(co_tx);
+                    hm.insert(pkh, co_tx);
                 } else {
                     let mut hm = HashMap::new();
-                    hm.insert(co_tx.hash(), co_tx);
+                    hm.insert(pkh, co_tx);
                     self.co_transactions.insert(dr_pointer, hm);
                 }
             }
             Transaction::Reveal(re_tx) => {
                 let dr_pointer = re_tx.body.dr_pointer;
+                let pkh = PublicKeyHash::from_public_key(&re_tx.signatures[0].public_key);
 
                 if let Some(hm) = self.re_transactions.get_mut(&dr_pointer) {
-                    hm.entry(re_tx.hash()).or_insert(re_tx);
+                    hm.insert(pkh, re_tx);
                 } else {
                     let mut hm = HashMap::new();
-                    hm.insert(re_tx.hash(), re_tx);
+                    hm.insert(pkh, re_tx);
                     self.re_transactions.insert(dr_pointer, hm);
                 }
             }

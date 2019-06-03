@@ -2,8 +2,8 @@ use actix::{fut::WrapFuture, prelude::*};
 use log::{debug, error, warn};
 
 use witnet_data_structures::{
-    chain::{CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem},
-    error::ChainInfoError,
+    chain::{CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, PublicKeyHash},
+    error::{ChainInfoError, TransactionError},
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
 use witnet_validations::validations::{
@@ -24,7 +24,6 @@ use crate::{
     },
     utils::mode_consensus,
 };
-use witnet_data_structures::error::TransactionError;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -295,10 +294,11 @@ impl Handler<AddTransaction> for ChainManager {
             }
             Transaction::Commit(tx) => {
                 let dr_pointer = tx.body.dr_pointer;
+                let pkh = PublicKeyHash::from_public_key(&tx.signatures[0].public_key);
 
                 if self
                     .transactions_pool
-                    .commit_contains(&dr_pointer, &tx_hash)
+                    .commit_contains(&dr_pointer, &pkh, &tx_hash)
                 {
                     debug!("Transaction is already in the pool: {}", tx_hash);
                     return;
@@ -317,10 +317,11 @@ impl Handler<AddTransaction> for ChainManager {
             }
             Transaction::Reveal(tx) => {
                 let dr_pointer = tx.body.dr_pointer;
+                let pkh = PublicKeyHash::from_public_key(&tx.signatures[0].public_key);
 
                 if self
                     .transactions_pool
-                    .reveal_contains(&dr_pointer, &tx_hash)
+                    .reveal_contains(&dr_pointer, &pkh, &tx_hash)
                 {
                     debug!("Transaction is already in the pool: {}", tx_hash);
                     return;
