@@ -181,8 +181,9 @@ pub struct CommitTransactionBody {
     // Inputs
     // TODO: Discussion about collateral
     //pub collateral: Vec<Input>, // ValueTransferOutput
-    pub dr_pointer: Hash, // DTTransaction hash
-    // Outputs
+    // DRTransaction hash
+    pub dr_pointer: Hash,
+    // RevealTransaction Signature Hash
     pub commitment: Hash,
     // Proof of elegibility for this pkh, epoch, and data request
     pub proof: DataRequestEligibilityClaim,

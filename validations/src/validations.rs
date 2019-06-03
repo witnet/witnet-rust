@@ -8,12 +8,11 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
-use witnet_data_structures::chain::{Reputation, ReputationEngine};
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature,
-        OutputPointer, PublicKeyHash, RADConsensus, RADRequest, UnspentOutputsPool,
-        ValueTransferOutput,
+        OutputPointer, PublicKeyHash, RADConsensus, RADRequest, Reputation, ReputationEngine,
+        UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::DataRequestPool,
     error::{BlockError, TransactionError},
@@ -260,17 +259,32 @@ pub fn validate_reveal_transaction(
     re_tx: &RevealTransaction,
     dr_pool: &DataRequestPool,
 ) -> Result<(Hash, u16, u64), failure::Error> {
-    validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures)?;
+    let reveal_signature = validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures)?;
 
     // Get DataRequest information
     let dr_pointer = re_tx.body.dr_pointer;
-    let dr_output = dr_pool
-        .get_dr_output(&dr_pointer)
+    let dr_state = dr_pool
+        .data_request_pool
+        .get(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
-    // TODO: Validate commitment
+    let pkh = reveal_signature.public_key.pkh();
 
-    Ok((dr_pointer, dr_output.witnesses, dr_output.reveal_fee))
+    let commit = dr_state
+        .info
+        .commits
+        .get(&pkh)
+        .ok_or_else(|| TransactionError::CommitNotFound)?;
+
+    if commit.body.commitment != reveal_signature.signature.hash() {
+        Err(TransactionError::MismatchedCommitment)?
+    }
+
+    Ok((
+        dr_pointer,
+        dr_state.data_request.witnesses,
+        dr_state.data_request.reveal_fee,
+    ))
 }
 
 /// Function to validate a tally transaction
@@ -341,7 +355,7 @@ pub fn validate_pkh_signature(
 pub fn validate_commit_reveal_signature(
     tx_hash: Hash,
     signatures: &[KeyedSignature],
-) -> Result<(), failure::Error> {
+) -> Result<&KeyedSignature, failure::Error> {
     if let Some(tx_keyed_signature) = signatures.get(0) {
         let signature = tx_keyed_signature.signature.clone().try_into()?;
         let public_key = tx_keyed_signature.public_key.clone().try_into()?;
@@ -353,11 +367,11 @@ pub fn validate_commit_reveal_signature(
                 index: 0,
             }
         })?;
+
+        Ok(tx_keyed_signature)
     } else {
         Err(TransactionError::SignatureNotFound)?
     }
-
-    Ok(())
 }
 
 /// Function to validate a transaction signature

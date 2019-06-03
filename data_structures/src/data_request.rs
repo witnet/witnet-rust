@@ -1,8 +1,5 @@
 use log::{debug, info};
-use rand::{thread_rng, Rng};
 use std::collections::{BTreeMap, HashMap, HashSet};
-
-use witnet_crypto::hash::calculate_sha256;
 
 use crate::{
     chain::{
@@ -10,11 +7,7 @@ use crate::{
         Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::DataRequestError,
-    transaction::{
-        CommitTransaction, CommitTransactionBody, DRTransaction, RevealTransaction,
-        RevealTransactionBody, TallyTransaction,
-    },
-    vrf::DataRequestEligibilityClaim,
+    transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
 use serde::{Deserialize, Serialize};
 
@@ -317,31 +310,6 @@ pub fn calculate_dr_vt_reward(dr_output: &DataRequestOutput) -> u64 {
 pub fn calculate_tally_change(dr_output: &DataRequestOutput, n_reveals: u64) -> u64 {
     calculate_reveal_reward(dr_output) * (u64::from(dr_output.witnesses) - n_reveals)
 }
-// TODO: [After VRF]. Review if it is need to keep these methods to create transactions body
-/// Create data request commitment
-pub fn create_commit_body(
-    dr_pointer: Hash,
-    reveal: Vec<u8>,
-    proof: DataRequestEligibilityClaim,
-) -> CommitTransactionBody {
-    // TODO: Remove nonce after VRF implementation
-    let nonce: [u8; 16] = thread_rng().gen();
-    let mut v = vec![];
-    v.extend(&nonce);
-    v.extend(reveal.as_slice());
-    let commitment = calculate_sha256(&v).into();
-
-    CommitTransactionBody::new(dr_pointer, commitment, proof)
-}
-
-/// Create data request reveal
-pub fn create_reveal_body(
-    dr_pointer: Hash,
-    reveal: Vec<u8>,
-    pkh: PublicKeyHash,
-) -> RevealTransactionBody {
-    RevealTransactionBody::new(dr_pointer, reveal, pkh)
-}
 
 pub fn create_vt_tally(
     dr_output: &DataRequestOutput,
@@ -365,19 +333,10 @@ pub fn create_vt_tally(
     (outputs, results)
 }
 
-pub fn create_tally_body(
-    dr_pointer: Hash,
-    outputs: Vec<ValueTransferOutput>,
-    consensus: Vec<u8>,
-) -> TallyTransaction {
-    TallyTransaction::new(dr_pointer, consensus, outputs)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chain::*;
-    use crate::transaction::DRTransactionBody;
+    use crate::{chain::*, transaction::*, vrf::*};
 
     fn add_data_requests() -> (u32, Hash, DataRequestPool, Hash) {
         let fake_block_hash = Hash::SHA256([1; 32]);

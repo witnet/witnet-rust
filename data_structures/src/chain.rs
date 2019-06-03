@@ -238,6 +238,14 @@ pub enum Signature {
     Secp256k1(Secp256k1Signature),
 }
 
+impl Hashable for Signature {
+    fn hash(&self) -> Hash {
+        match self {
+            Signature::Secp256k1(y) => calculate_sha256(&y.der).into(),
+        }
+    }
+}
+
 impl Default for Signature {
     fn default() -> Self {
         Signature::Secp256k1(Secp256k1Signature::default())
@@ -562,6 +570,11 @@ impl PublicKey {
                 bytes: x,
             })
         }
+    }
+
+    /// Returns the PublicKeyHash related to the PublicKey
+    pub fn pkh(&self) -> PublicKeyHash {
+        PublicKeyHash::from_public_key(&self)
     }
 }
 

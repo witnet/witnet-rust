@@ -95,6 +95,15 @@ pub enum TransactionError {
         expected_pkh: PublicKeyHash,
         signature_pkh: PublicKeyHash,
     },
+    /// Commit related to a reveal not found
+    #[fail(display = "Commitment related to a reveal not found")]
+    CommitNotFound,
+
+    /// Commitment field in CommitTransaction does not match with RevealTransaction signature
+    #[fail(
+        display = "Commitment field in CommitTransaction does not match with RevealTransaction signature"
+    )]
+    MismatchedCommitment,
 }
 
 /// The error type for operations on a [`Block`](Block)
