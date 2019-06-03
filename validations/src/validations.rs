@@ -404,7 +404,7 @@ fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
         .current += 1;
 }
 
-fn update_utxo_diff(
+pub fn update_utxo_diff(
     utxo_diff: &mut UtxoDiff,
     inputs: Vec<&Input>,
     outputs: Vec<&ValueTransferOutput>,

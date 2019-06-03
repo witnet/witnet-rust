@@ -34,7 +34,7 @@ use witnet_data_structures::{
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
-    merkle_tree_root, validate_block, vt_transaction_fee, UtxoDiff,
+    merkle_tree_root, update_utxo_diff, validate_block, vt_transaction_fee, UtxoDiff,
 };
 
 impl ChainManager {
@@ -433,7 +433,7 @@ fn build_block(
     own_pkh: PublicKeyHash,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
-    let utxo_diff = UtxoDiff::new(unspent_outputs_pool);
+    let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool);
 
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
@@ -461,6 +461,13 @@ fn build_block(
 
         if new_block_weight <= max_block_weight {
             value_transfer_txns.push(vt_tx.clone());
+
+            update_utxo_diff(
+                &mut utxo_diff,
+                vt_tx.body.inputs.iter().collect(),
+                vt_tx.body.outputs.iter().collect(),
+                vt_tx.hash(),
+            );
             transaction_fees += transaction_fee;
             block_weight += transaction_weight;
         }
@@ -482,6 +489,12 @@ fn build_block(
             }
         };
 
+        update_utxo_diff(
+            &mut utxo_diff,
+            dr_tx.body.inputs.iter().collect(),
+            dr_tx.body.outputs.iter().collect(),
+            dr_tx.hash(),
+        );
         data_request_txns.push(dr_tx.clone());
         transaction_fees += transaction_fee;
     }
