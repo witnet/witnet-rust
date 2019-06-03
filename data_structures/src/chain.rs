@@ -56,11 +56,14 @@ pub enum Environment {
     /// "testnet" environment
     #[serde(rename = "testnet-1")]
     Testnet1,
+    /// "testnet" environment
+    #[serde(rename = "testnet-3")]
+    Testnet3,
 }
 
 impl Default for Environment {
     fn default() -> Environment {
-        Environment::Testnet1
+        Environment::Testnet3
     }
 }
 

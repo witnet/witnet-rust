@@ -140,6 +140,9 @@ pub struct Mainnet;
 /// Struct that will implement all the testnet-1 defaults
 pub struct Testnet1;
 
+/// Struct that will implement all the testnet-3 defaults
+pub struct Testnet3;
+
 impl Defaults for Mainnet {
     fn connections_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11337)
@@ -178,8 +181,29 @@ impl Defaults for Testnet1 {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // A point far in the future, so the `EpochManager` will return an error
-        // `EpochZeroInTheFuture`
         1_548_855_420
+    }
+}
+
+impl Defaults for Testnet3 {
+    fn connections_server_addr(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21337)
+    }
+
+    fn jsonrpc_server_address(&self) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21338)
+    }
+
+    fn storage_db_path(&self) -> PathBuf {
+        PathBuf::from(".witnet-rust-testnet-3")
+    }
+
+    fn connections_bootstrap_peers_period(&self) -> Duration {
+        Duration::from_secs(15)
+    }
+
+    fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
+        // June 1st, 2019
+        1_559_347_200
     }
 }

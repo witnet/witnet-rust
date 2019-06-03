@@ -46,7 +46,7 @@ use std::time::Duration;
 use log::warn;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::defaults::{Defaults, Testnet1};
+use crate::defaults::{Defaults, Testnet1, Testnet3};
 use crate::dirs;
 use partial_struct::PartialStruct;
 use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
@@ -227,11 +227,12 @@ pub struct Mining {
 
 impl Config {
     pub fn from_partial(config: &PartialConfig) -> Self {
-        let defaults = match config.environment {
+        let defaults: &dyn Defaults = match config.environment {
             Environment::Mainnet => {
                 panic!("Config with mainnet environment is currently not allowed");
             }
             Environment::Testnet1 => &Testnet1,
+            Environment::Testnet3 => &Testnet3,
         };
 
         let consensus_constants = match config.environment {
@@ -248,6 +249,9 @@ impl Config {
             }
             // In testnet, allow to override the consensus constants
             Environment::Testnet1 => {
+                consensus_constants_from_partial(&config.consensus_constants, defaults)
+            }
+            Environment::Testnet3 => {
                 consensus_constants_from_partial(&config.consensus_constants, defaults)
             }
         };
