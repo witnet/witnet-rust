@@ -2,7 +2,7 @@
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 edition = "2018"
 name = "witnet_wallet"
-version = "0.2.0"
+version = "0.3.0"
 workspace = ".."
 
 [dependencies]
