@@ -69,21 +69,13 @@ fn main() {
         }
     }
 
-    if let Some(addr) = matches.value_of("node_addr") {
-        match addr.parse() {
-            Ok(addr) => {
-                conf.wallet.node_addr = Some(addr);
-            }
-            Err(e) => {
-                eprintln!("Invalid value for node-addr {}", e);
-                process::exit(1);
-            }
-        }
+    if let Some(url) = matches.value_of("node_url") {
+        conf.wallet.node_url = Some(url.to_owned());
     }
 
     match matches.subcommand() {
         ("run", _) => match wallet::run(conf) {
-            Ok(code) => process::exit(code),
+            Ok(_) => process::exit(0),
             Err(e) => {
                 eprintln!("{}", e);
                 process::exit(1);
@@ -163,8 +155,8 @@ the current one will be used."#),
 Default: 127.0.0.1:11212"#),
         )
         .arg(
-            clap::Arg::with_name("node_addr")
-                .long("node-addr")
+            clap::Arg::with_name("node_url")
+                .long("node-url")
                 .takes_value(true)
                 .global(true)
                 .help(r#"Socket address of the Witnet node to query.

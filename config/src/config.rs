@@ -410,7 +410,7 @@ pub struct Wallet {
     /// Witnet node server address.
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
-    pub node_addr: Option<SocketAddr>,
+    pub node_url: Option<String>,
 
     /// The amount of server threads listening for connections.
     #[partial_struct(skip)]
@@ -427,7 +427,7 @@ impl Wallet {
             server_addr: config
                 .server_addr
                 .unwrap_or_else(|| defaults.wallet_server_addr()),
-            node_addr: config.node_addr,
+            node_url: config.node_url.clone(),
             workers: config.workers.or_else(|| Some(1)),
             db_path: config.db_path.clone().unwrap_or_else(dirs::data_dir),
         }

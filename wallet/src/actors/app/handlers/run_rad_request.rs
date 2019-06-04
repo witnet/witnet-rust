@@ -5,7 +5,6 @@
 //! For more information about what a RAD-request is see [Witnet docs](https://docs.witnet.io/)
 
 use actix::prelude::*;
-use futures::Future as _;
 use serde::Deserialize;
 
 use crate::actors::{rad_executor as executor, App};

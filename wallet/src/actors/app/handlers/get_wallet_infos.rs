@@ -1,6 +1,6 @@
 //! TODO: doc
 use actix::prelude::*;
-use futures::{future, Future as _};
+use futures::future;
 use serde::Deserialize;
 
 use crate::actors::storage;

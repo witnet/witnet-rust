@@ -1,52 +1,48 @@
 //! Websockets server implementation.
-use std::io;
 use std::net;
+use std::sync::Arc;
 
-use actix_web::{actix::*, server, ws, App, Binary};
-use jsonrpc_core as rpc;
+use jsonrpc_pubsub as pubsub;
+use jsonrpc_ws_server as server;
 
-pub mod actors;
+mod error;
 
-use self::actors::{
-    controller::Controller,
-    notifications::{Notifications, Notify},
-    ws::Ws,
-};
+pub use error::Error;
+
+type PubSubHandler = pubsub::PubSubHandler<Arc<pubsub::Session>>;
+
+/// TODO: doc
+pub struct Server(server::Server);
+
+impl Server {
+    /// TODO: doc
+    pub fn build() -> ServerBuilder {
+        ServerBuilder::default()
+    }
+}
 
 /// Server configuration builder.
-pub struct Server<F> {
-    workers: Option<usize>,
-    factory: F,
+pub struct ServerBuilder {
+    handler: PubSubHandler,
     addr: net::SocketAddr,
 }
 
-impl<F> Server<F>
-where
-    F: Fn() -> rpc::IoHandler + Clone + Send + Sync + 'static,
-{
-    /// Create a new websockets server.
-    ///
-    /// Accepts a factory function that will be used to create the websocket request-handlers. The
-    /// function receives a notification function that can be used by the handlers to send notifications
-    /// to all opened sockets. This function will block the current thread until the server is stopped.
-    /// The server can be configured with a builder-like pattern.
-    pub fn new(factory: F) -> Self {
-        let addr = net::SocketAddr::V4(net::SocketAddrV4::new(
-            net::Ipv4Addr::new(127, 0, 0, 1),
-            3200,
-        ));
-        let workers = Default::default();
-
+impl Default for ServerBuilder {
+    fn default() -> Self {
         Self {
-            factory,
-            addr,
-            workers,
+            handler: PubSubHandler::default(),
+            addr: net::SocketAddr::V4(net::SocketAddrV4::new(
+                net::Ipv4Addr::new(127, 0, 0, 1),
+                3200,
+            )),
         }
     }
+}
 
-    /// Set how many worker threads the server will have.
-    pub fn workers(mut self, workers: Option<usize>) -> Self {
-        self.workers = workers;
+impl ServerBuilder {
+    /// Set handler
+    pub fn handler(mut self, handler: PubSubHandler) -> Self {
+        self.handler = handler;
         self
     }
 
@@ -57,47 +53,14 @@ where
     }
 
     /// Starts a JsonRPC Websockets server.
-    ///
-    /// The factory is used to create handlers for the json-rpc messages sent to the server.
-    pub fn start(self) -> io::Result<Addr<actix_net::server::Server>> {
-        let Server {
-            factory,
-            workers,
-            addr,
-        } = self;
+    pub fn start(self) -> Result<Server, Error> {
+        let Self { handler, addr } = self;
 
-        let mut s = server::new(move || {
-            // Ensure that the controller starts if no actor has started it yet. It will register with
-            // `ProcessSignals` shut down even if no actors have subscribed. If we remove this line, the
-            // controller will not be instanciated and our system will not listen for signals.
-            Controller::from_registry();
-
-            let f = factory.clone();
-
-            App::new().resource("/", move |r| {
-                r.f(move |req| {
-                    let remote = req
-                        .connection_info()
-                        .remote()
-                        .map(ToString::to_string)
-                        .unwrap_or_else(|| "[unknown ip]".to_string());
-                    let actor = Ws::new(remote, f());
-                    ws::start(req, actor)
-                })
-            })
+        server::ServerBuilder::with_meta_extractor(handler, |context: &server::RequestContext| {
+            Arc::new(pubsub::Session::new(context.sender()))
         })
-        .bind(addr)?;
-
-        if let Some(workers) = workers {
-            s = s.workers(workers);
-        }
-
-        Ok(s.start())
+        .start(&addr)
+        .map(Server)
+        .map_err(Error)
     }
-}
-
-/// Notify all websocket connections.
-pub fn notify(payload: Binary) {
-    let n = Notifications::from_registry();
-    n.do_send(Notify { payload });
 }

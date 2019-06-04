@@ -6,13 +6,14 @@
 //! 2. `ApiError`: enum containing all errors that have a custom code in the JsonRPC protocol,
 //! further information about the error is provided in the `data` field of the response.
 use std::fmt;
+use std::io;
 
 use actix::MailboxError;
-use async_jsonrpc_client as client;
 use jsonrpc_core as rpc;
 use serde_json::{json, value::Value, Error as JsonError};
 
 use crate::actors::storage::Error as StorageError;
+use witnet_net::{client::tcp::jsonrpc::Error as ClientError, server::ws::Error as ServerError};
 use witnet_rad::error::RadError;
 
 /// Defines all the errors that can occur inside the application.
@@ -22,13 +23,17 @@ pub enum Error {
     Storage(StorageError),
     Serialization(JsonError),
     Rad(RadError),
+    Server(ServerError),
+    Subscription(&'static str),
+    Client(ClientError),
+    NodeNotConnected,
+    Io(io::Error),
 }
 
 /// Defines all the errors that have a custom code in the JsonRPC protocol.
 #[derive(Debug)]
 pub enum ApiError {
     Execution(Error),
-    Node(client::Error),
 }
 
 impl fmt::Display for Error {
@@ -38,6 +43,13 @@ impl fmt::Display for Error {
             Error::Storage(ref e) => write!(fmt, "storage error: {}", e),
             Error::Serialization(ref e) => write!(fmt, "(de)serialization error: {}", e),
             Error::Rad(ref e) => write!(fmt, "rad error: {}", e),
+            Error::Server(ref e) => write!(fmt, "server error: {}", e),
+            Error::Client(ref e) => write!(fmt, "client error: {}", e),
+            Error::Subscription(ref e) => write!(fmt, "{}", e),
+            Error::Io(ref e) => write!(fmt, "{}", e),
+            Error::NodeNotConnected => {
+                write!(fmt, "the wallet currently is not connected to any node")
+            }
         }
     }
 }
@@ -64,11 +76,6 @@ impl Into<rpc::Error> for ApiError {
                 code: rpc::ErrorCode::ServerError(1),
                 message: "Execution Error.".into(),
                 data: Some(err.into()),
-            },
-            ApiError::Node(err) => rpc::Error {
-                code: rpc::ErrorCode::ServerError(2),
-                message: "Node Error.".into(),
-                data: Some(format!("{}", err).into()),
             },
         }
     }
