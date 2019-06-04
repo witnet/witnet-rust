@@ -28,7 +28,7 @@ versions:
 # run clippy
 clippy +flags="":
     cargo clippy --all --all-features -- -D warnings {{flags}}
-    cargo clippy --all --all-targets --all-features -- -A clippy::cognitive_complexity {{flags}}
+    cargo clippy --all --all-targets --all-features -- -A clippy::type_complexity {{flags}}
 
 # run formatter
 fmt +flags="":

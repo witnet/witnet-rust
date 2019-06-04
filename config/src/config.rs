@@ -538,47 +538,47 @@ mod tests {
         let partial_config = PartialConfig::default();
         let config = Config::from_partial(&partial_config);
 
-        assert_eq!(config.environment, Environment::Testnet1);
+        assert_eq!(config.environment, Environment::Testnet3);
         assert_eq!(
             config.connections.server_addr,
-            Testnet1.connections_server_addr()
+            Testnet3.connections_server_addr()
         );
         assert_eq!(
             config.connections.inbound_limit,
-            Testnet1.connections_inbound_limit()
+            Testnet3.connections_inbound_limit()
         );
         assert_eq!(
             config.connections.outbound_limit,
-            Testnet1.connections_outbound_limit()
+            Testnet3.connections_outbound_limit()
         );
         assert_eq!(
             config.connections.known_peers,
-            Testnet1.connections_known_peers()
+            Testnet3.connections_known_peers()
         );
         assert_eq!(
             config.connections.bootstrap_peers_period,
-            Testnet1.connections_bootstrap_peers_period()
+            Testnet3.connections_bootstrap_peers_period()
         );
         assert_eq!(
             config.connections.storage_peers_period,
-            Testnet1.connections_storage_peers_period()
+            Testnet3.connections_storage_peers_period()
         );
         assert_eq!(
             config.connections.discovery_peers_period,
-            Testnet1.connections_discovery_peers_period()
+            Testnet3.connections_discovery_peers_period()
         );
         assert_eq!(
             config.connections.handshake_timeout,
-            Testnet1.connections_handshake_timeout()
+            Testnet3.connections_handshake_timeout()
         );
-        assert_eq!(config.storage.db_path, Testnet1.storage_db_path());
+        assert_eq!(config.storage.db_path, Testnet3.storage_db_path());
         assert_eq!(
             config.jsonrpc.server_address,
-            Testnet1.jsonrpc_server_address()
+            Testnet3.jsonrpc_server_address()
         );
         assert_eq!(
             config.connections.blocks_timeout,
-            Testnet1.connections_blocks_timeout()
+            Testnet3.connections_blocks_timeout()
         );
     }
 }

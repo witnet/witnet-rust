@@ -1404,7 +1404,7 @@ dependencies = [
 
 [[package]]
 name = "partial_struct"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "quote 0.6.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2725,7 +2725,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "bytecount 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ctrlc 3.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2737,34 +2737,34 @@ dependencies = [
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_config 0.2.1",
- "witnet_crypto 0.2.1",
- "witnet_data_structures 0.2.1",
- "witnet_node 0.2.1",
- "witnet_p2p 0.2.1",
- "witnet_rad 0.2.1",
- "witnet_storage 0.2.1",
- "witnet_util 0.2.1",
- "witnet_validations 0.2.1",
+ "witnet_config 0.3.0",
+ "witnet_crypto 0.3.0",
+ "witnet_data_structures 0.3.0",
+ "witnet_node 0.3.0",
+ "witnet_p2p 0.3.0",
+ "witnet_rad 0.3.0",
+ "witnet_storage 0.3.0",
+ "witnet_util 0.3.0",
+ "witnet_validations 0.3.0",
 ]
 
 [[package]]
 name = "witnet_config"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "directories 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "partial_struct 0.2.1",
+ "partial_struct 0.3.0",
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_data_structures 0.2.1",
- "witnet_protected 0.2.1",
+ "witnet_data_structures 0.3.0",
+ "witnet_protected 0.3.0",
 ]
 
 [[package]]
 name = "witnet_crypto"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "hmac 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2775,18 +2775,18 @@ dependencies = [
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-bip39 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_protected 0.2.1",
+ "witnet_protected 0.3.0",
 ]
 
 [[package]]
 name = "witnet_data_structures"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "exonum-build 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "partial_struct 0.2.1",
+ "partial_struct 0.3.0",
  "protobuf 2.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf-convert 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2794,9 +2794,9 @@ dependencies = [
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "vrf 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_crypto 0.2.1",
- "witnet_reputation 0.2.0",
- "witnet_util 0.2.1",
+ "witnet_crypto 0.3.0",
+ "witnet_reputation 0.3.0",
+ "witnet_util 0.3.0",
 ]
 
 [[package]]
@@ -2814,7 +2814,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "actix 0.7.10 (git+https://github.com/actix/actix.git?rev=d28d286ac652f81e72c2aa413e7c0d3fc6c6099c)",
  "ansi_term 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2833,37 +2833,37 @@ dependencies = [
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.20 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_config 0.2.1",
- "witnet_crypto 0.2.1",
- "witnet_data_structures 0.2.1",
- "witnet_p2p 0.2.1",
- "witnet_rad 0.2.1",
- "witnet_storage 0.2.1",
- "witnet_util 0.2.1",
- "witnet_validations 0.2.1",
- "witnet_wallet 0.2.0",
+ "witnet_config 0.3.0",
+ "witnet_crypto 0.3.0",
+ "witnet_data_structures 0.3.0",
+ "witnet_p2p 0.3.0",
+ "witnet_rad 0.3.0",
+ "witnet_storage 0.3.0",
+ "witnet_util 0.3.0",
+ "witnet_validations 0.3.0",
+ "witnet_wallet 0.3.0",
 ]
 
 [[package]]
 name = "witnet_p2p"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_util 0.2.1",
+ "witnet_util 0.3.0",
 ]
 
 [[package]]
 name = "witnet_protected"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "memzero 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "witnet_rad"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2876,14 +2876,14 @@ dependencies = [
  "rmpv 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust-crypto 0.2.36 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_crypto 0.2.1",
- "witnet_data_structures 0.2.1",
- "witnet_util 0.2.1",
+ "witnet_crypto 0.3.0",
+ "witnet_data_structures 0.3.0",
+ "witnet_util 0.3.0",
 ]
 
 [[package]]
 name = "witnet_reputation"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bencher 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2893,17 +2893,17 @@ dependencies = [
 
 [[package]]
 name = "witnet_storage"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rocksdb 0.12.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_crypto 0.2.1",
- "witnet_protected 0.2.1",
+ "witnet_crypto 0.3.0",
+ "witnet_protected 0.3.0",
 ]
 
 [[package]]
 name = "witnet_util"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2911,18 +2911,18 @@ dependencies = [
 
 [[package]]
 name = "witnet_validations"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_crypto 0.2.1",
- "witnet_data_structures 0.2.1",
- "witnet_rad 0.2.1",
+ "witnet_crypto 0.3.0",
+ "witnet_data_structures 0.3.0",
+ "witnet_rad 0.3.0",
 ]
 
 [[package]]
 name = "witnet_wallet"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "actix 0.7.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-jsonrpc-client 0.1.0 (git+https://github.com/witnet/async-jsonrpc-client)",
@@ -2938,12 +2938,12 @@ dependencies = [
  "rocksdb 0.12.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
- "witnet_config 0.2.1",
- "witnet_crypto 0.2.1",
- "witnet_data_structures 0.2.1",
+ "witnet_config 0.3.0",
+ "witnet_crypto 0.3.0",
+ "witnet_data_structures 0.3.0",
  "witnet_net 0.1.0",
- "witnet_rad 0.2.1",
- "witnet_storage 0.2.1",
+ "witnet_rad 0.3.0",
+ "witnet_storage 0.3.0",
 ]
 
 [[package]]
