@@ -28,3 +28,4 @@ witnet_storage = { path = "../storage" }
 witnet_rad = { path = "../rad" }
 witnet_crypto = { path = "../crypto" }
 witnet_data_structures = { path = "../data_structures" }
+tokio-signal = "0.2.7"
