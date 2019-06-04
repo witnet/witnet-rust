@@ -65,7 +65,7 @@ docker-image-build-all:
 
 # build docker image for a specific compilation target
 docker-image-build target:
-    docker build -t witnet-rust/{{target}} -f docker/cross-compilation/{{target}}/Dockerfile docker/cross-compilation
+    docker build --no-cache -t witnet-rust/{{target}} -f docker/cross-compilation/{{target}}/Dockerfile docker/cross-compilation
 
 # cross compile witnet-rust for all cross compilation targets
 cross-compile-all:
@@ -74,10 +74,11 @@ cross-compile-all:
 # cross compile witnet-rust for a specific compilation target
 # - this assumes the container to set the `$STRIP` variable to be the path for binutils `strip` tool
 # - if `$STRIP` is unset, the binary will not be stripped and will retain all its symbols
-cross-compile target profile="debug":
+cross-compile target profile="release":
     docker run \
-    -v $(pwd):/project:ro \
-    -v $(pwd)/target:/target \
+    -v `pwd`:/project:ro \
+    -v `pwd`/target:/target \
+    -v ~/.cargo:/root/.cargo \
     -w /project \
     -i witnet-rust/{{target}} \
     bash -c "cargo build `[[ {{profile}} == "release" ]] && echo "--release"` --target={{target}} --target-dir=/target \
