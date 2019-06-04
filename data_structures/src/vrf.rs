@@ -209,4 +209,56 @@ mod tests {
 
         assert_eq!(witnet_pk, vrf_pk);
     }
+
+    #[test]
+    fn block_proof_validity() {
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let secret_key = SecretKey { bytes: [0x44; 32] };
+        let beacon = CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: Default::default(),
+        };
+
+        let proof = BlockEligibilityClaim::create(vrf, &secret_key, beacon).unwrap();
+        assert!(proof.verify(vrf, beacon).is_ok());
+
+        // Changing the beacon should invalidate the vrf proof
+        for checkpoint in 1..=2 {
+            let beacon2 = CheckpointBeacon {
+                checkpoint,
+                ..beacon
+            };
+            assert!(proof.verify(vrf, beacon2).is_err());
+        }
+    }
+
+    #[test]
+    fn data_request_proof_validity() {
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let secret_key = SecretKey { bytes: [0x44; 32] };
+        let beacon = CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: Default::default(),
+        };
+        let dr_pointer = "2222222222222222222222222222222222222222222222222222222222222222"
+            .parse()
+            .unwrap();
+        let proof =
+            DataRequestEligibilityClaim::create(vrf, &secret_key, beacon, dr_pointer).unwrap();
+        assert!(proof.verify(vrf, beacon, dr_pointer).is_ok());
+
+        // Changing the beacon should invalidate the vrf proof
+        let beacon2 = CheckpointBeacon {
+            checkpoint: 1,
+            ..beacon
+        };
+        assert!(proof.verify(vrf, beacon2, dr_pointer).is_err());
+
+        // Changing the dr_hash should invalidate the vrf proof
+        let dr_pointer2 = "2222222222222222222222222222222222222222222222222222222222222223"
+            .parse()
+            .unwrap();
+        assert!(proof.verify(vrf, beacon, dr_pointer2).is_err());
+    }
+
 }
