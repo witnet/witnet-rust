@@ -480,7 +480,7 @@ fn update_pools(
 
         // IMPORTANT: Update the data request pool after updating reputation info
         if let Err(e) = data_request_pool.process_tally(&ta_tx, &block.hash()) {
-            log::error!("Error updating pools:\n{}", e);
+            log::error!("Error processing tally transaction:\n{}", e);
         }
     }
 
@@ -496,13 +496,13 @@ fn update_pools(
 
     for co_tx in &block.txns.commit_txns {
         if let Err(e) = data_request_pool.process_commit(&co_tx, &block.hash()) {
-            log::error!("Error updating pools:\n{}", e);
+            log::error!("Error processing commit transaction:\n{}", e);
         }
     }
 
     for re_tx in &block.txns.reveal_txns {
         if let Err(e) = data_request_pool.process_reveal(&re_tx, &block.hash()) {
-            log::error!("Error updating pools:\n{}", e);
+            log::error!("Error processing reveal transaction:\n{}", e);
         }
     }
 
@@ -662,7 +662,6 @@ fn update_reputation(
 
     // Update active reputation set
     // Add block miner pkh to active identities
-
     if let Err(e) = rep_eng
         .ars
         .update(revealers.chain(vec![miner_pkh]), block_epoch)

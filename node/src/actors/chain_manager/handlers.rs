@@ -1,5 +1,5 @@
 use actix::{fut::WrapFuture, prelude::*};
-use log::{debug, error, warn};
+use log;
 
 use witnet_data_structures::{
     chain::{
@@ -43,7 +43,7 @@ impl Handler<EpochNotification<EpochPayload>> for ChainManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EpochPayload>, ctx: &mut Context<Self>) {
-        debug!("Epoch notification received {:?}", msg.checkpoint);
+        log::debug!("Epoch notification received {:?}", msg.checkpoint);
 
         match self.sm_state {
             StateMachine::WaitingConsensus => {}
@@ -59,7 +59,7 @@ impl Handler<EpochNotification<EpochPayload>> for ChainManager {
 
         // Genesis checkpoint notification. We need to start building the chain.
         if msg.checkpoint == 0 {
-            warn!("Genesis checkpoint is here! Starting to bootstrap the chain...");
+            log::warn!("Genesis checkpoint is here! Starting to bootstrap the chain...");
             self.started(ctx);
         }
     }
@@ -70,11 +70,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
-        debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        log::debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         let current_epoch = msg.checkpoint;
         self.current_epoch = Some(current_epoch);
 
-        debug!(
+        log::debug!(
             "EpochNotification received while StateMachine is in state {:?}",
             self.sm_state
         );
@@ -126,7 +126,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             Ok(utxo_diff) => {
                                 chosen_candidate = Some((key, block_candidate, utxo_diff))
                             }
-                            Err(e) => debug!("{}", e),
+                            Err(e) => log::debug!("{}", e),
                         }
                     }
 
@@ -135,7 +135,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         // Persist block and update ChainState
                         self.consolidate_block(ctx, &block, utxo_diff);
                     } else {
-                        warn!(
+                        log::warn!(
                             "There was no valid block candidate to consolidate for epoch {}",
                             msg.checkpoint - 1
                         );
@@ -180,7 +180,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                 }
 
                 _ => {
-                    error!("No ChainInfo loaded in ChainManager");
+                    log::error!("No ChainInfo loaded in ChainManager");
                 }
             },
         };
@@ -199,7 +199,7 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
         if let Some(chain_info) = &self.chain_state.chain_info {
             Ok(chain_info.highest_block_checkpoint)
         } else {
-            error!("No ChainInfo loaded in ChainManager");
+            log::error!("No ChainInfo loaded in ChainManager");
             Err(ChainInfoError::ChainInfoNotFound)?
         }
     }
@@ -210,7 +210,7 @@ impl Handler<AddBlocks> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddBlocks, ctx: &mut Context<Self>) {
-        debug!(
+        log::debug!(
             "AddBlocks received while StateMachine is in state {:?}",
             self.sm_state
         );
@@ -256,7 +256,7 @@ impl Handler<AddBlocks> for ChainManager {
                         });
                     }
                 } else {
-                    warn!("Target Beacon is None");
+                    log::warn!("Target Beacon is None");
                 }
             }
             StateMachine::Synced => {}
@@ -281,7 +281,7 @@ impl Handler<AddTransaction> for ChainManager {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) {
-        debug!(
+        log::debug!(
             "AddTransaction received while StateMachine is in state {:?}",
             self.sm_state
         );
@@ -300,7 +300,7 @@ impl Handler<AddTransaction> for ChainManager {
         let validation_result: Result<(), failure::Error> = match transaction {
             Transaction::ValueTransfer(tx) => {
                 if self.transactions_pool.vt_contains(&tx_hash) {
-                    debug!("Transaction is already in the pool: {}", tx_hash);
+                    log::debug!("Transaction is already in the pool: {}", tx_hash);
                     return;
                 }
 
@@ -309,7 +309,7 @@ impl Handler<AddTransaction> for ChainManager {
 
             Transaction::DataRequest(tx) => {
                 if self.transactions_pool.dr_contains(&tx_hash) {
-                    debug!("Transaction is already in the pool: {}", tx_hash);
+                    log::debug!("Transaction is already in the pool: {}", tx_hash);
                     return;
                 }
 
@@ -323,7 +323,7 @@ impl Handler<AddTransaction> for ChainManager {
                     .transactions_pool
                     .commit_contains(&dr_pointer, &pkh, &tx_hash)
                 {
-                    debug!("Transaction is already in the pool: {}", tx_hash);
+                    log::debug!("Transaction is already in the pool: {}", tx_hash);
                     return;
                 }
 
@@ -354,7 +354,7 @@ impl Handler<AddTransaction> for ChainManager {
                     .transactions_pool
                     .reveal_contains(&dr_pointer, &pkh, &tx_hash)
                 {
-                    debug!("Transaction is already in the pool: {}", tx_hash);
+                    log::debug!("Transaction is already in the pool: {}", tx_hash);
                     return;
                 }
 
@@ -365,7 +365,7 @@ impl Handler<AddTransaction> for ChainManager {
 
         match validation_result {
             Ok(_) => {
-                debug!("Transaction added successfully");
+                log::debug!("Transaction added successfully");
                 // Broadcast valid transaction
                 self.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
 
@@ -373,7 +373,7 @@ impl Handler<AddTransaction> for ChainManager {
                 self.transactions_pool.insert(msg.transaction);
             }
 
-            Err(e) => warn!("{}", e),
+            Err(e) => log::warn!("{}", e),
         }
     }
 }
@@ -387,7 +387,7 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         GetBlocksEpochRange { range, limit }: GetBlocksEpochRange,
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
-        debug!("GetBlocksEpochRange received {:?}", range);
+        log::debug!("GetBlocksEpochRange received {:?}", range);
 
         // Accept this message in any state
         // TODO: we should only accept this message in Synced state, but that breaks the
@@ -417,7 +417,7 @@ impl Handler<PeersBeacons> for ChainManager {
         PeersBeacons { pb }: PeersBeacons,
         ctx: &mut Context<Self>,
     ) -> Self::Result {
-        debug!(
+        log::debug!(
             "PeersBeacons received while StateMachine is in state {:?}",
             self.sm_state
         );
@@ -445,6 +445,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                     // Check if we are already synchronized
                     self.sm_state = if our_beacon == beacon {
+                        log::info!("Synced state");
                         StateMachine::Synced
                     } else {
                         // Review candidates
@@ -454,11 +455,11 @@ impl Handler<PeersBeacons> for ChainManager {
                         {
                             match self.process_requested_block(ctx, &consensus_block) {
                                 Ok(()) => {
-                                    debug!("Consolidate consensus candidate. Synced state");
+                                    log::info!("Consolidate consensus candidate. Synced state");
                                     StateMachine::Synced
                                 }
                                 Err(e) => {
-                                    debug!("Failed to consolidate consensus candidate: {}", e);
+                                    log::debug!("Failed to consolidate consensus candidate: {}", e);
 
                                     // Send Anycast<SendLastBeacon> to a safu peer in order to begin the synchronization
                                     SessionsManager::from_registry().do_send(Anycast {
@@ -498,7 +499,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                 if pb.is_empty() {
                     // TODO: all other peers disconnected, return to WaitingConsensus state?
-                    warn!("[CONSENSUS]: We have zero outbound peers");
+                    log::warn!("[CONSENSUS]: We have zero outbound peers");
                 }
 
                 let our_beacon = self
@@ -531,9 +532,10 @@ impl Handler<PeersBeacons> for ChainManager {
                         // We are out of consensus!
                         // TODO: We should probably rewind(1) to avoid a fork, but for simplicity
                         // (rewind is not implemented yet) we just print a message and carry on
-                        warn!(
+                        log::warn!(
                             "[CONSENSUS]: We are on {:?} but the network is on {:?}",
-                            our_beacon, consensus_beacon
+                            our_beacon,
+                            consensus_beacon
                         );
 
                         // Return an empty vector indicating that we do not want to unregister any peer
@@ -542,7 +544,7 @@ impl Handler<PeersBeacons> for ChainManager {
                     None => {
                         // There is no consensus because of a tie, do not rewind?
                         // For example this could happen when each peer reports a different beacon...
-                        warn!(
+                        log::warn!(
                             "[CONSENSUS]: We are on {:?} but the network has no consensus",
                             our_beacon
                         );
@@ -566,7 +568,7 @@ impl Handler<BuildVtt> for ChainManager {
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
         ) {
-            Err(e) => error!("{}", e),
+            Err(e) => log::error!("{}", e),
             Ok(vtt) => {
                 transaction_factory::sign_transaction(&vtt, vtt.inputs.len())
                     .into_actor(self)
@@ -577,7 +579,7 @@ impl Handler<BuildVtt> for ChainManager {
                                     Transaction::ValueTransfer(VTTransaction::new(vtt, signatures));
                                 ctx.notify(AddTransaction { transaction });
                             }
-                            Err(e) => error!("{}", e),
+                            Err(e) => log::error!("{}", e),
                         }
 
                         actix::fut::ok(())
@@ -598,9 +600,9 @@ impl Handler<BuildDrt> for ChainManager {
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
         ) {
-            Err(e) => error!("{}", e),
+            Err(e) => log::error!("{}", e),
             Ok(drt) => {
-                debug!("Created vtt:\n{:?}", drt);
+                log::debug!("Created vtt:\n{:?}", drt);
                 transaction_factory::sign_transaction(&drt, drt.inputs.len())
                     .into_actor(self)
                     .then(|s, _act, ctx| {
@@ -610,7 +612,7 @@ impl Handler<BuildDrt> for ChainManager {
                                     Transaction::DataRequest(DRTransaction::new(drt, signatures));
                                 ctx.notify(AddTransaction { transaction });
                             }
-                            Err(e) => error!("{}", e),
+                            Err(e) => log::error!("{}", e),
                         }
 
                         actix::fut::ok(())
