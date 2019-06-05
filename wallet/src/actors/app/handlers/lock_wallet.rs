@@ -1,24 +1,17 @@
-//! TODO: doc
 use actix::prelude::*;
-use serde::Deserialize;
 
 use crate::actors::App;
+use crate::api;
 use crate::error;
 
-/// TODO: doc
-#[derive(Debug, Deserialize)]
-pub struct LockWallet(pub ());
-
-impl LockWallet {}
-
-impl Message for LockWallet {
+impl Message for api::LockWalletRequest {
     type Result = Result<(), error::Error>;
 }
 
-impl Handler<LockWallet> for App {
+impl Handler<api::LockWalletRequest> for App {
     type Result = Result<(), error::Error>;
 
-    fn handle(&mut self, _msg: LockWallet, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _msg: api::LockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         unimplemented!()
     }
 }

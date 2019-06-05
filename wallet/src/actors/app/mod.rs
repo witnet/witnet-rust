@@ -15,8 +15,6 @@ use witnet_net::client::tcp::{jsonrpc as rpc_client, JsonRpcClient};
 
 mod handlers;
 
-pub use handlers::*;
-
 /// Application actor.
 ///
 /// The application actor is in charge of managing the state of the application and coordinating the
@@ -35,19 +33,17 @@ impl App {
 
     /// Return an id for a new subscription. If there are no available subscription slots, then
     /// `None` is returned.
-    pub fn subscribe(
-        &mut self,
-        subscriber: pubsub::Subscriber,
-    ) -> Result<pubsub::SubscriptionId, &'static str> {
-        let (i, slot) = self
+    pub fn subscribe(&mut self, subscriber: pubsub::Subscriber) -> Result<usize, &'static str> {
+        let (id, slot) = self
             .subscriptions
             .iter_mut()
             .enumerate()
             .find(|(_, slot)| slot.is_none())
             .ok_or_else(|| "Subscriptions limit reached.")?;
-        let id = pubsub::SubscriptionId::from(i as u64);
 
-        *slot = subscriber.assign_id(id.clone()).ok();
+        *slot = subscriber
+            .assign_id(pubsub::SubscriptionId::from(id as u64))
+            .ok();
 
         Ok(id)
     }

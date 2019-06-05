@@ -4,16 +4,16 @@ use crate::actors::App;
 use crate::api;
 use crate::error;
 
-impl Message for api::GetTransactionsRequest {
+impl Message for api::CreateDataReqRequest {
     type Result = Result<(), error::Error>;
 }
 
-impl Handler<api::GetTransactionsRequest> for App {
+impl Handler<api::CreateDataReqRequest> for App {
     type Result = Result<(), error::Error>;
 
     fn handle(
         &mut self,
-        _msg: api::GetTransactionsRequest,
+        _msg: api::CreateDataReqRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         unimplemented!()

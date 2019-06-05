@@ -18,6 +18,7 @@ use actix::prelude::*;
 use witnet_config::config::Config;
 
 mod actors;
+mod api;
 mod error;
 mod signal;
 mod wallet;

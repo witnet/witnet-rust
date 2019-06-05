@@ -1,24 +1,21 @@
-//! TODO: doc
 use actix::prelude::*;
-use serde::Deserialize;
 
 use crate::actors::App;
+use crate::api;
 use crate::error;
 
-/// TODO: doc
-#[derive(Debug, Deserialize)]
-pub struct GenerateAddress(pub ());
-
-impl GenerateAddress {}
-
-impl Message for GenerateAddress {
+impl Message for api::GenerateAddressRequest {
     type Result = Result<(), error::Error>;
 }
 
-impl Handler<GenerateAddress> for App {
+impl Handler<api::GenerateAddressRequest> for App {
     type Result = Result<(), error::Error>;
 
-    fn handle(&mut self, _msg: GenerateAddress, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(
+        &mut self,
+        _msg: api::GenerateAddressRequest,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
         unimplemented!()
     }
 }

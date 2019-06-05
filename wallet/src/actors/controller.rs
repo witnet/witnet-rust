@@ -11,7 +11,8 @@ use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
 use serde_json::{self as json, json};
 
-use super::{app, App};
+use super::App;
+use crate::api;
 use crate::error;
 use witnet_net::server::ws::Server;
 
@@ -63,7 +64,11 @@ macro_rules! forwarded_routes {
             let app_addr = $app.clone();
             $io.add_method($method_jsonrpc, move |params: rpc::Params| {
                 log::debug!("Forwarding request for method: {}", $method_jsonrpc);
-                app_addr.send(app::Forward($method_jsonrpc.to_string(), params))
+                let msg = api::ForwardRequest {
+                    method: $method_jsonrpc.to_string(),
+                    params
+                };
+                app_addr.send(msg)
                     .map_err(error::Error::Mailbox)
                     .flatten()
                     .and_then(|x| {
@@ -124,7 +129,7 @@ impl ControllerBuilder {
 
     /// Start the `Controller` actor and its services, e.g.: server, storage, node client, and so on.
     pub fn start(self) -> Result<Addr<Controller>, error::Error> {
-        let app_addr = App::build()
+        let app = App::build()
             .node_url(self.node_url)
             .db_path(self.db_path)
             .start()?;
@@ -133,13 +138,13 @@ impl ControllerBuilder {
         handler.add_subscription(
             "notifications",
             ("subscribeNotifications", {
-                let addr = app_addr.clone();
-                move |_, _, subscriber| addr.do_send(app::Subscribe(subscriber))
+                let addr = app.clone();
+                move |_, _, subscriber| addr.do_send(api::SubscribeRequest(subscriber))
             }),
             ("unsubscribeNotifications", {
-                let addr = app_addr.clone();
+                let addr = app.clone();
                 move |id, _| {
-                    addr.send(app::Unsubscribe(id))
+                    addr.send(api::UnsubscribeRequest(id))
                         .map_err(error::Error::Mailbox)
                         .and_then(|_| future::ok(json!({"status": "ok"})))
                         .map_err(|err| error::ApiError::Execution(err).into())
@@ -149,7 +154,7 @@ impl ControllerBuilder {
 
         forwarded_routes!(
             handler,
-            app_addr,
+            app,
             "getBlock",
             "getBlockChain",
             "getOutput",
@@ -158,19 +163,19 @@ impl ControllerBuilder {
 
         routes!(
             handler,
-            app_addr,
-            ("getWalletInfos", app::GetWalletInfos),
-            ("createMnemonics", app::CreateMnemonics),
-            ("importSeed", app::ImportSeed),
-            ("createWallet", app::CreateWallet),
-            ("lockWallet", app::LockWallet),
-            ("unlockWallet", app::UnlockWallet),
-            ("getTransactions", app::GetTransactions),
-            ("sendVTT", app::SendVtt),
-            ("generateAddress", app::GenerateAddress),
-            ("createDataRequest", app::CreateDataRequest),
-            ("runRadRequest", app::RunRadRequest),
-            ("sendDataRequest", app::SendDataRequest),
+            app,
+            ("getWalletInfos", api::WalletInfosRequest),
+            ("createMnemonics", api::CreateMnemonicsRequest),
+            ("importSeed", api::ImportSeedRequest),
+            ("createWallet", api::CreateWalletRequest),
+            ("lockWallet", api::LockWalletRequest),
+            ("unlockWallet", api::UnlockWalletRequest),
+            ("getTransactions", api::GetTransactionsRequest),
+            ("sendVTT", api::SendVttRequest),
+            ("generateAddress", api::GenerateAddressRequest),
+            ("createDataRequest", api::CreateDataReqRequest),
+            ("runRadRequest", api::RunRadReqRequest),
+            ("sendDataRequest", api::SendDataReqRequest),
         );
 
         let server = Server::build()
@@ -180,7 +185,7 @@ impl ControllerBuilder {
             .map_err(error::Error::Server)?;
 
         let controller = Controller {
-            _app: app_addr,
+            _app: app,
             _server: server,
         };
 
