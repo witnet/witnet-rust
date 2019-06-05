@@ -378,17 +378,26 @@ pub fn validate_commit_reveal_signature(
     signatures: &[KeyedSignature],
 ) -> Result<&KeyedSignature, failure::Error> {
     if let Some(tx_keyed_signature) = signatures.get(0) {
-        let signature = tx_keyed_signature.signature.clone().try_into()?;
-        let public_key = tx_keyed_signature.public_key.clone().try_into()?;
         let Hash::SHA256(message) = tx_hash;
 
-        verify(&public_key, &message, &signature).map_err(|e| {
-            TransactionError::VerifyTransactionSignatureFail {
-                hash: tx_hash,
-                index: 0,
-                msg: e.to_string(),
-            }
-        })?;
+        let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
+            hash: tx_hash,
+            index: 0,
+            msg: e.to_string(),
+        };
+
+        let signature = tx_keyed_signature
+            .signature
+            .clone()
+            .try_into()
+            .map_err(fte)?;
+        let public_key = tx_keyed_signature
+            .public_key
+            .clone()
+            .try_into()
+            .map_err(fte)?;
+
+        verify(&public_key, &message, &signature).map_err(fte)?;
 
         Ok(tx_keyed_signature)
     } else {
