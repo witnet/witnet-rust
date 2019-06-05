@@ -306,6 +306,7 @@ pub fn create_vt_tally(
     let mut results = vec![];
     // TODO: Do not reward dishonest witnesses
     let reveal_reward = calculate_dr_vt_reward(dr_output);
+    let n_reveals = reveals.len() as u16;
 
     for reveal in reveals {
         let vt_output = ValueTransferOutput {
@@ -315,6 +316,17 @@ pub fn create_vt_tally(
         outputs.push(vt_output);
 
         results.push(reveal.body.reveal);
+    }
+
+    // Create tally change for the data request creator
+    if dr_output.witnesses > n_reveals {
+        debug!("Created tally change for the data request creator");
+        let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_reveals);
+        let vt_output_change = ValueTransferOutput {
+            pkh: dr_output.pkh,
+            value: tally_change,
+        };
+        outputs.push(vt_output_change);
     }
 
     (outputs, results)
