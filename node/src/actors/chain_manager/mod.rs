@@ -498,8 +498,8 @@ fn update_pools(
         }
     }
 
-    // Remove commits and reveals because they expire in one epoch
-    transactions_pool.clear_commits_reveals();
+    // Remove reveals because they expire every consolidated block
+    transactions_pool.clear_reveals();
 
     // Update own_utxos:
     if let Some(own_pkh) = own_pkh {

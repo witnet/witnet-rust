@@ -145,6 +145,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         only_inbound: true,
                     });
 
+                    // TODO: Review time since commits are clear and new ones are received before to mining
+                    // Remove commits because they expire every epoch
+                    self.transactions_pool.clear_commits();
+
                     // Mining
                     if self.mining_enabled {
                         // Data race: the data requests should be sent after mining the block, otherwise

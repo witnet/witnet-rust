@@ -772,9 +772,13 @@ impl TransactionsPool {
         self.vt_transactions.len()
     }
 
-    /// Clear commit and reveal transactions in TransactionsPool
-    pub fn clear_commits_reveals(&mut self) {
+    /// Clear commit transactions in TransactionsPool
+    pub fn clear_commits(&mut self) {
         self.co_transactions.clear();
+    }
+
+    /// Clear commit transactions in TransactionsPool
+    pub fn clear_reveals(&mut self) {
         self.re_transactions.clear();
     }
 
