@@ -307,12 +307,18 @@ impl Handler<AddTransaction> for ChainManager {
                     return;
                 }
 
-                let beacon = self.get_chain_beacon();
+                let mut dr_beacon = self.get_chain_beacon();
+                // We need a checkpoint beacon with the current epoch, but `get_chain_beacon`
+                // returns the epoch of the last block.
+                if let Some(epoch) = self.current_epoch {
+                    dr_beacon.checkpoint = epoch;
+                }
+
                 let rep_eng = self.chain_state.reputation_engine.as_ref().unwrap();
                 validate_commit_transaction(
                     tx,
                     &self.chain_state.data_request_pool,
-                    beacon,
+                    dr_beacon,
                     // The unwrap is safe because if there is no VRF context,
                     // the actor should have stopped execution
                     self.vrf_ctx.as_mut().unwrap(),

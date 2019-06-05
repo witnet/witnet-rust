@@ -231,7 +231,12 @@ impl ChainManager {
         }) {
             let num_witnesses =
                 data_request_output.witnesses + data_request_output.backup_witnesses;
-            signature_mngr::vrf_prove(VrfMessage::data_request(beacon, dr_pointer))
+            // The beacon used to create and verify data requests must be set to the current epoch
+            let dr_beacon = CheckpointBeacon {
+                checkpoint: current_epoch,
+                ..beacon
+            };
+            signature_mngr::vrf_prove(VrfMessage::data_request(dr_beacon, dr_pointer))
                 .map_err(move |e| {
                     error!(
                         "Couldn't create VRF proof for data request {}: {}",
