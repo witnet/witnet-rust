@@ -541,6 +541,8 @@ where
     (honests, liars)
 }
 
+// FIXME(#676): Remove clippy skip error
+#[allow(clippy::cognitive_complexity)]
 fn update_reputation(
     rep_eng: &mut ReputationEngine,
     consensus_constants: &ConsensusConstants,

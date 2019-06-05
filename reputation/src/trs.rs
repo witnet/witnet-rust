@@ -765,6 +765,8 @@ mod tests {
     }
 
     #[test]
+    // FIXME(#676): Remove clippy skip error
+    #[allow(clippy::cognitive_complexity)]
     fn multiple_identities() {
         let mut a = TotalReputationSet::new();
         let id1 = "Alice".to_string();
@@ -929,6 +931,8 @@ mod tests {
     }
 
     #[test]
+    // FIXME(#676): Remove clippy skip error
+    #[allow(clippy::cognitive_complexity)]
     fn active_rep_sum() {
         let mut trs = TotalReputationSet::new();
         let mut ars = ActiveReputationSet::new(2);

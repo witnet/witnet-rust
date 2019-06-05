@@ -442,6 +442,8 @@ fn p2p_sessions_consolidate() {
 
 /// Check the consensus of outbound consolidated sessions
 #[test]
+// FIXME(#676): Remove clippy skip error
+#[allow(clippy::cognitive_complexity)]
 fn p2p_sessions_consensus() {
     // Create sessions struct
     let mut sessions = Sessions::<String>::default();
