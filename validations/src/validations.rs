@@ -168,7 +168,12 @@ pub fn validate_vt_transaction<'a>(
     vt_tx: &'a VTTransaction,
     utxo_diff: &UtxoDiff,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
-    validate_transaction_signature(&vt_tx.signatures, &vt_tx.body.inputs, utxo_diff)?;
+    validate_transaction_signature(
+        &vt_tx.signatures,
+        &vt_tx.body.inputs,
+        vt_tx.hash(),
+        utxo_diff,
+    )?;
 
     let fee = vt_transaction_fee(vt_tx, utxo_diff)?;
 
@@ -186,7 +191,12 @@ pub fn validate_dr_transaction<'a>(
     dr_tx: &'a DRTransaction,
     utxo_diff: &UtxoDiff,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
-    validate_transaction_signature(&dr_tx.signatures, &dr_tx.body.inputs, utxo_diff)?;
+    validate_transaction_signature(
+        &dr_tx.signatures,
+        &dr_tx.body.inputs,
+        dr_tx.hash(),
+        utxo_diff,
+    )?;
 
     let fee = dr_transaction_fee(dr_tx, utxo_diff)?;
 
@@ -372,10 +382,11 @@ pub fn validate_commit_reveal_signature(
         let public_key = tx_keyed_signature.public_key.clone().try_into()?;
         let Hash::SHA256(message) = tx_hash;
 
-        verify(&public_key, &message, &signature).map_err(|_| {
+        verify(&public_key, &message, &signature).map_err(|e| {
             TransactionError::VerifyTransactionSignatureFail {
                 hash: tx_hash,
                 index: 0,
+                msg: e.to_string(),
             }
         })?;
 
@@ -389,6 +400,7 @@ pub fn validate_commit_reveal_signature(
 pub fn validate_transaction_signature(
     signatures: &[KeyedSignature],
     inputs: &[Input],
+    tx_hash: Hash,
     utxo_set: &UtxoDiff,
 ) -> Result<(), failure::Error> {
     if signatures.len() != inputs.len() {
@@ -398,8 +410,30 @@ pub fn validate_transaction_signature(
         })?
     }
 
-    for (input, keyed_signature) in inputs.iter().zip(signatures.iter()) {
-        validate_pkh_signature(input, keyed_signature, utxo_set)?
+    let tx_hash_bytes = match tx_hash {
+        Hash::SHA256(x) => x.to_vec(),
+    };
+
+    for (i, (input, keyed_signature)) in inputs.iter().zip(signatures.iter()).enumerate() {
+        // Helper function to map errors to include transaction hash and input
+        // index, as well as the error message.
+        let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
+            hash: tx_hash,
+            index: i as u8,
+            msg: e.to_string(),
+        };
+        // All of the following map_err can be removed if we refactor this to
+        // use a try block, however that's still unstable. See tracking issue:
+        // https://github.com/rust-lang/rust/issues/31436
+
+        // Validate that public key hash of the pointed output matches public
+        // key in the provided signature
+        validate_pkh_signature(input, keyed_signature, utxo_set).map_err(fte)?;
+
+        // Validate the actual signature
+        let public_key = keyed_signature.public_key.clone().try_into().map_err(fte)?;
+        let signature = keyed_signature.signature.clone().try_into().map_err(fte)?;
+        verify(&public_key, &tx_hash_bytes, &signature).map_err(fte)?;
     }
 
     Ok(())
