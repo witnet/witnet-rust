@@ -6,13 +6,12 @@ use std::{
         hash_map::{Entry, RandomState},
         HashMap, VecDeque,
     },
-    fmt,
     hash::{BuildHasher, Hash},
     iter,
     ops::{AddAssign, SubAssign},
 };
 
-use failure::Fail;
+use crate::error::{NonSortedAlpha, RepError};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -423,50 +422,6 @@ where
         Self::with_hasher()
     }
 }
-
-/// Received an alpha < max_alpha
-#[derive(Debug, PartialEq)]
-pub struct NonSortedAlpha<A> {
-    alpha: A,
-    max_alpha: A,
-}
-
-impl<A> fmt::Display for NonSortedAlpha<A>
-where
-    A: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Received an alpha < max_alpha: {:?} < {:?}",
-            self.alpha, self.max_alpha
-        )
-    }
-}
-
-impl<A> Fail for NonSortedAlpha<A> where A: 'static + fmt::Debug + Send + Sync {}
-
-/// Error in the penalization function
-#[derive(Debug, PartialEq)]
-pub struct RepError<V> {
-    old_rep: V,
-    new_rep: V,
-}
-
-impl<V> fmt::Display for RepError<V>
-where
-    V: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Penalization function returned more reputation than allowed: {:?} > {:?}",
-            self.new_rep, self.old_rep
-        )
-    }
-}
-
-impl<V> Fail for RepError<V> where V: 'static + fmt::Debug + Send + Sync {}
 
 #[cfg(test)]
 mod tests {

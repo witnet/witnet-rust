@@ -225,9 +225,16 @@ impl ChainManager {
         if let (Some(current_epoch), Some(chain_info), Some(rep_engine)) = (
             self.current_epoch,
             self.chain_state.chain_info.as_ref(),
-            self.chain_state.reputation_engine.as_ref(),
+            self.chain_state.reputation_engine.as_mut(),
         ) {
             let chain_beacon = chain_info.highest_block_checkpoint;
+
+            if let Err(e) = rep_engine
+                .ars
+                .update_empty(block.block_header.beacon.checkpoint)
+            {
+                log::error!("Error updating empty reputation in consolidation: {}", e);
+            }
 
             match validate_block(
                 block,
@@ -339,6 +346,7 @@ impl ChainManager {
                     miner_pkh,
                     rep_info,
                     log_level,
+                    block_epoch,
                 );
 
                 // Insert candidate block into `block_chain` state
@@ -552,6 +560,7 @@ fn update_reputation(
         lie_count,
     }: ReputationInfo,
     log_level: log::Level,
+    block_epoch: Epoch,
 ) {
     let old_alpha = rep_eng.current_alpha;
     let new_alpha = Alpha(old_alpha.0 + alpha_diff.0);
@@ -653,7 +662,18 @@ fn update_reputation(
 
     // Update active reputation set
     // Add block miner pkh to active identities
-    rep_eng.ars.push_activity(revealers.chain(vec![miner_pkh]));
+
+    if let Err(e) = rep_eng
+        .ars
+        .update(revealers.chain(vec![miner_pkh]), block_epoch)
+    {
+        log::error!("Error updating reputation in consolidation: {}", e);
+    }
+    log::log!(
+        log_level,
+        "Active users number: {}",
+        rep_eng.ars.active_identities_number()
+    );
 
     log::log!(log_level, "Total Reputation: {{");
     for (pkh, rep) in rep_eng

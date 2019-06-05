@@ -2,7 +2,9 @@ use actix::{fut::WrapFuture, prelude::*};
 use log::{debug, error, warn};
 
 use witnet_data_structures::{
-    chain::{CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, PublicKeyHash},
+    chain::{
+        ChainState, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, PublicKeyHash,
+    },
     error::{ChainInfoError, TransactionError},
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
@@ -69,7 +71,8 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
-        self.current_epoch = Some(msg.checkpoint);
+        let current_epoch = msg.checkpoint;
+        self.current_epoch = Some(current_epoch);
 
         debug!(
             "EpochNotification received while StateMachine is in state {:?}",
@@ -88,12 +91,18 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                 }
             }
             StateMachine::Synchronizing => {}
-            StateMachine::Synced => {
-                if let (Some(current_epoch), Some(chain_info), Some(rep_engine)) = (
-                    self.current_epoch,
-                    self.chain_state.chain_info.as_ref(),
-                    self.chain_state.reputation_engine.as_ref(),
-                ) {
+            StateMachine::Synced => match self.chain_state {
+                ChainState {
+                    chain_info: Some(ref mut chain_info),
+                    reputation_engine: Some(ref mut rep_engine),
+                    ..
+                } => {
+                    // Update reputation in possible empty epochs
+                    let expected_ars_epoch = current_epoch - 1;
+                    if let Err(e) = rep_engine.ars.update_empty(expected_ars_epoch) {
+                        log::error!("Error updating empty reputation: {}", e);
+                    }
+
                     // Decide the best candidate
                     // TODO: replace for loop with a try_fold
                     let mut chosen_candidate = None;
@@ -130,6 +139,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             "There was no valid block candidate to consolidate for epoch {}",
                             msg.checkpoint - 1
                         );
+
+                        // Update ActiveReputationSet in case of epochs without blocks
+                        if let Err(e) = rep_engine.ars.update(vec![], expected_ars_epoch) {
+                            log::error!("Error updating empty reputation with no blocks: {}", e);
+                        }
                     }
 
                     // Send last beacon in state 3 on block consolidation
@@ -163,10 +177,12 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                     // Clear candidates
                     self.candidates.clear();
-                } else {
-                    warn!("ChainManager doesn't have current epoch");
                 }
-            }
+
+                _ => {
+                    error!("No ChainInfo loaded in ChainManager");
+                }
+            },
         };
     }
 }
