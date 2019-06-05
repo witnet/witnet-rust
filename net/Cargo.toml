@@ -11,7 +11,6 @@ futures = "0.1.26"
 log = "0.4.6"
 env_logger = "0.6.1"
 jsonrpc-core = "11.0.0"
-actix-net = "0.2.6"
 async-jsonrpc-client = { git = "https://github.com/witnet/async-jsonrpc-client", features = ["tcp"] }
 tokio = "0.1.20"
 serde_json = "1.0.39"
