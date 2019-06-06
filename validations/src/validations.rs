@@ -254,7 +254,16 @@ pub fn validate_commit_transaction(
     }
 
     let dr_output = &dr_state.data_request;
-    validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures)?;
+    let commit_signature = validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures)?;
+
+    let pkh = commit_signature.public_key.pkh();
+    let pkh2 = co_tx.body.proof.proof.pkh();
+    if pkh != pkh2 {
+        Err(TransactionError::PublicKeyHashMismatch {
+            expected_pkh: pkh2,
+            signature_pkh: pkh,
+        })?
+    }
 
     let pkh = co_tx.body.proof.proof.pkh();
     let my_reputation = rep_eng.trs.get(&pkh);
