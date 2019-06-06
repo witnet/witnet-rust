@@ -360,8 +360,6 @@ impl ChainManager {
                             self.persist_data_request(ctx, &dr_report);
                         });
 
-                        show_info_dr(&self.chain_state.data_request_pool, &block);
-
                         log::trace!("{:?}", block);
                         debug!("Mint transaction hash: {:?}", block.txns.mint.hash());
 
@@ -369,6 +367,8 @@ impl ChainManager {
                             .chain_state
                             .data_request_pool
                             .update_data_request_stages();
+
+                        show_info_dr(&self.chain_state.data_request_pool, &block);
 
                         for reveal in reveals {
                             // Send AddTransaction message to self
