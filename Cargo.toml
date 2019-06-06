@@ -26,6 +26,7 @@ log = "0.4.6"
 serde_json = "1.0.39"
 structopt = "0.2.14"
 toml = "0.4.10"
+clap = "2.33.0"
 
 witnet_config = { path = "./config" }
 witnet_node = { path = "./node" }
@@ -36,6 +37,9 @@ witnet_rad = { path = "./rad" }
 witnet_storage = { path = "./storage", features = ["rocksdb-backend"] }
 witnet_util = { path = "./util" }
 witnet_validations = { path = "./validations" }
+witnet_wallet = { path = "./wallet" }
+terminal_size = "0.1.8"
+lazy_static = "1.3.0"
 
 [dependencies.serde]
 features = ["derive"]

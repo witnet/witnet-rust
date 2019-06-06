@@ -1,103 +1,85 @@
-use crate::cli::CliCommand;
-use failure::Fail;
-use log::{info, warn};
-use serde::Deserialize;
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::{
     fmt,
     io::{self, BufRead, BufReader, Read, Write},
     net::TcpStream,
-    path::PathBuf,
 };
-use witnet_config::config::Config;
-use witnet_config::loaders::toml;
+
+use failure::Fail;
+use serde::Deserialize;
+
 use witnet_data_structures::chain::OutputPointer;
 use witnet_node::actors::json_rpc::json_rpc_methods::GetBlockChainParams;
 
-pub(crate) fn run(last_config: Option<PathBuf>, cmd: CliCommand) -> Result<(), failure::Error> {
-    match cmd {
-        CliCommand::Raw { config } => {
-            // The -c/--config argument can come both after and before getBlockChain:
-            // witnet cli -c witnet.toml getBlockChain
-            // witnet cli getBlockChain -c witnet.toml
-            // The last one takes priority
-            let config = config.or(last_config);
-            let mut stream = start_client(config)?;
-            // The request is read from stdin, one line at a time
-            let mut request = String::new();
-            let stdin = io::stdin();
-            let mut stdin = stdin.lock();
-            loop {
-                request.clear();
-                let count = stdin.read_line(&mut request)?;
-                if count == 0 {
-                    break Ok(());
-                }
-                let response = send_request(&mut stream, &request)?;
-                // The response includes a newline, so use print instead of println
-                print!("{}", response);
-            }
+pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    // The request is read from stdin, one line at a time
+    let mut request = String::new();
+    let stdin = io::stdin();
+    let mut stdin = stdin.lock();
+    loop {
+        request.clear();
+        let count = stdin.read_line(&mut request)?;
+        if count == 0 {
+            break Ok(());
         }
-        CliCommand::GetBlockChain {
-            config,
-            epoch,
-            limit,
-        } => {
-            let config = config.or(last_config);
-            let params = GetBlockChainParams {
-                epoch: epoch.unwrap_or_default(),
-                limit: limit.unwrap_or_default(),
-            };
-            let mut stream = start_client(config)?;
-            let response = send_request(
-                &mut stream,
-                &format!(
-                    r#"{{"jsonrpc": "2.0","method": "getBlockChain", "params": {}, "id": 1}}"#,
-                    serde_json::to_string(&params).unwrap()
-                ),
-            )?;
-            info!("{}", response);
-            let block_chain: ResponseBlockChain<'_> = parse_response(&response)?;
-
-            for (epoch, hash) in block_chain {
-                println!("Block for epoch #{} had digest {}", epoch, hash);
-            }
-
-            Ok(())
-        }
-        CliCommand::GetBlock { config, hash } => {
-            let config = config.or(last_config);
-            let mut stream = start_client(config)?;
-            let request = format!(
-                r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
-                hash,
-            );
-            let response = send_request(&mut stream, &request)?;
-
-            println!("{}", response);
-
-            Ok(())
-        }
-        CliCommand::GetOutput {
-            config,
-            output_index,
-        } => {
-            let config = config.or(last_config);
-            let mut _stream = start_client(config)?;
-            let output_pointer = OutputPointer::from_str(&output_index)?;
-            let request_payload = serde_json::to_string(&output_pointer)?;
-            let _request = format!(
-                r#"{{"jsonrpc": "2.0","method": "getOutput", "params": [{}], "id": "1"}}"#,
-                request_payload,
-            );
-            //let response = send_request(&mut stream, &request)?;
-            let response = "unimplemented yet";
-
-            println!("{}", response);
-
-            Ok(())
-        }
+        let response = send_request(&mut stream, &request)?;
+        // The response includes a newline, so use print instead of println
+        print!("{}", response);
     }
+}
+
+pub fn get_blockchain(addr: SocketAddr, epoch: u32, limit: u32) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let params = GetBlockChainParams {
+        epoch: i64::from(epoch),
+        limit,
+    };
+    let response = send_request(
+        &mut stream,
+        &format!(
+            r#"{{"jsonrpc": "2.0","method": "getblockchain", "params": {}, "id": 1}}"#,
+            serde_json::to_string(&params).unwrap()
+        ),
+    )?;
+    log::info!("{}", response);
+    let block_chain: ResponseBlockChain<'_> = parse_response(&response)?;
+
+    for (epoch, hash) in block_chain {
+        println!("block for epoch #{} had digest {}", epoch, hash);
+    }
+
+    Ok(())
+}
+
+pub fn get_block(addr: SocketAddr, hash: String) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
+        hash,
+    );
+    let response = send_request(&mut stream, &request)?;
+
+    println!("{}", response);
+
+    Ok(())
+}
+
+pub fn get_output(addr: SocketAddr, pointer: String) -> Result<(), failure::Error> {
+    let mut _stream = start_client(addr)?;
+    let output_pointer = OutputPointer::from_str(&pointer)?;
+    let request_payload = serde_json::to_string(&output_pointer)?;
+    let _request = format!(
+        r#"{{"jsonrpc": "2.0","method": "getOutput", "params": [{}], "id": "1"}}"#,
+        request_payload,
+    );
+    //let response = send_request(&mut stream, &request)?;
+    let response = "unimplemented yet";
+
+    println!("{}", response);
+
+    Ok(())
 }
 
 // Response of the getBlockChain JSON-RPC method
@@ -140,18 +122,7 @@ struct ServerError {
 }
 
 #[derive(Debug, Fail)]
-struct ServerDisabled;
-
-#[derive(Debug, Fail)]
 struct ProtocolError(String);
-
-// Required for Fail derive
-impl fmt::Display for ServerDisabled {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("JSON-RPC server disabled by configuration")?;
-        Ok(())
-    }
-}
 
 // Required for Fail derive
 impl fmt::Display for ServerError {
@@ -172,14 +143,8 @@ impl fmt::Display for ProtocolError {
     }
 }
 
-fn start_client(config_path: Option<PathBuf>) -> Result<TcpStream, failure::Error> {
-    let config_file = config_path.unwrap_or_else(|| PathBuf::from("witnet.toml"));
-    let config = Config::from_partial(&toml::from_file(&config_file)?);
-    if !config.jsonrpc.enabled {
-        return Err(ServerDisabled.into());
-    }
-    let addr = config.jsonrpc.server_address;
-    info!("Connecting to JSON-RPC server at {}", addr);
+fn start_client(addr: SocketAddr) -> Result<TcpStream, failure::Error> {
+    log::info!("Connecting to JSON-RPC server at {}", addr);
     let stream = TcpStream::connect(addr);
 
     stream.map_err(Into::into)
@@ -192,7 +157,7 @@ fn send_request<S: Read + Write>(stream: &mut S, request: &str) -> Result<String
         0 => stream.write_all(b"\n")?,
         1 => {}
         _ => {
-            warn!("The request contains more than one newline, only the first response will be returned");
+            log::warn!("The request contains more than one newline, only the first response will be returned");
         }
     }
     // Read only one line
@@ -213,7 +178,7 @@ fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, failur
             }
         }
         Err(e) => {
-            info!("{}", e);
+            log::info!("{}", e);
             let error_json: JsonRpcError<'a> = serde_json::from_str(response)?;
             Err(error_json.error.into())
         }
