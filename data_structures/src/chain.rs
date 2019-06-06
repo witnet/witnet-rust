@@ -528,6 +528,12 @@ pub struct DataRequestOutput {
     pub time_lock: u64,
 }
 
+impl DataRequestOutput {
+    pub fn total_witnesses_reward(&self) -> u64 {
+        self.value - (self.commit_fee + self.reveal_fee + self.tally_fee)
+    }
+}
+
 /// Keyed signature data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::KeyedSignature")]

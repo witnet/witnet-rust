@@ -59,7 +59,7 @@ pub enum TransactionError {
         display = "Invalid Data Request reward ({}) for this number of witnesses ({})",
         dr_value, witnesses
     )]
-    InvalidDataRequestValue { dr_value: i64, witnesses: i64 },
+    InvalidDataRequestValue { dr_value: u64, witnesses: u16 },
     #[fail(display = "Data Request witnesses number is not enough")]
     InsufficientWitnesses,
     #[fail(

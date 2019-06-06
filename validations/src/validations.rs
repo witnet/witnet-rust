@@ -10,9 +10,9 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, BlockMerkleRoots, CheckpointBeacon, Epoch, Hash, Hashable, Input, KeyedSignature,
-        OutputPointer, PublicKeyHash, RADConsensus, RADRequest, Reputation, ReputationEngine,
-        UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, Epoch, Hash, Hashable, Input,
+        KeyedSignature, OutputPointer, PublicKeyHash, RADConsensus, RADRequest, Reputation,
+        ReputationEngine, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::DataRequestPool,
     error::{BlockError, TransactionError},
@@ -200,35 +200,38 @@ pub fn validate_dr_transaction<'a>(
 
     let fee = dr_transaction_fee(dr_tx, utxo_diff)?;
 
-    let dr_output = &dr_tx.body.dr_output;
+    let DataRequestOutput {
+        witnesses,
+        value: dr_value,
+        commit_fee,
+        reveal_fee,
+        tally_fee,
+        ref data_request,
+        ..
+    } = dr_tx.body.dr_output;
 
-    if dr_output.witnesses < 1 {
+    if witnesses < 1 {
         Err(TransactionError::InsufficientWitnesses)?
     }
 
-    let witnesses = i64::from(dr_output.witnesses);
-    let dr_value = dr_output.value as i64;
-    let commit_fee = dr_output.commit_fee as i64;
-    let reveal_fee = dr_output.reveal_fee as i64;
-    let tally_fee = dr_output.tally_fee as i64;
+    let sum_fees = commit_fee + reveal_fee + tally_fee;
 
-    // Reward to be shared between all the witnesses
-    let total_witness_reward = dr_value - tally_fee - commit_fee - reveal_fee;
-    // Must be greater than 0
-    if total_witness_reward <= 0 {
+    // Calculate reward to be shared between all the witnesses, which must be greater than 0
+    if dr_value <= sum_fees {
         Err(TransactionError::InvalidDataRequestReward {
-            reward: total_witness_reward,
+            reward: dr_value as i64 - sum_fees as i64,
         })?
     }
+    let total_witness_reward = dr_value - sum_fees;
     // Must be divisible by the number of witnesses
-    if (total_witness_reward % witnesses) != 0 {
+    if (total_witness_reward % u64::from(witnesses)) != 0 {
         Err(TransactionError::InvalidDataRequestValue {
             dr_value: total_witness_reward,
             witnesses,
         })?
     }
 
-    validate_rad_request(&dr_output.data_request)?;
+    validate_rad_request(&data_request)?;
 
     Ok((
         dr_tx.body.inputs.iter().collect(),
@@ -272,6 +275,8 @@ pub fn validate_commit_transaction(
         target_hash,
     )?;
 
+    // The commit fee here is the total commit fee: the reward for the miner
+    // for including all the required commitments for this data request
     Ok((dr_pointer, dr_output.witnesses, dr_output.commit_fee))
 }
 
@@ -301,6 +306,8 @@ pub fn validate_reveal_transaction(
         Err(TransactionError::MismatchedCommitment)?
     }
 
+    // The reveal fee here is the total commit fee: the reward for the miner
+    // for including all the required reveals for this data request
     Ok((
         dr_pointer,
         dr_state.data_request.witnesses,

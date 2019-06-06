@@ -291,24 +291,11 @@ impl DataRequestPool {
     }
 }
 
-/// Function to calculate the commit reward
-pub fn calculate_commit_reward(dr_output: &DataRequestOutput) -> u64 {
-    dr_output.value / u64::from(dr_output.witnesses) - dr_output.commit_fee
-}
-
-/// Function to calculate the reveal reward
-pub fn calculate_reveal_reward(dr_output: &DataRequestOutput) -> u64 {
-    calculate_commit_reward(dr_output) - dr_output.reveal_fee
-}
-
 /// Function to calculate the value transfer reward
 pub fn calculate_dr_vt_reward(dr_output: &DataRequestOutput) -> u64 {
-    calculate_reveal_reward(dr_output) - dr_output.tally_fee
-}
+    let total_reward = dr_output.total_witnesses_reward();
 
-/// Function to calculate the tally change
-pub fn calculate_tally_change(dr_output: &DataRequestOutput, n_reveals: u64) -> u64 {
-    calculate_reveal_reward(dr_output) * (u64::from(dr_output.witnesses) - n_reveals)
+    total_reward / u64::from(dr_output.witnesses)
 }
 
 pub fn create_vt_tally(
