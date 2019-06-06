@@ -1,4 +1,4 @@
-use std::{path::PathBuf, process::exit, result::Result};
+use std::{process::exit, result::Result};
 
 use actix::{Actor, System};
 use failure;
@@ -13,13 +13,10 @@ use crate::actors::{
 use crate::config_mngr;
 use crate::signature_mngr;
 use crate::storage_mngr;
+use witnet_config::config::Config;
 
 /// Function to run the main system
-pub fn run(
-    config: Option<PathBuf>,
-    fallback_config: Option<PathBuf>,
-    callback: fn(),
-) -> Result<(), failure::Error> {
+pub fn run(config: Config, callback: fn()) -> Result<(), failure::Error> {
     // Init system
     let system = System::new("node");
 
@@ -28,15 +25,7 @@ pub fn run(
 
     // Start ConfigManager actor
     config_mngr::start();
-    match (config, fallback_config) {
-        (Some(filename), _) => actix::Arbiter::spawn(
-            config_mngr::load_from_file(filename).map_err(|_| System::current().stop()),
-        ),
-        (_, Some(filename)) => {
-            actix::Arbiter::spawn(config_mngr::load_from_file(filename).map_err(|_| ()))
-        }
-        _ => (),
-    }
+    actix::Arbiter::spawn(config_mngr::set(config).map_err(|_| System::current().stop()));
 
     storage_mngr::start();
     signature_mngr::start();
