@@ -26,15 +26,15 @@ mod wallet;
 /// Run the Witnet wallet application.
 pub fn run(conf: Config) -> Result<(), error::Error> {
     let system = System::new("witnet-wallet");
-    let _controller = actors::Controller::build()
+    let controller = actors::Controller::build()
         .server_addr(conf.wallet.server_addr)
         .db_path(conf.wallet.db_path)
         .node_url(conf.wallet.node_url)
         .start()?;
 
-    signal::ctrl_c(|| {
+    signal::ctrl_c(move || {
         log::info!("Shutting down");
-        System::current().stop();
+        controller.do_send(actors::controller::Shutdown);
     });
 
     system.run().map_err(error::Error::Io)

@@ -101,3 +101,18 @@ impl ControllerBuilder {
 impl Actor for Controller {
     type Context = Context<Self>;
 }
+
+pub struct Shutdown;
+
+impl Message for Shutdown {
+    type Result = ();
+}
+
+impl Handler<Shutdown> for Controller {
+    type Result = ();
+
+    fn handle(&mut self, _: Shutdown, ctx: &mut Self::Context) -> Self::Result {
+        ctx.stop();
+        System::current().stop();
+    }
+}
