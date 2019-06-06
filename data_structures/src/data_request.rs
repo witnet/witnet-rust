@@ -43,10 +43,10 @@ impl DataRequestPool {
     }
 
     /// Get all reveals related to a `DataRequestOuput`
-    pub fn get_reveals(&self, dr_pointer: &Hash) -> Option<Vec<RevealTransaction>> {
+    pub fn get_reveals(&self, dr_pointer: &Hash) -> Option<Vec<&RevealTransaction>> {
         self.data_request_pool
             .get(dr_pointer)
-            .map(|dr_state| dr_state.info.reveals.values().cloned().collect())
+            .map(|dr_state| dr_state.info.reveals.values().collect())
     }
 
     /// Insert a reveal transaction into the pool

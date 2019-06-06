@@ -137,28 +137,23 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
 
 /// Function to validate a tally consensus
 pub fn validate_consensus(
-    reveals: Vec<Vec<u8>>,
-    miner_tally: Vec<u8>,
-    tally_stage: Vec<u8>,
+    reveals: &[&[u8]],
+    miner_tally: &[u8],
+    consensus: &RADConsensus,
 ) -> Result<(), failure::Error> {
     let radon_types_vec: Vec<RadonTypes> = reveals
         .iter()
-        .filter_map(|input| RadonTypes::try_from(input.as_slice()).ok())
+        .filter_map(|&input| RadonTypes::try_from(input).ok())
         .collect();
 
-    let local_tally = run_consensus(
-        radon_types_vec,
-        &RADConsensus {
-            script: tally_stage,
-        },
-    )?;
+    let local_tally = run_consensus(radon_types_vec, consensus)?;
 
     if local_tally == miner_tally {
         Ok(())
     } else {
         Err(TransactionError::MismatchedConsensus {
             local_tally,
-            miner_tally,
+            miner_tally: miner_tally.to_vec(),
         })?
     }
 }
@@ -347,23 +342,22 @@ pub fn validate_tally_transaction<'a>(
     }
 
     let dr_output = &dr_state.data_request;
-    let mut reveals: Vec<Vec<u8>> = vec![];
 
-    let all_reveals = dr_pool.get_reveals(&dr_pointer);
-
-    if let Some(all_reveals) = all_reveals {
-        reveals.extend(all_reveals.iter().map(|reveal| reveal.body.reveal.clone()));
-    } else {
-        Err(TransactionError::InvalidTallyTransaction)?
-    }
+    // The unwrap is safe because we know that the data request exists
+    let reveals: Vec<&[u8]> = dr_pool
+        .get_reveals(&dr_pointer)
+        .unwrap()
+        .into_iter()
+        .map(|reveal| reveal.body.reveal.as_slice())
+        .collect();
 
     //TODO: Check Tally convergence
 
     // Validate tally result
     let miner_tally = ta_tx.tally.clone();
-    let tally_stage = dr_output.data_request.consensus.script.clone();
+    let tally_stage = &dr_output.data_request.consensus;
 
-    validate_consensus(reveals, miner_tally, tally_stage)?;
+    validate_consensus(&reveals, &miner_tally, tally_stage)?;
 
     Ok((ta_tx.outputs.iter().collect(), dr_output.tally_fee))
 }
