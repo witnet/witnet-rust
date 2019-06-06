@@ -884,9 +884,14 @@ mod tests {
 
         // Include DRTransaction in DataRequestPool
         dr_pool.process_data_request(&dr_transaction, epoch);
+        dr_pool.update_data_request_stages();
 
         // Create Reveal and Commit
-        let reveal_body = RevealTransactionBody::new(dr_pointer, vec![], PublicKeyHash::default());
+        let reveal_body = RevealTransactionBody::new(
+            dr_pointer,
+            vec![],
+            "3e13996ed18be842d9d4303b428dd30c85db8e9e".parse().unwrap(),
+        );
         let reveal_signature = sign_reveal(&reveal_body);
 
         let commitment = reveal_signature.signature.hash();
@@ -906,7 +911,10 @@ mod tests {
         let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
 
         // Include CommitTransaction in DataRequestPool
-        let _aux = dr_pool.process_commit(&commit_transaction, &fake_block_hash);
+        dr_pool
+            .process_commit(&commit_transaction, &fake_block_hash)
+            .unwrap();
+        dr_pool.update_data_request_stages();
 
         let (h, n, fee) = validate_reveal_transaction(&reveal_transaction, &dr_pool).unwrap();
         assert_eq!(h, dr_pointer);
@@ -917,7 +925,7 @@ mod tests {
         let reveal_body2 = RevealTransactionBody::new(
             dr_pointer,
             vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-            PublicKeyHash::default(),
+            "3e13996ed18be842d9d4303b428dd30c85db8e9e".parse().unwrap(),
         );
         let reveal_signature2 = sign_reveal(&reveal_body2);
         let reveal_transaction2 = RevealTransaction::new(reveal_body2, vec![reveal_signature2]);

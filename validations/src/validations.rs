@@ -10,12 +10,12 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, Epoch, Hash, Hashable, Input,
-        KeyedSignature, OutputPointer, PublicKeyHash, RADConsensus, RADRequest, Reputation,
-        ReputationEngine, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage, Epoch,
+        Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADConsensus,
+        RADRequest, Reputation, ReputationEngine, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::DataRequestPool,
-    error::{BlockError, TransactionError},
+    error::{BlockError, DataRequestError, TransactionError},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
         VTTransaction,
@@ -248,13 +248,18 @@ pub fn validate_commit_transaction(
     vrf: &mut VrfCtx,
     rep_eng: &ReputationEngine,
 ) -> Result<(Hash, u16, u64), failure::Error> {
-    validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures)?;
-
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
-    let dr_output = dr_pool
-        .get_dr_output(&dr_pointer)
+    let dr_state = dr_pool
+        .data_request_pool
+        .get(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
+    if dr_state.stage != DataRequestStage::COMMIT {
+        Err(DataRequestError::NotCommitStage)?
+    }
+
+    let dr_output = &dr_state.data_request;
+    validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures)?;
 
     let pkh = co_tx.body.proof.proof.pkh();
     let my_reputation = rep_eng.trs.get(&pkh);
@@ -285,8 +290,6 @@ pub fn validate_reveal_transaction(
     re_tx: &RevealTransaction,
     dr_pool: &DataRequestPool,
 ) -> Result<(Hash, u16, u64), failure::Error> {
-    let reveal_signature = validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures)?;
-
     // Get DataRequest information
     let dr_pointer = re_tx.body.dr_pointer;
     let dr_state = dr_pool
@@ -294,7 +297,19 @@ pub fn validate_reveal_transaction(
         .get(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
+    if dr_state.stage != DataRequestStage::REVEAL {
+        Err(DataRequestError::NotRevealStage)?
+    }
+
+    let reveal_signature = validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures)?;
     let pkh = reveal_signature.public_key.pkh();
+    let pkh2 = re_tx.body.pkh;
+    if pkh != pkh2 {
+        Err(TransactionError::PublicKeyHashMismatch {
+            expected_pkh: pkh2,
+            signature_pkh: pkh,
+        })?
+    }
 
     let commit = dr_state
         .info
@@ -320,9 +335,20 @@ pub fn validate_tally_transaction<'a>(
     ta_tx: &'a TallyTransaction,
     dr_pool: &DataRequestPool,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    // Get DataRequestState
+    let dr_pointer = ta_tx.dr_pointer;
+    let dr_state = dr_pool
+        .data_request_pool
+        .get(&dr_pointer)
+        .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
+
+    if dr_state.stage != DataRequestStage::TALLY {
+        Err(DataRequestError::NotTallyStage)?
+    }
+
+    let dr_output = &dr_state.data_request;
     let mut reveals: Vec<Vec<u8>> = vec![];
 
-    let dr_pointer = ta_tx.dr_pointer;
     let all_reveals = dr_pool.get_reveals(&dr_pointer);
 
     if let Some(all_reveals) = all_reveals {
@@ -330,11 +356,6 @@ pub fn validate_tally_transaction<'a>(
     } else {
         Err(TransactionError::InvalidTallyTransaction)?
     }
-
-    // Get DataRequestState
-    let dr_output = dr_pool
-        .get_dr_output(&dr_pointer)
-        .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
     //TODO: Check Tally convergence
 
