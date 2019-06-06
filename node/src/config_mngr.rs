@@ -18,6 +18,12 @@ pub fn get() -> impl Future<Item = Arc<Config>, Error = failure::Error> {
     addr.send(Get).flatten()
 }
 
+/// Set the value for the configuration
+pub fn set(config: Config) -> impl Future<Item = (), Error = failure::Error> {
+    let addr = actix::System::current().registry().get::<ConfigManager>();
+    addr.send(Set(config)).flatten()
+}
+
 /// Substitute configuration in the manager with the one loaded from the
 /// given filename.
 pub fn load_from_file(filename: PathBuf) -> impl Future<Item = (), Error = failure::Error> {
@@ -39,6 +45,10 @@ struct ConfigManager {
 /// Message to obtain a reference to the configuration managed by the
 /// `ConfigManager` actor.
 struct Get;
+
+/// Message to set the value of the configuration managed by the
+/// `ConfigManager` actor.
+struct Set(Config);
 
 /// Message to load additional configuration from a source.
 struct Load(Source);
@@ -77,6 +87,10 @@ impl actix::Message for Get {
     type Result = Result<Arc<Config>, failure::Error>;
 }
 
+impl actix::Message for Set {
+    type Result = Result<(), failure::Error>;
+}
+
 impl actix::Message for Load {
     type Result = Result<(), failure::Error>;
 }
@@ -86,6 +100,16 @@ impl actix::Handler<Get> for ConfigManager {
 
     fn handle(&mut self, _msg: Get, _ctx: &mut Self::Context) -> Self::Result {
         Ok(self.config.clone())
+    }
+}
+
+impl actix::Handler<Set> for ConfigManager {
+    type Result = <Set as actix::Message>::Result;
+
+    fn handle(&mut self, Set(config): Set, _ctx: &mut Self::Context) -> Self::Result {
+        self.config = Arc::new(config);
+
+        Ok(())
     }
 }
 
