@@ -894,7 +894,7 @@ pub fn verify_poe_data_request(
 
 /// Diffs to apply to an utxo set. This type does not contains a
 /// reference to the original utxo set.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Diff {
     utxos_to_add: UnspentOutputsPool,
     utxos_to_remove: HashSet<OutputPointer>,
