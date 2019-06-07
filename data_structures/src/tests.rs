@@ -1,6 +1,6 @@
 use super::chain::*;
 
-// TODO(#522): Uncomment and review block/transaction validation tests
+// FIXME(#522): Uncomment and review block/transaction validation tests
 /*
 mod transaction {
     use super::*;

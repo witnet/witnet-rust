@@ -172,7 +172,7 @@ pub fn validate_vt_transaction<'a>(
 
     let fee = vt_transaction_fee(vt_tx, utxo_diff)?;
 
-    // TODO(#514): Implement value transfer transaction validation
+    // FIXME(#514): Implement value transfer transaction validation
 
     Ok((
         vt_tx.body.inputs.iter().collect(),

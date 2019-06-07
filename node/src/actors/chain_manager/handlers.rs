@@ -498,7 +498,7 @@ impl Handler<PeersBeacons> for ChainManager {
                 // we need to rewind one epoch
 
                 if pb.is_empty() {
-                    // TODO: all other peers disconnected, return to WaitingConsensus state?
+                    // FIXME(#682): all other peers disconnected, return to WaitingConsensus state?
                     log::warn!("[CONSENSUS]: We have zero outbound peers");
                 }
 
@@ -510,7 +510,7 @@ impl Handler<PeersBeacons> for ChainManager {
                     .highest_block_checkpoint;
 
                 // We also take into account our beacon to calculate the consensus
-                // TODO: should we count our own beacon when deciding consensus?
+                // FIXME(#682): should we count our own beacon when deciding consensus?
                 let consensus_beacon =
                     mode_consensus(pb.iter().map(|(_p, b)| b).chain(&[our_beacon])).cloned();
 
@@ -521,22 +521,20 @@ impl Handler<PeersBeacons> for ChainManager {
                             .into_iter()
                             .filter_map(|(p, b)| if b != our_beacon { Some(p) } else { None })
                             .collect();
-                        // TODO: target_beacon is not used in this state, right?
-                        // TODO: target_beacon can be a field in the state machine enum:
-                        // Synchronizing { target_beacon }
-                        // We could do the same with chain_state.chain_info, to avoid all the unwraps
-                        //self.target_beacon = Some(beacon);
+
                         Ok(peers_out_of_consensus)
                     }
                     Some(_a) => {
                         // We are out of consensus!
-                        // TODO: We should probably rewind(1) to avoid a fork, but for simplicity
+                        // FIXME(#682): We should probably rewind(1) to avoid a fork, but for simplicity
                         // (rewind is not implemented yet) we just print a message and carry on
                         log::warn!(
                             "[CONSENSUS]: We are on {:?} but the network is on {:?}",
                             our_beacon,
                             consensus_beacon
                         );
+
+                        // FIXME(#682): we should change to WaitingConsensus in this case.
 
                         // Return an empty vector indicating that we do not want to unregister any peer
                         Ok(vec![])
@@ -548,6 +546,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             "[CONSENSUS]: We are on {:?} but the network has no consensus",
                             our_beacon
                         );
+                        // FIXME(#682): Should we change to WaitingConsensus in this case?
                         // Return an empty vector indicating that we do not want to unregister any peer
                         Ok(vec![])
                     }

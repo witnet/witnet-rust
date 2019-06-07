@@ -106,7 +106,7 @@ pub struct ConsensusConstants {
     pub reputation_issuance_stop: u32,
 
     /// Penalization factor: fraction of reputation lost by liars for out of consensus claims
-    // TODO Use fixed point arithmetic (see Issue #172)
+    // FIXME(#172): Use fixed point arithmetic
     pub reputation_penalization_factor: f64,
 }
 
@@ -590,7 +590,7 @@ impl PublicKey {
 /// Secret Key data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SecretKey {
-    // TODO(#560): Use Protected type
+    // FIXME(#560): Use Protected type
     pub bytes: [u8; 32],
 }
 
@@ -600,7 +600,7 @@ pub struct ExtendedSecretKey {
     /// Secret key
     pub secret_key: SecretKey,
     /// Chain code
-    // TODO(#560): Use Protected type
+    // FIXME(#560): Use Protected type
     pub chain_code: [u8; 32],
 }
 
@@ -947,7 +947,6 @@ impl TransactionsPool {
                 Vec::with_capacity(20),
                 |mut reveals_vec, (dr_pointer, reveals)| {
                     if let Some(dr_output) = dr_pool.get_dr_output(&dr_pointer) {
-                        //TODO: Check if there are a commit associated
                         reveals_vec.extend(reveals.drain().map(|(_h, r)| r));
 
                         total_fee += dr_output.reveal_fee;

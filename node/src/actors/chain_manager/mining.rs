@@ -72,17 +72,17 @@ impl ChainManager {
             _ => return,
         };
 
-        if beacon.checkpoint > current_epoch {
+        if beacon.checkpoint >= current_epoch {
             // We got a block from the future
+            // Due to block consolidation from epoch N is done in epoch N+1,
+            // and chain beacon is the same that the last block known.
+            // Our chain beacon always come from the past epoch. So, a chain beacon
+            // with the current epoch is the same error if it is come from the future
             error!(
-                "The current highest checkpoint beacon is from the future ({:?} > {:?})",
+                "The current highest checkpoint beacon is from the future ({:?} >= {:?})",
                 beacon.checkpoint, current_epoch
             );
             return;
-        }
-        if beacon.checkpoint == current_epoch {
-            // For some reason we already got a valid block for this epoch
-            // TODO: Check eligibility anyway?
         }
         // The highest checkpoint beacon should contain the current epoch
         beacon.checkpoint = current_epoch;
