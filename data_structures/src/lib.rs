@@ -33,7 +33,3 @@ pub mod vrf;
 /// Serialization boilerplate to allow serializing some data structures as
 /// strings or bytes depending on the serializer.
 mod serialization_helpers;
-
-// TODO: tests should not be in `src/tests.rs`, there already exists a `tests/` folder for that
-#[cfg(test)]
-pub mod tests;
