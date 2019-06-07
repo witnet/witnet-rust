@@ -202,17 +202,19 @@ pub fn validate_dr_transaction<'a>(
     let reveal_fee = dr_output.reveal_fee as i64;
     let tally_fee = dr_output.tally_fee as i64;
 
-    if ((dr_value - tally_fee) % witnesses) != 0 {
-        Err(TransactionError::InvalidDataRequestValue {
-            dr_value,
-            witnesses,
+    // Reward to be shared between all the witnesses
+    let total_witness_reward = dr_value - tally_fee - commit_fee - reveal_fee;
+    // Must be greater than 0
+    if total_witness_reward <= 0 {
+        Err(TransactionError::InvalidDataRequestReward {
+            reward: total_witness_reward,
         })?
     }
-
-    let witness_reward = (dr_value - tally_fee - commit_fee - reveal_fee) / witnesses;
-    if witness_reward <= 0 {
-        Err(TransactionError::InvalidDataRequestReward {
-            reward: witness_reward,
+    // Must be divisible by the number of witnesses
+    if (total_witness_reward % witnesses) != 0 {
+        Err(TransactionError::InvalidDataRequestValue {
+            dr_value: total_witness_reward,
+            witnesses,
         })?
     }
 
