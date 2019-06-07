@@ -176,6 +176,15 @@ pub enum BlockError {
     /// Block verification signature process failed.
     #[fail(display = "Failed to verify the signature of block {}", hash)]
     VerifySignatureFail { hash: Hash },
+    /// Public Key Hash does not match
+    #[fail(
+        display = "Public key hash mismatch: VRF Proof PKH: {}, signature PKH: {}",
+        proof_pkh, signature_pkh
+    )]
+    PublicKeyHashMismatch {
+        proof_pkh: PublicKeyHash,
+        signature_pkh: PublicKeyHash,
+    },
 }
 
 #[derive(Debug, Fail)]

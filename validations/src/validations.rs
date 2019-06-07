@@ -373,6 +373,15 @@ pub fn validate_tally_transaction<'a>(
 
 /// Function to validate a block signature
 pub fn validate_block_signature(block: &Block) -> Result<(), failure::Error> {
+    let proof_pkh = block.block_header.proof.proof.pkh();
+    let signature_pkh = block.block_sig.public_key.pkh();
+    if proof_pkh != signature_pkh {
+        Err(BlockError::PublicKeyHashMismatch {
+            proof_pkh,
+            signature_pkh,
+        })?
+    }
+
     let keyed_signature = &block.block_sig;
 
     let signature = keyed_signature.signature.clone().try_into()?;
