@@ -39,7 +39,7 @@ pub fn get_blockchain(addr: SocketAddr, epoch: u32, limit: u32) -> Result<(), fa
     let response = send_request(
         &mut stream,
         &format!(
-            r#"{{"jsonrpc": "2.0","method": "getblockchain", "params": {}, "id": 1}}"#,
+            r#"{{"jsonrpc": "2.0","method": "getBlockChain", "params": {}, "id": 1}}"#,
             serde_json::to_string(&params).unwrap()
         ),
     )?;

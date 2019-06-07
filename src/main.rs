@@ -7,7 +7,6 @@
 use std::process;
 
 mod cli;
-mod json_rpc_client;
 
 fn main() {
     let args = cli::from_args();
