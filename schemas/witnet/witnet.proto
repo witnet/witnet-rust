@@ -207,7 +207,7 @@ message TallyTransaction {
 
 message MintTransaction {
     fixed32 epoch = 1;
-    repeated ValueTransferOutput outputs = 2;
+    ValueTransferOutput output = 2;
 }
 
 message Transaction {

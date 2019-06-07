@@ -75,8 +75,6 @@ pub enum TransactionError {
         signatures_n, inputs_n
     )]
     MismatchingSignaturesNumber { signatures_n: u8, inputs_n: u8 },
-    #[fail(display = "Invalid Position for a Mint Transaction")]
-    UnexpectedMint,
     /// Transaction verification process failed.
     #[fail(
         display = "Failed to verify the signature at index {} in transaction {}",
@@ -112,12 +110,6 @@ pub enum BlockError {
     /// The block has no transactions in it.
     #[fail(display = "The block has no transactions")]
     Empty,
-    ///The first transaction in the block is not a mint transaction.
-    #[fail(display = "The first transaction in the block is not a mint transaction.")]
-    NoMint,
-    /// There are more than one mint transactions in the block.
-    #[fail(display = "There are more than one mint transactions in the block.")]
-    DoubleMint,
     /// The total value created by the mint transaction of the block,
     /// and the output value of the rest of the transactions, plus the
     /// block reward, don't add up
@@ -129,6 +121,14 @@ pub enum BlockError {
         mint_value: u64,
         fees_value: u64,
         reward_value: u64,
+    },
+    #[fail(
+        display = "Mint transaction has invalid epoch: mint {}, block {}",
+        mint_epoch, block_epoch
+    )]
+    InvalidMintEpoch {
+        mint_epoch: Epoch,
+        block_epoch: Epoch,
     },
     #[fail(display = "The block has an invalid PoE")]
     NotValidPoe,

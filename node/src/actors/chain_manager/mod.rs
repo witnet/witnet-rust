@@ -331,7 +331,7 @@ impl ChainManager {
                     &mut self.chain_state.own_utxos,
                 );
 
-                let miner_pkh = block.txns.mint.outputs[0].pkh;
+                let miner_pkh = block.txns.mint.output.pkh;
 
                 update_reputation(
                     reputation_engine,

@@ -1521,7 +1521,11 @@ pub fn generate_unspent_outputs_pool(
                 update_utxo_outputs(&mut unspent_outputs, &tally_transaction.outputs, txn_hash);
             }
             Transaction::Mint(mint_transaction) => {
-                update_utxo_outputs(&mut unspent_outputs, &mint_transaction.outputs, txn_hash);
+                update_utxo_outputs(
+                    &mut unspent_outputs,
+                    &[mint_transaction.output.clone()],
+                    txn_hash,
+                );
             }
             _ => {}
         }

@@ -275,8 +275,7 @@ impl TallyTransaction {
 #[protobuf_convert(pb = "witnet::MintTransaction")]
 pub struct MintTransaction {
     pub epoch: Epoch,
-    // FIXME(#650): Modify outputs -> output
-    pub outputs: Vec<ValueTransferOutput>,
+    pub output: ValueTransferOutput,
 
     #[protobuf_convert(skip)]
     #[serde(skip)]
@@ -285,10 +284,10 @@ pub struct MintTransaction {
 
 impl MintTransaction {
     /// Creates a new mint transaction.
-    pub fn new(epoch: Epoch, outputs: Vec<ValueTransferOutput>) -> Self {
+    pub fn new(epoch: Epoch, output: ValueTransferOutput) -> Self {
         MintTransaction {
             epoch,
-            outputs,
+            output,
             hash: MemoHash::new(),
         }
     }
@@ -302,7 +301,7 @@ impl MintTransaction {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.outputs.is_empty()
+        false
     }
 }
 

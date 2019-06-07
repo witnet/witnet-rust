@@ -525,10 +525,10 @@ fn build_block(
     // Build Mint Transaction
     let mint = MintTransaction::new(
         epoch,
-        vec![ValueTransferOutput {
+        ValueTransferOutput {
             pkh: own_pkh,
             value: reward,
-        }],
+        },
     );
 
     // Compute `hash_merkle_root` and build block header
@@ -614,7 +614,6 @@ mod tests {
         };
 
         // Check if block only contains the Mint Transaction
-        assert_eq!(block.txns.mint.outputs.len(), 1);
         assert_eq!(block.txns.value_transfer_txns.len(), 0);
         assert_eq!(block.txns.data_request_txns.len(), 0);
         assert_eq!(block.txns.commit_txns.len(), 0);

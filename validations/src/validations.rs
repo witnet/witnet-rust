@@ -95,19 +95,28 @@ pub fn dr_transaction_fee(
 pub fn validate_mint_transaction(
     mint_tx: &MintTransaction,
     total_fees: u64,
-    block_reward: u64,
+    block_epoch: Epoch,
 ) -> Result<(), failure::Error> {
-    let mint_value = transaction_outputs_sum(&mint_tx.outputs);
+    // Mint epoch must be equal to block epoch
+    if mint_tx.epoch != block_epoch {
+        Err(BlockError::InvalidMintEpoch {
+            mint_epoch: mint_tx.epoch,
+            block_epoch,
+        })?
+    }
 
-    if mint_value != total_fees + block_reward {
+    let mint_value = mint_tx.output.value;
+    let block_reward_value = block_reward(mint_tx.epoch);
+    // Mint value must be equal to block_reward + transaction fees
+    if mint_value != total_fees + block_reward_value {
         Err(BlockError::MismatchedMintValue {
             mint_value,
             fees_value: total_fees,
-            reward_value: block_reward,
+            reward_value: block_reward_value,
         })?
-    } else {
-        Ok(())
     }
+
+    Ok(())
 }
 
 /// Function to validate a rad request
@@ -489,10 +498,10 @@ pub fn validate_block_transactions(
     // Validate commit transactions in a block
     let mut co_mt = ProgressiveMerkleTree::sha256();
     let mut commits_number = HashMap::new();
-    let beacon = block.block_header.beacon;
+    let block_beacon = block.block_header.beacon;
     for transaction in &block.txns.commit_txns {
         let (dr_pointer, dr_witnesses, fee) =
-            validate_commit_transaction(&transaction, dr_pool, beacon, vrf, rep_eng)?;
+            validate_commit_transaction(&transaction, dr_pool, block_beacon, vrf, rep_eng)?;
 
         increment_witnesses_counter(
             &mut commits_number,
@@ -566,17 +575,13 @@ pub fn validate_block_transactions(
     let ta_hash_merkle_root = ta_mt.root();
 
     // Validate mint
-    validate_mint_transaction(
-        &block.txns.mint,
-        total_fee,
-        block_reward(block.block_header.beacon.checkpoint),
-    )?;
+    validate_mint_transaction(&block.txns.mint, total_fee, block_beacon.checkpoint)?;
 
     // Insert mint in utxo
     update_utxo_diff(
         &mut utxo_diff,
         vec![],
-        block.txns.mint.outputs.iter().collect(),
+        vec![&block.txns.mint.output],
         block.txns.mint.hash(),
     );
 
