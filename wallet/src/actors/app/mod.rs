@@ -149,11 +149,23 @@ impl Actor for App {
     }
 }
 
+fn json_get<'a>(value: &'a json::Value, path: &[&str]) -> Option<&'a json::Value> {
+    let mut result = Some(value);
+    for key in path {
+        result = result.and_then(|v| v.get(key));
+    }
+    result
+}
+
 impl Handler<rpc_client::Notification> for App {
     type Result = <rpc_client::Notification as Message>::Result;
 
     fn handle(&mut self, msg: rpc_client::Notification, ctx: &mut Self::Context) -> Self::Result {
-        log::debug!("Sending notification to subscribers.");
+        let checkpoint = json_get(&msg.0, &["block_header", "beacon", "checkpoint"]);
+        log::debug!(
+            ">> Received notification from jsonrpc-client with checkpoint: {:?}",
+            checkpoint
+        );
         self.subscriptions
             .iter()
             .filter_map(|s| s.as_ref())
@@ -164,6 +176,8 @@ impl Handler<rpc_client::Notification> for App {
                 obj.insert("newBlock".to_string(), value);
 
                 let params = rpc::Params::Map(obj);
+
+                log::debug!("Sending notification to wallet-subscribers.");
 
                 subscriber
                     .notify(params)

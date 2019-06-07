@@ -79,15 +79,15 @@ impl JsonRpcClient {
         params: Value,
     ) -> impl Future<Item = Value, Error = Error> {
         log::trace!(
-            ">> Sending request, method: {:?}, params: {:?}",
+            "<< Sending request, method: {:?}, params: {:?}",
             &method,
             &params
         );
         self.socket
             .execute(&method, params)
-            .inspect(|resp| log::trace!("<< Received response: {:?}", resp))
+            .inspect(|resp| log::trace!(">> Received response: {:?}", resp))
             .map_err(|err| {
-                log::trace!("<< Received error: {}", err);
+                log::trace!(">> Received error: {}", err);
                 Error::Transport(err)
             })
     }
@@ -201,7 +201,12 @@ impl Handler<Subscribe> for JsonRpcClient {
                             let stream = act
                                 .socket
                                 .subscribe(&id.clone().into())
-                                .map(Notification)
+                                .map(|value| {
+                                    log::debug!(
+                                        "<< Forwarding notification from node to subscriber"
+                                    );
+                                    Notification(value)
+                                })
                                 .map_err(Error::Transport);
                             Self::add_stream(stream, ctx);
                             act.subscription_id = Some(id);
