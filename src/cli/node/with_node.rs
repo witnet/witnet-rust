@@ -22,7 +22,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             node.unwrap_or_else(|| config.connections.server_addr),
             pointer,
         ),
-        Command::Raw { node } => rpc::raw(node.unwrap_or_else(|| config.connections.server_addr)),
+        Command::Raw { node } => rpc::raw(node.unwrap_or_else(|| config.jsonrpc.server_address)),
         Command::ShowConfig => {
             // TODO: Implementation requires to make Config serializable
             Ok(())
