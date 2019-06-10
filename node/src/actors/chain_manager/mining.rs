@@ -579,9 +579,7 @@ mod tests {
     };
     use std::convert::TryInto;
     use witnet_crypto::signature::{sign, verify};
-    use witnet_data_structures::{
-        chain::*, error::TransactionError, transaction::*, vrf::VrfCtx, vrf::VrfProof,
-    };
+    use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
     use witnet_validations::validations::validate_block_signature;
 
     #[test]
@@ -845,97 +843,5 @@ mod tests {
         assert_eq!(public_key, public_key2);
 
         assert!(verify(&public_key2, &data, &signature2).is_ok());
-    }
-
-    fn sign_reveal(tx: &RevealTransactionBody) -> KeyedSignature {
-        let Hash::SHA256(data) = tx.hash();
-
-        let secp = Secp256k1::new();
-        let secret_key =
-            Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &secret_key);
-
-        let signature = sign(secret_key, &data);
-
-        KeyedSignature {
-            signature: Signature::from(signature),
-            public_key: PublicKey::from(public_key),
-        }
-    }
-
-    #[test]
-    fn commitment_validation() {
-        use witnet_validations::validations::validate_reveal_transaction;
-
-        // Create DataRequestPool
-        let mut dr_pool = DataRequestPool::default();
-
-        // Create DRTransaction
-        let fake_block_hash = Hash::SHA256([1; 32]);
-        let epoch = 0;
-        let dr_output = DataRequestOutput {
-            witnesses: 5,
-            reveal_fee: 100,
-            ..DataRequestOutput::default()
-        };
-        let dr_transaction = DRTransaction {
-            body: DRTransactionBody::new(vec![], vec![], dr_output),
-            ..DRTransaction::default()
-        };
-        let dr_pointer = dr_transaction.hash();
-
-        // Include DRTransaction in DataRequestPool
-        dr_pool.process_data_request(&dr_transaction, epoch);
-        dr_pool.update_data_request_stages();
-
-        // Create Reveal and Commit
-        let reveal_body = RevealTransactionBody::new(
-            dr_pointer,
-            vec![],
-            "3e13996ed18be842d9d4303b428dd30c85db8e9e".parse().unwrap(),
-        );
-        let reveal_signature = sign_reveal(&reveal_body);
-
-        let commitment = reveal_signature.signature.hash();
-        let public_key = reveal_signature.public_key.clone();
-
-        let commit_transaction = CommitTransaction::new(
-            CommitTransactionBody::new(
-                dr_pointer,
-                commitment,
-                DataRequestEligibilityClaim::default(),
-            ),
-            vec![KeyedSignature {
-                signature: Signature::default(),
-                public_key,
-            }],
-        );
-        let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
-
-        // Include CommitTransaction in DataRequestPool
-        dr_pool
-            .process_commit(&commit_transaction, &fake_block_hash)
-            .unwrap();
-        dr_pool.update_data_request_stages();
-
-        let (h, n, fee) = validate_reveal_transaction(&reveal_transaction, &dr_pool).unwrap();
-        assert_eq!(h, dr_pointer);
-        assert_eq!(n, 5);
-        assert_eq!(fee, 100);
-
-        // Create other reveal
-        let reveal_body2 = RevealTransactionBody::new(
-            dr_pointer,
-            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-            "3e13996ed18be842d9d4303b428dd30c85db8e9e".parse().unwrap(),
-        );
-        let reveal_signature2 = sign_reveal(&reveal_body2);
-        let reveal_transaction2 = RevealTransaction::new(reveal_body2, vec![reveal_signature2]);
-
-        let error = validate_reveal_transaction(&reveal_transaction2, &dr_pool).unwrap_err();
-        assert_eq!(
-            error.to_string(),
-            TransactionError::MismatchedCommitment.to_string()
-        );
     }
 }
