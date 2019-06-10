@@ -580,7 +580,7 @@ mod tests {
     use std::convert::TryInto;
     use witnet_crypto::signature::{sign, verify};
     use witnet_data_structures::{
-        chain::*, error::TransactionError, transaction::*, vrf::VrfProof,
+        chain::*, error::TransactionError, transaction::*, vrf::VrfCtx, vrf::VrfProof,
     };
     use witnet_validations::validations::validate_block_signature;
 
@@ -646,9 +646,10 @@ mod tests {
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
 
-        let block_proof = BlockEligibilityClaim {
-            proof: VrfProof::default(),
-        };
+        // Add valid vrf proof
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let secret_key = SecretKey { bytes: [0xcd; 32] };
+        let block_proof = BlockEligibilityClaim::create(vrf, &secret_key, block_beacon).unwrap();
 
         // Build empty block (because max weight is zero)
 
