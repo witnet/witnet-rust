@@ -207,16 +207,16 @@ pub enum Secp256k1ConversionError {
     )]
     FailSignatureConversion,
     #[fail(
-        display = " Failed to convert `witnet_data_structures::PublicKey` into `secp256k1::PublicKey`"
+        display = "Failed to convert `witnet_data_structures::PublicKey` into `secp256k1::PublicKey`"
     )]
     FailPublicKeyConversion,
     #[fail(
-        display = " Failed to convert `secp256k1::PublicKey` into `witnet_data_structures::PublicKey`: public key must be 33 bytes long, is {}",
+        display = "Failed to convert `secp256k1::PublicKey` into `witnet_data_structures::PublicKey`: public key must be 33 bytes long, is {}",
         size
     )]
     FailPublicKeyFromSlice { size: usize },
     #[fail(
-        display = " Failed to convert `witnet_data_structures::SecretKey` into `secp256k1::SecretKey`"
+        display = "Failed to convert `witnet_data_structures::SecretKey` into `secp256k1::SecretKey`"
     )]
     FailSecretKeyConversion,
 }
