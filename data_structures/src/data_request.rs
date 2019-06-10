@@ -298,30 +298,41 @@ pub fn calculate_dr_vt_reward(dr_output: &DataRequestOutput) -> u64 {
     total_reward / u64::from(dr_output.witnesses)
 }
 
-pub fn create_vt_tally(
+// FIXME(#640): replace with real truthness check function from radon engine
+// (currently we assume that all nodes are honest)
+pub fn true_revealer(_reveal: &RevealTransaction, _tally: &[u8]) -> bool {
+    true
+}
+
+pub fn create_tally(
+    dr_pointer: Hash,
     dr_output: &DataRequestOutput,
+    consensus_tally: Vec<u8>,
     reveals: Vec<RevealTransaction>,
-) -> (Vec<ValueTransferOutput>, Vec<Vec<u8>>) {
-    let mut outputs = vec![];
-    let mut results = vec![];
-    // TODO: Do not reward dishonest witnesses
+) -> TallyTransaction {
     let reveal_reward = calculate_dr_vt_reward(dr_output);
-    let n_reveals = reveals.len() as u16;
 
-    for reveal in reveals {
-        let vt_output = ValueTransferOutput {
-            pkh: reveal.body.pkh,
-            value: reveal_reward,
-        };
-        outputs.push(vt_output);
+    let mut outputs: Vec<ValueTransferOutput> = reveals
+        .into_iter()
+        .filter_map(|reveal| {
+            // Only reward reveals in consensus
+            if true_revealer(&reveal, &consensus_tally) {
+                let vt_output = ValueTransferOutput {
+                    pkh: reveal.body.pkh,
+                    value: reveal_reward,
+                };
+                Some(vt_output)
+            } else {
+                None
+            }
+        })
+        .collect();
 
-        results.push(reveal.body.reveal);
-    }
-
+    let n_honest = outputs.len() as u16;
     // Create tally change for the data request creator
-    if dr_output.witnesses > n_reveals {
+    if dr_output.witnesses > n_honest {
         debug!("Created tally change for the data request creator");
-        let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_reveals);
+        let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_honest);
         let vt_output_change = ValueTransferOutput {
             pkh: dr_output.pkh,
             value: tally_change,
@@ -329,7 +340,7 @@ pub fn create_vt_tally(
         outputs.push(vt_output_change);
     }
 
-    (outputs, results)
+    TallyTransaction::new(dr_pointer, consensus_tally, outputs)
 }
 
 #[cfg(test)]

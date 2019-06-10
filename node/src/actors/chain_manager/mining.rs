@@ -23,7 +23,7 @@ use witnet_data_structures::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, Hashable,
         PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
-    data_request::{create_vt_tally, DataRequestPool},
+    data_request::{create_tally, DataRequestPool},
     transaction::{
         CommitTransaction, CommitTransactionBody, MintTransaction, RevealTransaction,
         RevealTransactionBody, TallyTransaction, Transaction,
@@ -361,7 +361,8 @@ impl ChainManager {
                 .map(|(dr_pointer, reveals, dr_output)| {
                     debug!("Building tally for data request {}", dr_pointer);
 
-                    let (outputs, results) = create_vt_tally(&dr_output, reveals);
+                    let results: Vec<Vec<u8>> =
+                        reveals.iter().map(|r| r.body.reveal.clone()).collect();
 
                     let rad_manager_addr = System::current().registry().get::<RadManager>();
                     rad_manager_addr
@@ -388,7 +389,7 @@ impl ChainManager {
                         })
                         .and_then(move |consensus| {
                             let tally =
-                                TallyTransaction::new(dr_pointer, consensus.clone(), outputs);
+                                create_tally(dr_pointer, &dr_output, consensus.clone(), reveals);
 
                             let print_results: Vec<_> = results
                                 .into_iter()

@@ -55,8 +55,8 @@ use witnet_data_structures::{
         ConsensusConstants, DataRequestReport, Epoch, Hash, Hashable, InventoryItem, OutputPointer,
         PublicKeyHash, Reputation, ReputationEngine, TransactionsPool, UnspentOutputsPool,
     },
-    data_request::DataRequestPool,
-    transaction::{RevealTransaction, TallyTransaction, Transaction},
+    data_request::{true_revealer, DataRequestPool},
+    transaction::{TallyTransaction, Transaction},
     vrf::VrfCtx,
 };
 use witnet_rad::types::RadonTypes;
@@ -445,11 +445,6 @@ impl ReputationInfo {
         let tally = &tally_transaction.tally;
 
         for (pkh, reveal_tx) in reveals {
-            // FIXME(#640): replace with real truthness check function from radon engine
-            // (currently we assume that all nodes are honest)
-            fn true_revealer(_reveal: &RevealTransaction, _tally: &[u8]) -> bool {
-                true
-            }
             let liar = if true_revealer(reveal_tx, tally) {
                 0
             } else {
