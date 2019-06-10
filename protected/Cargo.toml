@@ -6,5 +6,9 @@ workspace = ".."
 description = "Protected bytes struct that will be zeroed when dropped"
 edition = "2018"
 
+[features]
+with_serde = ["serde"]
+
 [dependencies]
 memzero = "0.1.0"
+serde = { version = "1.0.92", optional = true}

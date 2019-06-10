@@ -14,6 +14,9 @@ use std::ops::{Deref, DerefMut};
 
 use memzero::Memzero;
 
+#[cfg(feature = "serde")]
+mod serde;
+
 /// Protected set of bytes
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Protected(Memzero<Vec<u8>>);
