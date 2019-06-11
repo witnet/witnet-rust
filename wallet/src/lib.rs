@@ -14,17 +14,17 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 use actix::prelude::*;
+use failure::Error;
 
 use witnet_config::config::Config;
 
 mod actors;
 mod api;
-mod error;
 mod signal;
 mod wallet;
 
 /// Run the Witnet wallet application.
-pub fn run(conf: Config) -> Result<(), error::Error> {
+pub fn run(conf: Config) -> Result<(), Error> {
     let system = System::new("witnet-wallet");
     let controller = actors::Controller::build()
         .server_addr(conf.wallet.server_addr)
@@ -37,5 +37,7 @@ pub fn run(conf: Config) -> Result<(), error::Error> {
         controller.do_send(actors::controller::Shutdown);
     });
 
-    system.run().map_err(error::Error::Io)
+    let _ = system.run()?;
+
+    Ok(())
 }

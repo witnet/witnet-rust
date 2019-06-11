@@ -1,7 +1,7 @@
 //! Error type definition
 use async_jsonrpc_client::ErrorKind as TransportErrorKind;
 use failure::Fail;
-use serde_json::{error::Error as JsonError, value, Value};
+use serde_json::error::Error as JsonError;
 
 /// Possible types of errors that can occurr when sending requests.
 #[derive(Debug, Fail)]

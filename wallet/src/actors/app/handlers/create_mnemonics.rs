@@ -2,15 +2,14 @@ use actix::prelude::*;
 
 use crate::actors::App;
 use crate::api;
-use crate::error;
 use witnet_crypto as crypto;
 
 impl Message for api::CreateMnemonicsRequest {
-    type Result = Result<api::CreateMnemonicsResponse, error::Error>;
+    type Result = Result<api::CreateMnemonicsResponse, failure::Error>;
 }
 
 impl Handler<api::CreateMnemonicsRequest> for App {
-    type Result = Result<api::CreateMnemonicsResponse, error::Error>;
+    type Result = Result<api::CreateMnemonicsResponse, failure::Error>;
 
     fn handle(
         &mut self,

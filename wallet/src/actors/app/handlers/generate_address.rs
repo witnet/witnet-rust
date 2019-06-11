@@ -2,14 +2,13 @@ use actix::prelude::*;
 
 use crate::actors::App;
 use crate::api;
-use crate::error;
 
 impl Message for api::GenerateAddressRequest {
-    type Result = Result<(), error::Error>;
+    type Result = Result<(), failure::Error>;
 }
 
 impl Handler<api::GenerateAddressRequest> for App {
-    type Result = Result<(), error::Error>;
+    type Result = Result<(), failure::Error>;
 
     fn handle(
         &mut self,

@@ -2,14 +2,13 @@ use actix::prelude::*;
 
 use crate::actors::App;
 use crate::api;
-use crate::error;
 
 impl Message for api::GetTransactionsRequest {
-    type Result = Result<(), error::Error>;
+    type Result = Result<(), failure::Error>;
 }
 
 impl Handler<api::GetTransactionsRequest> for App {
-    type Result = Result<(), error::Error>;
+    type Result = Result<(), failure::Error>;
 
     fn handle(
         &mut self,

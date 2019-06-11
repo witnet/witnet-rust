@@ -19,6 +19,7 @@ num_cpus = "1.10.0"
 jsonrpc-pubsub = "11.0.0"
 actix = "0.8.3"
 tokio-signal = "0.2.7"
+failure = "0.1.5"
 
 witnet_net = { path = "../net" }
 witnet_config = { path = "../config" }

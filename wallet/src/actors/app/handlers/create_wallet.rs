@@ -1,8 +1,7 @@
 use actix::prelude::*;
 
-use crate::actors::App;
+use crate::actors::{app::error, App};
 use crate::api;
-use crate::error;
 
 impl Message for api::CreateWalletRequest {
     type Result = Result<(), error::Error>;

@@ -2,17 +2,19 @@
 //!
 //! It is charge of managing the connection to the key-value database. This actor is blocking so it
 //! must be used with a `SyncArbiter`.
-
+use bincode::deserialize;
+use failure::Error;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use actix::prelude::*;
 
-mod error;
+use crate::wallet;
+
+pub mod error;
 mod handlers;
 
-pub use error::Error;
 pub use handlers::*;
 
 /// Expose options for tunning the database.
@@ -31,6 +33,22 @@ impl Storage {
 
     pub fn new(db: Arc<rocksdb::DB>) -> Self {
         Self { db }
+    }
+
+    pub fn get_wallet_infos(&self) -> Result<Vec<wallet::WalletInfo>, error::Error> {
+        let result = self
+            .db
+            .get("wallet-infos")
+            .map_err(error::Error::DbGetFailed)?;
+
+        match result {
+            Some(db_vec) => {
+                let value =
+                    deserialize(db_vec.as_ref()).map_err(error::Error::DeserializeFailed)?;
+                Ok(value)
+            }
+            None => Ok(Vec::new()),
+        }
     }
 }
 
@@ -63,12 +81,10 @@ impl<'a> StorageBuilder<'a> {
     /// Start an instance of the actor inside a SyncArbiter.
     pub fn start(self) -> Result<Addr<Storage>, Error> {
         let options = self.options.unwrap_or_default();
-        let path = self
-            .path
-            .map_or_else(env::current_dir, Ok)
-            .map_err(Error::Io)?;
+        let path = self.path.map_or_else(env::current_dir, Ok)?;
         let file_name = self.name.unwrap_or_else(|| "witnet_wallets.db");
-        let db = rocksdb::DB::open(&options, path.join(file_name)).map_err(Error::Db)?;
+        let db = rocksdb::DB::open(&options, path.join(file_name))
+            .map_err(error::Error::OpenDbFailed)?;
         let db_ref = Arc::new(db);
 
         // Spawn one thread with the storage actor (because is blocking). Do not use more than one

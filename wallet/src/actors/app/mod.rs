@@ -4,6 +4,8 @@
 use std::path::PathBuf;
 
 use actix::prelude::*;
+use failure::Error;
+use futures::future;
 use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
 use serde_json::{self as json, json};
@@ -12,10 +14,9 @@ use super::{
     rad_executor::RadExecutor,
     storage::{self, Storage},
 };
-use crate::error;
-use futures::future;
 use witnet_net::client::tcp::{jsonrpc as rpc_client, JsonRpcClient};
 
+pub mod error;
 mod handlers;
 
 /// Application actor.
@@ -36,13 +37,13 @@ impl App {
 
     /// Return an id for a new subscription. If there are no available subscription slots, then
     /// `None` is returned.
-    pub fn subscribe(&mut self, subscriber: pubsub::Subscriber) -> Result<usize, &'static str> {
+    pub fn subscribe(&mut self, subscriber: pubsub::Subscriber) -> Result<usize, error::Error> {
         let (id, slot) = self
             .subscriptions
             .iter_mut()
             .enumerate()
             .find(|(_, slot)| slot.is_none())
-            .ok_or_else(|| "Subscriptions limit reached.")?;
+            .ok_or_else(|| error::Error::SubscribeFailed("max limit of subscriptions reached"))?;
 
         *slot = subscriber
             .assign_id(pubsub::SubscriptionId::from(id as u64))
@@ -52,16 +53,18 @@ impl App {
     }
 
     /// Remove a subscription and leave its corresponding slot free.
-    pub fn unsubscribe(&mut self, id: pubsub::SubscriptionId) -> Result<(), &'static str> {
+    pub fn unsubscribe(&mut self, id: pubsub::SubscriptionId) -> Result<(), error::Error> {
         let index = match id {
             pubsub::SubscriptionId::Number(n) => Ok(n as usize),
-            _ => Err("Subscription Id must be a number"),
+            _ => Err(error::Error::UnsubscribeFailed(
+                "subscription id must be a number",
+            )),
         }?;
         let slot = self
             .subscriptions
             .as_mut()
             .get_mut(index)
-            .ok_or_else(|| "Subscription Id out of range")?;
+            .ok_or_else(|| error::Error::UnsubscribeFailed("subscription id not found"))?;
 
         *slot = None;
 
@@ -74,22 +77,21 @@ impl App {
         method: String,
         params: rpc::Params,
     ) -> ResponseFuture<json::Value, error::Error> {
-        match self.node_client {
-            Some(ref addr) => match rpc_client::Request::method(method).params(params) {
-                Ok(req) => {
-                    let fut = addr
-                        .send(req)
-                        .map_err(error::Error::Mailbox)
-                        .and_then(|result| result.map_err(error::Error::Client));
-                    Box::new(fut)
-                }
-                Err(err) => {
-                    let fut = future::err(error::Error::Client(err));
-                    Box::new(fut)
-                }
-            },
+        match &self.node_client {
+            Some(addr) => {
+                let req = rpc_client::Request::method(method)
+                    .params(params)
+                    .expect("rpc::Params failed serialization");
+                let fut = addr
+                    .send(req)
+                    .map_err(error::Error::RequestFailedToSend)
+                    .and_then(|result| result.map_err(error::Error::RequestFailed));
+
+                Box::new(fut)
+            }
             None => {
                 let fut = future::err(error::Error::NodeNotConnected);
+
                 Box::new(fut)
             }
         }
@@ -114,24 +116,21 @@ impl AppBuilder {
     }
 
     /// Start App actor with given addresses for Storage and Rad actors.
-    pub fn start(self) -> Result<Addr<App>, error::Error> {
+    pub fn start(self) -> Result<Addr<App>, Error> {
         let node_url = self.node_url;
-        let node_client = node_url
-            .clone()
-            .map_or_else(
-                || Ok(None),
-                |url| JsonRpcClient::start(url.as_ref()).map(Some),
-            )
-            .map_err(error::Error::Client)?;
+        let node_client = node_url.clone().map_or_else(
+            || Ok(None),
+            |url| JsonRpcClient::start(url.as_ref()).map(Some),
+        )?;
         let storage = Storage::build()
             .with_path(self.db_path)
+            .with_file_name("witnet_wallets.db")
             .with_options({
                 let mut db_opts = storage::Options::default();
                 db_opts.create_if_missing(true);
                 db_opts
             })
-            .start()
-            .map_err(error::Error::Storage)?;
+            .start()?;
         let rad_executor = RadExecutor::start();
 
         let app = App {
@@ -159,6 +158,8 @@ impl Actor for App {
         }
     }
 }
+
+impl Supervised for App {}
 
 fn json_get<'a>(value: &'a json::Value, path: &[&str]) -> Option<&'a json::Value> {
     let mut result = Some(value);

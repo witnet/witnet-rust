@@ -2,6 +2,7 @@
 //!
 //! The Controller actor holds the address of the App actor and the instance of the Websockets server, and is in charge of graceful shutdown of the entire system.
 //! See `Controller` struct for more info.
+use failure::Error;
 use std::net;
 use std::path::PathBuf;
 
@@ -11,7 +12,6 @@ use jsonrpc_pubsub as pubsub;
 
 use super::App;
 use crate::api;
-use crate::error;
 use witnet_net::server::ws::Server;
 
 /// Controller actor.
@@ -73,7 +73,7 @@ impl ControllerBuilder {
     }
 
     /// Start the `Controller` actor and its services, e.g.: server, storage, node client, and so on.
-    pub fn start(self) -> Result<Addr<Controller>, error::Error> {
+    pub fn start(self) -> Result<Addr<Controller>, Error> {
         let app = App::build()
             .node_url(self.node_url)
             .db_path(self.db_path)
@@ -86,8 +86,7 @@ impl ControllerBuilder {
         let server = Server::build()
             .handler(handler)
             .addr(self.server_addr)
-            .start()
-            .map_err(error::Error::Server)?;
+            .start()?;
 
         let controller = Controller {
             _app: app,
