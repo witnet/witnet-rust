@@ -170,6 +170,23 @@ pub fn validate_vt_transaction<'a>(
         utxo_diff,
     )?;
 
+    // A value transfer transaction must have at least one input
+    if vt_tx.body.inputs.is_empty() {
+        Err(TransactionError::NoInputs {
+            tx_hash: vt_tx.hash(),
+        })?
+    }
+
+    // A value transfer output cannot have zero value
+    for (idx, output) in vt_tx.body.outputs.iter().enumerate() {
+        if output.value == 0 {
+            Err(TransactionError::ZeroValueOutput {
+                tx_hash: vt_tx.hash(),
+                output_id: idx,
+            })?
+        }
+    }
+
     let fee = vt_transaction_fee(vt_tx, utxo_diff)?;
 
     // FIXME(#514): Implement value transfer transaction validation
@@ -192,6 +209,16 @@ pub fn validate_dr_transaction<'a>(
         dr_tx.hash(),
         utxo_diff,
     )?;
+
+    // A value transfer output cannot have zero value
+    for (idx, output) in dr_tx.body.outputs.iter().enumerate() {
+        if output.value == 0 {
+            Err(TransactionError::ZeroValueOutput {
+                tx_hash: dr_tx.hash(),
+                output_id: idx,
+            })?
+        }
+    }
 
     let fee = dr_transaction_fee(dr_tx, utxo_diff)?;
 

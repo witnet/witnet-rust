@@ -96,12 +96,20 @@ pub enum TransactionError {
     /// Commit related to a reveal not found
     #[fail(display = "Commitment related to a reveal not found")]
     CommitNotFound,
-
     /// Commitment field in CommitTransaction does not match with RevealTransaction signature
     #[fail(
         display = "Commitment field in CommitTransaction does not match with RevealTransaction signature"
     )]
     MismatchedCommitment,
+    /// No inputs when the transaction must have at least one
+    #[fail(display = "Transaction {} cannot have zero inputs", tx_hash)]
+    NoInputs { tx_hash: Hash },
+    /// An output with zero value does not make sense
+    #[fail(
+        display = "Transaction {} has a zero value output at index {}",
+        tx_hash, output_id
+    )]
+    ZeroValueOutput { tx_hash: Hash, output_id: usize },
 }
 
 /// The error type for operations on a [`Block`](Block)
