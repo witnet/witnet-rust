@@ -3,7 +3,9 @@
 //! It is charge of managing the connection to the key-value database. This actor is blocking so it
 //! must be used with a `SyncArbiter`.
 
+use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use actix::prelude::*;
 
@@ -13,53 +15,68 @@ mod handlers;
 pub use error::Error;
 pub use handlers::*;
 
+/// Expose options for tunning the database.
+pub type Options = rocksdb::Options;
+
 /// Storage actor.
 pub struct Storage {
-    /// Path where to store the wallet database.
-    /// This is used during the wallet generation step.
-    // TODO: remove this allow attribute when the wallet-database is implemented.
-    #[allow(dead_code)]
-    db_path: PathBuf,
-    wallets: Result<rocksdb::DB, rocksdb::Error>,
-    /// It holds the instance of the currently open wallet database.
-    // TODO: remove this allow attribute when the wallet-database is implemented and the client is
-    // able to "open" a wallet.
-    #[allow(dead_code)]
-    wallet: Option<Result<rocksdb::DB, rocksdb::Error>>,
+    /// Holds the wallets ids in plain text, and the wallets information encrypted with a password.
+    db: Arc<rocksdb::DB>,
 }
 
 impl Storage {
-    /// Create a new instance of the Storage actor.
-    ///
-    /// It receives a path where to store:
-    ///
-    /// 1. The wallets database, which contains metadata about all created wallets.
-    /// 2. Each individual wallet database that is created.
-    pub fn new(db_path: PathBuf) -> Self {
-        let mut options = rocksdb::Options::default();
-
-        options.create_if_missing(true);
-
-        Self::with_options(db_path, options)
+    pub fn build<'a>() -> StorageBuilder<'a> {
+        StorageBuilder::default()
     }
 
-    /// Create a new instance of the Storage actor using the given database options.
-    pub fn with_options(db_path: PathBuf, options: rocksdb::Options) -> Self {
-        let wallets = rocksdb::DB::open(&options, db_path.join("wallets"));
+    pub fn new(db: Arc<rocksdb::DB>) -> Self {
+        Self { db }
+    }
+}
 
-        Self {
-            db_path,
-            wallets,
-            wallet: None,
-        }
+#[derive(Default)]
+pub struct StorageBuilder<'a> {
+    options: Option<rocksdb::Options>,
+    path: Option<PathBuf>,
+    name: Option<&'a str>,
+}
+
+impl<'a> StorageBuilder<'a> {
+    /// Create a new instance of the Storage actor using the given database options.
+    pub fn with_options(mut self, options: rocksdb::Options) -> Self {
+        self.options = Some(options);
+        self
+    }
+
+    /// Set the path where to store the database files.
+    pub fn with_path(mut self, path: PathBuf) -> Self {
+        self.path = Some(path);
+        self
+    }
+
+    /// Set the filename of the database.
+    pub fn with_file_name(mut self, name: &'a str) -> Self {
+        self.name = Some(name);
+        self
     }
 
     /// Start an instance of the actor inside a SyncArbiter.
-    pub fn start(db_path: PathBuf) -> Addr<Self> {
+    pub fn start(self) -> Result<Addr<Storage>, Error> {
+        let options = self.options.unwrap_or_default();
+        let path = self
+            .path
+            .map_or_else(env::current_dir, Ok)
+            .map_err(Error::Io)?;
+        let file_name = self.name.unwrap_or_else(|| "witnet_wallets.db");
+        let db = rocksdb::DB::open(&options, path.join(file_name)).map_err(Error::Db)?;
+        let db_ref = Arc::new(db);
+
         // Spawn one thread with the storage actor (because is blocking). Do not use more than one
         // thread, otherwise you'll receive and error because RocksDB only allows one connection at a
         // time.
-        SyncArbiter::start(1, move || Self::new(db_path.clone()))
+        let addr = SyncArbiter::start(1, move || Storage::new(db_ref.clone()));
+
+        Ok(addr)
     }
 }
 

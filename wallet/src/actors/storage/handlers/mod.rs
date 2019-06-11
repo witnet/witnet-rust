@@ -1,4 +1,4 @@
 //! # Storage actor message handlers.
-mod get;
+mod wallet_infos;
 
-pub use get::*;
+pub use wallet_infos::*;

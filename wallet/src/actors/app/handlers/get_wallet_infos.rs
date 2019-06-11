@@ -16,14 +16,10 @@ impl Handler<api::WalletInfosRequest> for App {
     fn handle(&mut self, _msg: api::WalletInfosRequest, _ctx: &mut Self::Context) -> Self::Result {
         let fut = self
             .storage
-            .send(storage::Get::with_static_key("wallet-infos"))
+            .send(storage::GetWalletInfos)
             .map_err(error::Error::Mailbox)
             .and_then(|res| future::result(res).map_err(error::Error::Storage))
-            .and_then(|opt| {
-                future::ok(api::WalletInfosResponse {
-                    infos: opt.unwrap_or_else(Vec::new),
-                })
-            });
+            .and_then(|infos| future::ok(api::WalletInfosResponse { infos }));
 
         Box::new(fut)
     }

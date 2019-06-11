@@ -8,7 +8,10 @@ use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
 use serde_json::{self as json, json};
 
-use super::{rad_executor::RadExecutor, storage::Storage};
+use super::{
+    rad_executor::RadExecutor,
+    storage::{self, Storage},
+};
 use crate::error;
 use futures::future;
 use witnet_net::client::tcp::{jsonrpc as rpc_client, JsonRpcClient};
@@ -120,7 +123,15 @@ impl AppBuilder {
                 |url| JsonRpcClient::start(url.as_ref()).map(Some),
             )
             .map_err(error::Error::Client)?;
-        let storage = Storage::start(self.db_path);
+        let storage = Storage::build()
+            .with_path(self.db_path)
+            .with_options({
+                let mut db_opts = storage::Options::default();
+                db_opts.create_if_missing(true);
+                db_opts
+            })
+            .start()
+            .map_err(error::Error::Storage)?;
         let rad_executor = RadExecutor::start();
 
         let app = App {
