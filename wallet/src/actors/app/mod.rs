@@ -8,7 +8,7 @@ use failure::Error;
 use futures::future;
 use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
-use serde_json::{self as json, json};
+use serde_json::json;
 
 use witnet_net::client::tcp::{jsonrpc as rpc_client, JsonRpcClient};
 use witnet_protected::ProtectedString;
@@ -82,7 +82,7 @@ impl App {
         &mut self,
         method: String,
         params: rpc::Params,
-    ) -> ResponseFuture<json::Value, Error> {
+    ) -> ResponseFuture<serde_json::Value, Error> {
         match &self.node_client {
             Some(addr) => {
                 let req = rpc_client::Request::method(method)
