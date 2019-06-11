@@ -11,6 +11,7 @@
 #![deny(missing_docs)]
 
 use std::ops::{Deref, DerefMut};
+use std::str;
 
 use memzero::Memzero;
 
@@ -21,9 +22,16 @@ mod serde;
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Protected(Memzero<Vec<u8>>);
 
+impl Protected {
+    /// Create new protected set of bytes.
+    pub fn new<T: Into<Vec<u8>>>(m: T) -> Self {
+        Protected(m.into().into())
+    }
+}
+
 impl<T: Into<Vec<u8>>> From<T> for Protected {
     fn from(x: T) -> Self {
-        Protected::new(x.into())
+        Self::new(x.into())
     }
 }
 
@@ -53,15 +61,52 @@ impl DerefMut for Protected {
     }
 }
 
-impl Protected {
-    /// Create new protected set of bytes.
-    pub fn new<T: Into<Vec<u8>>>(m: T) -> Self {
-        Protected(m.into().into())
-    }
-}
-
 impl std::fmt::Debug for Protected {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(fmt, "Protected(***)")
+    }
+}
+
+/// Protected string
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProtectedString(Protected);
+
+impl ProtectedString {
+    const INVALID_STRING: &'static str = "ProtectedString does not contain a valid UTF-8 string";
+
+    /// Create new protected string.
+    pub fn new<T: Into<String>>(m: T) -> Self {
+        ProtectedString(Protected::new(m.into().into_bytes()))
+    }
+}
+
+impl<T: ToString> From<T> for ProtectedString {
+    fn from(x: T) -> Self {
+        Self::new(x.to_string())
+    }
+}
+
+impl AsRef<str> for ProtectedString {
+    fn as_ref(&self) -> &str {
+        let bytes = self.0.as_ref();
+        str::from_utf8(bytes).expect(Self::INVALID_STRING)
+    }
+}
+
+impl AsRef<[u8]> for ProtectedString {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl std::fmt::Debug for ProtectedString {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(fmt, "ProtectedString(***)")
+    }
+}
+
+impl Into<Protected> for ProtectedString {
+    fn into(self) -> Protected {
+        self.0
     }
 }

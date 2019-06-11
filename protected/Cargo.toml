@@ -7,7 +7,7 @@ description = "Protected bytes struct that will be zeroed when dropped"
 edition = "2018"
 
 [features]
-with_serde = ["serde"]
+with-serde = ["serde"]
 
 [dependencies]
 memzero = "0.1.0"
