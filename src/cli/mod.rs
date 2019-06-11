@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use lazy_static::lazy_static;
 use structopt::StructOpt;
@@ -23,16 +23,33 @@ pub fn exec(command: Cli) -> Result<(), failure::Error> {
             ..
         } => {
             let config = get_config(config.or_else(config::dirs::find_config))?;
-            let mut filter = None;
+            let mut log_opts = LogOptions {
+                level: config.log.level,
+                source: LogOptionsSource::Config,
+            };
 
-            if trace {
-                filter = Some(log::LevelFilter::Trace);
-            } else if debug {
-                filter = Some(log::LevelFilter::Debug);
+            if let Ok(rust_log) = env::var("RUST_LOG") {
+                if rust_log.contains("witnet") {
+                    log_opts = LogOptions {
+                        level: env_logger::Logger::from_default_env().filter(),
+                        source: LogOptionsSource::Env,
+                    };
+                }
             }
 
-            init_logger(filter);
+            if trace {
+                log_opts = LogOptions {
+                    level: log::LevelFilter::Trace,
+                    source: LogOptionsSource::Flag,
+                };
+            } else if debug {
+                log_opts = LogOptions {
+                    level: log::LevelFilter::Debug,
+                    source: LogOptionsSource::Flag,
+                };
+            }
 
+            init_logger(log_opts);
             exec_cmd(cmd, config)
         }
     }
@@ -45,18 +62,17 @@ fn exec_cmd(command: Command, config: config::config::Config) -> Result<(), fail
     }
 }
 
-fn init_logger(filter: Option<log::LevelFilter>) {
-    let mut logger = env_logger::Builder::from_env(env_logger::Env::default());
-
-    logger.default_format_timestamp(true);
-    logger.default_format_module_path(true);
-    logger.filter_level(log::LevelFilter::Info);
-
-    if let Some(filter) = filter {
-        logger.filter_module("witnet", filter);
-    }
-
-    logger.init();
+fn init_logger(opts: LogOptions) {
+    println!(
+        "Setting log level to: {}, source: {:?}",
+        opts.level, opts.source
+    );
+    env_logger::Builder::from_env(env_logger::Env::default())
+        .default_format_timestamp(true)
+        .default_format_module_path(true)
+        .filter_level(log::LevelFilter::Info)
+        .filter_module("witnet", opts.level)
+        .init();
 }
 
 fn get_config(path: Option<PathBuf>) -> Result<config::config::Config, failure::Error> {
@@ -95,6 +111,18 @@ enum Command {
     Node(node::Command),
     #[structopt(name = "wallet", about = "Witnet wallet.")]
     Wallet(wallet::Command),
+}
+
+struct LogOptions {
+    level: log::LevelFilter,
+    source: LogOptionsSource,
+}
+
+#[derive(Debug)]
+enum LogOptionsSource {
+    Config,
+    Env,
+    Flag,
 }
 
 lazy_static! {

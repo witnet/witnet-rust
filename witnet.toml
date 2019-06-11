@@ -13,3 +13,6 @@ db_path = ".witnet-rust-testnet-3"
 checkpoints_period = 30
 checkpoint_zero_timestamp = 1560643200
 genesis_hash = "00000000000000000000000000000000000000007769746e65742d302e332e31"
+
+[log]
+level = "debug"

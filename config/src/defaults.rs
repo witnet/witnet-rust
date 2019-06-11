@@ -17,6 +17,11 @@ use witnet_data_structures::chain::Hash;
 /// default value depending on the environment (mainnet, testnet,
 /// etc).
 pub trait Defaults {
+    /// Default log level
+    fn log_level(&self) -> log::LevelFilter {
+        log::LevelFilter::Info
+    }
+
     /// Default server addr
     fn connections_server_addr(&self) -> SocketAddr;
 

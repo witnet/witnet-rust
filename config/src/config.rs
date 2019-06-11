@@ -92,6 +92,37 @@ pub struct Config {
     #[partial_struct(ty = "PartialWallet")]
     #[partial_struct(serde(default))]
     pub wallet: Wallet,
+
+    /// Log-related configuration
+    #[partial_struct(ty = "PartialLog")]
+    #[partial_struct(serde(default))]
+    pub log: Log,
+}
+
+/// Log-specific configuration.
+#[derive(PartialStruct, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+pub struct Log {
+    /// Level  for the log messages.
+    #[partial_struct(serde(deserialize_with = "as_log_filter"))]
+    pub level: log::LevelFilter,
+}
+
+fn as_log_filter<'de, D>(deserializer: D) -> Result<Option<log::LevelFilter>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let level_string = String::deserialize(deserializer)?;
+    let level = match level_string.as_ref() {
+        "off" => log::LevelFilter::Off,
+        "error" => log::LevelFilter::Error,
+        "warn" => log::LevelFilter::Warn,
+        "debug" => log::LevelFilter::Debug,
+        "trace" => log::LevelFilter::Trace,
+        _ => log::LevelFilter::Info,
+    };
+
+    Ok(Some(level))
 }
 
 /// Connection-specific configuration.
@@ -260,6 +291,7 @@ impl Config {
             environment: config.environment.clone(),
             connections: Connections::from_partial(&config.connections, defaults),
             storage: Storage::from_partial(&config.storage, defaults),
+            log: Log::from_partial(&config.log, defaults),
             consensus_constants,
             jsonrpc: JsonRPC::from_partial(&config.jsonrpc, defaults),
             mining: Mining::from_partial(&config.mining, defaults),
@@ -315,6 +347,17 @@ pub fn consensus_constants_from_partial(
 impl Default for Config {
     fn default() -> Self {
         Self::from_partial(&PartialConfig::default())
+    }
+}
+
+impl Log {
+    pub fn from_partial(config: &PartialLog, defaults: &dyn Defaults) -> Self {
+        Log {
+            level: config
+                .level
+                .to_owned()
+                .unwrap_or_else(|| defaults.log_level()),
+        }
     }
 }
 
