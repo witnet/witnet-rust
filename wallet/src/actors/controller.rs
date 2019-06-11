@@ -111,8 +111,7 @@ impl Message for Shutdown {
 impl Handler<Shutdown> for Controller {
     type Result = ();
 
-    fn handle(&mut self, _: Shutdown, ctx: &mut Self::Context) -> Self::Result {
-        ctx.stop();
+    fn handle(&mut self, _: Shutdown, _ctx: &mut Self::Context) -> Self::Result {
         System::current().stop();
     }
 }
