@@ -16,6 +16,6 @@ impl Handler<api::CreateDataReqRequest> for App {
         _msg: api::CreateDataReqRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        unimplemented!()
+        Ok(())
     }
 }

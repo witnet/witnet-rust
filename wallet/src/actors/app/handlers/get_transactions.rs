@@ -16,6 +16,6 @@ impl Handler<api::GetTransactionsRequest> for App {
         _msg: api::GetTransactionsRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        unimplemented!()
+        Ok(())
     }
 }

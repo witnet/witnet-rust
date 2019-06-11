@@ -16,6 +16,6 @@ impl Handler<api::GenerateAddressRequest> for App {
         _msg: api::GenerateAddressRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        unimplemented!()
+        Ok(())
     }
 }

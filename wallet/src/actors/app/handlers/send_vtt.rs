@@ -12,6 +12,6 @@ impl Handler<api::SendVttRequest> for App {
     type Result = Result<(), error::Error>;
 
     fn handle(&mut self, _msg: api::SendVttRequest, _ctx: &mut Self::Context) -> Self::Result {
-        unimplemented!()
+        Ok(())
     }
 }

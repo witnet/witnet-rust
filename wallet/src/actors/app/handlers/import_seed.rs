@@ -12,6 +12,6 @@ impl Handler<api::ImportSeedRequest> for App {
     type Result = Result<(), error::Error>;
 
     fn handle(&mut self, _msg: api::ImportSeedRequest, _ctx: &mut Self::Context) -> Self::Result {
-        unimplemented!()
+        Ok(())
     }
 }
