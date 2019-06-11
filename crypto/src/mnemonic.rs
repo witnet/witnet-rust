@@ -18,6 +18,8 @@ use bip39;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 
+use witnet_protected::ProtectedString;
+
 /// BIP39 Mnemonic
 pub struct Mnemonic(bip39::Mnemonic);
 
@@ -33,8 +35,8 @@ impl Mnemonic {
     }
 
     /// Get a mnemonic from a existing pharse
-    pub fn from_phrase(phrase: String, language: Lang) -> Result<Mnemonic, Error> {
-        bip39::Mnemonic::from_phrase(phrase, language.into()).map(Mnemonic)
+    pub fn from_phrase(phrase: ProtectedString, language: Lang) -> Result<Mnemonic, Error> {
+        bip39::Mnemonic::from_phrase(phrase.as_ref(), language.into()).map(Mnemonic)
     }
 }
 
@@ -174,7 +176,7 @@ mod tests {
     #[test]
     fn test_seed_as_ref() {
         let mnemonic = MnemonicGen::new().generate();
-        let seed = mnemonic.seed("");
+        let seed = mnemonic.seed(&"".into());
         let bytes: &[u8] = seed.as_ref();
 
         assert_eq!(bytes, seed.as_bytes());

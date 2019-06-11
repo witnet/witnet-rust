@@ -230,10 +230,9 @@ mod tests {
     fn test_seed() {
         let phrase = "panda eyebrow bullet gorilla call smoke muffin taste mesh discover soft ostrich alcohol speed nation flash devote level hobby quick inner drive ghost inside";
 
-        let mnemonic =
-            bip39::Mnemonic::from_phrase(phrase.to_string(), bip39::Lang::English).unwrap();
+        let mnemonic = bip39::Mnemonic::from_phrase(phrase.into()).unwrap();
 
-        let seed = bip39::Mnemonic::seed(&mnemonic, "");
+        let seed = bip39::Mnemonic::seed(&mnemonic, &"".into());
 
         // Expected seed calculated in https://iancoleman.io/bip39/
         let expected_seed = [
