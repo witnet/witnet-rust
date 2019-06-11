@@ -59,6 +59,13 @@ docker-ci target="x86_64-unknown-linux-gnu" +flags="":
         -it witnet-rust/{{target}} \
         just ci --target-dir=/target --target={{target}} {{flags}}
 
+# run latest debug binary inside a docker container
+docker-debug log_level="debug" +flags="node -c /witnet/witnet.toml":
+    docker run \
+        -e RUST_LOG=witnet={{log_level}} \
+        -v `pwd`:/witnet \
+        -it witnet/debug-run {{flags}}
+
 # build docker images for all cross compilation targets
 docker-image-build-all:
     find ./docker/cross-compilation -type d -ls | tail -n +2 | sed -En "s/^(.*)\.\/docker\/cross-compilation\/(.*)/\2/p" | xargs -n1 just docker-image-build
