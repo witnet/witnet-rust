@@ -1,34 +1,16 @@
 //! Defines a JsonRPC over TCP actor.
 //!
 //! See the `JsonRpcClient` struct for more information.
-use std::fmt;
-
 use actix::prelude::*;
 use async_jsonrpc_client::{
     transports::{shared::EventLoopHandle, tcp::TcpSocket},
-    DuplexTransport as _, Error as TransportError, ErrorKind as TransportErrorKind, Transport as _,
+    DuplexTransport as _, ErrorKind as TransportErrorKind, Transport as _,
 };
 use futures::Future;
 use serde::Serialize;
-use serde_json::{error::Error as JsonError, value, Value};
+use serde_json::{value, Value};
 
-/// Possible types of errors that can occurr when sending requests.
-#[derive(Debug)]
-pub enum Error {
-    /// The error ocurred at the transport layer, e.g.: connection or event loop might be down.
-    Transport(TransportError),
-    /// The error ocurred when serializaing the request params to json.
-    Serialization(JsonError),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Error::Transport(ref e) => write!(fmt, "{}", e),
-            Error::Serialization(ref e) => write!(fmt, "{}", e),
-        }
-    }
-}
+use super::Error;
 
 /// Json-RPC Client actor.
 ///
@@ -46,7 +28,7 @@ impl JsonRpcClient {
     /// TODO: doc
     pub fn start(url: &str) -> Result<Addr<JsonRpcClient>, Error> {
         log::info!("Connecting client to {}", url);
-        let (_handle, socket) = TcpSocket::new(url).map_err(Error::Transport)?;
+        let (_handle, socket) = TcpSocket::new(url).map_err(|_| Error::InvalidUrl)?;
         let client = Self {
             _handle,
             socket,
@@ -88,7 +70,7 @@ impl JsonRpcClient {
             .inspect(|resp| log::trace!(">> Received response: {:?}", resp))
             .map_err(|err| {
                 log::trace!(">> Received error: {}", err);
-                Error::Transport(err)
+                Error::RequestFailed { error_kind: err.0 }
             })
     }
 }
@@ -96,6 +78,8 @@ impl JsonRpcClient {
 impl Actor for JsonRpcClient {
     type Context = Context<Self>;
 }
+
+impl Supervised for JsonRpcClient {}
 
 /// TODO: doc
 pub struct Notification(pub Value);
@@ -122,7 +106,7 @@ impl Request {
 
     /// Set request params.
     pub fn params<T: Serialize>(mut self, params: T) -> Result<Self, Error> {
-        self.params = value::to_value(params).map_err(Error::Serialization)?;
+        self.params = value::to_value(params).map_err(Error::SerializeFailed)?;
         Ok(self)
     }
 
@@ -207,7 +191,7 @@ impl Handler<Subscribe> for JsonRpcClient {
                                     );
                                     Notification(value)
                                 })
-                                .map_err(Error::Transport);
+                                .map_err(|err| Error::RequestFailed { error_kind: err.0 });
                             Self::add_stream(stream, ctx);
                             act.subscription_id = Some(id);
                             log::info!("Client subscription created");
@@ -256,7 +240,7 @@ impl StreamHandler<Notification, Error> for JsonRpcClient {
 
 fn is_connection_error(err: &Error) -> bool {
     match err {
-        Error::Transport(err) => match err.kind() {
+        Error::RequestFailed { error_kind } => match error_kind {
             TransportErrorKind::Transport(_) => true,
             _ => false,
         },

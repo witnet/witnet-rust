@@ -1,14 +1,9 @@
-//! TODO: doc
-use std::fmt;
+//! Error type definition
+use failure::Fail;
 
 use jsonrpc_ws_server as server;
 
-/// TODO: doc
-#[derive(Debug)]
-pub struct Error(pub(super) server::Error);
-
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(fmt, "{}", self.0)
-    }
-}
+/// Custom error type wrapping `jsonrpc_ws_server::Error` that implements `Fail`
+#[derive(Debug, Fail)]
+#[fail(display = "{}", _0)]
+pub struct Error(#[fail(cause)] pub(super) server::Error);
