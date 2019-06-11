@@ -740,23 +740,21 @@ pub fn validate_candidate(
     vrf: &mut VrfCtx,
     total_identities: u32,
 ) -> Result<(), BlockError> {
+    let block_epoch = block.block_header.beacon.checkpoint;
+    if block_epoch != current_epoch {
+        Err(BlockError::CandidateFromDifferentEpoch {
+            block_epoch,
+            current_epoch,
+        })?;
+    }
+
     let target_hash = calculate_randpoe_threshold(total_identities);
     verify_poe_block(
         vrf,
         &block.block_header.proof,
         block.block_header.beacon,
         target_hash,
-    )?;
-
-    let block_epoch = block.block_header.beacon.checkpoint;
-    if block_epoch != current_epoch {
-        Err(BlockError::CandidateFromDifferentEpoch {
-            block_epoch,
-            current_epoch,
-        })
-    } else {
-        Ok(())
-    }
+    )
 }
 
 pub fn calculate_randpoe_threshold(total_identities: u32) -> Hash {
