@@ -98,3 +98,13 @@ cross-compile target profile="release":
     bash -c "cargo build `[[ {{profile}} == "release" ]] && echo "--release"` --target={{target}} --target-dir=/target \
     && [ ! -z "\$STRIP" ] \
     && \$STRIP /target/{{target}}/{{profile}}/witnet || echo \"No STRIP environment variable is set, passing.\""
+
+e2e-stable test_name="example" +flags="":
+    TEST_NAME={{test_name}} \
+    docker-compose \
+    -f docker/compose/e2e-stable/docker-compose.yaml \
+    up \
+    --scale=node=1 \
+    --abort-on-container-exit \
+    --exit-code-from tester \
+    {{flags}}

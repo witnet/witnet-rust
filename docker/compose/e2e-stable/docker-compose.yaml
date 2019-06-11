@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  node:
+    image: witnet/witnet-rust
+    command: ["latest", "--debug", "node", "server"]
+    network_mode: host
+    ports:
+      - "21337-22336:21337"
+  tester:
+    image: witnet/python-tester
+    command: ["${TEST_NAME:-example}.py"]
+    network_mode: host
+    environment:
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - "$PWD/docker/python-tester:/tests:ro"
+      - "$PWD/examples:/requests:ro"
+    depends_on:
+      - node
