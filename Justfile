@@ -74,6 +74,13 @@ docker-image-build-all:
 docker-image-build target:
     docker build --no-cache -t witnet-rust/{{target}} -f docker/cross-compilation/{{target}}/Dockerfile docker/cross-compilation
 
+docker-python-tester test_name="example":
+    docker run \
+    --network=host \
+    -v `pwd`/docker/python-tester:/tests \
+    -v `pwd`/examples:/requests \
+    -it witnet/python-tester {{test_name}}.py
+
 # cross compile witnet-rust for all cross compilation targets
 cross-compile-all:
     find ./docker/cross-compilation -type d -ls | tail -n +2 | sed -En "s/^(.*)\.\/docker\/cross-compilation\/(.*)/\2/p" | xargs -n1 just cross-compile
