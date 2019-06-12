@@ -756,6 +756,7 @@ pub fn validate_block(
         )?;
         validate_block_signature(&block)?;
 
+        // TODO: in the future, a block without any transactions may be invalid
         validate_block_transactions(&utxo_set, &data_request_pool, &block, vrf, rep_eng)
     }
 }
