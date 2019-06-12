@@ -59,7 +59,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
-    #[structopt(name = "run", about = "Run the Witnet server.")]
+    #[structopt(name = "server", about = "Run a Witnet node server.", alias = "run")]
     Run(ConfigParams),
     #[structopt(
         name = "raw",
