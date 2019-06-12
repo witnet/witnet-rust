@@ -229,13 +229,6 @@ impl ChainManager {
         ) {
             let chain_beacon = chain_info.highest_block_checkpoint;
 
-            if let Err(e) = rep_engine
-                .ars
-                .update_empty(block.block_header.beacon.checkpoint)
-            {
-                log::error!("Error updating empty reputation in consolidation: {}", e);
-            }
-
             match validate_block(
                 block,
                 current_epoch,

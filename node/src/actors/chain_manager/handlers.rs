@@ -97,12 +97,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     reputation_engine: Some(ref mut rep_engine),
                     ..
                 } => {
-                    // Update reputation in possible empty epochs
-                    let expected_ars_epoch = current_epoch - 1;
-                    if let Err(e) = rep_engine.ars.update_empty(expected_ars_epoch) {
-                        log::error!("Error updating empty reputation: {}", e);
-                    }
-
                     // Decide the best candidate
                     // TODO: replace for loop with a try_fold
                     let mut chosen_candidate = None;
@@ -135,13 +129,14 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         // Persist block and update ChainState
                         self.consolidate_block(ctx, &block, utxo_diff);
                     } else {
+                        let previous_epoch = msg.checkpoint - 1;
                         log::warn!(
                             "There was no valid block candidate to consolidate for epoch {}",
-                            msg.checkpoint - 1
+                            previous_epoch
                         );
 
                         // Update ActiveReputationSet in case of epochs without blocks
-                        if let Err(e) = rep_engine.ars.update(vec![], expected_ars_epoch) {
+                        if let Err(e) = rep_engine.ars.update(vec![], previous_epoch) {
                             log::error!("Error updating empty reputation with no blocks: {}", e);
                         }
                     }
@@ -220,6 +215,18 @@ impl Handler<AddBlocks> for ChainManager {
                 if let Some(target_beacon) = self.target_beacon {
                     let mut batch_succeeded = true;
                     for block in msg.blocks.iter() {
+                        // Update reputation before to check poe
+                        let block_epoch = block.block_header.beacon.checkpoint;
+
+                        if let Some(ref mut rep_engine) = self.chain_state.reputation_engine {
+                            if let Err(e) = rep_engine.ars.update_empty(block_epoch) {
+                                log::error!(
+                                    "Error updating reputation before to process block: {}",
+                                    e
+                                );
+                            }
+                        }
+
                         if let Err(e) = self.process_requested_block(ctx, block) {
                             log::error!("Error processing block: {}", e);
                             self.initialize_from_storage(ctx);
