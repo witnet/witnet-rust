@@ -10,11 +10,12 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage, Epoch,
-        Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADConsensus,
-        RADRequest, Reputation, ReputationEngine, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
+        DataRequestState, Epoch, Hash, Hashable, Input, KeyedSignature, OutputPointer,
+        PublicKeyHash, RADConsensus, RADRequest, Reputation, ReputationEngine, UnspentOutputsPool,
+        ValueTransferOutput,
     },
-    data_request::DataRequestPool,
+    data_request::{calculate_dr_vt_reward, true_revealer, DataRequestPool},
     error::{BlockError, DataRequestError, TransactionError},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
@@ -362,6 +363,7 @@ pub fn validate_reveal_transaction(
 }
 
 /// Function to validate a tally transaction
+/// FIXME(#695): refactor tally validation
 pub fn validate_tally_transaction<'a>(
     ta_tx: &'a TallyTransaction,
     dr_pool: &DataRequestPool,
@@ -394,8 +396,69 @@ pub fn validate_tally_transaction<'a>(
     let tally_stage = &dr_output.data_request.consensus;
 
     validate_consensus(&reveals, &miner_tally, tally_stage)?;
+    validate_tally_outputs(&dr_state, &ta_tx, reveals.len())?;
 
     Ok((ta_tx.outputs.iter().collect(), dr_output.tally_fee))
+}
+
+pub fn validate_tally_outputs(
+    dr_state: &DataRequestState,
+    ta_tx: &TallyTransaction,
+    n_reveals: usize,
+) -> Result<(), failure::Error> {
+    let witnesses = dr_state.data_request.witnesses as usize;
+    let change_required = witnesses > n_reveals;
+
+    if change_required && (ta_tx.outputs.len() != n_reveals + 1) {
+        Err(TransactionError::WrongNumberOutputs {
+            outputs: ta_tx.outputs.len(),
+            expected_outputs: n_reveals + 1,
+        })?
+    } else if !change_required && (ta_tx.outputs.len() != n_reveals) {
+        Err(TransactionError::WrongNumberOutputs {
+            outputs: ta_tx.outputs.len(),
+            expected_outputs: n_reveals,
+        })?
+    }
+
+    let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::new();
+    let reveal_reward = calculate_dr_vt_reward(&dr_state.data_request);
+    for (i, output) in ta_tx.outputs.iter().enumerate() {
+        if change_required
+            && i == ta_tx.outputs.len() - 1
+            && output.pkh == dr_state.data_request.pkh
+        {
+            // Expected honest witnesses is tally outputs - 1, which would be
+            // the value transfer output related to the tally change.
+            let honest_witnesses = ta_tx.outputs.len() - 1;
+
+            let expected_tally_change = reveal_reward * (witnesses - honest_witnesses) as u64;
+            if expected_tally_change != output.value {
+                Err(TransactionError::InvalidTallyChange {
+                    change: output.value,
+                    expected_change: expected_tally_change,
+                })?
+            }
+        } else {
+            if pkh_rewarded.contains(&output.pkh) {
+                Err(TransactionError::MultipleRewards { pkh: output.pkh })?
+            }
+            let reveal = dr_state.info.reveals.get(&output.pkh);
+
+            match reveal {
+                Some(r) => {
+                    if !true_revealer(&r, &ta_tx.tally) {
+                        Err(TransactionError::DishonestReward)?
+                    }
+                }
+
+                None => Err(TransactionError::RevealNotFound)?,
+            }
+            pkh_rewarded.insert(output.pkh);
+        }
+    }
+
+    Ok(())
 }
 
 /// Function to validate a block signature

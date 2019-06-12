@@ -53,6 +53,11 @@ pub enum TransactionError {
     DataRequestEligibilityDoesNotMeetTarget { vrf_hash: Hash, target_hash: Hash },
     #[fail(display = "Invalid fee found: {}. Expected fee: {}", fee, expected_fee)]
     InvalidFee { fee: u64, expected_fee: u64 },
+    #[fail(
+        display = "Invalid tally change found: {}. Expected value: {}",
+        change, expected_change
+    )]
+    InvalidTallyChange { change: u64, expected_change: u64 },
     #[fail(display = "Invalid Data Request reward: {}", reward)]
     InvalidDataRequestReward { reward: i64 },
     #[fail(
@@ -96,6 +101,9 @@ pub enum TransactionError {
     /// Commit related to a reveal not found
     #[fail(display = "Commitment related to a reveal not found")]
     CommitNotFound,
+    /// Reveal related to a tally not found
+    #[fail(display = "Reveal related to a tally not found")]
+    RevealNotFound,
     /// Commitment field in CommitTransaction does not match with RevealTransaction signature
     #[fail(
         display = "Commitment field in CommitTransaction does not match with RevealTransaction signature"
@@ -110,6 +118,24 @@ pub enum TransactionError {
         tx_hash, output_id
     )]
     ZeroValueOutput { tx_hash: Hash, output_id: usize },
+    /// A dishonest witness has been rewarded
+    #[fail(display = "A dishonest witness has been rewarded")]
+    DishonestReward,
+    /// This pkh was rewarded previously
+    #[fail(display = "This pkh {} was rewarded previously", pkh)]
+    MultipleRewards { pkh: PublicKeyHash },
+    /// No tally change in outputs
+    #[fail(display = "No tally change in outputs")]
+    NoTallyChange,
+    /// There are a different number of outputs than expected
+    #[fail(
+        display = "There are a different number of outputs ({}) than expected ({})",
+        outputs, expected_outputs
+    )]
+    WrongNumberOutputs {
+        outputs: usize,
+        expected_outputs: usize,
+    },
 }
 
 /// The error type for operations on a [`Block`](Block)

@@ -1935,7 +1935,7 @@ fn reveal_valid_commitment() {
     );
 }
 
-fn dr_pool_with_dr_in_tally_stage(reveal_value: Vec<u8>) -> (DataRequestPool, Hash) {
+fn dr_pool_with_dr_in_tally_stage(reveal_value: Vec<u8>) -> (DataRequestPool, Hash, PublicKeyHash) {
     // Create DataRequestPool
     let mut dr_pool = DataRequestPool::default();
 
@@ -1945,6 +1945,7 @@ fn dr_pool_with_dr_in_tally_stage(reveal_value: Vec<u8>) -> (DataRequestPool, Ha
     let dr_output = DataRequestOutput {
         witnesses: 5,
         reveal_fee: 100,
+        value: 1100,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -1991,7 +1992,7 @@ fn dr_pool_with_dr_in_tally_stage(reveal_value: Vec<u8>) -> (DataRequestPool, Ha
         .unwrap();
     dr_pool.update_data_request_stages();
 
-    (dr_pool, dr_pointer)
+    (dr_pool, dr_pointer, public_key.pkh())
 }
 
 #[test]
@@ -2004,6 +2005,7 @@ fn tally_dr_not_tally_stage() {
     let dr_output = DataRequestOutput {
         witnesses: 5,
         reveal_fee: 100,
+        value: 1100,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -2037,7 +2039,16 @@ fn tally_dr_not_tally_stage() {
     let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
     // Tally value: [integer(0)]
     let tally_value = vec![0x91, 0x00];
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![]);
+    let vt0 = ValueTransferOutput {
+        pkh: public_key.pkh(),
+        value: 200,
+    };
+    let vt_change = ValueTransferOutput {
+        pkh: PublicKeyHash::default(),
+        value: 800,
+    };
+    let tally_transaction =
+        TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt_change]);
 
     let mut dr_pool = DataRequestPool::default();
     let x = validate_tally_transaction(&tally_transaction, &dr_pool);
@@ -2075,13 +2086,21 @@ fn tally_dr_not_tally_stage() {
 fn tally_invalid_consensus() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
     let tally_value = vec![0x91, 0x00];
     // Fake tally value: [integer(1)]
     let fake_tally_value = vec![0x01];
-    let tally_transaction = TallyTransaction::new(dr_pointer, fake_tally_value.clone(), vec![]);
+
+    let vt0 = ValueTransferOutput { pkh, value: 200 };
+    let vt_change = ValueTransferOutput {
+        pkh: PublicKeyHash::default(),
+        value: 800,
+    };
+
+    let tally_transaction =
+        TallyTransaction::new(dr_pointer, fake_tally_value.clone(), vec![vt0, vt_change]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2096,11 +2115,17 @@ fn tally_invalid_consensus() {
 fn tally_valid() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
     let tally_value = vec![0x91, 0x00];
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![]);
+    let vt0 = ValueTransferOutput { pkh, value: 200 };
+    let vt_change = ValueTransferOutput {
+        pkh: PublicKeyHash::default(),
+        value: 800,
+    };
+    let tally_transaction =
+        TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt_change]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(x.unwrap(), ());
 }
