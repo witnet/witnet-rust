@@ -1,6 +1,8 @@
 //! # Storage Manager
 //!
 //! This module provides a Storage Manager
+use std::sync::Arc;
+
 use actix::prelude::*;
 use bincode::{deserialize, serialize};
 use futures::future::Future;
@@ -19,7 +21,7 @@ macro_rules! as_failure {
 
 /// Start the signature manager
 pub fn start() {
-    let addr = StorageManager::start_default();
+    let addr = StorageManagerAdapter::start_default();
     actix::System::current().registry().set(addr);
 }
 
@@ -29,7 +31,9 @@ where
     K: serde::Serialize,
     T: serde::de::DeserializeOwned,
 {
-    let addr = actix::System::current().registry().get::<StorageManager>();
+    let addr = actix::System::current()
+        .registry()
+        .get::<StorageManagerAdapter>();
 
     futures::future::result(serialize(key))
         .map_err(|e| as_failure!(e))
@@ -49,7 +53,9 @@ where
     K: serde::Serialize,
     V: serde::Serialize,
 {
-    let addr = actix::System::current().registry().get::<StorageManager>();
+    let addr = actix::System::current()
+        .registry()
+        .get::<StorageManagerAdapter>();
 
     futures::future::result(serialize(key))
         .join(futures::future::result(serialize(value)))
@@ -62,7 +68,9 @@ pub fn delete<K>(key: &K) -> impl Future<Item = (), Error = failure::Error>
 where
     K: serde::Serialize,
 {
-    let addr = actix::System::current().registry().get::<StorageManager>();
+    let addr = actix::System::current()
+        .registry()
+        .get::<StorageManagerAdapter>();
 
     futures::future::result(serialize(key))
         .map_err(|e| as_failure!(e))
@@ -82,37 +90,34 @@ impl Default for StorageManager {
 }
 
 impl Actor for StorageManager {
-    type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        log::debug!("Storage Manager actor has been started!");
-
-        config_mngr::get()
-            .into_actor(self)
-            .and_then(|conf, act, _ctx| {
-                let storage_conf = &conf.storage;
-                fut::result(create_appropriate_backend(storage_conf).map(|backend| {
-                    act.backend = backend;
-                    log::info!(
-                        "Configured {:#?} as the storage backend",
-                        storage_conf.backend
-                    );
-                    if storage_conf.password.is_some() {
-                        log::info!("Storage backend is using encryption");
-                    }
-                }))
-            })
-            .map_err(|err, _, _| {
-                log::error!("Failed to configure backend: {}", err);
-                System::current().stop_with_code(1);
-            })
-            .wait(ctx);
-    }
+    type Context = SyncContext<Self>;
 }
 
-impl Supervised for StorageManager {}
+struct Configure(Arc<config::Config>);
 
-impl SystemService for StorageManager {}
+impl Message for Configure {
+    type Result = Result<(), failure::Error>;
+}
+
+impl Handler<Configure> for StorageManager {
+    type Result = <Configure as Message>::Result;
+
+    fn handle(&mut self, Configure(conf): Configure, _ctx: &mut Self::Context) -> Self::Result {
+        let storage_conf = &conf.storage;
+        let backend = create_appropriate_backend(storage_conf)?;
+
+        self.backend = backend;
+        log::info!(
+            "Configured {:#?} as the storage backend",
+            storage_conf.backend
+        );
+        if storage_conf.password.is_some() {
+            log::info!("Storage backend is using encryption");
+        }
+
+        Ok(())
+    }
+}
 
 struct Put(Vec<u8>, Vec<u8>);
 
@@ -184,5 +189,62 @@ fn create_appropriate_backend(
                 .map(|backend| encrypted_backend!(backend, passwd))
                 .map_err(|e| as_failure!(e))
         }
+    }
+}
+
+struct StorageManagerAdapter {
+    storage: Addr<StorageManager>,
+}
+
+impl Default for StorageManagerAdapter {
+    fn default() -> Self {
+        let storage = SyncArbiter::start(1, StorageManager::default);
+        Self { storage }
+    }
+}
+
+impl Actor for StorageManagerAdapter {
+    type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        log::debug!("Storage Manager actor has been started!");
+        let storage = self.storage.clone();
+
+        config_mngr::get()
+            .and_then(move |conf| storage.send(Configure(conf)).flatten())
+            .map_err(|err| {
+                log::error!("Failed to configure backend: {}", err);
+                System::current().stop_with_code(1);
+            })
+            .into_actor(self)
+            .wait(ctx);
+    }
+}
+
+impl Supervised for StorageManagerAdapter {}
+
+impl SystemService for StorageManagerAdapter {}
+
+impl Handler<Get> for StorageManagerAdapter {
+    type Result = ResponseFuture<Option<Vec<u8>>, failure::Error>;
+
+    fn handle(&mut self, msg: Get, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.storage.send(msg).flatten())
+    }
+}
+
+impl Handler<Put> for StorageManagerAdapter {
+    type Result = ResponseFuture<(), failure::Error>;
+
+    fn handle(&mut self, msg: Put, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.storage.send(msg).flatten())
+    }
+}
+
+impl Handler<Delete> for StorageManagerAdapter {
+    type Result = ResponseFuture<(), failure::Error>;
+
+    fn handle(&mut self, msg: Delete, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.storage.send(msg).flatten())
     }
 }
