@@ -23,6 +23,7 @@ use witnet_data_structures::{
     },
     vrf::{VrfCtx, VrfMessage, VrfProof},
 };
+use witnet_protected::ProtectedString;
 
 /// Start the signature manager
 pub fn start() {
@@ -107,7 +108,7 @@ fn create_master_key() -> Box<dyn Future<Item = SK, Error = failure::Error>> {
 
     // Create a new master key
     let mnemonic = MnemonicGen::new().generate();
-    let seed = mnemonic.seed("");
+    let seed = mnemonic.seed(&ProtectedString::new(""));
     match MasterKeyGen::new(seed).generate() {
         Ok(master_key) => {
             let fut = persist_master_key(master_key.clone()).map(move |_| master_key.secret_key);

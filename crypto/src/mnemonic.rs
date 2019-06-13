@@ -14,6 +14,7 @@
 //! // Seed that can be used to generate a master secret key
 //! let seed = mnemonic.seed(passphrase);
 //! ```
+
 use bip39;
 use failure::Error;
 use serde::{Deserialize, Serialize};
@@ -30,12 +31,17 @@ impl Mnemonic {
     }
 
     /// Get the binary seed used for generating a master secret key
-    pub fn seed<'a, S: Into<&'a str>>(&self, passphrase: S) -> Seed {
-        Seed(bip39::Seed::new(&self.0, passphrase.into()))
+    pub fn seed(&self, passphrase: &ProtectedString) -> Seed {
+        Seed(bip39::Seed::new(&self.0, passphrase.as_ref()))
     }
 
-    /// Get a mnemonic from a existing pharse
-    pub fn from_phrase(phrase: ProtectedString, language: Lang) -> Result<Mnemonic, Error> {
+    /// Get a mnemonic from a existing phrase in English.
+    pub fn from_phrase(phrase: ProtectedString) -> Result<Mnemonic, Error> {
+        Self::from_phrase_lang(phrase, Lang::English)
+    }
+
+    /// Get a mnemonic from a existing phrase in another language.
+    pub fn from_phrase_lang(phrase: ProtectedString, language: Lang) -> Result<Mnemonic, Error> {
         bip39::Mnemonic::from_phrase(phrase.as_ref(), language.into()).map(Mnemonic)
     }
 }
