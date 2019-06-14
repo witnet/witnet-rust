@@ -248,19 +248,34 @@ impl Handler<AddBlocks> for ChainManager {
                             self.persist_data_request(ctx, &dr);
                         });
                         self.persist_chain_state(ctx);
-                    }
 
-                    let beacon = self.get_chain_beacon();
+                        let beacon = self.get_chain_beacon();
 
-                    if beacon == target_beacon {
-                        // Target achived, go back to state 1
-                        self.sm_state = StateMachine::WaitingConsensus;
+                        if beacon == target_beacon {
+                            // Target achived, go back to state 1
+                            self.sm_state = StateMachine::WaitingConsensus;
+                        } else {
+                            // Try again, send Anycast<SendLastBeacon> to a "safu" peer, i.e. their last beacon matches our target beacon.
+                            SessionsManager::from_registry().do_send(Anycast {
+                                command: SendLastBeacon { beacon },
+                                safu: true,
+                            });
+                        }
                     } else {
-                        // Try again, send Anycast<SendLastBeacon> to a "safu" peer, i.e. their last beacon matches our target beacon.
-                        SessionsManager::from_registry().do_send(Anycast {
-                            command: SendLastBeacon { beacon },
-                            safu: true,
-                        });
+                        // This branch will happen if this node has forked, but the network has
+                        // a valid consensus. In that case we would want to restore the node to
+                        // the state just before the fork, and restart the synchronization.
+
+                        // This branch could also happen when one peer has sent us an invalid block batch.
+                        // Ideally we would mark it as a bad peer and restart the
+                        // synchronization process, but that's not implemented yet.
+                        // Note that in order to correctly restart the synchronization process,
+                        // restoring the chain state from storage is not enough,
+                        // as that storage was overwritten at the end of the last successful batch.
+
+                        // In any case, the current behavior is to go back to WaitingConsensus
+                        // state and restart the synchronization on the next PeersBeacons message.
+                        self.sm_state = StateMachine::WaitingConsensus;
                     }
                 } else {
                     log::warn!("Target Beacon is None");
