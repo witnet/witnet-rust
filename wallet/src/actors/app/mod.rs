@@ -1,6 +1,7 @@
 //! # Application actor.
 //!
 //! See [`App`](App) actor for more information.
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -34,11 +35,34 @@ pub struct App {
     crypto: Addr<Crypto>,
     node_client: Option<Addr<JsonRpcClient>>,
     subscriptions: [Option<pubsub::Sink>; 10],
+    sessions: HashMap<wallet::SessionId, HashSet<wallet::WalletId>>,
+    unlocked_wallets: HashMap<wallet::WalletId, HashSet<wallet::SessionId>>,
+    wallet_keys: HashMap<wallet::WalletId, wallet::Key>,
 }
 
 impl App {
     pub fn build() -> builder::AppBuilder {
         builder::AppBuilder::default()
+    }
+
+    pub fn new(
+        db: Arc<rocksdb::DB>,
+        storage: Addr<Storage>,
+        rad_executor: Addr<RadExecutor>,
+        crypto: Addr<Crypto>,
+        node_client: Option<Addr<JsonRpcClient>>,
+    ) -> Self {
+        Self {
+            db,
+            storage,
+            rad_executor,
+            node_client,
+            crypto,
+            subscriptions: Default::default(),
+            sessions: Default::default(),
+            unlocked_wallets: Default::default(),
+            wallet_keys: Default::default(),
+        }
     }
 
     /// Return an id for a new subscription. If there are no available subscription slots, then
@@ -154,6 +178,44 @@ impl App {
         Box::new(fut)
     }
 
+    fn unlock_wallet(
+        &mut self,
+        id: wallet::WalletId,
+        session_id: wallet::SessionId,
+        password: ProtectedString,
+    ) -> ResponseActFuture<Self, (), Error> {
+        // check if the wallet has already being unlocked by another session
+        match self.unlocked_wallets.get(&id).cloned() {
+            Some(mut owner_sessions) => {
+                log::debug!(
+                    "Wallet {} already unlocked. Appending {} to its list of active sessions.",
+                    &id,
+                    &session_id
+                );
+                owner_sessions.insert(id);
+                Box::new(fut::ok(()))
+            }
+            None => {
+                let f = self
+                    .storage
+                    .send(storage::UnlockWallet(self.db.clone(), id, password))
+                    .map_err(map_storage_failed_err)
+                    .and_then(map_err)
+                    .into_actor(self)
+                    .and_then(move |unlocked_wallet, _slf, ctx| {
+                        ctx.notify(handlers::WalletUnlocked {
+                            session_id,
+                            unlocked_wallet,
+                        });
+
+                        fut::ok(())
+                    });
+
+                Box::new(f)
+            }
+        }
+    }
+
     /// Perform all the tasks needed to properly stop the application.
     fn stop(&self) -> ResponseFuture<(), Error> {
         let fut = self
@@ -163,6 +225,30 @@ impl App {
             .and_then(map_err);
 
         Box::new(fut)
+    }
+
+    /// Save wallet in the list of unlocked wallets for the given session.
+    fn assoc_wallet_to_session(
+        &mut self,
+        wallet: wallet::UnlockedWallet,
+        session_id: wallet::SessionId,
+    ) {
+        let id = wallet.id;
+
+        let session_wallets = self
+            .sessions
+            .entry(session_id.clone())
+            .or_insert_with(HashSet::new);
+        let wallet_sessions = self
+            .unlocked_wallets
+            .entry(id.clone())
+            .or_insert_with(HashSet::new);
+
+        session_wallets.insert(id.clone());
+        wallet_sessions.insert(session_id.clone());
+        self.wallet_keys.insert(id.clone(), wallet.key);
+
+        log::debug!("Associated wallet: {} to session: {}", &id, session_id);
     }
 }
 

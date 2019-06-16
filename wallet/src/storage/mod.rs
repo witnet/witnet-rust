@@ -1,7 +1,6 @@
 //! # Storage-related functions and types.
 
 use witnet_crypto::{cipher, pbkdf2::pbkdf2_sha256};
-use witnet_protected::Protected;
 
 use crate::wallet;
 
@@ -72,29 +71,62 @@ pub fn flush(db: &rocksdb::DB) -> Result<(), error::Error> {
     db.flush_opt(&opts).map_err(error::Error::DbOpFailed)
 }
 
+pub type Key = wallet::Key;
+
 /// Generate an encryption key.
-fn gen_key(password: &[u8], salt: &[u8], iter_count: u32) -> Protected {
-    pbkdf2_sha256(password, salt, iter_count)
+pub fn gen_key(params: &Params, password: &[u8]) -> Result<Key, error::Error> {
+    let salt = cipher::generate_random(params.encrypt_salt_length)
+        .map_err(error::Error::CipherOpFailed)?;
+
+    gen_key_salt(params, password, salt)
 }
 
-/// Encrypt the given value with the given password.
-pub fn encrypt<T>(params: &Params, password: &[u8], value: &T) -> Result<Vec<u8>, error::Error>
+/// Generate an encryption key without a random salt.
+pub fn gen_key_salt(params: &Params, password: &[u8], salt: Vec<u8>) -> Result<Key, error::Error> {
+    let secret = pbkdf2_sha256(password, salt.as_ref(), params.encrypt_hash_iterations);
+
+    Ok(Key {
+        secret,
+        salt: salt.to_vec(),
+    })
+}
+
+/// Encrypt the given value with the given key.
+pub fn encrypt<T>(params: &Params, key: &Key, value: &T) -> Result<Vec<u8>, error::Error>
 where
     T: serde::Serialize,
 {
     let bytes = serialize(value)?;
     let iv =
         cipher::generate_random(params.encrypt_iv_length).map_err(error::Error::CipherOpFailed)?;
-    let salt = cipher::generate_random(params.encrypt_salt_length)
-        .map_err(error::Error::CipherOpFailed)?;
-    let secret = gen_key(password, &salt, params.encrypt_hash_iterations);
-    let encrypted = cipher::encrypt_aes_cbc(&secret, bytes.as_ref(), iv.as_ref())
+    let encrypted = cipher::encrypt_aes_cbc(key.secret.as_ref(), bytes.as_ref(), iv.as_ref())
         .map_err(error::Error::CipherOpFailed)?;
     let mut final_value = iv;
     final_value.extend(encrypted);
-    final_value.extend(salt);
+    final_value.extend_from_slice(key.salt.as_ref());
 
     Ok(final_value)
+}
+
+/// Decrypt the given value with the given password.
+pub fn decrypt_password<T>(
+    params: &Params,
+    password: &[u8],
+    encrypted: &[u8],
+) -> Result<(T, Key), error::Error>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let len = encrypted.len();
+    let iv = &encrypted[0..params.encrypt_iv_length];
+    let data = &encrypted[params.encrypt_iv_length..len - params.encrypt_salt_length];
+    let salt = &encrypted[len - params.encrypt_salt_length..];
+    let key = gen_key_salt(params, password, salt.to_vec())?;
+    let bytes = cipher::decrypt_aes_cbc(&key.secret.as_ref(), data, iv)
+        .map_err(error::Error::CipherOpFailed)?;
+    let value = deserialize(bytes.as_ref())?;
+
+    Ok((value, key))
 }
 
 /// Serialize value to binary.

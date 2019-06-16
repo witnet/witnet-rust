@@ -56,13 +56,14 @@ impl Storage {
     ) -> Result<(), storage::Error> {
         let mut batch = rocksdb::WriteBatch::default();
         let id = &wallet.info.id;
+        let key = storage::gen_key(&self.params, password.as_ref())?;
 
         storage::merge(&mut batch, storage::keys::wallets(), id)?;
         storage::put(&mut batch, storage::keys::wallet_info(id), &wallet.info)?;
         storage::put(
             &mut batch,
             storage::keys::wallet(id),
-            &storage::encrypt(&self.params, password.as_ref(), &wallet.content)?,
+            &storage::encrypt(&self.params, &key, &wallet.content)?,
         )?;
 
         storage::write(db, batch)?;
@@ -72,6 +73,28 @@ impl Storage {
 
     fn flush(&self, db: &DB) -> Result<(), storage::Error> {
         storage::flush(db)
+    }
+
+    pub fn unlock_wallet(
+        &self,
+        db: &DB,
+        id: &str,
+        password: &str,
+    ) -> Result<wallet::UnlockedWallet, storage::Error> {
+        let encrypted: Vec<u8> = storage::get(db, storage::keys::wallet(id))
+            .map_err(|_| storage::Error::UnknownWalletId(id.to_string()))?;
+        let (content, key) =
+            storage::decrypt_password(&self.params, password.as_bytes(), encrypted.as_ref())
+                .map_err(|_| storage::Error::WrongPassword)?;
+        let info = storage::get(db, storage::keys::wallet_info(id))?;
+
+        let wallet = wallet::Wallet::new(info, content);
+        let unlocked_wallet = wallet::UnlockedWallet {
+            id: wallet.info.id,
+            key,
+        };
+
+        Ok(unlocked_wallet)
     }
 }
 

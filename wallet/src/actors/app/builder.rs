@@ -51,14 +51,7 @@ impl AppBuilder {
         let crypto = Crypto::build().start();
         let rad_executor = RadExecutor::start();
 
-        let app = super::App {
-            db,
-            storage,
-            rad_executor,
-            node_client,
-            crypto,
-            subscriptions: Default::default(),
-        };
+        let app = super::App::new(db, storage, rad_executor, crypto, node_client);
 
         Ok(app.start())
     }

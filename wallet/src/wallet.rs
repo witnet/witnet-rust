@@ -5,9 +5,13 @@ use serde::{Deserialize, Serialize};
 
 use witnet_crypto::key::ExtendedSK;
 pub use witnet_data_structures::chain::RADRequest;
-use witnet_protected::ProtectedString;
+use witnet_protected::{Protected, ProtectedString};
+
+use super::storage;
 
 pub type WalletId = String;
+
+pub type SessionId = String;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WalletInfo {
@@ -200,4 +204,16 @@ pub type MasterKey = ExtendedSK;
 #[serde(rename_all = "lowercase")]
 pub enum Wip {
     Wip3,
+}
+
+pub struct Key {
+    pub(crate) secret: Protected,
+    pub(crate) salt: Vec<u8>,
+}
+
+/// TODO: Remove allow(dead_code) when these fields are used
+#[allow(dead_code)]
+pub struct UnlockedWallet {
+    pub(crate) id: WalletId,
+    pub(crate) key: storage::Key,
 }

@@ -18,4 +18,8 @@ pub enum Error {
     DbKeyNotFound,
     #[fail(display = "cipher operation failed: {}", _0)]
     CipherOpFailed(#[cause] cipher::Error),
+    #[fail(display = "could not find a wallet with the given id: {}", _0)]
+    UnknownWalletId(String),
+    #[fail(display = "wrong password")]
+    WrongPassword,
 }
