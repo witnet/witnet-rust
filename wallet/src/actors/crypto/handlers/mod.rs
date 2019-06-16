@@ -1,3 +1,3 @@
-mod gen_seed;
+mod gen_wallet_keys;
 
-pub use gen_seed::*;
+pub use gen_wallet_keys::*;
