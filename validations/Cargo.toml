@@ -3,7 +3,7 @@ authors = ["Witnet Foundation <info@witnet.foundation>"]
 description = "validations component"
 edition = "2018"
 name = "witnet_validations"
-version = "0.3.0"
+version = "0.3.1"
 workspace = ".."
 
 [dependencies]

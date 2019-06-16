@@ -3,7 +3,7 @@ authors = ["Witnet Foundation <info@witnet.foundation>"]
 description = "Reputation engine"
 edition = "2018"
 name = "witnet_reputation"
-version = "0.3.0"
+version = "0.3.1"
 workspace = ".."
 
 [dependencies]
