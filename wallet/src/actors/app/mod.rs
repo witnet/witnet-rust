@@ -40,6 +40,14 @@ pub struct App {
     wallet_keys: HashMap<wallet::WalletId, wallet::Key>,
 }
 
+// let result = if self.opened_wallets.borrow().iter().any(|id_| id_ == id) {
+//     Err(storage::Error::WalletAlreadyOpenend(id.to_string()))
+// } else {
+
+// };
+
+// result
+
 impl App {
     pub fn build() -> builder::AppBuilder {
         builder::AppBuilder::default()

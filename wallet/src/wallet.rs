@@ -9,6 +9,8 @@ use witnet_protected::{Protected, ProtectedString};
 
 use super::storage;
 
+use super::storage;
+
 pub type WalletId = String;
 
 pub type SessionId = String;
