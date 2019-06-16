@@ -11,7 +11,7 @@
       <meta http-equiv="x-ua-compatible" content="ie=edge">
       
       
-        <link rel="canonical" href="https://docs.witnet.io/protocol/data-requests/radlang/">
+        <link rel="canonical" href="https://docs.witnet.io/protocol/witscript/">
       
       
       
@@ -33,18 +33,18 @@
       
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
-      <link rel="shortcut icon" href="../../../assets/images/favicon.ico">
+      <link rel="shortcut icon" href="../../assets/images/favicon.ico">
       <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-3.1.0">
     
     
       
-        <title>Radlang - Witnet-rust Documentation</title>
+        <title>WitScript - Witnet-rust Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/application.11e41852.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/application.11e41852.css">
       
-        <link rel="stylesheet" href="../../../assets/stylesheets/application-palette.22915126.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/application-palette.22915126.css">
       
       
         
@@ -53,7 +53,7 @@
       
     
     
-      <script src="../../../assets/javascripts/modernizr.20ef595d.js"></script>
+      <script src="../../assets/javascripts/modernizr.20ef595d.js"></script>
     
     
       
@@ -62,7 +62,7 @@
         <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
       
     
-    <link rel="stylesheet" href="../../../assets/fonts/material-icons.css">
+    <link rel="stylesheet" href="../../assets/fonts/material-icons.css">
     
     
     
@@ -112,7 +112,7 @@
       <div class="md-flex__cell md-flex__cell--shrink">
         <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-header-nav__button md-logo">
           
-            <img src="../../../assets/images/logo.svg" alt="Witnet Logo" width="24" height="24">
+            <img src="../../assets/images/logo.svg" alt="Witnet Logo" width="24" height="24">
           
         </a>
       </div>
@@ -127,7 +127,7 @@
                 Witnet-rust Documentation
               </span>
               <span class="md-header-nav__topic">
-                Radlang
+                WitScript
               </span>
             
           
@@ -208,7 +208,7 @@
   <label class="md-nav__title md-nav__title--site" for="__drawer">
     <a href="https://docs.witnet.io" title="Witnet-rust Documentation" class="md-nav__button md-logo">
       
-        <img src="../../../assets/images/logo.svg" alt="Witnet Logo" width="48" height="48">
+        <img src="../../assets/images/logo.svg" alt="Witnet Logo" width="48" height="48">
       
     </a>
     Witnet-rust Documentation
@@ -244,7 +244,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../.." title="Home" class="md-nav__link">
+    <a href="../.." title="Home" class="md-nav__link">
       Home
     </a>
   </li>
@@ -275,7 +275,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/what-is-witnet/" title="What is Witnet" class="md-nav__link">
+    <a href="../../get-started/what-is-witnet/" title="What is Witnet" class="md-nav__link">
       What is Witnet
     </a>
   </li>
@@ -287,7 +287,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/why-rust/" title="Why Rust?" class="md-nav__link">
+    <a href="../../get-started/why-rust/" title="Why Rust?" class="md-nav__link">
       Why Rust?
     </a>
   </li>
@@ -299,7 +299,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/design-overview/" title="Design Overview" class="md-nav__link">
+    <a href="../../get-started/design-overview/" title="Design Overview" class="md-nav__link">
       Design Overview
     </a>
   </li>
@@ -330,7 +330,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
+    <a href="../../get-started/installation/gnu-linux/" title="GNU/Linux" class="md-nav__link">
       GNU/Linux
     </a>
   </li>
@@ -342,7 +342,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/installation/macos/" title="macOS" class="md-nav__link">
+    <a href="../../get-started/installation/macos/" title="macOS" class="md-nav__link">
       macOS
     </a>
   </li>
@@ -354,7 +354,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/installation/windows/" title="Windows" class="md-nav__link">
+    <a href="../../get-started/installation/windows/" title="Windows" class="md-nav__link">
       Windows
     </a>
   </li>
@@ -366,7 +366,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
+    <a href="../../get-started/installation/from-source/" title="From source code" class="md-nav__link">
       From source code
     </a>
   </li>
@@ -378,7 +378,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../get-started/installation/cross-compilation/" title="Cross compilation" class="md-nav__link">
+    <a href="../../get-started/installation/cross-compilation/" title="Cross compilation" class="md-nav__link">
       Cross compilation
     </a>
   </li>
@@ -398,10 +398,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3" checked>
     
     <label class="md-nav__link" for="nav-3">
       Protocol
@@ -438,7 +440,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/overview/" title="Overview" class="md-nav__link">
+    <a href="../network/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -469,7 +471,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/data-structures/block/" title="Block" class="md-nav__link">
+    <a href="../network/data-structures/block/" title="Block" class="md-nav__link">
       Block
     </a>
   </li>
@@ -481,7 +483,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/data-structures/ip-address/" title="IP Address" class="md-nav__link">
+    <a href="../network/data-structures/ip-address/" title="IP Address" class="md-nav__link">
       IP Address
     </a>
   </li>
@@ -493,7 +495,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/data-structures/signature/" title="Signature" class="md-nav__link">
+    <a href="../network/data-structures/signature/" title="Signature" class="md-nav__link">
       Signature
     </a>
   </li>
@@ -505,7 +507,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/data-structures/transaction/" title="Transaction" class="md-nav__link">
+    <a href="../network/data-structures/transaction/" title="Transaction" class="md-nav__link">
       Transaction
     </a>
   </li>
@@ -541,7 +543,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/messages/overview/" title="Overview" class="md-nav__link">
+    <a href="../network/messages/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -553,7 +555,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/messages/handshake/" title="Handshake" class="md-nav__link">
+    <a href="../network/messages/handshake/" title="Handshake" class="md-nav__link">
       Handshake
     </a>
   </li>
@@ -565,7 +567,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/messages/peer-discovery/" title="Peer Discovery" class="md-nav__link">
+    <a href="../network/messages/peer-discovery/" title="Peer Discovery" class="md-nav__link">
       Peer Discovery
     </a>
   </li>
@@ -577,7 +579,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/messages/heartbeat/" title="Heartbeat" class="md-nav__link">
+    <a href="../network/messages/heartbeat/" title="Heartbeat" class="md-nav__link">
       Heartbeat
     </a>
   </li>
@@ -589,7 +591,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/messages/inventory/" title="Inventory exchange" class="md-nav__link">
+    <a href="../network/messages/inventory/" title="Inventory exchange" class="md-nav__link">
       Inventory exchange
     </a>
   </li>
@@ -606,7 +608,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../network/constants/" title="Constants" class="md-nav__link">
+    <a href="../network/constants/" title="Constants" class="md-nav__link">
       Constants
     </a>
   </li>
@@ -642,7 +644,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../overview/" title="Overview" class="md-nav__link">
+    <a href="../data-requests/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -673,7 +675,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/encoding/" title="Encoding" class="md-nav__link">
+    <a href="../data-requests/radon/encoding/" title="Encoding" class="md-nav__link">
       Encoding
     </a>
   </li>
@@ -704,7 +706,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/overview/" title="Overview" class="md-nav__link">
+    <a href="../data-requests/radon/types/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -716,7 +718,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/array/" title="Array<V>" class="md-nav__link">
+    <a href="../data-requests/radon/types/array/" title="Array<V>" class="md-nav__link">
       Array<V>
     </a>
   </li>
@@ -728,7 +730,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/boolean/" title="Boolean" class="md-nav__link">
+    <a href="../data-requests/radon/types/boolean/" title="Boolean" class="md-nav__link">
       Boolean
     </a>
   </li>
@@ -740,7 +742,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/integer/" title="Integer" class="md-nav__link">
+    <a href="../data-requests/radon/types/integer/" title="Integer" class="md-nav__link">
       Integer
     </a>
   </li>
@@ -752,7 +754,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/float/" title="Float" class="md-nav__link">
+    <a href="../data-requests/radon/types/float/" title="Float" class="md-nav__link">
       Float
     </a>
   </li>
@@ -764,7 +766,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/map/" title="Map<V>" class="md-nav__link">
+    <a href="../data-requests/radon/types/map/" title="Map<V>" class="md-nav__link">
       Map<V>
     </a>
   </li>
@@ -776,7 +778,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/mixed/" title="Mixed" class="md-nav__link">
+    <a href="../data-requests/radon/types/mixed/" title="Mixed" class="md-nav__link">
       Mixed
     </a>
   </li>
@@ -788,7 +790,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/null/" title="Null" class="md-nav__link">
+    <a href="../data-requests/radon/types/null/" title="Null" class="md-nav__link">
       Null
     </a>
   </li>
@@ -800,7 +802,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/result/" title="Result<V>" class="md-nav__link">
+    <a href="../data-requests/radon/types/result/" title="Result<V>" class="md-nav__link">
       Result<V>
     </a>
   </li>
@@ -812,7 +814,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/types/string/" title="String" class="md-nav__link">
+    <a href="../data-requests/radon/types/string/" title="String" class="md-nav__link">
       String
     </a>
   </li>
@@ -829,7 +831,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
+    <a href="../data-requests/radon/wrapping/" title="Implicit `Result<V>` wrapping" class="md-nav__link">
       Implicit `Result<V>` wrapping
     </a>
   </li>
@@ -841,7 +843,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/exceptions/" title="Exception handling" class="md-nav__link">
+    <a href="../data-requests/radon/exceptions/" title="Exception handling" class="md-nav__link">
       Exception handling
     </a>
   </li>
@@ -853,7 +855,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/functions/" title="Predefined functions" class="md-nav__link">
+    <a href="../data-requests/radon/functions/" title="Predefined functions" class="md-nav__link">
       Predefined functions
     </a>
   </li>
@@ -865,7 +867,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/subscripts/" title="Subscripts" class="md-nav__link">
+    <a href="../data-requests/radon/subscripts/" title="Subscripts" class="md-nav__link">
       Subscripts
     </a>
   </li>
@@ -877,7 +879,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/examples/" title="Examples" class="md-nav__link">
+    <a href="../data-requests/radon/examples/" title="Examples" class="md-nav__link">
       Examples
     </a>
   </li>
@@ -889,7 +891,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../radon/constants/" title="Constants" class="md-nav__link">
+    <a href="../data-requests/radon/constants/" title="Constants" class="md-nav__link">
       Constants
     </a>
   </li>
@@ -909,10 +911,12 @@
           
           
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-3" type="checkbox" id="nav-3-3">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-3" type="checkbox" id="nav-3-3" checked>
     
     <label class="md-nav__link" for="nav-3-3">
       Transactions
@@ -930,7 +934,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../transactions/" title="Introduction" class="md-nav__link">
+    <a href="../transactions/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -940,11 +944,45 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../../witscript.md" title="WitScript" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        WitScript
+      </label>
+    
+    <a href="./" title="WitScript" class="md-nav__link md-nav__link--active">
       WitScript
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#page-under-construction-check-back-soon" title="Page under construction. Check back soon." class="md-nav__link">
+    Page under construction. Check back soon.
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -959,7 +997,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../blocks/" title="Blocks" class="md-nav__link">
+    <a href="../blocks/" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -971,7 +1009,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../mining/" title="Mining" class="md-nav__link">
+    <a href="../mining/" title="Mining" class="md-nav__link">
       Mining
     </a>
   </li>
@@ -983,7 +1021,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../reputation/" title="Reputation" class="md-nav__link">
+    <a href="../reputation/" title="Reputation" class="md-nav__link">
       Reputation
     </a>
   </li>
@@ -995,7 +1033,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../serialization/" title="Serialization" class="md-nav__link">
+    <a href="../serialization/" title="Serialization" class="md-nav__link">
       Serialization
     </a>
   </li>
@@ -1007,7 +1045,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../task-assignment/" title="Task assignment" class="md-nav__link">
+    <a href="../task-assignment/" title="Task assignment" class="md-nav__link">
       Task assignment
     </a>
   </li>
@@ -1043,7 +1081,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/overview/" title="Overview" class="md-nav__link">
+    <a href="../../architecture/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -1074,7 +1112,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/p2p/connections/" title="Connections" class="md-nav__link">
+    <a href="../../architecture/p2p/connections/" title="Connections" class="md-nav__link">
       Connections
     </a>
   </li>
@@ -1086,7 +1124,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/p2p/gossip/" title="Gossiping" class="md-nav__link">
+    <a href="../../architecture/p2p/gossip/" title="Gossiping" class="md-nav__link">
       Gossiping
     </a>
   </li>
@@ -1098,7 +1136,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/p2p/encoding/" title="Encoding" class="md-nav__link">
+    <a href="../../architecture/p2p/encoding/" title="Encoding" class="md-nav__link">
       Encoding
     </a>
   </li>
@@ -1115,7 +1153,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/storage/" title="Persistent Storage" class="md-nav__link">
+    <a href="../../architecture/storage/" title="Persistent Storage" class="md-nav__link">
       Persistent Storage
     </a>
   </li>
@@ -1146,7 +1184,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/managers/" title="Introduction" class="md-nav__link">
+    <a href="../../architecture/managers/managers/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -1158,7 +1196,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/chain-manager/" title="Chain Manager" class="md-nav__link">
+    <a href="../../architecture/managers/chain-manager/" title="Chain Manager" class="md-nav__link">
       Chain Manager
     </a>
   </li>
@@ -1170,7 +1208,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/config-manager/" title="Config Manager" class="md-nav__link">
+    <a href="../../architecture/managers/config-manager/" title="Config Manager" class="md-nav__link">
       Config Manager
     </a>
   </li>
@@ -1182,7 +1220,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
+    <a href="../../architecture/managers/connections-manager/" title="Connections Manager" class="md-nav__link">
       Connections Manager
     </a>
   </li>
@@ -1194,7 +1232,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/epoch-manager/" title="Epoch Manager" class="md-nav__link">
+    <a href="../../architecture/managers/epoch-manager/" title="Epoch Manager" class="md-nav__link">
       Epoch Manager
     </a>
   </li>
@@ -1206,7 +1244,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/inventory-manager/" title="Inventory Manager" class="md-nav__link">
+    <a href="../../architecture/managers/inventory-manager/" title="Inventory Manager" class="md-nav__link">
       Inventory Manager
     </a>
   </li>
@@ -1218,7 +1256,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/peers-manager/" title="Peers Manager" class="md-nav__link">
+    <a href="../../architecture/managers/peers-manager/" title="Peers Manager" class="md-nav__link">
       Peers Manager
     </a>
   </li>
@@ -1230,7 +1268,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
+    <a href="../../architecture/managers/rad-manager/" title="RAD Manager" class="md-nav__link">
       RAD Manager
     </a>
   </li>
@@ -1242,7 +1280,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
+    <a href="../../architecture/managers/sessions-manager/" title="Sessions Manager" class="md-nav__link">
       Sessions Manager
     </a>
   </li>
@@ -1254,7 +1292,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/managers/storage-manager/" title="Storage Manager" class="md-nav__link">
+    <a href="../../architecture/managers/storage-manager/" title="Storage Manager" class="md-nav__link">
       Storage Manager
     </a>
   </li>
@@ -1271,7 +1309,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/session/" title="Session" class="md-nav__link">
+    <a href="../../architecture/session/" title="Session" class="md-nav__link">
       Session
     </a>
   </li>
@@ -1283,7 +1321,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/mempool-mgmt/" title="Mempool Management" class="md-nav__link">
+    <a href="../../architecture/mempool-mgmt/" title="Mempool Management" class="md-nav__link">
       Mempool Management
     </a>
   </li>
@@ -1295,7 +1333,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/block-mgmt/" title="Block Management" class="md-nav__link">
+    <a href="../../architecture/block-mgmt/" title="Block Management" class="md-nav__link">
       Block Management
     </a>
   </li>
@@ -1307,7 +1345,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/utxo-mgmt/" title="UTXO Management" class="md-nav__link">
+    <a href="../../architecture/utxo-mgmt/" title="UTXO Management" class="md-nav__link">
       UTXO Management
     </a>
   </li>
@@ -1338,7 +1376,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/rad/overview/" title="Overview" class="md-nav__link">
+    <a href="../../architecture/rad/overview/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -1355,7 +1393,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/witscript/" title="Witscript Parser" class="md-nav__link">
+    <a href="../../architecture/witscript/" title="Witscript Parser" class="md-nav__link">
       Witscript Parser
     </a>
   </li>
@@ -1367,7 +1405,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../architecture/json-rpc-server/" title="JSON-RPC Server" class="md-nav__link">
+    <a href="../../architecture/json-rpc-server/" title="JSON-RPC Server" class="md-nav__link">
       JSON-RPC Server
     </a>
   </li>
@@ -1403,7 +1441,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../interface/cli/" title="Command Line Interface (CLI)" class="md-nav__link">
+    <a href="../../interface/cli/" title="Command Line Interface (CLI)" class="md-nav__link">
       Command Line Interface (CLI)
     </a>
   </li>
@@ -1415,7 +1453,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../interface/json-rpc/" title="JSON-RPC" class="md-nav__link">
+    <a href="../../interface/json-rpc/" title="JSON-RPC" class="md-nav__link">
       JSON-RPC
     </a>
   </li>
@@ -1427,7 +1465,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../interface/pub-sub/" title="Pub/Sub API" class="md-nav__link">
+    <a href="../../interface/pub-sub/" title="Pub/Sub API" class="md-nav__link">
       Pub/Sub API
     </a>
   </li>
@@ -1439,7 +1477,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../interface/wallet/" title="Wallet" class="md-nav__link">
+    <a href="../../interface/wallet/" title="Wallet" class="md-nav__link">
       Wallet
     </a>
   </li>
@@ -1475,7 +1513,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../advanced/constants/" title="Network constants" class="md-nav__link">
+    <a href="../../advanced/constants/" title="Network constants" class="md-nav__link">
       Network constants
     </a>
   </li>
@@ -1487,7 +1525,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../advanced/whitepaper-differences/" title="Differences with the whitepaper" class="md-nav__link">
+    <a href="../../advanced/whitepaper-differences/" title="Differences with the whitepaper" class="md-nav__link">
       Differences with the whitepaper
     </a>
   </li>
@@ -1504,7 +1542,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../roadmap/" title="Roadmap" class="md-nav__link">
+    <a href="../../roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
     </a>
   </li>
@@ -1516,7 +1554,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../contributing/" title="Contributing" class="md-nav__link">
+    <a href="../../contributing/" title="Contributing" class="md-nav__link">
       Contributing
     </a>
   </li>
@@ -1528,7 +1566,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../development/" title="Development" class="md-nav__link">
+    <a href="../../development/" title="Development" class="md-nav__link">
       Development
     </a>
   </li>
@@ -1559,7 +1597,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../configuration/toml-file/" title="Custom toml file" class="md-nav__link">
+    <a href="../../configuration/toml-file/" title="Custom toml file" class="md-nav__link">
       Custom toml file
     </a>
   </li>
@@ -1571,7 +1609,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../configuration/cli/" title="Command Line Interface (CLI)" class="md-nav__link">
+    <a href="../../configuration/cli/" title="Command Line Interface (CLI)" class="md-nav__link">
       Command Line Interface (CLI)
     </a>
   </li>
@@ -1583,7 +1621,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../configuration/environment/" title="Environment defaults" class="md-nav__link">
+    <a href="../../configuration/environment/" title="Environment defaults" class="md-nav__link">
       Environment defaults
     </a>
   </li>
@@ -1600,7 +1638,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../glossary/" title="Glossary" class="md-nav__link">
+    <a href="../../glossary/" title="Glossary" class="md-nav__link">
       Glossary
     </a>
   </li>
@@ -1647,10 +1685,10 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/protocol/data-requests/radlang.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/witnet/witnet-rust/blob/master/docs/protocol/witscript.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                  <h1>Radlang</h1>
+                  <h1>WitScript</h1>
                 
                 <h3 id="page-under-construction-check-back-soon">Page under construction. Check back soon.<a class="headerlink" href="#page-under-construction-check-back-soon" title="Permanent link">&para;</a></h3>
                 
@@ -1670,6 +1708,41 @@
         
 <footer class="md-footer">
   
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../transactions/" title="Introduction" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Introduction
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../blocks/" title="Blocks" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Blocks
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
   <div class="md-footer-meta md-typeset">
     <div class="md-footer-meta__inner md-grid">
       <div class="md-footer-copyright">
@@ -1687,7 +1760,7 @@
       
         
   <div class="md-footer-social">
-    <link rel="stylesheet" href="../../../assets/fonts/font-awesome.css">
+    <link rel="stylesheet" href="../../assets/fonts/font-awesome.css">
     
       <a href="https://github.com/witnet" class="md-footer-social__link fa fa-github"></a>
     
@@ -1704,9 +1777,9 @@
       
     </div>
     
-      <script src="../../../assets/javascripts/application.9e1f3b71.js"></script>
+      <script src="../../assets/javascripts/application.9e1f3b71.js"></script>
       
-      <script>app.initialize({version:"1.0.4",url:{base:"../../.."}})</script>
+      <script>app.initialize({version:"1.0.4",url:{base:"../.."}})</script>
       
     
     
