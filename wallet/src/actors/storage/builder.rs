@@ -5,24 +5,19 @@ use std::sync::Arc;
 use actix::prelude::*;
 use failure::Error;
 
-use super::{error, Storage};
+use super::Storage;
+use crate::storage;
 
 pub struct Builder<'a> {
     options: Option<rocksdb::Options>,
     path: Option<PathBuf>,
     name: Option<&'a str>,
-    params: Params,
-}
-
-pub struct Params {
-    pub(super) encrypt_hash_iterations: u32,
-    pub(super) encrypt_iv_length: usize,
-    pub(super) encrypt_salt_length: usize,
+    params: storage::Params,
 }
 
 impl<'a> Builder<'a> {
     pub fn new() -> Self {
-        let params = Params {
+        let params = storage::Params {
             encrypt_hash_iterations: 10_000,
             encrypt_iv_length: 16,
             encrypt_salt_length: 32,
@@ -56,11 +51,11 @@ impl<'a> Builder<'a> {
     /// Start an instance of the actor inside a SyncArbiter.
     pub fn start(self) -> Result<Addr<Storage>, Error> {
         let mut options = self.options.unwrap_or_default();
-        options.set_merge_operator("merge operator", super::storage_merge, None);
+        options.set_merge_operator("merge operator", storage::storage_merge, None);
         let path = self.path.map_or_else(env::current_dir, Ok)?;
         let file_name = self.name.unwrap_or_else(|| "witnet_wallets.db");
         let db = rocksdb::DB::open(&options, path.join(file_name))
-            .map_err(error::Error::OpenDbFailed)?;
+            .map_err(storage::Error::OpenDbFailed)?;
         let db_ref = Arc::new(db);
         let params_ref = Arc::new(self.params);
 

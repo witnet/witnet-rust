@@ -2,8 +2,8 @@ use actix::prelude::*;
 
 use witnet_protected::ProtectedString;
 
-use crate::actors::storage::{error::Error, Storage};
-use crate::wallet;
+use crate::actors::storage::Storage;
+use crate::{storage::Error, wallet};
 
 pub struct CreateWallet(
     /// Wallet to save

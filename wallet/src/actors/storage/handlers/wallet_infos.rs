@@ -1,7 +1,7 @@
 use actix::prelude::*;
 
-use crate::actors::storage::{error::Error, Storage};
-use crate::wallet;
+use crate::actors::storage::Storage;
+use crate::{storage::Error, wallet};
 
 /// Get the list of created wallets along with their ids
 pub struct GetWalletInfos;

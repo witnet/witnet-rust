@@ -21,6 +21,7 @@ use witnet_config::config::Config;
 mod actors;
 mod api;
 mod signal;
+mod storage;
 mod wallet;
 
 /// Run the Witnet wallet application.

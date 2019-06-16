@@ -1,9 +1,10 @@
 //! Error type definition
 use failure::Fail;
 
-use crate::actors::storage;
 use witnet_net::client::tcp;
 use witnet_rad::error::RadError;
+
+use crate::storage;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -24,7 +25,7 @@ pub enum Error {
     #[fail(display = "could not communicate with database")]
     StorageCommFailed(#[cause] actix::MailboxError),
     #[fail(display = "{}", _0)]
-    StorageOpFailed(#[cause] storage::error::Error),
+    StorageOpFailed(#[cause] storage::Error),
     #[fail(display = "could not communicate with cryptographic engine")]
     CryptoCommFailed(#[cause] actix::MailboxError),
 }
