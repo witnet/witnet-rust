@@ -1,7 +1,7 @@
 //! Error type definition
 use failure::Fail;
 
-use crate::actors::{crypto, storage};
+use crate::actors::storage;
 use witnet_net::client::tcp;
 use witnet_rad::error::RadError;
 
@@ -25,6 +25,6 @@ pub enum Error {
     StorageCommFailed(#[cause] actix::MailboxError),
     #[fail(display = "{}", _0)]
     StorageOpFailed(#[cause] storage::error::Error),
-    #[fail(display = "failed to perform cryptographic operation")]
-    CryptoFailed(#[cause] actix::MailboxError),
+    #[fail(display = "could not communicate with cryptographic engine")]
+    CryptoCommFailed(#[cause] actix::MailboxError),
 }

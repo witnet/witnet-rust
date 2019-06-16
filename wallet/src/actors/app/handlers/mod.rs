@@ -7,6 +7,7 @@ mod get_transactions;
 mod get_wallet_infos;
 mod import_seed;
 mod lock_wallet;
+mod notification;
 mod run_rad_req;
 mod send_data_req;
 mod send_vtt;

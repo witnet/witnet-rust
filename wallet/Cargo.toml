@@ -11,7 +11,7 @@ bincode = "1.1.3"
 log = "0.4.6"
 jsonrpc-core = "11.0.0"
 futures = "0.1.26"
-serde = { version = "1.0.90", features = ["derive"] }
+serde = { version = "1.0.90", features = ["derive", "rc"] }
 serde_json = "1.0.39"
 rocksdb = "0.12.2"
 rayon = "1.0.3"
@@ -20,11 +20,12 @@ jsonrpc-pubsub = "11.0.0"
 actix = "0.8.3"
 tokio-signal = "0.2.7"
 failure = "0.1.5"
+hex = "0.3.2"
 
 witnet_net = { path = "../net" }
 witnet_config = { path = "../config" }
 witnet_storage = { path = "../storage" }
 witnet_rad = { path = "../rad" }
-witnet_crypto = { path = "../crypto" }
+witnet_crypto = { path = "../crypto", features = ["with-serde"] }
+witnet_protected = { path = "../protected", features = ["with-serde"] }
 witnet_data_structures = { path = "../data_structures" }
-

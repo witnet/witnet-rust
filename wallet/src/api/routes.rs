@@ -3,7 +3,7 @@ use failure::Fail;
 use futures::{future, Future};
 use jsonrpc_core::{self as rpc, Middleware, Params};
 use jsonrpc_pubsub::{PubSubHandler, PubSubMetadata};
-use serde_json::{self as json, json, to_value};
+use serde_json::{json, to_value};
 
 use crate::actors::app::App;
 use crate::api;
@@ -11,11 +11,11 @@ use crate::api;
 #[derive(Debug, Fail)]
 enum Error {
     #[fail(display = "could not handle request")]
-    DispatchFailed(#[cause] MailboxError),
+    Dispatch(#[cause] MailboxError),
     #[fail(display = "{}", _0)]
-    HandlerFailed(#[cause] failure::Error),
+    Handler(#[cause] failure::Error),
     #[fail(display = "failed to serialize response")]
-    SerializeFailed(#[cause] json::Error),
+    Serialize(#[cause] serde_json::Error),
 }
 
 impl Into<rpc::Error> for Error {
@@ -42,11 +42,11 @@ macro_rules! routes {
                     .and_then(move |msg| {
                         // Then send the parsed message to the actor
                         addr.send(msg)
-                            .map_err(Error::DispatchFailed)
-                            .and_then(|result| result.map_err(Error::HandlerFailed))
+                            .map_err(Error::Dispatch)
+                            .and_then(|result| result.map_err(Error::Handler))
                             .and_then(
                                 |x|
-                                future::result(to_value(x)).map_err(Error::SerializeFailed)
+                                future::result(to_value(x)).map_err(Error::Serialize)
                             )
                             .map_err(|err| err.into())
                     })
@@ -69,10 +69,10 @@ macro_rules! forwarded_routes {
                     params
                 };
                 app_addr.send(msg)
-                    .map_err(Error::DispatchFailed)
-                    .and_then(|result| result.map_err(Error::HandlerFailed))
+                    .map_err(Error::Dispatch)
+                    .and_then(|result| result.map_err(Error::Handler))
                     .and_then(|x| {
-                        future::result(to_value(x)).map_err(Error::SerializeFailed)
+                        future::result(to_value(x)).map_err(Error::Serialize)
                     })
                     .map_err(|err| err.into())
             });
@@ -96,7 +96,7 @@ where
             let addr = app.clone();
             move |id, _| {
                 addr.send(api::UnsubscribeRequest(id))
-                    .map_err(Error::DispatchFailed)
+                    .map_err(Error::Dispatch)
                     .and_then(|_| future::ok(json!({"status": "ok"})))
                     .map_err(|err| err.into())
             }

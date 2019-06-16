@@ -1,7 +1,6 @@
 //! # Application actor.
 //!
 //! See [`App`](App) actor for more information.
-use std::path::PathBuf;
 
 use actix::prelude::*;
 use failure::Error;
@@ -10,12 +9,13 @@ use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
 use serde_json::{self as json, json};
 
-use super::{
-    rad_executor::RadExecutor,
-    storage::{self, Storage},
-};
 use witnet_net::client::tcp::{jsonrpc as rpc_client, JsonRpcClient};
+use witnet_protected::ProtectedString;
 
+use crate::actors::{crypto, storage, Crypto, RadExecutor, Storage};
+use crate::wallet;
+
+pub mod builder;
 pub mod error;
 mod handlers;
 
@@ -26,18 +26,19 @@ mod handlers;
 pub struct App {
     storage: Addr<Storage>,
     rad_executor: Addr<RadExecutor>,
+    crypto: Addr<Crypto>,
     node_client: Option<Addr<JsonRpcClient>>,
     subscriptions: [Option<pubsub::Sink>; 10],
 }
 
 impl App {
-    pub fn build() -> AppBuilder {
-        AppBuilder::default()
+    pub fn build() -> builder::AppBuilder {
+        builder::AppBuilder::default()
     }
 
     /// Return an id for a new subscription. If there are no available subscription slots, then
     /// `None` is returned.
-    pub fn subscribe(&mut self, subscriber: pubsub::Subscriber) -> Result<usize, error::Error> {
+    pub fn subscribe(&mut self, subscriber: pubsub::Subscriber) -> Result<usize, Error> {
         let (id, slot) = self
             .subscriptions
             .iter_mut()
@@ -53,7 +54,7 @@ impl App {
     }
 
     /// Remove a subscription and leave its corresponding slot free.
-    pub fn unsubscribe(&mut self, id: pubsub::SubscriptionId) -> Result<(), error::Error> {
+    pub fn unsubscribe(&mut self, id: pubsub::SubscriptionId) -> Result<(), Error> {
         let index = match id {
             pubsub::SubscriptionId::Number(n) => Ok(n as usize),
             _ => Err(error::Error::UnsubscribeFailed(
@@ -76,7 +77,7 @@ impl App {
         &mut self,
         method: String,
         params: rpc::Params,
-    ) -> ResponseFuture<json::Value, error::Error> {
+    ) -> ResponseFuture<json::Value, Error> {
         match &self.node_client {
             Some(addr) => {
                 let req = rpc_client::Request::method(method)
@@ -85,62 +86,56 @@ impl App {
                 let fut = addr
                     .send(req)
                     .map_err(error::Error::RequestFailedToSend)
-                    .and_then(|result| result.map_err(error::Error::RequestFailed));
+                    .and_then(|result| result.map_err(error::Error::RequestFailed))
+                    .map_err(Error::from);
 
                 Box::new(fut)
             }
             None => {
-                let fut = future::err(error::Error::NodeNotConnected);
+                let fut = future::err(Error::from(error::Error::NodeNotConnected));
 
                 Box::new(fut)
             }
         }
     }
-}
 
-#[derive(Default)]
-pub struct AppBuilder {
-    node_url: Option<String>,
-    db_path: PathBuf,
-}
+    /// Create an empty wallet.
+    fn create_wallet(
+        &self,
+        caption: String,
+        password: ProtectedString,
+        seed_source: wallet::SeedSource,
+    ) -> ResponseActFuture<Self, wallet::WalletId, Error> {
+        let key_spec = wallet::Wip::Wip3;
+        let fut = self
+            .crypto
+            .send(crypto::GenWalletKeys(seed_source))
+            .map_err(map_crypto_failed_err)
+            .and_then(map_err)
+            .into_actor(self)
+            .and_then(move |(id, master_key), slf, _ctx| {
+                // Keypath: m/3'/4919'/0'
+                let keypath = wallet::KeyPath::master()
+                    .hardened(3)
+                    .hardened(4919)
+                    .hardened(0);
+                let keychains = wallet::KeyChains::new(keypath);
+                let account = wallet::Account::new(keychains);
+                let content = wallet::WalletContent::new(master_key, key_spec, vec![account]);
+                let info = wallet::WalletInfo {
+                    id: id.clone(),
+                    caption,
+                };
+                let wallet = wallet::Wallet::new(info, content);
 
-impl AppBuilder {
-    pub fn node_url(mut self, url: Option<String>) -> Self {
-        self.node_url = url;
-        self
-    }
+                slf.storage
+                    .send(storage::CreateWallet(wallet, password))
+                    .map_err(map_storage_failed_err)
+                    .map(move |_| id)
+                    .into_actor(slf)
+            });
 
-    pub fn db_path(mut self, path: PathBuf) -> Self {
-        self.db_path = path;
-        self
-    }
-
-    /// Start App actor with given addresses for Storage and Rad actors.
-    pub fn start(self) -> Result<Addr<App>, Error> {
-        let node_url = self.node_url;
-        let node_client = node_url.clone().map_or_else(
-            || Ok(None),
-            |url| JsonRpcClient::start(url.as_ref()).map(Some),
-        )?;
-        let storage = Storage::build()
-            .with_path(self.db_path)
-            .with_file_name("witnet_wallets.db")
-            .with_options({
-                let mut db_opts = storage::Options::default();
-                db_opts.create_if_missing(true);
-                db_opts
-            })
-            .start()?;
-        let rad_executor = RadExecutor::start();
-
-        let app = App {
-            storage,
-            rad_executor,
-            node_client,
-            subscriptions: Default::default(),
-        };
-
-        Ok(app.start())
+        Box::new(fut)
     }
 }
 
@@ -148,8 +143,6 @@ impl Actor for App {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        // controller::Controller::from_registry()
-        //     .do_send(controller::Subscribe(ctx.address().recipient()));
         if let Some(ref client) = self.node_client {
             let recipient = ctx.address().recipient();
             let request =
@@ -161,47 +154,17 @@ impl Actor for App {
 
 impl Supervised for App {}
 
-fn json_get<'a>(value: &'a json::Value, path: &[&str]) -> Option<&'a json::Value> {
-    let mut result = Some(value);
-    for key in path {
-        result = result.and_then(|v| v.get(key));
-    }
-    result
+fn map_crypto_failed_err(err: actix::MailboxError) -> Error {
+    Error::from(error::Error::CryptoCommFailed(err))
 }
 
-impl Handler<rpc_client::Notification> for App {
-    type Result = <rpc_client::Notification as Message>::Result;
+fn map_storage_failed_err(err: actix::MailboxError) -> Error {
+    Error::from(error::Error::StorageCommFailed(err))
+}
 
-    fn handle(&mut self, msg: rpc_client::Notification, ctx: &mut Self::Context) -> Self::Result {
-        let checkpoint = json_get(&msg.0, &["block_header", "beacon", "checkpoint"]);
-        log::debug!(
-            ">> Received notification from jsonrpc-client with checkpoint: {:?}",
-            checkpoint
-        );
-        self.subscriptions
-            .iter()
-            .filter_map(|s| s.as_ref())
-            .enumerate()
-            .for_each(|(slot, subscriber)| {
-                let value = msg.0.clone();
-                let mut obj = json::Map::new();
-                obj.insert("newBlock".to_string(), value);
-
-                let params = rpc::Params::Map(obj);
-
-                log::debug!("Sending notification to wallet-subscribers.");
-
-                subscriber
-                    .notify(params)
-                    .map(|_| ())
-                    .into_actor(self)
-                    .map_err(move |err, act, _ctx| {
-                        let id = pubsub::SubscriptionId::Number(slot as u64);
-                        act.unsubscribe(id)
-                            .expect("failed to removed faulty subscription");
-                        log::error!("Error notifying client: {}.", err,);
-                    })
-                    .spawn(ctx);
-            });
-    }
+fn map_err<T, E>(result: Result<T, E>) -> Result<T, Error>
+where
+    E: failure::Fail,
+{
+    result.map_err(Error::from)
 }

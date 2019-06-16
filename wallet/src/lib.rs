@@ -37,7 +37,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         controller.do_send(actors::controller::Shutdown);
     });
 
-    let _ = system.run()?;
+    system.run()?;
 
     Ok(())
 }

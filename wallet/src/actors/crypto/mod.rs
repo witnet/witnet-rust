@@ -57,9 +57,8 @@ impl Crypto {
                     self.params.master_key_salt.as_ref(),
                     self.params.id_hash_iterations,
                 );
-                let id = hex::encode(id_bytes);
 
-                id
+                hex::encode(id_bytes)
             }
         }
     }
