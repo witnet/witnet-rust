@@ -4,14 +4,15 @@
 //!
 //! ```
 //! # use witnet_crypto::{key, mnemonic};
-//! let passphrase = "";
-//! let seed = mnemonic::MnemonicGen::new().generate().seed(passphrase);
+//! let passphrase = "".into();
+//! let seed = mnemonic::MnemonicGen::new().generate().seed(&passphrase);
 //! let ext_key = key::MasterKeyGen::new(seed).generate();
 //! ```
-
 use failure::Fail;
 use hmac::{Hmac, Mac};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use sha2;
 
 const HARDENED_BIT: u32 = 1 << 31;
@@ -112,6 +113,7 @@ pub type SignContext<C> = Secp256k1<C>;
 
 /// Extended Key is just a Key with a Chain Code
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtendedSK {
     /// Secret key
     pub secret_key: SK,

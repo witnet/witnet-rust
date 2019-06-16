@@ -6,6 +6,10 @@ workspace = ".."
 description = "crypto component"
 edition = "2018"
 
+[features]
+default = []
+with-serde = ["serde", "secp256k1/serde"]
+
 [dependencies]
 failure = "0.1.5"
 hmac = "0.7.0"
@@ -16,4 +20,4 @@ tiny-bip39 = "0.6.0"
 memzero = "0.1.0"
 rand = "0.6.5"
 witnet_protected = { path = "../protected" }
-serde = "1.0.91"
+serde = {version = "1.0.91", optional = true}

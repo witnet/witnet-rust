@@ -7,16 +7,17 @@
 //! let mnemonic = MnemonicGen::new().generate();
 //!
 //! // A Mnemonic Seed must be protected by a passphrase
-//! let passphrase = "";
+//! let passphrase = "".into();
 //!
 //! // String of mnemonic words
 //! let words = mnemonic.words();
 //! // Seed that can be used to generate a master secret key
-//! let seed = mnemonic.seed(passphrase);
+//! let seed = mnemonic.seed(&passphrase);
 //! ```
 
 use bip39;
 use failure::Error;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use witnet_protected::ProtectedString;
@@ -72,7 +73,8 @@ impl AsRef<[u8]> for Seed {
 /// * `192 bits` generates `18 words` mnemonic
 /// * `224 bits` generates `21 words` mnemonic
 /// * `256 bits` generates `24 words` mnemonic
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum Length {
     /// 12 words length
     Words12,
