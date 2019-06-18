@@ -79,6 +79,7 @@ impl ChainManager {
                                 if consensus_constants == chain_info_from_storage.consensus_constants {
                                     // Update Chain Info from storage
                                     act.chain_state = chain_state_from_storage;
+                                    act.last_chain_state = act.chain_state.clone();
                                     debug!("ChainInfo successfully obtained from storage");
                                 } else {
                                     // Mismatching consensus constants between config and storage
@@ -128,8 +129,14 @@ impl ChainManager {
                                 reputation_engine: Some(reputation_engine),
                                 ..ChainState::default()
                             };
+                            act.last_chain_state = act.chain_state.clone();
                         }
                     }
+
+                    let chain_info = act.chain_state.chain_info.as_ref().unwrap();
+                    info!("Actual ChainState CheckpointBeacon: epoch ({}), hash_block ({})",
+                          chain_info.highest_block_checkpoint.checkpoint,
+                          chain_info.highest_block_checkpoint.hash_prev_block);
 
                     fut::ok(())
                 })

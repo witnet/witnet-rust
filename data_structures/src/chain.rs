@@ -1371,7 +1371,7 @@ pub type UnspentOutputsPool = HashMap<OutputPointer, ValueTransferOutput>;
 pub type Blockchain = BTreeMap<Epoch, Hash>;
 
 /// Blockchain state (valid at a certain epoch)
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChainState {
     /// Blockchain information data structure
     pub chain_info: Option<ChainInfo>,
@@ -1420,7 +1420,7 @@ impl ChainState {
 }
 
 /// State related to the Reputation Engine
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ReputationEngine {
     /// Total number of witnessing acts
     pub current_alpha: Alpha,

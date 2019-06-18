@@ -20,7 +20,7 @@ use std::{
 /// and also update with the identities that are expired.
 
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ActiveReputationSet<K>
 where
     K: Clone + Eq + Hash,

@@ -110,6 +110,8 @@ impl Default for StateMachine {
 pub struct ChainManager {
     /// Blockchain state data structure
     chain_state: ChainState,
+    /// Backup for ChainState
+    last_chain_state: ChainState,
     /// Current Epoch
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
@@ -130,6 +132,8 @@ pub struct ChainManager {
     own_pkh: Option<PublicKeyHash>,
     /// VRF context
     vrf_ctx: Option<VrfCtx>,
+    /// Peers beacons boolean
+    peers_beacons_received: bool,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -140,9 +144,9 @@ impl SystemService for ChainManager {}
 
 /// Auxiliary methods for ChainManager actor
 impl ChainManager {
-    /// Method to persist chain_info into storage
-    fn persist_chain_state(&self, ctx: &mut Context<Self>) {
-        match self.chain_state.chain_info.as_ref() {
+    /// Method to persist backup of chain_state into storage
+    fn persist_last_chain_state(&self, ctx: &mut Context<Self>) {
+        match self.last_chain_state.chain_info.as_ref() {
             Some(x) => x,
             None => {
                 error!("Trying to persist an empty chain state value");
@@ -150,7 +154,7 @@ impl ChainManager {
             }
         };
 
-        storage_mngr::put(&CHAIN_STATE_KEY, &self.chain_state)
+        storage_mngr::put(&CHAIN_STATE_KEY, &self.last_chain_state)
             .into_actor(self)
             .and_then(|_, _, _| {
                 debug!("Successfully persisted chain_info into storage");
@@ -158,6 +162,12 @@ impl ChainManager {
             })
             .map_err(|err, _, _| error!("Failed to persist chain_info into storage: {}", err))
             .wait(ctx);
+    }
+    /// Method to persist the chain_state into storage
+    fn persist_chain_state(&mut self, ctx: &mut Context<Self>) {
+        self.persist_last_chain_state(ctx);
+        // TODO: Evaluate another way to avoid clone
+        self.last_chain_state = self.chain_state.clone();
     }
 
     /// Method to Send an Item to Inventory Manager
