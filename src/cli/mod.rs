@@ -23,7 +23,15 @@ pub fn exec(command: Cli) -> Result<(), failure::Error> {
             ..
         } => {
             let config = get_config(config.or_else(config::dirs::find_config))?;
-            init_logger(debug, trace);
+            let mut filter = None;
+
+            if trace {
+                filter = Some(log::LevelFilter::Trace);
+            } else if debug {
+                filter = Some(log::LevelFilter::Debug);
+            }
+
+            init_logger(filter);
 
             exec_cmd(cmd, config)
         }
@@ -37,20 +45,18 @@ fn exec_cmd(command: Command, config: config::config::Config) -> Result<(), fail
     }
 }
 
-fn init_logger(debug: bool, trace: bool) {
-    let log_level = if trace {
-        log::LevelFilter::Trace
-    } else if debug {
-        log::LevelFilter::Debug
-    } else {
-        log::LevelFilter::Info
-    };
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("witnet"))
-        .default_format_timestamp(false)
-        .default_format_module_path(false)
-        .filter_level(log::LevelFilter::Info)
-        .filter_module("witnet", log_level)
-        .init();
+fn init_logger(filter: Option<log::LevelFilter>) {
+    let mut logger = env_logger::Builder::from_env(env_logger::Env::default());
+
+    logger.default_format_timestamp(true);
+    logger.default_format_module_path(true);
+    logger.filter_level(log::LevelFilter::Info);
+
+    if let Some(filter) = filter {
+        logger.filter_module("witnet", filter);
+    }
+
+    logger.init();
 }
 
 fn get_config(path: Option<PathBuf>) -> Result<config::config::Config, failure::Error> {
