@@ -51,7 +51,7 @@ impl<'a> Builder<'a> {
     /// Start an instance of the actor inside a SyncArbiter.
     pub fn start(self) -> Result<Addr<Storage>, Error> {
         let mut options = self.options.unwrap_or_default();
-        options.set_merge_operator("merge operator", storage::storage_merge, None);
+        options.set_merge_operator("merge operator", storage::storage_merge_operator, None);
         let path = self.path.map_or_else(env::current_dir, Ok)?;
         let file_name = self.name.unwrap_or_else(|| "witnet_wallets.db");
         let db = rocksdb::DB::open(&options, path.join(file_name))

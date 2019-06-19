@@ -105,25 +105,61 @@ where
     bincode::deserialize(bytes).map_err(error::Error::DeserializeFailed)
 }
 
+fn try_merge<T>(values: &mut Vec<T>, slice: &[u8]) -> Result<(), error::Error>
+where
+    T: serde::de::DeserializeOwned + PartialEq<T>,
+{
+    log::trace!("merging value");
+    let val = deserialize(slice)?;
+
+    if !values.contains(&val) {
+        values.push(val);
+    }
+
+    Ok(())
+}
+
+fn try_merge_vec<T>(values: &mut Vec<T>, slice: &[u8]) -> Result<(), error::Error>
+where
+    T: serde::de::DeserializeOwned + PartialEq<T>,
+{
+    log::trace!("merging vec of values");
+    let old_values: Vec<T> = deserialize(slice)?;
+
+    for val in old_values {
+        if !values.contains(&val) {
+            values.push(val);
+        }
+    }
+
+    Ok(())
+}
+
 /// Rocksdb merge operator for wallet database.
-pub fn storage_merge(
+pub fn storage_merge_operator(
     new_key: &[u8],
     existing_val: Option<&[u8]>,
     operands: &mut rocksdb::MergeOperands,
 ) -> Option<Vec<u8>> {
     match new_key {
         b"wallets" => {
-            let mut ids: Vec<wallet::WalletId> =
-                existing_val.map_or_else(Vec::new, |bytes| deserialize(bytes).expect("foo"));
+            log::trace!("merge starting...");
+            let mut infos: Vec<wallet::WalletId> = Vec::with_capacity(operands.size_hint().0);
 
-            for bytes in operands {
-                let id = deserialize(bytes).expect("bar");
-                if !ids.contains(&id) {
-                    ids.push(id)
-                }
+            if let Some(bytes) = existing_val {
+                infos = deserialize(bytes).expect("merge: deserialize ids failed");
             }
 
-            Some(serialize::<Vec<wallet::WalletId>>(ids.as_ref()).expect("baz"))
+            for bytes in operands {
+                try_merge_vec(&mut infos, bytes)
+                    .or_else(|_| try_merge(&mut infos, bytes))
+                    .expect("merge: deserialize operand failed");
+            }
+            log::trace!("merge finished");
+            Some(
+                serialize::<Vec<wallet::WalletId>>(infos.as_ref())
+                    .expect("merge: serialize ids failed"),
+            )
         }
         field => panic!("field {:?} do not support merge", field),
     }
