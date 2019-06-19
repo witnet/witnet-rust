@@ -2,9 +2,7 @@ use actix::{fut::WrapFuture, prelude::*};
 use log;
 
 use witnet_data_structures::{
-    chain::{
-        ChainState, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, PublicKeyHash,
-    },
+    chain::{ChainState, CheckpointBeacon, Epoch, Hash, Hashable, InventoryItem, PublicKeyHash},
     error::{ChainInfoError, TransactionError},
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
@@ -402,7 +400,7 @@ impl Handler<AddTransaction> for ChainManager {
 
 /// Handler for GetBlocksEpochRange
 impl Handler<GetBlocksEpochRange> for ChainManager {
-    type Result = Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>;
+    type Result = Result<Vec<(Epoch, Hash)>, ChainManagerError>;
 
     fn handle(
         &mut self,
@@ -415,11 +413,11 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         // TODO: we should only accept this message in Synced state, but that breaks the
         // JSON-RPC getBlockChain method
 
-        let mut hashes: Vec<(Epoch, InventoryEntry)> = self
+        let mut hashes: Vec<(Epoch, Hash)> = self
             .chain_state
             .block_chain
             .range(range)
-            .map(|(k, v)| (*k, InventoryEntry::Block(*v)))
+            .map(|(k, v)| (*k, *v))
             .collect();
 
         // Hashes Vec has not to be bigger than MAX_BLOCKS_SYNC

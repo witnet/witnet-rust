@@ -12,7 +12,7 @@ use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 
-use witnet_data_structures::chain::{self, Block, Hash, InventoryEntry};
+use witnet_data_structures::chain::{self, Block, Hash};
 
 use crate::actors::{
     chain_manager::{ChainManager, ChainManagerError},
@@ -255,17 +255,13 @@ pub fn get_block_chain(
 ) -> JsonRpcResultAsync {
     // Helper function to convert the result of GetBlockEpochRange to a JSON value, or a JSON-RPC error
     fn process_get_block_chain(
-        res: Result<Result<Vec<(u32, InventoryEntry)>, ChainManagerError>, MailboxError>,
+        res: Result<Result<Vec<(u32, Hash)>, ChainManagerError>, MailboxError>,
     ) -> impl Future<Item = Value, Error = jsonrpc_core::Error> {
         match res {
             Ok(Ok(vec_inv_entry)) => {
                 let epoch_and_hash: Vec<_> = vec_inv_entry
                     .into_iter()
-                    .map(|(epoch, inv_entry)| {
-                        let hash = match inv_entry {
-                            InventoryEntry::Block(hash) => hash,
-                            x => panic!("{:?} is not a block", x),
-                        };
+                    .map(|(epoch, hash)| {
                         let hash_string = format!("{}", hash);
                         (epoch, hash_string)
                     })

@@ -13,6 +13,7 @@ use witnet_data_structures::{
     builders::from_address,
     chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, InventoryItem},
     proto::ProtobufConvert,
+    transaction::Transaction,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
         Message as WitnetMessage, Peers, Version,
@@ -34,7 +35,6 @@ use crate::actors::{
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
-use witnet_data_structures::transaction::Transaction;
 use witnet_util::timestamp::get_timestamp;
 
 /// Implement WriteHandler for Session
@@ -587,7 +587,9 @@ fn session_last_beacon_inbound(
                                     // Try to create an Inv protocol message with the items to
                                     // be announced
                                     if let Ok(inv_msg) =
-                                        WitnetMessage::build_inventory_announcement(act.magic_number, blocks.into_iter().map(|(_epoch, hash)| hash).collect())
+                                        WitnetMessage::build_inventory_announcement(act.magic_number, blocks.into_iter().map(|(_epoch, hash)| {
+                                            InventoryEntry::Block(hash)
+                                        }).collect())
                                     {
                                         // Send Inv message through the session network connection
                                         act.send_message(inv_msg);

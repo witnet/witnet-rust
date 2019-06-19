@@ -127,7 +127,7 @@ impl GetBlocksEpochRange {
 }
 
 impl Message for GetBlocksEpochRange {
-    type Result = Result<Vec<(Epoch, InventoryEntry)>, ChainManagerError>;
+    type Result = Result<Vec<(Epoch, Hash)>, ChainManagerError>;
 }
 
 /// A list of peers and their respective last beacon, used to establish consensus
