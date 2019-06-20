@@ -7,5 +7,6 @@ pub struct WalletInfosRequest;
 
 #[derive(Debug, Serialize)]
 pub struct WalletInfosResponse {
+    pub total: usize,
     pub infos: Vec<wallet::WalletInfo>,
 }

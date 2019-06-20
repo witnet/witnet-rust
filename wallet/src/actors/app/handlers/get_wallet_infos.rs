@@ -18,7 +18,12 @@ impl Handler<api::WalletInfosRequest> for App {
             .send(storage::GetWalletInfos)
             .map_err(error::Error::StorageCommFailed)
             .and_then(|res| future::result(res).map_err(error::Error::StorageOpFailed))
-            .and_then(|infos| future::ok(api::WalletInfosResponse { infos }))
+            .and_then(|infos| {
+                future::ok(api::WalletInfosResponse {
+                    total: infos.len(),
+                    infos,
+                })
+            })
             .map_err(failure::Error::from);
 
         Box::new(fut)
