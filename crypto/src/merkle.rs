@@ -165,6 +165,178 @@ impl<T: Copy> ProgressiveMerkleTree<T> {
     }
 }
 
+/// Full merkle tree with all the intermediate nodes, used to generate
+/// inclusion proofs
+#[derive(Debug)]
+pub struct FullMerkleTree<T: 'static> {
+    nodes: Vec<Vec<T>>,
+    hash_concat: fn(T, T) -> T,
+    empty_hash: &'static T,
+}
+
+impl FullMerkleTree<Sha256> {
+    /// Merkle tree using SHA256 function
+    pub fn sha256(leaves: Vec<Sha256>) -> Self {
+        Self::new(leaves, sha256_concat, &EMPTY_SHA256)
+    }
+}
+
+impl<T: Copy + PartialEq> FullMerkleTree<T> {
+    /// New full merkle tree
+    pub fn new(leaves: Vec<T>, hash_concat: fn(T, T) -> T, empty_hash: &'static T) -> Self {
+        let nodes = FullMerkleTree::build(leaves, hash_concat);
+        Self {
+            nodes,
+            hash_concat,
+            empty_hash,
+        }
+    }
+    // Build all the nodes from the leaves
+    fn build(leaves: Vec<T>, hash_concat: fn(T, T) -> T) -> Vec<Vec<T>> {
+        if leaves.is_empty() {
+            return vec![];
+        }
+        let next_layer = |leaves: &[T]| {
+            let v: Vec<T> = leaves
+                .chunks(2)
+                .map(|c| match c {
+                    &[left, right] => hash_concat(left, right),
+                    &[hash] => hash,
+                    x => panic!(
+                        "Chunks iterator returned invalid slice with len {}",
+                        x.len()
+                    ),
+                })
+                .collect();
+
+            v
+        };
+
+        let mut nodes = vec![leaves.clone()];
+        while nodes.last().unwrap().len() > 1 {
+            nodes.push(next_layer(nodes.last().unwrap()));
+        }
+
+        nodes
+    }
+
+    /// Get the merkle tree root
+    pub fn root(&self) -> T {
+        self.nodes.last().map(|x| x[0]).unwrap_or(*self.empty_hash)
+    }
+
+    /// Get the nodes
+    pub fn nodes(&self) -> &[Vec<T>] {
+        &self.nodes
+    }
+
+    /// Create inclusion proof for element at index.
+    ///
+    /// Returns `None` if the index is out of bounds.
+    pub fn inclusion_proof(&self, index: usize) -> Option<InclusionProof<T>> {
+        // If the merkle tree is empty or the index is out of bounds, there is nothing to prove
+        if self.nodes.is_empty() || index >= self.nodes[0].len() {
+            return None;
+        }
+
+        // i is the index of the leaf we want to prove, which changes as
+        // we go up the tree
+        let mut i = index;
+        // v is the list of nodes required to prove inclusion, ordered from
+        // bottom to top
+        let mut v = vec![];
+        // proof_index is the index of the leaf in the proof: in a merkle tree
+        // with 5 leaves, the element with index 4 will have a proof_index of 1,
+        // because the proof will contain 1 node which needs to be appended from the left.
+        let mut proof_index = 0;
+
+        for layer in &self.nodes {
+            // By using get(i ^ 1) we obtain the node from the left or from the right
+            // depending on the index i.
+            // This condition will skip incomplete layers where we can just move the node
+            // one layer up without creating any proof
+            // And it will also skip the last layer which consists of only the root.
+            if let Some(x) = layer.get(i ^ 1) {
+                // Save information about whether to append the proof from the left or from
+                // the right as proof_index. A bit set to 0 means (node || proof), and a
+                // bit set to 1 means (proof || node)
+                proof_index |= (i & 1) << v.len();
+                // Insert node into proof
+                v.push(*x);
+            }
+
+            // Shift index one bit to the right: this is a division by 2, which is needed
+            // to transform the index from layer n to layer n+1
+            i >>= 1;
+        }
+
+        Some(InclusionProof::new(proof_index, v, self.hash_concat))
+    }
+}
+
+/// Inclusion proof of an element in a merkle tree
+#[derive(Debug)]
+pub struct InclusionProof<T> {
+    // This is not always the index of the element in the tree:
+    // In a 5-element merkle tree: [0, 1, 2, 3, 4]
+    // The indexes of the proofs would be [0, 1, 2, 3, 1],
+    // but the length of the lemma would be [3, 3, 3, 3, 1].
+    index: usize,
+    lemma: Vec<T>,
+    hash_concat: fn(T, T) -> T,
+}
+
+impl InclusionProof<Sha256> {
+    /// Sha256 inclusion proof
+    pub fn sha256(index: usize, lemma: Vec<Sha256>) -> Self {
+        Self::new(index, lemma, sha256_concat)
+    }
+}
+
+impl<T: Copy + PartialEq> InclusionProof<T> {
+    /// New inclusion proof
+    pub fn new(index: usize, lemma: Vec<T>, hash_concat: fn(T, T) -> T) -> Self {
+        Self {
+            index,
+            lemma,
+            hash_concat,
+        }
+    }
+
+    /// Calculate the root of the merkle tree given the element hash, using the
+    /// merkle path stored in lemma
+    pub fn root(&self, element: T) -> T {
+        let mut elem = element;
+        let hash_concat = self.hash_concat;
+        for (level, h) in self.lemma.iter().enumerate() {
+            let h_on_the_left = ((self.index >> level) & 1) == 1;
+            elem = if h_on_the_left {
+                hash_concat(*h, elem)
+            } else {
+                hash_concat(elem, *h)
+            };
+        }
+
+        elem
+    }
+
+    /// Verify a proof of inclusion, given the element hash and the root hash
+    pub fn verify(&self, element: T, root: T) -> bool {
+        self.root(element) == root
+    }
+
+    /// Lemma: merkle path
+    pub fn lemma(&self) -> &[T] {
+        &self.lemma
+    }
+
+    /// Proof index: used to indicate when to concatenate left and when to
+    /// concatenate right
+    pub fn proof_index(&self) -> usize {
+        self.index
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

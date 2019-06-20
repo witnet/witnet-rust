@@ -1,5 +1,7 @@
 use witnet_crypto::hash::{calculate_sha256, Sha256};
-use witnet_crypto::merkle::{merkle_tree_root, ProgressiveMerkleTree};
+use witnet_crypto::merkle::{
+    merkle_tree_root, FullMerkleTree, InclusionProof, ProgressiveMerkleTree,
+};
 
 #[test]
 fn empty() {
@@ -94,4 +96,140 @@ fn progressive() {
         mhashes.push(hash);
         assert_eq!(merkle_tree_root(&mhashes), mt.root());
     }
+}
+
+#[test]
+fn full_merkle_tree() {
+    // Compare the FullMerkleTree against the slice-based one
+    let a = Sha256([0x00; 32]);
+    let b = Sha256([0x11; 32]);
+    let c = Sha256([0x22; 32]);
+    let d = Sha256([0x33; 32]);
+    let e = Sha256([0x44; 32]);
+    let f = Sha256([0x55; 32]);
+    let g = Sha256([0x66; 32]);
+    let x = vec![a, b, c, d, e, f, g];
+
+    // Empty merkle tree: empty hash
+    assert_eq!(merkle_tree_root(&[]), FullMerkleTree::sha256(vec![]).root());
+
+    for i in 0..x.len() {
+        let mhashes = &x[..i];
+        assert_eq!(
+            merkle_tree_root(mhashes),
+            FullMerkleTree::sha256(mhashes.to_vec()).root()
+        );
+    }
+}
+
+#[test]
+fn inclusion_proofs() {
+    let leaves = vec![
+        Sha256([0; 32]),
+        Sha256([1; 32]),
+        Sha256([2; 32]),
+        Sha256([3; 32]),
+        Sha256([4; 32]),
+        Sha256([5; 32]),
+        Sha256([6; 32]),
+        Sha256([7; 32]),
+        Sha256([8; 32]),
+        Sha256([9; 32]),
+    ];
+    for j in 0..10 {
+        let leaves = &leaves[..j];
+        let mt = FullMerkleTree::sha256(leaves.to_vec());
+        for (idx, lidx) in leaves.iter().enumerate() {
+            let p0 = mt.inclusion_proof(idx).unwrap();
+            assert!(p0.verify(*lidx, mt.root()), "{:#?}", (j, idx, p0, mt));
+            // Verifying with a different hash or root fails
+            assert!(
+                !p0.verify(Sha256([0xFF; 32]), mt.root()),
+                "{:#?}",
+                (j, idx, p0, mt)
+            );
+            assert!(
+                !p0.verify(*lidx, Sha256([0xFF; 32])),
+                "{:#?}",
+                (j, idx, p0, mt)
+            );
+        }
+    }
+}
+
+#[test]
+fn manual_inclusion_proof() {
+    let h = hash_concat;
+    // Manually build an inclusion proof
+    // The merkle tree is pretty simple: the element at index x has hash [x; 32]
+    let leaves = vec![
+        Sha256([0; 32]),
+        Sha256([1; 32]),
+        Sha256([2; 32]),
+        Sha256([3; 32]),
+        Sha256([4; 32]),
+        Sha256([5; 32]),
+        Sha256([6; 32]),
+        Sha256([7; 32]),
+        Sha256([8; 32]),
+        Sha256([9; 32]),
+    ];
+    let mt = FullMerkleTree::sha256(leaves);
+    let mt_root = mt.root();
+    // We will prove that the element at index 0 is [0; 32]
+    let lemma = vec![
+        // R 1
+        Sha256([1; 32]),
+        // R 23
+        h(Sha256([2; 32]), Sha256([3; 32])),
+        // R 4567
+        h(
+            h(Sha256([4; 32]), Sha256([5; 32])),
+            h(Sha256([6; 32]), Sha256([7; 32])),
+        ),
+        // R 89
+        h(Sha256([8; 32]), Sha256([9; 32])),
+    ];
+    let proof_index = 0;
+
+    let proof = InclusionProof::sha256(proof_index, lemma);
+    assert!(proof.verify(Sha256([0; 32]), mt_root));
+
+    // Now let's prove element 7
+    let lemma = vec![
+        // L 6
+        Sha256([6; 32]),
+        // L 45
+        h(Sha256([4; 32]), Sha256([5; 32])),
+        // L 0123
+        h(
+            h(Sha256([0; 32]), Sha256([1; 32])),
+            h(Sha256([2; 32]), Sha256([3; 32])),
+        ),
+        // R 89
+        h(Sha256([8; 32]), Sha256([9; 32])),
+    ];
+    let proof_index = 7;
+
+    let proof = InclusionProof::sha256(proof_index, lemma);
+    assert!(proof.verify(Sha256([7; 32]), mt_root));
+
+    // Now let's prove element 9
+    // Get the hash from the full merkle tree, to avoid having to manually
+    // calculate h(h(h(0,1),h(2,3)),h(h(4,5),h(6,7)))
+    let h07 = mt.nodes()[3][0];
+
+    // Note how this proof will be shorter than the others, because the merkle
+    // tree is not balanced
+    let lemma = vec![
+        // L 8
+        Sha256([8; 32]),
+        // L 01234567
+        h07,
+    ];
+    // But now the proof index is not 9 but 3, because we concatenate two times
+    // on the left, so the 2 least significant bits must be set
+    let proof_index = 3;
+    let proof = InclusionProof::sha256(proof_index, lemma);
+    assert!(proof.verify(Sha256([9; 32]), mt_root));
 }
