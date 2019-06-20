@@ -19,34 +19,32 @@ pub fn exec(command: Cli) -> Result<(), failure::Error> {
             config,
             debug,
             trace,
+            no_timestamp,
+            no_module_path,
             cmd,
             ..
         } => {
+            let mut log_opts = LogOptions::default();
             let config = get_config(config.or_else(config::dirs::find_config))?;
-            let mut log_opts = LogOptions {
-                level: config.log.level,
-                source: LogOptionsSource::Config,
-            };
+
+            log_opts.level = config.log.level;
+            log_opts.source = LogOptionsSource::Config;
+            log_opts.timestamp = !no_timestamp;
+            log_opts.module_path = !no_module_path;
 
             if let Ok(rust_log) = env::var("RUST_LOG") {
                 if rust_log.contains("witnet") {
-                    log_opts = LogOptions {
-                        level: env_logger::Logger::from_default_env().filter(),
-                        source: LogOptionsSource::Env,
-                    };
+                    log_opts.level = env_logger::Logger::from_default_env().filter();
+                    log_opts.source = LogOptionsSource::Env;
                 }
             }
 
             if trace {
-                log_opts = LogOptions {
-                    level: log::LevelFilter::Trace,
-                    source: LogOptionsSource::Flag,
-                };
+                log_opts.level = log::LevelFilter::Trace;
+                log_opts.source = LogOptionsSource::Flag;
             } else if debug {
-                log_opts = LogOptions {
-                    level: log::LevelFilter::Debug,
-                    source: LogOptionsSource::Flag,
-                };
+                log_opts.level = log::LevelFilter::Debug;
+                log_opts.source = LogOptionsSource::Flag;
             }
 
             init_logger(log_opts);
@@ -68,8 +66,8 @@ fn init_logger(opts: LogOptions) {
         opts.level, opts.source
     );
     env_logger::Builder::from_env(env_logger::Env::default())
-        .default_format_timestamp(true)
-        .default_format_module_path(true)
+        .default_format_timestamp(opts.timestamp)
+        .default_format_module_path(opts.module_path)
         .filter_level(log::LevelFilter::Info)
         .filter_module("witnet", opts.level)
         .init();
@@ -101,6 +99,12 @@ pub struct Cli {
     /// Turn on TRACE logging.
     #[structopt(long = "trace")]
     trace: bool,
+    /// Do not show timestamps in logs.
+    #[structopt(long = "no-timestamp")]
+    no_timestamp: bool,
+    /// Do not show module path in logs.
+    #[structopt(long = "no-module-path")]
+    no_module_path: bool,
     #[structopt(subcommand)]
     cmd: Command,
 }
@@ -115,11 +119,25 @@ enum Command {
 
 struct LogOptions {
     level: log::LevelFilter,
+    timestamp: bool,
+    module_path: bool,
     source: LogOptionsSource,
+}
+
+impl Default for LogOptions {
+    fn default() -> Self {
+        Self {
+            level: log::LevelFilter::Error,
+            timestamp: true,
+            module_path: true,
+            source: LogOptionsSource::Defaults,
+        }
+    }
 }
 
 #[derive(Debug)]
 enum LogOptionsSource {
+    Defaults,
     Config,
     Env,
     Flag,
