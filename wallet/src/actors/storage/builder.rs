@@ -52,6 +52,10 @@ impl<'a> Builder<'a> {
     pub fn start(self) -> Result<Addr<Storage>, Error> {
         let mut options = self.options.unwrap_or_default();
         options.set_merge_operator("merge operator", storage::storage_merge_operator, None);
+        // From rocksdb docs: every store to stable storage will issue a fsync. This parameter
+        // should be set to true while storing data to filesystem like ext3 that can lose files
+        // after a reboot.
+        options.set_use_fsync(true);
         let path = self.path.map_or_else(env::current_dir, Ok)?;
         let file_name = self.name.unwrap_or_else(|| "witnet_wallets.db");
         let db = rocksdb::DB::open(&options, path.join(file_name))
