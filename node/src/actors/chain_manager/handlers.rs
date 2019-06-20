@@ -212,29 +212,51 @@ impl Handler<AddBlocks> for ChainManager {
             StateMachine::Synchronizing => {
                 if let Some(target_beacon) = self.target_beacon {
                     let mut batch_succeeded = true;
-                    for block in msg.blocks.iter() {
-                        // Update reputation before to check poe
-                        let block_epoch = block.block_header.beacon.checkpoint;
+                    if msg.blocks.is_empty() {
+                        batch_succeeded = false;
+                        log::debug!("Received an empty AddBlocks message");
+                    // FIXME(#684): this condition would be modified when genesis block exist
+                    } else if self.get_chain_beacon().hash_prev_block != self.genesis_block_hash
+                        && msg.blocks[0].hash() != self.get_chain_beacon().hash_prev_block
+                    {
+                        // Fork case
+                        batch_succeeded = false;
+                        log::error!("Mismatching blocks, fork detected");
+                        self.initialize_from_storage(ctx);
+                        log::info!("Restored chain state from storage");
+                    } else {
+                        // FIXME(#684): this condition would be deleted when genesis block exist
+                        let blocks =
+                            if self.get_chain_beacon().hash_prev_block == self.genesis_block_hash {
+                                &msg.blocks[..]
+                            } else {
+                                &msg.blocks[1..]
+                            };
 
-                        if let Some(ref mut rep_engine) = self.chain_state.reputation_engine {
-                            if let Err(e) = rep_engine.ars.update_empty(block_epoch) {
-                                log::error!(
-                                    "Error updating reputation before to process block: {}",
-                                    e
-                                );
+                        for block in blocks.iter() {
+                            // Update reputation before checking Proof-of-Eligibility
+                            let block_epoch = block.block_header.beacon.checkpoint;
+
+                            if let Some(ref mut rep_engine) = self.chain_state.reputation_engine {
+                                if let Err(e) = rep_engine.ars.update_empty(block_epoch) {
+                                    log::error!(
+                                        "Error updating reputation before processing block: {}",
+                                        e
+                                    );
+                                }
                             }
-                        }
 
-                        if let Err(e) = self.process_requested_block(ctx, block) {
-                            log::error!("Error processing block: {}", e);
-                            self.initialize_from_storage(ctx);
-                            log::info!("Restored chain state from storage");
-                            batch_succeeded = false;
-                            break;
-                        }
+                            if let Err(e) = self.process_requested_block(ctx, block) {
+                                log::error!("Error processing block: {}", e);
+                                self.initialize_from_storage(ctx);
+                                log::info!("Restored chain state from storage");
+                                batch_succeeded = false;
+                                break;
+                            }
 
-                        if self.get_chain_beacon() == target_beacon {
-                            break;
+                            if self.get_chain_beacon() == target_beacon {
+                                break;
+                            }
                         }
                     }
 

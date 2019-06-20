@@ -577,7 +577,7 @@ fn session_last_beacon_inbound(
             match res {
                 Ok(Ok(chain_beacon)) => {
                     if chain_beacon.checkpoint > received_checkpoint {
-                        let range = (received_checkpoint + 1)..=chain_beacon.checkpoint;
+                        let range = received_checkpoint..=chain_beacon.checkpoint;
 
                         chain_manager_addr
                             .send(GetBlocksEpochRange::new_with_const_limit(range))
