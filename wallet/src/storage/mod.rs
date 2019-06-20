@@ -11,6 +11,7 @@ pub mod keys;
 pub use error::Error;
 
 /// Encryption parameters used by the encryption function.
+#[derive(Clone)]
 pub struct Params {
     pub(crate) encrypt_hash_iterations: u32,
     pub(crate) encrypt_iv_length: usize,
@@ -62,6 +63,13 @@ where
 /// Write all the opertations in the given batch to the database.
 pub fn write(db: &rocksdb::DB, batch: rocksdb::WriteBatch) -> Result<(), error::Error> {
     db.write(batch).map_err(error::Error::DbOpFailed)
+}
+
+/// Flush database.
+pub fn flush(db: &rocksdb::DB) -> Result<(), error::Error> {
+    let mut opts = rocksdb::FlushOptions::default();
+    opts.set_wait(true);
+    db.flush_opt(&opts).map_err(error::Error::DbOpFailed)
 }
 
 /// Generate an encryption key.

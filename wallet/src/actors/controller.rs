@@ -10,19 +10,23 @@ use actix::prelude::*;
 use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
 
-use super::App;
+use super::{app, App};
 use crate::api;
 use witnet_net::server::ws::Server;
 
 /// Controller actor.
 pub struct Controller {
-    _server: Server,
-    _app: Addr<App>,
+    server: Option<Server>,
+    app: Addr<App>,
 }
 
 impl Controller {
     pub fn build() -> ControllerBuilder {
         ControllerBuilder::new()
+    }
+
+    fn stop_server(&mut self) {
+        drop(self.server.take())
     }
 }
 
@@ -89,8 +93,8 @@ impl ControllerBuilder {
             .start()?;
 
         let controller = Controller {
-            _app: app,
-            _server: server,
+            server: Some(server),
+            app,
         };
 
         Ok(controller.start())
@@ -110,7 +114,17 @@ impl Message for Shutdown {
 impl Handler<Shutdown> for Controller {
     type Result = ();
 
-    fn handle(&mut self, _: Shutdown, _ctx: &mut Self::Context) -> Self::Result {
-        System::current().stop();
+    fn handle(&mut self, _msg: Shutdown, ctx: &mut Self::Context) -> Self::Result {
+        self.stop_server();
+        self.app
+            .send(app::Stop)
+            .map_err(|_| log::error!("couldn't stop application"))
+            .and_then(|_| {
+                log::info!("shutting down system!");
+                System::current().stop();
+                Ok(())
+            })
+            .into_actor(self)
+            .spawn(ctx);
     }
 }

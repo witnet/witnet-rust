@@ -1,6 +1,7 @@
 //! # Application actor.
 //!
 //! See [`App`](App) actor for more information.
+use std::sync::Arc;
 
 use actix::prelude::*;
 use failure::Error;
@@ -17,13 +18,17 @@ use crate::wallet;
 
 pub mod builder;
 pub mod error;
-mod handlers;
+pub mod handlers;
+
+/// Expose message to stop application.
+pub use handlers::Stop;
 
 /// Application actor.
 ///
 /// The application actor is in charge of managing the state of the application and coordinating the
 /// service actors, e.g.: storage, node client, and so on.
 pub struct App {
+    db: Arc<rocksdb::DB>,
     storage: Addr<Storage>,
     rad_executor: Addr<RadExecutor>,
     crypto: Addr<Crypto>,
@@ -99,6 +104,17 @@ impl App {
         }
     }
 
+    /// Get id and caption of all the wallets stored in the database.
+    fn get_wallet_infos(&self) -> ResponseFuture<Vec<wallet::WalletInfo>, Error> {
+        let fut = self
+            .storage
+            .send(storage::GetWalletInfos(self.db.clone()))
+            .map_err(map_storage_failed_err)
+            .and_then(map_err);
+
+        Box::new(fut)
+    }
+
     /// Create an empty wallet.
     fn create_wallet(
         &self,
@@ -129,11 +145,22 @@ impl App {
                 let wallet = wallet::Wallet::new(info, content);
 
                 slf.storage
-                    .send(storage::CreateWallet(wallet, password))
+                    .send(storage::CreateWallet(slf.db.clone(), wallet, password))
                     .map_err(map_storage_failed_err)
                     .map(move |_| id)
                     .into_actor(slf)
             });
+
+        Box::new(fut)
+    }
+
+    /// Perform all the tasks needed to properly stop the application.
+    fn stop(&self) -> ResponseFuture<(), Error> {
+        let fut = self
+            .storage
+            .send(storage::Flush(self.db.clone()))
+            .map_err(map_storage_failed_err)
+            .and_then(map_err);
 
         Box::new(fut)
     }

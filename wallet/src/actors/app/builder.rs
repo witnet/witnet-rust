@@ -1,11 +1,14 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use actix::prelude::*;
 use failure::Error;
 
 use witnet_net::client::tcp::JsonRpcClient;
 
-use crate::actors::{storage, Crypto, RadExecutor, Storage};
+use crate::{
+    actors::{Crypto, RadExecutor, Storage},
+    storage,
+};
 
 #[derive(Default)]
 pub struct AppBuilder {
@@ -31,19 +34,25 @@ impl AppBuilder {
             || Ok(None),
             |url| JsonRpcClient::start(url.as_ref()).map(Some),
         )?;
-        let storage = Storage::build()
-            .with_path(self.db_path)
-            .with_file_name("witnet_wallets.db")
-            .with_options({
-                let mut db_opts = storage::Options::default();
-                db_opts.create_if_missing(true);
-                db_opts
-            })
-            .start()?;
+
+        let mut db_opts = rocksdb::Options::default();
+        db_opts.create_if_missing(true);
+        db_opts.set_merge_operator("merge operator", storage::storage_merge_operator, None);
+        // From rocksdb docs: every store to stable storage will issue a fsync. This parameter
+        // should be set to true while storing data to filesystem like ext3 that can lose files
+        // after a reboot.
+        db_opts.set_use_fsync(true);
+
+        let db = Arc::new(
+            rocksdb::DB::open(&db_opts, self.db_path.join("witnet_wallet.db"))
+                .map_err(storage::Error::OpenDbFailed)?,
+        );
+        let storage = Storage::build().start()?;
         let crypto = Crypto::build().start();
         let rad_executor = RadExecutor::start();
 
         let app = super::App {
+            db,
             storage,
             rad_executor,
             node_client,

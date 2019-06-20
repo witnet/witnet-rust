@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix::prelude::*;
 
 use witnet_protected::ProtectedString;
@@ -6,6 +8,7 @@ use crate::actors::storage::Storage;
 use crate::{storage::Error, wallet};
 
 pub struct CreateWallet(
+    pub Arc<rocksdb::DB>,
     /// Wallet to save
     pub wallet::Wallet,
     /// Encryption password
@@ -21,9 +24,9 @@ impl Handler<CreateWallet> for Storage {
 
     fn handle(
         &mut self,
-        CreateWallet(wallet, password): CreateWallet,
+        CreateWallet(db, wallet, password): CreateWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.create_wallet(wallet, password)
+        self.create_wallet(db.as_ref(), wallet, password)
     }
 }

@@ -11,6 +11,9 @@ mod notification;
 mod run_rad_req;
 mod send_data_req;
 mod send_vtt;
+mod stop;
 mod subscribe;
 mod unlock_wallet;
 mod unsubscribe;
+
+pub use stop::*;

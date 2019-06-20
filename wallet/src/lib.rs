@@ -34,7 +34,6 @@ pub fn run(conf: Config) -> Result<(), Error> {
         .start()?;
 
     signal::ctrl_c(move || {
-        log::info!("Shutting down");
         controller.do_send(actors::controller::Shutdown);
     });
 

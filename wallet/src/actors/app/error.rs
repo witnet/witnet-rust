@@ -4,8 +4,6 @@ use failure::Fail;
 use witnet_net::client::tcp;
 use witnet_rad::error::RadError;
 
-use crate::storage;
-
 #[derive(Debug, Fail)]
 pub enum Error {
     #[fail(display = "wallet not connected to a node")]
@@ -24,8 +22,6 @@ pub enum Error {
     RadFailed(#[cause] RadError),
     #[fail(display = "could not communicate with database")]
     StorageCommFailed(#[cause] actix::MailboxError),
-    #[fail(display = "{}", _0)]
-    StorageOpFailed(#[cause] storage::Error),
     #[fail(display = "could not communicate with cryptographic engine")]
     CryptoCommFailed(#[cause] actix::MailboxError),
 }
