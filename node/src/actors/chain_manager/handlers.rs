@@ -76,6 +76,21 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             "EpochNotification received while StateMachine is in state {:?}",
             self.sm_state
         );
+        let chain_beacon = self.get_chain_beacon();
+        log::debug!(
+            "Chain state ---> checkpoint: {}, hash_prev_block: {}",
+            chain_beacon.checkpoint,
+            chain_beacon.hash_prev_block
+        );
+
+        // Handle case consensus not achieved
+        if !self.peers_beacons_received {
+            log::warn!("No beacon messages received from peers. Moving to WaitingConsensus status");
+            self.sm_state = StateMachine::WaitingConsensus;
+            // Clear candidates
+            self.candidates.clear();
+        }
+
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 if let Some(chain_info) = &self.chain_state.chain_info {
@@ -176,7 +191,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     log::error!("No ChainInfo loaded in ChainManager");
                 }
             },
-        };
+        }
+
+        self.peers_beacons_received = false;
     }
 }
 
@@ -212,12 +229,14 @@ impl Handler<AddBlocks> for ChainManager {
             StateMachine::Synchronizing => {
                 if let Some(target_beacon) = self.target_beacon {
                     let mut batch_succeeded = true;
+                    let chain_beacon = self.get_chain_beacon();
                     if msg.blocks.is_empty() {
                         batch_succeeded = false;
                         log::debug!("Received an empty AddBlocks message");
                     // FIXME(#684): this condition would be modified when genesis block exist
-                    } else if self.get_chain_beacon().hash_prev_block != self.genesis_block_hash
-                        && msg.blocks[0].hash() != self.get_chain_beacon().hash_prev_block
+                    } else if chain_beacon.hash_prev_block != self.genesis_block_hash
+                        && msg.blocks[0].hash() != chain_beacon.hash_prev_block
+                        && msg.blocks[0].block_header.beacon.checkpoint == chain_beacon.checkpoint
                     {
                         // Fork case
                         batch_succeeded = false;
@@ -226,12 +245,14 @@ impl Handler<AddBlocks> for ChainManager {
                         log::info!("Restored chain state from storage");
                     } else {
                         // FIXME(#684): this condition would be deleted when genesis block exist
-                        let blocks =
-                            if self.get_chain_beacon().hash_prev_block == self.genesis_block_hash {
-                                &msg.blocks[..]
-                            } else {
-                                &msg.blocks[1..]
-                            };
+                        let blocks = if chain_beacon.hash_prev_block == self.genesis_block_hash
+                            || msg.blocks[0].block_header.beacon.checkpoint
+                                > chain_beacon.checkpoint
+                        {
+                            &msg.blocks[..]
+                        } else {
+                            &msg.blocks[1..]
+                        };
 
                         for block in blocks.iter() {
                             // Update reputation before checking Proof-of-Eligibility
@@ -454,6 +475,8 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
 impl Handler<PeersBeacons> for ChainManager {
     type Result = <PeersBeacons as Message>::Result;
 
+    // FIXME(#676): Remove clippy skip error
+    #[allow(clippy::cognitive_complexity)]
     fn handle(
         &mut self,
         PeersBeacons { pb }: PeersBeacons,
@@ -463,6 +486,9 @@ impl Handler<PeersBeacons> for ChainManager {
             "PeersBeacons received while StateMachine is in state {:?}",
             self.sm_state
         );
+        // Activate peers beacons index to continue synced
+        self.peers_beacons_received = true;
+
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // As soon as there is consensus, we set the target beacon to the consensus
@@ -470,34 +496,48 @@ impl Handler<PeersBeacons> for ChainManager {
 
                 // Run the consensus on the beacons, will return the most common beacon
                 // In case of tie returns None
-                if let Some(beacon) = mode_consensus(pb.iter().map(|(_p, b)| b)).cloned() {
+                if let Some(consensus_beacon) = mode_consensus(pb.iter().map(|(_p, b)| b)).cloned()
+                {
                     // Consensus: unregister peers which have a different beacon
                     let peers_out_of_consensus = pb
                         .into_iter()
-                        .filter_map(|(p, b)| if b != beacon { Some(p) } else { None })
+                        .filter_map(|(p, b)| if b != consensus_beacon { Some(p) } else { None })
                         .collect();
-                    self.target_beacon = Some(beacon);
+                    self.target_beacon = Some(consensus_beacon);
 
-                    let our_beacon = self
-                        .chain_state
-                        .chain_info
-                        .as_ref()
-                        .unwrap()
-                        .highest_block_checkpoint;
+                    let our_beacon = self.get_chain_beacon();
 
                     // Check if we are already synchronized
-                    self.sm_state = if our_beacon == beacon {
+                    self.sm_state = if our_beacon == consensus_beacon {
                         log::info!("Synced state");
                         StateMachine::Synced
+                    } else if our_beacon.checkpoint == consensus_beacon.checkpoint
+                        && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
+                    {
+                        // Fork case
+                        log::warn!(
+                            "[CONSENSUS]: We are on {:?} but the network is on {:?}",
+                            our_beacon,
+                            consensus_beacon
+                        );
+
+                        self.initialize_from_storage(ctx);
+                        log::info!("Restored chain state from storage");
+
+                        StateMachine::WaitingConsensus
                     } else {
                         // Review candidates
-                        let consensus_block_hash = beacon.hash_prev_block;
+                        let consensus_block_hash = consensus_beacon.hash_prev_block;
                         // TODO: Be functional my friend
                         if let Some(consensus_block) = self.candidates.remove(&consensus_block_hash)
                         {
                             match self.process_requested_block(ctx, &consensus_block) {
                                 Ok(()) => {
                                     log::info!("Consolidate consensus candidate. Synced state");
+                                    self.persist_item(
+                                        ctx,
+                                        InventoryItem::Block(consensus_block.clone()),
+                                    );
                                     StateMachine::Synced
                                 }
                                 Err(e) => {
@@ -531,30 +571,61 @@ impl Handler<PeersBeacons> for ChainManager {
                 }
             }
             StateMachine::Synchronizing => {
-                // We are synchronizing, so ignore all the new beacons until we reach the target beacon
+                // Run the consensus on the beacons, will return the most common beacon
+                // In case of tie returns None
+                if let Some(consensus_beacon) = mode_consensus(pb.iter().map(|(_p, b)| b)).cloned()
+                {
+                    // List peers that announced a beacon out of consensus
+                    let peers_out_of_consensus = pb
+                        .into_iter()
+                        .filter_map(|(p, b)| if b != consensus_beacon { Some(p) } else { None })
+                        .collect();
+                    self.target_beacon = Some(consensus_beacon);
 
-                Ok(vec![])
+                    let our_beacon = self.get_chain_beacon();
+
+                    // Check if we are already synchronized
+                    self.sm_state = if our_beacon == consensus_beacon {
+                        log::info!("Synced state");
+                        StateMachine::Synced
+                    } else if our_beacon.checkpoint == consensus_beacon.checkpoint
+                        && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
+                    {
+                        // Fork case
+                        log::warn!(
+                            "[CONSENSUS]: We are on {:?} but the network is on {:?}",
+                            our_beacon,
+                            consensus_beacon
+                        );
+
+                        self.initialize_from_storage(ctx);
+                        log::info!("Restored chain state from storage");
+
+                        StateMachine::WaitingConsensus
+                    } else {
+                        StateMachine::Synchronizing
+                    };
+
+                    Ok(peers_out_of_consensus)
+                } else {
+                    // No consensus: unregister all peers
+                    let all_peers = pb.into_iter().map(|(p, _b)| p).collect();
+                    Ok(all_peers)
+                }
             }
             StateMachine::Synced => {
                 // If we are synced and the consensus beacon is not the same as our beacon, then
                 // we need to rewind one epoch
 
                 if pb.is_empty() {
-                    // FIXME(#682): all other peers disconnected, return to WaitingConsensus state?
                     log::warn!("[CONSENSUS]: We have zero outbound peers");
+                    self.sm_state = StateMachine::WaitingConsensus;
                 }
 
-                let our_beacon = self
-                    .chain_state
-                    .chain_info
-                    .as_ref()
-                    .unwrap()
-                    .highest_block_checkpoint;
+                let our_beacon = self.get_chain_beacon();
 
                 // We also take into account our beacon to calculate the consensus
-                // FIXME(#682): should we count our own beacon when deciding consensus?
-                let consensus_beacon =
-                    mode_consensus(pb.iter().map(|(_p, b)| b).chain(&[our_beacon])).cloned();
+                let consensus_beacon = mode_consensus(pb.iter().map(|(_p, b)| b)).cloned();
 
                 match consensus_beacon {
                     Some(a) if a == our_beacon => {
@@ -566,20 +637,26 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         Ok(peers_out_of_consensus)
                     }
-                    Some(_a) => {
+                    Some(a) => {
                         // We are out of consensus!
-                        // FIXME(#682): We should probably rewind(1) to avoid a fork, but for simplicity
-                        // (rewind is not implemented yet) we just print a message and carry on
+                        // Unregister peers that announced a beacon out of consensus
+                        let peers_out_of_consensus = pb
+                            .into_iter()
+                            .filter_map(|(p, b)| if b != a { Some(p) } else { None })
+                            .collect();
+
                         log::warn!(
                             "[CONSENSUS]: We are on {:?} but the network is on {:?}",
                             our_beacon,
                             consensus_beacon
                         );
 
-                        // FIXME(#682): we should change to WaitingConsensus in this case.
+                        self.initialize_from_storage(ctx);
+                        log::info!("Restored chain state from storage");
 
-                        // Return an empty vector indicating that we do not want to unregister any peer
-                        Ok(vec![])
+                        self.sm_state = StateMachine::WaitingConsensus;
+
+                        Ok(peers_out_of_consensus)
                     }
                     None => {
                         // There is no consensus because of a tie, do not rewind?
@@ -588,9 +665,12 @@ impl Handler<PeersBeacons> for ChainManager {
                             "[CONSENSUS]: We are on {:?} but the network has no consensus",
                             our_beacon
                         );
-                        // FIXME(#682): Should we change to WaitingConsensus in this case?
-                        // Return an empty vector indicating that we do not want to unregister any peer
-                        Ok(vec![])
+
+                        self.sm_state = StateMachine::WaitingConsensus;
+
+                        // Unregister all peers to try to obtain a new set of trustworthy peers
+                        let all_peers = pb.into_iter().map(|(p, _b)| p).collect();
+                        Ok(all_peers)
                     }
                 }
             }
