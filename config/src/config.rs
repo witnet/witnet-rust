@@ -455,11 +455,6 @@ pub struct Wallet {
     #[partial_struct(serde(default))]
     pub node_url: Option<String>,
 
-    /// The amount of server threads listening for connections.
-    #[partial_struct(skip)]
-    #[partial_struct(serde(default))]
-    pub workers: Option<usize>,
-
     /// Storage-related configuration
     pub db_path: PathBuf,
 }
@@ -471,7 +466,6 @@ impl Wallet {
                 .server_addr
                 .unwrap_or_else(|| defaults.wallet_server_addr()),
             node_url: config.node_url.clone(),
-            workers: config.workers.or_else(|| Some(1)),
             db_path: config.db_path.clone().unwrap_or_else(dirs::data_dir),
         }
     }
