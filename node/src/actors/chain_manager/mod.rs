@@ -477,9 +477,13 @@ fn update_pools(
     }
 
     for dr_tx in &block.txns.data_request_txns {
-        data_request_pool.process_data_request(&dr_tx, block.block_header.beacon.checkpoint);
-
-        transactions_pool.dr_remove(&dr_tx.hash());
+        if let Err(e) =
+            data_request_pool.process_data_request(&dr_tx, block.block_header.beacon.checkpoint)
+        {
+            log::error!("Error processing data request transaction:\n{}", e);
+        } else {
+            transactions_pool.dr_remove(&dr_tx.hash());
+        }
     }
 
     for co_tx in &block.txns.commit_txns {

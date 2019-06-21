@@ -516,7 +516,6 @@ pub struct ValueTransferOutput {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput")]
 pub struct DataRequestOutput {
-    pub pkh: PublicKeyHash,
     pub data_request: RADRequest,
     // Total DataRequest value, included fees
     pub value: u64,
@@ -1235,6 +1234,8 @@ pub struct DataRequestInfo {
 pub struct DataRequestState {
     /// Data request output (contains all required information to process it)
     pub data_request: DataRequestOutput,
+    /// PublicKeyHash of the data request creator
+    pub pkh: PublicKeyHash,
     /// List of outputs related to this data request
     pub info: DataRequestInfo,
     /// Current stage of this data request
@@ -1246,7 +1247,7 @@ pub struct DataRequestState {
 
 impl DataRequestState {
     /// Add a new data request state
-    pub fn new(data_request: DataRequestOutput, epoch: Epoch) -> Self {
+    pub fn new(data_request: DataRequestOutput, pkh: PublicKeyHash, epoch: Epoch) -> Self {
         let info = DataRequestInfo::default();
         let stage = DataRequestStage::COMMIT;
 
@@ -1255,6 +1256,7 @@ impl DataRequestState {
             info,
             stage,
             epoch,
+            pkh,
         }
     }
 
@@ -1618,7 +1620,7 @@ mod tests {
     #[test]
     fn test_transaction_hashable_trait() {
         let transaction = transaction_example();
-        let expected = "fcaf1179b0697ce0a300adab2a3a22c6132692e348a2bd4654b72b73df090c20";
+        let expected = "27cf16ca127b87361e616d273654ba13afcd7712e83b7217915ef2faae2f6879";
 
         // Signatures don't affect the hash of a transaction (SegWit style), thus both must be equal
         assert_eq!(transaction.hash().to_string(), expected);

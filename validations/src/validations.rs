@@ -424,10 +424,7 @@ pub fn validate_tally_outputs(
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::new();
     let reveal_reward = calculate_dr_vt_reward(&dr_state.data_request);
     for (i, output) in ta_tx.outputs.iter().enumerate() {
-        if change_required
-            && i == ta_tx.outputs.len() - 1
-            && output.pkh == dr_state.data_request.pkh
-        {
+        if change_required && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
             // Expected honest witnesses is tally outputs - 1, which would be
             // the value transfer output related to the tally change.
             let honest_witnesses = ta_tx.outputs.len() - 1;

@@ -1299,7 +1299,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     validate_commit_transaction(&c_tx, &dr_pool, beacon, vrf, &rep_eng).map(|_| ())
 }
 
-static DR_HASH: &str = "d58a420a3e219ec50ab73fb59df7377dc23fb8e9a872956960f3d6f4da485784";
+static DR_HASH: &str = "5591bdaa2161636aac39f31497733ab62581b50d8fcea7f2ea4cb72fd1aebb0a";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
@@ -1320,7 +1320,9 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
-    dr_pool.process_data_request(&dr_transaction, dr_epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, dr_epoch)
+        .unwrap();
 
     validate_commit_transaction(&c_tx, &dr_pool, commit_beacon, vrf, &rep_eng).map(|_| ())
 }
@@ -1356,7 +1358,9 @@ fn test_commit_difficult_proof() -> Result<(), failure::Error> {
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
-    dr_pool.process_data_request(&dr_transaction, dr_epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, dr_epoch)
+        .unwrap();
 
     // Insert valid proof
     let mut cb = CommitTransactionBody::default();
@@ -1390,7 +1394,9 @@ fn test_commit() -> Result<(), failure::Error> {
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
-    dr_pool.process_data_request(&dr_transaction, dr_epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, dr_epoch)
+        .unwrap();
 
     // Insert valid proof
     let mut cb = CommitTransactionBody::default();
@@ -1551,7 +1557,9 @@ fn commitment_invalid_proof() {
     let drs = sign_t(&dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_epoch = 0;
-    dr_pool.process_data_request(&dr_transaction, dr_epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, dr_epoch)
+        .unwrap();
 
     // Sign commitment
     let cs = sign_t(&cb);
@@ -1570,7 +1578,7 @@ fn commitment_proof_lower_than_target() {
     let x = test_commit_difficult_proof();
     // This is just the hash of the VRF, we do not care for the exact value as
     // long as it is below the target hash
-    let vrf_hash = "ee24cf23f163d951f1d803451397fdaa05edc247bf3fa4d4b84fcdfe925a6072"
+    let vrf_hash = "2a2458f64682b4f41970a2ffb40c19f66191635dad4626c422ff26aea04233d3,"
         .parse()
         .unwrap();
     assert_eq!(
@@ -1602,7 +1610,9 @@ fn commitment_dr_in_reveal_stage() {
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     let dr_epoch = 0;
-    dr_pool.process_data_request(&dr_transaction, dr_epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, dr_epoch)
+        .unwrap();
     dr_pool.update_data_request_stages();
 
     // Insert valid proof
@@ -1652,7 +1662,9 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
     let cs = sign_t(&cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
-    dr_pool.process_data_request(&dr_transaction, epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, epoch)
+        .unwrap();
     dr_pool.update_data_request_stages();
     dr_pool.process_commit(&c_tx, &block_hash).unwrap();
     dr_pool.update_data_request_stages();
@@ -1761,7 +1773,7 @@ fn reveal_dr_in_commit_stage() {
     let drs = sign_t(&dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_pointer = dr_transaction.hash();
-    dr_pool.add_data_request(epoch, dr_transaction);
+    dr_pool.add_data_request(epoch, dr_transaction).unwrap();
 
     let mut rb = RevealTransactionBody::default();
     rb.dr_pointer = dr_pointer;
@@ -1879,12 +1891,14 @@ fn reveal_valid_commitment() {
     };
     let dr_transaction = DRTransaction {
         body: DRTransactionBody::new(vec![], vec![], dr_output),
-        ..DRTransaction::default()
+        signatures: vec![KeyedSignature::default()],
     };
     let dr_pointer = dr_transaction.hash();
 
     // Include DRTransaction in DataRequestPool
-    dr_pool.process_data_request(&dr_transaction, epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, epoch)
+        .unwrap();
     dr_pool.update_data_request_stages();
 
     // Hack: get public key by signing an empty transaction
@@ -1935,7 +1949,9 @@ fn reveal_valid_commitment() {
     );
 }
 
-fn dr_pool_with_dr_in_tally_stage(reveal_value: Vec<u8>) -> (DataRequestPool, Hash, PublicKeyHash) {
+fn dr_pool_with_dr_in_tally_stage(
+    reveal_value: Vec<u8>,
+) -> (DataRequestPool, Hash, PublicKeyHash, PublicKeyHash) {
     // Create DataRequestPool
     let mut dr_pool = DataRequestPool::default();
 
@@ -1949,14 +1965,16 @@ fn dr_pool_with_dr_in_tally_stage(reveal_value: Vec<u8>) -> (DataRequestPool, Ha
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
-    let dr_transaction = DRTransaction {
-        body: DRTransactionBody::new(vec![], vec![], dr_output),
-        ..DRTransaction::default()
-    };
+    let dr_transaction_body = DRTransactionBody::new(vec![], vec![], dr_output);
+    let dr_transaction_signature = sign_t2(&dr_transaction_body);
+    let dr_pkh = dr_transaction_signature.public_key.pkh();
+    let dr_transaction = DRTransaction::new(dr_transaction_body, vec![dr_transaction_signature]);
     let dr_pointer = dr_transaction.hash();
 
     // Include DRTransaction in DataRequestPool
-    dr_pool.process_data_request(&dr_transaction, epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, epoch)
+        .unwrap();
     dr_pool.update_data_request_stages();
 
     // Hack: get public key by signing an empty transaction
@@ -1992,7 +2010,7 @@ fn dr_pool_with_dr_in_tally_stage(reveal_value: Vec<u8>) -> (DataRequestPool, Ha
         .unwrap();
     dr_pool.update_data_request_stages();
 
-    (dr_pool, dr_pointer, public_key.pkh())
+    (dr_pool, dr_pointer, public_key.pkh(), dr_pkh)
 }
 
 fn dr_pool_with_dr_in_tally_stage_2_reveals(
@@ -2013,12 +2031,14 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
     };
     let dr_transaction = DRTransaction {
         body: DRTransactionBody::new(vec![], vec![], dr_output),
-        ..DRTransaction::default()
+        signatures: vec![KeyedSignature::default()],
     };
     let dr_pointer = dr_transaction.hash();
 
     // Include DRTransaction in DataRequestPool
-    dr_pool.process_data_request(&dr_transaction, epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, epoch)
+        .unwrap();
     dr_pool.update_data_request_stages();
 
     // Hack: get public key by signing an empty transaction
@@ -2098,10 +2118,10 @@ fn tally_dr_not_tally_stage() {
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
-    let dr_transaction = DRTransaction {
-        body: DRTransactionBody::new(vec![], vec![], dr_output),
-        ..DRTransaction::default()
-    };
+    let dr_transaction_body = DRTransactionBody::new(vec![], vec![], dr_output);
+    let dr_transaction_signature = sign_t2(&dr_transaction_body);
+    let dr_pkh = dr_transaction_signature.public_key.pkh();
+    let dr_transaction = DRTransaction::new(dr_transaction_body, vec![dr_transaction_signature]);
     let dr_pointer = dr_transaction.hash();
 
     // Hack: get public key by signing an empty transaction
@@ -2133,7 +2153,7 @@ fn tally_dr_not_tally_stage() {
         value: 200,
     };
     let vt_change = ValueTransferOutput {
-        pkh: PublicKeyHash::default(),
+        pkh: dr_pkh,
         value: 800,
     };
     let tally_transaction =
@@ -2145,7 +2165,9 @@ fn tally_dr_not_tally_stage() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestNotFound { hash: dr_pointer },
     );
-    dr_pool.process_data_request(&dr_transaction, epoch);
+    dr_pool
+        .process_data_request(&dr_transaction, epoch)
+        .unwrap();
     dr_pool.update_data_request_stages();
     let x = validate_tally_transaction(&tally_transaction, &dr_pool);
     assert_eq!(
@@ -2175,7 +2197,7 @@ fn tally_dr_not_tally_stage() {
 fn tally_invalid_consensus() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh, _dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
     let tally_value = vec![0x91, 0x00];
@@ -2204,13 +2226,13 @@ fn tally_invalid_consensus() {
 fn tally_valid() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh, dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
     let tally_value = vec![0x91, 0x00];
     let vt0 = ValueTransferOutput { pkh, value: 200 };
     let vt_change = ValueTransferOutput {
-        pkh: PublicKeyHash::default(),
+        pkh: dr_pkh,
         value: 800,
     };
     let tally_transaction =
@@ -2223,7 +2245,7 @@ fn tally_valid() {
 fn tally_too_many_outputs() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh, dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
     let tally_value = vec![0x91, 0x00];
@@ -2232,7 +2254,7 @@ fn tally_too_many_outputs() {
     let vt2 = ValueTransferOutput { pkh, value: 200 };
     let vt3 = ValueTransferOutput { pkh, value: 200 };
     let vt_change = ValueTransferOutput {
-        pkh: PublicKeyHash::default(),
+        pkh: dr_pkh,
         value: 800,
     };
     let tally_transaction = TallyTransaction::new(
@@ -2275,13 +2297,13 @@ fn tally_too_less_outputs() {
 fn tally_invalid_change() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh, dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
     let tally_value = vec![0x91, 0x00];
     let vt0 = ValueTransferOutput { pkh, value: 200 };
     let vt_change = ValueTransferOutput {
-        pkh: PublicKeyHash::default(),
+        pkh: dr_pkh,
         value: 1000,
     };
     let tally_transaction =

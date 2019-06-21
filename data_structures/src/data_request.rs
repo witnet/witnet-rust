@@ -6,7 +6,7 @@ use crate::{
         DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch, Hash,
         Hashable, PublicKeyHash, ValueTransferOutput,
     },
-    error::DataRequestError,
+    error::{DataRequestError, TransactionError},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
 use serde::{Deserialize, Serialize};
@@ -70,15 +70,26 @@ impl DataRequestPool {
     }
 
     /// Add a data request to the data request pool
-    pub fn add_data_request(&mut self, epoch: Epoch, data_request: DRTransaction) {
+    pub fn add_data_request(
+        &mut self,
+        epoch: Epoch,
+        data_request: DRTransaction,
+    ) -> Result<(), failure::Error> {
         let dr_hash = data_request.hash();
-        let dr_state = DataRequestState::new(data_request.body.dr_output.clone(), epoch);
+        if data_request.signatures.is_empty() {
+            Err(TransactionError::SignatureNotFound)?
+        }
+
+        let pkh = data_request.signatures[0].public_key.pkh();
+        let dr_state = DataRequestState::new(data_request.body.dr_output.clone(), pkh, epoch);
 
         self.data_requests_by_epoch
             .entry(epoch)
             .or_insert_with(HashSet::new)
             .insert(dr_hash);
         self.data_request_pool.insert(dr_hash, dr_state);
+
+        Ok(())
     }
 
     /// Add a commit to the corresponding data request
@@ -255,7 +266,11 @@ impl DataRequestPool {
 
     /// New data requests are inserted and wait for commitments
     /// The epoch is needed as the key to the available data requests map
-    pub fn process_data_request(&mut self, dr_transaction: &DRTransaction, epoch: Epoch) {
+    pub fn process_data_request(
+        &mut self,
+        dr_transaction: &DRTransaction,
+        epoch: Epoch,
+    ) -> Result<(), failure::Error> {
         // A data request output should have a valid value transfer input
         // Which we assume valid as it should have been already verified
         // time_lock_epoch: The epoch during which we will start accepting
@@ -266,7 +281,7 @@ impl DataRequestPool {
         // calls to GetEpoch
         let time_lock_epoch = 0;
         let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
-        self.add_data_request(dr_epoch, dr_transaction.clone());
+        self.add_data_request(dr_epoch, dr_transaction.clone())
     }
 
     /// New tallies are added to their respective data requests and finish them
@@ -307,6 +322,7 @@ pub fn true_revealer(_reveal: &RevealTransaction, _tally: &[u8]) -> bool {
 pub fn create_tally(
     dr_pointer: Hash,
     dr_output: &DataRequestOutput,
+    pkh: PublicKeyHash,
     consensus_tally: Vec<u8>,
     reveals: Vec<RevealTransaction>,
 ) -> TallyTransaction {
@@ -334,7 +350,7 @@ pub fn create_tally(
         debug!("Created tally change for the data request creator");
         let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_honest);
         let vt_output_change = ValueTransferOutput {
-            pkh: dr_output.pkh,
+            pkh,
             value: tally_change,
         };
         outputs.push(vt_output_change);
@@ -359,7 +375,7 @@ mod tests {
         let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::default();
-        p.process_data_request(&dr_transaction, epoch);
+        p.process_data_request(&dr_transaction, epoch).unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
         assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
@@ -390,7 +406,8 @@ mod tests {
             vec![KeyedSignature::default()],
         );
 
-        let _aux = p.process_commit(&commit_transaction, &fake_block_hash);
+        p.process_commit(&commit_transaction, &fake_block_hash)
+            .unwrap();
 
         // And we can also get all the commit pointers from the data request
         assert_eq!(
@@ -439,7 +456,8 @@ mod tests {
             vec![KeyedSignature::default()],
         );
 
-        let _aux = p.process_reveal(&reveal_transaction, &fake_block_hash);
+        p.process_reveal(&reveal_transaction, &fake_block_hash)
+            .unwrap();
 
         assert_eq!(
             p.data_request_pool[&dr_pointer]
@@ -475,7 +493,8 @@ mod tests {
         assert_eq!(p.to_be_stored.len(), 0);
 
         // Process tally: this will remove the data request from the pool
-        let _aux = p.process_tally(&tally_transaction, &fake_block_hash);
+        p.process_tally(&tally_transaction, &fake_block_hash)
+            .unwrap();
 
         // And the data request has been removed from the pool
         assert_eq!(p.data_request_pool.get(&dr_pointer), None);
@@ -546,7 +565,8 @@ mod tests {
             Some(&reveal_transaction)
         );
 
-        let _aux = p.process_commit(&commit_transaction, &fake_block_hash);
+        p.process_commit(&commit_transaction, &fake_block_hash)
+            .unwrap();
 
         // Still in commit stage until we update
         assert_eq!(

@@ -348,9 +348,7 @@ impl ChainManager {
                     dr_pointer,
                     reveals,
                     // "get_all_reveals" returns a HashMap with valid data request output pointer
-                    data_request_pool.data_request_pool[&dr_pointer]
-                        .data_request
-                        .clone(),
+                    data_request_pool.data_request_pool[&dr_pointer].clone(),
                 )
             })
             .collect::<Vec<_>>();
@@ -358,7 +356,7 @@ impl ChainManager {
         let future_tally_transactions =
             dr_reveals
                 .into_iter()
-                .map(|(dr_pointer, reveals, dr_output)| {
+                .map(|(dr_pointer, reveals, dr_state)| {
                     debug!("Building tally for data request {}", dr_pointer);
 
                     let results: Vec<Vec<u8>> =
@@ -367,7 +365,7 @@ impl ChainManager {
                     let rad_manager_addr = System::current().registry().get::<RadManager>();
                     rad_manager_addr
                         .send(RunConsensus {
-                            script: dr_output.data_request.consensus.clone(),
+                            script: dr_state.data_request.data_request.consensus.clone(),
                             reveals: results.clone(),
                         })
                         .then(|result| match result {
@@ -388,8 +386,13 @@ impl ChainManager {
                             }
                         })
                         .and_then(move |consensus| {
-                            let tally =
-                                create_tally(dr_pointer, &dr_output, consensus.clone(), reveals);
+                            let tally = create_tally(
+                                dr_pointer,
+                                &dr_state.data_request,
+                                dr_state.pkh,
+                                consensus.clone(),
+                                reveals,
+                            );
 
                             let print_results: Vec<_> = results
                                 .into_iter()

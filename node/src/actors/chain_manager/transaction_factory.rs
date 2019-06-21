@@ -603,7 +603,6 @@ mod tests {
 
         let t1 = build_drt_tx(
             DataRequestOutput {
-                pkh: own_pkh,
                 data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,
@@ -623,7 +622,6 @@ mod tests {
 
         let t2 = build_drt_tx(
             DataRequestOutput {
-                pkh: own_pkh,
                 data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,
@@ -655,7 +653,6 @@ mod tests {
 
         let t1 = build_drt_tx(
             DataRequestOutput {
-                pkh: own_pkh,
                 data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,
@@ -675,7 +672,6 @@ mod tests {
 
         let t2 = build_drt_tx(
             DataRequestOutput {
-                pkh: own_pkh,
                 data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,

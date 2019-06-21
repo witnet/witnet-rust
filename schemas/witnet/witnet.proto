@@ -138,15 +138,14 @@ message DataRequestOutput {
         repeated RADDeliver deliver = 5;
     }
 
-    PublicKeyHash pkh = 1;
-    RADRequest data_request = 2;
-    uint64 value = 3;
-    uint32 witnesses = 4;
-    uint32 backup_witnesses = 5;
-    uint64 commit_fee = 6;
-    uint64 reveal_fee = 7;
-    uint64 tally_fee = 8;
-    uint64 time_lock = 9;
+    RADRequest data_request = 1;
+    uint64 value = 2;
+    uint32 witnesses = 3;
+    uint32 backup_witnesses = 4;
+    uint64 commit_fee = 5;
+    uint64 reveal_fee = 6;
+    uint64 tally_fee = 7;
+    uint64 time_lock = 8;
 }
 
 message Input {
