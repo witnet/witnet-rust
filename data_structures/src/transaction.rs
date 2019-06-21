@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::chain::Block;
 use crate::{
     chain::{
-        DataRequestOutput, Epoch, Hash, Hashable, Input, KeyedSignature, PublicKeyHash,
+        Block, DataRequestOutput, Epoch, Hash, Hashable, Input, KeyedSignature, PublicKeyHash,
         ValueTransferOutput,
     },
     proto::{schema::witnet, ProtobufConvert},
@@ -11,8 +10,10 @@ use crate::{
 };
 use protobuf::Message;
 use std::cell::Cell;
-use witnet_crypto::hash::{calculate_sha256, Sha256};
-use witnet_crypto::merkle::FullMerkleTree;
+use witnet_crypto::{
+    hash::{calculate_sha256, Sha256},
+    merkle::FullMerkleTree,
+};
 
 pub trait MemoizedHashable {
     fn hashable_bytes(&self) -> Vec<u8>;
@@ -122,11 +123,40 @@ impl VTTransactionBody {
     }
 }
 
+/// Proof of transaction inclusion in a block.
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TxInclusionProof {
-    /// This is not the index of the transaction in the list of transactions
+    /// Index of the element in the merkle-tree.
+    /// This is not the index of the transaction in the list of transactions.
     pub index: usize,
+    /// List of hashes needed to proof inclusion, ordered from bottom to top.
     pub lemma: Vec<Hash>,
+}
+
+impl TxInclusionProof {
+    /// New inclusion proof given index and list of all the transactions in the
+    /// block, in the same order.
+    pub fn new<'a, I: IntoIterator<Item = &'a H>, H: 'a + Hashable>(
+        index: usize,
+        leaves: I,
+    ) -> TxInclusionProof {
+        let mt = FullMerkleTree::sha256(
+            leaves
+                .into_iter()
+                .map(|t| match t.hash() {
+                    Hash::SHA256(x) => Sha256(x),
+                })
+                .collect(),
+        );
+
+        // The index is valid, so this operation cannot fail
+        let proof = mt.inclusion_proof(index).unwrap();
+
+        TxInclusionProof {
+            index: proof.proof_index(),
+            lemma: proof.lemma().iter().map(|sha| (*sha).into()).collect(),
+        }
+    }
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
@@ -149,29 +179,9 @@ impl DRTransaction {
         // Find the transaction in this block
         let txs = &block.txns.data_request_txns;
 
-        txs.iter().position(|x| x == self).map(|tx_idx| {
-            let mt = FullMerkleTree::sha256(
-                txs.iter()
-                    .map(|t| match t.hash() {
-                        Hash::SHA256(x) => Sha256(x),
-                    })
-                    .collect(),
-            );
-
-            // TODO: Used for debugging, remove
-            assert_eq!(
-                Hash::SHA256(mt.root().0),
-                block.block_header.merkle_roots.dr_hash_merkle_root
-            );
-
-            // The index is valid, so this operation cannot fail
-            let proof = mt.inclusion_proof(tx_idx).unwrap();
-
-            TxInclusionProof {
-                index: proof.proof_index(),
-                lemma: proof.lemma().iter().map(|sha| (*sha).into()).collect(),
-            }
-        })
+        txs.iter()
+            .position(|x| x == self)
+            .map(|tx_idx| TxInclusionProof::new(tx_idx, txs))
     }
 }
 
@@ -309,6 +319,18 @@ impl TallyTransaction {
             outputs,
             hash: MemoHash::new(),
         }
+    }
+
+    /// Creates a proof of inclusion.
+    ///
+    /// Returns None if the transaction is not included in this block.
+    pub fn proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
+        // Find the transaction in this block
+        let txs = &block.txns.tally_txns;
+
+        txs.iter()
+            .position(|x| x == self)
+            .map(|tx_idx| TxInclusionProof::new(tx_idx, txs))
     }
 }
 
