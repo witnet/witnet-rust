@@ -1,7 +1,8 @@
-use witnet_crypto::hash::Sha256;
-use witnet_crypto::merkle::{merkle_tree_root as crypto_merkle_tree_root, sha256_concat};
-use witnet_data_structures::chain::*;
-use witnet_data_structures::transaction::*;
+use witnet_crypto::{
+    hash::Sha256,
+    merkle::{merkle_tree_root as crypto_merkle_tree_root, sha256_concat},
+};
+use witnet_data_structures::{chain::*, transaction::*};
 
 /// Function to calculate a merkle tree from a transaction vector
 pub fn merkle_tree_root<T>(transactions: &[T]) -> Hash
@@ -71,6 +72,12 @@ fn example_dr(id: usize) -> DRTransaction {
     let dr_body = DRTransactionBody::new(vec![], vec![], dr_output);
 
     DRTransaction::new(dr_body, vec![])
+}
+
+fn example_ta(id: usize) -> TallyTransaction {
+    let dr_pointer = Hash::with_first_u32(id as u32);
+    let tally = vec![];
+    TallyTransaction::new(dr_pointer, tally, vec![])
 }
 
 #[test]
@@ -222,6 +229,159 @@ fn dr_inclusion_5_drs() {
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![h(h(dr0.hash(), dr1.hash()), h(dr2.hash(), dr3.hash()))],
+        })
+    );
+}
+
+#[test]
+fn ta_inclusion_0_tas() {
+    let block = example_block(BlockTransactions {
+        tally_txns: vec![],
+        ..Default::default()
+    });
+
+    let ta = example_ta(0);
+    assert_eq!(ta.proof_of_inclusion(&block), None);
+}
+
+#[test]
+fn ta_inclusion_1_tas() {
+    let tax = example_ta(0);
+    let ta0 = example_ta(1);
+
+    let block = example_block(BlockTransactions {
+        tally_txns: vec![ta0.clone()],
+        ..Default::default()
+    });
+
+    assert_eq!(tax.proof_of_inclusion(&block), None);
+    assert_eq!(
+        ta0.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 0,
+            lemma: vec![],
+        })
+    );
+}
+
+#[test]
+fn ta_inclusion_2_tas() {
+    let tax = example_ta(0);
+    let ta0 = example_ta(1);
+    let ta1 = example_ta(2);
+
+    let block = example_block(BlockTransactions {
+        tally_txns: vec![ta0.clone(), ta1.clone()],
+        ..Default::default()
+    });
+
+    assert_eq!(tax.proof_of_inclusion(&block), None);
+    assert_eq!(
+        ta0.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 0,
+            lemma: vec![ta1.hash()],
+        })
+    );
+    assert_eq!(
+        ta1.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 1,
+            lemma: vec![ta0.hash()],
+        })
+    );
+}
+
+#[test]
+fn ta_inclusion_3_tas() {
+    let tax = example_ta(0);
+    let ta0 = example_ta(1);
+    let ta1 = example_ta(2);
+    let ta2 = example_ta(3);
+
+    let block = example_block(BlockTransactions {
+        tally_txns: vec![ta0.clone(), ta1.clone(), ta2.clone()],
+        ..Default::default()
+    });
+
+    assert_eq!(tax.proof_of_inclusion(&block), None);
+    assert_eq!(
+        ta0.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 0,
+            lemma: vec![ta1.hash(), ta2.hash()],
+        })
+    );
+    assert_eq!(
+        ta1.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 1,
+            lemma: vec![ta0.hash(), ta2.hash()],
+        })
+    );
+    assert_eq!(
+        ta2.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 1,
+            lemma: vec![h(ta0.hash(), ta1.hash())],
+        })
+    );
+}
+
+#[test]
+fn ta_inclusion_5_tas() {
+    let tax = example_ta(0);
+    let ta0 = example_ta(1);
+    let ta1 = example_ta(2);
+    let ta2 = example_ta(3);
+    let ta3 = example_ta(4);
+    let ta4 = example_ta(5);
+
+    let block = example_block(BlockTransactions {
+        tally_txns: vec![
+            ta0.clone(),
+            ta1.clone(),
+            ta2.clone(),
+            ta3.clone(),
+            ta4.clone(),
+        ],
+        ..Default::default()
+    });
+
+    assert_eq!(tax.proof_of_inclusion(&block), None);
+    assert_eq!(
+        ta0.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 0,
+            lemma: vec![ta1.hash(), h(ta2.hash(), ta3.hash()), ta4.hash()],
+        })
+    );
+    assert_eq!(
+        ta1.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 1,
+            lemma: vec![ta0.hash(), h(ta2.hash(), ta3.hash()), ta4.hash()],
+        })
+    );
+    assert_eq!(
+        ta2.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 2,
+            lemma: vec![ta3.hash(), h(ta0.hash(), ta1.hash()), ta4.hash()],
+        })
+    );
+    assert_eq!(
+        ta3.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 3,
+            lemma: vec![ta2.hash(), h(ta0.hash(), ta1.hash()), ta4.hash()],
+        })
+    );
+    assert_eq!(
+        ta4.proof_of_inclusion(&block),
+        Some(TxInclusionProof {
+            index: 1,
+            lemma: vec![h(h(ta0.hash(), ta1.hash()), h(ta2.hash(), ta3.hash()))],
         })
     );
 }
