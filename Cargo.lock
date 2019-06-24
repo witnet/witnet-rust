@@ -3006,6 +3006,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "witnet-ethereum-bridge"
+version = "0.1.0"
+
+[[package]]
 name = "witnet_config"
 version = "0.3.2"
 dependencies = [
