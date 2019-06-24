@@ -15,8 +15,11 @@
 #![deny(missing_docs)]
 use actix::prelude::*;
 use failure::Error;
+use jsonrpc_core as rpc;
+use jsonrpc_pubsub as pubsub;
 
 use witnet_config::config::Config;
+use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
 
 mod actors;
 mod api;
@@ -26,12 +29,56 @@ mod wallet;
 
 /// Run the Witnet wallet application.
 pub fn run(conf: Config) -> Result<(), Error> {
+    let server_addr = conf.wallet.server_addr;
+    let db_path = conf.wallet.db_path;
+    let db_file_name = conf.wallet.db_file_name;
+    let node_url = conf.wallet.node_url;
+    let mut rocksdb_opts = conf.rocksdb.to_rocksdb_options();
+    // https://github.com/facebook/rocksdb/wiki/Merge-Operator
+    rocksdb_opts.set_merge_operator(
+        "wallet merge operator",
+        storage::storage_merge_operator,
+        None,
+    );
+
+    // Db-encryption params used by the Storage actor
+    let db_encrypt_hash_iterations = conf.wallet.db_encrypt_hash_iterations;
+    let db_encrypt_iv_length = conf.wallet.db_encrypt_iv_length;
+    let db_encrypt_salt_length = conf.wallet.db_encrypt_salt_length;
+
+    // Master-key generation params used by the Crypto actor
+    let seed_password = conf.wallet.seed_password;
+    let master_key_salt = conf.wallet.master_key_salt;
+    let id_hash_iterations = conf.wallet.id_hash_iterations;
+    let id_hash_function = conf.wallet.id_hash_function;
+
+    let node_client = node_url.clone().map_or_else(
+        || Ok(None),
+        |url| JsonRpcClient::start(url.as_ref()).map(Some),
+    )?;
+    let db = rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
+        .map_err(|e| failure::format_err!("{}", e))?;
+
     let system = System::new("witnet-wallet");
-    let controller = actors::Controller::build()
-        .server_addr(conf.wallet.server_addr)
-        .db_path(conf.wallet.db_path)
-        .node_url(conf.wallet.node_url)
-        .start()?;
+    let storage = actors::Storage::start(
+        db_encrypt_hash_iterations,
+        db_encrypt_iv_length,
+        db_encrypt_salt_length,
+    );
+    let crypto = actors::Crypto::start(
+        seed_password,
+        master_key_salt,
+        id_hash_iterations,
+        id_hash_function,
+    );
+    let rad_executor = actors::RadExecutor::start();
+    let app = actors::App::start(db, storage, crypto, rad_executor, node_client);
+    let mut handler = pubsub::PubSubHandler::new(rpc::MetaIoHandler::default());
+
+    api::connect_routes(&mut handler, app.clone());
+
+    let server = Server::build().handler(handler).addr(server_addr).start()?;
+    let controller = actors::Controller::start(server, app);
 
     signal::ctrl_c(move || {
         controller.do_send(actors::controller::Shutdown);

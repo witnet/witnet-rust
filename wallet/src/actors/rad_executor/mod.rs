@@ -3,7 +3,6 @@
 //! Sync actor used to execute RAD-requests.
 //! For more information see [`RadExecutor`](RadExecutor) struct.
 use std::convert::TryFrom;
-use std::thread;
 
 use actix::prelude::*;
 use rayon::prelude::*;
@@ -11,42 +10,22 @@ use rayon::prelude::*;
 use witnet_data_structures::chain::RADRequest;
 use witnet_rad::{self as rad, types::RadonTypes};
 
+mod handlers;
+
+pub use handlers::*;
+
 /// Actor that executes RAD-requests in a sync context.
-pub struct RadExecutor {
-    id: thread::ThreadId,
-}
+pub struct RadExecutor;
 
 impl RadExecutor {
-    /// Return an `Addr` to a thread-pool of `RadExecutor` actors with `num_threads` threads.
+    /// Start actor.
     pub fn start() -> Addr<Self> {
-        SyncArbiter::start(num_cpus::get(), || Self {
-            id: thread::current().id(),
-        })
+        SyncArbiter::start(1, || Self)
     }
-}
 
-impl Actor for RadExecutor {
-    type Context = SyncContext<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        log::debug!("RAD-Executor started");
-    }
-}
-
-/// Message to tell the RadExecutor to execute the containing RAD-request.
-pub struct Run(pub RADRequest);
-
-impl Message for Run {
-    type Result = rad::Result<RadonTypes>;
-}
-
-impl Handler<Run> for RadExecutor {
-    type Result = <Run as Message>::Result;
-
-    fn handle(&mut self, Run(request): Run, _ctx: &mut Self::Context) -> Self::Result {
-        log::debug!("[{:?}] Executing RAD request...", self.id);
-
-        let res = request
+    /// Run RAD request
+    pub fn run(&self, request: RADRequest) -> rad::Result<RadonTypes> {
+        request
             .retrieve
             .par_iter()
             .map(rad::run_retrieval)
@@ -64,10 +43,10 @@ impl Handler<Run> for RadExecutor {
                             })
                             .map_err(Into::into)
                     })
-            });
-
-        log::debug!("[{:?}] Finished RAD request.", self.id);
-
-        res
+            })
     }
+}
+
+impl Actor for RadExecutor {
+    type Context = SyncContext<Self>;
 }

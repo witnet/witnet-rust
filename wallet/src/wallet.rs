@@ -9,8 +9,6 @@ use witnet_protected::{Protected, ProtectedString};
 
 use super::storage;
 
-use super::storage;
-
 pub type WalletId = String;
 
 pub type SessionId = String;
@@ -192,11 +190,6 @@ pub struct SeedSource {
 pub enum SeedFrom {
     Mnemonics,
     Xprv,
-}
-
-#[derive(Debug)]
-pub enum HashFunction {
-    Sha256,
 }
 
 /// HD Wallet Master ExtendedKey

@@ -9,14 +9,6 @@ pub mod keys;
 
 pub use error::Error;
 
-/// Encryption parameters used by the encryption function.
-#[derive(Clone)]
-pub struct Params {
-    pub(crate) encrypt_hash_iterations: u32,
-    pub(crate) encrypt_iv_length: usize,
-    pub(crate) encrypt_salt_length: usize,
-}
-
 /// Get a value from the database or its default.
 pub fn get_default<T, K>(db: &rocksdb::DB, key: K) -> Result<T, error::Error>
 where
@@ -74,16 +66,24 @@ pub fn flush(db: &rocksdb::DB) -> Result<(), error::Error> {
 pub type Key = wallet::Key;
 
 /// Generate an encryption key.
-pub fn gen_key(params: &Params, password: &[u8]) -> Result<Key, error::Error> {
-    let salt = cipher::generate_random(params.encrypt_salt_length)
-        .map_err(error::Error::CipherOpFailed)?;
+pub fn gen_key(
+    encrypt_salt_length: usize,
+    encrypt_hash_iterations: u32,
+    password: &[u8],
+) -> Result<Key, error::Error> {
+    let salt =
+        cipher::generate_random(encrypt_salt_length).map_err(error::Error::CipherOpFailed)?;
 
-    gen_key_salt(params, password, salt)
+    gen_key_salt(encrypt_hash_iterations, password, salt)
 }
 
 /// Generate an encryption key without a random salt.
-pub fn gen_key_salt(params: &Params, password: &[u8], salt: Vec<u8>) -> Result<Key, error::Error> {
-    let secret = pbkdf2_sha256(password, salt.as_ref(), params.encrypt_hash_iterations);
+pub fn gen_key_salt(
+    encrypt_hash_iterations: u32,
+    password: &[u8],
+    salt: Vec<u8>,
+) -> Result<Key, error::Error> {
+    let secret = pbkdf2_sha256(password, salt.as_ref(), encrypt_hash_iterations);
 
     Ok(Key {
         secret,
@@ -92,13 +92,12 @@ pub fn gen_key_salt(params: &Params, password: &[u8], salt: Vec<u8>) -> Result<K
 }
 
 /// Encrypt the given value with the given key.
-pub fn encrypt<T>(params: &Params, key: &Key, value: &T) -> Result<Vec<u8>, error::Error>
+pub fn encrypt<T>(encrypt_iv_length: usize, key: &Key, value: &T) -> Result<Vec<u8>, error::Error>
 where
     T: serde::Serialize,
 {
     let bytes = serialize(value)?;
-    let iv =
-        cipher::generate_random(params.encrypt_iv_length).map_err(error::Error::CipherOpFailed)?;
+    let iv = cipher::generate_random(encrypt_iv_length).map_err(error::Error::CipherOpFailed)?;
     let encrypted = cipher::encrypt_aes_cbc(key.secret.as_ref(), bytes.as_ref(), iv.as_ref())
         .map_err(error::Error::CipherOpFailed)?;
     let mut final_value = iv;
@@ -110,7 +109,9 @@ where
 
 /// Decrypt the given value with the given password.
 pub fn decrypt_password<T>(
-    params: &Params,
+    encrypt_salt_length: usize,
+    encrypt_iv_length: usize,
+    encrypt_hash_iterations: u32,
     password: &[u8],
     encrypted: &[u8],
 ) -> Result<(T, Key), error::Error>
@@ -118,10 +119,10 @@ where
     T: serde::de::DeserializeOwned,
 {
     let len = encrypted.len();
-    let iv = &encrypted[0..params.encrypt_iv_length];
-    let data = &encrypted[params.encrypt_iv_length..len - params.encrypt_salt_length];
-    let salt = &encrypted[len - params.encrypt_salt_length..];
-    let key = gen_key_salt(params, password, salt.to_vec())?;
+    let iv = &encrypted[0..encrypt_iv_length];
+    let data = &encrypted[encrypt_iv_length..len - encrypt_salt_length];
+    let salt = &encrypted[len - encrypt_salt_length..];
+    let key = gen_key_salt(encrypt_hash_iterations, password, salt.to_vec())?;
     let bytes = cipher::decrypt_aes_cbc(&key.secret.as_ref(), data, iv)
         .map_err(error::Error::CipherOpFailed)?;
     let value = deserialize(bytes.as_ref())?;

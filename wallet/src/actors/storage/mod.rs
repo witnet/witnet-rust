@@ -10,23 +10,29 @@ use witnet_protected::ProtectedString;
 
 use crate::{storage, wallet};
 
-pub mod builder;
 pub mod handlers;
 
 pub use handlers::*;
 
 /// Storage actor.
 pub struct Storage {
-    params: storage::Params,
+    encrypt_salt_length: usize,
+    encrypt_iv_length: usize,
+    encrypt_hash_iterations: u32,
 }
 
 impl Storage {
-    pub fn build() -> builder::Builder {
-        builder::Builder::new()
-    }
-
-    pub fn new(params: storage::Params) -> Self {
-        Self { params }
+    /// Start actor.
+    pub fn start(
+        db_encrypt_hash_iterations: u32,
+        db_encrypt_iv_length: usize,
+        db_encrypt_salt_length: usize,
+    ) -> Addr<Self> {
+        SyncArbiter::start(1, move || Storage {
+            encrypt_salt_length: db_encrypt_salt_length,
+            encrypt_iv_length: db_encrypt_iv_length,
+            encrypt_hash_iterations: db_encrypt_hash_iterations,
+        })
     }
 
     pub fn get_wallet_infos(&self, db: &DB) -> Result<Vec<wallet::WalletInfo>, storage::Error> {
@@ -56,14 +62,18 @@ impl Storage {
     ) -> Result<(), storage::Error> {
         let mut batch = rocksdb::WriteBatch::default();
         let id = &wallet.info.id;
-        let key = storage::gen_key(&self.params, password.as_ref())?;
+        let key = storage::gen_key(
+            self.encrypt_salt_length,
+            self.encrypt_hash_iterations,
+            password.as_ref(),
+        )?;
 
         storage::merge(&mut batch, storage::keys::wallets(), id)?;
         storage::put(&mut batch, storage::keys::wallet_info(id), &wallet.info)?;
         storage::put(
             &mut batch,
             storage::keys::wallet(id),
-            &storage::encrypt(&self.params, &key, &wallet.content)?,
+            &storage::encrypt(self.encrypt_iv_length, &key, &wallet.content)?,
         )?;
 
         storage::write(db, batch)?;
@@ -83,9 +93,14 @@ impl Storage {
     ) -> Result<wallet::UnlockedWallet, storage::Error> {
         let encrypted: Vec<u8> = storage::get(db, storage::keys::wallet(id))
             .map_err(|_| storage::Error::UnknownWalletId(id.to_string()))?;
-        let (content, key) =
-            storage::decrypt_password(&self.params, password.as_bytes(), encrypted.as_ref())
-                .map_err(|_| storage::Error::WrongPassword)?;
+        let (content, key) = storage::decrypt_password(
+            self.encrypt_salt_length,
+            self.encrypt_iv_length,
+            self.encrypt_hash_iterations,
+            password.as_bytes(),
+            encrypted.as_ref(),
+        )
+        .map_err(|_| storage::Error::WrongPassword)?;
         let info = storage::get(db, storage::keys::wallet_info(id))?;
 
         let wallet = wallet::Wallet::new(info, content);

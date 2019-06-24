@@ -13,11 +13,11 @@ use serde_json::json;
 
 use witnet_net::client::tcp::{jsonrpc as rpc_client, JsonRpcClient};
 use witnet_protected::ProtectedString;
+use witnet_rad as rad;
 
-use crate::actors::{crypto, storage, Crypto, RadExecutor, Storage};
+use crate::actors::{crypto, rad_executor, storage, Crypto, RadExecutor, Storage};
 use crate::wallet;
 
-pub mod builder;
 pub mod error;
 pub mod handlers;
 
@@ -40,37 +40,42 @@ pub struct App {
     wallet_keys: HashMap<wallet::WalletId, wallet::Key>,
 }
 
-// let result = if self.opened_wallets.borrow().iter().any(|id_| id_ == id) {
-//     Err(storage::Error::WalletAlreadyOpenend(id.to_string()))
-// } else {
-
-// };
-
-// result
-
 impl App {
-    pub fn build() -> builder::AppBuilder {
-        builder::AppBuilder::default()
-    }
-
-    pub fn new(
-        db: Arc<rocksdb::DB>,
+    /// Start actor.
+    pub fn start(
+        db: rocksdb::DB,
         storage: Addr<Storage>,
-        rad_executor: Addr<RadExecutor>,
         crypto: Addr<Crypto>,
+        rad_executor: Addr<RadExecutor>,
         node_client: Option<Addr<JsonRpcClient>>,
-    ) -> Self {
-        Self {
-            db,
+    ) -> Addr<Self> {
+        let slf = Self {
+            db: Arc::new(db),
             storage,
+            crypto,
             rad_executor,
             node_client,
-            crypto,
             subscriptions: Default::default(),
             sessions: Default::default(),
             unlocked_wallets: Default::default(),
             wallet_keys: Default::default(),
-        }
+        };
+
+        slf.start()
+    }
+
+    pub fn run_rad_request(
+        &self,
+        req: wallet::RADRequest,
+    ) -> ResponseFuture<rad::types::RadonTypes, Error> {
+        let fut = self
+            .rad_executor
+            .send(rad_executor::Run(req))
+            .map_err(error::Error::RadScheduleFailed)
+            .and_then(|result| result.map_err(error::Error::RadFailed))
+            .map_err(failure::Error::from);
+
+        Box::new(fut)
     }
 
     /// Return an id for a new subscription. If there are no available subscription slots, then

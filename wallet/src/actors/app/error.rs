@@ -24,6 +24,4 @@ pub enum Error {
     StorageCommFailed(#[cause] actix::MailboxError),
     #[fail(display = "could not communicate with cryptographic engine")]
     CryptoCommFailed(#[cause] actix::MailboxError),
-    #[fail(display = "the wallet is already bein used by another session")]
-    WalletInUse,
 }

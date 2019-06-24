@@ -1,28 +1,42 @@
 //! # Crypto actor
 //!
 //! This actor is in charge of performing blocking crypto operations.
-use std::sync::Arc;
-
 use actix::prelude::*;
 
-use witnet_crypto::{key::MasterKeyGen, mnemonic::Mnemonic, pbkdf2::pbkdf2_sha256};
+use witnet_crypto::{
+    hash::HashFunction, key::MasterKeyGen, mnemonic::Mnemonic, pbkdf2::pbkdf2_sha256,
+};
+use witnet_protected::ProtectedString;
 
 use crate::wallet;
 
-pub mod builder;
 pub mod error;
-pub mod handlers;
+mod handlers;
 
 pub use error::Error;
 pub use handlers::*;
 
 pub struct Crypto {
-    params: Arc<builder::Params>,
+    seed_password: ProtectedString,
+    master_key_salt: Vec<u8>,
+    id_hash_iterations: u32,
+    id_hash_function: HashFunction,
 }
 
 impl Crypto {
-    pub fn build() -> builder::Builder {
-        builder::Builder::default()
+    /// Start the actor.
+    pub fn start(
+        seed_password: ProtectedString,
+        master_key_salt: Vec<u8>,
+        id_hash_iterations: u32,
+        id_hash_function: HashFunction,
+    ) -> Addr<Self> {
+        SyncArbiter::start(1, move || Self {
+            seed_password: seed_password.clone(),
+            master_key_salt: master_key_salt.clone(),
+            id_hash_iterations,
+            id_hash_function: id_hash_function.clone(),
+        })
     }
 
     /// Generates the HD Master ExtendedKey for a wallet
@@ -34,10 +48,10 @@ impl Crypto {
             wallet::SeedFrom::Mnemonics => {
                 let mnemonic =
                     Mnemonic::from_phrase(seed_source.data).map_err(error::Error::WrongMnemonic)?;
-                let seed = mnemonic.seed(&self.params.seed_password);
+                let seed = mnemonic.seed(&self.seed_password);
 
                 MasterKeyGen::new(seed)
-                    .with_key(self.params.master_key_salt.as_ref())
+                    .with_key(self.master_key_salt.as_ref())
                     .generate()
                     .map_err(Error::KeyGenFailed)?
             }
@@ -49,13 +63,13 @@ impl Crypto {
 
     /// Generate an ID for a wallet
     pub fn gen_id(&self, key: &wallet::MasterKey) -> String {
-        match self.params.id_hash_function {
-            wallet::HashFunction::Sha256 => {
+        match self.id_hash_function {
+            HashFunction::Sha256 => {
                 let password = [key.secret(), key.chain_code].concat();
                 let id_bytes = pbkdf2_sha256(
                     password.as_ref(),
-                    self.params.master_key_salt.as_ref(),
-                    self.params.id_hash_iterations,
+                    self.master_key_salt.as_ref(),
+                    self.id_hash_iterations,
                 );
 
                 hex::encode(id_bytes)
