@@ -1,0 +1,5 @@
+witnet_jsonrpc_addr = "127.0.0.1:1234"
+eth_client_url = "http://127.0.0.1:8545"
+wbi_contract_addr = "0x1aEe6BAD4e2B3ea2dadF6753dA3d77Da79290c9b"
+eth_account = "0x1aEe6BAD4e2B3ea2dadF6753dA3d77Da79290c9b"
+
