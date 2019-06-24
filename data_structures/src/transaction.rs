@@ -10,10 +10,7 @@ use crate::{
 };
 use protobuf::Message;
 use std::cell::Cell;
-use witnet_crypto::{
-    hash::{calculate_sha256, Sha256},
-    merkle::FullMerkleTree,
-};
+use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
 pub trait MemoizedHashable {
     fn hashable_bytes(&self) -> Vec<u8>;
@@ -140,14 +137,7 @@ impl TxInclusionProof {
         index: usize,
         leaves: I,
     ) -> TxInclusionProof {
-        let mt = FullMerkleTree::sha256(
-            leaves
-                .into_iter()
-                .map(|t| match t.hash() {
-                    Hash::SHA256(x) => Sha256(x),
-                })
-                .collect(),
-        );
+        let mt = FullMerkleTree::sha256(leaves.into_iter().map(|t| t.hash().into()).collect());
 
         // The index is valid, so this operation cannot fail
         let proof = mt.inclusion_proof(index).unwrap();

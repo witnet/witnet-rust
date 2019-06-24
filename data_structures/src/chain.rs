@@ -376,6 +376,14 @@ impl From<Sha256> for Hash {
     }
 }
 
+impl Into<Sha256> for Hash {
+    fn into(self) -> Sha256 {
+        match self {
+            Hash::SHA256(x) => Sha256(x),
+        }
+    }
+}
+
 impl fmt::Display for Hash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
