@@ -1299,7 +1299,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     validate_commit_transaction(&c_tx, &dr_pool, beacon, vrf, &rep_eng).map(|_| ())
 }
 
-static DR_HASH: &str = "5591bdaa2161636aac39f31497733ab62581b50d8fcea7f2ea4cb72fd1aebb0a";
+static DR_HASH: &str = "5c480ffab6f430348c493255a111cbf07eadb09198b21584b8cc876bbe3f34dc";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
@@ -1578,7 +1578,7 @@ fn commitment_proof_lower_than_target() {
     let x = test_commit_difficult_proof();
     // This is just the hash of the VRF, we do not care for the exact value as
     // long as it is below the target hash
-    let vrf_hash = "2a2458f64682b4f41970a2ffb40c19f66191635dad4626c422ff26aea04233d3,"
+    let vrf_hash = "322a2587a40168db8618387a84976bd0a69c0a191fe76fe77c1b70b289a261f8,"
         .parse()
         .unwrap();
     assert_eq!(

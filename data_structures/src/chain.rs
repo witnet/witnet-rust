@@ -192,6 +192,12 @@ impl Hashable for CheckpointBeacon {
     }
 }
 
+impl Hashable for DataRequestOutput {
+    fn hash(&self) -> Hash {
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    }
+}
+
 impl Hashable for PublicKey {
     fn hash(&self) -> Hash {
         let mut v = vec![];
@@ -1620,7 +1626,7 @@ mod tests {
     #[test]
     fn test_transaction_hashable_trait() {
         let transaction = transaction_example();
-        let expected = "27cf16ca127b87361e616d273654ba13afcd7712e83b7217915ef2faae2f6879";
+        let expected = "471a406d903abd7bd4c8536ad79db02f8cd59083936e6cb6fb81382f4514d9cf";
 
         // Signatures don't affect the hash of a transaction (SegWit style), thus both must be equal
         assert_eq!(transaction.hash().to_string(), expected);

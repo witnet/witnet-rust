@@ -210,6 +210,18 @@ impl DRTransactionBody {
             hash: MemoHash::new(),
         }
     }
+
+    /// Specified data to be divided in a new level in the proof of inclusion
+    /// In this case data = Hash( dr_output )
+    pub fn data_poi_hash(&self) -> Hash {
+        self.dr_output.hash()
+    }
+
+    /// Rest of the transaction to be divided in a new level in the proof of inclusion
+    /// In this case we choose the complete transaction
+    pub fn rest_poi_hash(&self) -> Hash {
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    }
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
@@ -321,6 +333,20 @@ impl TallyTransaction {
         }
     }
 
+    /// Specified data to be divided in a new level in the proof of inclusion
+    /// In this case data = Hash( dr_pointer || tally )
+    pub fn data_poi_hash(&self) -> Hash {
+        let Hash::SHA256(dr_pointer_bytes) = self.dr_pointer;
+        let data = [&dr_pointer_bytes, &self.tally[..]].concat();
+        calculate_sha256(&data).into()
+    }
+
+    /// Rest of the transaction to be divided in a new level in the proof of inclusion
+    /// In this case we choose the complete transaction
+    pub fn rest_poi_hash(&self) -> Hash {
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    }
+
     /// Creates a proof of inclusion.
     ///
     /// Returns None if the transaction is not included in this block.
@@ -379,7 +405,10 @@ impl MemoizedHashable for VTTransactionBody {
 }
 impl MemoizedHashable for DRTransactionBody {
     fn hashable_bytes(&self) -> Vec<u8> {
-        self.to_pb_bytes().unwrap()
+        let Hash::SHA256(data_bytes) = self.data_poi_hash();
+        let Hash::SHA256(rest_bytes) = self.rest_poi_hash();
+
+        [data_bytes, rest_bytes].concat()
     }
 
     fn memoized_hash(&self) -> &MemoHash {
@@ -406,7 +435,10 @@ impl MemoizedHashable for RevealTransactionBody {
 }
 impl MemoizedHashable for TallyTransaction {
     fn hashable_bytes(&self) -> Vec<u8> {
-        self.to_pb_bytes().unwrap()
+        let Hash::SHA256(data_bytes) = self.data_poi_hash();
+        let Hash::SHA256(rest_bytes) = self.rest_poi_hash();
+
+        [data_bytes, rest_bytes].concat()
     }
 
     fn memoized_hash(&self) -> &MemoHash {
