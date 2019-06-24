@@ -2898,8 +2898,10 @@ dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "partial_struct 0.3.2",
+ "rocksdb 0.12.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "witnet_crypto 0.3.2",
  "witnet_data_structures 0.3.2",
  "witnet_protected 0.3.2",
 ]

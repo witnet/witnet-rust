@@ -7,12 +7,15 @@ version = "0.3.2"
 workspace = ".."
 
 [dependencies]
+rocksdb = "0.12.2"
 failure = "0.1.5"
 log = "0.4.6"
 toml = "0.4.10"
 partial_struct = { path = "../partial_struct" }
-witnet_protected = { path = "../protected" }
 directories = "1.0.2"
+
+witnet_protected = { path = "../protected" }
+witnet_crypto = { path = "../crypto", features = ["with-serde"] }
 
 [dependencies.serde]
 features = ["derive"]

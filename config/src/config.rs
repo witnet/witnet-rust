@@ -49,8 +49,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::defaults::{Defaults, Testnet1, Testnet3};
 use crate::dirs;
 use partial_struct::PartialStruct;
+use witnet_crypto::hash::HashFunction;
 use witnet_data_structures::chain::{ConsensusConstants, Environment, PartialConsensusConstants};
-use witnet_protected::Protected;
+use witnet_protected::{Protected, ProtectedString};
 
 /// The total configuration object that contains all other, more
 /// specific, configuration objects (connections, storage, etc).
@@ -92,6 +93,11 @@ pub struct Config {
     #[partial_struct(ty = "PartialWallet")]
     #[partial_struct(serde(default))]
     pub wallet: Wallet,
+
+    /// Rocksdb-related configuration
+    #[partial_struct(ty = "PartialRocksdb")]
+    #[partial_struct(serde(default))]
+    pub rocksdb: Rocksdb,
 
     /// Log-related configuration
     #[partial_struct(ty = "PartialLog")]
@@ -296,6 +302,7 @@ impl Config {
             jsonrpc: JsonRPC::from_partial(&config.jsonrpc, defaults),
             mining: Mining::from_partial(&config.mining, defaults),
             wallet: Wallet::from_partial(&config.wallet, defaults),
+            rocksdb: Rocksdb::from_partial(&config.rocksdb, defaults),
         }
     }
 }
@@ -449,14 +456,28 @@ impl Mining {
 pub struct Wallet {
     /// Websockets server address.
     pub server_addr: SocketAddr,
-
     /// Witnet node server address.
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
     pub node_url: Option<String>,
-
-    /// Storage-related configuration
+    /// Database path.
     pub db_path: PathBuf,
+    /// Database file name.
+    pub db_file_name: String,
+    /// Database hash iterations when encrypting.
+    pub db_encrypt_hash_iterations: u32,
+    /// Database init-vector-length when encrypting.
+    pub db_encrypt_iv_length: usize,
+    /// Database random salt length when encrypting.
+    pub db_encrypt_salt_length: usize,
+    /// Master Key-generation seed password. Default empty `""`.
+    pub seed_password: ProtectedString,
+    /// Master Key-generation salt. Default `Bitcoin seed`.
+    pub master_key_salt: Vec<u8>,
+    /// Master Key-generation hash iterations. Default `4096`.
+    pub id_hash_iterations: u32,
+    /// Master Key-generation hash function. Default `Sha256`.
+    pub id_hash_function: HashFunction,
 }
 
 impl Wallet {
@@ -467,7 +488,95 @@ impl Wallet {
                 .unwrap_or_else(|| defaults.wallet_server_addr()),
             node_url: config.node_url.clone(),
             db_path: config.db_path.clone().unwrap_or_else(dirs::data_dir),
+            db_file_name: config
+                .db_file_name
+                .clone()
+                .unwrap_or_else(|| defaults.wallet_db_file_name()),
+            db_encrypt_hash_iterations: config
+                .db_encrypt_hash_iterations
+                .unwrap_or_else(|| defaults.wallet_db_encrypt_hash_iterations()),
+            db_encrypt_iv_length: config
+                .db_encrypt_iv_length
+                .unwrap_or_else(|| defaults.wallet_db_encrypt_iv_length()),
+            db_encrypt_salt_length: config
+                .db_encrypt_salt_length
+                .unwrap_or_else(|| defaults.wallet_db_encrypt_salt_length()),
+            seed_password: config
+                .seed_password
+                .clone()
+                .unwrap_or_else(|| defaults.wallet_seed_password()),
+            master_key_salt: config
+                .master_key_salt
+                .clone()
+                .unwrap_or_else(|| defaults.wallet_master_key_salt()),
+            id_hash_iterations: config
+                .id_hash_iterations
+                .unwrap_or_else(|| defaults.wallet_id_hash_iterations()),
+            id_hash_function: config
+                .id_hash_function
+                .clone()
+                .unwrap_or_else(|| defaults.wallet_id_hash_function()),
         }
+    }
+}
+
+/// Rocksdb-specific configuration
+#[derive(PartialStruct, Serialize, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+pub struct Rocksdb {
+    /// By default, RocksDB uses only one background thread for flush and compaction. Calling this
+    /// function will set it up such that total of total_threads is used. Good value for
+    /// total_threads is the number of cores. You almost definitely want to call this function if
+    /// your system is bottlenecked by RocksDB.
+    #[partial_struct(skip)]
+    increase_parallelism: Option<i32>,
+    /// If true, the database will be created if it is missing.
+    create_if_missing: bool,
+    /// If non-zero, we perform bigger reads when doing compaction. If you're running RocksDB on
+    /// spinning disks, you should set this to at least 2MB. That way RocksDB's compaction is doing
+    /// sequential instead of random reads.
+    compaction_readahead_size: usize,
+    /// If true, then every store to stable storage will issue a fsync. If false, then every store
+    /// to stable storage will issue a fdatasync. This parameter should be set to true while storing
+    /// data to filesystem like ext3 that can lose files after a reboot.
+    use_fsync: bool,
+    enable_statistics: bool,
+}
+
+impl Rocksdb {
+    pub fn from_partial(config: &PartialRocksdb, defaults: &dyn Defaults) -> Self {
+        Rocksdb {
+            increase_parallelism: config.increase_parallelism,
+            create_if_missing: config
+                .create_if_missing
+                .unwrap_or_else(|| defaults.rocksdb_create_if_missing()),
+            compaction_readahead_size: config
+                .compaction_readahead_size
+                .unwrap_or_else(|| defaults.rocksdb_compaction_readahead_size()),
+            use_fsync: config
+                .use_fsync
+                .unwrap_or_else(|| defaults.rocksdb_use_fsync()),
+            enable_statistics: config
+                .enable_statistics
+                .unwrap_or_else(|| defaults.rocksdb_enable_statistics()),
+        }
+    }
+
+    pub fn to_rocksdb_options(&self) -> rocksdb::Options {
+        let mut opts = rocksdb::Options::default();
+        opts.create_if_missing(self.create_if_missing);
+        opts.set_compaction_readahead_size(self.compaction_readahead_size);
+        opts.set_use_fsync(self.use_fsync);
+
+        if let Some(parallelism) = self.increase_parallelism {
+            opts.increase_parallelism(parallelism);
+        }
+
+        if self.enable_statistics {
+            opts.enable_statistics();
+        }
+
+        opts
     }
 }
 

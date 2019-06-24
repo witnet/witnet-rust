@@ -7,7 +7,9 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::time::Duration;
 
+use witnet_crypto::hash::HashFunction;
 use witnet_data_structures::chain::Hash;
+use witnet_protected::ProtectedString;
 
 // When changing the defaults, remember to update the documentation!
 // https://github.com/witnet/witnet-rust/blob/master/docs/configuration/toml-file.md
@@ -136,6 +138,55 @@ pub trait Defaults {
     /// Wallet server address
     fn wallet_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11212)
+    }
+
+    /// Wallet db file name
+    fn wallet_db_file_name(&self) -> String {
+        "witnet_wallet.db".to_string()
+    }
+
+    fn wallet_db_encrypt_hash_iterations(&self) -> u32 {
+        10_000
+    }
+
+    fn wallet_db_encrypt_iv_length(&self) -> usize {
+        16
+    }
+
+    fn wallet_db_encrypt_salt_length(&self) -> usize {
+        32
+    }
+
+    fn wallet_seed_password(&self) -> ProtectedString {
+        "".into()
+    }
+
+    fn wallet_master_key_salt(&self) -> Vec<u8> {
+        b"Bitcoin seed".to_vec()
+    }
+
+    fn wallet_id_hash_iterations(&self) -> u32 {
+        4096
+    }
+
+    fn wallet_id_hash_function(&self) -> HashFunction {
+        HashFunction::Sha256
+    }
+
+    fn rocksdb_create_if_missing(&self) -> bool {
+        true
+    }
+
+    fn rocksdb_compaction_readahead_size(&self) -> usize {
+        0
+    }
+
+    fn rocksdb_use_fsync(&self) -> bool {
+        false
+    }
+
+    fn rocksdb_enable_statistics(&self) -> bool {
+        false
     }
 }
 
