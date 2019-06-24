@@ -2,6 +2,16 @@
 
 use crypto::digest::Digest;
 use crypto::sha2;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+/// Enumeration of hash-function names
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum HashFunction {
+    /// SHA-256 hash function
+    Sha256,
+}
 
 /// Secure hashing algorithm v2
 #[derive(Copy, Clone, Debug, PartialEq, Hash)]
