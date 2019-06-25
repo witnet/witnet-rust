@@ -1,4 +1,5 @@
 use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
+use log::*;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{net::SocketAddr, path::Path, sync::Arc, time};
@@ -8,7 +9,7 @@ use web3::{
     types::FilterBuilder,
     types::H160,
 };
-use witnet_data_structures::chain::Block;
+use witnet_data_structures::chain::{Block, Hashable};
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -27,7 +28,7 @@ fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, toml::de::Error> {
     let f = file.as_ref();
     let mut contents = String::new();
 
-    println!("Loading config from `{}`", f.to_string_lossy());
+    debug!("Loading config from `{}`", f.to_string_lossy());
 
     let mut file = File::open(file).unwrap();
     file.read_to_string(&mut contents).unwrap();
@@ -46,7 +47,7 @@ fn eth_event_stream(
     // https://github.com/tomusdrw/rust-web3/blob/master/examples/simple_log_filter.rs
 
     let accounts = web3.eth().accounts().wait().unwrap();
-    println!("Web3 accounts: {:?}", accounts);
+    debug!("Web3 accounts: {:?}", accounts);
 
     // Why read files at runtime when you can read files at compile time
     let contract_abi_json: &[u8] = include_bytes!("../wbi_abi.json");
@@ -55,7 +56,7 @@ fn eth_event_stream(
     let _contract = Contract::new(web3.eth(), contract_address, contract_abi.clone());
 
     // TODO: replace with actual "new data request" event
-    //println!("WBI events: {:?}", contract_abi.events);
+    //debug!("WBI events: {:?}", contract_abi.events);
     let post_dr_event = contract_abi.event("PostDataRequest").unwrap();
     /*
     let post_dr_filter = FilterBuilder::default()
@@ -68,7 +69,7 @@ fn eth_event_stream(
         .build();
     */
 
-    println!(
+    info!(
         "Subscribing to contract {:?} topic {:?}",
         contract_address,
         post_dr_event.signature()
@@ -84,7 +85,7 @@ fn eth_event_stream(
     let call_future = contract
         .call("hello", (), accounts[0], Options::default())
         .then(|tx| {
-            println!("got tx: {:?}", tx);
+            debug!("got tx: {:?}", tx);
             Result::<(), ()>::Ok(())
         });
     */
@@ -94,23 +95,30 @@ fn eth_event_stream(
         .then(|filter| {
             // TODO: for some reason, this is never executed
             let filter = filter.unwrap();
-            println!("Created filter: {:?}", filter);
+            debug!("Created filter: {:?}", filter);
             filter
                 // This poll interval was set to 0 in the example, which resulted in the
                 // bridge having 100% cpu usage...
                 .stream(time::Duration::from_secs(0))
                 .map(|value| {
-                    println!("Got ethereum event: {:?}", value);
+                    debug!("Got ethereum event: {:?}", value);
                 })
-                .map_err(|e| println!("ethereum event error = {:?}", e))
+                .map_err(|e| error!("ethereum event error = {:?}", e))
                 .for_each(|_| Ok(()))
         })
         .map_err(|_| ())
 }
 
-fn witnet_block_stream(config: Arc<Config>) -> impl Future<Item = (), Error = ()> {
+fn witnet_block_stream(
+    config: Arc<Config>,
+) -> (
+    async_jsonrpc_client::transports::shared::EventLoopHandle,
+    impl Future<Item = (), Error = ()>,
+) {
     let witnet_addr = config.witnet_jsonrpc_addr.to_string();
-    let (_handle, witnet_client) =
+    // Important: the handle cannot be dropped, otherwise the client stops
+    // processing events
+    let (handle, witnet_client) =
         async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
     let witnet_subscription_id_value = witnet_client
         .execute("witnet_subscribe", json!(["newBlocks"]))
@@ -120,31 +128,63 @@ fn witnet_block_stream(config: Arc<Config>) -> impl Future<Item = (), Error = ()
         serde_json::Value::String(s) => s,
         _ => panic!("Not a string"),
     };
-    println!(
-        "Suscribed to witnet newBlocks with subscription id {}",
+    info!(
+        "Subscribed to witnet newBlocks with subscription id \"{}\"",
         witnet_subscription_id
     );
 
-    witnet_client
+    let fut = witnet_client
         .subscribe(&witnet_subscription_id.into())
         .map(|value| {
             let block = serde_json::from_value::<Block>(value).unwrap();
-            println!("Got witnet block: {:?}", block);
+            debug!("Got witnet block: {:?}", block);
+
+            for dr in &block.txns.data_request_txns {
+                let dr_inclusion_proof = dr.proof_of_inclusion(&block).unwrap();
+                debug!(
+                    "Proof of inclusion for data request {}:\n{:?}",
+                    dr.hash(),
+                    dr_inclusion_proof
+                );
+            }
+
+            for tally in &block.txns.tally_txns {
+                let tally_inclusion_proof = tally.proof_of_inclusion(&block).unwrap();
+                debug!(
+                    "Proof of inclusion for tally        {}:\n{:?}",
+                    tally.hash(),
+                    tally_inclusion_proof
+                );
+            }
         })
-        .map_err(|e| println!("witnet notification error = {:?}", e))
+        .map_err(|e| error!("witnet notification error = {:?}", e))
         .for_each(|_| Ok(()))
-        .then(|_| Ok(()))
+        .then(|_| Ok(()));
+
+    (handle, fut)
+}
+
+fn init_logger() {
+    // Debug log level by default
+    let mut log_level = log::LevelFilter::Debug;
+    if let Ok(rust_log) = std::env::var("RUST_LOG") {
+        if rust_log.contains("witnet") {
+            log_level = env_logger::Logger::from_default_env().filter();
+        }
+    }
+
+    env_logger::Builder::from_env(env_logger::Env::default())
+        .filter_module("witnet_ethereum_bridge", log_level)
+        .init();
 }
 
 fn main() {
-    env_logger::init();
-
+    init_logger();
     let config = Arc::new(read_config());
     let (_eloop, web3_http) = web3::transports::Http::new(&config.eth_client_url).unwrap();
     let web3 = web3::Web3::new(web3_http);
     let ees = eth_event_stream(Arc::clone(&config), web3);
-
-    let wbs = witnet_block_stream(Arc::clone(&config));
+    let (_handle, wbs) = witnet_block_stream(Arc::clone(&config));
 
     tokio::run(future::ok(()).map(move |_| {
         tokio::spawn(wbs);
