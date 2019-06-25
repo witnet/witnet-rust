@@ -1,6 +1,6 @@
 use witnet_crypto::{
     hash::Sha256,
-    merkle::{merkle_tree_root as crypto_merkle_tree_root, sha256_concat},
+    merkle::{merkle_tree_root as crypto_merkle_tree_root, sha256_concat, InclusionProof},
 };
 use witnet_data_structures::{chain::*, transaction::*};
 
@@ -76,7 +76,7 @@ fn example_dr(id: usize) -> DRTransaction {
 
 fn example_ta(id: usize) -> TallyTransaction {
     let dr_pointer = Hash::with_first_u32(id as u32);
-    let tally = vec![];
+    let tally = vec![id as u8; 32];
     TallyTransaction::new(dr_pointer, tally, vec![])
 }
 
@@ -384,4 +384,206 @@ fn ta_inclusion_5_tas() {
             lemma: vec![h(h(ta0.hash(), ta1.hash()), h(ta2.hash(), ta3.hash()))],
         })
     );
+}
+
+fn check_dr_data_proof_inclusion(dr: DRTransaction, block: &Block) {
+    let mt_root = block.block_header.merkle_roots.dr_hash_merkle_root.into();
+
+    let old_poi = dr.proof_of_inclusion(block).unwrap();
+    let data_hash = dr.body.data_poi_hash();
+    let new_index = old_poi.index << 1;
+    let mut new_lemma = old_poi.lemma.clone();
+    new_lemma.insert(0, dr.body.rest_poi_hash());
+
+    let poi = dr.data_proof_of_inclusion(block);
+    assert_eq!(
+        poi,
+        Some(TxInclusionProof {
+            index: new_index,
+            lemma: new_lemma,
+        })
+    );
+    let poi = poi.unwrap();
+
+    let lemma = poi
+        .lemma
+        .iter()
+        .map(|h| match *h {
+            Hash::SHA256(x) => Sha256(x),
+        })
+        .collect();
+
+    let proof = InclusionProof::sha256(poi.index, lemma);
+    assert!(proof.verify(data_hash.into(), mt_root));
+}
+
+#[test]
+fn dr_inclusion_1_drs_plus_leaves() {
+    let dr0 = example_dr(1);
+
+    let block = example_block(BlockTransactions {
+        data_request_txns: vec![dr0.clone()],
+        ..Default::default()
+    });
+
+    check_dr_data_proof_inclusion(dr0, &block);
+}
+
+#[test]
+fn dr_inclusion_2_drs_plus_leaves() {
+    let dr0 = example_dr(1);
+    let dr1 = example_dr(2);
+
+    let block = example_block(BlockTransactions {
+        data_request_txns: vec![dr0.clone(), dr1.clone()],
+        ..Default::default()
+    });
+
+    check_dr_data_proof_inclusion(dr0, &block);
+    check_dr_data_proof_inclusion(dr1, &block);
+}
+
+#[test]
+fn dr_inclusion_3_drs_plus_leaves() {
+    let dr0 = example_dr(1);
+    let dr1 = example_dr(2);
+    let dr2 = example_dr(3);
+
+    let block = example_block(BlockTransactions {
+        data_request_txns: vec![dr0.clone(), dr1.clone(), dr2.clone()],
+        ..Default::default()
+    });
+
+    check_dr_data_proof_inclusion(dr0, &block);
+    check_dr_data_proof_inclusion(dr1, &block);
+    check_dr_data_proof_inclusion(dr2, &block);
+}
+
+#[test]
+fn dr_inclusion_5_drs_plus_leaves() {
+    let dr0 = example_dr(1);
+    let dr1 = example_dr(2);
+    let dr2 = example_dr(3);
+    let dr3 = example_dr(4);
+    let dr4 = example_dr(5);
+
+    let block = example_block(BlockTransactions {
+        data_request_txns: vec![
+            dr0.clone(),
+            dr1.clone(),
+            dr2.clone(),
+            dr3.clone(),
+            dr4.clone(),
+        ],
+        ..Default::default()
+    });
+
+    check_dr_data_proof_inclusion(dr0, &block);
+    check_dr_data_proof_inclusion(dr1, &block);
+    check_dr_data_proof_inclusion(dr2, &block);
+    check_dr_data_proof_inclusion(dr3, &block);
+    check_dr_data_proof_inclusion(dr4, &block);
+}
+
+fn check_ta_data_proof_inclusion(ta: TallyTransaction, block: &Block) {
+    let mt_root = block
+        .block_header
+        .merkle_roots
+        .tally_hash_merkle_root
+        .into();
+
+    let old_poi = ta.proof_of_inclusion(block).unwrap();
+    let data_hash = ta.data_poi_hash();
+    let new_index = old_poi.index << 1;
+    let mut new_lemma = old_poi.lemma.clone();
+    new_lemma.insert(0, ta.rest_poi_hash());
+
+    let poi = ta.data_proof_of_inclusion(block);
+    assert_eq!(
+        poi,
+        Some(TxInclusionProof {
+            index: new_index,
+            lemma: new_lemma,
+        })
+    );
+    let poi = poi.unwrap();
+
+    let lemma = poi
+        .lemma
+        .iter()
+        .map(|h| match *h {
+            Hash::SHA256(x) => Sha256(x),
+        })
+        .collect();
+
+    let proof = InclusionProof::sha256(poi.index, lemma);
+    assert!(proof.verify(data_hash.into(), mt_root));
+}
+
+#[test]
+fn ta_inclusion_1_tas_plus_leaves() {
+    let ta0 = example_ta(1);
+
+    let block = example_block(BlockTransactions {
+        tally_txns: vec![ta0.clone()],
+        ..Default::default()
+    });
+
+    check_ta_data_proof_inclusion(ta0, &block);
+}
+
+#[test]
+fn ta_inclusion_2_tas_plus_leaves() {
+    let ta0 = example_ta(1);
+    let ta1 = example_ta(2);
+
+    let block = example_block(BlockTransactions {
+        tally_txns: vec![ta0.clone(), ta1.clone()],
+        ..Default::default()
+    });
+
+    check_ta_data_proof_inclusion(ta0, &block);
+    check_ta_data_proof_inclusion(ta1, &block);
+}
+
+#[test]
+fn ta_inclusion_3_tas_plus_leaves() {
+    let ta0 = example_ta(1);
+    let ta1 = example_ta(2);
+    let ta2 = example_ta(3);
+
+    let block = example_block(BlockTransactions {
+        tally_txns: vec![ta0.clone(), ta1.clone(), ta2.clone()],
+        ..Default::default()
+    });
+
+    check_ta_data_proof_inclusion(ta0, &block);
+    check_ta_data_proof_inclusion(ta1, &block);
+    check_ta_data_proof_inclusion(ta2, &block);
+}
+
+#[test]
+fn ta_inclusion_5_tas_plus_leaves() {
+    let ta0 = example_ta(1);
+    let ta1 = example_ta(2);
+    let ta2 = example_ta(3);
+    let ta3 = example_ta(4);
+    let ta4 = example_ta(5);
+
+    let block = example_block(BlockTransactions {
+        tally_txns: vec![
+            ta0.clone(),
+            ta1.clone(),
+            ta2.clone(),
+            ta3.clone(),
+            ta4.clone(),
+        ],
+        ..Default::default()
+    });
+
+    check_ta_data_proof_inclusion(ta0, &block);
+    check_ta_data_proof_inclusion(ta1, &block);
+    check_ta_data_proof_inclusion(ta2, &block);
+    check_ta_data_proof_inclusion(ta3, &block);
+    check_ta_data_proof_inclusion(ta4, &block);
 }
