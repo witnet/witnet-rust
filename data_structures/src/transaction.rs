@@ -147,6 +147,12 @@ impl TxInclusionProof {
             lemma: proof.lemma().iter().map(|sha| (*sha).into()).collect(),
         }
     }
+
+    /// Add a new level in the TxInclusionProof
+    pub fn add_leave(&mut self, leave: Hash) {
+        self.index <<= 1;
+        self.lemma.insert(0, leave);
+    }
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
@@ -172,6 +178,16 @@ impl DRTransaction {
         txs.iter()
             .position(|x| x == self)
             .map(|tx_idx| TxInclusionProof::new(tx_idx, txs))
+    }
+
+    /// Modify the proof of inclusion adding a new level that divide a specified data
+    /// from the rest of transaction
+    pub fn data_proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
+        self.proof_of_inclusion(block).map(|mut poi| {
+            poi.add_leave(self.body.rest_poi_hash());
+
+            poi
+        })
     }
 }
 
@@ -347,6 +363,16 @@ impl TallyTransaction {
         txs.iter()
             .position(|x| x == self)
             .map(|tx_idx| TxInclusionProof::new(tx_idx, txs))
+    }
+
+    /// Modify the proof of inclusion adding a new level that divide a specified data
+    /// from the rest of transaction
+    pub fn data_proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
+        self.proof_of_inclusion(block).map(|mut poi| {
+            poi.add_leave(self.rest_poi_hash());
+
+            poi
+        })
     }
 }
 
