@@ -48,26 +48,35 @@ fn eth_event_stream(
     let accounts = web3.eth().accounts().wait().unwrap();
     println!("Web3 accounts: {:?}", accounts);
 
-    let contract_address = config.wbi_contract_addr;
     // Why read files at runtime when you can read files at compile time
-    let contract_abi_json = include_bytes!("../wbi_abi.json");
-
-    let _contract = Contract::from_json(web3.eth(), contract_address, contract_abi_json).unwrap();
+    let contract_abi_json: &[u8] = include_bytes!("../wbi_abi.json");
+    let contract_abi = ethabi::Contract::load(contract_abi_json).unwrap();
+    let contract_address = config.wbi_contract_addr;
+    let _contract = Contract::new(web3.eth(), contract_address, contract_abi.clone());
 
     // TODO: replace with actual "new data request" event
-    // Filter for Hello event in our contract
-    let filter = FilterBuilder::default()
-        .address(vec![contract_address])
-        .topics(
-            Some(vec![
-                "d282f389399565f3671145f5916e51652b60eee8e5c759293a2f5771b8ddfd2e"
-                    .parse()
-                    .unwrap(),
-            ]),
-            None,
-            None,
-            None,
+    //println!("WBI events: {:?}", contract_abi.events);
+    let post_dr_event = contract_abi.event("PostDataRequest").unwrap();
+    /*
+    let post_dr_filter = FilterBuilder::default()
+        .from_block(0.into())
+        //.address(vec![contract_address])
+        .topic_filter(
+                post_dr_event.filter(RawTopicFilter::default()).unwrap()
+
         )
+        .build();
+    */
+
+    println!(
+        "Subscribing to contract {:?} topic {:?}",
+        contract_address,
+        post_dr_event.signature()
+    );
+    let post_dr_filter = FilterBuilder::default()
+        //.from_block(0.into())
+        .address(vec![contract_address])
+        .topics(Some(vec![post_dr_event.signature()]), None, None, None)
         .build();
 
     // Example call
@@ -81,17 +90,20 @@ fn eth_event_stream(
     */
 
     web3.eth_filter()
-        .create_logs_filter(filter)
+        .create_logs_filter(post_dr_filter)
         .then(|filter| {
+            // TODO: for some reason, this is never executed
+            let filter = filter.unwrap();
+            println!("Created filter: {:?}", filter);
             filter
-                .unwrap()
                 // This poll interval was set to 0 in the example, which resulted in the
                 // bridge having 100% cpu usage...
-                .stream(time::Duration::from_secs(1))
-                .for_each(|log| {
-                    println!("Got ethereum log: {:?}", log);
-                    Ok(())
+                .stream(time::Duration::from_secs(0))
+                .map(|value| {
+                    println!("Got ethereum event: {:?}", value);
                 })
+                .map_err(|e| println!("ethereum event error = {:?}", e))
+                .for_each(|_| Ok(()))
         })
         .map_err(|_| ())
 }
@@ -125,6 +137,8 @@ fn witnet_block_stream(config: Arc<Config>) -> impl Future<Item = (), Error = ()
 }
 
 fn main() {
+    env_logger::init();
+
     let config = Arc::new(read_config());
     let (_eloop, web3_http) = web3::transports::Http::new(&config.eth_client_url).unwrap();
     let web3 = web3::Web3::new(web3_http);
