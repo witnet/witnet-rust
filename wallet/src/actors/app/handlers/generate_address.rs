@@ -4,11 +4,11 @@ use crate::actors::App;
 use crate::api;
 
 impl Message for api::GenerateAddressRequest {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), api::Error>;
 }
 
 impl Handler<api::GenerateAddressRequest> for App {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), api::Error>;
 
     fn handle(
         &mut self,

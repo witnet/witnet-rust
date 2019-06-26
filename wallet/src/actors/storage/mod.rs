@@ -91,16 +91,15 @@ impl Storage {
         id: &str,
         password: &str,
     ) -> Result<wallet::UnlockedWallet, storage::Error> {
-        let encrypted: Vec<u8> = storage::get(db, storage::keys::wallet(id))
-            .map_err(|_| storage::Error::UnknownWalletId(id.to_string()))?;
+        let encrypted: Vec<u8> = storage::get_opt(db, storage::keys::wallet(id))?
+            .ok_or_else(|| storage::Error::WalletNotFound)?;
         let (content, key) = storage::decrypt_password(
             self.encrypt_salt_length,
             self.encrypt_iv_length,
             self.encrypt_hash_iterations,
             password.as_bytes(),
             encrypted.as_ref(),
-        )
-        .map_err(|_| storage::Error::WrongPassword)?;
+        )?;
         let info = storage::get(db, storage::keys::wallet_info(id))?;
 
         let wallet = wallet::Wallet::new(info, content);

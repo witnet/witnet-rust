@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use witnet_crypto::key::ExtendedSK;
 pub use witnet_data_structures::chain::RADRequest;
-use witnet_protected::{Protected, ProtectedString};
+use witnet_protected::Protected;
 
 use super::storage;
 
@@ -16,7 +16,8 @@ pub type SessionId = String;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WalletInfo {
     pub(crate) id: WalletId,
-    pub(crate) caption: String,
+    pub(crate) name: Option<String>,
+    pub(crate) caption: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -177,19 +178,6 @@ pub struct RADConsensusArgs {
 pub struct RADDeliverArgs {
     kind: RADType,
     url: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SeedSource {
-    pub(crate) source: SeedFrom,
-    pub(crate) data: ProtectedString,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SeedFrom {
-    Mnemonics,
-    Xprv,
 }
 
 /// HD Wallet Master ExtendedKey

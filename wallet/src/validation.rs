@@ -1,11 +1,11 @@
 //! # Validation-related types and functions.
 
 /// A list of errors. An error is a pair of (field, error msg).
-pub type Error = Vec<(&'static str, &'static str)>;
+pub type Error = Vec<(String, String)>;
 
 /// Create an error message associated to a field name.
-pub fn error(field: &'static str, msg: &'static str) -> Error {
-    vec![(field, msg)]
+pub fn error<F: ToString, M: ToString>(field: F, msg: M) -> Error {
+    vec![(field.to_string(), msg.to_string())]
 }
 
 /// Combine two Results but accumulate their error if it's not Ok.

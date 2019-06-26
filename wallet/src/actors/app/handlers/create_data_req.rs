@@ -4,11 +4,11 @@ use crate::actors::App;
 use crate::api;
 
 impl Message for api::CreateDataReqRequest {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), api::Error>;
 }
 
 impl Handler<api::CreateDataReqRequest> for App {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), api::Error>;
 
     fn handle(
         &mut self,

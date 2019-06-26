@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-use witnet_crypto as crypto;
+mod validation;
+
+pub use validation::*;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateMnemonicsRequest {
-    pub length: crypto::mnemonic::Length,
+    pub length: u8,
 }
 
 #[derive(Debug, Serialize)]

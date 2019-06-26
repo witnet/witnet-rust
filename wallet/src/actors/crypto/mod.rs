@@ -3,17 +3,13 @@
 //! This actor is in charge of performing blocking crypto operations.
 use actix::prelude::*;
 
-use witnet_crypto::{
-    hash::HashFunction, key::MasterKeyGen, mnemonic::Mnemonic, pbkdf2::pbkdf2_sha256,
-};
+use witnet_crypto::{hash::HashFunction, key::MasterKeyGen, pbkdf2::pbkdf2_sha256};
 use witnet_protected::ProtectedString;
 
-use crate::wallet;
+use crate::{app, crypto, wallet};
 
-pub mod error;
 mod handlers;
 
-pub use error::Error;
 pub use handlers::*;
 
 pub struct Crypto {
@@ -42,20 +38,21 @@ impl Crypto {
     /// Generates the HD Master ExtendedKey for a wallet
     pub fn gen_master_key(
         &self,
-        seed_source: wallet::SeedSource,
-    ) -> Result<wallet::MasterKey, Error> {
-        let key = match seed_source.source {
-            wallet::SeedFrom::Mnemonics => {
-                let mnemonic =
-                    Mnemonic::from_phrase(seed_source.data).map_err(error::Error::WrongMnemonic)?;
+        seed_source: app::SeedSource,
+    ) -> Result<wallet::MasterKey, crypto::Error> {
+        let key = match seed_source {
+            app::SeedSource::Mnemonics(mnemonic) => {
                 let seed = mnemonic.seed(&self.seed_password);
 
                 MasterKeyGen::new(seed)
                     .with_key(self.master_key_salt.as_ref())
                     .generate()
-                    .map_err(Error::KeyGenFailed)?
+                    .map_err(crypto::Error::KeyGenFailed)?
             }
-            wallet::SeedFrom::Xprv => unimplemented!(),
+            app::SeedSource::Xprv => {
+                // TODO: Implement key generation from xprv
+                unimplemented!("xprv not implemented yet")
+            }
         };
 
         Ok(key)

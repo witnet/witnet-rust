@@ -4,12 +4,18 @@ use witnet_protected::ProtectedString;
 
 use crate::wallet;
 
+mod validation;
+
+pub use validation::*;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateWalletRequest {
-    pub(crate) caption: String,
+    pub(crate) name: Option<String>,
+    pub(crate) caption: Option<String>,
     pub(crate) password: ProtectedString,
-    pub(crate) seed_source: wallet::SeedSource,
+    pub(crate) seed_source: String,
+    pub(crate) seed_data: ProtectedString,
 }
 
 #[derive(Debug, Serialize)]

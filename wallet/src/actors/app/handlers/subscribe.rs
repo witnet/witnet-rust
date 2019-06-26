@@ -4,11 +4,11 @@ use crate::actors::App;
 use crate::api;
 
 impl Message for api::SubscribeRequest {
-    type Result = Result<api::SubscribeResponse, failure::Error>;
+    type Result = Result<api::SubscribeResponse, api::Error>;
 }
 
 impl Handler<api::SubscribeRequest> for App {
-    type Result = Result<api::SubscribeResponse, failure::Error>;
+    type Result = Result<api::SubscribeResponse, api::Error>;
 
     fn handle(
         &mut self,
@@ -16,6 +16,7 @@ impl Handler<api::SubscribeRequest> for App {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.subscribe(subscriber)
+            .map_err(api::internal_error)
             .map(|id| api::SubscribeResponse { id })
     }
 }

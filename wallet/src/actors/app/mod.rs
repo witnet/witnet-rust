@@ -5,7 +5,6 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use actix::prelude::*;
-use failure::Error;
 use futures::future;
 use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
@@ -16,9 +15,8 @@ use witnet_protected::ProtectedString;
 use witnet_rad as rad;
 
 use crate::actors::{crypto, rad_executor, storage, Crypto, RadExecutor, Storage};
-use crate::wallet;
+use crate::{app, wallet};
 
-pub mod error;
 pub mod handlers;
 
 /// Expose message to stop application.
@@ -64,29 +62,29 @@ impl App {
         slf.start()
     }
 
+    /// Run a RADRequest and return the computed result.
     pub fn run_rad_request(
         &self,
         req: wallet::RADRequest,
-    ) -> ResponseFuture<rad::types::RadonTypes, Error> {
-        let fut = self
+    ) -> ResponseFuture<rad::types::RadonTypes, app::Error> {
+        let f = self
             .rad_executor
             .send(rad_executor::Run(req))
-            .map_err(error::Error::RadScheduleFailed)
-            .and_then(|result| result.map_err(error::Error::RadFailed))
-            .map_err(failure::Error::from);
+            .map_err(app::Error::RadScheduleFailed)
+            .and_then(|result| result.map_err(app::Error::RadFailed));
 
-        Box::new(fut)
+        Box::new(f)
     }
 
     /// Return an id for a new subscription. If there are no available subscription slots, then
     /// `None` is returned.
-    pub fn subscribe(&mut self, subscriber: pubsub::Subscriber) -> Result<usize, Error> {
+    pub fn subscribe(&mut self, subscriber: pubsub::Subscriber) -> Result<usize, app::Error> {
         let (id, slot) = self
             .subscriptions
             .iter_mut()
             .enumerate()
             .find(|(_, slot)| slot.is_none())
-            .ok_or_else(|| error::Error::SubscribeFailed("max limit of subscriptions reached"))?;
+            .ok_or_else(|| app::Error::SubscribeFailed("max limit of subscriptions reached"))?;
 
         *slot = subscriber
             .assign_id(pubsub::SubscriptionId::from(id as u64))
@@ -96,10 +94,10 @@ impl App {
     }
 
     /// Remove a subscription and leave its corresponding slot free.
-    pub fn unsubscribe(&mut self, id: pubsub::SubscriptionId) -> Result<(), Error> {
+    pub fn unsubscribe(&mut self, id: pubsub::SubscriptionId) -> Result<(), app::Error> {
         let index = match id {
             pubsub::SubscriptionId::Number(n) => Ok(n as usize),
-            _ => Err(error::Error::UnsubscribeFailed(
+            _ => Err(app::Error::UnsubscribeFailed(
                 "subscription id must be a number",
             )),
         }?;
@@ -107,7 +105,7 @@ impl App {
             .subscriptions
             .as_mut()
             .get_mut(index)
-            .ok_or_else(|| error::Error::UnsubscribeFailed("subscription id not found"))?;
+            .ok_or_else(|| app::Error::UnsubscribeFailed("subscription id not found"))?;
 
         *slot = None;
 
@@ -119,52 +117,55 @@ impl App {
         &mut self,
         method: String,
         params: rpc::Params,
-    ) -> ResponseFuture<serde_json::Value, Error> {
+    ) -> ResponseFuture<serde_json::Value, app::Error> {
         match &self.node_client {
             Some(addr) => {
                 let req = rpc_client::Request::method(method)
                     .params(params)
                     .expect("rpc::Params failed serialization");
-                let fut = addr
+                let f = addr
                     .send(req)
-                    .map_err(error::Error::RequestFailedToSend)
-                    .and_then(|result| result.map_err(error::Error::RequestFailed))
-                    .map_err(Error::from);
+                    .map_err(app::Error::RequestFailedToSend)
+                    .and_then(|result| result.map_err(app::Error::RequestFailed));
 
-                Box::new(fut)
+                Box::new(f)
             }
             None => {
-                let fut = future::err(Error::from(error::Error::NodeNotConnected));
+                let f = future::err(app::Error::NodeNotConnected);
 
-                Box::new(fut)
+                Box::new(f)
             }
         }
     }
 
     /// Get id and caption of all the wallets stored in the database.
-    fn get_wallet_infos(&self) -> ResponseFuture<Vec<wallet::WalletInfo>, Error> {
+    fn get_wallet_infos(&self) -> ResponseFuture<Vec<wallet::WalletInfo>, app::Error> {
         let fut = self
             .storage
             .send(storage::GetWalletInfos(self.db.clone()))
-            .map_err(map_storage_failed_err)
-            .and_then(map_err);
+            .map_err(app::Error::StorageFailed)
+            .and_then(|result| result.map_err(app::Error::Storage));
 
         Box::new(fut)
     }
 
-    /// Create an empty wallet.
+    /// Create an empty HD Wallet.
     fn create_wallet(
         &self,
-        caption: String,
-        password: ProtectedString,
-        seed_source: wallet::SeedSource,
-    ) -> ResponseActFuture<Self, wallet::WalletId, Error> {
+        params: app::CreateWallet,
+    ) -> ResponseActFuture<Self, wallet::WalletId, app::Error> {
+        let app::CreateWallet {
+            name,
+            caption,
+            password,
+            seed_source,
+        } = params;
         let key_spec = wallet::Wip::Wip3;
         let fut = self
             .crypto
             .send(crypto::GenWalletKeys(seed_source))
-            .map_err(map_crypto_failed_err)
-            .and_then(map_err)
+            .map_err(app::Error::CryptoFailed)
+            .and_then(|result| result.map_err(app::Error::Crypto))
             .into_actor(self)
             .and_then(move |(id, master_key), slf, _ctx| {
                 // Keypath: m/3'/4919'/0'
@@ -177,13 +178,14 @@ impl App {
                 let content = wallet::WalletContent::new(master_key, key_spec, vec![account]);
                 let info = wallet::WalletInfo {
                     id: id.clone(),
+                    name,
                     caption,
                 };
                 let wallet = wallet::Wallet::new(info, content);
 
                 slf.storage
                     .send(storage::CreateWallet(slf.db.clone(), wallet, password))
-                    .map_err(map_storage_failed_err)
+                    .map_err(app::Error::StorageFailed)
                     .map(move |_| id)
                     .into_actor(slf)
             });
@@ -191,12 +193,14 @@ impl App {
         Box::new(fut)
     }
 
+    /// Unlock a wallet, that is, add its encryption/decryption key to the list of known keys so
+    /// further wallet operations can be performed.
     fn unlock_wallet(
         &mut self,
         id: wallet::WalletId,
         session_id: wallet::SessionId,
         password: ProtectedString,
-    ) -> ResponseActFuture<Self, (), Error> {
+    ) -> ResponseActFuture<Self, (), app::Error> {
         // check if the wallet has already being unlocked by another session
         match self.unlocked_wallets.get(&id).cloned() {
             Some(mut owner_sessions) => {
@@ -212,8 +216,8 @@ impl App {
                 let f = self
                     .storage
                     .send(storage::UnlockWallet(self.db.clone(), id, password))
-                    .map_err(map_storage_failed_err)
-                    .and_then(map_err)
+                    .map_err(app::Error::StorageFailed)
+                    .and_then(|result| result.map_err(app::Error::Storage))
                     .into_actor(self)
                     .and_then(move |unlocked_wallet, _slf, ctx| {
                         ctx.notify(handlers::WalletUnlocked {
@@ -230,12 +234,12 @@ impl App {
     }
 
     /// Perform all the tasks needed to properly stop the application.
-    fn stop(&self) -> ResponseFuture<(), Error> {
+    fn stop(&self) -> ResponseFuture<(), app::Error> {
         let fut = self
             .storage
             .send(storage::Flush(self.db.clone()))
-            .map_err(map_storage_failed_err)
-            .and_then(map_err);
+            .map_err(app::Error::StorageFailed)
+            .and_then(|result| result.map_err(app::Error::Storage));
 
         Box::new(fut)
     }
@@ -279,18 +283,3 @@ impl Actor for App {
 }
 
 impl Supervised for App {}
-
-fn map_crypto_failed_err(err: actix::MailboxError) -> Error {
-    Error::from(error::Error::CryptoCommFailed(err))
-}
-
-fn map_storage_failed_err(err: actix::MailboxError) -> Error {
-    Error::from(error::Error::StorageCommFailed(err))
-}
-
-fn map_err<T, E>(result: Result<T, E>) -> Result<T, Error>
-where
-    E: failure::Fail,
-{
-    result.map_err(Error::from)
-}

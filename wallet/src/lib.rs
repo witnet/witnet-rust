@@ -23,8 +23,11 @@ use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
 
 mod actors;
 mod api;
+mod app;
+mod crypto;
 mod signal;
 mod storage;
+mod validation;
 mod wallet;
 
 /// Run the Witnet wallet application.
