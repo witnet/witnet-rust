@@ -9,7 +9,10 @@ use web3::{
     types::FilterBuilder,
     types::H160,
 };
-use witnet_data_structures::chain::{Block, Hashable};
+use witnet_data_structures::{
+    chain::{Block, Hash, Hashable},
+    proto::ProtobufConvert,
+};
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -136,23 +139,28 @@ fn witnet_block_stream(
     let fut = witnet_client
         .subscribe(&witnet_subscription_id.into())
         .map(|value| {
+            // TODO: get current epoch to distinguish between old blocks that are sent
+            // to us while synchronizing and new blocks
             let block = serde_json::from_value::<Block>(value).unwrap();
             debug!("Got witnet block: {:?}", block);
 
             for dr in &block.txns.data_request_txns {
-                let dr_inclusion_proof = dr.proof_of_inclusion(&block).unwrap();
+                let dr_inclusion_proof = dr.data_proof_of_inclusion(&block).unwrap();
                 debug!(
-                    "Proof of inclusion for data request {}:\n{:?}",
+                    "Proof of inclusion for data request {}:\nData: {:?}\n{:?}",
                     dr.hash(),
+                    dr.body.dr_output.to_pb_bytes().unwrap(),
                     dr_inclusion_proof
                 );
             }
 
             for tally in &block.txns.tally_txns {
-                let tally_inclusion_proof = tally.proof_of_inclusion(&block).unwrap();
+                let tally_inclusion_proof = tally.data_proof_of_inclusion(&block).unwrap();
+                let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
                 debug!(
-                    "Proof of inclusion for tally        {}:\n{:?}",
+                    "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
                     tally.hash(),
+                    [&dr_pointer_bytes[..], &tally.tally].concat(),
                     tally_inclusion_proof
                 );
             }
