@@ -28,8 +28,12 @@ impl Error {
                 )
             }
             Error::Internal(e) => {
-                log::error!("Internal Error: {}", e);
-                (500, "Internal Error", None)
+                log::error!("Internal Error: {}", &e);
+                (
+                    500,
+                    "Internal Error",
+                    Some(json!({ "cause": format!("{}", e) })),
+                )
             }
         }
     }
