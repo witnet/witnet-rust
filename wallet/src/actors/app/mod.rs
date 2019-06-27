@@ -10,6 +10,7 @@ use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
 use serde_json::json;
 
+use witnet_crypto::mnemonic::MnemonicGen;
 use witnet_net::client::tcp::{jsonrpc as rpc_client, JsonRpcClient};
 use witnet_protected::ProtectedString;
 use witnet_rad as rad;
@@ -74,6 +75,14 @@ impl App {
             .and_then(|result| result.map_err(app::Error::RadFailed));
 
         Box::new(f)
+    }
+
+    /// Generate a random BIP39 mnemonics sentence
+    pub fn generate_mnemonics(&self, params: app::CreateMnemonics) -> String {
+        let mnemonic = MnemonicGen::new().with_len(params.length).generate();
+        let words = mnemonic.words();
+
+        words.to_string()
     }
 
     /// Return an id for a new subscription. If there are no available subscription slots, then

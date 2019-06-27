@@ -12,7 +12,7 @@ impl Handler<api::WalletInfosRequest> for App {
     type Result = ResponseFuture<api::WalletInfosResponse, api::Error>;
 
     fn handle(&mut self, _msg: api::WalletInfosRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let fut = self
+        let f = self
             .get_wallet_infos()
             .map_err(api::internal_error)
             .and_then(|infos| {
@@ -22,6 +22,6 @@ impl Handler<api::WalletInfosRequest> for App {
                 })
             });
 
-        Box::new(fut)
+        Box::new(f)
     }
 }
