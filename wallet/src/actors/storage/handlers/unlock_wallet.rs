@@ -14,7 +14,7 @@ pub struct UnlockWallet(
 );
 
 impl Message for UnlockWallet {
-    type Result = Result<wallet::UnlockedWallet, storage::Error>;
+    type Result = Result<wallet::Key, storage::Error>;
 }
 
 impl Handler<UnlockWallet> for Storage {

@@ -1,10 +1,12 @@
 //! # Application actor.
 //!
 //! See [`App`](App) actor for more information.
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use actix::prelude::*;
+use actix::utils::TimerFunc;
 use futures::future;
 use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
@@ -34,9 +36,9 @@ pub struct App {
     crypto: Addr<Crypto>,
     node_client: Option<Addr<JsonRpcClient>>,
     subscriptions: [Option<pubsub::Sink>; 10],
-    sessions: HashMap<wallet::SessionId, HashSet<wallet::WalletId>>,
-    unlocked_wallets: HashMap<wallet::WalletId, HashSet<wallet::SessionId>>,
-    wallet_keys: HashMap<wallet::WalletId, wallet::Key>,
+    sessions: HashMap<app::SessionId, wallet::WalletId>,
+    session_expiration: Duration,
+    wallet_keys: HashMap<wallet::WalletId, Arc<wallet::Key>>,
 }
 
 impl App {
@@ -54,9 +56,9 @@ impl App {
             crypto,
             rad_executor,
             node_client,
+            session_expiration: Duration::from_secs(3600),
             subscriptions: Default::default(),
             sessions: Default::default(),
-            unlocked_wallets: Default::default(),
             wallet_keys: Default::default(),
         };
 
@@ -206,40 +208,74 @@ impl App {
     /// further wallet operations can be performed.
     fn unlock_wallet(
         &mut self,
-        id: wallet::WalletId,
-        session_id: wallet::SessionId,
+        wallet_id: wallet::WalletId,
         password: ProtectedString,
-    ) -> ResponseActFuture<Self, (), app::Error> {
+    ) -> ResponseActFuture<Self, app::SessionId, app::Error> {
         // check if the wallet has already being unlocked by another session
-        match self.unlocked_wallets.get(&id).cloned() {
-            Some(mut owner_sessions) => {
-                log::debug!(
-                    "Wallet {} already unlocked. Appending {} to its list of active sessions.",
-                    &id,
-                    &session_id
-                );
-                owner_sessions.insert(id);
-                Box::new(fut::ok(()))
+        match self.wallet_keys.get(&wallet_id).cloned() {
+            Some(wallet_key) => {
+                log::debug!("Wallet already unlocked by another session.");
+                let f = self
+                    .crypto
+                    .send(crypto::GenSessionId(wallet_key.clone()))
+                    .map_err(app::Error::CryptoFailed)
+                    .into_actor(self)
+                    .and_then(|id, slf, _ctx| {
+                        let session_id = Arc::new(id);
+                        slf.sessions.insert(session_id.clone(), wallet_id);
+                        fut::ok(session_id)
+                    });
+
+                Box::new(f)
             }
             None => {
+                log::debug!("Unlocking wallet.");
                 let f = self
                     .storage
-                    .send(storage::UnlockWallet(self.db.clone(), id, password))
+                    .send(storage::UnlockWallet(
+                        self.db.clone(),
+                        wallet_id.clone(),
+                        password,
+                    ))
                     .map_err(app::Error::StorageFailed)
                     .and_then(|result| result.map_err(app::Error::Storage))
                     .into_actor(self)
-                    .and_then(move |unlocked_wallet, _slf, ctx| {
-                        ctx.notify(handlers::WalletUnlocked {
-                            session_id,
-                            unlocked_wallet,
-                        });
+                    .and_then(move |key, slf, _ctx| {
+                        let wallet_key = Arc::new(key);
+                        slf.crypto
+                            .send(crypto::GenSessionId(wallet_key.clone()))
+                            .map_err(app::Error::CryptoFailed)
+                            .into_actor(slf)
+                            .and_then(move |id, slf, _ctx| {
+                                let session_id = Arc::new(id);
+                                slf.sessions.insert(session_id.clone(), wallet_id.clone());
+                                slf.wallet_keys.insert(wallet_id, wallet_key);
 
-                        fut::ok(())
+                                fut::ok(session_id)
+                            })
                     });
 
                 Box::new(f)
             }
         }
+    }
+
+    /// Return a timer function that can be scheduled to expire the session after the configured time.
+    fn set_session_to_expire(&self, session_id: app::SessionId) -> TimerFunc<Self> {
+        log::debug!(
+            "Session {} will expire in {} seconds.",
+            session_id.as_ref(),
+            self.session_expiration.as_secs()
+        );
+        TimerFunc::new(self.session_expiration, move |slf: &mut Self, _ctx| {
+            slf.close_session(session_id)
+        })
+    }
+
+    /// Remove a session from the list of active sessions.
+    fn close_session(&mut self, session_id: app::SessionId) {
+        log::info!("Session {} expired.", session_id.as_ref());
+        self.sessions.remove(&session_id);
     }
 
     /// Perform all the tasks needed to properly stop the application.
@@ -251,30 +287,6 @@ impl App {
             .and_then(|result| result.map_err(app::Error::Storage));
 
         Box::new(fut)
-    }
-
-    /// Save wallet in the list of unlocked wallets for the given session.
-    fn assoc_wallet_to_session(
-        &mut self,
-        wallet: wallet::UnlockedWallet,
-        session_id: wallet::SessionId,
-    ) {
-        let id = wallet.id;
-
-        let session_wallets = self
-            .sessions
-            .entry(session_id.clone())
-            .or_insert_with(HashSet::new);
-        let wallet_sessions = self
-            .unlocked_wallets
-            .entry(id.clone())
-            .or_insert_with(HashSet::new);
-
-        session_wallets.insert(id.clone());
-        wallet_sessions.insert(session_id.clone());
-        self.wallet_keys.insert(id.clone(), wallet.key);
-
-        log::debug!("Associated wallet: {} to session: {}", &id, session_id);
     }
 }
 

@@ -11,10 +11,9 @@ impl Handler<api::UnlockWalletRequest> for App {
     type Result = ResponseActFuture<Self, api::UnlockWalletResponse, api::Error>;
 
     fn handle(&mut self, msg: api::UnlockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let id = msg.wallet_id.clone();
         let fut = self
-            .unlock_wallet(msg.wallet_id, msg.session_id, msg.password)
-            .map_err(|err, _, _| match err {
+            .unlock_wallet(msg.wallet_id, msg.password)
+            .map_err(|err, _slf, _ctx| match err {
                 err @ app::Error::Storage(storage::Error::WalletNotFound) => {
                     api::validation_error(validation::error("walletId", format!("{}", err)))
                 }
@@ -23,8 +22,10 @@ impl Handler<api::UnlockWalletRequest> for App {
                 }
                 _ => api::internal_error(err),
             })
-            .map(move |_, _, _| api::UnlockWalletResponse {
-                unlocked_wallet_id: id,
+            .map(|session_id, slf, ctx| {
+                slf.set_session_to_expire(session_id.clone()).spawn(ctx);
+
+                api::UnlockWalletResponse { session_id }
             });
 
         Box::new(fut)

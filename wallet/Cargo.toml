@@ -21,6 +21,7 @@ actix = "0.8.3"
 tokio-signal = "0.2.7"
 failure = "0.1.5"
 hex = "0.3.2"
+rand = "0.7.0"
 
 witnet_net = { path = "../net" }
 witnet_config = { path = "../config" }

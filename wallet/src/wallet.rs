@@ -7,11 +7,7 @@ use witnet_crypto::key::ExtendedSK;
 pub use witnet_data_structures::chain::RADRequest;
 use witnet_protected::Protected;
 
-use super::storage;
-
 pub type WalletId = String;
-
-pub type SessionId = String;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WalletInfo {
@@ -192,11 +188,4 @@ pub enum Wip {
 pub struct Key {
     pub(crate) secret: Protected,
     pub(crate) salt: Vec<u8>,
-}
-
-/// TODO: Remove allow(dead_code) when these fields are used
-#[allow(dead_code)]
-pub struct UnlockedWallet {
-    pub(crate) id: WalletId,
-    pub(crate) key: storage::Key,
 }

@@ -1,7 +1,10 @@
 //! # Crypto actor
 //!
 //! This actor is in charge of performing blocking crypto operations.
+use std::cell::RefCell;
+
 use actix::prelude::*;
+use rand::Rng as _;
 
 use witnet_crypto::{hash::HashFunction, key::MasterKeyGen, pbkdf2::pbkdf2_sha256};
 use witnet_protected::ProtectedString;
@@ -17,6 +20,7 @@ pub struct Crypto {
     master_key_salt: Vec<u8>,
     id_hash_iterations: u32,
     id_hash_function: HashFunction,
+    rng: RefCell<rand::rngs::ThreadRng>,
 }
 
 impl Crypto {
@@ -32,6 +36,7 @@ impl Crypto {
             master_key_salt: master_key_salt.clone(),
             id_hash_iterations,
             id_hash_function: id_hash_function.clone(),
+            rng: RefCell::new(rand::thread_rng()),
         })
     }
 
@@ -63,6 +68,24 @@ impl Crypto {
         match self.id_hash_function {
             HashFunction::Sha256 => {
                 let password = [key.secret(), key.chain_code].concat();
+                let id_bytes = pbkdf2_sha256(
+                    password.as_ref(),
+                    self.master_key_salt.as_ref(),
+                    self.id_hash_iterations,
+                );
+
+                hex::encode(id_bytes)
+            }
+        }
+    }
+
+    /// Generate a Session ID for an unlocked wallet
+    pub fn gen_session_id(&self, key: &wallet::Key) -> String {
+        match self.id_hash_function {
+            HashFunction::Sha256 => {
+                let rand_bytes: [u8; 32] = self.rng.borrow_mut().gen();
+                let password =
+                    [key.secret.as_ref(), key.salt.as_ref(), rand_bytes.as_ref()].concat();
                 let id_bytes = pbkdf2_sha256(
                     password.as_ref(),
                     self.master_key_salt.as_ref(),

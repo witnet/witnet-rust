@@ -15,7 +15,5 @@ mod stop;
 mod subscribe;
 mod unlock_wallet;
 mod unsubscribe;
-mod wallet_unlocked;
 
 pub use stop::*;
-pub use wallet_unlocked::*;

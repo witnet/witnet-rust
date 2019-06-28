@@ -1,4 +1,6 @@
 //! # App Actor specific data types
+use std::sync::Arc;
+
 use witnet_crypto::mnemonic::{Length, Mnemonic};
 use witnet_protected::ProtectedString;
 
@@ -21,3 +23,5 @@ pub enum SeedSource {
     Mnemonics(Mnemonic),
     Xprv,
 }
+
+pub type SessionId = Arc<String>;
