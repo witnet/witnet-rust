@@ -25,6 +25,13 @@ use crate::{
     utils::mode_consensus,
 };
 
+pub const SYNCED_BANNER: &str = r"███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
+██╔════╝╚██╗ ██╔╝████╗  ██║██╔════╝██╔════╝██╔══██╗██║
+███████╗ ╚████╔╝ ██╔██╗ ██║██║     █████╗  ██║  ██║██║
+╚════██║  ╚██╔╝  ██║╚██╗██║██║     ██╔══╝  ██║  ██║╚═╝
+███████║   ██║   ██║ ╚████║╚██████╗███████╗██████╔╝██╗
+╚══════╝ ╚═╝ ╚═╝ ╚═══╝ ╚═════╝╚══════╝╚═════╝ ╚═╝";
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -509,7 +516,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                     // Check if we are already synchronized
                     self.sm_state = if our_beacon == consensus_beacon {
-                        log::info!("Synced state");
+                        log::info!("{}", SYNCED_BANNER);
                         StateMachine::Synced
                     } else if our_beacon.checkpoint == consensus_beacon.checkpoint
                         && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
@@ -534,6 +541,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             match self.process_requested_block(ctx, &consensus_block) {
                                 Ok(()) => {
                                     log::info!("Consolidate consensus candidate. Synced state");
+                                    log::info!("{}", SYNCED_BANNER);
                                     self.persist_item(
                                         ctx,
                                         InventoryItem::Block(consensus_block.clone()),
@@ -586,7 +594,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                     // Check if we are already synchronized
                     self.sm_state = if our_beacon == consensus_beacon {
-                        log::info!("Synced state");
+                        log::info!("{}", SYNCED_BANNER);
                         StateMachine::Synced
                     } else if our_beacon.checkpoint == consensus_beacon.checkpoint
                         && our_beacon.hash_prev_block != consensus_beacon.hash_prev_block
