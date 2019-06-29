@@ -17,7 +17,7 @@ impl Handler<api::UnlockWalletRequest> for App {
                 err @ app::Error::Storage(storage::Error::WalletNotFound) => {
                     api::validation_error(validation::error("walletId", format!("{}", err)))
                 }
-                err @ app::Error::Storage(storage::Error::WrongPassword) => {
+                err @ app::Error::Storage(storage::Error::WrongPassword(_)) => {
                     api::validation_error(validation::error("password", format!("{}", err)))
                 }
                 _ => api::internal_error(err),

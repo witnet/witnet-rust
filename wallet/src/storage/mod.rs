@@ -121,9 +121,9 @@ where
     let data = &encrypted[encrypt_iv_length..len - encrypt_salt_length];
     let salt = &encrypted[len - encrypt_salt_length..];
     let key = gen_key_salt(encrypt_hash_iterations, password, salt.to_vec())?;
-    let bytes =
-        cipher::decrypt_aes_cbc(&key.secret.as_ref(), data, iv).map_err(error::Error::Cipher)?;
-    let value = deserialize(bytes.as_ref()).map_err(|_| error::Error::WrongPassword)?;
+    let value = cipher::decrypt_aes_cbc(&key.secret.as_ref(), data, iv)
+        .map_err(error::Error::WrongPassword)
+        .and_then(|bytes| deserialize(bytes.as_ref()))?;
 
     Ok((value, key))
 }

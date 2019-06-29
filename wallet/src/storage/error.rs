@@ -19,5 +19,5 @@ pub enum Error {
     #[fail(display = "No wallet found with the given ID")]
     WalletNotFound,
     #[fail(display = "Wrong Password")]
-    WrongPassword,
+    WrongPassword(#[cause] cipher::Error),
 }

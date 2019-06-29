@@ -214,13 +214,13 @@ impl App {
         // check if the wallet has already being unlocked by another session
         match self.wallet_keys.get(&wallet_id).cloned() {
             Some(wallet_key) => {
-                log::debug!("Wallet already unlocked by another session.");
                 let f = self
                     .crypto
                     .send(crypto::GenSessionId(wallet_key.clone()))
                     .map_err(app::Error::CryptoFailed)
                     .into_actor(self)
                     .and_then(|id, slf, _ctx| {
+                        log::debug!("Wallet already unlocked by another session.");
                         let session_id = Arc::new(id);
                         slf.sessions.insert(session_id.clone(), wallet_id);
                         fut::ok(session_id)
@@ -229,7 +229,6 @@ impl App {
                 Box::new(f)
             }
             None => {
-                log::debug!("Unlocking wallet.");
                 let f = self
                     .storage
                     .send(storage::UnlockWallet(
@@ -247,6 +246,7 @@ impl App {
                             .map_err(app::Error::CryptoFailed)
                             .into_actor(slf)
                             .and_then(move |id, slf, _ctx| {
+                                log::debug!("Unlocking wallet.");
                                 let session_id = Arc::new(id);
                                 slf.sessions.insert(session_id.clone(), wallet_id.clone());
                                 slf.wallet_keys.insert(wallet_id, wallet_key);

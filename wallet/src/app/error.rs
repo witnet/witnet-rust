@@ -21,14 +21,14 @@ pub enum Error {
     UnsubscribeFailed(&'static str),
     #[fail(display = "Could not run RAD request. Actor not running.")]
     RadScheduleFailed(#[cause] actix::MailboxError),
-    #[fail(display = "RAD engine failed with: {}", _0)]
+    #[fail(display = "{}", _0)]
     RadFailed(#[cause] RadError),
     #[fail(display = "Could not communicate with database. Actor not running.")]
     StorageFailed(#[cause] actix::MailboxError),
-    #[fail(display = "Storage error: {}", _0)]
+    #[fail(display = "{}", _0)]
     Storage(#[cause] storage::Error),
     #[fail(display = "Could not communicate with cryptographic engine. Actor not running.")]
     CryptoFailed(#[cause] actix::MailboxError),
-    #[fail(display = "Crypto error: {}", _0)]
+    #[fail(display = "{}", _0)]
     Crypto(#[cause] crypto::Error),
 }
