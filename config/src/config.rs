@@ -478,11 +478,14 @@ pub struct Wallet {
     pub id_hash_iterations: u32,
     /// Master Key-generation hash function. Default `Sha256`.
     pub id_hash_function: HashFunction,
+    /// Lifetime in seconds of an unlocked wallet session id.
+    pub session_expires_in: u64,
 }
 
 impl Wallet {
     pub fn from_partial(config: &PartialWallet, defaults: &dyn Defaults) -> Self {
         Wallet {
+            session_expires_in: config.session_expires_in.unwrap_or_else(|| 3200),
             server_addr: config
                 .server_addr
                 .unwrap_or_else(|| defaults.wallet_server_addr()),

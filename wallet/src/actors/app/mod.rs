@@ -49,6 +49,7 @@ impl App {
         crypto: Addr<Crypto>,
         rad_executor: Addr<RadExecutor>,
         node_client: Option<Addr<JsonRpcClient>>,
+        session_expiration: Duration,
     ) -> Addr<Self> {
         let slf = Self {
             db: Arc::new(db),
@@ -56,7 +57,7 @@ impl App {
             crypto,
             rad_executor,
             node_client,
-            session_expiration: Duration::from_secs(3600),
+            session_expiration,
             subscriptions: Default::default(),
             sessions: Default::default(),
             wallet_keys: Default::default(),

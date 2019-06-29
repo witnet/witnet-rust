@@ -13,6 +13,8 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 #![deny(missing_docs)]
+use std::time::Duration;
+
 use actix::prelude::*;
 use failure::Error;
 use jsonrpc_core as rpc;
@@ -32,6 +34,7 @@ mod wallet;
 
 /// Run the Witnet wallet application.
 pub fn run(conf: Config) -> Result<(), Error> {
+    let session_expires_in = Duration::from_secs(conf.wallet.session_expires_in);
     let server_addr = conf.wallet.server_addr;
     let db_path = conf.wallet.db_path;
     let db_file_name = conf.wallet.db_file_name;
@@ -75,7 +78,14 @@ pub fn run(conf: Config) -> Result<(), Error> {
         id_hash_function,
     );
     let rad_executor = actors::RadExecutor::start();
-    let app = actors::App::start(db, storage, crypto, rad_executor, node_client);
+    let app = actors::App::start(
+        db,
+        storage,
+        crypto,
+        rad_executor,
+        node_client,
+        session_expires_in,
+    );
     let mut handler = pubsub::PubSubHandler::new(rpc::MetaIoHandler::default());
 
     api::connect_routes(&mut handler, app.clone());
