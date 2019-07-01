@@ -7,12 +7,12 @@ use crate::{app, wallet};
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnlockWalletRequest {
-    pub wallet_id: wallet::WalletId,
-    pub password: ProtectedString,
+    pub(crate) wallet_id: wallet::WalletId,
+    pub(crate) password: ProtectedString,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnlockWalletResponse {
-    pub session_id: app::SessionId,
+    pub(crate) session_id: app::SessionId,
 }
