@@ -1,3 +1,4 @@
+mod close_session;
 mod create_data_req;
 mod create_mnemonics;
 mod create_wallet;

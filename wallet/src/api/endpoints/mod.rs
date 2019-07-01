@@ -1,3 +1,4 @@
+pub mod close_session;
 pub mod create_data_req;
 pub mod create_mnemonics;
 pub mod create_wallet;
@@ -14,6 +15,7 @@ pub mod subscribe;
 pub mod unlock_wallet;
 pub mod unsubscribe;
 
+pub use close_session::*;
 pub use create_data_req::*;
 pub use create_mnemonics::*;
 pub use create_wallet::*;

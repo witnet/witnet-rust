@@ -114,6 +114,7 @@ where
         ("Lock-Wallet", "lockWallet", api::LockWalletRequest),
         ("Unlock-Wallet", "unlockWallet", api::UnlockWalletRequest),
         ("Lock-Wallet", "lockWallet", api::LockWalletRequest),
+        ("Close-Session", "closeSession", api::CloseSessionRequest),
         (
             "Get-Transactions",
             "getTransactions",
