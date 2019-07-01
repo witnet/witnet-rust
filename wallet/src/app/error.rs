@@ -4,7 +4,7 @@ use failure::Fail;
 use witnet_net::client::tcp;
 use witnet_rad::error::RadError;
 
-use crate::{crypto, storage};
+use crate::{crypto, storage, wallet};
 
 /// Error type for errors that may originate in the Storage actor.
 #[derive(Debug, Fail)]
@@ -31,4 +31,8 @@ pub enum Error {
     CryptoFailed(#[cause] actix::MailboxError),
     #[fail(display = "{}", _0)]
     Crypto(#[cause] crypto::Error),
+    #[fail(display = "Session not active.")]
+    UnknownSession,
+    #[fail(display = "Session does not have access to wallet: {}", _0)]
+    WrongWallet(wallet::WalletId),
 }

@@ -113,6 +113,7 @@ where
         ("Create-Wallet", "createWallet", api::CreateWalletRequest),
         ("Lock-Wallet", "lockWallet", api::LockWalletRequest),
         ("Unlock-Wallet", "unlockWallet", api::UnlockWalletRequest),
+        ("Lock-Wallet", "lockWallet", api::LockWalletRequest),
         (
             "Get-Transactions",
             "getTransactions",

@@ -205,6 +205,31 @@ impl App {
         Box::new(fut)
     }
 
+    /// Lock a wallet, that is, remove its encryption/decryption key from the list of known keys and
+    /// close the session.
+    ///
+    /// This means the state of this wallet won't be updated with information received from the
+    /// node.
+    fn lock_wallet(
+        &mut self,
+        session_id: app::SessionId,
+        wallet_id: wallet::WalletId,
+    ) -> Result<(), app::Error> {
+        let session_wallet_id = self
+            .sessions
+            .remove(&session_id)
+            .ok_or_else(|| app::Error::UnknownSession)?;
+
+        if session_wallet_id == wallet_id {
+            self.wallet_keys.remove(&wallet_id);
+            Ok(())
+        } else {
+            let err = app::Error::WrongWallet(wallet_id);
+            log::info!("{}", &err);
+            Err(err)
+        }
+    }
+
     /// Unlock a wallet, that is, add its encryption/decryption key to the list of known keys so
     /// further wallet operations can be performed.
     fn unlock_wallet(

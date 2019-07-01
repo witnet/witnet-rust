@@ -9,6 +9,8 @@ pub enum Error {
     Validation(validation::Error),
     Internal(failure::Error),
     Node(failure::Error),
+    Unauthorized,
+    Forbidden,
 }
 
 impl Error {
@@ -19,6 +21,8 @@ impl Error {
                 "Validation Error",
                 Some(serde_json::to_value(e).expect("serialization of errors failed")),
             ),
+            Error::Unauthorized => (401, "Unauthorized", None),
+            Error::Forbidden => (402, "Forbidden", None),
             Error::Node(e) => {
                 log::error!("Node Error: {}", &e);
                 (
