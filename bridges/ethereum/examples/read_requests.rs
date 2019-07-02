@@ -15,9 +15,9 @@ struct Config {
     witnet_jsonrpc_addr: SocketAddr,
     eth_client_url: String,
     wbi_contract_addr: H160,
+    block_relay_contract_addr: H160,
     eth_account: H160,
 }
-
 /// Load configuration from a file written in Toml format.
 fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, toml::de::Error> {
     use std::fs::File;
