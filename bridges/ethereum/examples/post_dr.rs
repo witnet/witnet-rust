@@ -15,6 +15,7 @@ struct Config {
     witnet_jsonrpc_addr: SocketAddr,
     eth_client_url: String,
     wbi_contract_addr: H160,
+    block_relay_contract_addr: H160,
     eth_account: H160,
 }
 
@@ -68,7 +69,7 @@ fn eth_event_stream(
 
     contract
         .call(
-            "post_dr",
+            "postDataRequest",
             (data_request_bytes, tally_value),
             accounts[0],
             contract::Options::with(|opt| {

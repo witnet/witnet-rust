@@ -14,11 +14,11 @@
           "type": "bytes"
         },
         {
-          "name": "inclusion_reward",
+          "name": "inclusionReward",
           "type": "uint256"
         },
         {
-          "name": "tallie_reward",
+          "name": "tallieReward",
           "type": "uint256"
         },
         {
@@ -30,17 +30,28 @@
           "type": "uint256"
         },
         {
-          "name": "dr_hash",
+          "name": "drHash",
           "type": "uint256"
         },
         {
-          "name": "pkh_claim",
+          "name": "pkhClaim",
           "type": "address"
         }
       ],
       "payable": false,
       "stateMutability": "view",
       "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "name": "_blockRelayAddress",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "constructor"
     },
     {
       "anonymous": false,
@@ -52,7 +63,7 @@
         },
         {
           "indexed": false,
-          "name": "",
+          "name": "_id",
           "type": "uint256"
         }
       ],
@@ -69,7 +80,7 @@
         },
         {
           "indexed": false,
-          "name": "id",
+          "name": "_id",
           "type": "uint256"
         }
       ],
@@ -86,7 +97,7 @@
         },
         {
           "indexed": false,
-          "name": "id",
+          "name": "_id",
           "type": "uint256"
         }
       ],
@@ -97,18 +108,18 @@
       "constant": false,
       "inputs": [
         {
-          "name": "dr",
+          "name": "_dr",
           "type": "bytes"
         },
         {
-          "name": "tallie_reward",
+          "name": "_tallieReward",
           "type": "uint256"
         }
       ],
-      "name": "post_dr",
+      "name": "postDataRequest",
       "outputs": [
         {
-          "name": "id",
+          "name": "_id",
           "type": "uint256"
         }
       ],
@@ -120,15 +131,15 @@
       "constant": false,
       "inputs": [
         {
-          "name": "id",
+          "name": "_id",
           "type": "uint256"
         },
         {
-          "name": "tallie_reward",
+          "name": "_tallieReward",
           "type": "uint256"
         }
       ],
-      "name": "upgrade_dr",
+      "name": "upgradeDataRequest",
       "outputs": [],
       "payable": true,
       "stateMutability": "payable",
@@ -138,15 +149,15 @@
       "constant": false,
       "inputs": [
         {
-          "name": "ids",
+          "name": "_ids",
           "type": "uint256[]"
         },
         {
-          "name": "PoE",
+          "name": "_poe",
           "type": "bytes"
         }
       ],
-      "name": "claim_drs",
+      "name": "claimDataRequests",
       "outputs": [],
       "payable": false,
       "stateMutability": "nonpayable",
@@ -156,19 +167,23 @@
       "constant": false,
       "inputs": [
         {
-          "name": "id",
+          "name": "_id",
           "type": "uint256"
         },
         {
-          "name": "poi",
+          "name": "_poi",
           "type": "bytes"
         },
         {
-          "name": "block_hash",
+          "name": "_blockHash",
+          "type": "uint256"
+        },
+        {
+          "name": "_drTxHash",
           "type": "uint256"
         }
       ],
-      "name": "report_dr_inclusion",
+      "name": "reportDataRequestInclusion",
       "outputs": [],
       "payable": false,
       "stateMutability": "nonpayable",
@@ -178,23 +193,23 @@
       "constant": false,
       "inputs": [
         {
-          "name": "id",
+          "name": "_id",
           "type": "uint256"
         },
         {
-          "name": "poi",
+          "name": "_poi",
           "type": "bytes"
         },
         {
-          "name": "block_hash",
+          "name": "_blockHash",
           "type": "uint256"
         },
         {
-          "name": "result",
+          "name": "_result",
           "type": "bytes"
         }
       ],
-      "name": "report_result",
+      "name": "reportResult",
       "outputs": [],
       "payable": false,
       "stateMutability": "nonpayable",
@@ -204,11 +219,11 @@
       "constant": true,
       "inputs": [
         {
-          "name": "id",
+          "name": "_id",
           "type": "uint256"
         }
       ],
-      "name": "read_dr",
+      "name": "readDataRequest",
       "outputs": [
         {
           "name": "",
@@ -223,11 +238,11 @@
       "constant": true,
       "inputs": [
         {
-          "name": "id",
+          "name": "_id",
           "type": "uint256"
         }
       ],
-      "name": "read_dr_hash",
+      "name": "readDrHash",
       "outputs": [
         {
           "name": "",
@@ -242,11 +257,11 @@
       "constant": true,
       "inputs": [
         {
-          "name": "id",
+          "name": "_id",
           "type": "uint256"
         }
       ],
-      "name": "read_result",
+      "name": "readResult",
       "outputs": [
         {
           "name": "",
