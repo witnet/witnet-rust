@@ -25,6 +25,7 @@ struct Config {
     witnet_jsonrpc_addr: SocketAddr,
     eth_client_url: String,
     wbi_contract_addr: H160,
+    block_relay_contract_addr: H160,
     eth_account: H160,
 }
 
@@ -149,7 +150,7 @@ fn eth_event_stream(
                             Box::new(
                                 contract
                                     .query(
-                                        "read_dr",
+                                        "readDataRequest",
                                         (dr_id,),
                                         account0,
                                         contract::Options::default(),
@@ -166,7 +167,7 @@ fn eth_event_stream(
 
                                         contract
                                             .call(
-                                                "claim_drs",
+                                                "claimDataRequests",
                                                 (vec![dr_id], poe),
                                                 account0,
                                                 contract::Options::default(),
@@ -208,7 +209,7 @@ fn eth_event_stream(
                             Box::new(
                                 contract
                                     .query(
-                                        "read_dr_hash",
+                                        "readDrHash",
                                         (dr_id,),
                                         accounts[0],
                                         contract::Options::default(),
@@ -347,10 +348,19 @@ fn main_actor(
     debug!("Web3 accounts: {:?}", accounts);
 
     // Why read files at runtime when you can read files at compile time
-    let contract_abi_json: &[u8] = include_bytes!("../wbi_abi.json");
-    let contract_abi = ethabi::Contract::load(contract_abi_json).unwrap();
-    let contract_address = config.wbi_contract_addr;
-    let contract = Contract::new(web3.eth(), contract_address, contract_abi.clone());
+    let wbi_contract_abi_json: &[u8] = include_bytes!("../wbi_abi.json");
+    let wbi_contract_abi = ethabi::Contract::load(wbi_contract_abi_json).unwrap();
+    let wbi_contract_address = config.wbi_contract_addr;
+    let wbi_contract = Contract::new(web3.eth(), wbi_contract_address, wbi_contract_abi.clone());
+
+    let block_relay_contract_abi_json: &[u8] = include_bytes!("../block_relay_abi.json");
+    let block_relay_contract_abi = ethabi::Contract::load(block_relay_contract_abi_json).unwrap();
+    let block_relay_contract_address = config.block_relay_contract_addr;
+    let block_relay_contract = Contract::new(
+        web3.eth(),
+        block_relay_contract_address,
+        block_relay_contract_abi.clone(),
+    );
 
     let witnet_addr = config.witnet_jsonrpc_addr.to_string();
     // Important: the handle cannot be dropped, otherwise the client stops
@@ -381,6 +391,50 @@ fn main_actor(
                 let block_hash: U256 = match block.hash() {
                     Hash::SHA256(x) => x.into(),
                 };
+
+                // Enable block relay
+                let enable_block_relay = true;
+                if enable_block_relay {
+                    let dr_merkle_root: U256 =
+                        match block.block_header.merkle_roots.dr_hash_merkle_root {
+                            Hash::SHA256(x) => x.into(),
+                        };
+                    let tally_merkle_root: U256 =
+                        match block.block_header.merkle_roots.tally_hash_merkle_root {
+                            Hash::SHA256(x) => x.into(),
+                        };
+                    // Post witnet block to BlockRelay wbi_contract
+                    block_relay_contract
+                        .call(
+                            "postNewBlock",
+                            (block_hash, dr_merkle_root, tally_merkle_root),
+                            accounts[0],
+                            contract::Options::default(),
+                        )
+                        .then(|tx| {
+                            debug!("postNewBlock: {:?}", tx);
+                            Result::<(), ()>::Ok(())
+                        })
+                        .wait()
+                        .unwrap();
+
+                    /*
+                    // Verify that the block was posted correctly
+                    block_relay_contract.query(
+                        "readDrMerkleRoot",
+                        (block_hash,),
+                        accounts[0],
+                        contract::Options::default(),
+                        None,
+                    ).then(|tx: Result<U256, _>| {
+                        debug!("readDrMerkleRoot: {:?}", tx);
+                        Result::<(), ()>::Ok(())
+                    }).wait().unwrap();
+                    */
+                }
+                // The futures executed after this point should be executed *after* the
+                // postNewBlock transaction has been confirmed
+
                 for dr in &block.txns.data_request_txns {
                     if let Some((dr_id, _)) = claimed_drs.remove_by_right(&dr.body.dr_output.hash())
                     {
@@ -392,7 +446,7 @@ fn main_actor(
                             dr_inclusion_proof
                         );
                         info!("Claimed dr got included in witnet block!");
-                        info!("Sending proof of inclusion to WBI contract");
+                        info!("Sending proof of inclusion to WBI wbi_contract");
 
                         //let poi = dr_inclusion_proof.lemma;
                         let poi: Bytes = vec![];
@@ -405,10 +459,10 @@ fn main_actor(
                             Hash::SHA256(x) => x.into(),
                         };
                         tokio::spawn(
-                            contract
+                            wbi_contract
                                 .call(
-                                    "report_dr_inclusion",
-                                    (dr_id, poi, drtx_hash),
+                                    "reportDataRequestInclusion",
+                                    (dr_id, poi, block_hash, drtx_hash),
                                     accounts[0],
                                     contract::Options::default(),
                                 )
@@ -437,9 +491,9 @@ fn main_actor(
                         let poi: Bytes = vec![];
                         let result: Bytes = tally.tally.clone();
                         tokio::spawn(
-                            contract
+                            wbi_contract
                                 .call(
-                                    "report_result",
+                                    "reportResult",
                                     (dr_id, poi, block_hash, result),
                                     accounts[0],
                                     contract::Options::default(),
