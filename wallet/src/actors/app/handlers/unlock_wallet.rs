@@ -14,10 +14,10 @@ impl Handler<api::UnlockWalletRequest> for App {
         let fut = self
             .unlock_wallet(msg.wallet_id, msg.password)
             .map_err(|err, _slf, _ctx| match err {
-                err @ app::Error::Storage(storage::Error::WalletNotFound) => {
+                app::Error::Storage(storage::Error::WalletNotFound) => {
                     api::validation_error(validation::error("walletId", format!("{}", err)))
                 }
-                err @ app::Error::Storage(storage::Error::WrongPassword(_)) => {
+                app::Error::Storage(storage::Error::WrongPassword(_)) => {
                     api::validation_error(validation::error("password", format!("{}", err)))
                 }
                 _ => api::internal_error(err),
