@@ -220,9 +220,9 @@ impl App {
                     .send(crypto::GenSessionId(wallet_key.clone()))
                     .map_err(app::Error::CryptoFailed)
                     .into_actor(self)
-                    .and_then(|id, slf, _ctx| {
-                        log::debug!("Wallet already unlocked by another session.");
-                        let session_id = Arc::new(id);
+                    .and_then(|session_id, slf, _ctx| {
+                        log::debug!("Wallet {} was already unlocked another session.", wallet_id);
+                        let session_id = Arc::new(session_id);
                         slf.sessions.insert(session_id.clone(), wallet_id);
                         fut::ok(session_id)
                     });
@@ -246,9 +246,9 @@ impl App {
                             .send(crypto::GenSessionId(wallet_key.clone()))
                             .map_err(app::Error::CryptoFailed)
                             .into_actor(slf)
-                            .and_then(move |id, slf, _ctx| {
-                                log::debug!("Unlocking wallet.");
-                                let session_id = Arc::new(id);
+                            .and_then(move |session_id, slf, _ctx| {
+                                log::debug!("Unlocking wallet {}", &wallet_id);
+                                let session_id = Arc::new(session_id);
                                 slf.sessions.insert(session_id.clone(), wallet_id.clone());
                                 slf.wallet_keys.insert(wallet_id, wallet_key);
 
