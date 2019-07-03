@@ -565,6 +565,7 @@ impl Rocksdb {
         }
     }
 
+    #[cfg(feature = "rocksdb")]
     pub fn to_rocksdb_options(&self) -> rocksdb::Options {
         let mut opts = rocksdb::Options::default();
         opts.create_if_missing(self.create_if_missing);
