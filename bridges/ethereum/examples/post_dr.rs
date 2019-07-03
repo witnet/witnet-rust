@@ -8,6 +8,8 @@ use web3::{
     futures::{future, Future},
     types::H160,
 };
+use witnet_data_structures::chain::DataRequestOutput;
+use witnet_data_structures::proto::ProtobufConvert;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -65,7 +67,9 @@ fn eth_event_stream(
     let data_request_string = format!("{}{}{}", drs0, drs1, drs2);
     //if post_dr {
     let tally_value = U256::from_dec_str("50000000000000000").unwrap();
-    let data_request_bytes = data_request_string.as_bytes().to_vec();
+    let data_request_output: DataRequestOutput =
+        serde_json::from_str(&data_request_string).unwrap();
+    let data_request_bytes = data_request_output.to_pb_bytes().unwrap();
 
     contract
         .call(
