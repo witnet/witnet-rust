@@ -172,14 +172,14 @@
         },
         {
           "name": "_poi",
-          "type": "bytes"
+          "type": "uint256[]"
         },
         {
-          "name": "_blockHash",
+          "name": "_index",
           "type": "uint256"
         },
         {
-          "name": "_drTxHash",
+          "name": "_blockHash",
           "type": "uint256"
         }
       ],
@@ -198,7 +198,11 @@
         },
         {
           "name": "_poi",
-          "type": "bytes"
+          "type": "uint256[]"
+        },
+        {
+          "name": "_index",
+          "type": "uint256"
         },
         {
           "name": "_blockHash",

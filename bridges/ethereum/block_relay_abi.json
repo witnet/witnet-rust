@@ -1,0 +1,109 @@
+[
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "blocks",
+      "outputs": [
+        {
+          "name": "dr_hash_merkle_root",
+          "type": "uint256"
+        },
+        {
+          "name": "tally_hash_merkle_root",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "name": "_from",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "name": "_id",
+          "type": "uint256"
+        }
+      ],
+      "name": "NewBlock",
+      "type": "event"
+    },
+    {
+      "constant": false,
+      "inputs": [
+        {
+          "name": "_blockHash",
+          "type": "uint256"
+        },
+        {
+          "name": "_drMerkleRoot",
+          "type": "uint256"
+        },
+        {
+          "name": "_tallyMerkleRoot",
+          "type": "uint256"
+        }
+      ],
+      "name": "postNewBlock",
+      "outputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_blockHash",
+          "type": "uint256"
+        }
+      ],
+      "name": "readDrMerkleRoot",
+      "outputs": [
+        {
+          "name": "drMerkleRoot",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_blockHash",
+          "type": "uint256"
+        }
+      ],
+      "name": "readTallyMerkleRoot",
+      "outputs": [
+        {
+          "name": "tallyMerkleRoot",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+]
+
