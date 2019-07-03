@@ -177,10 +177,9 @@ fn eth_event_stream(
                                                 Result::<(), ()>::Ok(())
                                             })
                                             .then(move |_| {
-                                                let dr_output = serde_json::from_str(
-                                                    &String::from_utf8_lossy(&dr_bytes),
-                                                )
-                                                .unwrap();
+                                                let dr_output =
+                                                    ProtobufConvert::from_pb_bytes(&dr_bytes)
+                                                        .unwrap();
                                                 // Assuming claim is successful
                                                 // Post dr in witnet
                                                 tx3.send(ActorMessage::PostDr(dr_id, dr_output))
@@ -448,21 +447,19 @@ fn main_actor(
                         info!("Claimed dr got included in witnet block!");
                         info!("Sending proof of inclusion to WBI wbi_contract");
 
-                        //let poi = dr_inclusion_proof.lemma;
-                        let poi: Bytes = vec![];
-                        // TODO: since the poi is not implemented, we have no way to get
-                        // the dr transaction hash later on, for the tally.
-                        // So we send the dr transaction hash as the block hash, which
-                        // under the current implementation of the WBI will be stored as
-                        // dr_hash
-                        let drtx_hash: U256 = match dr.hash() {
-                            Hash::SHA256(x) => x.into(),
-                        };
+                        let poi: Vec<U256> = dr_inclusion_proof
+                            .lemma
+                            .iter()
+                            .map(|x| match x {
+                                Hash::SHA256(x) => x.into(),
+                            })
+                            .collect();
+                        let poi_index = U256::from(dr_inclusion_proof.index);
                         tokio::spawn(
                             wbi_contract
                                 .call(
                                     "reportDataRequestInclusion",
-                                    (dr_id, poi, block_hash, drtx_hash),
+                                    (dr_id, poi, poi_index, block_hash),
                                     accounts[0],
                                     contract::Options::default(),
                                 )
@@ -487,14 +484,20 @@ fn main_actor(
                         );
 
                         // Call report_result
-                        //let poi = dr_inclusion_proof.lemma;
-                        let poi: Bytes = vec![];
+                        let poi: Vec<U256> = tally_inclusion_proof
+                            .lemma
+                            .iter()
+                            .map(|x| match x {
+                                Hash::SHA256(x) => x.into(),
+                            })
+                            .collect();
+                        let poi_index = U256::from(tally_inclusion_proof.index);
                         let result: Bytes = tally.tally.clone();
                         tokio::spawn(
                             wbi_contract
                                 .call(
                                     "reportResult",
-                                    (dr_id, poi, block_hash, result),
+                                    (dr_id, poi, poi_index, block_hash, result),
                                     accounts[0],
                                     contract::Options::default(),
                                 )
