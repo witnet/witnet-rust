@@ -48,11 +48,11 @@ fn read_config() -> Config {
     from_file("witnet_ethereum_bridge.toml").unwrap()
 }
 
-fn eth_event_stream(
+fn eth_event_stream<'a>(
     config: Arc<Config>,
-    web3: &mut web3::Web3<web3::transports::Http>,
+    web3: Arc<web3::Web3<web3::transports::Http>>,
     tx: mpsc::Sender<ActorMessage>,
-) -> impl Future<Item = (), Error = ()> {
+) -> impl Future<Item = (), Error = ()> + 'a {
     // Example from
     // https://github.com/tomusdrw/rust-web3/blob/master/examples/simple_log_filter.rs
 
@@ -131,6 +131,7 @@ fn eth_event_stream(
                 .map(move |value| {
                     let tx3 = tx.clone();
                     debug!("Got ethereum event: {:?}", value);
+                    let web3 = Arc::clone(&web3);
                     let fut: Box<dyn Future<Item = (), Error = ()> + Send> = match &value.topics[0]
                     {
                         x if x == &post_dr_event_sig => {
@@ -166,22 +167,27 @@ fn eth_event_stream(
                                         info!("Claiming dr {}", dr_id);
 
                                         contract
-                                            .call(
+                                            .call_with_confirmations(
                                                 "claimDataRequests",
                                                 (vec![dr_id], poe),
                                                 account0,
                                                 contract::Options::default(),
+                                                1,
                                             )
-                                            .then(|tx| {
+                                            .then(move |tx| {
                                                 debug!("claim_drs tx: {:?}", tx);
-                                                Result::<(), ()>::Ok(())
+                                                web3.trace()
+                                                    .transaction(tx.unwrap().transaction_hash)
                                             })
-                                            .then(move |_| {
+                                            .then(move |_traces| {
+                                                // TODO: traces not supported by ganache
+                                                //debug!("claim_drs tx traces: {:?}", traces);
                                                 let dr_output =
                                                     ProtobufConvert::from_pb_bytes(&dr_bytes)
                                                         .unwrap();
                                                 // Assuming claim is successful
                                                 // Post dr in witnet
+                                                // TODO: check that requests[dr_id].pkhClaim == my_eth_account_pkh
                                                 tx3.send(ActorMessage::PostDr(dr_id, dr_output))
                                                     .map(|_| ())
                                                     .map_err(|_| ())
@@ -328,6 +334,7 @@ fn init_logger() {
         .init();
 }
 
+#[derive(Debug)]
 enum ActorMessage {
     PostDr(U256, DataRequestOutput),
     WaitForTally(U256, Hash),
@@ -335,11 +342,11 @@ enum ActorMessage {
     NewWitnetBlock(Box<Block>),
 }
 
-fn main_actor(
+fn main_actor<'a>(
     config: Arc<Config>,
-    web3: &mut web3::Web3<web3::transports::Http>,
+    web3: Arc<web3::Web3<web3::transports::Http>>,
     rx: mpsc::Receiver<ActorMessage>,
-) -> impl Future<Item = (), Error = ()> {
+) -> impl Future<Item = (), Error = ()> + 'a {
     let mut claimed_drs = BiMap::new();
     let mut waiting_for_tally = BiMap::new();
 
@@ -404,14 +411,20 @@ fn main_actor(
                         };
                     // Post witnet block to BlockRelay wbi_contract
                     block_relay_contract
-                        .call(
+                        .call_with_confirmations(
                             "postNewBlock",
                             (block_hash, dr_merkle_root, tally_merkle_root),
                             accounts[0],
                             contract::Options::default(),
+                            1,
                         )
                         .then(|tx| {
                             debug!("postNewBlock: {:?}", tx);
+                            web3.trace().transaction(tx.unwrap().transaction_hash)
+                        })
+                        .then(move |_traces| {
+                            // TODO: traces not supported by ganache
+                            //debug!("postNewBlock traces: {:?}", traces);
                             Result::<(), ()>::Ok(())
                         })
                         .wait()
@@ -457,11 +470,12 @@ fn main_actor(
                         let poi_index = U256::from(dr_inclusion_proof.index);
                         tokio::spawn(
                             wbi_contract
-                                .call(
+                                .call_with_confirmations(
                                     "reportDataRequestInclusion",
                                     (dr_id, poi, poi_index, block_hash),
                                     accounts[0],
                                     contract::Options::default(),
+                                    1,
                                 )
                                 .then(|tx| {
                                     debug!("report_dr_inclusion tx: {:?}", tx);
@@ -495,11 +509,12 @@ fn main_actor(
                         let result: Bytes = tally.tally.clone();
                         tokio::spawn(
                             wbi_contract
-                                .call(
+                                .call_with_confirmations(
                                     "reportResult",
                                     (dr_id, poi, poi_index, block_hash, result),
                                     accounts[0],
                                     contract::Options::default(),
+                                    1,
                                 )
                                 .then(|tx| {
                                     debug!("report_result tx: {:?}", tx);
@@ -521,14 +536,14 @@ fn main() {
     init_logger();
     let config = Arc::new(read_config());
     let (_eloop, web3_http) = web3::transports::Http::new(&config.eth_client_url).unwrap();
-    let mut web3 = web3::Web3::new(web3_http);
+    let web3 = Arc::new(web3::Web3::new(web3_http));
 
     let (tx1, rx) = mpsc::channel(16);
     let tx2 = tx1.clone();
 
-    let ees = eth_event_stream(Arc::clone(&config), &mut web3, tx1);
+    let ees = eth_event_stream(Arc::clone(&config), Arc::clone(&web3), tx1);
     let (_handle, wbs) = witnet_block_stream(Arc::clone(&config), tx2);
-    let act = main_actor(Arc::clone(&config), &mut web3, rx);
+    let act = main_actor(Arc::clone(&config), Arc::clone(&web3), rx);
 
     tokio::run(future::ok(()).map(move |_| {
         tokio::spawn(wbs);
