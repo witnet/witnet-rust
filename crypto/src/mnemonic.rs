@@ -43,7 +43,7 @@ impl Mnemonic {
 
     /// Get a mnemonic from a existing phrase in another language.
     pub fn from_phrase_lang(phrase: ProtectedString, language: Lang) -> Result<Mnemonic, Error> {
-        bip39::Mnemonic::from_phrase(phrase.as_ref(), language.into()).map(Mnemonic)
+        bip39::Mnemonic::from_phrase(AsRef::<str>::as_ref(&phrase), language.into()).map(Mnemonic)
     }
 }
 
