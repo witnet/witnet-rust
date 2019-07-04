@@ -1,6 +1,12 @@
 use log::*;
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use std::{
+    net::SocketAddr,
+    path::Path,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use web3::types::U256;
 use web3::{
     contract,
@@ -40,6 +46,21 @@ fn read_config() -> Config {
     from_file("witnet_ethereum_bridge.toml").unwrap()
 }
 
+fn data_request_example() -> DataRequestOutput {
+    let start = SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+
+    let build_dr_str = include_str!("../../../examples/bitcoin_price.json");
+    let build_dr: serde_json::Value = serde_json::from_str(build_dr_str).unwrap();
+    let mut data_request_output: DataRequestOutput =
+        serde_json::from_value(build_dr["params"]["dro"].clone()).unwrap();
+    data_request_output.data_request.not_before = since_the_epoch.as_secs();
+
+    data_request_output
+}
+
 fn eth_event_stream(
     config: Arc<Config>,
     web3: web3::Web3<web3::transports::Http>,
@@ -56,19 +77,9 @@ fn eth_event_stream(
     let contract_address = config.wbi_contract_addr;
     let contract = Contract::new(web3.eth(), contract_address, contract_abi.clone());
 
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    let drs0 = r#"{"data_request":{"not_before":"#;
-    let drs1 = since_the_epoch.as_secs().to_string();
-    let drs2 = r#","retrieve":[{"kind":"HTTP-GET","url":"https://api.coindesk.com/v1/bpi/currentprice.json","script":[152, 83, 204, 132, 146, 1, 163, 98, 112, 105, 204, 132, 146, 1, 163, 85, 83, 68, 204, 132, 146, 1, 170, 114, 97, 116, 101, 95, 102, 108, 111, 97, 116, 204, 130]}],"aggregate":{"script":[145,  146,  102,  32]},"consensus":{"script":[145,  146, 102,  32]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":1002,"witnesses":2,"backup_witnesses":1,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0}"#;
-    let data_request_string = format!("{}{}{}", drs0, drs1, drs2);
-    //if post_dr {
+    let data_request_output = data_request_example();
+
     let tally_value = U256::from_dec_str("50000000000000000").unwrap();
-    let data_request_output: DataRequestOutput =
-        serde_json::from_str(&data_request_string).unwrap();
     let data_request_bytes = data_request_output.to_pb_bytes().unwrap();
 
     contract
