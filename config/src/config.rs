@@ -189,6 +189,9 @@ pub struct Connections {
 
     /// Number of seconds before giving up waiting for requested blocks
     pub blocks_timeout: i64,
+
+    /// Constant to specify when consensus is achieved (in %)
+    pub consensus_c: u32,
 }
 
 fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
@@ -407,6 +410,10 @@ impl Connections {
                 .blocks_timeout
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_blocks_timeout()),
+            consensus_c: config
+                .consensus_c
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_consensus_c()),
         }
     }
 }
@@ -649,6 +656,7 @@ mod tests {
             discovery_peers_period: Some(Duration::from_secs(100)),
             handshake_timeout: Some(Duration::from_secs(3)),
             blocks_timeout: Some(5),
+            consensus_c: Some(51),
         };
         let config = Connections::from_partial(&partial_config, &Testnet1);
 
@@ -661,6 +669,7 @@ mod tests {
         assert_eq!(config.discovery_peers_period, Duration::from_secs(100));
         assert_eq!(config.handshake_timeout, Duration::from_secs(3));
         assert_eq!(config.blocks_timeout, 5);
+        assert_eq!(config.consensus_c, 51);
     }
 
     #[test]
@@ -729,6 +738,10 @@ mod tests {
         assert_eq!(
             config.connections.blocks_timeout,
             Testnet3.connections_blocks_timeout()
+        );
+        assert_eq!(
+            config.connections.consensus_c,
+            Testnet3.connections_consensus_c()
         );
     }
 }

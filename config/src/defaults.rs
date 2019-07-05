@@ -65,6 +65,11 @@ pub trait Defaults {
         Duration::from_secs(5)
     }
 
+    /// Constant to specify when consensus is achieved (in %)
+    fn connections_consensus_c(&self) -> u32 {
+        70
+    }
+
     /// Timestamp at the start of epoch 0
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64;
 
