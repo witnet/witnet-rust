@@ -39,6 +39,7 @@ pub struct App {
     sessions: HashMap<app::SessionId, wallet::WalletId>,
     session_expiration: Duration,
     wallet_keys: HashMap<wallet::WalletId, Arc<wallet::Key>>,
+    last_subscription_id: u64,
 }
 
 impl App {
@@ -61,9 +62,16 @@ impl App {
             subscriptions: Default::default(),
             sessions: Default::default(),
             wallet_keys: Default::default(),
+            last_subscription_id: 0,
         };
 
         slf.start()
+    }
+
+    /// Return a new subscription id.
+    pub fn next_subscription_id(&mut self) -> u64 {
+        self.last_subscription_id = self.last_subscription_id.wrapping_add(1);
+        self.last_subscription_id
     }
 
     /// Run a RADRequest and return the computed result.
@@ -90,19 +98,20 @@ impl App {
 
     /// Return an id for a new subscription. If there are no available subscription slots, then
     /// `None` is returned.
-    pub fn subscribe(&mut self, subscriber: pubsub::Subscriber) -> Result<usize, app::Error> {
-        let (id, slot) = self
-            .subscriptions
-            .iter_mut()
-            .enumerate()
-            .find(|(_, slot)| slot.is_none())
-            .ok_or_else(|| app::Error::SubscribeFailed("max limit of subscriptions reached"))?;
+    pub fn subscribe(&mut self, subscriber: pubsub::Sink) -> Result<usize, app::Error> {
+        // let (id, slot) = self
+        //     .subscriptions
+        //     .iter_mut()
+        //     .enumerate()
+        //     .find(|(_, slot)| slot.is_none())
+        //     .ok_or_else(|| app::Error::SubscribeFailed("max limit of subscriptions reached"))?;
 
-        *slot = subscriber
-            .assign_id(pubsub::SubscriptionId::from(id as u64))
-            .ok();
+        // *slot = subscriber
+        //     .assign_id(pubsub::SubscriptionId::from(id as u64))
+        //     .ok();
 
-        Ok(id)
+        // Ok(id)
+        Ok(123)
     }
 
     /// Remove a subscription and leave its corresponding slot free.

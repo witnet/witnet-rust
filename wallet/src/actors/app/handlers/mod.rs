@@ -9,6 +9,7 @@ mod get_transactions;
 mod get_wallet_infos;
 mod import_seed;
 mod lock_wallet;
+mod next_subscription_id;
 mod notification;
 mod run_rad_req;
 mod send_data_req;

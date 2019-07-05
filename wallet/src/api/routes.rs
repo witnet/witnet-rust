@@ -1,7 +1,7 @@
 use actix::prelude::*;
 use futures::{future, Future};
 use jsonrpc_core::{Middleware, Params};
-use jsonrpc_pubsub::{PubSubHandler, PubSubMetadata};
+use jsonrpc_pubsub::{PubSubHandler, PubSubMetadata, Subscriber, SubscriptionId};
 use serde_json::json;
 
 use crate::actors::app::App;
@@ -74,7 +74,54 @@ where
         "notifications",
         ("subscribeNotifications", {
             let addr = app.clone();
-            move |_, _, subscriber| addr.do_send(api::SubscribeRequest(subscriber))
+            move |params: Params, _meta, subscriber: Subscriber| {
+                let addr_id_closure = addr.clone();
+                let addr_subscribe_closure = addr.clone();
+                let f = future::result(params.parse::<api::SubscribeRequest>())
+                    .then(move |result| {
+                        match result {
+                            Ok(request) => {
+                                let f = addr_id_closure.send(api::NextSubscriptionId)
+                                    .flatten()
+                                    .map_err(|err| err.into())
+                                    .then(|result| {
+                                        match result {
+                                            Ok(id) => {
+                                                let f = subscriber.assign_id_async(SubscriptionId::Number(id))
+                                                    .map_err(|()| {
+                                                        log::error!("Failed to assign a subscription ID");
+                                                    })
+                                                    .and_then(move |sink| {
+                                                        addr_subscribe_closure.do_send(api::Subscribe(request, sink));
+                                                        Ok(())
+                                                    });
+
+                                                Box::new(f) as Box<dyn Future<Item = (), Error = ()>>
+                                            }
+                                            Err(err) => {
+                                                let f = subscriber.reject_async(err);
+
+                                                Box::new(f) as Box<dyn Future<Item = (), Error = ()>>
+                                            }
+                                        }
+                                    });
+
+                                Box::new(f) as Box<dyn Future<Item = (), Error = ()>>
+                            }
+                            Err(mut err) => {
+                                err.data = Some(json!({
+                                    "schema": format!("https://github.com/witnet/witnet-rust/wiki/Subscribe-Notifications")
+                                }));
+
+                                let f = subscriber.reject_async(err);
+
+                                Box::new(f) as Box<dyn Future<Item = (), Error = ()>>
+                            }
+                        }
+                    });
+
+                Arbiter::spawn(f);
+            }
         }),
         ("unsubscribeNotifications", {
             let addr = app.clone();

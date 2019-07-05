@@ -3,20 +3,20 @@ use actix::prelude::*;
 use crate::actors::App;
 use crate::api;
 
-impl Message for api::SubscribeRequest {
-    type Result = Result<api::SubscribeResponse, api::Error>;
+impl Message for api::Subscribe {
+    type Result = Result<(), api::Error>;
 }
 
-impl Handler<api::SubscribeRequest> for App {
-    type Result = Result<api::SubscribeResponse, api::Error>;
+impl Handler<api::Subscribe> for App {
+    type Result = Result<(), api::Error>;
 
     fn handle(
         &mut self,
-        api::SubscribeRequest(subscriber): api::SubscribeRequest,
+        api::Subscribe(request, subscriber): api::Subscribe,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.subscribe(subscriber)
             .map_err(api::internal_error)
-            .map(|id| api::SubscribeResponse { id })
+            .map(|_| ())
     }
 }
