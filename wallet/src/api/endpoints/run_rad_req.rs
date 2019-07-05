@@ -1,15 +1,14 @@
 use serde::{Deserialize, Serialize};
-use witnet_rad as rad;
 
-use crate::wallet;
+use crate::types;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunRadReqRequest {
-    pub rad_request: wallet::RADRequest,
+    pub rad_request: types::RADRequest,
 }
 
 #[derive(Debug, Serialize)]
 pub struct RunRadReqResponse {
-    pub result: rad::types::RadonTypes,
+    pub result: types::RadonTypes,
 }

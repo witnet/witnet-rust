@@ -4,7 +4,7 @@ use failure::Fail;
 use witnet_net::client::tcp;
 use witnet_rad::error::RadError;
 
-use crate::{crypto, storage, wallet};
+use crate::{crypto, storage};
 
 /// Error type for errors that may originate in the Storage actor.
 #[derive(Debug, Fail)]
@@ -15,10 +15,6 @@ pub enum Error {
     RequestFailedToSend(#[cause] actix::MailboxError),
     #[fail(display = "Request failed with an error: {}", _0)]
     RequestFailed(#[cause] tcp::Error),
-    #[fail(display = "Could not subscribe: {}", _0)]
-    SubscribeFailed(&'static str),
-    #[fail(display = "Could not unsubscribe: {}", _0)]
-    UnsubscribeFailed(&'static str),
     #[fail(display = "Could not run RAD request. Actor not running.")]
     RadScheduleFailed(#[cause] actix::MailboxError),
     #[fail(display = "{}", _0)]
@@ -33,6 +29,8 @@ pub enum Error {
     Crypto(#[cause] crypto::Error),
     #[fail(display = "Session not active.")]
     UnknownSession,
-    #[fail(display = "Session does not have access to wallet: {}", _0)]
-    WrongWallet(wallet::WalletId),
+    #[fail(display = "Session does not have access to wallet")]
+    WrongWallet,
+    #[fail(display = "Failed to parse new block: {}", _0)]
+    ParseNewBlock(#[cause] serde_json::Error),
 }

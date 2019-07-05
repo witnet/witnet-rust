@@ -1,18 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-use witnet_protected::ProtectedString;
-
-use crate::{app, wallet};
+use crate::types;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnlockWalletRequest {
-    pub(crate) wallet_id: wallet::WalletId,
-    pub(crate) password: ProtectedString,
+    pub(crate) wallet_id: types::WalletId,
+    pub(crate) password: types::Password,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnlockWalletResponse {
-    pub(crate) session_id: app::SessionId,
+    pub(crate) session_id: types::SessionId,
 }

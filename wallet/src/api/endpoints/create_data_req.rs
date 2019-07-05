@@ -1,11 +1,11 @@
 use serde::Deserialize;
 
-use crate::wallet;
+use crate::types;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateDataReqRequest {
-    pub rad_request: wallet::RADRequest,
+    pub rad_request: types::RADRequest,
 }
 
 pub type CreateDataReqResponse = ();

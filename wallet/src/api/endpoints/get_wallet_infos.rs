@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::wallet;
+use crate::types;
 
 #[derive(Debug, Deserialize)]
 pub struct WalletInfosRequest;
@@ -8,5 +8,5 @@ pub struct WalletInfosRequest;
 #[derive(Debug, Serialize)]
 pub struct WalletInfosResponse {
     pub total: usize,
-    pub infos: Vec<wallet::WalletInfo>,
+    pub infos: Vec<types::WalletInfo>,
 }

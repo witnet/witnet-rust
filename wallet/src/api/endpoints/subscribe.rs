@@ -1,10 +1,18 @@
 use jsonrpc_pubsub as pubsub;
-use serde::Serialize;
+use serde::Deserialize;
 
-pub struct SubscribeRequest(pub pubsub::Subscriber);
+use crate::types;
 
-#[derive(Debug, Serialize)]
-pub struct SubscribeResponse {
-    #[serde(rename = "subscriptionId")]
-    pub id: usize,
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscribeRequest {
+    pub(crate) session_id: types::SessionId,
 }
+
+pub struct Subscribe(
+    pub types::SessionId,
+    pub types::SubscriptionId,
+    pub pubsub::Sink,
+);
+
+pub struct NextSubscriptionId(pub types::SessionId);

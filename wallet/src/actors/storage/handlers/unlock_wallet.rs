@@ -1,20 +1,16 @@
-use std::sync::Arc;
-
 use actix::prelude::*;
 
-use witnet_protected::ProtectedString;
-
 use crate::actors::storage::Storage;
-use crate::{storage, wallet};
+use crate::{storage, types};
 
 pub struct UnlockWallet(
-    pub Arc<rocksdb::DB>,
-    pub wallet::WalletId,
-    pub ProtectedString,
+    pub types::SharedDB,
+    pub types::WalletId,
+    pub types::Password,
 );
 
 impl Message for UnlockWallet {
-    type Result = Result<wallet::Key, storage::Error>;
+    type Result = Result<types::UnlockedWallet, storage::Error>;
 }
 
 impl Handler<UnlockWallet> for Storage {

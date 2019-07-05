@@ -1,7 +1,8 @@
-//! # Storage-related functions and types.
+//! Storage-specific functions and errors.
+
 use witnet_crypto::{cipher, pbkdf2::pbkdf2_sha256};
 
-use crate::wallet;
+use crate::types;
 
 pub mod error;
 pub mod keys;
@@ -62,7 +63,7 @@ pub fn flush(db: &rocksdb::DB) -> Result<(), error::Error> {
     db.flush_opt(&opts).map_err(error::Error::Db)
 }
 
-pub type Key = wallet::Key;
+pub type Key = types::Key;
 
 /// Generate an encryption key.
 pub fn gen_key(
@@ -183,7 +184,7 @@ pub fn storage_merge_operator(
     match new_key {
         b"wallets" => {
             log::trace!("merge starting...");
-            let mut infos: Vec<wallet::WalletId> = Vec::with_capacity(operands.size_hint().0);
+            let mut infos: Vec<types::WalletId> = Vec::with_capacity(operands.size_hint().0);
 
             if let Some(bytes) = existing_val {
                 infos = deserialize(bytes).expect("merge: deserialize ids failed");
@@ -196,7 +197,7 @@ pub fn storage_merge_operator(
             }
             log::trace!("merge finished");
             Some(
-                serialize::<Vec<wallet::WalletId>>(infos.as_ref())
+                serialize::<Vec<types::WalletId>>(infos.as_ref())
                     .expect("merge: serialize ids failed"),
             )
         }

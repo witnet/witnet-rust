@@ -1,12 +1,12 @@
 use serde::Deserialize;
 
-use crate::{app, wallet};
+use crate::types;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LockWalletRequest {
-    pub(crate) wallet_id: wallet::WalletId,
-    pub(crate) session_id: app::SessionId,
+    pub(crate) wallet_id: types::WalletId,
+    pub(crate) session_id: types::SessionId,
 }
 
 pub type LockWalletResponse = ();
