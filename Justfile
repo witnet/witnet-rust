@@ -99,12 +99,23 @@ cross-compile target profile="release":
     && [ ! -z "\$STRIP" ] \
     && \$STRIP /target/{{target}}/{{profile}}/witnet || echo \"No STRIP environment variable is set, passing.\""
 
+# run the latest stable release in the latest testnet
 e2e-stable test_name="example" +flags="":
     TEST_NAME={{test_name}} \
     docker-compose \
     -f docker/compose/e2e-stable/docker-compose.yaml \
     up \
     --scale=node=1 \
+    --abort-on-container-exit \
+    --exit-code-from tester \
+    {{flags}}
+
+# run the local debug binary (taken from ./target/debug) in the latest testnet
+e2e-debug test_name="example" +flags="":
+    TEST_NAME={{test_name}} \
+    docker-compose \
+    -f docker/compose/e2e-debug/docker-compose.yaml \
+    up \
     --abort-on-container-exit \
     --exit-code-from tester \
     {{flags}}
