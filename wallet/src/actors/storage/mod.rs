@@ -8,7 +8,7 @@ use rocksdb::DB;
 
 use witnet_protected::ProtectedString;
 
-use crate::{storage, wallet};
+use crate::{storage, types};
 
 pub mod handlers;
 
@@ -35,7 +35,7 @@ impl Storage {
         })
     }
 
-    pub fn get_wallet_infos(&self, db: &DB) -> Result<Vec<wallet::WalletInfo>, storage::Error> {
+    pub fn get_wallet_infos(&self, db: &DB) -> Result<Vec<types::WalletInfo>, storage::Error> {
         let ids = self.get_wallet_ids(db)?;
         let len = ids.len();
         let infos = ids
@@ -50,14 +50,14 @@ impl Storage {
         Ok(infos)
     }
 
-    pub fn get_wallet_ids(&self, db: &DB) -> Result<Vec<wallet::WalletId>, storage::Error> {
+    pub fn get_wallet_ids(&self, db: &DB) -> Result<Vec<types::WalletId>, storage::Error> {
         storage::get_default(db, storage::keys::wallets())
     }
 
     pub fn create_wallet(
         &self,
         db: &DB,
-        wallet: wallet::Wallet,
+        wallet: types::Wallet,
         password: ProtectedString,
     ) -> Result<(), storage::Error> {
         let mut batch = rocksdb::WriteBatch::default();
@@ -90,10 +90,10 @@ impl Storage {
         db: &DB,
         id: &str,
         password: &str,
-    ) -> Result<wallet::Key, storage::Error> {
+    ) -> Result<types::UnlockedWallet, storage::Error> {
         let encrypted: Vec<u8> = storage::get_opt(db, storage::keys::wallet(id))?
             .ok_or_else(|| storage::Error::WalletNotFound)?;
-        let (_content, key) = storage::decrypt_password::<wallet::WalletContent>(
+        let (wallet, key) = storage::decrypt_password::<types::WalletContent>(
             self.encrypt_salt_length,
             self.encrypt_iv_length,
             self.encrypt_hash_iterations,
@@ -101,7 +101,7 @@ impl Storage {
             encrypted.as_ref(),
         )?;
 
-        Ok(key)
+        Ok(types::UnlockedWallet { key, wallet })
     }
 }
 

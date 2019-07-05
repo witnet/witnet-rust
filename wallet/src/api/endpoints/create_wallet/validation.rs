@@ -1,7 +1,7 @@
 use witnet_crypto::mnemonic::Mnemonic;
 
 use super::*;
-use crate::{app, validation};
+use crate::{types, validation};
 
 /// Validate `CreateWalletRequest`.
 ///
@@ -10,15 +10,15 @@ use crate::{app, validation};
 /// - seed_sources has to be `mnemonics | xprv`
 pub fn validate_create_wallet(
     req: CreateWalletRequest,
-) -> Result<app::CreateWallet, validation::Error> {
+) -> Result<types::CreateWallet, validation::Error> {
     let name = req.name;
     let caption = req.caption;
     let seed_data = req.seed_data;
     let source = match req.seed_source.as_ref() {
-        "xprv" => Ok(app::SeedSource::Xprv),
+        "xprv" => Ok(types::SeedSource::Xprv),
         "mnemonics" => Mnemonic::from_phrase(seed_data)
             .map_err(|err| validation::error("seed_data", format!("{}", err)))
-            .map(app::SeedSource::Mnemonics),
+            .map(types::SeedSource::Mnemonics),
         _ => Err(validation::error(
             "seed_source",
             "Seed source has to be mnemonics|xprv.",
@@ -34,7 +34,7 @@ pub fn validate_create_wallet(
     };
 
     validation::combine(source, password, move |seed_source, password| {
-        app::CreateWallet {
+        types::CreateWallet {
             name,
             caption,
             password,

@@ -1,14 +1,12 @@
-use std::sync::Arc;
-
 use actix::prelude::*;
 
 use crate::actors::Crypto;
-use crate::wallet;
+use crate::types;
 
-pub struct GenSessionId(pub Arc<wallet::Key>);
+pub struct GenSessionId(pub types::Key);
 
 impl Message for GenSessionId {
-    type Result = String;
+    type Result = types::SessionId;
 }
 
 impl Handler<GenSessionId> for Crypto {
@@ -19,6 +17,6 @@ impl Handler<GenSessionId> for Crypto {
         GenSessionId(key): GenSessionId,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.gen_session_id(key.as_ref())
+        self.gen_session_id(&key)
     }
 }

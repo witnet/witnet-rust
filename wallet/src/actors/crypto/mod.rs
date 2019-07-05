@@ -9,7 +9,7 @@ use rand::Rng as _;
 use witnet_crypto::{hash::HashFunction, key::MasterKeyGen, pbkdf2::pbkdf2_sha256};
 use witnet_protected::ProtectedString;
 
-use crate::{app, crypto, wallet};
+use crate::{crypto, types};
 
 mod handlers;
 
@@ -43,10 +43,10 @@ impl Crypto {
     /// Generates the HD Master ExtendedKey for a wallet
     pub fn gen_master_key(
         &self,
-        seed_source: app::SeedSource,
-    ) -> Result<wallet::MasterKey, crypto::Error> {
+        seed_source: types::SeedSource,
+    ) -> Result<types::WalletMasterSK, crypto::Error> {
         let key = match seed_source {
-            app::SeedSource::Mnemonics(mnemonic) => {
+            types::SeedSource::Mnemonics(mnemonic) => {
                 let seed = mnemonic.seed(&self.seed_password);
 
                 MasterKeyGen::new(seed)
@@ -54,7 +54,7 @@ impl Crypto {
                     .generate()
                     .map_err(crypto::Error::KeyGenFailed)?
             }
-            app::SeedSource::Xprv => {
+            types::SeedSource::Xprv => {
                 // TODO: Implement key generation from xprv
                 unimplemented!("xprv not implemented yet")
             }
@@ -64,7 +64,7 @@ impl Crypto {
     }
 
     /// Generate an ID for a wallet
-    pub fn gen_id(&self, key: &wallet::MasterKey) -> String {
+    pub fn gen_id(&self, key: &types::WalletMasterSK) -> types::WalletId {
         match self.id_hash_function {
             HashFunction::Sha256 => {
                 let password = [key.secret(), key.chain_code].concat();
@@ -74,13 +74,13 @@ impl Crypto {
                     self.id_hash_iterations,
                 );
 
-                hex::encode(id_bytes)
+                types::WalletId::new(hex::encode(id_bytes))
             }
         }
     }
 
     /// Generate a Session ID for an unlocked wallet
-    pub fn gen_session_id(&self, key: &wallet::Key) -> String {
+    pub fn gen_session_id(&self, key: &types::Key) -> types::SessionId {
         match self.id_hash_function {
             HashFunction::Sha256 => {
                 let rand_bytes: [u8; 32] = self.rng.borrow_mut().gen();
@@ -92,7 +92,7 @@ impl Crypto {
                     self.id_hash_iterations,
                 );
 
-                hex::encode(id_bytes)
+                types::SessionId::new(hex::encode(id_bytes))
             }
         }
     }

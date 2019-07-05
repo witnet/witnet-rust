@@ -1,19 +1,9 @@
-use std::sync::Arc;
-
 use actix::prelude::*;
 
-use witnet_protected::ProtectedString;
-
 use crate::actors::storage::Storage;
-use crate::{storage::Error, wallet};
+use crate::{storage::Error, types};
 
-pub struct CreateWallet(
-    pub Arc<rocksdb::DB>,
-    /// Wallet to save
-    pub wallet::Wallet,
-    /// Encryption password
-    pub ProtectedString,
-);
+pub struct CreateWallet(pub types::SharedDB, pub types::Wallet, pub types::Password);
 
 impl Message for CreateWallet {
     type Result = Result<(), Error>;

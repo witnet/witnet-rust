@@ -1,7 +1,7 @@
 use witnet_crypto::mnemonic::Length;
 
 use super::*;
-use crate::{app, validation};
+use crate::{types, validation};
 
 /// Validate `CreateMnemonics`.
 ///
@@ -9,7 +9,7 @@ use crate::{app, validation};
 /// - length must be 12, 15, 18, 21 or 24
 pub fn validate_create_mnemonics(
     req: CreateMnemonicsRequest,
-) -> Result<app::CreateMnemonics, validation::Error> {
+) -> Result<types::CreateMnemonics, validation::Error> {
     let result = match req.length {
         12 => Ok(Length::Words12),
         15 => Ok(Length::Words15),
@@ -22,5 +22,5 @@ pub fn validate_create_mnemonics(
         )),
     };
 
-    result.map(|length| app::CreateMnemonics { length })
+    result.map(|length| types::CreateMnemonics { length })
 }

@@ -29,8 +29,8 @@ mod app;
 mod crypto;
 mod signal;
 mod storage;
+mod types;
 mod validation;
-mod wallet;
 
 /// Run the Witnet wallet application.
 pub fn run(conf: Config) -> Result<(), Error> {
@@ -88,7 +88,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     );
     let mut handler = pubsub::PubSubHandler::new(rpc::MetaIoHandler::default());
 
-    api::connect_routes(&mut handler, app.clone());
+    api::connect_routes(&mut handler, app.clone(), Arbiter::current());
 
     let server = Server::build().handler(handler).addr(server_addr).start()?;
     let controller = actors::Controller::start(server, app);

@@ -1,13 +1,14 @@
-//! # Wallet-specific data types
-
-use jsonrpc_core::Value;
+//! Types that stored in the database.
+//!
+//! IMPORTAT: Changing these types will introduce a breaking change since created wallets won't be
+//! readable.
 use serde::{Deserialize, Serialize};
 
-use witnet_crypto::key::ExtendedSK;
-pub use witnet_data_structures::chain::RADRequest;
-use witnet_protected::Protected;
+use witnet_crypto as crypto;
 
-pub type WalletId = String;
+use super::*;
+
+pub type WalletMasterSK = crypto::key::ExtendedSK;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WalletInfo {
@@ -31,7 +32,7 @@ impl Wallet {
 #[derive(Serialize, Deserialize)]
 pub struct WalletContent {
     pub(crate) version: u32,
-    pub(crate) master_key: MasterKey,
+    pub(crate) master_key: WalletMasterSK,
     pub(crate) key_spec: Wip,
     pub(crate) purpose: u32,
     pub(crate) epoch_born: u32,
@@ -43,7 +44,7 @@ impl WalletContent {
     const VERSION: u32 = 1;
     const PURPOSE: u32 = 0x8000_0003;
 
-    pub fn new(master_key: MasterKey, key_spec: Wip, accounts: Vec<Account>) -> Self {
+    pub fn new(master_key: WalletMasterSK, key_spec: Wip, accounts: Vec<Account>) -> Self {
         Self {
             master_key,
             key_spec,
@@ -109,7 +110,7 @@ impl KeyChain {
 #[derive(Serialize, Deserialize)]
 pub struct FinalKey {
     path: KeyPath,
-    key: ExtendedSK,
+    key: crypto::key::ExtendedSK,
     pkh: String,
     utxos: Vec<Utxo>,
     stxos: Vec<Stxo>,
@@ -145,47 +146,8 @@ impl KeyPath {
     }
 }
 
-/// TODO: implemented in PR #432
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Mnemonics {}
-
-/// TODO: Implement (radon crate)
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RADType(String);
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RADRetrieveArgs {
-    kind: RADType,
-    url: String,
-    script: Vec<Value>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RADAggregateArgs {
-    script: Vec<Value>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RADConsensusArgs {
-    script: Vec<Value>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RADDeliverArgs {
-    kind: RADType,
-    url: String,
-}
-
-/// HD Wallet Master ExtendedKey
-pub type MasterKey = ExtendedSK;
-
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Wip {
     Wip3,
-}
-
-pub struct Key {
-    pub(crate) secret: Protected,
-    pub(crate) salt: Vec<u8>,
 }

@@ -1,12 +1,12 @@
 use actix::prelude::*;
 
 use crate::actors::Crypto;
-use crate::{app, crypto, wallet};
+use crate::{crypto, types};
 
-pub struct GenWalletKeys(pub app::SeedSource);
+pub struct GenWalletKeys(pub types::SeedSource);
 
 impl Message for GenWalletKeys {
-    type Result = Result<(String, wallet::MasterKey), crypto::Error>;
+    type Result = Result<(types::WalletId, types::WalletMasterSK), crypto::Error>;
 }
 
 impl Handler<GenWalletKeys> for Crypto {

@@ -1,10 +1,8 @@
 use serde::Deserialize;
 
-use crate::wallet;
-
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum ImportSeedRequest {
-    Mnemonics { mnemonics: wallet::Mnemonics },
+    Mnemonics { mnemonics: String },
     Seed { seed: String },
 }

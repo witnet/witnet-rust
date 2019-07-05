@@ -1,5 +1,3 @@
-use jsonrpc_pubsub as pubsub;
+use crate::types;
 
-pub struct UnsubscribeRequest(pub pubsub::SubscriptionId);
-
-pub type UnsubscribeResponse = ();
+pub struct UnsubscribeRequest(pub types::SubscriptionId);

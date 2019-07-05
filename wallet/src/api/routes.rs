@@ -1,7 +1,7 @@
 use actix::prelude::*;
 use futures::{future, Future};
 use jsonrpc_core::{Middleware, Params};
-use jsonrpc_pubsub::{PubSubHandler, PubSubMetadata};
+use jsonrpc_pubsub::{PubSubHandler, PubSubMetadata, Subscriber};
 use serde_json::json;
 
 use crate::actors::app::App;
@@ -65,8 +65,11 @@ macro_rules! forwarded_routes {
     };
 }
 
-pub fn connect_routes<T, S>(handler: &mut PubSubHandler<T, S>, app: Addr<App>)
-where
+pub fn connect_routes<T, S>(
+    handler: &mut PubSubHandler<T, S>,
+    app: Addr<App>,
+    system_arbiter: Arbiter,
+) where
     T: PubSubMetadata,
     S: Middleware<T>,
 {
@@ -74,14 +77,59 @@ where
         "notifications",
         ("subscribeNotifications", {
             let addr = app.clone();
-            move |_, _, subscriber| addr.do_send(api::SubscribeRequest(subscriber))
+            move |params: Params, _meta, subscriber: Subscriber| {
+                let addr_subscription_id = addr.clone();
+                let addr_subscribe = addr.clone();
+                let f = future::result(params.parse::<api::SubscribeRequest>())
+                    .then(move |result| match result {
+                        Ok(request) =>
+                            future::Either::A({
+                                addr_subscription_id.send(api::NextSubscriptionId(request.session_id.clone()))
+                                    .flatten()
+                                    .map_err(|err| err.into())
+                                    .then(move |result| match result {
+                                        Ok(subscription_id) => future::Either::A(
+                                            subscriber
+                                                .assign_id_async(subscription_id.clone())
+                                                .map_err(|()| {
+                                                    log::error!("Failed to assign id");
+                                                })
+                                                .and_then(move |sink| {
+                                                    addr_subscribe.do_send(
+                                                        api::Subscribe(
+                                                            request.session_id,
+                                                            subscription_id,
+                                                            sink
+                                                        )
+                                                    );
+                                                    future::ok(())
+                                                })
+                                        ),
+                                        Err(err) => future::Either::B(
+                                            subscriber.reject_async(err)
+                                        )
+                                    })
+                            }),
+                        Err(mut err) =>
+                            future::Either::B(subscriber.reject_async({
+                                log::trace!("invalid subscription params");
+
+                                err.data = Some(json!({
+                                    "schema": format!("https://github.com/witnet/witnet-rust/wiki/Subscribe-Notifications")
+                                }));
+                                err
+                            }))
+                    });
+
+                system_arbiter.send(f);
+            }
         }),
         ("unsubscribeNotifications", {
             let addr = app.clone();
-            move |id, _| {
-                addr.send(api::UnsubscribeRequest(id))
+            move |subscription_id, _meta| {
+                addr.send(api::UnsubscribeRequest(subscription_id))
                     .flatten()
-                    .and_then(|_| future::ok(json!({"status": "ok"})))
+                    .map(|()| json!(()))
                     .map_err(|err| err.into())
             }
         }),

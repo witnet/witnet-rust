@@ -1,4 +1,5 @@
-//! # Crypto-specific data types and errors.
+//! Crypto-specific functions and errors.
+
 pub mod error;
 
 pub use error::Error;
