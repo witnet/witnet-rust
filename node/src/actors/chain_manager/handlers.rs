@@ -497,6 +497,8 @@ impl Handler<PeersBeacons> for ChainManager {
         // Activate peers beacons index to continue synced
         self.peers_beacons_received = true;
 
+        let consensus_threshold = self.consensus_c as usize;
+
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // As soon as there is consensus, we set the target beacon to the consensus
@@ -504,7 +506,8 @@ impl Handler<PeersBeacons> for ChainManager {
 
                 // Run the consensus on the beacons, will return the most common beacon
                 // In case of tie returns None
-                if let Some(consensus_beacon) = mode_consensus(pb.iter().map(|(_p, b)| b)).cloned()
+                if let Some(consensus_beacon) =
+                    mode_consensus(pb.iter().map(|(_p, b)| b), consensus_threshold).cloned()
                 {
                     // Consensus: unregister peers which have a different beacon
                     let peers_out_of_consensus = pb
@@ -582,7 +585,8 @@ impl Handler<PeersBeacons> for ChainManager {
             StateMachine::Synchronizing => {
                 // Run the consensus on the beacons, will return the most common beacon
                 // In case of tie returns None
-                if let Some(consensus_beacon) = mode_consensus(pb.iter().map(|(_p, b)| b)).cloned()
+                if let Some(consensus_beacon) =
+                    mode_consensus(pb.iter().map(|(_p, b)| b), consensus_threshold).cloned()
                 {
                     // List peers that announced a beacon out of consensus
                     let peers_out_of_consensus = pb
@@ -634,7 +638,8 @@ impl Handler<PeersBeacons> for ChainManager {
                 let our_beacon = self.get_chain_beacon();
 
                 // We also take into account our beacon to calculate the consensus
-                let consensus_beacon = mode_consensus(pb.iter().map(|(_p, b)| b)).cloned();
+                let consensus_beacon =
+                    mode_consensus(pb.iter().map(|(_p, b)| b), consensus_threshold).cloned();
 
                 match consensus_beacon {
                     Some(a) if a == our_beacon => {

@@ -148,6 +148,9 @@ impl ChainManager {
             // Do not start the MiningManager if the configuration disables it
             act.mining_enabled = config.mining.enabled;
 
+            // Get consensus parameter from config
+            act.consensus_c = config.connections.consensus_c;
+
             if act.mining_enabled {
                 debug!("Mining enabled!");
             } else {

@@ -134,6 +134,8 @@ pub struct ChainManager {
     vrf_ctx: Option<VrfCtx>,
     /// Peers beacons boolean
     peers_beacons_received: bool,
+    /// Consensus parameter (in %)
+    consensus_c: u32,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
