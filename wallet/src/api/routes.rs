@@ -5,7 +5,7 @@ use jsonrpc_pubsub::{PubSubHandler, PubSubMetadata, Subscriber, SubscriptionId};
 use serde_json::json;
 
 use crate::actors::app::App;
-use crate::api;
+use crate::{api, validation};
 
 /// Helper macro to add multiple JSON-RPC methods at once
 macro_rules! routes {
@@ -65,8 +65,11 @@ macro_rules! forwarded_routes {
     };
 }
 
-pub fn connect_routes<T, S>(handler: &mut PubSubHandler<T, S>, app: Addr<App>)
-where
+pub fn connect_routes<T, S>(
+    handler: &mut PubSubHandler<T, S>,
+    app: Addr<App>,
+    system_arbiter: Arbiter,
+) where
     T: PubSubMetadata,
     S: Middleware<T>,
 {
@@ -75,6 +78,7 @@ where
         ("subscribeNotifications", {
             let addr = app.clone();
             move |params: Params, _meta, subscriber: Subscriber| {
+                log::trace!("subscribing...");
                 let addr_id_closure = addr.clone();
                 let addr_subscribe_closure = addr.clone();
                 let f = future::result(params.parse::<api::SubscribeRequest>())
@@ -99,6 +103,7 @@ where
                                     })
                             ),
                         Err(mut err) => future::Either::B(subscriber.reject_async({
+                            log::trace!("invalid subscription params");
                             err.data = Some(json!({
                                 "schema": format!("https://github.com/witnet/witnet-rust/wiki/Subscribe-Notifications")
                             }));
@@ -106,16 +111,22 @@ where
                         }))
                     });
 
-                Arbiter::spawn(f);
+                system_arbiter.send(f);
             }
         }),
         ("unsubscribeNotifications", {
             let addr = app.clone();
-            move |id, _| {
-                addr.send(api::UnsubscribeRequest(id))
-                    .flatten()
-                    .and_then(|_| future::ok(json!({"status": "ok"})))
-                    .map_err(|err| err.into())
+            move |subscription_id, _| {
+                match subscription_id {
+                    SubscriptionId::Number(id) => {
+                        addr.do_send(api::UnsubscribeRequest(id));
+                        future::ok(json!(()))
+                    }
+                    _ => {
+                        let err = validation::error("subscription id", "Invalid subscription id");
+                        future::err(api::error::validation_error(err).into())
+                    }
+                }
             }
         }),
     );

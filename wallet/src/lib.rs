@@ -88,7 +88,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     );
     let mut handler = pubsub::PubSubHandler::new(rpc::MetaIoHandler::default());
 
-    api::connect_routes(&mut handler, app.clone());
+    api::connect_routes(&mut handler, app.clone(), Arbiter::current());
 
     let server = Server::build().handler(handler).addr(server_addr).start()?;
     let controller = actors::Controller::start(server, app);

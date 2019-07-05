@@ -98,39 +98,13 @@ impl App {
 
     /// Return an id for a new subscription. If there are no available subscription slots, then
     /// `None` is returned.
-    pub fn subscribe(&mut self, subscriber: pubsub::Sink) -> Result<usize, app::Error> {
-        // let (id, slot) = self
-        //     .subscriptions
-        //     .iter_mut()
-        //     .enumerate()
-        //     .find(|(_, slot)| slot.is_none())
-        //     .ok_or_else(|| app::Error::SubscribeFailed("max limit of subscriptions reached"))?;
-
-        // *slot = subscriber
-        //     .assign_id(pubsub::SubscriptionId::from(id as u64))
-        //     .ok();
-
-        // Ok(id)
-        Ok(123)
+    pub fn subscribe(&mut self, session_id: app::SessionId, subscriber: pubsub::Sink) {
+        log::trace!("Creating subscription.");
     }
 
     /// Remove a subscription and leave its corresponding slot free.
-    pub fn unsubscribe(&mut self, id: pubsub::SubscriptionId) -> Result<(), app::Error> {
-        let index = match id {
-            pubsub::SubscriptionId::Number(n) => Ok(n as usize),
-            _ => Err(app::Error::UnsubscribeFailed(
-                "subscription id must be a number",
-            )),
-        }?;
-        let slot = self
-            .subscriptions
-            .as_mut()
-            .get_mut(index)
-            .ok_or_else(|| app::Error::UnsubscribeFailed("subscription id not found"))?;
-
-        *slot = None;
-
-        Ok(())
+    pub fn unsubscribe(&mut self, id: u64) {
+        log::trace!("Removing subscription {}", id);
     }
 
     /// Forward a Json-RPC call to the node.

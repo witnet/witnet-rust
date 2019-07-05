@@ -15,8 +15,6 @@ impl Handler<api::Subscribe> for App {
         api::Subscribe(request, subscriber): api::Subscribe,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.subscribe(subscriber)
-            .map_err(api::internal_error)
-            .map(|_| ())
+        Ok(self.subscribe(request.session_id, subscriber))
     }
 }

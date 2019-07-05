@@ -36,8 +36,9 @@ impl Handler<rpc_client::Notification> for App {
                     .into_actor(self)
                     .map_err(move |err, act, _ctx| {
                         let id = pubsub::SubscriptionId::Number(slot as u64);
-                        act.unsubscribe(id)
-                            .expect("failed to removed faulty subscription");
+                        // TODO: fix
+                        // act.unsubscribe(id)
+                        //     .expect("failed to removed faulty subscription");
                         log::error!("Error notifying client: {}.", err,);
                     })
                     .spawn(ctx);
