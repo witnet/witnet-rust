@@ -78,46 +78,32 @@ where
                 let addr_id_closure = addr.clone();
                 let addr_subscribe_closure = addr.clone();
                 let f = future::result(params.parse::<api::SubscribeRequest>())
-                    .then(move |result| {
-                        match result {
-                            Ok(request) => {
-                                let f = addr_id_closure.send(api::NextSubscriptionId)
+                    .then(move |result| match result {
+                        Ok(request) =>
+                            future::Either::A(
+                                addr_id_closure.send(api::NextSubscriptionId)
                                     .flatten()
                                     .map_err(|err| err.into())
-                                    .then(|result| {
-                                        match result {
-                                            Ok(id) => {
-                                                let f = subscriber.assign_id_async(SubscriptionId::Number(id))
+                                    .then(|result| match result {
+                                        Ok(id) => future::Either::A(
+                                            subscriber.assign_id_async(SubscriptionId::Number(id))
                                                     .map_err(|()| {
                                                         log::error!("Failed to assign a subscription ID");
                                                     })
                                                     .and_then(move |sink| {
                                                         addr_subscribe_closure.do_send(api::Subscribe(request, sink));
                                                         Ok(())
-                                                    });
-
-                                                Box::new(f) as Box<dyn Future<Item = (), Error = ()>>
-                                            }
-                                            Err(err) => {
-                                                let f = subscriber.reject_async(err);
-
-                                                Box::new(f) as Box<dyn Future<Item = (), Error = ()>>
-                                            }
-                                        }
-                                    });
-
-                                Box::new(f) as Box<dyn Future<Item = (), Error = ()>>
-                            }
-                            Err(mut err) => {
-                                err.data = Some(json!({
-                                    "schema": format!("https://github.com/witnet/witnet-rust/wiki/Subscribe-Notifications")
-                                }));
-
-                                let f = subscriber.reject_async(err);
-
-                                Box::new(f) as Box<dyn Future<Item = (), Error = ()>>
-                            }
-                        }
+                                                    })
+                                        ),
+                                        Err(err) => future::Either::B(subscriber.reject_async(err))
+                                    })
+                            ),
+                        Err(mut err) => future::Either::B(subscriber.reject_async({
+                            err.data = Some(json!({
+                                "schema": format!("https://github.com/witnet/witnet-rust/wiki/Subscribe-Notifications")
+                            }));
+                            err
+                        }))
                     });
 
                 Arbiter::spawn(f);
