@@ -83,8 +83,8 @@ the current price of a bitcoin in US dollars.
 
 ### Retrieval stage
 ```ts
-98 43 CC 74 92 61 A3 62 70 69 CC 74 92 61 A3 55 53 44 CC 74 92 61 AA 72 
-61 74 65 5F 66 6C 6F 61 74 CC 72
+98 43 74 92 61 A3 62 70 69 74 92 61 A3 55 53 44 74 92 61 AA 72 61 74 65
+5F 66 6C 6F 61 74 72
 ```
 ```ts
 [
@@ -114,7 +114,7 @@ cases in which we are trying to build consensus on `Integer` or `Float`
 data points.
 
 ```ts
-95 43 CC 74 92 61 A4 64 61 74 61 CC 70 92 54 00
+93 53 93 52 05 02 92 56 03
 ```
 ```ts
 [ 
@@ -155,7 +155,7 @@ actually fall and maps that into a `String` with value `heads` or
 
 ### Retrieval stage
 ```ts
-95 43 CC 74 92 61 A4 64 61 74 61 CC 70 92 54 00
+95 43 74 92 61 A4 64 61 74 61 70 92 54 00
 ```
 ```ts
 [
@@ -177,16 +177,20 @@ actually fall and maps that into a `String` with value `heads` or
 
 ### Aggregation stage
 ```ts
+96 53 92 52 92 CC 81 00 92 52 92 CC 81 00 92 56 03 92 32 7F 92 10 92 92
+C2 A5 68 65 61 64 73 92 C3 A5 74 61 69 6C 73
+```
+```ts
 [
-    OP_ARRAY_FLATTEN,                               // 
-    [ OP_ARRAY_FILTER, [ FILTER_NOT_LT, 0 ] ],      //
-    [ OP_ARRAY_FILTER, [ FILTER_NOT_GT, 255 ] ],    // 
-    [ OP_ARRAY_REDUCE, REDUCER_AVERAGE_MEAN ],      // 
-    [ OP_FLOAT_GREATER, 127 ],                      // 
-    [ OP_BOOLEAN_MATCH, [                           // 
-        [ false, "heads" ],                         // 
-        [ true, "tails" ]                           // 
-    ] ]
+    OP_ARRAY_FLATTEN,                               // 0x53,
+    [ OP_ARRAY_FILTER, [ FILTER_NOT_LT, 0 ] ],      // [ 0x52, [ 0x81, 0 ] ],
+    [ OP_ARRAY_FILTER, [ FILTER_NOT_GT, 255 ] ],    // [ 0x52, [ 0x81, 0 ] ],
+    [ OP_ARRAY_REDUCE, REDUCER_AVERAGE_MEAN ],      // [ 0x56, 0x03 ],
+    [ OP_FLOAT_GREATER, 127 ],                      // [ 0x32, 127 ],
+    [ OP_BOOLEAN_MATCH, [                           // [ 0x10, [
+        [ false, "heads" ],                         //     [ false, "heads" ],
+        [ true, "tails" ]                           //     [ true, "tails" ]
+    ] ]                                             // ]
 ]
 ```
 
