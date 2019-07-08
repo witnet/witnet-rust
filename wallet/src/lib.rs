@@ -29,8 +29,8 @@ mod app;
 mod crypto;
 mod signal;
 mod storage;
+mod types;
 mod validation;
-mod wallet;
 
 /// Run the Witnet wallet application.
 pub fn run(conf: Config) -> Result<(), Error> {

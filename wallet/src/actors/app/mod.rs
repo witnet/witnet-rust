@@ -18,7 +18,7 @@ use witnet_protected::ProtectedString;
 use witnet_rad as rad;
 
 use crate::actors::{crypto, rad_executor, storage, Crypto, RadExecutor, Storage};
-use crate::{app, wallet};
+use crate::{app, types};
 
 pub mod handlers;
 
@@ -36,9 +36,9 @@ pub struct App {
     crypto: Addr<Crypto>,
     node_client: Option<Addr<JsonRpcClient>>,
     subscriptions: [Option<pubsub::Sink>; 10],
-    sessions: HashMap<app::SessionId, wallet::WalletId>,
+    sessions: HashMap<types::SessionId, types::WalletId>,
     session_expiration: Duration,
-    wallet_keys: HashMap<wallet::WalletId, Arc<wallet::Key>>,
+    wallet_keys: HashMap<types::WalletId, Arc<types::Key>>,
     last_subscription_id: u64,
 }
 
@@ -77,7 +77,7 @@ impl App {
     /// Run a RADRequest and return the computed result.
     pub fn run_rad_request(
         &self,
-        req: wallet::RADRequest,
+        req: types::RADRequest,
     ) -> ResponseFuture<rad::types::RadonTypes, app::Error> {
         let f = self
             .rad_executor
@@ -89,7 +89,7 @@ impl App {
     }
 
     /// Generate a random BIP39 mnemonics sentence
-    pub fn generate_mnemonics(&self, params: app::CreateMnemonics) -> String {
+    pub fn generate_mnemonics(&self, params: types::CreateMnemonics) -> String {
         let mnemonic = MnemonicGen::new().with_len(params.length).generate();
         let words = mnemonic.words();
 
@@ -98,7 +98,7 @@ impl App {
 
     /// Return an id for a new subscription. If there are no available subscription slots, then
     /// `None` is returned.
-    pub fn subscribe(&mut self, session_id: app::SessionId, subscriber: pubsub::Sink) {
+    pub fn subscribe(&mut self, session_id: types::SessionId, subscriber: pubsub::Sink) {
         log::trace!("Creating subscription.");
     }
 
@@ -134,7 +134,7 @@ impl App {
     }
 
     /// Get id and caption of all the wallets stored in the database.
-    fn get_wallet_infos(&self) -> ResponseFuture<Vec<wallet::WalletInfo>, app::Error> {
+    fn get_wallet_infos(&self) -> ResponseFuture<Vec<types::WalletInfo>, app::Error> {
         let fut = self
             .storage
             .send(storage::GetWalletInfos(self.db.clone()))
@@ -147,15 +147,15 @@ impl App {
     /// Create an empty HD Wallet.
     fn create_wallet(
         &self,
-        params: app::CreateWallet,
-    ) -> ResponseActFuture<Self, wallet::WalletId, app::Error> {
-        let app::CreateWallet {
+        params: types::CreateWallet,
+    ) -> ResponseActFuture<Self, types::WalletId, app::Error> {
+        let types::CreateWallet {
             name,
             caption,
             password,
             seed_source,
         } = params;
-        let key_spec = wallet::Wip::Wip3;
+        let key_spec = types::Wip::Wip3;
         let fut = self
             .crypto
             .send(crypto::GenWalletKeys(seed_source))
@@ -164,19 +164,19 @@ impl App {
             .into_actor(self)
             .and_then(move |(id, master_key), slf, _ctx| {
                 // Keypath: m/3'/4919'/0'
-                let keypath = wallet::KeyPath::master()
+                let keypath = types::KeyPath::master()
                     .hardened(3)
                     .hardened(4919)
                     .hardened(0);
-                let keychains = wallet::KeyChains::new(keypath);
-                let account = wallet::Account::new(keychains);
-                let content = wallet::WalletContent::new(master_key, key_spec, vec![account]);
-                let info = wallet::WalletInfo {
+                let keychains = types::KeyChains::new(keypath);
+                let account = types::Account::new(keychains);
+                let content = types::WalletContent::new(master_key, key_spec, vec![account]);
+                let info = types::WalletInfo {
                     id: id.clone(),
                     name,
                     caption,
                 };
-                let wallet = wallet::Wallet::new(info, content);
+                let wallet = types::Wallet::new(info, content);
 
                 slf.storage
                     .send(storage::CreateWallet(slf.db.clone(), wallet, password))
@@ -195,8 +195,8 @@ impl App {
     /// node.
     fn lock_wallet(
         &mut self,
-        session_id: app::SessionId,
-        wallet_id: wallet::WalletId,
+        session_id: types::SessionId,
+        wallet_id: types::WalletId,
     ) -> Result<(), app::Error> {
         let session_wallet_id = self
             .sessions
@@ -207,9 +207,7 @@ impl App {
             self.wallet_keys.remove(&wallet_id);
             Ok(())
         } else {
-            let err = app::Error::WrongWallet(wallet_id);
-            log::info!("{}", &err);
-            Err(err)
+            Err(app::Error::WrongWallet)
         }
     }
 
@@ -217,9 +215,9 @@ impl App {
     /// further wallet operations can be performed.
     fn unlock_wallet(
         &mut self,
-        wallet_id: wallet::WalletId,
+        wallet_id: types::WalletId,
         password: ProtectedString,
-    ) -> ResponseActFuture<Self, app::SessionId, app::Error> {
+    ) -> ResponseActFuture<Self, types::SessionId, app::Error> {
         // check if the wallet has already being unlocked by another session
         match self.wallet_keys.get(&wallet_id).cloned() {
             Some(wallet_key) => {
@@ -230,7 +228,6 @@ impl App {
                     .into_actor(self)
                     .and_then(|session_id, slf, _ctx| {
                         log::debug!("Wallet {} was already unlocked another session.", wallet_id);
-                        let session_id = Arc::new(session_id);
                         slf.sessions.insert(session_id.clone(), wallet_id);
                         fut::ok(session_id)
                     });
@@ -256,7 +253,6 @@ impl App {
                             .into_actor(slf)
                             .and_then(move |session_id, slf, _ctx| {
                                 log::debug!("Unlocking wallet {}", &wallet_id);
-                                let session_id = Arc::new(session_id);
                                 slf.sessions.insert(session_id.clone(), wallet_id.clone());
                                 slf.wallet_keys.insert(wallet_id, wallet_key);
 
@@ -270,7 +266,7 @@ impl App {
     }
 
     /// Return a timer function that can be scheduled to expire the session after the configured time.
-    fn set_session_to_expire(&self, session_id: app::SessionId) -> TimerFunc<Self> {
+    fn set_session_to_expire(&self, session_id: types::SessionId) -> TimerFunc<Self> {
         log::debug!(
             "Session {} will expire in {} seconds.",
             session_id.as_ref(),
@@ -282,7 +278,7 @@ impl App {
     }
 
     /// Remove a session from the list of active sessions.
-    fn close_session(&mut self, session_id: app::SessionId) {
+    fn close_session(&mut self, session_id: types::SessionId) {
         log::info!("Session {} expired.", session_id.as_ref());
         self.sessions.remove(&session_id);
     }

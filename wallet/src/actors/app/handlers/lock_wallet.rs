@@ -14,7 +14,7 @@ impl Handler<api::LockWalletRequest> for App {
         self.lock_wallet(msg.session_id, msg.wallet_id)
             .map_err(|err| match err {
                 app::Error::UnknownSession => api::Error::Unauthorized,
-                app::Error::WrongWallet(_) => api::Error::Forbidden,
+                app::Error::WrongWallet => api::Error::Forbidden,
                 e => api::internal_error(e),
             })
     }
