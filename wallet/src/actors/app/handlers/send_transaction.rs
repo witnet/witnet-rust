@@ -3,16 +3,16 @@ use actix::prelude::*;
 use crate::actors::App;
 use crate::api;
 
-impl Message for api::CreateDataReqRequest {
+impl Message for api::SendTransactionRequest {
     type Result = Result<api::CreateDataReqResponse, api::Error>;
 }
 
-impl Handler<api::CreateDataReqRequest> for App {
-    type Result = Result<api::CreateDataReqResponse, api::Error>;
+impl Handler<api::SendTransactionRequest> for App {
+    type Result = Result<api::SendTransactionResponse, api::Error>;
 
     fn handle(
         &mut self,
-        _msg: api::CreateDataReqRequest,
+        _msg: api::SendTransactionRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         Ok(())
