@@ -122,6 +122,11 @@ where
         ),
         ("Send-Vtt", "sendVTT", api::SendVttRequest),
         (
+            "Send-Transaction",
+            "sendTransaction",
+            api::SendTransactionRequest
+        ),
+        (
             "Generate-Address",
             "generateAddress",
             api::GenerateAddressRequest
@@ -131,6 +136,7 @@ where
             "createDataRequest",
             api::CreateDataReqRequest
         ),
+        ("Create-Vtt", "createVttRequest", api::CreateVttRequest),
         ("Run-Rad-Request", "runRadRequest", api::RunRadReqRequest),
         (
             "Send-Data-Request",

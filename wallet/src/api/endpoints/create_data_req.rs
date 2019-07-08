@@ -3,10 +3,9 @@ use serde::Deserialize;
 use crate::wallet;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateDataReqRequest {
-    pub not_before: u64,
-    pub retrieve: Vec<wallet::RADRetrieveArgs>,
-    pub aggregate: wallet::RADAggregateArgs,
-    pub consensus: wallet::RADConsensusArgs,
-    pub deliver: Vec<wallet::RADDeliverArgs>,
+    pub rad_request: wallet::RADRequest,
 }
+
+pub type CreateDataReqResponse = ();
