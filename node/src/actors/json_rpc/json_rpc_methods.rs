@@ -12,7 +12,7 @@ use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 
-use witnet_data_structures::chain::{self, Block, Hash};
+use witnet_data_structures::chain::{self, Block, CheckpointBeacon, Hash};
 
 use crate::actors::{
     chain_manager::{ChainManager, ChainManagerError},
@@ -20,7 +20,9 @@ use crate::actors::{
     inventory_manager::InventoryManager,
     messages::{
         AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBlocksEpochRange, GetEpoch, GetItem,
+        GetState, NumSessions,
     },
+    sessions_manager::SessionsManager,
 };
 
 //use std::str::FromStr;
@@ -28,6 +30,8 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::System;
+use crate::actors::chain_manager::StateMachine;
+use crate::actors::messages::GetHighestCheckpointBeacon;
 use witnet_data_structures::transaction::Transaction;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
@@ -50,6 +54,7 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
     io.add_method("buildValueTransfer", |params: Params| {
         build_value_transfer(params.parse()?)
     });
+    io.add_method("status", |_params: Params| status());
 
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -431,6 +436,62 @@ pub fn build_value_transfer(msg: BuildVtt) -> JsonRpcResult {
 
     // TODO: return a meaningful value
     Ok(Value::Bool(true))
+}
+
+/// Node status
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Status {
+    chain_beacon: CheckpointBeacon,
+    synchronized: bool,
+    num_peers_inbound: u32,
+    num_peers_outbound: u32,
+}
+
+/// Get node status
+pub fn status() -> JsonRpcResultAsync {
+    let chain_manager = ChainManager::from_registry();
+    let sessions_manager = SessionsManager::from_registry();
+
+    let synchronized_fut =
+        chain_manager
+            .send(GetState)
+            .map_err(internal_error)
+            .then(|res| match res {
+                Ok(Ok(StateMachine::Synced)) => Ok(true),
+                Ok(Ok(..)) => Ok(false),
+                Ok(Err(())) => Err(internal_error(())),
+                Err(e) => Err(internal_error(e)),
+            });
+    let num_peers_fut = sessions_manager.send(NumSessions).then(|res| match res {
+        Ok(Ok(res)) => Ok(res),
+        Ok(Err(())) => Err(internal_error(())),
+        Err(e) => Err(internal_error(e)),
+    });
+    let chain_beacon_fut = chain_manager
+        .send(GetHighestCheckpointBeacon)
+        .then(|res| match res {
+            Ok(Ok(x)) => Ok(x),
+            Ok(Err(e)) => Err(internal_error(e)),
+            Err(e) => Err(internal_error(e)),
+        });
+
+    let j = Future::join3(synchronized_fut, num_peers_fut, chain_beacon_fut)
+        .map(|(synchronized, num_peers, chain_beacon)| Status {
+            synchronized,
+            num_peers_inbound: num_peers.inbound as u32,
+            num_peers_outbound: num_peers.outbound as u32,
+            chain_beacon,
+        })
+        .and_then(|res| match serde_json::to_value(res) {
+            Ok(x) => futures::finished(x),
+            Err(e) => {
+                let err = internal_error(e);
+                futures::failed(err)
+            }
+        });
+
+    Box::new(j)
 }
 
 #[cfg(test)]

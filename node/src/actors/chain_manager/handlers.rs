@@ -17,8 +17,8 @@ use crate::{
         chain_manager::transaction_factory,
         messages::{
             AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, BuildDrt, BuildVtt,
-            EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, PeersBeacons,
-            SendLastBeacon, SessionUnitResult,
+            EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetState,
+            PeersBeacons, SendLastBeacon, SessionUnitResult,
         },
         sessions_manager::SessionsManager,
     },
@@ -724,6 +724,7 @@ impl Handler<BuildVtt> for ChainManager {
         }
     }
 }
+
 impl Handler<BuildDrt> for ChainManager {
     type Result = <BuildDrt as Message>::Result;
 
@@ -755,5 +756,13 @@ impl Handler<BuildDrt> for ChainManager {
                     .wait(ctx);
             }
         }
+    }
+}
+
+impl Handler<GetState> for ChainManager {
+    type Result = <GetState as Message>::Result;
+
+    fn handle(&mut self, _msg: GetState, _ctx: &mut Self::Context) -> Self::Result {
+        Ok(self.sm_state)
     }
 }

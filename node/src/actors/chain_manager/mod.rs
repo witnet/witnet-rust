@@ -86,7 +86,7 @@ pub enum ChainManagerError {
 }
 
 /// State Machine
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum StateMachine {
     /// First state, ChainManager is waiting to consensus between its peers
     WaitingConsensus,

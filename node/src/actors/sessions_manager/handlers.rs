@@ -11,12 +11,11 @@ use log::{debug, error, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use super::SessionsManager;
-use crate::actors::messages::EpochNotification;
 use crate::actors::{
     codec::P2PCodec,
     messages::{
-        AddPeers, Anycast, Broadcast, Consolidate, Create, PeerBeacon, Register,
-        SessionsUnitResult, Unregister,
+        AddPeers, Anycast, Broadcast, Consolidate, Create, EpochNotification, NumSessions,
+        NumSessionsResult, PeerBeacon, Register, SessionsUnitResult, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -262,5 +261,16 @@ impl Handler<PeerBeacon> for SessionsManager {
         if !all_ready_before && all_ready_after {
             self.send_peers_beacons(ctx);
         }
+    }
+}
+
+impl Handler<NumSessions> for SessionsManager {
+    type Result = <NumSessions as Message>::Result;
+
+    fn handle(&mut self, _msg: NumSessions, _ctx: &mut Context<Self>) -> Self::Result {
+        Ok(NumSessionsResult {
+            inbound: self.sessions.get_num_inbound_sessions(),
+            outbound: self.sessions.get_num_outbound_sessions(),
+        })
     }
 }

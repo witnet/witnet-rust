@@ -21,7 +21,7 @@ use witnet_p2p::sessions::{SessionStatus, SessionType};
 use witnet_rad::error::RadError;
 
 use super::{
-    chain_manager::{ChainManagerError, MAX_BLOCKS_SYNC},
+    chain_manager::{ChainManagerError, StateMachine, MAX_BLOCKS_SYNC},
     epoch_manager::{
         AllEpochSubscription, EpochManagerError, SendableNotification, SingleEpochSubscription,
     },
@@ -165,6 +165,14 @@ pub struct BuildDrt {
 
 impl Message for BuildDrt {
     type Result = ();
+}
+
+/// Get ChainManager State (WaitingConsensus, Synchronizing, Synced)
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetState;
+
+impl Message for GetState {
+    type Result = Result<StateMachine, ()>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -548,6 +556,23 @@ pub struct PeerBeacon {
     pub address: SocketAddr,
     /// Last beacon received from peer
     pub beacon: CheckpointBeacon,
+}
+
+/// Get number of inbound and outbound sessions
+#[derive(Clone, Debug)]
+pub struct NumSessions;
+
+impl Message for NumSessions {
+    type Result = Result<NumSessionsResult, ()>;
+}
+
+/// Number of inbound and outbound sessions
+#[derive(Debug, Default)]
+pub struct NumSessionsResult {
+    /// Inbound
+    pub inbound: usize,
+    /// Outbound
+    pub outbound: usize,
 }
 
 // JsonRpcServer messages (notifications)
