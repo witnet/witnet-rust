@@ -42,6 +42,7 @@ pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
 ) -> Result<Vec<u8>> {
+    log::debug!("run_aggregation: {:?}", radon_types_vec);
     let radon_script = unpack_radon_script(aggregate.script.as_slice())?;
 
     let radon_array = RadonArray::from(radon_types_vec);

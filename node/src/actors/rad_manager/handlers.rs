@@ -16,7 +16,13 @@ impl Handler<ResolveRA> for RadManager {
 
         let retrieve_responses = retrieve_scripts
             .iter()
-            .filter_map(|retrieve| rad::run_retrieval(retrieve).ok())
+            .filter_map(|retrieve| {
+                rad::run_retrieval(retrieve)
+                    .map_err(|err| {
+                        log::error!("{:?}", err);
+                    })
+                    .ok()
+            })
             .collect();
 
         rad::run_aggregation(retrieve_responses, &aggregate_script)
