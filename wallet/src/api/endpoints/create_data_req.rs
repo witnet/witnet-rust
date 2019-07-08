@@ -10,3 +10,5 @@ pub struct CreateDataReqRequest {
     pub consensus: wallet::RADConsensusArgs,
     pub deliver: Vec<wallet::RADDeliverArgs>,
 }
+
+pub type CreateDataReqResponse = ();

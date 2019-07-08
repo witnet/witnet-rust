@@ -1,6 +1,7 @@
 mod close_session;
 mod create_data_req;
 mod create_mnemonics;
+mod create_vtt;
 mod create_wallet;
 mod forward;
 mod generate_address;
@@ -11,6 +12,7 @@ mod lock_wallet;
 mod notification;
 mod run_rad_req;
 mod send_data_req;
+mod send_transaction;
 mod send_vtt;
 mod stop;
 mod subscribe;
