@@ -144,6 +144,49 @@ Response:
 {"jsonrpc":"2.0","result":{"DataRequest":{"backup_witnesses":0,"commit_fee":0,"data_request":{"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"}],"not_before":0,"retrieve":[{"kind":"HTTP-GET","script":[0],"url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}]},"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"reveal_fee":0,"tally_fee":0,"time_lock":0,"value":0,"witnesses":0}},"id":"1"}
 ```
 
+#### buildDataRequest
+Create and broadcast a data request transaction with the given `DataRequestOutput` and fee.
+
+Returns the transaction `Hash`, or an error.
+
+Example:
+
+```
+{"jsonrpc":"2.0","method":"buildDataRequest","id":1,"params":{"dro":{"data_request":{"not_before":0,"retrieve":[{"kind":"HTTP-GET","url":"https://api.coindesk.com/v1/bpi/currentprice.json","script":[152, 83, 204, 132, 146, 1, 163, 98, 112, 105, 204, 132, 146, 1, 163, 85, 83, 68, 204, 132, 146, 1, 170, 114, 97, 116, 101, 95, 102, 108, 111, 97, 116, 204, 130]}],"aggregate":{"script":[145,  146,  102,  32]},"consensus":{"script":[145,  146, 102,  32]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"},{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l1awcw/"}]},"value":1002,"witnesses":2,"backup_witnesses":1,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"time_lock":0},"fee":10}}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":"d0843d21f5b4185741c0bf1f9c05432079ea901f28516578dd2f5cc58f98b443","id":1}
+```
+
+#### buildValueTransfer
+Create and broadcast a value transfer transaction with the given list of `ValueTransferOutput`s and fee.
+
+A `ValueTransferOutput` is defined as
+
+```
+{
+  "pkh": "f4536182389999071632d5f8dbf5326f3464617a",
+  "value: 1000,
+}
+```
+
+Returns the transaction `Hash`, or an error.
+
+Example:
+
+```
+{"jsonrpc":"2.0","method":"buildValueTransfer","id":1,"params":{"vto":[{"pkh":"f4536182389999071632d5f8dbf5326f3464617a","value":1000}],"fee":10}}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":"ab556296e88ca53a6a8a0a71dcc2acc8589a576aa3fd4c9fd33a3e9dd62c64ac","id":1}
+```
+
 #### status
 Returns an object containing some information about the node:
 
