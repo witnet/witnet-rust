@@ -144,6 +144,37 @@ Response:
 {"jsonrpc":"2.0","result":{"DataRequest":{"backup_witnesses":0,"commit_fee":0,"data_request":{"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"}],"not_before":0,"retrieve":[{"kind":"HTTP-GET","script":[0],"url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}]},"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"reveal_fee":0,"tally_fee":0,"time_lock":0,"value":0,"witnesses":0}},"id":"1"}
 ```
 
+#### status
+Returns an object containing some information about the node:
+
+* Chain beacon (current epoch and hash of the previous block)
+* Number of inbound and outbound peers
+* Is the node fully synchronized?
+
+```json
+{
+  "chainBeacon": {
+    "checkpoint": 576448,
+    "hash_prev_block":"eb1a106824538b226454423d7e988b0ec72ce74b9b28f5d0252de2381d41d405"
+  },
+  "numPeersInbound": 1,
+  "numPeersOutbound": 1,
+  "synchronized": true
+}
+```
+
+Example:
+
+```
+{"jsonrpc":"2.0","id":1,"method":"status"}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":{"chainBeacon":{"checkpoint":576448,"hash_prev_block":"eb1a106824538b226454423d7e988b0ec72ce74b9b28f5d0252de2381d41d405"},"numPeersInbound":1,"numPeersOutbound":1,"synchronized":true},"id":1}
+```
+
 [json_rpc_server]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/server.rs
 [noders]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/node.rs
 [json_rpc_methods]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/json_rpc_methods.rs
