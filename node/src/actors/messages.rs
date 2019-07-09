@@ -151,7 +151,7 @@ pub struct BuildVtt {
 }
 
 impl Message for BuildVtt {
-    type Result = ();
+    type Result = Result<Hash, failure::Error>;
 }
 
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`
@@ -164,7 +164,7 @@ pub struct BuildDrt {
 }
 
 impl Message for BuildDrt {
-    type Result = ();
+    type Result = Result<Hash, failure::Error>;
 }
 
 /// Get ChainManager State (WaitingConsensus, Synchronizing, Synced)

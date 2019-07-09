@@ -83,10 +83,13 @@ pub enum ChainManagerError {
     /// StorageError
     #[fail(display = "ChainManager is not ready yet")]
     ChainNotReady,
+    /// The node is not in Synced state
+    #[fail(display = "The node is not yet synchronized")]
+    NotSynced,
 }
 
 /// State Machine
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum StateMachine {
     /// First state, ChainManager is waiting to consensus between its peers
     WaitingConsensus,

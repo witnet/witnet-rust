@@ -49,10 +49,10 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
     io.add_method("getBlock", |params: Params| get_block(params.parse()));
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
     io.add_method("buildDataRequest", |params: Params| {
-        build_data_request(params.parse()?)
+        build_data_request(params.parse())
     });
     io.add_method("buildValueTransfer", |params: Params| {
-        build_value_transfer(params.parse()?)
+        build_value_transfer(params.parse())
     });
     io.add_method("status", |_params: Params| status());
 
@@ -168,6 +168,14 @@ fn internal_error<T: std::fmt::Debug>(e: T) -> jsonrpc_core::Error {
     jsonrpc_core::Error {
         code: jsonrpc_core::ErrorCode::InternalError,
         message: format!("{:?}", e),
+        data: None,
+    }
+}
+
+fn internal_error_s<T: std::fmt::Display>(e: T) -> jsonrpc_core::Error {
+    jsonrpc_core::Error {
+        code: jsonrpc_core::ErrorCode::InternalError,
+        message: format!("{}", e),
         data: None,
     }
 }
@@ -419,23 +427,63 @@ pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> Jso
 }
 */
 /// Build data request transaction
-pub fn build_data_request(msg: BuildDrt) -> JsonRpcResult {
+pub fn build_data_request(params: Result<BuildDrt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
     debug!("Creating data request from JSON-RPC.");
 
-    ChainManager::from_registry().do_send(msg);
-
-    // TODO: return a meaningful value
-    Ok(Value::Bool(true))
+    match params {
+        Ok(msg) => Box::new(
+            ChainManager::from_registry()
+                .send(msg)
+                .then(|res| match res {
+                    Ok(Ok(hash)) => match serde_json::to_value(hash) {
+                        Ok(x) => Box::new(futures::finished(x)),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Box::new(futures::failed(err))
+                        }
+                    },
+                    Ok(Err(e)) => {
+                        let err = internal_error_s(e);
+                        Box::new(futures::failed(err))
+                    }
+                    Err(e) => {
+                        let err = internal_error_s(e);
+                        Box::new(futures::failed(err))
+                    }
+                }),
+        ),
+        Err(err) => Box::new(futures::failed(err)),
+    }
 }
 
 /// Build value transfer transaction
-pub fn build_value_transfer(msg: BuildVtt) -> JsonRpcResult {
+pub fn build_value_transfer(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
     debug!("Creating data request from JSON-RPC.");
 
-    ChainManager::from_registry().do_send(msg);
-
-    // TODO: return a meaningful value
-    Ok(Value::Bool(true))
+    match params {
+        Ok(msg) => Box::new(
+            ChainManager::from_registry()
+                .send(msg)
+                .then(|res| match res {
+                    Ok(Ok(hash)) => match serde_json::to_value(hash) {
+                        Ok(x) => Box::new(futures::finished(x)),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Box::new(futures::failed(err))
+                        }
+                    },
+                    Ok(Err(e)) => {
+                        let err = internal_error_s(e);
+                        Box::new(futures::failed(err))
+                    }
+                    Err(e) => {
+                        let err = internal_error_s(e);
+                        Box::new(futures::failed(err))
+                    }
+                }),
+        ),
+        Err(err) => Box::new(futures::failed(err)),
+    }
 }
 
 /// Node status

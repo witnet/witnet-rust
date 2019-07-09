@@ -693,9 +693,12 @@ impl Handler<PeersBeacons> for ChainManager {
 }
 
 impl Handler<BuildVtt> for ChainManager {
-    type Result = <BuildVtt as Message>::Result;
+    type Result = ResponseActFuture<Self, Hash, failure::Error>;
 
-    fn handle(&mut self, msg: BuildVtt, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: BuildVtt, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Box::new(actix::fut::err(ChainManagerError::NotSynced.into()));
+        }
         match transaction_factory::build_vtt(
             msg.vto,
             msg.fee,
@@ -703,32 +706,42 @@ impl Handler<BuildVtt> for ChainManager {
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
         ) {
-            Err(e) => log::error!("{}", e),
+            Err(e) => {
+                log::error!("{}", e);
+                Box::new(actix::fut::err(e.into()))
+            }
             Ok(vtt) => {
-                transaction_factory::sign_transaction(&vtt, vtt.inputs.len())
+                let fut = transaction_factory::sign_transaction(&vtt, vtt.inputs.len())
                     .into_actor(self)
-                    .then(|s, _act, ctx| {
-                        match s {
-                            Ok(signatures) => {
-                                let transaction =
-                                    Transaction::ValueTransfer(VTTransaction::new(vtt, signatures));
-                                ctx.notify(AddTransaction { transaction });
-                            }
-                            Err(e) => log::error!("{}", e),
-                        }
+                    .then(|s, _act, ctx| match s {
+                        Ok(signatures) => {
+                            let transaction =
+                                Transaction::ValueTransfer(VTTransaction::new(vtt, signatures));
+                            let tx_hash = transaction.hash();
+                            ctx.notify(AddTransaction { transaction });
 
-                        actix::fut::ok(())
-                    })
-                    .wait(ctx);
+                            actix::fut::ok(tx_hash)
+                        }
+                        Err(e) => {
+                            log::error!("{}", e);
+
+                            actix::fut::err(e)
+                        }
+                    });
+
+                Box::new(fut)
             }
         }
     }
 }
 
 impl Handler<BuildDrt> for ChainManager {
-    type Result = <BuildDrt as Message>::Result;
+    type Result = ResponseActFuture<Self, Hash, failure::Error>;
 
-    fn handle(&mut self, msg: BuildDrt, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: BuildDrt, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Box::new(actix::fut::err(ChainManagerError::NotSynced.into()));
+        }
         match transaction_factory::build_drt(
             msg.dro,
             msg.fee,
@@ -736,24 +749,31 @@ impl Handler<BuildDrt> for ChainManager {
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
         ) {
-            Err(e) => log::error!("{}", e),
+            Err(e) => {
+                log::error!("{}", e);
+                Box::new(actix::fut::err(e.into()))
+            }
             Ok(drt) => {
                 log::debug!("Created vtt:\n{:?}", drt);
-                transaction_factory::sign_transaction(&drt, drt.inputs.len())
+                let fut = transaction_factory::sign_transaction(&drt, drt.inputs.len())
                     .into_actor(self)
-                    .then(|s, _act, ctx| {
-                        match s {
-                            Ok(signatures) => {
-                                let transaction =
-                                    Transaction::DataRequest(DRTransaction::new(drt, signatures));
-                                ctx.notify(AddTransaction { transaction });
-                            }
-                            Err(e) => log::error!("{}", e),
-                        }
+                    .then(|s, _act, ctx| match s {
+                        Ok(signatures) => {
+                            let transaction =
+                                Transaction::DataRequest(DRTransaction::new(drt, signatures));
+                            let tx_hash = transaction.hash();
+                            ctx.notify(AddTransaction { transaction });
 
-                        actix::fut::ok(())
-                    })
-                    .wait(ctx);
+                            actix::fut::ok(tx_hash)
+                        }
+                        Err(e) => {
+                            log::error!("{}", e);
+
+                            actix::fut::err(e)
+                        }
+                    });
+
+                Box::new(fut)
             }
         }
     }
