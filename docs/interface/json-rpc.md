@@ -155,7 +155,7 @@ Returns an object containing some information about the node:
 {
   "chainBeacon": {
     "checkpoint": 576448,
-    "hash_prev_block":"eb1a106824538b226454423d7e988b0ec72ce74b9b28f5d0252de2381d41d405"
+    "hashPrevBlock":"eb1a106824538b226454423d7e988b0ec72ce74b9b28f5d0252de2381d41d405"
   },
   "numPeersInbound": 1,
   "numPeersOutbound": 1,
@@ -172,7 +172,7 @@ Example:
 Response:
 
 ```
-{"jsonrpc":"2.0","result":{"chainBeacon":{"checkpoint":576448,"hash_prev_block":"eb1a106824538b226454423d7e988b0ec72ce74b9b28f5d0252de2381d41d405"},"numPeersInbound":1,"numPeersOutbound":1,"synchronized":true},"id":1}
+{"jsonrpc":"2.0","result":{"chainBeacon":{"checkpoint":576448,"hashPrevBlock":"eb1a106824538b226454423d7e988b0ec72ce74b9b28f5d0252de2381d41d405"},"numPeersInbound":1,"numPeersOutbound":1,"synchronized":true},"id":1}
 ```
 
 [json_rpc_server]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/server.rs
