@@ -1,15 +1,20 @@
-use std::time::Duration;
+use log;
+use std::{net::SocketAddr, time::Duration};
 
-use actix::prelude::*;
 use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, SystemService, WrapFuture,
+    prelude::*, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised,
+    SystemService, WrapFuture,
 };
 
-use log::{debug, error};
-
-use crate::actors::storage_keys::PEERS_KEY;
-use crate::storage_mngr;
+use crate::{
+    actors::{
+        connections_manager::ConnectionsManager, messages::OutboundTcpConnect,
+        storage_keys::PEERS_KEY,
+    },
+    storage_mngr,
+};
 use witnet_p2p::peers::Peers;
+use witnet_util::timestamp::get_timestamp;
 
 // Internal Actor implementation for PeersManager
 mod actor;
@@ -46,11 +51,11 @@ impl PeersManager {
             storage_mngr::put(&PEERS_KEY, &act.peers)
                 .into_actor(act)
                 .and_then(|_, _, _| {
-                    debug!("PeersManager successfully persisted peers to storage");
+                    log::debug!("PeersManager successfully persisted peers to storage");
                     fut::ok(())
                 })
                 .map_err(|err, _, _| {
-                    error!("Peers manager persist peers to storage failed: {}", err)
+                    log::error!("Peers manager persist peers to storage failed: {}", err)
                 })
                 .spawn(ctx);
 
@@ -60,6 +65,42 @@ impl PeersManager {
 
     fn import_peers(&mut self, peers: Peers) {
         self.peers = peers;
+    }
+
+    /// Method to try a peer before to insert in the tried addresses bucket
+    pub fn try_peer(&mut self, ctx: &mut Context<Self>, address: SocketAddr) {
+        let connections_manager_addr = System::current().registry().get::<ConnectionsManager>();
+        let current_ts = get_timestamp();
+
+        let index = self.peers.tried_bucket_index(&address);
+        match self.peers.tried_bucket_get_timestamp(index) {
+            None => {
+                // Empty slot, try new peer
+                log::debug!("Trying new address {} ", address);
+                connections_manager_addr.do_send(OutboundTcpConnect { address });
+            }
+            Some(ts) if current_ts - ts > self.bucketing_update_period => {
+                // No empty slot, first try the old one
+                let old_address = self.peers.tried_bucket_get_address(index).unwrap();
+
+                // Try a connection with the old address
+                log::debug!("Trying old address {} ", address);
+                connections_manager_addr.do_send(OutboundTcpConnect {
+                    address: old_address,
+                });
+
+                // Remove from tried bucket (in case of old address is ok, it will be
+                // added again, in the other case the slot will be free to accept the new one)
+                self.peers.remove_from_tried(&[old_address]);
+
+                // Try the new address after 2 times a handshake_timeout
+                ctx.run_later(self.handshake_timeout * 2, move |act, ctx| {
+                    act.try_peer(ctx, address)
+                });
+            }
+            // Case peer updated recently ( do nothing )
+            _ => {}
+        }
     }
 }
 

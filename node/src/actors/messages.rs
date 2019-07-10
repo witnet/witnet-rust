@@ -344,16 +344,6 @@ impl Message for AddConsolidatedPeer {
     type Result = PeersSocketAddrResult;
 }
 
-/// Message to request that a peer would be tested
-pub struct TryPeer {
-    /// Address to check
-    pub address: SocketAddr,
-}
-
-impl Message for TryPeer {
-    type Result = Result<(), failure::Error>;
-}
-
 /// Message to remove one or more peer addresses from the list
 pub struct RemovePeers {
     /// Address of the peer
