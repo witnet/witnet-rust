@@ -18,19 +18,28 @@ impl Actor for PeersManager {
         // Send message to config manager and process response
         config_mngr::get()
             .into_actor(self)
-            .and_then(|config, act, ctx| {
+            .and_then(|config, mut act, ctx| {
                 // Get known peers
                 let known_peers: Vec<_> = config.connections.known_peers.iter().cloned().collect();
 
                 // Get storage peers period
                 let storage_peers_period = config.connections.storage_peers_period;
 
+                // Get server address
+                let server_addr = config.connections.server_addr;
+
+                // FIXME(#753): Get period from config
+                act.bucketing_update_period = 300;
+
+                // Get handshake time_out
+                act.handshake_timeout = config.connections.handshake_timeout;
+
                 // Add all peers
                 info!(
                     "Adding the following peer addresses from config: {:?}",
                     known_peers
                 );
-                match act.peers.add(known_peers) {
+                match act.peers.add_to_new(known_peers, server_addr) {
                     Ok(_duplicated_peers) => {}
                     Err(e) => error!("Error when adding peer addresses from config: {}", e),
                 }
@@ -43,17 +52,7 @@ impl Actor for PeersManager {
                         if let Some(peers_from_storage) = peers_from_storage {
                             // Add all the peers from storage
                             // The add method handles duplicates by overwriting the old values
-                            let peers = peers_from_storage.get_all().unwrap();
-                            info!(
-                                "Adding the following peer addresses from storage: {:?}",
-                                peers
-                            );
-                            match act.peers.add(peers) {
-                                Ok(_duplicated_peers) => {}
-                                Err(e) => {
-                                    error!("Error when adding peer addresses from storage: {}", e);
-                                }
-                            }
+                            act.import_peers(peers_from_storage);
                         }
 
                         fut::ok(())

@@ -323,12 +323,35 @@ pub type PeersSocketAddrsResult = Result<Vec<SocketAddr>, failure::Error>;
 
 /// Message to add one or more peer addresses to the list
 pub struct AddPeers {
-    /// Address of the peer
+    /// Addresses of the peer
     pub addresses: Vec<SocketAddr>,
+
+    /// Source address of the peer
+    pub src_address: SocketAddr,
 }
 
 impl Message for AddPeers {
     type Result = PeersSocketAddrsResult;
+}
+
+/// Message to add one peer address to the tried addresses bucket
+pub struct AddConsolidatedPeer {
+    /// Tried addresses to add
+    pub address: SocketAddr,
+}
+
+impl Message for AddConsolidatedPeer {
+    type Result = PeersSocketAddrResult;
+}
+
+/// Message to request that a peer would be tested
+pub struct TryPeer {
+    /// Address to check
+    pub address: SocketAddr,
+}
+
+impl Message for TryPeer {
+    type Result = Result<(), failure::Error>;
 }
 
 /// Message to remove one or more peer addresses from the list

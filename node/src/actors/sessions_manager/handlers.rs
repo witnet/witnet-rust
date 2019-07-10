@@ -14,8 +14,8 @@ use super::SessionsManager;
 use crate::actors::{
     codec::P2PCodec,
     messages::{
-        AddPeers, Anycast, Broadcast, Consolidate, Create, EpochNotification, NumSessions,
-        NumSessionsResult, PeerBeacon, Register, SessionsUnitResult, Unregister,
+        AddConsolidatedPeer, Anycast, Broadcast, Consolidate, Create, EpochNotification,
+        NumSessions, NumSessionsResult, PeerBeacon, Register, SessionsUnitResult, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -129,12 +129,10 @@ impl Handler<Consolidate> for SessionsManager {
         // Get peers manager address
         let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
-        // Send AddPeers message to the peers manager
-        // If the session is outbound, this won't give any new information (except the timestamp
-        // being updated)
-        // If the session is inbound, this might be a valid information to get a new potential peer
-        peers_manager_addr.do_send(AddPeers {
-            addresses: vec![msg.potential_new_peer],
+        // Send AddConsolidatedPeer message to the peers manager
+        // Try to add this potential peer in the tried addresses bucket
+        peers_manager_addr.do_send(AddConsolidatedPeer {
+            address: msg.potential_new_peer,
         });
 
         match &result {

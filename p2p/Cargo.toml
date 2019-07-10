@@ -10,6 +10,7 @@ edition = "2018"
 failure = "0.1.5"
 rand = "0.6.5"
 witnet_util = { path = "../util" }
+witnet_crypto = { path = "../crypto" }
 
 [dependencies.serde]
 features = ["derive"]

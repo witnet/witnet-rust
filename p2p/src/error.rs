@@ -18,3 +18,14 @@ pub enum SessionsError {
     #[fail(display = "Is not an outbound consolidated peer")]
     NotOutboundConsolidatedPeer,
 }
+
+/// Sessions Errors under different operations
+#[derive(Debug, PartialEq, Fail)]
+pub enum PeersError {
+    /// Peer not found. Empty buckets
+    #[fail(display = "Peer not found. Empty buckets")]
+    EmptyBuckets,
+    /// Peer not found. Empty slot
+    #[fail(display = "Peer not found. Empty slot")]
+    EmptySlot,
+}

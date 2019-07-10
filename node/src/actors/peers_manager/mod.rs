@@ -32,6 +32,10 @@ mod handlers;
 pub struct PeersManager {
     /// Known peers
     peers: Peers,
+    /// Period to consider if a peer is updated
+    pub bucketing_update_period: i64,
+    /// Timeout for handshake
+    pub handshake_timeout: Duration,
 }
 
 impl PeersManager {
@@ -52,6 +56,10 @@ impl PeersManager {
 
             act.persist_peers(ctx, storage_peers_period);
         });
+    }
+
+    fn import_peers(&mut self, peers: Peers) {
+        self.peers = peers;
     }
 }
 

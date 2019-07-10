@@ -30,9 +30,8 @@ impl Actor for Session {
                     "Handshake timeout expired, disconnecting session with peer {:?}",
                     act.remote_addr
                 );
-                if let SessionStatus::Unconsolidated = act.status {
-                    ctx.stop();
-                }
+
+                ctx.stop();
             }
         });
 

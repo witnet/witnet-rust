@@ -35,6 +35,7 @@ use crate::actors::{
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
+use std::net::SocketAddr;
 use witnet_util::timestamp::get_timestamp;
 
 /// Implement WriteHandler for Session
@@ -120,6 +121,8 @@ impl StreamHandler<BytesMut, Error> for Session {
                         for msg in msgs {
                             self.send_message(msg);
                         }
+
+                        // TODO: It is needed?
                         try_consolidate_session(self, ctx);
                     }
                     // Handler Verack message
@@ -136,7 +139,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                     }
                     // Handle Peers message
                     (_, SessionStatus::Consolidated, Command::Peers(Peers { peers })) => {
-                        peer_discovery_peers(&peers);
+                        peer_discovery_peers(&peers, self.remote_addr);
                     }
                     ///////////////////////
                     // INVENTORY_REQUEST //
@@ -383,7 +386,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
 }
 
 /// Function called when Peers message is received
-fn peer_discovery_peers(peers: &[Address]) {
+fn peer_discovery_peers(peers: &[Address], src_address: SocketAddr) {
     // Get peers manager address
     let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
@@ -392,8 +395,8 @@ fn peer_discovery_peers(peers: &[Address]) {
 
     // Send AddPeers message to the peers manager
     peers_manager_addr.do_send(AddPeers {
-        // TODO: convert Vec<Address> to Vec<SocketAddr>
         addresses,
+        src_address,
     });
 }
 
