@@ -5,7 +5,10 @@ use ethabi::Bytes;
 use futures::sink::Sink;
 use log::*;
 use serde_json::json;
+use std::process;
+use std::time::Duration;
 use std::{sync::Arc, time};
+use tokio::prelude::FutureExt;
 use tokio::sync::mpsc;
 use web3::{
     contract,
@@ -17,8 +20,10 @@ use witnet_data_structures::{
     chain::{Block, DataRequestOutput, Hash, Hashable},
     proto::ProtobufConvert,
 };
-use witnet_ethereum_bridge::config::{read_config, Config};
-use witnet_ethereum_bridge::eth::{read_u256_from_event_log, EthState, WbiEvent};
+use witnet_ethereum_bridge::{
+    config::{read_config, Config},
+    eth::{read_u256_from_event_log, EthState, WbiEvent},
+};
 
 fn eth_event_stream(
     config: Arc<Config>,
@@ -71,7 +76,10 @@ fn eth_event_stream(
 
     web3.eth_filter()
         .create_logs_filter(post_dr_filter)
-        .map_err(|e| panic!("Failed to create logs filter: {}", e))
+        .map_err(|e| {
+            error!("Failed to create logs filter: {}", e);
+            process::exit(1);
+        })
         .and_then(move |filter| {
             debug!("Created filter: {:?}", filter);
             filter
@@ -128,7 +136,8 @@ fn eth_event_stream(
                                 )
                             }
                             _ => {
-                                panic!("Received unknown ethereum event");
+                                warn!("Received unknown ethereum event");
+                                Box::new(futures::finished(()))
                             }
                         };
 
@@ -146,36 +155,68 @@ fn witnet_block_stream(
     impl Future<Item = (), Error = ()>,
 ) {
     let witnet_addr = config.witnet_jsonrpc_addr.to_string();
+    let witnet_addr1 = witnet_addr.clone();
+    let witnet_addr2 = witnet_addr.clone();
     // Important: the handle cannot be dropped, otherwise the client stops
     // processing events
     let (handle, witnet_client) =
         async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
-    let witnet_subscription_id_value = witnet_client
-        .execute("witnet_subscribe", json!(["newBlocks"]))
-        .wait()
-        .unwrap();
-    let witnet_subscription_id: String = match witnet_subscription_id_value {
-        serde_json::Value::String(s) => s,
-        _ => panic!("Not a string"),
-    };
-    info!(
-        "Subscribed to witnet newBlocks with subscription id \"{}\"",
-        witnet_subscription_id
-    );
+    let witnet_client1 = witnet_client.clone();
 
     let fut = witnet_client
-        .subscribe(&witnet_subscription_id.into())
-        .map_err(|e| error!("witnet notification error = {:?}", e))
-        .and_then(move |value| {
-            let tx1 = tx.clone();
-            // TODO: get current epoch to distinguish between old blocks that are sent
-            // to us while synchronizing and new blocks
-            let block = serde_json::from_value::<Block>(value).unwrap();
-            debug!("Got witnet block: {:?}", block);
-            tx1.send(ActorMessage::NewWitnetBlock(Box::new(block)))
-                .map_err(|_| ())
+        .execute("witnet_subscribe", json!(["newBlocks"]))
+        .timeout(Duration::from_secs(1))
+        .map_err(move |e| {
+            if e.is_elapsed() {
+                error!(
+                    "Timeout when trying to connect to witnet node at {}",
+                    witnet_addr2
+                );
+                error!("Is the witnet node running?");
+            } else if e.is_inner() {
+                error!(
+                    "Error connecting to witnet node at {}: {:?}",
+                    witnet_addr1,
+                    e.into_inner()
+                );
+            } else {
+                error!("{:?}", e);
+            }
         })
-        .for_each(|_| Ok(()));
+        .then(|witnet_subscription_id_value| {
+            // Panic if the subscription wasn't successful
+            let witnet_subscription_id = match witnet_subscription_id_value {
+                Ok(serde_json::Value::String(s)) => s,
+                Ok(x) => {
+                    error!("Witnet subscription id must be a string, is {:?}", x);
+                    process::exit(1);
+                }
+                Err(_) => {
+                    error!("Failed to subscribe to newBlocks from witnet node");
+                    process::exit(1);
+                }
+            };
+            info!(
+                "Subscribed to witnet newBlocks with subscription id \"{}\"",
+                witnet_subscription_id
+            );
+
+            let witnet_client = witnet_client1;
+
+            witnet_client
+                .subscribe(&witnet_subscription_id.into())
+                .map_err(|e| error!("witnet notification error = {:?}", e))
+                .and_then(move |value| {
+                    let tx1 = tx.clone();
+                    // TODO: get current epoch to distinguish between old blocks that are sent
+                    // to us while synchronizing and new blocks
+                    let block = serde_json::from_value::<Block>(value).unwrap();
+                    debug!("Got witnet block: {:?}", block);
+                    tx1.send(ActorMessage::NewWitnetBlock(Box::new(block)))
+                        .map_err(|_| ())
+                })
+                .for_each(|_| Ok(()))
+        });
 
     (handle, fut)
 }
@@ -480,8 +521,21 @@ fn main_actor(
 
 fn main() {
     init_logger();
-    let config = Arc::new(read_config().unwrap());
-    let eth_state = Arc::new(EthState::create(&config).unwrap());
+    let config = Arc::new(match read_config() {
+        Ok(x) => x,
+        Err(e) => {
+            error!("Error reading configuration file: {}", e);
+            process::exit(1);
+        }
+    });
+    let eth_state = Arc::new(match EthState::create(&config) {
+        Ok(x) => x,
+        Err(()) => {
+            error!("Error when trying to initialize ethereum related stuff");
+            error!("Is the ethereum node running at {}?", config.eth_client_url);
+            process::exit(1);
+        }
+    });
 
     let (tx1, rx) = mpsc::channel(16);
     let (ptx, prx) = mpsc::channel(16);
