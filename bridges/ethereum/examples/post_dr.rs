@@ -1,8 +1,5 @@
 use log::*;
-use serde::{Deserialize, Serialize};
 use std::{
-    net::SocketAddr,
-    path::Path,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -10,41 +7,12 @@ use std::{
 use web3::types::U256;
 use web3::{
     contract,
-    contract::Contract,
     futures::{future, Future},
-    types::H160,
 };
 use witnet_data_structures::chain::DataRequestOutput;
 use witnet_data_structures::proto::ProtobufConvert;
-
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Config {
-    witnet_jsonrpc_addr: SocketAddr,
-    eth_client_url: String,
-    wbi_contract_addr: H160,
-    block_relay_contract_addr: H160,
-    eth_account: H160,
-}
-
-/// Load configuration from a file written in Toml format.
-fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, toml::de::Error> {
-    use std::fs::File;
-    use std::io::Read;
-
-    let f = file.as_ref();
-    let mut contents = String::new();
-
-    debug!("Loading config from `{}`", f.to_string_lossy());
-
-    let mut file = File::open(file).unwrap();
-    file.read_to_string(&mut contents).unwrap();
-    toml::from_str(&contents)
-}
-
-fn read_config() -> Config {
-    from_file("witnet_ethereum_bridge.toml").unwrap()
-}
+use witnet_ethereum_bridge::config::{read_config, Config};
+use witnet_ethereum_bridge::eth::EthState;
 
 fn data_request_example() -> DataRequestOutput {
     let start = SystemTime::now();
@@ -62,27 +30,18 @@ fn data_request_example() -> DataRequestOutput {
 }
 
 fn eth_event_stream(
-    config: Arc<Config>,
-    web3: web3::Web3<web3::transports::Http>,
+    _config: Arc<Config>,
+    eth_state: Arc<EthState>,
 ) -> impl Future<Item = (), Error = ()> {
-    // Example from
-    // https://github.com/tomusdrw/rust-web3/blob/master/examples/simple_log_filter.rs
-
-    let accounts = web3.eth().accounts().wait().unwrap();
-    debug!("Web3 accounts: {:?}", accounts);
-
-    // Why read files at runtime when you can read files at compile time
-    let contract_abi_json: &[u8] = include_bytes!("../wbi_abi.json");
-    let contract_abi = ethabi::Contract::load(contract_abi_json).unwrap();
-    let contract_address = config.wbi_contract_addr;
-    let contract = Contract::new(web3.eth(), contract_address, contract_abi.clone());
+    let accounts = eth_state.accounts.clone();
+    let wbi_contract = eth_state.wbi_contract.clone();
 
     let data_request_output = data_request_example();
 
     let tally_value = U256::from_dec_str("50000000000000000").unwrap();
     let data_request_bytes = data_request_output.to_pb_bytes().unwrap();
 
-    contract
+    wbi_contract
         .call(
             "postDataRequest",
             (data_request_bytes, tally_value),
@@ -114,11 +73,10 @@ fn init_logger() {
 
 fn main() {
     init_logger();
-    let config = Arc::new(read_config());
-    let (_eloop, web3_http) = web3::transports::Http::new(&config.eth_client_url).unwrap();
-    let web3 = web3::Web3::new(web3_http);
+    let config = Arc::new(read_config().unwrap());
+    let eth_state = Arc::new(EthState::create(&config).unwrap());
 
-    let ees = eth_event_stream(Arc::clone(&config), web3);
+    let ees = eth_event_stream(Arc::clone(&config), Arc::clone(&eth_state));
 
     tokio::run(future::ok(()).map(move |_| {
         tokio::spawn(ees);

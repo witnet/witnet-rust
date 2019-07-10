@@ -1,105 +1,42 @@
+//! Witnet <> Ethereum bridge
 use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
 use bimap::BiMap;
-use ethabi::{Bytes, Token};
+use ethabi::Bytes;
 use futures::sink::Sink;
 use log::*;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{net::SocketAddr, path::Path, sync::Arc, time};
+use std::{sync::Arc, time};
 use tokio::sync::mpsc;
 use web3::{
     contract,
-    contract::Contract,
     futures::{future, Future},
+    types::FilterBuilder,
     types::U256,
-    types::{FilterBuilder, H160},
 };
 use witnet_data_structures::{
     chain::{Block, DataRequestOutput, Hash, Hashable},
     proto::ProtobufConvert,
 };
+use witnet_ethereum_bridge::config::{read_config, Config};
+use witnet_ethereum_bridge::eth::{read_u256_from_event_log, EthState, WbiEvent};
 
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Config {
-    witnet_jsonrpc_addr: SocketAddr,
-    eth_client_url: String,
-    wbi_contract_addr: H160,
-    block_relay_contract_addr: H160,
-    eth_account: H160,
-}
-
-/// Load configuration from a file written in Toml format.
-fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, toml::de::Error> {
-    use std::fs::File;
-    use std::io::Read;
-
-    let f = file.as_ref();
-    let mut contents = String::new();
-
-    debug!("Loading config from `{}`", f.to_string_lossy());
-
-    let mut file = File::open(file).unwrap();
-    file.read_to_string(&mut contents).unwrap();
-    toml::from_str(&contents)
-}
-
-fn read_config() -> Config {
-    from_file("witnet_ethereum_bridge.toml").unwrap()
-}
-
-fn eth_event_stream<'a>(
+fn eth_event_stream(
     config: Arc<Config>,
-    web3: Arc<web3::Web3<web3::transports::Http>>,
+    eth_state: Arc<EthState>,
     tx: mpsc::Sender<ActorMessage>,
-) -> impl Future<Item = (), Error = ()> + 'a {
-    // Example from
-    // https://github.com/tomusdrw/rust-web3/blob/master/examples/simple_log_filter.rs
-
-    let accounts = web3.eth().accounts().wait().unwrap();
-    debug!("Web3 accounts: {:?}", accounts);
-    let account0 = accounts[0];
-
-    // Why read files at runtime when you can read files at compile time
-    let contract_abi_json: &[u8] = include_bytes!("../wbi_abi.json");
-    let contract_abi = ethabi::Contract::load(contract_abi_json).unwrap();
+    tx4: mpsc::Sender<PostActorMessage>,
+) -> impl Future<Item = (), Error = ()> {
+    let web3 = &eth_state.web3;
+    let accounts = eth_state.accounts.clone();
     let contract_address = config.wbi_contract_addr;
-    let contract = Contract::new(web3.eth(), contract_address, contract_abi.clone());
 
-    //debug!("WBI events: {:?}", contract_abi.events);
-    let post_dr_event = contract_abi.event("PostDataRequest").unwrap().clone();
-    let inclusion_dr_event = contract_abi.event("InclusionDataRequest").unwrap().clone();
-    let post_tally_event = contract_abi.event("PostResult").unwrap().clone();
-
-    let post_dr_event_sig = post_dr_event.signature();
-    let inclusion_dr_event_sig = inclusion_dr_event.signature();
-    let post_tally_event_sig = post_tally_event.signature();
-
-    /*
-    let post_dr_filter = FilterBuilder::default()
-        .from_block(0.into())
-        //.address(vec![contract_address])
-        .topic_filter(
-                post_dr_event.filter(RawTopicFilter::default()).unwrap()
-
-        )
-        .build();
-    */
-
-    // Example call
-    /*
-    let call_future = contract
-        .call("hello", (), accounts[0], Options::default())
-        .then(|tx| {
-            debug!("got tx: {:?}", tx);
-            Result::<(), ()>::Ok(())
-        });
-    */
+    let post_dr_event_sig = eth_state.post_dr_event_sig;
+    let inclusion_dr_event_sig = eth_state.inclusion_dr_event_sig;
+    let post_tally_event_sig = eth_state.post_tally_event_sig;
 
     info!(
         "Subscribing to contract {:?} topic {:?}",
-        contract_address,
-        post_dr_event.signature()
+        contract_address, post_dr_event_sig
     );
     let post_dr_filter = FilterBuilder::default()
         .from_block(0.into())
@@ -110,171 +47,95 @@ fn eth_event_stream<'a>(
                 inclusion_dr_event_sig,
                 post_tally_event_sig,
             ]),
-            None, //Some(vec![inclusion_dr_event.signature()]),
-            None, //Some(vec![post_tally_event.signature()]),
+            None,
+            None,
             None,
         )
         .build();
 
+    // Helper function to parse an ethereum event log as one of the possible WBI events
+    let parse_as_wbi_event = move |value: &web3::types::Log| -> Result<WbiEvent, ()> {
+        match &value.topics[0] {
+            x if x == &post_dr_event_sig => {
+                Ok(WbiEvent::PostDataRequest(read_u256_from_event_log(&value)?))
+            }
+            x if x == &inclusion_dr_event_sig => Ok(WbiEvent::InclusionDataRequest(
+                read_u256_from_event_log(&value)?,
+            )),
+            x if x == &post_tally_event_sig => {
+                Ok(WbiEvent::PostResult(read_u256_from_event_log(&value)?))
+            }
+            _ => Err(()),
+        }
+    };
+
     web3.eth_filter()
         .create_logs_filter(post_dr_filter)
-        .map_err(|e| error!("Failed to create logs filter: {}", e))
-        .then(move |filter| {
-            // TODO: for some reason, this is never executed
-            let filter = filter.unwrap();
+        .map_err(|e| panic!("Failed to create logs filter: {}", e))
+        .and_then(move |filter| {
             debug!("Created filter: {:?}", filter);
             filter
                 // This poll interval was set to 0 in the example, which resulted in the
                 // bridge having 100% cpu usage...
                 .stream(time::Duration::from_secs(1))
                 .map_err(|e| error!("ethereum event error = {:?}", e))
-                .map(move |value| {
+                .and_then(move |value| {
                     let tx3 = tx.clone();
+                    let tx4 = tx4.clone();
                     debug!("Got ethereum event: {:?}", value);
-                    let web3 = Arc::clone(&web3);
-                    let fut: Box<dyn Future<Item = (), Error = ()> + Send> = match &value.topics[0]
-                    {
-                        x if x == &post_dr_event_sig => {
-                            debug!("PostDrEvent types: {:?}", post_dr_event.inputs);
-                            let event_types = vec![ethabi::ParamType::Uint(0)];
-                            let event_data = ethabi::decode(&event_types, &value.data.0);
-                            debug!("Event data: {:?}", event_data);
-                            let dr_id = &event_data.unwrap()[0];
-                            info!("New posted data request, id: {}", dr_id);
-                            // Get data request info
-                            let dr_id = match dr_id {
-                                Token::Uint(x) => *x,
-                                _ => panic!("Wrong type"),
-                            };
+                    let fut: Box<dyn Future<Item = (), Error = ()> + Send> =
+                        match parse_as_wbi_event(&value) {
+                            Ok(WbiEvent::PostDataRequest(dr_id)) => {
+                                info!("New posted data request, id: {}", dr_id);
 
-                            let contract = contract.clone();
-                            Box::new(
-                                contract
-                                    .query(
-                                        "readDataRequest",
-                                        (dr_id,),
-                                        account0,
-                                        contract::Options::default(),
-                                        None,
-                                    )
-                                    .then(move |res| {
-                                        let dr_bytes: Bytes = res.unwrap();
-                                        //let dr_string = String::from_utf8_lossy(&dr_bytes);
-                                        //debug!("{}", dr_string);
-
-                                        // Claim dr
-                                        let poe: Bytes = vec![];
-                                        info!("Claiming dr {}", dr_id);
-
-                                        contract
-                                            .call_with_confirmations(
-                                                "claimDataRequests",
-                                                (vec![dr_id], poe),
-                                                account0,
-                                                contract::Options::default(),
-                                                1,
-                                            )
-                                            .then(move |tx| {
-                                                debug!("claim_drs tx: {:?}", tx);
-                                                web3.trace()
-                                                    .transaction(tx.unwrap().transaction_hash)
-                                            })
-                                            .then(move |_traces| {
-                                                // TODO: traces not supported by ganache
-                                                //debug!("claim_drs tx traces: {:?}", traces);
-                                                let dr_output =
-                                                    ProtobufConvert::from_pb_bytes(&dr_bytes)
-                                                        .unwrap();
-                                                // Assuming claim is successful
-                                                // Post dr in witnet
-                                                // TODO: check that requests[dr_id].pkhClaim == my_eth_account_pkh
-                                                tx3.send(ActorMessage::PostDr(dr_id, dr_output))
-                                                    .map(|_| ())
-                                                    .map_err(|_| ())
-                                            })
-                                    }),
-                            )
-                        }
-                        x if x == &inclusion_dr_event_sig => {
-                            debug!(
-                                "InclusionDataRequest types: {:?}",
-                                inclusion_dr_event.inputs
-                            );
-                            let event_types = vec![ethabi::ParamType::Uint(0)];
-                            let event_data = ethabi::decode(&event_types, &value.data.0);
-                            debug!("Event data: {:?}", event_data);
-                            let dr_id = &event_data.unwrap()[0];
-                            // Get data request info
-                            let dr_id = match dr_id {
-                                Token::Uint(x) => *x,
-                                _ => panic!("Wrong type"),
-                            };
-
-                            debug!("Reading dr_tx_hash for id {}", dr_id);
-                            Box::new(
-                                contract
-                                    .query(
-                                        "readDrHash",
-                                        (dr_id,),
-                                        accounts[0],
-                                        contract::Options::default(),
-                                        None,
-                                    )
-                                    .then(move |res: Result<U256, _>| {
-                                        let dr_tx_hash = res.unwrap();
-                                        let dr_tx_hash = Hash::SHA256(dr_tx_hash.into());
-                                        info!(
+                                Box::new(
+                                    tx4.send(PostActorMessage::PostDr(dr_id))
+                                        .map(|_| ())
+                                        .map_err(|_| ()),
+                                )
+                            }
+                            Ok(WbiEvent::InclusionDataRequest(dr_id)) => {
+                                let contract = &eth_state.wbi_contract;
+                                debug!("Reading dr_tx_hash for id {}", dr_id);
+                                Box::new(
+                                    contract
+                                        .query(
+                                            "readDrHash",
+                                            (dr_id,),
+                                            accounts[0],
+                                            contract::Options::default(),
+                                            None,
+                                        )
+                                        .then(move |res: Result<U256, _>| {
+                                            let dr_tx_hash = res.unwrap();
+                                            let dr_tx_hash = Hash::SHA256(dr_tx_hash.into());
+                                            info!(
                                             "New included data request, id: {} with dr_tx_hash: {}",
                                             dr_id, dr_tx_hash
                                         );
-                                        tx3.send(ActorMessage::WaitForTally(dr_id, dr_tx_hash))
-                                            .map(|_| ())
-                                            .map_err(|_| ())
-                                    }),
-                            )
-                        }
-                        x if x == &post_tally_event_sig => {
-                            debug!("PostResult types: {:?}", inclusion_dr_event.inputs);
-                            let event_types = vec![ethabi::ParamType::Uint(0)];
-                            let event_data = ethabi::decode(&event_types, &value.data.0);
-                            debug!("Event data: {:?}", event_data);
-                            let dr_id = &event_data.unwrap()[0];
-                            // Get data request info
-                            let dr_id = match dr_id {
-                                Token::Uint(x) => *x,
-                                _ => panic!("Wrong type"),
-                            };
+                                            tx3.send(ActorMessage::WaitForTally(dr_id, dr_tx_hash))
+                                                .map(|_| ())
+                                                .map_err(|_| ())
+                                        }),
+                                )
+                            }
+                            Ok(WbiEvent::PostResult(dr_id)) => {
+                                info!("Data request with id: {} has been resolved!", dr_id);
+                                Box::new(
+                                    tx3.send(ActorMessage::TallyClaimed(dr_id))
+                                        .map(|_| ())
+                                        .map_err(|_| ()),
+                                )
+                            }
+                            _ => {
+                                panic!("Received unknown ethereum event");
+                            }
+                        };
 
-                            info!("Data request with id: {} has been resolved!", dr_id);
-                            Box::new(
-                                tx3.send(ActorMessage::TallyClaimed(dr_id))
-                                    .map(|_| ())
-                                    .map_err(|_| ()),
-                            )
-                        }
-                        _ => {
-                            panic!("Received unknown ethereum event");
-                        }
-                    };
-
-                    tokio::spawn(fut);
+                    fut
                 })
                 .for_each(|_| Ok(()))
         })
-
-    /*
-    web3.eth_filter().create_blocks_filter().then(|filter| {
-        filter.unwrap().stream(time::Duration::from_secs(1))
-            .map_err(|e| error!("ethereum block filter error = {:?}", e))
-            .then(move |block_hash| {
-                debug!("Got ethereum block: {:?}", block_hash.unwrap());
-                web3.eth().block(BlockId::Hash(block_hash.unwrap())).map(|block| {
-                    debug!("Block contents: {:?}", block);
-                })
-            })
-            .for_each(|_| Ok(()))
-    }).map_err(|e| error!("ethereum block filter could not be created: {:?}", e))
-    */
 }
 
 fn witnet_block_stream(
@@ -305,17 +166,16 @@ fn witnet_block_stream(
     let fut = witnet_client
         .subscribe(&witnet_subscription_id.into())
         .map_err(|e| error!("witnet notification error = {:?}", e))
-        .then(move |value| {
-            let value = value.unwrap();
+        .and_then(move |value| {
             let tx1 = tx.clone();
             // TODO: get current epoch to distinguish between old blocks that are sent
             // to us while synchronizing and new blocks
             let block = serde_json::from_value::<Block>(value).unwrap();
             debug!("Got witnet block: {:?}", block);
             tx1.send(ActorMessage::NewWitnetBlock(Box::new(block)))
+                .map_err(|_| ())
         })
-        .for_each(|_| Ok(()))
-        .then(|_| Ok(()));
+        .for_each(|_| Ok(()));
 
     (handle, fut)
 }
@@ -334,220 +194,309 @@ fn init_logger() {
         .init();
 }
 
+fn post_actor(
+    config: Arc<Config>,
+    eth_state: Arc<EthState>,
+    tx: mpsc::Sender<ActorMessage>,
+    rx: mpsc::Receiver<PostActorMessage>,
+) -> (
+    async_jsonrpc_client::transports::shared::EventLoopHandle,
+    impl Future<Item = (), Error = ()>,
+) {
+    let web3 = eth_state.web3.clone();
+    let wbi_contract = eth_state.wbi_contract.clone();
+    let accounts = eth_state.accounts.clone();
+
+    // Important: the handle cannot be dropped, otherwise the client stops
+    // processing events
+    let witnet_addr = config.witnet_jsonrpc_addr.to_string();
+    let (handle, witnet_client) =
+        async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
+    let witnet_client = Arc::new(witnet_client);
+
+    (
+        handle,
+        rx.map_err(|_| ()).for_each(move |msg| {
+            debug!("Got PostActorMessage: {:?}", msg);
+            let web3 = web3.clone();
+            let tx = tx.clone();
+            let accounts = accounts.clone();
+            let wbi_contract = wbi_contract.clone();
+            let witnet_client = Arc::clone(&witnet_client);
+
+            match msg {
+                PostActorMessage::PostDr(dr_id) => {
+                    wbi_contract
+                        .query(
+                            "readDataRequest",
+                            (dr_id,),
+                            accounts[0],
+                            contract::Options::default(),
+                            None,
+                        )
+                        .map_err(|e| error!("{:?}", e))
+                        .and_then(move |dr_bytes: Bytes| {
+                            let tx = tx.clone();
+                            //let dr_string = String::from_utf8_lossy(&dr_bytes);
+                            //debug!("{}", dr_string);
+
+                            // Claim dr
+                            let poe: Bytes = vec![];
+                            info!("Claiming dr {}", dr_id);
+
+                            wbi_contract
+                                .call_with_confirmations(
+                                    "claimDataRequests",
+                                    (vec![dr_id], poe),
+                                    accounts[0],
+                                    contract::Options::default(),
+                                    1,
+                                )
+                                .and_then(move |tx| {
+                                    debug!("claim_drs tx: {:?}", tx);
+                                    web3.trace().transaction(tx.transaction_hash)
+                                })
+                                .then(move |_traces| {
+                                    // TODO: traces not supported by ganache
+                                    //debug!("claim_drs tx traces: {:?}", traces);
+                                    let dr_output: DataRequestOutput =
+                                        ProtobufConvert::from_pb_bytes(&dr_bytes).unwrap();
+                                    // Assuming claim is successful
+                                    // Post dr in witnet
+                                    // TODO: check that requests[dr_id].pkhClaim == my_eth_account_pkh
+
+                                    let bdr_params = json!({"dro": dr_output, "fee": 0});
+                                    witnet_client
+                                        .execute("buildDataRequest", bdr_params)
+                                        .map_err(|e| error!("{:?}", e))
+                                        .and_then(move |bdr_res| {
+                                            debug!("buildDataRequest: {:?}", bdr_res);
+                                            tx.send(ActorMessage::PostedDr(dr_id, dr_output))
+                                                .map_err(|e| error!("{:?}", e))
+                                        })
+                                })
+                                .map(|_| ())
+                        })
+                }
+            }
+        }),
+    )
+}
+
+#[derive(Debug)]
+enum PostActorMessage {
+    PostDr(U256),
+}
+
 #[derive(Debug)]
 enum ActorMessage {
-    PostDr(U256, DataRequestOutput),
+    PostedDr(U256, DataRequestOutput),
     WaitForTally(U256, Hash),
     TallyClaimed(U256),
     NewWitnetBlock(Box<Block>),
 }
 
-fn main_actor<'a>(
+fn main_actor(
     config: Arc<Config>,
-    web3: Arc<web3::Web3<web3::transports::Http>>,
+    eth_state: Arc<EthState>,
     rx: mpsc::Receiver<ActorMessage>,
-) -> impl Future<Item = (), Error = ()> + 'a {
+) -> impl Future<Item = (), Error = ()> {
     let mut claimed_drs = BiMap::new();
     let mut waiting_for_tally = BiMap::new();
 
-    let accounts = web3.eth().accounts().wait().unwrap();
-    debug!("Web3 accounts: {:?}", accounts);
+    let web3 = eth_state.web3.clone();
+    let accounts = eth_state.accounts.clone();
+    let wbi_contract = eth_state.wbi_contract.clone();
+    let block_relay_contract = eth_state.block_relay_contract.clone();
 
-    // Why read files at runtime when you can read files at compile time
-    let wbi_contract_abi_json: &[u8] = include_bytes!("../wbi_abi.json");
-    let wbi_contract_abi = ethabi::Contract::load(wbi_contract_abi_json).unwrap();
-    let wbi_contract_address = config.wbi_contract_addr;
-    let wbi_contract = Contract::new(web3.eth(), wbi_contract_address, wbi_contract_abi.clone());
+    rx.map_err(|_| ())
+        .for_each(move |msg| {
+            debug!("Got ActorMessage: {:?}", msg);
+            match msg {
+                ActorMessage::PostedDr(dr_id, dr_output) => {
+                    claimed_drs.insert(dr_id, dr_output.hash());
+                }
+                ActorMessage::WaitForTally(dr_id, dr_tx_hash) => {
+                    claimed_drs.remove_by_left(&dr_id);
+                    waiting_for_tally.insert(dr_id, dr_tx_hash);
+                }
+                ActorMessage::TallyClaimed(dr_id) => {
+                    waiting_for_tally.remove_by_left(&dr_id);
+                }
+                ActorMessage::NewWitnetBlock(block) => {
+                    let block_hash: U256 = match block.hash() {
+                        Hash::SHA256(x) => x.into(),
+                    };
 
-    let block_relay_contract_abi_json: &[u8] = include_bytes!("../block_relay_abi.json");
-    let block_relay_contract_abi = ethabi::Contract::load(block_relay_contract_abi_json).unwrap();
-    let block_relay_contract_address = config.block_relay_contract_addr;
-    let block_relay_contract = Contract::new(
-        web3.eth(),
-        block_relay_contract_address,
-        block_relay_contract_abi.clone(),
-    );
-
-    let witnet_addr = config.witnet_jsonrpc_addr.to_string();
-    // Important: the handle cannot be dropped, otherwise the client stops
-    // processing events
-    let (handle, witnet_client) =
-        async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
-
-    rx.for_each(move |value| {
-        // Force moving handle to closure to avoid drop
-        let _ = &handle;
-        match value {
-            ActorMessage::PostDr(dr_id, dr_output) => {
-                let bdr_params = json!({"dro": dr_output, "fee": 0});
-                let bdr_res = witnet_client.execute("buildDataRequest", bdr_params).wait();
-                // TODO: this method should return the transaction hash,
-                // so we can identify the transaction later in the block
-                debug!("buildDataRequest: {:?}", bdr_res);
-                claimed_drs.insert(dr_id, dr_output.hash());
-            }
-            ActorMessage::WaitForTally(dr_id, dr_tx_hash) => {
-                claimed_drs.remove_by_left(&dr_id);
-                waiting_for_tally.insert(dr_id, dr_tx_hash);
-            }
-            ActorMessage::TallyClaimed(dr_id) => {
-                waiting_for_tally.remove_by_left(&dr_id);
-            }
-            ActorMessage::NewWitnetBlock(block) => {
-                let block_hash: U256 = match block.hash() {
-                    Hash::SHA256(x) => x.into(),
-                };
-
-                // Enable block relay
-                let enable_block_relay = true;
-                if enable_block_relay {
-                    let dr_merkle_root: U256 =
-                        match block.block_header.merkle_roots.dr_hash_merkle_root {
+                    // Enable block relay?
+                    if config.enable_block_relay {
+                        let dr_merkle_root: U256 =
+                            match block.block_header.merkle_roots.dr_hash_merkle_root {
+                                Hash::SHA256(x) => x.into(),
+                            };
+                        let tally_merkle_root: U256 =
+                            match block.block_header.merkle_roots.tally_hash_merkle_root {
+                                Hash::SHA256(x) => x.into(),
+                            };
+                        // Post witnet block to BlockRelay wbi_contract
+                        let fut: Box<dyn Future<Item = Box<Block>, Error = ()> + Send> = Box::new(
+                            block_relay_contract
+                                .call_with_confirmations(
+                                    "postNewBlock",
+                                    (block_hash, dr_merkle_root, tally_merkle_root),
+                                    accounts[0],
+                                    contract::Options::default(),
+                                    1,
+                                )
+                                .then(|tx| {
+                                    debug!("postNewBlock: {:?}", tx);
+                                    web3.trace().transaction(tx.unwrap().transaction_hash)
+                                })
+                                .then(move |_traces| {
+                                    // TODO: traces not supported by ganache
+                                    //debug!("postNewBlock traces: {:?}", traces);
+                                    Result::<_, ()>::Ok(block)
+                                }),
+                        );
+                        fut
+                    } else {
+                        // TODO: Wait for someone else to publish the witnet block to ethereum
+                        Box::new(futures::finished(block))
+                    }
+                    .and_then(|block| {
+                        let block_hash: U256 = match block.hash() {
                             Hash::SHA256(x) => x.into(),
                         };
-                    let tally_merkle_root: U256 =
-                        match block.block_header.merkle_roots.tally_hash_merkle_root {
-                            Hash::SHA256(x) => x.into(),
-                        };
-                    // Post witnet block to BlockRelay wbi_contract
-                    block_relay_contract
-                        .call_with_confirmations(
-                            "postNewBlock",
-                            (block_hash, dr_merkle_root, tally_merkle_root),
+                        /*
+                        // Verify that the block was posted correctly
+                        block_relay_contract.query(
+                            "readDrMerkleRoot",
+                            (block_hash,),
                             accounts[0],
                             contract::Options::default(),
-                            1,
-                        )
-                        .then(|tx| {
-                            debug!("postNewBlock: {:?}", tx);
-                            web3.trace().transaction(tx.unwrap().transaction_hash)
-                        })
-                        .then(move |_traces| {
-                            // TODO: traces not supported by ganache
-                            //debug!("postNewBlock traces: {:?}", traces);
+                            None,
+                        ).then(|tx: Result<U256, _>| {
+                            debug!("readDrMerkleRoot: {:?}", tx);
                             Result::<(), ()>::Ok(())
-                        })
-                        .wait()
-                        .unwrap();
+                        }).wait().unwrap();
+                        */
+                        // The futures executed after this point should be executed *after* the
+                        // postNewBlock transaction has been confirmed
+                        // TODO: double check that the bridge contains this block?
 
-                    /*
-                    // Verify that the block was posted correctly
-                    block_relay_contract.query(
-                        "readDrMerkleRoot",
-                        (block_hash,),
-                        accounts[0],
-                        contract::Options::default(),
-                        None,
-                    ).then(|tx: Result<U256, _>| {
-                        debug!("readDrMerkleRoot: {:?}", tx);
+                        for dr in &block.txns.data_request_txns {
+                            if let Some((dr_id, _)) =
+                                claimed_drs.remove_by_right(&dr.body.dr_output.hash())
+                            {
+                                let dr_inclusion_proof =
+                                    dr.data_proof_of_inclusion(&block).unwrap();
+                                debug!(
+                                    "Proof of inclusion for data request {}:\nData: {:?}\n{:?}",
+                                    dr.hash(),
+                                    dr.body.dr_output.to_pb_bytes().unwrap(),
+                                    dr_inclusion_proof
+                                );
+                                info!("Claimed dr got included in witnet block!");
+                                info!("Sending proof of inclusion to WBI wbi_contract");
+
+                                let poi: Vec<U256> = dr_inclusion_proof
+                                    .lemma
+                                    .iter()
+                                    .map(|x| match x {
+                                        Hash::SHA256(x) => x.into(),
+                                    })
+                                    .collect();
+                                let poi_index = U256::from(dr_inclusion_proof.index);
+                                tokio::spawn(
+                                    wbi_contract
+                                        .call_with_confirmations(
+                                            "reportDataRequestInclusion",
+                                            (dr_id, poi, poi_index, block_hash),
+                                            accounts[0],
+                                            contract::Options::default(),
+                                            1,
+                                        )
+                                        .then(|tx| {
+                                            debug!("report_dr_inclusion tx: {:?}", tx);
+                                            Result::<(), ()>::Ok(())
+                                        }),
+                                );
+                            }
+                        }
+
+                        for tally in &block.txns.tally_txns {
+                            if let Some((dr_id, _)) =
+                                waiting_for_tally.remove_by_right(&tally.dr_pointer)
+                            {
+                                // Call report_result method of the WBI
+                                let tally_inclusion_proof =
+                                    tally.data_proof_of_inclusion(&block).unwrap();
+                                let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
+                                debug!(
+                                    "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
+                                    tally.hash(),
+                                    [&dr_pointer_bytes[..], &tally.tally].concat(),
+                                    tally_inclusion_proof
+                                );
+
+                                // Call report_result
+                                let poi: Vec<U256> = tally_inclusion_proof
+                                    .lemma
+                                    .iter()
+                                    .map(|x| match x {
+                                        Hash::SHA256(x) => x.into(),
+                                    })
+                                    .collect();
+                                let poi_index = U256::from(tally_inclusion_proof.index);
+                                let result: Bytes = tally.tally.clone();
+                                tokio::spawn(
+                                    wbi_contract
+                                        .call_with_confirmations(
+                                            "reportResult",
+                                            (dr_id, poi, poi_index, block_hash, result),
+                                            accounts[0],
+                                            contract::Options::default(),
+                                            1,
+                                        )
+                                        .then(|tx| {
+                                            debug!("report_result tx: {:?}", tx);
+                                            Result::<(), ()>::Ok(())
+                                        }),
+                                );
+                            }
+                        }
+
                         Result::<(), ()>::Ok(())
-                    }).wait().unwrap();
-                    */
-                }
-                // The futures executed after this point should be executed *after* the
-                // postNewBlock transaction has been confirmed
-
-                for dr in &block.txns.data_request_txns {
-                    if let Some((dr_id, _)) = claimed_drs.remove_by_right(&dr.body.dr_output.hash())
-                    {
-                        let dr_inclusion_proof = dr.data_proof_of_inclusion(&block).unwrap();
-                        debug!(
-                            "Proof of inclusion for data request {}:\nData: {:?}\n{:?}",
-                            dr.hash(),
-                            dr.body.dr_output.to_pb_bytes().unwrap(),
-                            dr_inclusion_proof
-                        );
-                        info!("Claimed dr got included in witnet block!");
-                        info!("Sending proof of inclusion to WBI wbi_contract");
-
-                        let poi: Vec<U256> = dr_inclusion_proof
-                            .lemma
-                            .iter()
-                            .map(|x| match x {
-                                Hash::SHA256(x) => x.into(),
-                            })
-                            .collect();
-                        let poi_index = U256::from(dr_inclusion_proof.index);
-                        tokio::spawn(
-                            wbi_contract
-                                .call_with_confirmations(
-                                    "reportDataRequestInclusion",
-                                    (dr_id, poi, poi_index, block_hash),
-                                    accounts[0],
-                                    contract::Options::default(),
-                                    1,
-                                )
-                                .then(|tx| {
-                                    debug!("report_dr_inclusion tx: {:?}", tx);
-                                    Result::<(), ()>::Ok(())
-                                }),
-                        );
-                    }
-                }
-
-                for tally in &block.txns.tally_txns {
-                    if let Some((dr_id, _)) = waiting_for_tally.remove_by_right(&tally.dr_pointer) {
-                        // Call report_result method of the WBI
-                        let tally_inclusion_proof = tally.data_proof_of_inclusion(&block).unwrap();
-                        let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
-                        debug!(
-                            "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
-                            tally.hash(),
-                            [&dr_pointer_bytes[..], &tally.tally].concat(),
-                            tally_inclusion_proof
-                        );
-
-                        // Call report_result
-                        let poi: Vec<U256> = tally_inclusion_proof
-                            .lemma
-                            .iter()
-                            .map(|x| match x {
-                                Hash::SHA256(x) => x.into(),
-                            })
-                            .collect();
-                        let poi_index = U256::from(tally_inclusion_proof.index);
-                        let result: Bytes = tally.tally.clone();
-                        tokio::spawn(
-                            wbi_contract
-                                .call_with_confirmations(
-                                    "reportResult",
-                                    (dr_id, poi, poi_index, block_hash, result),
-                                    accounts[0],
-                                    contract::Options::default(),
-                                    1,
-                                )
-                                .then(|tx| {
-                                    debug!("report_result tx: {:?}", tx);
-                                    Result::<(), ()>::Ok(())
-                                }),
-                        );
-                    }
+                    })
+                    .wait()
+                    .unwrap();
                 }
             }
-        }
 
-        Ok(())
-    })
-    .map(|_| ())
-    .map_err(|_| ())
+            Result::<(), ()>::Ok(())
+        })
+        .map(|_| ())
 }
 
 fn main() {
     init_logger();
-    let config = Arc::new(read_config());
-    let (_eloop, web3_http) = web3::transports::Http::new(&config.eth_client_url).unwrap();
-    let web3 = Arc::new(web3::Web3::new(web3_http));
+    let config = Arc::new(read_config().unwrap());
+    let eth_state = Arc::new(EthState::create(&config).unwrap());
 
     let (tx1, rx) = mpsc::channel(16);
+    let (ptx, prx) = mpsc::channel(16);
     let tx2 = tx1.clone();
+    let tx3 = tx1.clone();
 
-    let ees = eth_event_stream(Arc::clone(&config), Arc::clone(&web3), tx1);
+    let ees = eth_event_stream(Arc::clone(&config), Arc::clone(&eth_state), tx1, ptx);
     let (_handle, wbs) = witnet_block_stream(Arc::clone(&config), tx2);
-    let act = main_actor(Arc::clone(&config), Arc::clone(&web3), rx);
+    let (_handle, pct) = post_actor(Arc::clone(&config), Arc::clone(&eth_state), tx3, prx);
+    let act = main_actor(Arc::clone(&config), Arc::clone(&eth_state), rx);
 
     tokio::run(future::ok(()).map(move |_| {
         tokio::spawn(wbs);
         tokio::spawn(ees);
+        tokio::spawn(pct);
         tokio::spawn(act);
     }));
 }
