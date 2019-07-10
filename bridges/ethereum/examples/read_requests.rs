@@ -1,13 +1,15 @@
 use log::*;
 use std::sync::Arc;
 
-use web3::types::U256;
 use web3::{
     contract,
     futures::{future, Future},
+    types::U256,
 };
-use witnet_ethereum_bridge::config::{read_config, Config};
-use witnet_ethereum_bridge::eth::EthState;
+use witnet_ethereum_bridge::{
+    config::{read_config, Config},
+    eth::EthState,
+};
 
 fn eth_event_stream(
     _config: Arc<Config>,

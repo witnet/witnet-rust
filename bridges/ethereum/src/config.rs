@@ -26,7 +26,7 @@ pub struct Config {
 }
 
 /// Load configuration from a file written in Toml format.
-pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, toml::de::Error> {
+pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::Read;
 
@@ -35,12 +35,12 @@ pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, toml::de::Error> {
 
     debug!("Loading config from `{}`", f.to_string_lossy());
 
-    let mut file = File::open(file).unwrap();
-    file.read_to_string(&mut contents).unwrap();
-    toml::from_str(&contents)
+    let mut file = File::open(file)?;
+    file.read_to_string(&mut contents)?;
+    Ok(toml::from_str(&contents)?)
 }
 
 /// Read config from default file
-pub fn read_config() -> Result<Config, toml::de::Error> {
+pub fn read_config() -> Result<Config, Box<dyn std::error::Error>> {
     from_file("witnet_ethereum_bridge.toml")
 }

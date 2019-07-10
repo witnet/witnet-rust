@@ -4,15 +4,16 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use web3::types::U256;
 use web3::{
     contract,
     futures::{future, Future},
+    types::U256,
 };
-use witnet_data_structures::chain::DataRequestOutput;
-use witnet_data_structures::proto::ProtobufConvert;
-use witnet_ethereum_bridge::config::{read_config, Config};
-use witnet_ethereum_bridge::eth::EthState;
+use witnet_data_structures::{chain::DataRequestOutput, proto::ProtobufConvert};
+use witnet_ethereum_bridge::{
+    config::{read_config, Config},
+    eth::EthState,
+};
 
 fn data_request_example() -> DataRequestOutput {
     let start = SystemTime::now();
