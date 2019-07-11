@@ -112,6 +112,7 @@ e2e-stable test_name="example" +flags="":
 
 # run the local debug binary (taken from ./target/debug) in the latest testnet
 e2e-debug test_name="example" +flags="":
+    cargo build
     TEST_NAME={{test_name}} \
     docker-compose \
     -f docker/compose/e2e-debug/docker-compose.yaml \
