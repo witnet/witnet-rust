@@ -104,7 +104,7 @@ def json_parse(prev):
         return Ok(json.loads(prev))
     except ValueError as e:
         return Err(f"couldn't parse input string as JSON. Trace: {e}")
-    else:
+    except:
         return Err("couldn't parse input string as JSON")
 
 def jsonrpc_write(prev):
@@ -205,7 +205,7 @@ def block_contains_commitments_for_dr(block, request):
             return Err("there are no commitments inside")
     except ValueError as e:
         return Err(f"ValueError: {e}")
-    else:
+    except:
         return Err(f"unknown error.\n\tBlock was {str(block)}\n\tRequest was {str(request)}")
 
 def block_contains_reveals_for_dr(block, request):
