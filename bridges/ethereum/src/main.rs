@@ -279,14 +279,26 @@ fn post_actor(
                         .map_err(|e| error!("{:?}", e))
                         .and_then(move |dr_bytes: Bytes| {
                             let tx = tx.clone();
-                            //let dr_string = String::from_utf8_lossy(&dr_bytes);
-                            //debug!("{}", dr_string);
+
+                            let dr_output: DataRequestOutput =
+                                match ProtobufConvert::from_pb_bytes(&dr_bytes) {
+                                    Ok(x) => x,
+                                    Err(e) => {
+                                        warn!(
+                                        "[{}] uses an invalid serialization, will be ignored: {:?}",
+                                        dr_id, e
+                                    );
+                                        let fut: Box<dyn Future<Item = (), Error = ()> + Send> =
+                                            Box::new(futures::finished(()));
+                                        return fut;
+                                    }
+                                };
 
                             // Claim dr
                             let poe: Bytes = vec![];
                             info!("[{}] Claiming dr", dr_id);
 
-                            wbi_contract
+                            let fut = wbi_contract
                                 .call_with_confirmations(
                                     "claimDataRequests",
                                     (vec![dr_id], poe),
@@ -301,8 +313,6 @@ fn post_actor(
                                 .then(move |_traces| {
                                     // TODO: traces not supported by ganache
                                     //debug!("claim_drs tx traces: {:?}", traces);
-                                    let dr_output: DataRequestOutput =
-                                        ProtobufConvert::from_pb_bytes(&dr_bytes).unwrap();
                                     // Assuming claim is successful
                                     // Post dr in witnet
                                     // TODO: check that requests[dr_id].pkhClaim == my_eth_account_pkh
@@ -318,7 +328,9 @@ fn post_actor(
                                                 .map_err(|e| error!("{:?}", e))
                                         })
                                 })
-                                .map(|_| ())
+                                .map(|_| ());
+
+                            Box::new(fut)
                         })
                 }
             }
