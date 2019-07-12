@@ -60,7 +60,7 @@ docker-ci target="x86_64-unknown-linux-gnu" +flags="":
         just ci --target-dir=/target --target={{target}} {{flags}}
 
 # run latest debug binary inside a docker container
-docker-debug log_level="debug" +flags="node -c /witnet/witnet.toml":
+docker-debug log_level="debug" +flags="-c /witnet/witnet.toml node server":
     docker run \
         -e RUST_LOG=witnet={{log_level}} \
         -v `pwd`:/witnet \

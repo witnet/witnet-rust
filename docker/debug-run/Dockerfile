@@ -2,6 +2,7 @@ FROM ubuntu:disco
 
 # Install basic environment dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     libssl-dev
 
 # Clean up apt packages so the docker image is as compact as possible
@@ -19,4 +20,4 @@ EXPOSE 11212
 ENTRYPOINT ["/witnet/target/debug/witnet"]
 
 # Set default command (can be overriden)
-CMD ["node", "-c", "/witnet/witnet.toml"]
+CMD ["-c", "/witnet/witnet.toml", "node", "server"]
