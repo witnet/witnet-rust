@@ -39,7 +39,7 @@ fn eth_event_stream(
     let inclusion_dr_event_sig = eth_state.inclusion_dr_event_sig;
     let post_tally_event_sig = eth_state.post_tally_event_sig;
 
-    info!(
+    debug!(
         "Subscribing to contract {:?} topic {:?}",
         contract_address, post_dr_event_sig
     );
@@ -82,6 +82,7 @@ fn eth_event_stream(
         })
         .and_then(move |filter| {
             debug!("Created filter: {:?}", filter);
+            info!("Subscribed to ethereum events");
             filter
                 // This poll interval was set to 0 in the example, which resulted in the
                 // bridge having 100% cpu usage...
@@ -94,7 +95,7 @@ fn eth_event_stream(
                     let fut: Box<dyn Future<Item = (), Error = ()> + Send> =
                         match parse_as_wbi_event(&value) {
                             Ok(WbiEvent::PostDataRequest(dr_id)) => {
-                                info!("New posted data request, id: {}", dr_id);
+                                info!("[{}] New data request posted to WBI", dr_id);
 
                                 Box::new(
                                     tx4.send(PostActorMessage::PostDr(dr_id))
@@ -104,7 +105,7 @@ fn eth_event_stream(
                             }
                             Ok(WbiEvent::InclusionDataRequest(dr_id)) => {
                                 let contract = &eth_state.wbi_contract;
-                                debug!("Reading dr_tx_hash for id {}", dr_id);
+                                debug!("[{}] Reading dr_tx_hash for id", dr_id);
                                 Box::new(
                                     contract
                                         .query(
@@ -118,7 +119,7 @@ fn eth_event_stream(
                                             let dr_tx_hash = res.unwrap();
                                             let dr_tx_hash = Hash::SHA256(dr_tx_hash.into());
                                             info!(
-                                            "New included data request, id: {} with dr_tx_hash: {}",
+                                            "[{}] Data request included in witnet with dr_tx_hash: {}",
                                             dr_id, dr_tx_hash
                                         );
                                             tx3.send(ActorMessage::WaitForTally(dr_id, dr_tx_hash))
@@ -128,7 +129,7 @@ fn eth_event_stream(
                                 )
                             }
                             Ok(WbiEvent::PostResult(dr_id)) => {
-                                info!("Data request with id: {} has been resolved!", dr_id);
+                                info!("[{}] Data request has been resolved!", dr_id);
                                 Box::new(
                                     tx3.send(ActorMessage::TallyClaimed(dr_id))
                                         .map(|_| ())
@@ -283,7 +284,7 @@ fn post_actor(
 
                             // Claim dr
                             let poe: Bytes = vec![];
-                            info!("Claiming dr {}", dr_id);
+                            info!("[{}] Claiming dr", dr_id);
 
                             wbi_contract
                                 .call_with_confirmations(
@@ -305,6 +306,7 @@ fn post_actor(
                                     // Assuming claim is successful
                                     // Post dr in witnet
                                     // TODO: check that requests[dr_id].pkhClaim == my_eth_account_pkh
+                                    info!("[{}] Claimed dr, posting to witnet", dr_id);
 
                                     let bdr_params = json!({"dro": dr_output, "fee": 0});
                                     witnet_client
@@ -437,8 +439,8 @@ fn main_actor(
                                     dr.body.dr_output.to_pb_bytes().unwrap(),
                                     dr_inclusion_proof
                                 );
-                                info!("Claimed dr got included in witnet block!");
-                                info!("Sending proof of inclusion to WBI wbi_contract");
+                                info!("[{}] Claimed dr got included in witnet block!", dr_id);
+                                info!("[{}] Sending proof of inclusion to WBI wbi_contract", dr_id);
 
                                 let poi: Vec<U256> = dr_inclusion_proof
                                     .lemma
@@ -473,6 +475,7 @@ fn main_actor(
                                 let tally_inclusion_proof =
                                     tally.data_proof_of_inclusion(&block).unwrap();
                                 let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
+                                info!("[{}] Found tally for data request, posting to WBI", dr_id);
                                 debug!(
                                     "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
                                     tally.hash(),
