@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
 };
@@ -1099,9 +1100,57 @@ impl<'a> UtxoDiff<'a> {
     }
 }
 
+pub fn compare_blocks(
+    b1_hash: Hash,
+    b1_rep: Reputation,
+    b2_hash: Hash,
+    b2_rep: Reputation,
+) -> Ordering {
+    // Greater implies than the block is a better choice
+    // Bigger reputation implies better block candidate
+    b1_rep
+        .cmp(&b2_rep)
+        // Bigger hash implies worse block candidate
+        .then(b1_hash.cmp(&b2_hash).reverse())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_compare_block() {
+        let hash_1s = Hash::SHA256([1; 32]);
+        let hash_2s = Hash::SHA256([2; 32]);
+        let rep_1 = Reputation(1);
+        let rep_2 = Reputation(2);
+
+        // Same hash different reputation
+        assert_eq!(
+            compare_blocks(hash_1s, rep_1, hash_1s, rep_2),
+            Ordering::Less
+        );
+        assert_eq!(
+            compare_blocks(hash_1s, rep_2, hash_1s, rep_1),
+            Ordering::Greater
+        );
+
+        // Same reputation different hash
+        assert_eq!(
+            compare_blocks(hash_2s, rep_1, hash_1s, rep_1),
+            Ordering::Less
+        );
+        assert_eq!(
+            compare_blocks(hash_1s, rep_1, hash_2s, rep_1),
+            Ordering::Greater
+        );
+
+        // Same reputation and hash
+        assert_eq!(
+            compare_blocks(hash_1s, rep_1, hash_1s, rep_1),
+            Ordering::Equal
+        );
+    }
 
     #[test]
     fn test_block_reward() {

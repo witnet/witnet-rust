@@ -1,5 +1,6 @@
 use actix::{fut::WrapFuture, prelude::*};
 use log;
+use std::cmp::Ordering;
 
 use witnet_data_structures::{
     chain::{ChainState, CheckpointBeacon, Epoch, Hash, Hashable, InventoryItem, PublicKeyHash},
@@ -7,7 +8,7 @@ use witnet_data_structures::{
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
 use witnet_validations::validations::{
-    validate_block, validate_commit_transaction, validate_dr_transaction,
+    compare_blocks, validate_block, validate_commit_transaction, validate_dr_transaction,
     validate_reveal_transaction, validate_vt_transaction, UtxoDiff,
 };
 
@@ -122,9 +123,16 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     // TODO: replace for loop with a try_fold
                     let mut chosen_candidate = None;
                     for (key, block_candidate) in self.candidates.drain() {
-                        if let Some((chosen_key, _, _)) = chosen_candidate {
-                            if chosen_key < key {
-                                // Ignore candidates with bigger hashes
+                        let block_pkh = &block_candidate.block_sig.public_key.pkh();
+                        let reputation = rep_engine.trs.get(block_pkh);
+
+                        if let Some((chosen_key, chosen_reputation, _, _)) = chosen_candidate {
+                            if compare_blocks(key, reputation, chosen_key, chosen_reputation)
+                                != Ordering::Greater
+                            {
+                                // Ignore in case that reputation would be lower
+                                // than previously chosen candidate or would be
+                                // equal but with highest hash
                                 continue;
                             }
                         }
@@ -139,14 +147,17 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             rep_engine,
                         ) {
                             Ok(utxo_diff) => {
-                                chosen_candidate = Some((key, block_candidate, utxo_diff))
+                                let block_pkh = &block_candidate.block_sig.public_key.pkh();
+                                let reputation = rep_engine.trs.get(block_pkh);
+                                chosen_candidate =
+                                    Some((key, reputation, block_candidate, utxo_diff))
                             }
                             Err(e) => log::debug!("{}", e),
                         }
                     }
 
                     // Consolidate the best candidate
-                    if let Some((_, block, utxo_diff)) = chosen_candidate {
+                    if let Some((_, _, block, utxo_diff)) = chosen_candidate {
                         // Persist block and update ChainState
                         self.consolidate_block(ctx, &block, utxo_diff);
                     } else {
