@@ -28,8 +28,8 @@ impl Actor for PeersManager {
                 // Get server address
                 let server_addr = config.connections.server_addr;
 
-                // FIXME(#753): Get period from config
-                act.bucketing_update_period = 300;
+                // Get bucketing update period
+                act.bucketing_update_period = config.connections.bucketing_update_period;
 
                 // Get handshake time_out
                 act.handshake_timeout = config.connections.handshake_timeout;

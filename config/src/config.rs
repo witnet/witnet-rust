@@ -192,6 +192,9 @@ pub struct Connections {
 
     /// Constant to specify when consensus is achieved (in %)
     pub consensus_c: u32,
+
+    /// Period that indicate the validity of a checked peer
+    pub bucketing_update_period: i64,
 }
 
 fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
@@ -414,6 +417,10 @@ impl Connections {
                 .consensus_c
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_consensus_c()),
+            bucketing_update_period: config
+                .bucketing_update_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_bucketing_update_period()),
         }
     }
 }
@@ -657,6 +664,7 @@ mod tests {
             handshake_timeout: Some(Duration::from_secs(3)),
             blocks_timeout: Some(5),
             consensus_c: Some(51),
+            bucketing_update_period: Some(200),
         };
         let config = Connections::from_partial(&partial_config, &Testnet1);
 
@@ -670,6 +678,7 @@ mod tests {
         assert_eq!(config.handshake_timeout, Duration::from_secs(3));
         assert_eq!(config.blocks_timeout, 5);
         assert_eq!(config.consensus_c, 51);
+        assert_eq!(config.bucketing_update_period, 200);
     }
 
     #[test]
@@ -742,6 +751,10 @@ mod tests {
         assert_eq!(
             config.connections.consensus_c,
             Testnet3.connections_consensus_c()
+        );
+        assert_eq!(
+            config.connections.bucketing_update_period,
+            Testnet3.connections_bucketing_update_period()
         );
     }
 }

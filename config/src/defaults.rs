@@ -70,6 +70,11 @@ pub trait Defaults {
         70
     }
 
+    /// Period that indicate the validity of a checked peer
+    fn connections_bucketing_update_period(&self) -> i64 {
+        300
+    }
+
     /// Timestamp at the start of epoch 0
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64;
 
