@@ -19,7 +19,6 @@ pub struct Config {
     /// Address of the BlockRelay deployed contract
     pub block_relay_contract_addr: H160,
     /// Ethereum account used to create the transactions
-    //TODO: unimplemented
     pub eth_account: H160,
     /// Enable block relay from witnet to ethereum?
     pub enable_block_relay: bool,

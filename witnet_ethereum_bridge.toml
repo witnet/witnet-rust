@@ -1,12 +1,12 @@
 # Address of the witnet node JSON-RPC server
-witnet_jsonrpc_addr = "127.0.0.1:1234"
+witnet_jsonrpc_addr = "127.0.0.1:21338"
 # Url of the ethereum client
 eth_client_url = "http://127.0.0.1:8545"
 # Address of the WitnetBridgeInterface deployed contract
-wbi_contract_addr = "0x1EcABA175f7C4411D0849be9A2277121190e8cF6"
+wbi_contract_addr = "0x8e19a7028D846eCc60c50e5cEdE74E5448448116"
 # Address of the BlockRelay deployed contract
-block_relay_contract_addr = "0x88Ff8aa317ea8A34Aa5876666a304EA1D029D7c5"
+block_relay_contract_addr = "0x1F2835b515170f2f713B26B9e480716Dbe61F75D"
 # Ethereum account used to create the transactions
-eth_account = "0x1aEe6BAD4e2B3ea2dadF6753dA3d77Da79290c9b"
+eth_account = "0x33Cb9179aF22b4C0392b1E2C651e233E894E48Ff"
 # Enable block relay from witnet to ethereum?
 enable_block_relay = true

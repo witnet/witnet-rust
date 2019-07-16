@@ -33,6 +33,14 @@ fn eth_event_stream(
 ) -> impl Future<Item = (), Error = ()> {
     let web3 = &eth_state.web3;
     let accounts = eth_state.accounts.clone();
+    if !accounts.contains(&config.eth_account) {
+        error!(
+            "Account does not exists: {}\nAvailable accounts:\n{:#?}",
+            config.eth_account, accounts
+        );
+        process::exit(1);
+    }
+
     let contract_address = config.wbi_contract_addr;
 
     let post_dr_event_sig = eth_state.post_dr_event_sig;
@@ -111,7 +119,7 @@ fn eth_event_stream(
                                         .query(
                                             "readDrHash",
                                             (dr_id,),
-                                            accounts[0],
+                                            config.eth_account,
                                             contract::Options::default(),
                                             None,
                                         )
@@ -247,7 +255,6 @@ fn post_actor(
 ) {
     let web3 = eth_state.web3.clone();
     let wbi_contract = eth_state.wbi_contract.clone();
-    let accounts = eth_state.accounts.clone();
 
     // Important: the handle cannot be dropped, otherwise the client stops
     // processing events
@@ -260,9 +267,9 @@ fn post_actor(
         handle,
         rx.map_err(|_| ()).for_each(move |msg| {
             debug!("Got PostActorMessage: {:?}", msg);
+            let config = Arc::clone(&config);
             let web3 = web3.clone();
             let tx = tx.clone();
-            let accounts = accounts.clone();
             let wbi_contract = wbi_contract.clone();
             let witnet_client = Arc::clone(&witnet_client);
 
@@ -272,7 +279,7 @@ fn post_actor(
                         .query(
                             "readDataRequest",
                             (dr_id,),
-                            accounts[0],
+                            config.eth_account,
                             contract::Options::default(),
                             None,
                         )
@@ -302,7 +309,7 @@ fn post_actor(
                                 .call_with_confirmations(
                                     "claimDataRequests",
                                     (vec![dr_id], poe),
-                                    accounts[0],
+                                    config.eth_account,
                                     contract::Options::default(),
                                     1,
                                 )
@@ -360,7 +367,6 @@ fn main_actor(
     let mut waiting_for_tally = BiMap::new();
 
     let web3 = eth_state.web3.clone();
-    let accounts = eth_state.accounts.clone();
     let wbi_contract = eth_state.wbi_contract.clone();
     let block_relay_contract = eth_state.block_relay_contract.clone();
 
@@ -399,7 +405,7 @@ fn main_actor(
                                 .call_with_confirmations(
                                     "postNewBlock",
                                     (block_hash, dr_merkle_root, tally_merkle_root),
-                                    accounts[0],
+                                    config.eth_account,
                                     contract::Options::default(),
                                     1,
                                 )
@@ -427,7 +433,7 @@ fn main_actor(
                         block_relay_contract.query(
                             "readDrMerkleRoot",
                             (block_hash,),
-                            accounts[0],
+                            config.eth_account,
                             contract::Options::default(),
                             None,
                         ).then(|tx: Result<U256, _>| {
@@ -467,7 +473,7 @@ fn main_actor(
                                         .call_with_confirmations(
                                             "reportDataRequestInclusion",
                                             (dr_id, poi, poi_index, block_hash),
-                                            accounts[0],
+                                            config.eth_account,
                                             contract::Options::default(),
                                             1,
                                         )
@@ -510,7 +516,7 @@ fn main_actor(
                                         .call_with_confirmations(
                                             "reportResult",
                                             (dr_id, poi, poi_index, block_hash, result),
-                                            accounts[0],
+                                            config.eth_account,
                                             contract::Options::default(),
                                             1,
                                         )

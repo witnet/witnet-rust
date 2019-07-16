@@ -31,10 +31,9 @@ fn data_request_example() -> DataRequestOutput {
 }
 
 fn eth_event_stream(
-    _config: Arc<Config>,
+    config: Arc<Config>,
     eth_state: Arc<EthState>,
 ) -> impl Future<Item = (), Error = ()> {
-    let accounts = eth_state.accounts.clone();
     let wbi_contract = eth_state.wbi_contract.clone();
 
     let data_request_output = data_request_example();
@@ -46,7 +45,7 @@ fn eth_event_stream(
         .call(
             "postDataRequest",
             (data_request_bytes, tally_value),
-            accounts[0],
+            config.eth_account,
             contract::Options::with(|opt| {
                 opt.value = Some(U256::from_dec_str("250000000000000000").unwrap());
                 opt.gas = Some(1_000_000.into());
