@@ -231,8 +231,8 @@ fn witnet_block_stream(
 }
 
 fn init_logger() {
-    // Debug log level by default
-    let mut log_level = log::LevelFilter::Debug;
+    // Info log level by default
+    let mut log_level = log::LevelFilter::Info;
     if let Ok(rust_log) = std::env::var("RUST_LOG") {
         if rust_log.contains("witnet") {
             log_level = env_logger::Logger::from_default_env().filter();
