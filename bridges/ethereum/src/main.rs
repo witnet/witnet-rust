@@ -14,6 +14,7 @@ use web3::{
     contract,
     futures::{future, Future},
     types::FilterBuilder,
+    types::TransactionReceipt,
     types::U256,
 };
 use witnet_data_structures::{
@@ -24,6 +25,26 @@ use witnet_ethereum_bridge::{
     config::{read_config, Config},
     eth::{read_u256_from_event_log, EthState, WbiEvent},
 };
+
+fn handle_receipt(receipt: TransactionReceipt) -> impl Future<Item = (), Error = ()> {
+    match receipt.status {
+        Some(x) if x == 1.into() => {
+            //debug!("Success!");
+            // Success
+            futures::finished(())
+        }
+        Some(x) if x == 0.into() => {
+            error!("Error :(");
+            // Fail
+            // Reason?
+            futures::failed(())
+        }
+        x => {
+            error!("Wtf is a {:?} status", x);
+            futures::failed(())
+        }
+    }
+}
 
 fn eth_event_stream(
     config: Arc<Config>,
@@ -253,7 +274,6 @@ fn post_actor(
     async_jsonrpc_client::transports::shared::EventLoopHandle,
     impl Future<Item = (), Error = ()>,
 ) {
-    let web3 = eth_state.web3.clone();
     let wbi_contract = eth_state.wbi_contract.clone();
 
     // Important: the handle cannot be dropped, otherwise the client stops
@@ -268,7 +288,6 @@ fn post_actor(
         rx.map_err(|_| ()).for_each(move |msg| {
             debug!("Got PostActorMessage: {:?}", msg);
             let config = Arc::clone(&config);
-            let web3 = web3.clone();
             let tx = tx.clone();
             let wbi_contract = wbi_contract.clone();
             let witnet_client = Arc::clone(&witnet_client);
@@ -313,16 +332,16 @@ fn post_actor(
                                     contract::Options::default(),
                                     1,
                                 )
-                                .and_then(move |tx| {
+                                .then(move |tx| {
                                     debug!("claim_drs tx: {:?}", tx);
-                                    web3.trace().transaction(tx.transaction_hash)
+                                    let tx = tx.unwrap();
+                                    handle_receipt(tx)
                                 })
-                                .then(move |_traces| {
-                                    // TODO: traces not supported by ganache
-                                    //debug!("claim_drs tx traces: {:?}", traces);
-                                    // Assuming claim is successful
+                                .map_err(move |_| {
+                                    warn!("[{}] has been claimed by another bridge node", dr_id);
+                                })
+                                .and_then(move |_traces| {
                                     // Post dr in witnet
-                                    // TODO: check that requests[dr_id].pkhClaim == my_eth_account_pkh
                                     info!("[{}] Claimed dr, posting to witnet", dr_id);
 
                                     let bdr_params = json!({"dro": dr_output, "fee": 0});
@@ -366,7 +385,6 @@ fn main_actor(
     let mut claimed_drs = BiMap::new();
     let mut waiting_for_tally = BiMap::new();
 
-    let web3 = eth_state.web3.clone();
     let wbi_contract = eth_state.wbi_contract.clone();
     let block_relay_contract = eth_state.block_relay_contract.clone();
 
@@ -411,13 +429,10 @@ fn main_actor(
                                 )
                                 .then(|tx| {
                                     debug!("postNewBlock: {:?}", tx);
-                                    web3.trace().transaction(tx.unwrap().transaction_hash)
+                                    let tx = tx.unwrap();
+                                    handle_receipt(tx)
                                 })
-                                .then(move |_traces| {
-                                    // TODO: traces not supported by ganache
-                                    //debug!("postNewBlock traces: {:?}", traces);
-                                    Result::<_, ()>::Ok(block)
-                                }),
+                                .then(move |_traces| Result::<_, ()>::Ok(block)),
                         );
                         fut
                     } else {
@@ -477,9 +492,10 @@ fn main_actor(
                                             contract::Options::default(),
                                             1,
                                         )
-                                        .then(|tx| {
+                                        .then(move |tx| {
                                             debug!("report_dr_inclusion tx: {:?}", tx);
-                                            Result::<(), ()>::Ok(())
+                                            let tx = tx.unwrap();
+                                            handle_receipt(tx)
                                         }),
                                 );
                             }
@@ -522,7 +538,8 @@ fn main_actor(
                                         )
                                         .then(|tx| {
                                             debug!("report_result tx: {:?}", tx);
-                                            Result::<(), ()>::Ok(())
+                                            let tx = tx.unwrap();
+                                            handle_receipt(tx)
                                         }),
                                 );
                             }
