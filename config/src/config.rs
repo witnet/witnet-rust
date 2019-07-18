@@ -494,12 +494,15 @@ pub struct Wallet {
     pub id_hash_function: HashFunction,
     /// Lifetime in seconds of an unlocked wallet session id.
     pub session_expires_in: u64,
+    /// Duration in milliseconds after which outgoing request should timeout.
+    pub requests_timeout: u64,
 }
 
 impl Wallet {
     pub fn from_partial(config: &PartialWallet, defaults: &dyn Defaults) -> Self {
         Wallet {
             session_expires_in: config.session_expires_in.unwrap_or_else(|| 3200),
+            requests_timeout: config.requests_timeout.unwrap_or_else(|| 60_000),
             server_addr: config
                 .server_addr
                 .unwrap_or_else(|| defaults.wallet_server_addr()),
