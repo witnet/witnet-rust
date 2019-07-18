@@ -35,6 +35,7 @@ mod validation;
 /// Run the Witnet wallet application.
 pub fn run(conf: Config) -> Result<(), Error> {
     let session_expires_in = Duration::from_secs(conf.wallet.session_expires_in);
+    let requests_timeout = Duration::from_millis(conf.wallet.requests_timeout);
     let server_addr = conf.wallet.server_addr;
     let db_path = conf.wallet.db_path;
     let db_file_name = conf.wallet.db_file_name;
@@ -58,6 +59,8 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let id_hash_iterations = conf.wallet.id_hash_iterations;
     let id_hash_function = conf.wallet.id_hash_function;
 
+    let system = System::new("witnet-wallet");
+
     let node_client = node_url.clone().map_or_else(
         || Ok(None),
         |url| JsonRpcClient::start(url.as_ref()).map(Some),
@@ -65,7 +68,6 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let db = rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
         .map_err(|e| failure::format_err!("{}", e))?;
 
-    let system = System::new("witnet-wallet");
     let storage = actors::Storage::start(
         db_encrypt_hash_iterations,
         db_encrypt_iv_length,
@@ -85,6 +87,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         rad_executor,
         node_client,
         session_expires_in,
+        requests_timeout,
     );
     let mut handler = pubsub::PubSubHandler::new(rpc::MetaIoHandler::default());
 
