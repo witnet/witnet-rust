@@ -3,7 +3,6 @@ use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
-
 use web3::{
     contract,
     futures::{future, Future},
