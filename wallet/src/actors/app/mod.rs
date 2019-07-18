@@ -35,6 +35,7 @@ pub struct App {
     rad_executor: Addr<RadExecutor>,
     crypto: Addr<Crypto>,
     node_client: Option<Addr<JsonRpcClient>>,
+    requests_timeout: Duration,
     session_expiration: Duration,
     sessions: types::Sessions,
 }
@@ -48,6 +49,7 @@ impl App {
         rad_executor: Addr<RadExecutor>,
         node_client: Option<Addr<JsonRpcClient>>,
         session_expiration: Duration,
+        requests_timeout: Duration,
     ) -> Addr<Self> {
         let slf = Self {
             db: Arc::new(db),
@@ -56,6 +58,7 @@ impl App {
             rad_executor,
             node_client,
             session_expiration,
+            requests_timeout,
             sessions: Default::default(),
         };
 
@@ -132,6 +135,7 @@ impl App {
         match &self.node_client {
             Some(addr) => {
                 let req = rpc_client::Request::method(method)
+                    .timeout(self.requests_timeout)
                     .params(params)
                     .expect("rpc::Params failed serialization");
                 let f = addr
@@ -314,8 +318,9 @@ impl Actor for App {
     fn started(&mut self, ctx: &mut Self::Context) {
         if let Some(ref client) = self.node_client {
             let recipient = ctx.address().recipient();
-            let request =
-                rpc_client::Request::method("witnet_subscribe").value(json!(["newBlocks"]));
+            let request = rpc_client::Request::method("witnet_subscribe")
+                .timeout(self.requests_timeout)
+                .value(json!(["newBlocks"]));
             client.do_send(rpc_client::SetSubscriber(recipient, request));
         }
     }

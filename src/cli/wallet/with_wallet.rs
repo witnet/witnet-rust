@@ -14,7 +14,10 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             if let Some(db) = params.db {
                 config.wallet.db_path = db;
             }
-            let _result = wallet::run(config);
+            if let Some(millis) = params.timeout {
+                config.wallet.requests_timeout = millis;
+            }
+            let _result = wallet::run(config)?;
             Ok(())
         }
         Command::ShowConfig => {
@@ -52,6 +55,9 @@ pub struct ConfigParams {
     node: Option<String>,
     #[structopt(long = "db", raw(help = "WALLET_DB_HELP"))]
     db: Option<std::path::PathBuf>,
+    /// Milliseconds after outgoing requests should time out.
+    #[structopt(long = "timeout")]
+    timeout: Option<u64>,
 }
 
 static WALLET_DB_HELP: &str = r#"Path to the wallet database. If not specified will use:
