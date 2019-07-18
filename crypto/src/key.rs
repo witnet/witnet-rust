@@ -8,18 +8,14 @@
 //! let seed = mnemonic::MnemonicGen::new().generate().seed(&passphrase);
 //! let ext_key = key::MasterKeyGen::new(seed).generate();
 //! ```
+use std::{fmt, slice};
+
 use failure::Fail;
 use hmac::{Hmac, Mac};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sha2;
-
-const HARDENED_BIT: u32 = 1 << 31;
-
-/// Default HMAC key used when generating a Master Key with
-/// [generate_master](generate_master)
-pub static DEFAULT_HMAC_KEY: &[u8] = b"Bitcoin seed";
 
 /// The error type for [generate_master](generate_master)
 #[derive(Debug, PartialEq, Fail)]
@@ -42,10 +38,14 @@ impl<'a, S> MasterKeyGen<'a, S>
 where
     S: AsRef<[u8]>,
 {
+    /// Default HMAC key used when generating a Master Key with
+    /// [generate_master](generate_master)
+    const DEFAULT_HMAC_KEY: &'static [u8] = b"Bitcoin seed";
+
     /// Create a new master key generator
     pub fn new(seed: S) -> Self {
         Self {
-            key: DEFAULT_HMAC_KEY,
+            key: Self::DEFAULT_HMAC_KEY,
             seed,
         }
     }
@@ -121,28 +121,12 @@ pub struct ExtendedSK {
     pub chain_code: [u8; 32],
 }
 
-/// A child number for a derived key
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct ChildNumber(u32);
-
-impl ChildNumber {
-    /// check if a child is hardened
-    pub fn is_hardened(self) -> bool {
-        self.0 & HARDENED_BIT == HARDENED_BIT
-    }
-
-    /// Serialize a child
-    pub fn to_bytes(self) -> [u8; 4] {
-        self.0.to_be_bytes()
-    }
-}
-
 impl ExtendedSK {
     /// Try to derive an extended private key from a given path
-    pub fn derive(&self, path: Vec<ChildNumber>) -> Result<ExtendedSK, KeyDerivationError> {
+    pub fn derive(&self, path: &KeyPath) -> Result<ExtendedSK, KeyDerivationError> {
         let mut extended_sk = self.clone();
-        for child in path {
-            extended_sk = extended_sk.child(child)?
+        for index in path.iter() {
+            extended_sk = extended_sk.child(index)?
         }
 
         Ok(extended_sk)
@@ -156,11 +140,13 @@ impl ExtendedSK {
     }
 
     /// Try to get a private child key from parent
-    pub fn child(&self, child: ChildNumber) -> Result<ExtendedSK, KeyDerivationError> {
+    pub fn child(&self, index: &KeyPathIndex) -> Result<ExtendedSK, KeyDerivationError> {
         let mut hmac512: Hmac<sha2::Sha512> =
             Hmac::new_varkey(&self.chain_code).map_err(|_| KeyDerivationError::InvalidKeyLength)?;
-        if child.is_hardened() {
-            hmac512.input(&[0]);
+        let index_bytes = index.as_ref().to_be_bytes();
+
+        if index.is_hardened() {
+            hmac512.input(&[0]); // BIP-32 padding that makes key 33 bytes long
             hmac512.input(&self.secret_key[..]);
         } else {
             hmac512.input(
@@ -169,7 +155,7 @@ impl ExtendedSK {
             );
         }
 
-        let (chain_code, mut secret_key) = get_chain_code_and_secret(&child.to_bytes(), hmac512)?;
+        let (chain_code, mut secret_key) = get_chain_code_and_secret(&index_bytes, hmac512)?;
 
         secret_key
             .add_assign(&self.secret_key[..])
@@ -182,6 +168,100 @@ impl ExtendedSK {
     }
 }
 
+/// Represents an index inside a key derivation path.
+/// See BIP-32 spec for more information.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct KeyPathIndex(u32);
+
+impl KeyPathIndex {
+    /// Check if the index is hardened or not.
+    /// A hardened key index is a number falling in the range: index + 2^31.
+    pub fn is_hardened(&self) -> bool {
+        self.0 & KeyPath::HARDENED_KEY_INDEX == KeyPath::HARDENED_KEY_INDEX
+    }
+}
+
+impl AsRef<u32> for KeyPathIndex {
+    fn as_ref(&self) -> &u32 {
+        &self.0
+    }
+}
+
+impl fmt::Display for KeyPathIndex {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_hardened() {
+            write!(f, "{}'", self.0 - KeyPath::HARDENED_KEY_INDEX)
+        } else {
+            write!(f, "{}", self.0)
+        }
+    }
+}
+
+/// Represents a key derivation path that can be used to derive extended private keys.
+/// See BIP-32 spec for more information.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct KeyPath {
+    path: Vec<KeyPathIndex>,
+}
+
+impl KeyPath {
+    const HARDENED_KEY_INDEX: u32 = 0x8000_0000;
+
+    /// Start a new key path starting at the master root: m/...
+    pub fn new() -> Self {
+        Self { path: vec![] }
+    }
+
+    /// Add a hardened-index index to the current path.
+    ///
+    /// Example
+    /// ```
+    /// # use witnet_crypto::key::KeyPath;
+    /// let path = KeyPath::new().hardened(3).hardened(4);
+    /// assert_eq!("m/3'/4'", format!("{}", path));
+    /// ```
+    pub fn hardened(mut self, idx: u32) -> Self {
+        let index = Self::HARDENED_KEY_INDEX
+            .checked_add(idx)
+            .expect("key path hardened index overflow");
+        self.path.push(KeyPathIndex(index));
+        self
+    }
+
+    /// Add a normal (non-hardened) child index to the current path.
+    ///
+    /// Example
+    /// ```
+    /// # use witnet_crypto::key::KeyPath;
+    /// let path = KeyPath::new().index(3).index(4);
+    /// assert_eq!("m/3/4", format!("{}", path));
+    /// ```
+    pub fn index(mut self, index: u32) -> Self {
+        assert!(index < Self::HARDENED_KEY_INDEX, "key path index overflow");
+        self.path.push(KeyPathIndex(index));
+        self
+    }
+
+    /// Returns an iterator over the indices.
+    pub fn iter(&self) -> slice::Iter<'_, KeyPathIndex> {
+        self.path.iter()
+    }
+}
+
+impl fmt::Display for KeyPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let path = self.iter().fold("m".to_string(), |mut path, index| {
+            path.push_str(format!("/{}", index).as_ref());
+            path
+        });
+
+        write!(f, "{}", path)
+    }
+}
+
+#[inline]
 fn get_chain_code_and_secret(
     seed: &[u8],
     mut hmac512: Hmac<sha2::Sha512>,
@@ -275,16 +355,14 @@ mod tests {
         ];
 
         let extended_sk = MasterKeyGen::new(&seed[..]).generate().unwrap();
+        let path = KeyPath::new()
+            .hardened(44) // purpose: BIP-44
+            .hardened(0) // coin_type: Bitcoin
+            .hardened(0) // account: hardened 0
+            .index(0) // change: 0
+            .index(0); // address: 0
 
-        let account = extended_sk
-            .derive(vec![
-                ChildNumber(0x8000_002c), // purpose: BIP-44
-                ChildNumber(0x8000_0000), // coin_type: Bitcoin
-                ChildNumber(0x8000_0000), // account: hardened 0
-                ChildNumber(0),           // change: 0
-                ChildNumber(0),           // address: 0
-            ])
-            .unwrap();
+        let account = extended_sk.derive(&path).unwrap();
 
         let expected_account = [
             137, 174, 230, 121, 4, 190, 53, 238, 47, 181, 52, 226, 109, 68, 153, 170, 112, 150, 84,
