@@ -1,6 +1,8 @@
 //! Defines a JsonRPC over TCP actor.
 //!
 //! See the `JsonRpcClient` struct for more information.
+use std::time::Duration;
+
 use actix::prelude::*;
 use async_jsonrpc_client::{
     transports::{shared::EventLoopHandle, tcp::TcpSocket},
@@ -25,7 +27,7 @@ pub struct JsonRpcClient {
 }
 
 impl JsonRpcClient {
-    /// TODO: doc
+    /// Start Json-RPC async client actor.
     pub fn start(url: &str) -> Result<Addr<JsonRpcClient>, Error> {
         log::info!("Connecting client to {}", url);
         let (_handle, socket) = TcpSocket::new(url).map_err(|_| Error::InvalidUrl)?;
@@ -54,7 +56,7 @@ impl JsonRpcClient {
         // TODO: re-subscribe
     }
 
-    /// TODO: doc
+    /// Send Json-RPC request.
     pub fn send_request(
         &self,
         method: String,
@@ -93,6 +95,7 @@ impl Message for Notification {
 pub struct Request {
     method: String,
     params: Value,
+    timeout: Duration,
 }
 
 impl Request {
@@ -101,6 +104,7 @@ impl Request {
         Self {
             method: method.into(),
             params: Value::Null,
+            timeout: Duration::from_secs(60),
         }
     }
 
@@ -115,6 +119,12 @@ impl Request {
         self.params = params;
         self
     }
+
+    /// Set the request timeout after which it will fail if server has not responded.
+    pub fn timeout(mut self, duration: Duration) -> Self {
+        self.timeout = duration;
+        self
+    }
 }
 
 impl Message for Request {
@@ -126,7 +136,11 @@ impl Handler<Request> for JsonRpcClient {
 
     fn handle(
         &mut self,
-        Request { method, params }: Request,
+        Request {
+            method,
+            params,
+            timeout,
+        }: Request,
         ctx: &mut Self::Context,
     ) -> Self::Result {
         if self.retry_connect {
@@ -134,15 +148,16 @@ impl Handler<Request> for JsonRpcClient {
             ctx.notify(Subscribe);
         }
 
-        let fut =
-            self.send_request(method, params)
-                .into_actor(self)
-                .map_err(move |err, _act, ctx| {
-                    if is_connection_error(&err) {
-                        ctx.notify(RetryConnect);
-                    }
-                    err
-                });
+        let fut = self
+            .send_request(method, params)
+            .into_actor(self)
+            .timeout(timeout, Error::RequestTimedOut(timeout.as_millis()))
+            .map_err(move |err, _act, ctx| {
+                if is_connection_error(&err) {
+                    ctx.notify(RetryConnect);
+                }
+                err
+            });
 
         Box::new(fut)
     }

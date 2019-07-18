@@ -18,4 +18,7 @@ pub enum Error {
     /// The error ocurred when serializaing the request params to json.
     #[fail(display = "request params failed to serialize to json")]
     SerializeFailed(#[cause] JsonError),
+    /// The request timed out after the given duration.
+    #[fail(display = "request timed out after {} milliseconds", _0)]
+    RequestTimedOut(u128),
 }
