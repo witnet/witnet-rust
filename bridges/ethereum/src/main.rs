@@ -46,9 +46,35 @@ fn handle_receipt(receipt: TransactionReceipt) -> impl Future<Item = (), Error =
     }
 }
 
-fn convert_json_array_to_eth_bytes(_value: Value) -> Bytes {
-    // TODO: convert json values such as [1, 2, 3] into bytes
-    unimplemented!()
+fn convert_json_array_to_eth_bytes(value: Value) -> Result<Bytes, serde_json::Error> {
+    // Convert json values such as [1, 2, 3] into bytes
+    serde_json::from_value(value)
+}
+
+fn wait_for_witnet_block_in_block_relay(
+    config: Arc<Config>,
+    eth_state: Arc<EthState>,
+    block_hash: U256,
+) -> impl Future<Item = (), Error = ()> {
+    // TODO: this should retry until the block is included
+    eth_state
+        .block_relay_contract
+        .query(
+            "readDrMerkleRoot",
+            (block_hash,),
+            config.eth_account,
+            contract::Options::default(),
+            None,
+        )
+        .map_err(move |e| {
+            debug!(
+                "Block {} is not yet included in BlockRelay contract: {}",
+                block_hash, e
+            );
+        })
+        .map(move |_res: U256| {
+            debug!("Block {} was included in BlockRelay contract!", block_hash);
+        })
 }
 
 fn eth_event_stream(
@@ -342,7 +368,6 @@ fn post_actor(
                                     .map_err(|e| error!("{:?}", e)),
                             )
                         })
-                        .map_err(|e| error!("{:?}", e))
                         .and_then(move |(vrf_message, dr_output)| {
                             let vrf_params = json!({
                                 "message": vrf_message,
@@ -389,31 +414,46 @@ fn post_actor(
                             // without spending any gas
                             // TODO: this assumes that the vrf, witnet_pk and sign_addr are returned
                             // as an array of bytes: [1, 2, 3].
-                            let poe: Bytes = convert_json_array_to_eth_bytes(vrf);
-                            let witnet_pk: Bytes = convert_json_array_to_eth_bytes(witnet_pk);
-                            let sign_addr: Bytes = convert_json_array_to_eth_bytes(sign_addr);
+                            let poe = convert_json_array_to_eth_bytes(vrf);
+                            let witnet_pk = convert_json_array_to_eth_bytes(witnet_pk);
+                            let sign_addr = convert_json_array_to_eth_bytes(sign_addr);
+
+                            let (poe, witnet_pk, sign_addr) = match (poe, witnet_pk, sign_addr) {
+                                (Ok(poe), Ok(witnet_pk), Ok(sign_addr)) => {
+                                    (poe, witnet_pk, sign_addr)
+                                }
+                                e => {
+                                    error!("Error deserializing value from witnet JSONRPC: {:?}", e);
+                                    let fut: Box<
+                                        dyn Future<Item = (_, _, _, _), Error = ()> + Send,
+                                    > = Box::new(futures::failed(()));
+                                    return fut;
+                                }
+                            };
                             info!("[{}] Checking eligibility for claiming dr", dr_id);
 
-                            wbi_contract3
-                                .query(
-                                    "claimDataRequests",
-                                    (
-                                        vec![dr_id],
-                                        poe.clone(),
-                                        witnet_pk.clone(),
-                                        sign_addr.clone(),
-                                    ),
-                                    eth_account,
-                                    contract::Options::default(),
-                                    None,
-                                )
-                                .map_err(move |_| {
-                                    warn!(
+                            Box::new(
+                                wbi_contract3
+                                    .query(
+                                        "claimDataRequests",
+                                        (
+                                            vec![dr_id],
+                                            poe.clone(),
+                                            witnet_pk.clone(),
+                                            sign_addr.clone(),
+                                        ),
+                                        eth_account,
+                                        contract::Options::default(),
+                                        None,
+                                    )
+                                    .map_err(move |_| {
+                                        warn!(
                                         "[{}] the POE is invalid, no eligibility for this epoch :(",
                                         dr_id
                                     );
-                                })
-                                .map(move |_: Token| (poe, sign_addr, witnet_pk, dr_output))
+                                    })
+                                    .map(move |_: Token| (poe, sign_addr, witnet_pk, dr_output)),
+                            )
                         })
                         .and_then(move |(poe, sign_addr, witnet_pk, dr_output)| {
                             // Claim dr
@@ -530,12 +570,20 @@ fn main_actor(
                                     debug!("postNewBlock: {:?}", tx);
                                     handle_receipt(tx)
                                 })
-                                .then(move |_traces| Result::<_, ()>::Ok(block)),
+                                .map(move |_traces| block),
                         );
                         fut
                     } else {
                         // TODO: Wait for someone else to publish the witnet block to ethereum
-                        Box::new(futures::finished(block))
+                        //Box::new(futures::finished(block))
+                        Box::new(
+                            wait_for_witnet_block_in_block_relay(
+                                Arc::clone(&config),
+                                Arc::clone(&eth_state),
+                                block_hash,
+                            )
+                            .map(|()| block),
+                        )
                     }
                     .and_then(|block| {
                         let block_hash: U256 = match block.hash() {
