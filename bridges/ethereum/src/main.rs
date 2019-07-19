@@ -423,7 +423,10 @@ fn post_actor(
                                     (poe, witnet_pk, sign_addr)
                                 }
                                 e => {
-                                    error!("Error deserializing value from witnet JSONRPC: {:?}", e);
+                                    error!(
+                                        "Error deserializing value from witnet JSONRPC: {:?}",
+                                        e
+                                    );
                                     let fut: Box<
                                         dyn Future<Item = (_, _, _, _), Error = ()> + Send,
                                     > = Box::new(futures::failed(()));
