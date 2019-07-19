@@ -64,6 +64,16 @@ pub fn pkh() -> impl Future<Item = PublicKeyHash, Error = failure::Error> {
     addr.send(GetPkh).flatten()
 }
 
+/// Get the public key.
+///
+/// This might fail if the manager has not been initialized with a key
+pub fn public_key() -> impl Future<Item = PublicKey, Error = failure::Error> {
+    let addr = actix::System::current()
+        .registry()
+        .get::<SignatureManager>();
+    addr.send(GetPublicKey).flatten()
+}
+
 /// Create a VRF proof for the provided message with the stored key
 pub fn vrf_prove(
     message: VrfMessage,
@@ -93,6 +103,7 @@ impl SignatureManager {
 struct SetKey(SK);
 struct Sign(Vec<u8>);
 struct GetPkh;
+struct GetPublicKey;
 struct VrfProve(VrfMessage);
 
 fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = failure::Error> {
@@ -171,6 +182,10 @@ impl Message for GetPkh {
     type Result = Result<PublicKeyHash, failure::Error>;
 }
 
+impl Message for GetPublicKey {
+    type Result = Result<PublicKey, failure::Error>;
+}
+
 impl Message for VrfProve {
     type Result = Result<(VrfProof, Hash), failure::Error>;
 }
@@ -210,6 +225,17 @@ impl Handler<GetPkh> for SignatureManager {
     fn handle(&mut self, _msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
         match self.keypair {
             Some((_secret, public)) => Ok(PublicKeyHash::from_public_key(&public.into())),
+            None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+        }
+    }
+}
+
+impl Handler<GetPublicKey> for SignatureManager {
+    type Result = <GetPublicKey as Message>::Result;
+
+    fn handle(&mut self, _msg: GetPublicKey, _ctx: &mut Self::Context) -> Self::Result {
+        match self.keypair {
+            Some((_secret, public)) => Ok(public.into()),
             None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
         }
     }
