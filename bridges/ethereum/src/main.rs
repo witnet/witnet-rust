@@ -427,13 +427,17 @@ fn post_actor(
                                     contract::Options::default(),
                                     1,
                                 )
-                                .then(move |tx| {
-                                    debug!("claim_drs tx: {:?}", tx);
-                                    let tx = tx.unwrap();
-                                    handle_receipt(tx)
+                                .map_err(move |e| {
+                                    error!("claimDataRequests: {:?}", e);
                                 })
-                                .map_err(move |_| {
-                                    warn!("[{}] has been claimed by another bridge node", dr_id);
+                                .and_then(move |tx| {
+                                    debug!("claimDataRequests: {:?}", tx);
+                                    handle_receipt(tx).map_err(move |_| {
+                                        warn!(
+                                            "[{}] has been claimed by another bridge node",
+                                            dr_id
+                                        );
+                                    })
                                 })
                                 .and_then(move |_traces| {
                                     // Post dr in witnet
@@ -520,9 +524,9 @@ fn main_actor(
                                     contract::Options::default(),
                                     1,
                                 )
-                                .then(|tx| {
+                                .map_err(|e| error!("postNewBlock: {:?}", e))
+                                .and_then(|tx| {
                                     debug!("postNewBlock: {:?}", tx);
-                                    let tx = tx.unwrap();
                                     handle_receipt(tx)
                                 })
                                 .then(move |_traces| Result::<_, ()>::Ok(block)),
@@ -585,9 +589,9 @@ fn main_actor(
                                             contract::Options::default(),
                                             1,
                                         )
-                                        .then(move |tx| {
-                                            debug!("report_dr_inclusion tx: {:?}", tx);
-                                            let tx = tx.unwrap();
+                                        .map_err(|e| error!("reportDataRequestInclusion: {:?}", e))
+                                        .and_then(move |tx| {
+                                            debug!("reportDataRequestInclusion: {:?}", tx);
                                             handle_receipt(tx)
                                         }),
                                 );
@@ -629,9 +633,9 @@ fn main_actor(
                                             contract::Options::default(),
                                             1,
                                         )
-                                        .then(|tx| {
-                                            debug!("report_result tx: {:?}", tx);
-                                            let tx = tx.unwrap();
+                                        .map_err(|e| error!("reportResult: {:?}", e))
+                                        .and_then(|tx| {
+                                            debug!("reportResult: {:?}", tx);
                                             handle_receipt(tx)
                                         }),
                                 );
