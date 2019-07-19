@@ -24,6 +24,7 @@ use crate::actors::{
     },
     sessions_manager::SessionsManager,
 };
+use crate::signature_mngr;
 
 //use std::str::FromStr;
 use super::Subscriptions;
@@ -55,6 +56,8 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
         build_value_transfer(params.parse())
     });
     io.add_method("status", |_params: Params| status());
+
+    io.add_method("getPublicKey", |_params: Params| get_public_key());
 
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -539,6 +542,15 @@ pub fn status() -> JsonRpcResultAsync {
         });
 
     Box::new(j)
+}
+
+/// Get public key
+pub fn get_public_key() -> JsonRpcResultAsync {
+    Box::new(
+        signature_mngr::public_key()
+            .map_err(internal_error)
+            .map(|pk| pk.to_bytes().to_vec().into()),
+    )
 }
 
 #[cfg(test)]
