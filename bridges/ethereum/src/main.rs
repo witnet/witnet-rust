@@ -506,6 +506,7 @@ fn main_actor(
 
                     // Enable block relay?
                     if config.enable_block_relay {
+                        let block_epoch: U256 = block.block_header.beacon.checkpoint.into();
                         let dr_merkle_root: U256 =
                             match block.block_header.merkle_roots.dr_hash_merkle_root {
                                 Hash::SHA256(x) => x.into(),
@@ -519,7 +520,7 @@ fn main_actor(
                             block_relay_contract
                                 .call_with_confirmations(
                                     "postNewBlock",
-                                    (block_hash, dr_merkle_root, tally_merkle_root),
+                                    (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
                                     config.eth_account,
                                     contract::Options::default(),
                                     1,
