@@ -12,7 +12,7 @@ use log;
 use crate::{actors::storage_keys::MASTER_KEY, storage_mngr};
 
 use witnet_crypto::{
-    key::{ExtendedSK, MasterKeyGen, SignContext, PK, SK},
+    key::{ExtendedSK, MasterKeyGen, SignEngine, PK, SK},
     mnemonic::MnemonicGen,
     signature,
 };
@@ -84,7 +84,7 @@ struct SignatureManager {
 
 impl SignatureManager {
     fn set_key(&mut self, key: SK) {
-        let public_key = PK::from_secret_key(&SignContext::signing_only(), &key);
+        let public_key = PK::from_secret_key(&SignEngine::signing_only(), &key);
         self.keypair = Some((key, public_key));
         log::debug!("Signature Manager received a key and is ready to sign");
     }
@@ -111,7 +111,7 @@ fn create_master_key() -> Box<dyn Future<Item = SK, Error = failure::Error>> {
     let seed = mnemonic.seed(&ProtectedString::new(""));
     match MasterKeyGen::new(seed).generate() {
         Ok(master_key) => {
-            let fut = persist_master_key(master_key.clone()).map(move |_| master_key.secret_key);
+            let fut = persist_master_key(master_key.clone()).map(move |_| master_key.into());
 
             Box::new(fut)
         }
@@ -141,7 +141,7 @@ impl Actor for SignatureManager {
             .and_then(move |master_key_from_storage| {
                 master_key_from_storage.map_or_else(create_master_key, |master_key| {
                     let master_key: ExtendedSK = master_key.into();
-                    let fut = futures::future::ok(master_key.secret_key);
+                    let fut = futures::future::ok(master_key.into());
 
                     Box::new(fut)
                 })

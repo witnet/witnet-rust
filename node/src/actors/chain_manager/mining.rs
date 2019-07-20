@@ -583,6 +583,7 @@ mod tests {
     use std::convert::TryInto;
     use witnet_crypto::signature::{sign, verify};
     use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
+    use witnet_protected::Protected;
     use witnet_validations::validations::validate_block_signature;
 
     #[test]
@@ -649,7 +650,9 @@ mod tests {
 
         // Add valid vrf proof
         let vrf = &mut VrfCtx::secp256k1().unwrap();
-        let secret_key = SecretKey { bytes: [0xcd; 32] };
+        let secret_key = SecretKey {
+            bytes: Protected::from(vec![0xcd; 32]),
+        };
         let block_proof = BlockEligibilityClaim::create(vrf, &secret_key, block_beacon).unwrap();
 
         // Build empty block (because max weight is zero)
@@ -816,10 +819,10 @@ mod tests {
     #[test]
     fn test_signature_and_serialization() {
         let secret_key = SecretKey {
-            bytes: [
+            bytes: Protected::from(vec![
                 106, 203, 222, 17, 245, 196, 188, 111, 78, 241, 172, 142, 124, 110, 248, 199, 64,
                 127, 236, 133, 218, 0, 32, 60, 14, 113, 138, 102, 2, 247, 54, 107,
-            ],
+            ]),
         };
         let sk: Secp256k1_SecretKey = secret_key.into();
 

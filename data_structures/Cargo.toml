@@ -17,6 +17,7 @@ log = "0.4.6"
 secp256k1 = "0.12.2"
 vrf = "0.2.0"
 witnet_reputation = { path = "../reputation", features = ["serde"] }
+witnet_protected = { path = "../protected" }
 
 [dependencies.partial_struct]
 path = "../partial_struct"
