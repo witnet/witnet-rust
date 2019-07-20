@@ -16,6 +16,7 @@ use witnet_crypto::{
     hash::{calculate_sha256, Sha256},
     key::ExtendedSK,
 };
+use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 use witnet_util::parser::parse_hex;
 
@@ -323,8 +324,7 @@ impl TryInto<Secp256k1_PublicKey> for PublicKey {
 
 impl From<Secp256k1_SecretKey> for SecretKey {
     fn from(secp256k1_sk: Secp256k1_SecretKey) -> Self {
-        let mut bytes: [u8; 32] = [0; 32];
-        bytes.copy_from_slice(&secp256k1_sk[..]);
+        let bytes = Protected::from(&secp256k1_sk[..]);
 
         SecretKey { bytes }
     }
@@ -339,8 +339,10 @@ impl Into<Secp256k1_SecretKey> for SecretKey {
 impl From<ExtendedSK> for ExtendedSecretKey {
     fn from(extended_sk: ExtendedSK) -> Self {
         ExtendedSecretKey {
-            secret_key: SecretKey::from(extended_sk.secret_key),
-            chain_code: extended_sk.chain_code,
+            secret_key: SecretKey {
+                bytes: extended_sk.secret(),
+            },
+            chain_code: extended_sk.chain_code(),
         }
     }
 }
@@ -349,10 +351,7 @@ impl Into<ExtendedSK> for ExtendedSecretKey {
     fn into(self) -> ExtendedSK {
         let secret_key = self.secret_key.into();
 
-        ExtendedSK {
-            secret_key,
-            chain_code: self.chain_code,
-        }
+        ExtendedSK::new(secret_key, self.chain_code)
     }
 }
 
@@ -602,20 +601,37 @@ impl PublicKey {
 }
 
 /// Secret Key data structure
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SecretKey {
-    // FIXME(#560): Use Protected type
-    pub bytes: [u8; 32],
+    pub bytes: Protected,
+}
+
+// FIXME: SecretKey shouldn't implement Default
+impl Default for SecretKey {
+    fn default() -> Self {
+        Self {
+            bytes: Protected::new(Vec::new()),
+        }
+    }
 }
 
 /// Extended Secret Key data structure
-#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ExtendedSecretKey {
     /// Secret key
     pub secret_key: SecretKey,
     /// Chain code
-    // FIXME(#560): Use Protected type
-    pub chain_code: [u8; 32],
+    pub chain_code: Protected,
+}
+
+// FIXME: ExtendedSecretKey shouldn't implement Default
+impl Default for ExtendedSecretKey {
+    fn default() -> Self {
+        Self {
+            secret_key: Default::default(),
+            chain_code: Protected::new(Vec::new()),
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]

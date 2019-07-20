@@ -10,6 +10,7 @@ use witnet_data_structures::{
     transaction::*,
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
+use witnet_protected::Protected;
 use witnet_rad::error::RadError;
 use witnet_validations::validations::*;
 
@@ -1333,7 +1334,9 @@ fn test_commit_difficult_proof() -> Result<(), failure::Error> {
     let mut dr_pool = DataRequestPool::default();
     let commit_beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
-    let secret_key = SecretKey { bytes: [0xcd; 32] };
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
 
     // Create a reputation engine where one identity has 1_023 reputation,
     // so it is very difficult for someone with 0 reputation to be elegible
@@ -1380,7 +1383,9 @@ fn test_commit() -> Result<(), failure::Error> {
     let commit_beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
-    let secret_key = SecretKey { bytes: [0xcd; 32] };
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
 
     let dro = DataRequestOutput {
         value: 1000,
@@ -1415,7 +1420,9 @@ fn commitment_signatures() {
     let dr_hash = DR_HASH.parse().unwrap();
     let commit_beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
-    let secret_key = SecretKey { bytes: [0xcd; 32] };
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
     let mut cb = CommitTransactionBody::default();
     // Insert valid proof
     cb.dr_pointer = dr_hash;
@@ -1540,7 +1547,9 @@ fn commitment_invalid_proof() {
     let commit_beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
-    let secret_key = SecretKey { bytes: [0xcd; 32] };
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
 
     // Create an invalid proof by suppliying a different dr_pointer
     let bad_dr_pointer = Hash::default();
@@ -1597,7 +1606,9 @@ fn commitment_dr_in_reveal_stage() {
     let commit_beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
-    let secret_key = SecretKey { bytes: [0xcd; 32] };
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
 
     let dro = DataRequestOutput {
         value: 1000,
@@ -2386,7 +2397,9 @@ fn block_signatures() {
     };
     // Add valid vrf proof
     let vrf = &mut VrfCtx::secp256k1().unwrap();
-    let secret_key = SecretKey { bytes: [0xcd; 32] };
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
     b.block_header.proof =
         BlockEligibilityClaim::create(vrf, &secret_key, b.block_header.beacon).unwrap();
 
@@ -2479,7 +2492,9 @@ fn test_block<F: FnMut(&mut Block) -> bool>(mut mut_block: F) -> Result<(), fail
     let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
     utxo_set.insert(output1_pointer, output1);
 
-    let secret_key = SecretKey { bytes: [0xcd; 32] };
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
     let current_epoch = 1000;
     let genesis_block_hash = Hash::default();
     let last_block_hash = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41"
@@ -2610,7 +2625,9 @@ fn block_unknown_hash_prev_block() {
 
         // Re-create a valid VRF proof
         let vrf = &mut VrfCtx::secp256k1().unwrap();
-        let secret_key = SecretKey { bytes: [0xcd; 32] };
+        let secret_key = SecretKey {
+            bytes: Protected::from(vec![0xcd; 32]),
+        };
 
         b.block_header.proof =
             BlockEligibilityClaim::create(vrf, &secret_key, b.block_header.beacon).unwrap();
@@ -2657,7 +2674,9 @@ fn block_difficult_proof() {
     let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
     utxo_set.insert(output1_pointer, output1);
 
-    let secret_key = SecretKey { bytes: [0xcd; 32] };
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
     let current_epoch = 1000;
     let genesis_block_hash = Hash::default();
     let last_block_hash = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41"
@@ -2892,7 +2911,9 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
     let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
     utxo_set.insert(output1_pointer, output1);
 
-    let secret_key = SecretKey { bytes: [0xcd; 32] };
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
     let mut current_epoch = 1000;
     let genesis_block_hash = Hash::default();
     let mut last_block_hash = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41"

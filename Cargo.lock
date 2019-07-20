@@ -3026,6 +3026,7 @@ dependencies = [
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "vrf 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "witnet_crypto 0.3.2",
+ "witnet_protected 0.3.2",
  "witnet_reputation 0.3.2",
  "witnet_util 0.3.2",
 ]
@@ -3155,6 +3156,7 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "witnet_crypto 0.3.2",
  "witnet_data_structures 0.3.2",
+ "witnet_protected 0.3.2",
  "witnet_rad 0.3.2",
 ]
 

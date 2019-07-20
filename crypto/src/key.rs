@@ -12,10 +12,13 @@ use std::{fmt, slice};
 
 use failure::Fail;
 use hmac::{Hmac, Mac};
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Secp256k1, SecretKey, SignOnly, VerifyOnly};
+pub use secp256k1::{Signing, Verification};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sha2;
+
+use witnet_protected::Protected;
 
 /// The error type for [generate_master](generate_master)
 #[derive(Debug, PartialEq, Fail)]
@@ -75,8 +78,7 @@ where
 
         // secret/chain_code computation might panic if length returned by hmac is wrong
         let secret_key = SecretKey::from_slice(sk_bytes).expect("Secret Key length error");
-        let mut chain_code = [0u8; 32];
-        chain_code.copy_from_slice(chain_code_bytes);
+        let chain_code = Protected::from(chain_code_bytes);
 
         Ok(ExtendedSK {
             secret_key,
@@ -104,43 +106,76 @@ pub type SK = SecretKey;
 /// Public Key
 pub type PK = PublicKey;
 
-/// Signing context for signature operations
+/// The secp256k1 engine, used to execute all signature operations.
 ///
-/// `SignContext::new()`: all capabilities
-/// `SignContext::signing_only()`: only be used for signing
-/// `SignContext::verification_only()`: only be used for verification
-pub type SignContext<C> = Secp256k1<C>;
+/// `Engine::new()`: all capabilities
+/// `Engine::signing_only()`: only be used for signing
+/// `Engine::verification_only()`: only be used for verification
+pub type Engine<C> = Secp256k1<C>;
+
+/// Secp256k1 engine that can only be used for signing.
+pub type SignEngine = Secp256k1<SignOnly>;
+
+/// Secp256k1 engine that can only be used for verifying.
+pub type VerifyEngine = Secp256k1<VerifyOnly>;
 
 /// Extended Key is just a Key with a Chain Code
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtendedSK {
     /// Secret key
-    pub secret_key: SK,
+    secret_key: SK,
     /// Chain code
-    pub chain_code: [u8; 32],
+    chain_code: Protected,
 }
 
 impl ExtendedSK {
+    /// Create a new extended secret key which is the combination of a secret key and a chain code.
+    pub fn new(secret_key: SK, chain_code: Protected) -> Self {
+        Self {
+            secret_key,
+            chain_code,
+        }
+    }
+
+    /// Get the secret and chain code concatenated
+    pub fn concat(&self) -> Protected {
+        let mut bytes = Vec::from(&self.secret_key[..]);
+        bytes.extend_from_slice(&self.chain_code);
+
+        Protected::from(bytes)
+    }
+
+    /// Get the secret key part.
+    pub fn secret(&self) -> Protected {
+        Protected::from(&self.secret_key[..])
+    }
+
+    /// Get the chain code part.
+    pub fn chain_code(&self) -> Protected {
+        self.chain_code.clone()
+    }
+
     /// Try to derive an extended private key from a given path
-    pub fn derive(&self, path: &KeyPath) -> Result<ExtendedSK, KeyDerivationError> {
+    pub fn derive<C: Signing>(
+        &self,
+        engine: &Engine<C>,
+        path: &KeyPath,
+    ) -> Result<ExtendedSK, KeyDerivationError> {
         let mut extended_sk = self.clone();
         for index in path.iter() {
-            extended_sk = extended_sk.child(index)?
+            extended_sk = extended_sk.child(engine, index)?
         }
 
         Ok(extended_sk)
     }
-    /// get the secret
-    pub fn secret(&self) -> [u8; 32] {
-        let mut secret: [u8; 32] = [0; 32];
-        secret.copy_from_slice(&self.secret_key[..]);
-
-        secret
-    }
 
     /// Try to get a private child key from parent
-    pub fn child(&self, index: &KeyPathIndex) -> Result<ExtendedSK, KeyDerivationError> {
+    pub fn child<C: Signing>(
+        &self,
+        engine: &Engine<C>,
+        index: &KeyPathIndex,
+    ) -> Result<ExtendedSK, KeyDerivationError> {
         let mut hmac512: Hmac<sha2::Sha512> =
             Hmac::new_varkey(&self.chain_code).map_err(|_| KeyDerivationError::InvalidKeyLength)?;
         let index_bytes = index.as_ref().to_be_bytes();
@@ -149,10 +184,7 @@ impl ExtendedSK {
             hmac512.input(&[0]); // BIP-32 padding that makes key 33 bytes long
             hmac512.input(&self.secret_key[..]);
         } else {
-            hmac512.input(
-                &PublicKey::from_secret_key(&secp256k1::Secp256k1::new(), &self.secret_key)
-                    .serialize(),
-            );
+            hmac512.input(&PublicKey::from_secret_key(engine, &self.secret_key).serialize());
         }
 
         let (chain_code, mut secret_key) = get_chain_code_and_secret(&index_bytes, hmac512)?;
@@ -165,6 +197,45 @@ impl ExtendedSK {
             secret_key,
             chain_code,
         })
+    }
+}
+
+impl Into<SK> for ExtendedSK {
+    fn into(self) -> SK {
+        self.secret_key
+    }
+}
+
+/// Extended Public Key.
+///
+/// It can be used to derive other HD-Wallets public keys.
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ExtendedPK {
+    /// Public key
+    pub key: PK,
+    /// Chain code
+    pub chain_code: Protected,
+}
+
+impl ExtendedPK {
+    /// Derive the public key from a private key.
+    pub fn from_secret_key<C: Signing>(engine: &Engine<C>, key: &ExtendedSK) -> Self {
+        let ExtendedSK {
+            secret_key,
+            chain_code,
+        } = key;
+        let key = PublicKey::from_secret_key(engine, secret_key);
+        Self {
+            key,
+            chain_code: chain_code.clone(),
+        }
+    }
+}
+
+impl Into<PK> for ExtendedPK {
+    fn into(self) -> PK {
+        self.key
     }
 }
 
@@ -265,15 +336,11 @@ impl fmt::Display for KeyPath {
 fn get_chain_code_and_secret(
     seed: &[u8],
     mut hmac512: Hmac<sha2::Sha512>,
-) -> Result<([u8; 32], SecretKey), KeyDerivationError> {
+) -> Result<(Protected, SecretKey), KeyDerivationError> {
     hmac512.input(seed);
     let i = hmac512.result().code();
     let (il, ir) = i.split_at(32);
-    let chain_code: [u8; 32] = {
-        let mut array: [u8; 32] = [0; 32];
-        array.copy_from_slice(&ir);
-        array
-    };
+    let chain_code = Protected::from(ir);
     let secret_key = SecretKey::from_slice(&il).map_err(KeyDerivationError::Secp256k1Error)?;
 
     Ok((chain_code, secret_key))
@@ -361,8 +428,8 @@ mod tests {
             .hardened(0) // account: hardened 0
             .index(0) // change: 0
             .index(0); // address: 0
-
-        let account = extended_sk.derive(&path).unwrap();
+        let engine = SignEngine::signing_only();
+        let account = extended_sk.derive(&engine, &path).unwrap();
 
         let expected_account = [
             137, 174, 230, 121, 4, 190, 53, 238, 47, 181, 52, 226, 109, 68, 153, 170, 112, 150, 84,
@@ -371,7 +438,7 @@ mod tests {
 
         assert_eq!(
             expected_account,
-            &account.secret()[..],
+            &account.secret().as_ref(),
             "Secret key is invalid"
         );
     }

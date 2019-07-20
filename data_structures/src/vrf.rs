@@ -184,6 +184,8 @@ impl DataRequestEligibilityClaim {
 
 #[cfg(test)]
 mod tests {
+    use witnet_protected::Protected;
+
     use super::*;
     use vrf::openssl::CipherSuite;
 
@@ -213,7 +215,9 @@ mod tests {
     #[test]
     fn block_proof_validity() {
         let vrf = &mut VrfCtx::secp256k1().unwrap();
-        let secret_key = SecretKey { bytes: [0x44; 32] };
+        let secret_key = SecretKey {
+            bytes: Protected::from(vec![0x44; 32]),
+        };
         let beacon = CheckpointBeacon {
             checkpoint: 0,
             hash_prev_block: Default::default(),
@@ -235,7 +239,9 @@ mod tests {
     #[test]
     fn data_request_proof_validity() {
         let vrf = &mut VrfCtx::secp256k1().unwrap();
-        let secret_key = SecretKey { bytes: [0x44; 32] };
+        let secret_key = SecretKey {
+            bytes: Protected::from(vec![0x44; 32]),
+        };
         let beacon = CheckpointBeacon {
             checkpoint: 0,
             hash_prev_block: Default::default(),
