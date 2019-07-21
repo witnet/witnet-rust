@@ -1,21 +1,23 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::{api, app};
+use crate::actors::app;
 
-impl Message for api::LockWalletRequest {
-    type Result = Result<api::LockWalletResponse, api::Error>;
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LockWalletRequest {
+    wallet_id: String,
+    session_id: String,
 }
 
-impl Handler<api::LockWalletRequest> for App {
-    type Result = Result<api::LockWalletResponse, api::Error>;
+impl Message for LockWalletRequest {
+    type Result = app::Result<()>;
+}
 
-    fn handle(&mut self, msg: api::LockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
+impl Handler<LockWalletRequest> for app::App {
+    type Result = <LockWalletRequest as Message>::Result;
+
+    fn handle(&mut self, msg: LockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         self.lock_wallet(msg.session_id, msg.wallet_id)
-            .map_err(|err| match err {
-                app::Error::UnknownSession => api::Error::Unauthorized,
-                app::Error::WrongWallet => api::Error::Forbidden,
-                e => api::internal_error(e),
-            })
     }
 }

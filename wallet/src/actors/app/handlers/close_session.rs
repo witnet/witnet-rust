@@ -1,19 +1,22 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::{api, app};
+use crate::actors::app;
 
-impl Message for api::CloseSessionRequest {
-    type Result = Result<api::CloseSessionResponse, api::Error>;
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloseSessionRequest {
+    pub(crate) session_id: String,
 }
 
-impl Handler<api::CloseSessionRequest> for App {
-    type Result = Result<api::CloseSessionResponse, api::Error>;
+impl Message for CloseSessionRequest {
+    type Result = app::Result<()>;
+}
 
-    fn handle(&mut self, msg: api::CloseSessionRequest, _ctx: &mut Self::Context) -> Self::Result {
-        self.close_session(msg.session_id).map_err(|err| match err {
-            app::Error::UnknownSession => api::Error::Unauthorized,
-            err => api::internal_error(err),
-        })
+impl Handler<CloseSessionRequest> for app::App {
+    type Result = <CloseSessionRequest as Message>::Result;
+
+    fn handle(&mut self, msg: CloseSessionRequest, _ctx: &mut Self::Context) -> Self::Result {
+        self.close_session(msg.session_id)
     }
 }

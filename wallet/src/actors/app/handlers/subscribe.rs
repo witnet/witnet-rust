@@ -1,33 +1,38 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
+use crate::types;
 
-impl Message for api::Subscribe {
-    type Result = Result<(), api::Error>;
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscribeRequest {
+    pub session_id: String,
 }
 
-impl Handler<api::Subscribe> for App {
-    type Result = <api::Subscribe as Message>::Result;
+pub struct Subscribe(pub String, pub types::SubscriptionId, pub types::Sink);
+
+impl Message for Subscribe {
+    type Result = app::Result<()>;
+}
+
+impl Handler<Subscribe> for app::App {
+    type Result = <Subscribe as Message>::Result;
 
     fn handle(
         &mut self,
-        api::Subscribe(session_id, subscription_id, sink): api::Subscribe,
+        Subscribe(session_id, subscription_id, sink): Subscribe,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        match self.subscribe(session_id.clone(), subscription_id, sink) {
-            Ok(()) => {
-                log::debug!("Created subscription for session: {}", session_id);
-                Ok(())
-            }
-            Err(err) => {
+        self.subscribe(session_id.clone(), subscription_id, sink)
+            .map(|()| log::debug!("Created subscription for session: {}", session_id))
+            .map_err(|err| {
                 log::error!(
                     "Couldn't create subscription for session {}: {}",
                     session_id,
                     err
                 );
-                Err(api::internal_error(err))
-            }
-        }
+                err
+            })
     }
 }

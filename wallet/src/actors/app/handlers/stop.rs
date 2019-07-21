@@ -1,16 +1,15 @@
 use actix::prelude::*;
 
-use crate::actors::app::App;
-use crate::app;
+use crate::actors::app;
 
 pub struct Stop;
 
 impl Message for Stop {
-    type Result = Result<(), app::Error>;
+    type Result = app::Result<()>;
 }
 
-impl Handler<Stop> for App {
-    type Result = ResponseFuture<(), app::Error>;
+impl Handler<Stop> for app::App {
+    type Result = app::ResponseFuture<()>;
 
     fn handle(&mut self, _msg: Stop, _ctx: &mut Self::Context) -> Self::Result {
         log::info!("stopping application...");

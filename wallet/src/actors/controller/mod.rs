@@ -1,14 +1,8 @@
-//! # Controller actor
-//!
-//! The Controller actor holds the address of the App actor and the instance of the Websockets
-//! server, and is in charge of graceful shutdown of the entire system.  See `Controller` struct for
-//! more info.
-
 use actix::prelude::*;
 
 use witnet_net::server::ws::Server;
 
-use crate::actors::App;
+use crate::actors::{app, App};
 
 mod handlers;
 
@@ -24,19 +18,31 @@ pub struct Controller {
 }
 
 impl Controller {
-    /// Start actor.
     pub fn start(server: Server, app: Addr<App>) -> Addr<Self> {
-        let slf = Self {
-            server: Some(server),
+        let actor = Self {
             app,
+            server: Some(server),
         };
 
-        slf.start()
+        actor.start()
     }
 
-    /// Stop websockets server.
     fn stop_server(&mut self) {
         drop(self.server.take())
+    }
+
+    fn shutdown(&mut self, ctx: &mut <Self as Actor>::Context) {
+        self.stop_server();
+        self.app
+            .send(app::Stop)
+            .map_err(|_| log::error!("Couldn't stop application!"))
+            .and_then(|_| {
+                log::info!("Application stopped. Shutting down system!");
+                System::current().stop();
+                Ok(())
+            })
+            .into_actor(self)
+            .spawn(ctx);
     }
 }
 

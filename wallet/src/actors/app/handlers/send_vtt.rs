@@ -1,16 +1,25 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
 
-impl Message for api::SendVttRequest {
-    type Result = Result<(), api::Error>;
+#[derive(Debug, Deserialize)]
+pub struct SendVttRequest {
+    pub wallet_id: String,
+    pub to_address: Vec<u8>,
+    pub amount: u64,
+    pub fee: u64,
+    pub subject: String,
 }
 
-impl Handler<api::SendVttRequest> for App {
-    type Result = Result<(), api::Error>;
+impl Message for SendVttRequest {
+    type Result = app::Result<()>;
+}
 
-    fn handle(&mut self, _msg: api::SendVttRequest, _ctx: &mut Self::Context) -> Self::Result {
+impl Handler<SendVttRequest> for app::App {
+    type Result = <SendVttRequest as Message>::Result;
+
+    fn handle(&mut self, _msg: SendVttRequest, _ctx: &mut Self::Context) -> Self::Result {
         Ok(())
     }
 }

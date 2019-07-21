@@ -1,16 +1,23 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
 
-impl Message for api::ImportSeedRequest {
-    type Result = Result<(), api::Error>;
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum ImportSeedRequest {
+    Mnemonics { mnemonics: String },
+    Seed { seed: String },
 }
 
-impl Handler<api::ImportSeedRequest> for App {
-    type Result = Result<(), api::Error>;
+impl Message for ImportSeedRequest {
+    type Result = app::Result<()>;
+}
 
-    fn handle(&mut self, _msg: api::ImportSeedRequest, _ctx: &mut Self::Context) -> Self::Result {
+impl Handler<ImportSeedRequest> for app::App {
+    type Result = <ImportSeedRequest as Message>::Result;
+
+    fn handle(&mut self, _msg: ImportSeedRequest, _ctx: &mut Self::Context) -> Self::Result {
         Ok(())
     }
 }

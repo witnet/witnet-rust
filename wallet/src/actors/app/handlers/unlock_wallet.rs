@@ -1,33 +1,48 @@
 use actix::prelude::*;
+use serde::{Deserialize, Serialize};
 
-use crate::actors::App;
-use crate::{api, app, storage, validation};
+use crate::actors::app;
+use crate::types;
 
-impl Message for api::UnlockWalletRequest {
-    type Result = Result<api::UnlockWalletResponse, api::Error>;
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlockWalletRequest {
+    pub wallet_id: String,
+    pub password: types::Password,
 }
 
-impl Handler<api::UnlockWalletRequest> for App {
-    type Result = ResponseActFuture<Self, api::UnlockWalletResponse, api::Error>;
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlockWalletResponse {
+    session_id: String,
+    name: Option<String>,
+    caption: Option<String>,
+    accounts: Vec<u32>,
+    session_expiration_secs: u64,
+}
 
-    fn handle(&mut self, msg: api::UnlockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let fut = self
-            .unlock_wallet(msg.wallet_id, msg.password)
-            .map_err(|err, _slf, _ctx| match err {
-                app::Error::Storage(storage::Error::WalletNotFound) => {
-                    api::validation_error(validation::error("walletId", format!("{}", err)))
-                }
-                app::Error::Storage(storage::Error::WrongPassword(_)) => {
-                    api::validation_error(validation::error("password", format!("{}", err)))
-                }
-                _ => api::internal_error(err),
-            })
-            .map(|session_id, slf, ctx| {
+impl Message for UnlockWalletRequest {
+    type Result = Result<UnlockWalletResponse, app::Error>;
+}
+
+impl Handler<UnlockWalletRequest> for app::App {
+    type Result = app::ResponseActFuture<UnlockWalletResponse>;
+
+    fn handle(&mut self, msg: UnlockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
+        let f = self.unlock_wallet(msg.wallet_id, msg.password).map(
+            |(session_id, wallet), slf, ctx| {
                 slf.set_session_to_expire(session_id.clone()).spawn(ctx);
 
-                api::UnlockWalletResponse { session_id }
-            });
+                UnlockWalletResponse {
+                    session_id,
+                    name: wallet.name,
+                    caption: wallet.caption,
+                    accounts: wallet.accounts,
+                    session_expiration_secs: slf.params.session_expires_in.as_secs(),
+                }
+            },
+        );
 
-        Box::new(fut)
+        Box::new(f)
     }
 }

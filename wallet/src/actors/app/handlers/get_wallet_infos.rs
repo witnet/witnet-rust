@@ -1,26 +1,29 @@
 use actix::prelude::*;
 use futures::future;
+use serde::{Deserialize, Serialize};
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
+use crate::model;
 
-impl Message for api::WalletInfosRequest {
-    type Result = Result<api::WalletInfosResponse, api::Error>;
+#[derive(Debug, Deserialize)]
+pub struct WalletInfosRequest;
+
+#[derive(Debug, Serialize)]
+pub struct WalletInfosResponse {
+    pub infos: Vec<model::WalletInfo>,
 }
 
-impl Handler<api::WalletInfosRequest> for App {
-    type Result = ResponseFuture<api::WalletInfosResponse, api::Error>;
+impl Message for WalletInfosRequest {
+    type Result = app::Result<WalletInfosResponse>;
+}
 
-    fn handle(&mut self, _msg: api::WalletInfosRequest, _ctx: &mut Self::Context) -> Self::Result {
+impl Handler<WalletInfosRequest> for app::App {
+    type Result = app::ResponseFuture<WalletInfosResponse>;
+
+    fn handle(&mut self, _msg: WalletInfosRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
             .get_wallet_infos()
-            .map_err(api::internal_error)
-            .and_then(|infos| {
-                future::ok(api::WalletInfosResponse {
-                    total: infos.len(),
-                    infos,
-                })
-            });
+            .and_then(|infos| future::ok(WalletInfosResponse { infos }));
 
         Box::new(f)
     }

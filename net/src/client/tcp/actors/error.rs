@@ -21,4 +21,13 @@ pub enum Error {
     /// The request timed out after the given duration.
     #[fail(display = "request timed out after {} milliseconds", _0)]
     RequestTimedOut(u128),
+    /// The actor is not reachable.
+    #[fail(display = "{}", _0)]
+    Mailbox(#[cause] actix::MailboxError),
+}
+
+impl From<actix::MailboxError> for Error {
+    fn from(err: actix::MailboxError) -> Self {
+        Error::Mailbox(err)
+    }
 }

@@ -1,19 +1,32 @@
 use actix::prelude::*;
+use serde::{Deserialize, Serialize};
 
-use crate::{actors::App, api};
+use crate::actors::app;
+use crate::types;
 
-impl Message for api::RunRadReqRequest {
-    type Result = Result<api::RunRadReqResponse, api::Error>;
+#[derive(Debug, Deserialize)]
+pub struct RunRadReqRequest {
+    #[serde(rename = "radRequest")]
+    pub rad_request: types::RADRequest,
 }
 
-impl Handler<api::RunRadReqRequest> for App {
-    type Result = ResponseFuture<api::RunRadReqResponse, api::Error>;
+#[derive(Debug, Serialize)]
+pub struct RunRadReqResponse {
+    pub result: types::RadonTypes,
+}
 
-    fn handle(&mut self, msg: api::RunRadReqRequest, _ctx: &mut Self::Context) -> Self::Result {
+impl Message for RunRadReqRequest {
+    type Result = app::Result<RunRadReqResponse>;
+}
+
+impl Handler<RunRadReqRequest> for app::App {
+    type Result = app::ResponseFuture<RunRadReqResponse>;
+
+    fn handle(&mut self, msg: RunRadReqRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
             .run_rad_request(msg.rad_request)
-            .map_err(api::internal_error)
-            .map(|result| api::RunRadReqResponse { result });
+            .map_err(app::internal_error)
+            .map(|result| RunRadReqResponse { result });
 
         Box::new(f)
     }

@@ -1,20 +1,22 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
 
-impl Message for api::SendTransactionRequest {
-    type Result = Result<api::CreateDataReqResponse, api::Error>;
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendTransactionRequest {
+    transaction_id: String,
 }
 
-impl Handler<api::SendTransactionRequest> for App {
-    type Result = Result<api::SendTransactionResponse, api::Error>;
+impl Message for SendTransactionRequest {
+    type Result = app::Result<()>;
+}
 
-    fn handle(
-        &mut self,
-        _msg: api::SendTransactionRequest,
-        _ctx: &mut Self::Context,
-    ) -> Self::Result {
+impl Handler<SendTransactionRequest> for app::App {
+    type Result = <SendTransactionRequest as Message>::Result;
+
+    fn handle(&mut self, _msg: SendTransactionRequest, _ctx: &mut Self::Context) -> Self::Result {
         Ok(())
     }
 }
