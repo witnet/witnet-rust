@@ -1,16 +1,19 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
 
-impl Message for api::SendDataReqRequest {
-    type Result = Result<(), api::Error>;
+#[derive(Debug, Deserialize)]
+pub struct SendDataReqRequest;
+
+impl Message for SendDataReqRequest {
+    type Result = app::Result<()>;
 }
 
-impl Handler<api::SendDataReqRequest> for App {
-    type Result = Result<(), api::Error>;
+impl Handler<SendDataReqRequest> for app::App {
+    type Result = <SendDataReqRequest as Message>::Result;
 
-    fn handle(&mut self, _msg: api::SendDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _msg: SendDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
         Ok(())
     }
 }

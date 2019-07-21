@@ -1,20 +1,23 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
+use crate::types;
 
-impl Message for api::CreateDataReqRequest {
-    type Result = Result<api::CreateDataReqResponse, api::Error>;
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateDataReqRequest {
+    pub rad_request: types::RADRequest,
 }
 
-impl Handler<api::CreateDataReqRequest> for App {
-    type Result = Result<api::CreateDataReqResponse, api::Error>;
+impl Message for CreateDataReqRequest {
+    type Result = app::Result<()>;
+}
 
-    fn handle(
-        &mut self,
-        _msg: api::CreateDataReqRequest,
-        _ctx: &mut Self::Context,
-    ) -> Self::Result {
+impl Handler<CreateDataReqRequest> for app::App {
+    type Result = <CreateDataReqRequest as Message>::Result;
+
+    fn handle(&mut self, _msg: CreateDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
         Ok(())
     }
 }

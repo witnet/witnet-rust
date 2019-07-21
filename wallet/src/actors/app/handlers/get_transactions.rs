@@ -1,20 +1,23 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
 
-impl Message for api::GetTransactionsRequest {
-    type Result = Result<(), api::Error>;
+#[derive(Debug, Deserialize)]
+pub struct GetTransactionsRequest {
+    pub wallet_id: String,
+    pub limit: u32,
+    pub page: u32,
 }
 
-impl Handler<api::GetTransactionsRequest> for App {
-    type Result = Result<(), api::Error>;
+impl Message for GetTransactionsRequest {
+    type Result = app::Result<()>;
+}
 
-    fn handle(
-        &mut self,
-        _msg: api::GetTransactionsRequest,
-        _ctx: &mut Self::Context,
-    ) -> Self::Result {
+impl Handler<GetTransactionsRequest> for app::App {
+    type Result = <GetTransactionsRequest as Message>::Result;
+
+    fn handle(&mut self, _msg: GetTransactionsRequest, _ctx: &mut Self::Context) -> Self::Result {
         Ok(())
     }
 }

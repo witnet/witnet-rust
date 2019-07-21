@@ -24,13 +24,10 @@ use witnet_config::config::Config;
 use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
 
 mod actors;
-mod api;
-mod app;
-mod crypto;
+mod model;
+mod rocksdb;
 mod signal;
-mod storage;
 mod types;
-mod validation;
 
 /// Run the Witnet wallet application.
 pub fn run(conf: Config) -> Result<(), Error> {
@@ -42,18 +39,17 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let node_url = conf.wallet.node_url;
     let mut rocksdb_opts = conf.rocksdb.to_rocksdb_options();
     // https://github.com/facebook/rocksdb/wiki/Merge-Operator
-    rocksdb_opts.set_merge_operator(
-        "wallet merge operator",
-        storage::storage_merge_operator,
-        None,
-    );
+    rocksdb_opts.set_merge_operator("wallet merge operator", rocksdb::merge_operator, None);
 
-    // Db-encryption params used by the Storage actor
-    let db_encrypt_hash_iterations = conf.wallet.db_encrypt_hash_iterations;
-    let db_encrypt_iv_length = conf.wallet.db_encrypt_iv_length;
-    let db_encrypt_salt_length = conf.wallet.db_encrypt_salt_length;
+    // Db-encryption params
+    let db_hash_iterations = conf.wallet.db_encrypt_hash_iterations;
+    let db_iv_length = conf.wallet.db_encrypt_iv_length;
+    let db_salt_length = conf.wallet.db_encrypt_salt_length;
 
-    // Master-key generation params used by the Crypto actor
+    // Whether wallet is in testnet mode or not
+    let testnet = conf.wallet.testnet;
+
+    // Master-key generation params
     let seed_password = conf.wallet.seed_password;
     let master_key_salt = conf.wallet.master_key_salt;
     let id_hash_iterations = conf.wallet.id_hash_iterations;
@@ -61,37 +57,37 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     let system = System::new("witnet-wallet");
 
-    let node_client = node_url.clone().map_or_else(
+    let client = node_url.clone().map_or_else(
         || Ok(None),
         |url| JsonRpcClient::start(url.as_ref()).map(Some),
     )?;
-    let db = rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
+
+    let db = ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
         .map_err(|e| failure::format_err!("{}", e))?;
 
-    let storage = actors::Storage::start(
-        db_encrypt_hash_iterations,
-        db_encrypt_iv_length,
-        db_encrypt_salt_length,
-    );
-    let crypto = actors::Crypto::start(
+    let worker = actors::Worker::start(actors::worker::Params {
+        testnet,
         seed_password,
         master_key_salt,
         id_hash_iterations,
         id_hash_function,
-    );
-    let rad_executor = actors::RadExecutor::start();
+        db_hash_iterations,
+        db_iv_length,
+        db_salt_length,
+    });
+
     let app = actors::App::start(
         db,
-        storage,
-        crypto,
-        rad_executor,
-        node_client,
-        session_expires_in,
-        requests_timeout,
+        actors::app::Params {
+            worker,
+            client,
+            session_expires_in,
+            requests_timeout,
+        },
     );
     let mut handler = pubsub::PubSubHandler::new(rpc::MetaIoHandler::default());
 
-    api::connect_routes(&mut handler, app.clone(), Arbiter::current());
+    actors::app::connect_routes(&mut handler, app.clone(), Arbiter::current());
 
     let server = Server::build().handler(handler).addr(server_addr).start()?;
     let controller = actors::Controller::start(server, app);

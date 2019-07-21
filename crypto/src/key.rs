@@ -437,8 +437,8 @@ mod tests {
         ];
 
         assert_eq!(
-            expected_account,
-            &account.secret().as_ref(),
+            &expected_account,
+            account.secret().as_ref(),
             "Secret key is invalid"
         );
     }

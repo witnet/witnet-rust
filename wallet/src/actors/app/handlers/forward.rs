@@ -1,19 +1,22 @@
 use actix::prelude::*;
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
+use crate::types;
 
-impl Message for api::ForwardRequest {
-    type Result = Result<api::ForwardResponse, api::Error>;
+pub struct ForwardRequest {
+    pub method: String,
+    pub params: types::RpcParams,
 }
 
-impl Handler<api::ForwardRequest> for App {
-    type Result = ResponseFuture<api::ForwardResponse, api::Error>;
+impl Message for ForwardRequest {
+    type Result = app::Result<types::Json>;
+}
 
-    fn handle(&mut self, msg: api::ForwardRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let f = self
-            .forward(msg.method, msg.params)
-            .map_err(api::node_error);
+impl Handler<ForwardRequest> for app::App {
+    type Result = app::ResponseFuture<types::Json>;
+
+    fn handle(&mut self, msg: ForwardRequest, _ctx: &mut Self::Context) -> Self::Result {
+        let f = self.forward(msg.method, msg.params);
 
         Box::new(f)
     }

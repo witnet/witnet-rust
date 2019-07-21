@@ -1,20 +1,36 @@
 use actix::prelude::*;
+use serde::Deserialize;
 
-use crate::actors::App;
-use crate::api;
+use crate::actors::app;
 
-impl Message for api::GenerateAddressRequest {
-    type Result = Result<(), api::Error>;
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateAddressRequest {
+    session_id: String,
+    wallet_id: String,
+    label: Option<String>,
 }
 
-impl Handler<api::GenerateAddressRequest> for App {
-    type Result = Result<(), api::Error>;
+pub struct GenerateAddressResponse {
+    address: String,
+    path: String,
+}
 
-    fn handle(
-        &mut self,
-        _msg: api::GenerateAddressRequest,
-        _ctx: &mut Self::Context,
-    ) -> Self::Result {
-        Ok(())
+impl Message for GenerateAddressRequest {
+    type Result = app::Result<GenerateAddressResponse>;
+}
+
+impl Handler<GenerateAddressRequest> for app::App {
+    type Result = app::ResponseActFuture<GenerateAddressResponse>;
+
+    fn handle(&mut self, msg: GenerateAddressRequest, _ctx: &mut Self::Context) -> Self::Result {
+        let f = self
+            .generate_address(msg.session_id, msg.wallet_id, msg.label)
+            .map(|key, _, _| GenerateAddressResponse {
+                address: key.address(),
+                path: key.path,
+            });
+
+        Box::new(f)
     }
 }

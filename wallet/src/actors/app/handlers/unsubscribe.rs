@@ -1,25 +1,23 @@
 use actix::prelude::*;
 
-use crate::actors::App;
-use crate::{api, app};
+use crate::actors::app;
+use crate::types;
 
-impl Message for api::UnsubscribeRequest {
-    type Result = Result<(), api::Error>;
+pub struct UnsubscribeRequest(pub types::SubscriptionId);
+
+impl Message for UnsubscribeRequest {
+    type Result = app::Result<()>;
 }
 
-impl Handler<api::UnsubscribeRequest> for App {
-    type Result = Result<(), api::Error>;
+impl Handler<UnsubscribeRequest> for app::App {
+    type Result = <UnsubscribeRequest as Message>::Result;
 
     fn handle(
         &mut self,
-        api::UnsubscribeRequest(id): api::UnsubscribeRequest,
+        UnsubscribeRequest(id): UnsubscribeRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.unsubscribe(&id)
-            .map(|_| log::debug!("Subscription {:?} removed", id))
-            .map_err(|err| match err {
-                app::Error::UnknownSession => api::Error::Unauthorized,
-                err => api::internal_error(err),
-            })
+            .map(|()| log::debug!("Subscription {:?} removed", id))
     }
 }
