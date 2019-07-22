@@ -39,19 +39,26 @@ pub fn set_key(key: SK) -> impl Future<Item = (), Error = failure::Error> {
     addr.send(SetKey(key)).flatten()
 }
 
-/// Sign a piece of data with the stored key.
+/// Sign a piece of (Hashable) data with the stored key.
 ///
 /// This might fail if the manager has not been initialized with a key
 pub fn sign<T>(data: &T) -> impl Future<Item = KeyedSignature, Error = failure::Error>
 where
     T: Hashable,
 {
+    let Hash::SHA256(data_hash) = data.hash();
+
+    sign_data(data_hash)
+}
+
+/// Sign a piece of data with the stored key.
+///
+/// This might fail if the manager has not been initialized with a key
+pub fn sign_data(data: [u8; 32]) -> impl Future<Item = KeyedSignature, Error = failure::Error> {
     let addr = actix::System::current()
         .registry()
         .get::<SignatureManager>();
-    let Hash::SHA256(data_hash) = data.hash();
-
-    addr.send(Sign(data_hash.to_vec())).flatten()
+    addr.send(Sign(data.to_vec())).flatten()
 }
 
 /// Get the public key hash.
