@@ -21,3 +21,4 @@ memzero = "0.1.0"
 rand = "0.6.5"
 witnet_protected = { path = "../protected" }
 serde = {version = "1.0.91", optional = true}
+hex = "0.3.2"
