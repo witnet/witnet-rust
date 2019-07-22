@@ -20,6 +20,7 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 use witnet_util::parser::parse_hex;
 
+use crate::chain::Signature::Secp256k1;
 use crate::{
     data_request::DataRequestPool,
     error::{DataRequestError, OutputPointerParseError, Secp256k1ConversionError},
@@ -260,6 +261,19 @@ impl Hashable for Signature {
 impl Default for Signature {
     fn default() -> Self {
         Signature::Secp256k1(Secp256k1Signature::default())
+    }
+}
+
+impl Signature {
+    /// Serialize the Signature for interoperability with OpenSSL.
+    pub fn to_bytes(&self) -> Result<[u8; 64], failure::Error> {
+        match self {
+            Secp256k1(x) => {
+                let signature = Secp256k1_Signature::from_der(x.der.as_slice())?;
+
+                Ok(signature.serialize_compact())
+            }
+        }
     }
 }
 
