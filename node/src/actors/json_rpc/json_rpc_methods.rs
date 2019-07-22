@@ -12,7 +12,10 @@ use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 
-use witnet_data_structures::chain::{self, Block, CheckpointBeacon, Hash};
+use witnet_data_structures::{
+    chain::{self, Block, CheckpointBeacon, Hash},
+    transaction::Transaction,
+};
 
 use crate::actors::{
     chain_manager::{ChainManager, ChainManagerError},
@@ -33,7 +36,7 @@ use super::Subscriptions;
 use self::mock_actix::System;
 use crate::actors::chain_manager::StateMachine;
 use crate::actors::messages::GetHighestCheckpointBeacon;
-use witnet_data_structures::transaction::Transaction;
+use futures::future;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
@@ -58,6 +61,8 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
     io.add_method("status", |_params: Params| status());
 
     io.add_method("getPublicKey", |_params: Params| get_public_key());
+
+    io.add_method("signData", |params: Params| sign_data(params.parse()));
 
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -546,11 +551,34 @@ pub fn status() -> JsonRpcResultAsync {
 
 /// Get public key
 pub fn get_public_key() -> JsonRpcResultAsync {
-    Box::new(
-        signature_mngr::public_key()
-            .map_err(internal_error)
-            .map(|pk| pk.to_bytes().to_vec().into()),
-    )
+    let fut = signature_mngr::public_key()
+        .map_err(internal_error)
+        .map(|pk| pk.to_bytes().to_vec().into());
+
+    Box::new(fut)
+}
+
+/// Sign Data
+pub fn sign_data(params: Result<[u8; 32], jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let data = match params {
+        Ok(x) => x,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let fut = signature_mngr::sign_data(data)
+        .map_err(internal_error)
+        .and_then(|ks| {
+            // ks.signature.to_bytes().unwrap().to_vec().into()
+            match ks.signature.to_bytes() {
+                Ok(bytes) => future::Either::A(future::ok(bytes.to_vec().into())),
+                Err(e) => {
+                    let err = internal_error(e);
+                    future::Either::B(futures::failed(err))
+                }
+            }
+        });
+
+    Box::new(fut)
 }
 
 #[cfg(test)]
