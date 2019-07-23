@@ -73,26 +73,34 @@ impl VrfProof {
     pub fn pkh(&self) -> PublicKeyHash {
         PublicKeyHash::from_public_key(&self.public_key)
     }
+
+    pub fn get_proof(&self) -> Vec<u8> {
+        self.proof.clone()
+    }
 }
 
 /// Wrapper type to prevent creating VRF proofs of arbitrary data
-#[derive(Debug)]
+#[derive(Debug, Hash, Serialize, Deserialize)]
 pub struct VrfMessage(Vec<u8>);
 
 // Functions to easily construct the vrf messages
 impl VrfMessage {
-    /// Create a VRF proof used for block eligibility
+    /// Create a VRF message used for block eligibility
     pub fn block_mining(beacon: CheckpointBeacon) -> VrfMessage {
         VrfMessage(beacon.to_pb_bytes().unwrap())
     }
 
-    /// Create a VRF proof used for data request commitment eligibility
+    /// Create a VRF message used for data request commitment eligibility
     pub fn data_request(beacon: CheckpointBeacon, dr_hash: Hash) -> VrfMessage {
         VrfMessage(
             DataRequestVrfMessage { beacon, dr_hash }
                 .to_pb_bytes()
                 .unwrap(),
         )
+    }
+    /// Create a VRF message
+    pub fn set_data(data: Vec<u8>) -> VrfMessage {
+        VrfMessage(data)
     }
 }
 
