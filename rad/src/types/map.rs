@@ -4,14 +4,15 @@ use std::{
     fmt,
 };
 
-use rmpv::Value;
 use serde::Serialize;
+use serde_cbor::value::{from_value, to_value, Value};
 
 use crate::error::RadError;
 use crate::operators::{identity, map as map_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
 use crate::types::{bytes::RadonBytes, RadonType};
+use std::collections::btree_map::BTreeMap;
 
 pub const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
@@ -40,29 +41,27 @@ impl TryFrom<Value> for RadonMap {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        value
-            .as_map()
-            .map(|value_map| {
-                value_map
-                    .iter()
-                    .try_fold(HashMap::new(), |mut map, (rmpv_key, rmpv_value)| {
-                        let key = rmpv_key.as_str();
-                        let value: Option<RadonBytes> =
-                            RadonBytes::try_from(rmpv_value.clone()).ok();
-                        if let (Some(key), Some(value)) = (key, value) {
-                            map.insert(key.to_string(), value);
-                            Some(map)
-                        } else {
-                            None
-                        }
-                    })
-            })
-            .unwrap_or(None)
+        let error = || RadError::Decode {
+            from: "cbor::value::Value".to_string(),
+            to: RADON_MAP_TYPE_NAME.to_string(),
+        };
+
+        from_value::<HashMap<String, Value>>(value)
+            .map_err(|_| error())?
+            .iter()
+            .try_fold(
+                HashMap::<String, RadonBytes>::new(),
+                |mut map, (key, cbor_value)| {
+                    if let Ok(value) = RadonBytes::try_from(cbor_value.to_owned()) {
+                        map.insert(key.to_string(), value);
+                        Some(map)
+                    } else {
+                        None
+                    }
+                },
+            )
             .map(Self::from)
-            .ok_or_else(|| RadError::Decode {
-                from: "rmpv::Value".to_string(),
-                to: RADON_MAP_TYPE_NAME.to_string(),
-            })
+            .ok_or_else(error)
     }
 }
 
@@ -70,12 +69,28 @@ impl TryInto<Value> for RadonMap {
     type Error = RadError;
 
     fn try_into(self) -> Result<Value, Self::Error> {
-        Ok(Value::from(
-            self.value()
-                .iter()
-                .map(|(key, value)| (Value::from(key.clone()), value.value()))
-                .collect::<Vec<(Value, Value)>>(),
-        ))
+        let error = || RadError::Encode {
+            from: RADON_MAP_TYPE_NAME.to_string(),
+            to: "cbor::value::Value".to_string(),
+        };
+
+        let map = self
+            .value()
+            .iter()
+            .try_fold(
+                BTreeMap::<Value, Value>::new(),
+                |mut map, (key, radon_mixed)| {
+                    if let Ok(key) = Value::try_from(key.to_string()) {
+                        map.insert(key, radon_mixed.value());
+                        Some(map)
+                    } else {
+                        None
+                    }
+                },
+            )
+            .ok_or_else(error)?;
+
+        to_value(map).map_err(|_| error())
     }
 }
 
@@ -104,7 +119,7 @@ impl Operable for RadonMap {
 #[test]
 fn test_operate_identity() {
     let mut map = HashMap::new();
-    let value = RadonBytes::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(Value::from(0));
     map.insert("Zero".to_string(), value);
 
     let input = RadonMap::from(map.clone());
@@ -119,7 +134,7 @@ fn test_operate_identity() {
 #[test]
 fn test_operate_unimplemented() {
     let mut map = HashMap::new();
-    let value = RadonBytes::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(Value::from(0));
     map.insert("Zero".to_string(), value);
 
     let input = RadonMap::from(map);
@@ -137,25 +152,25 @@ fn test_operate_unimplemented() {
 #[test]
 fn test_try_into() {
     let mut map = HashMap::new();
-    let value = RadonBytes::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(Value::from(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
     let result: Vec<u8> = RadonTypes::from(input).try_into().unwrap();
 
-    let expected_vec: Vec<u8> = vec![129, 164, 90, 101, 114, 111, 0];
+    let expected_vec: Vec<u8> = vec![161, 100, 90, 101, 114, 111, 0];
 
     assert_eq!(result, expected_vec);
 }
 
 #[test]
 fn test_try_from() {
-    let slice: &[u8] = &[129, 164, 90, 101, 114, 111, 0];
+    let slice: &[u8] = &[161, 100, 90, 101, 114, 111, 0];
 
     let result = RadonTypes::try_from(slice).unwrap();
 
     let mut map = HashMap::new();
-    let value = RadonBytes::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(Value::Integer(0));
     map.insert("Zero".to_string(), value);
     let expected_input = RadonTypes::from(RadonMap::from(map));
 
@@ -165,14 +180,17 @@ fn test_try_from() {
 #[test]
 fn test_operate_map_get() {
     let mut map = HashMap::new();
-    let value = RadonBytes::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(Value::Integer(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
-    let call = (RadonOpCodes::Get, Some(vec![Value::from("Zero")]));
+    let call = (
+        RadonOpCodes::Get,
+        Some(vec![Value::Text(String::from("Zero"))]),
+    );
     let result = input.operate(&call).unwrap();
 
-    let expected_value = RadonTypes::Bytes(RadonBytes::from(rmpv::Value::from(0)));
+    let expected_value = RadonTypes::Bytes(RadonBytes::from(Value::from(0)));
 
     assert_eq!(result, expected_value);
 }
@@ -180,11 +198,14 @@ fn test_operate_map_get() {
 #[test]
 fn test_operate_map_get_error() {
     let mut map = HashMap::new();
-    let value = RadonBytes::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(Value::Integer(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
-    let call = (RadonOpCodes::Get, Some(vec![Value::from("NotFound")]));
+    let call = (
+        RadonOpCodes::Get,
+        Some(vec![Value::Text(String::from("NotFound"))]),
+    );
     let result = input.operate(&call);
 
     assert!(result.is_err());

@@ -1,7 +1,7 @@
 use std::{convert::TryInto, fmt};
 
-use rmpv::Value;
 use serde::{Serialize, Serializer};
+use serde_cbor::value::Value;
 
 use crate::error::RadError;
 use crate::operators::{bytes as bytes_operators, identity, Operable, RadonOpCodes};
@@ -17,7 +17,7 @@ pub struct RadonBytes {
 
 impl Default for RadonBytes {
     fn default() -> Self {
-        Self { value: Value::Nil }
+        Self { value: Value::Null }
     }
 }
 
@@ -26,7 +26,7 @@ impl Serialize for RadonBytes {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&self.value.to_string())
+        self.value().serialize(serializer)
     }
 }
 
@@ -89,7 +89,9 @@ impl fmt::Display for RadonBytes {
 
 #[test]
 fn test_operate_identity() {
-    let value = rmpv::Value::from(0);
+    use std::convert::TryFrom;
+
+    let value = Value::try_from(0x00).unwrap();
     let input = RadonBytes::from(value.clone());
     let expected = RadonTypes::Bytes(RadonBytes::from(value));
 
@@ -101,7 +103,9 @@ fn test_operate_identity() {
 
 #[test]
 fn test_operate_unimplemented() {
-    let input = RadonBytes::from(rmpv::Value::from(0));
+    use std::convert::TryFrom;
+
+    let input = RadonBytes::from(Value::try_from(0).unwrap());
 
     let call = (RadonOpCodes::Fail, None);
     let result = input.operate(&call);

@@ -1,11 +1,13 @@
 use std::{
     convert::{TryFrom, TryInto},
     fmt,
-    io::Cursor,
 };
 
-use rmpv::{decode, encode, Value};
 use serde::Serialize;
+use serde_cbor::{from_slice, to_vec, Value};
+
+use witnet_crypto::hash::calculate_sha256;
+use witnet_data_structures::chain::Hash;
 
 use crate::error::RadError;
 use crate::types::array::RadonArray;
@@ -14,8 +16,6 @@ use crate::types::bytes::RadonBytes;
 use crate::types::float::RadonFloat;
 use crate::types::map::RadonMap;
 use crate::types::string::RadonString;
-use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::Hash;
 
 pub mod array;
 pub mod boolean;
@@ -118,10 +118,10 @@ impl TryFrom<Value> for RadonTypes {
     fn try_from(value: Value) -> Result<RadonTypes, Self::Error> {
         match value {
             Value::Array(_) => RadonArray::try_from(value).map(Into::into),
-            Value::Boolean(_) => RadonBoolean::try_from(value).map(Into::into),
-            Value::F64(_) => RadonFloat::try_from(value).map(Into::into),
+            Value::Bool(_) => RadonBoolean::try_from(value).map(Into::into),
+            Value::Float(_) => RadonFloat::try_from(value).map(Into::into),
             Value::Map(_) => RadonMap::try_from(value).map(Into::into),
-            Value::String(_) => RadonString::try_from(value).map(Into::into),
+            Value::Text(_) => RadonString::try_from(value).map(Into::into),
             _ => Ok(RadonBytes::from(value).into()),
         }
     }
@@ -146,17 +146,14 @@ impl TryFrom<&[u8]> for RadonTypes {
     type Error = RadError;
 
     fn try_from(slice: &[u8]) -> Result<RadonTypes, Self::Error> {
-        let mut cursor = Cursor::new(slice);
-        let value_result = decode::read_value(&mut cursor);
-        let radon_result = value_result.map(RadonTypes::try_from);
+        let error = |_| RadError::Decode {
+            from: "&[u8]".to_string(),
+            to: "RadonType".to_string(),
+        };
 
-        match radon_result {
-            Ok(Ok(radon)) => Ok(radon),
-            _ => Err(RadError::Decode {
-                from: "&[u8]".to_string(),
-                to: "RadonType".to_string(),
-            }),
-        }
+        let value: Value = from_slice(slice).map_err(error)?;
+
+        RadonTypes::try_from(value)
     }
 }
 
@@ -164,17 +161,11 @@ impl TryInto<Vec<u8>> for RadonTypes {
     type Error = RadError;
 
     fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        let mut cursor = Cursor::new(Vec::new());
-        let value_result = self.clone().try_into();
-        let result = value_result.map(|value| encode::write_value(&mut cursor, &value));
-        let vector = cursor.into_inner();
+        let value: Value = self.clone().try_into()?;
 
-        match result {
-            Ok(Ok(())) => Ok(vector),
-            _ => Err(RadError::Decode {
-                from: self.radon_type_name(),
-                to: "Vec<u8>".to_string(),
-            }),
-        }
+        to_vec(&value).map_err(|_| RadError::Decode {
+            from: self.radon_type_name(),
+            to: "Vec<u8>".to_string(),
+        })
     }
 }

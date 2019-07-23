@@ -1,12 +1,14 @@
+use std::convert::{TryFrom, TryInto};
+use std::fmt;
+
+use serde::{Deserialize, Serialize};
+use serde_cbor::value::{from_value, Value};
+
 use crate::error::RadError;
 use crate::operators::boolean as boolean_operators;
 use crate::operators::{Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
-use rmpv::Value;
-use serde::{Deserialize, Serialize};
-use std::convert::{TryFrom, TryInto};
-use std::fmt;
 
 pub const RADON_BOOLEAN_TYPE_NAME: &str = "RadonBoolean";
 
@@ -35,10 +37,9 @@ impl TryFrom<Value> for RadonBoolean {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        value
-            .as_bool()
-            .ok_or_else(|| RadError::Decode {
-                from: "rmpv::Value".to_string(),
+        from_value::<bool>(value)
+            .map_err(|_| RadError::Decode {
+                from: "cbor::value::Value".to_string(),
                 to: RADON_BOOLEAN_TYPE_NAME.to_string(),
             })
             .map(Self::from)

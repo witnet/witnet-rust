@@ -4,8 +4,8 @@ use std::{
     mem::{discriminant, Discriminant},
 };
 
-use rmpv::Value;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
+use serde_cbor::value::{from_value, Value};
 
 use crate::error::RadError;
 use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
@@ -15,7 +15,7 @@ use crate::types::{
 };
 
 fn bytes_discriminant() -> Discriminant<RadonTypes> {
-    discriminant(&RadonTypes::from(RadonBytes::from(Value::Nil)))
+    discriminant(&RadonTypes::from(RadonBytes::from(Value::Null)))
 }
 
 pub const RADON_ARRAY_TYPE_NAME: &str = "RadonArray";
@@ -98,18 +98,17 @@ impl TryFrom<Value> for RadonArray {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        value
-            .as_array()
+        from_value::<Vec<Value>>(value)
             .map(|value_vec| {
                 value_vec
                     .iter()
-                    .map(|rmpv_value| RadonTypes::try_from(rmpv_value.clone()).ok())
+                    .map(|cbor_value| RadonTypes::try_from(cbor_value.to_owned()).ok())
                     .fuse()
                     .flatten()
                     .collect::<Vec<RadonTypes>>()
             })
-            .ok_or_else(|| RadError::Decode {
-                from: "rmpv::Value".to_string(),
+            .map_err(|_| RadError::Decode {
+                from: "cbor::Value".to_string(),
                 to: RADON_ARRAY_TYPE_NAME.to_string(),
             })
             .map(Self::from)
@@ -122,7 +121,7 @@ impl TryInto<Value> for RadonArray {
     fn try_into(self) -> Result<Value, Self::Error> {
         self.value()
             .iter()
-            .map(|radon| RadonTypes::try_into(radon.clone()))
+            .map(|radon| RadonTypes::try_into(radon.to_owned()))
             .collect::<Result<Vec<Value>, Self::Error>>()
             .map(Value::from)
     }
@@ -174,7 +173,7 @@ fn test_operate_reduce_average_mean_float() {
         RadonFloat::from(1f64).into(),
         RadonFloat::from(2f64).into(),
     ]);
-    let call = (RadonOpCodes::ArrayReduce, Some(vec![Value::from(0x03)]));
+    let call = (RadonOpCodes::ArrayReduce, Some(vec![Value::Integer(0x03)]));
     let expected = RadonTypes::from(RadonFloat::from(1.5f64));
 
     let output = input.operate(&call).unwrap();
@@ -191,7 +190,7 @@ fn test_operate_map_float_multiply() {
     let call = (
         RadonOpCodes::ArrayMap,
         Some(vec![
-            Value::from(vec![Value::from(0x36), Value::from(2f64)]), // [ OP_FLOAT_MULTIPLY, 2 ]
+            Value::Array(vec![Value::Integer(0x36), Value::Integer(2i128)]), // [ OP_FLOAT_MULTIPLY, 2 ]
         ]),
     );
     let expected = RadonTypes::from(RadonArray::from(vec![
@@ -227,7 +226,7 @@ fn test_serialize_radon_array() {
         RadonString::from("world!").into(),
     ]));
     let expected: Vec<u8> = vec![
-        146, 165, 72, 101, 108, 108, 111, 166, 119, 111, 114, 108, 100, 33,
+        130, 101, 72, 101, 108, 108, 111, 102, 119, 111, 114, 108, 100, 33,
     ];
 
     let output: Vec<u8> = input.try_into().unwrap();

@@ -2,37 +2,42 @@ use crate::error::RadError;
 use crate::reducers::{self, RadonReducers};
 use crate::script::{execute_radon_script, unpack_radon_call};
 use crate::types::{array::RadonArray, RadonType, RadonTypes};
+
 use num_traits::FromPrimitive;
-use rmpv::Value;
+use serde_cbor::value::{from_value, Value};
+use std::clone::Clone;
 
 pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
-    let error = || RadError::WrongArguments {
+    let wrong_args = || RadError::WrongArguments {
         input_type: "RadonArray".to_string(),
         operator: "Reduce".to_string(),
         args: args.to_vec(),
     };
 
-    let reducer_integer = args.first().ok_or_else(error)?.as_i64().ok_or_else(error)?;
-    let reducer_code = RadonReducers::from_i64(reducer_integer).ok_or_else(error)?;
+    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+    let reducer_integer = from_value::<i64>(arg).map_err(|_| wrong_args())?;
+    let reducer_code = RadonReducers::from_i64(reducer_integer).ok_or_else(wrong_args)?;
 
     reducers::reduce(input, reducer_code)
 }
 
 pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
-    let key = args.first().map(|ref value| value.as_u64()).unwrap_or(None);
-    match key {
-        Some(key_str) => match input.value().get(key_str as usize) {
-            Some(value) => Ok(value.clone()),
-            None => Err(RadError::MapKeyNotFound {
-                key: key_str.to_string(),
-            }),
-        },
-        None => Err(RadError::WrongArguments {
-            input_type: input.to_string(),
-            operator: "Get".to_string(),
-            args: args.to_vec(),
-        }),
-    }
+    let wrong_args = || RadError::WrongArguments {
+        input_type: "RadonArray".to_string(),
+        operator: "Reduce".to_string(),
+        args: args.to_vec(),
+    };
+
+    let not_found = |index: i32| RadError::ArrayIndexNotFound { index };
+
+    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+    let index = from_value::<i32>(arg).map_err(|_| wrong_args())?;
+
+    input
+        .value()
+        .get(index as usize)
+        .map(Clone::clone)
+        .ok_or_else(|| not_found(index))
 }
 
 pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
@@ -75,13 +80,13 @@ fn test_reduce_wrong_args() {
         RadonFloat::from(1f64).into(),
         RadonFloat::from(2f64).into(),
     ]);
-    let args = &[Value::from("wrong")]; // This is RadonReducers::AverageMean
+    let args = &[Value::Text(String::from("wrong"))]; // This is RadonReducers::AverageMean
 
     let result = reduce(input, args);
 
     assert_eq!(
         &result.unwrap_err().to_string(),
-        "Wrong `RadonArray::Reduce()` arguments: `[String(Utf8String { s: Ok(\"wrong\") })]`"
+        "Wrong `RadonArray::Reduce()` arguments: `[Text(\"wrong\")]`"
     );
 }
 
@@ -93,13 +98,13 @@ fn test_reduce_unknown_reducer() {
         RadonFloat::from(1f64).into(),
         RadonFloat::from(2f64).into(),
     ]);
-    let args = &[Value::from(-1)]; // This doesn't match any reducer code in RadonReducers
+    let args = &[Value::Integer(-1)]; // This doesn't match any reducer code in RadonReducers
 
     let result = reduce(input, args);
 
     assert_eq!(
         &result.unwrap_err().to_string(),
-        "Wrong `RadonArray::Reduce()` arguments: `[Integer(NegInt(-1))]`"
+        "Wrong `RadonArray::Reduce()` arguments: `[Integer(-1)]`"
     );
 }
 
@@ -111,7 +116,7 @@ fn test_reduce_average_mean_float() {
         RadonFloat::from(1f64).into(),
         RadonFloat::from(2f64).into(),
     ]);
-    let args = &[Value::from(0x03)]; // This is RadonReducers::AverageMean
+    let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
     let expected = RadonTypes::from(RadonFloat::from(1.5f64));
 
     let output = reduce(input, args).unwrap();

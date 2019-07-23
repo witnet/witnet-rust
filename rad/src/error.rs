@@ -1,7 +1,7 @@
 //! Error type definitions for the RAD module.
 
 use failure::{self, Fail};
-use rmpv::{Integer, Value};
+use serde_cbor::value::Value;
 
 /// RAD errors.
 #[derive(Debug, PartialEq, Fail)]
@@ -21,24 +21,27 @@ pub enum RadError {
         description
     )]
     JsonParse { description: String },
+    /// The given index is not present in a RadonArray
+    #[fail(display = "Failed to get item at index `{}` from RadonArray", index)]
+    ArrayIndexNotFound { index: i32 },
     /// The given key is not present in a RadonMap
     #[fail(display = "Failed to get key `{}` from RadonMap", key)]
     MapKeyNotFound { key: String },
-    /// Failed to parse a Value from a MessagePack buffer
+    /// Failed to parse a Value from a buffer
     #[fail(
-        display = "Failed to parse a Value from a MessagePack buffer. Error message: {}",
+        display = "Failed to parse a Value from a buffer. Error message: {}",
         description
     )]
-    MessagePack { description: String },
+    BufferIsNotValue { description: String },
     /// No operator found in compound call
     #[fail(display = "No operator found in compound call")]
     NoOperatorInCompoundCall,
     /// The given operator code is not a valid Integer
-    #[fail(display = "Operator code `{}` is not a valid Integer", code)]
-    NotIntegerOperator { code: Box<Value> },
+    #[fail(display = "Operator code is not a valid Integer")]
+    NotIntegerOperator,
     /// The given operator code is not a valid natural number
     #[fail(display = "Operator code `{}` is not a valid natural number", code)]
-    NotNaturalOperator { code: Integer },
+    NotNaturalOperator { code: i128 },
     /// The parsed value was expected to be a script but is not even an Array
     #[fail(
         display = "The parsed value was expected to be a script but is not even an Array (it was a `{}`)",
@@ -47,7 +50,7 @@ pub enum RadError {
     ScriptNotArray { input_type: String },
     /// The given operator code is unknown
     #[fail(display = "Operator code `{}` is unknown", code)]
-    UnknownOperator { code: u64 },
+    UnknownOperator { code: i128 },
     /// The given hash function is not implemented
     #[fail(display = "Hash function `{}` is not implemented", function)]
     UnsupportedHashFunction { function: String },

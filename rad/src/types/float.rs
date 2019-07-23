@@ -4,8 +4,8 @@ use std::{
     str::FromStr,
 };
 
-use rmpv::Value;
 use serde::{Deserialize, Serialize};
+use serde_cbor::value::Value;
 
 use crate::error::RadError;
 use crate::operators::float as float_operators;
@@ -34,19 +34,16 @@ impl TryFrom<Value> for RadonFloat {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        match value {
-            Value::F64(f64_value) => Some(Self::from(f64_value)),
-            Value::F32(f32_value) => Some(Self::from(f64::from(f32_value))),
-            Value::Integer(integer_value) => integer_value.as_f64().map(Self::from),
-            Value::String(string_value) => string_value
-                .as_str()
-                .map_or_else(|| None, |value| Self::try_from(value).ok()),
-            _ => None,
-        }
-        .ok_or_else(|| RadError::Decode {
-            from: "rmpv::Value".to_string(),
+        let error = || RadError::Decode {
+            from: "cbor::value::Value".to_string(),
             to: RADON_FLOAT_TYPE_NAME.to_string(),
-        })
+        };
+
+        match value {
+            Value::Float(f64_value) => Ok(Self::from(f64_value)),
+            Value::Text(string_value) => Self::try_from(string_value.as_str()),
+            _ => Err(error()),
+        }
     }
 }
 
@@ -118,7 +115,7 @@ fn test_operate_unimplemented() {
 
 #[test]
 fn test_from_vector() {
-    let input: &[u8] = &[203, 64, 9, 33, 251, 84, 68, 45, 24]; // 3.141592653589793
+    let input: &[u8] = &[251, 64, 9, 33, 251, 84, 68, 45, 24]; // 3.141592653589793
 
     let expected = RadonTypes::from(RadonFloat::from(std::f64::consts::PI));
     let result = RadonTypes::try_from(input).unwrap();

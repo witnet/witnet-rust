@@ -1,11 +1,13 @@
+use log::error;
+use num_traits::FromPrimitive;
+use serde_cbor::{
+    self as cbor,
+    value::{from_value, Value},
+};
+
 use crate::error::RadError;
 use crate::operators::{operate, RadonOpCodes};
 use crate::types::RadonTypes;
-
-use log::error;
-use num_traits::FromPrimitive;
-use rmpv::{self, Value};
-use std::{error::Error, io::Cursor};
 
 pub type RadonCall = (RadonOpCodes, Option<Vec<Value>>);
 
@@ -20,18 +22,16 @@ pub fn execute_radon_script(
 }
 
 pub fn unpack_radon_script(packed: &[u8]) -> Result<RadonScript, RadError> {
-    let reader = &mut Cursor::new(packed);
-
-    match rmpv::decode::value::read_value(reader) {
+    match cbor::from_slice(packed) {
         Ok(Value::Array(array)) => array
             .iter()
             .map(unpack_radon_call)
             .collect::<Result<RadonScript, RadError>>(),
-        Ok(other) => Err(errorify(RadError::ScriptNotArray {
-            input_type: other.to_string(),
+        Ok(_) => Err(errorify(RadError::ScriptNotArray {
+            input_type: String::from("different thing"),
         })),
-        Err(error) => Err(errorify(RadError::MessagePack {
-            description: error.description().to_string(),
+        Err(error) => Err(errorify(RadError::BufferIsNotValue {
+            description: error.to_string(),
         })),
     }
 }
@@ -39,18 +39,17 @@ pub fn unpack_radon_script(packed: &[u8]) -> Result<RadonScript, RadError> {
 pub fn unpack_radon_call(packed_call: &Value) -> Result<RadonCall, RadError> {
     match packed_call {
         Value::Array(array) => unpack_compound_call(array),
-        Value::Integer(integer) => integer.as_u64().map_or_else(
-            || Err(errorify(RadError::NotNaturalOperator { code: *integer })),
-            |natural| {
-                RadonOpCodes::from_u64(natural).map_or_else(
-                    || Err(errorify(RadError::UnknownOperator { code: natural })),
+        Value::Integer(integer) => {
+            if *integer >= 0i128 {
+                RadonOpCodes::from_i8(*integer as i8).map_or_else(
+                    || Err(errorify(RadError::UnknownOperator { code: *integer })),
                     |op_code| Ok((op_code, None)),
                 )
-            },
-        ),
-        code => Err(errorify(RadError::NotIntegerOperator {
-            code: Box::new(code.clone()),
-        })),
+            } else {
+                Err(errorify(RadError::NotNaturalOperator { code: *integer }))
+            }
+        }
+        _ => Err(errorify(RadError::NotIntegerOperator)),
     }
 }
 
@@ -59,15 +58,11 @@ fn unpack_compound_call(array: &[Value]) -> Result<RadonCall, RadError> {
         .split_first()
         .ok_or_else(|| errorify(RadError::NoOperatorInCompoundCall))
         .map(|(head, tail)| {
-            head.as_u64()
-                .map(RadonOpCodes::from_u64)
+            from_value::<i8>(head.to_owned())
+                .map(RadonOpCodes::from_i8)
                 .unwrap_or(None)
                 .map(|op_code| (op_code, Some(tail.to_vec())))
-                .ok_or_else(|| {
-                    errorify(RadError::NotIntegerOperator {
-                        code: Box::new(head.clone()),
-                    })
-                })
+                .ok_or_else(|| errorify(RadError::NotIntegerOperator))
         })
         .unwrap_or_else(Err)
 }
@@ -86,9 +81,15 @@ fn test_execute_radon_script() {
     let script = vec![
         (RadonOpCodes::StringParseJson, None),
         (RadonOpCodes::BytesToMap, None),
-        (RadonOpCodes::Get, Some(vec![Value::from("main")])),
+        (
+            RadonOpCodes::Get,
+            Some(vec![Value::Text(String::from("main"))]),
+        ),
         (RadonOpCodes::BytesToMap, None),
-        (RadonOpCodes::Get, Some(vec![Value::from("temp")])),
+        (
+            RadonOpCodes::Get,
+            Some(vec![Value::Text(String::from("temp"))]),
+        ),
         (RadonOpCodes::BytesToFloat, None),
     ];
     let output = execute_radon_script(input, &script).unwrap();
@@ -101,14 +102,21 @@ fn test_execute_radon_script() {
 #[test]
 fn test_unpack_radon_script() {
     let packed = [
-        150, 67, 116, 146, 1, 164, 109, 97, 105, 110, 116, 146, 1, 164, 116, 101, 109, 112, 114,
+        134, 24, 67, 24, 116, 130, 1, 100, 109, 97, 105, 110, 24, 116, 130, 1, 100, 116, 101, 109,
+        112, 24, 114,
     ];
     let expected = vec![
         (RadonOpCodes::StringParseJson, None),
         (RadonOpCodes::BytesToMap, None),
-        (RadonOpCodes::Get, Some(vec![Value::from("main")])),
+        (
+            RadonOpCodes::Get,
+            Some(vec![Value::Text(String::from("main"))]),
+        ),
         (RadonOpCodes::BytesToMap, None),
-        (RadonOpCodes::Get, Some(vec![Value::from("temp")])),
+        (
+            RadonOpCodes::Get,
+            Some(vec![Value::Text(String::from("temp"))]),
+        ),
         (RadonOpCodes::BytesToFloat, None),
     ];
     println!("{:?}", expected);

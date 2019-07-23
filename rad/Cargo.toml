@@ -14,9 +14,8 @@ log = "0.4.6"
 num-derive = "0.2.4"
 num-traits = "0.2.6"
 reqwest = "=0.9.17"
-rmp = "0.8.7"
-rmpv = "0.4.0"
 rust-crypto = "0.2.36"
+serde_cbor = "0.10.1"
 witnet_crypto = { path = "../crypto" }
 witnet_data_structures = { path = "../data_structures" }
 witnet_util = { path = "../util" }

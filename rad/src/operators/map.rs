@@ -1,32 +1,34 @@
 use crate::error::RadError;
 use crate::types::{bytes::RadonBytes, map::RadonMap, RadonType};
 
-use rmpv::Value;
+use serde_cbor::value::{from_value, Value};
 
 pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonBytes, RadError> {
-    let key = args.first().map(|ref value| value.as_str()).unwrap_or(None);
-    match key {
-        Some(key_str) => match input.value().get(key_str) {
-            Some(value) => Ok(value.clone()),
-            None => Err(RadError::MapKeyNotFound {
-                key: key_str.to_string(),
-            }),
-        },
-        None => Err(RadError::WrongArguments {
-            input_type: input.to_string(),
-            operator: "Get".to_string(),
-            args: args.to_vec(),
-        }),
-    }
+    let wrong_args = || RadError::WrongArguments {
+        input_type: RadonMap::radon_type_name(),
+        operator: "Multiply".to_string(),
+        args: args.to_vec(),
+    };
+    let not_found = |key: String| RadError::MapKeyNotFound { key };
+
+    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+    let key = from_value::<String>(arg).map_err(|_| wrong_args())?;
+
+    input
+        .value()
+        .get(&key)
+        .map(Clone::clone)
+        .ok_or_else(|| not_found(key))
 }
 
 #[test]
 fn test_map_get() {
     use std::collections::HashMap;
+    use std::convert::TryFrom;
 
     let key = "Zero";
-    let value = RadonBytes::from(rmpv::Value::from(0));
-    let args = vec![Value::from(key)];
+    let value = RadonBytes::from(Value::try_from(0).unwrap());
+    let args = vec![Value::try_from(String::from(key)).unwrap()];
 
     let mut map = HashMap::new();
     map.insert(key.to_string(), value.clone());
@@ -41,10 +43,11 @@ fn test_map_get() {
 #[test]
 fn test_map_get_error() {
     use std::collections::HashMap;
+    use std::convert::TryFrom;
 
     let key = "Zero";
-    let value = RadonBytes::from(rmpv::Value::from(0));
-    let args = vec![Value::from("NotFound")];
+    let value = RadonBytes::from(Value::try_from(0).unwrap());
+    let args = vec![Value::Text(String::from("NotFound"))];
 
     let mut map = HashMap::new();
     map.insert(key.to_string(), value.clone());

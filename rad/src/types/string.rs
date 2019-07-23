@@ -3,8 +3,8 @@ use std::{
     fmt,
 };
 
-use rmpv::Value;
 use serde::Serialize;
+use serde_cbor::value::{from_value, Value};
 
 use crate::error::RadError;
 use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
@@ -32,11 +32,10 @@ impl TryFrom<Value> for RadonString {
     type Error = RadError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        value
-            .as_str()
+        from_value::<String>(value)
             .map(Self::from)
-            .ok_or_else(|| RadError::Decode {
-                from: "rmpv::Value".to_string(),
+            .map_err(|_| RadError::Decode {
+                from: "serde_cbor::value::Value".to_string(),
                 to: RADON_STRING_TYPE_NAME.to_string(),
             })
     }
@@ -108,9 +107,9 @@ fn test_operate_parsejson() {
     let invalid_object = invalid_string.operate(&call);
 
     assert!(if let RadonTypes::Bytes(bytes) = valid_object {
-        if let rmpv::Value::Map(vector) = bytes.value() {
-            if let Some((rmpv::Value::String(key), rmpv::Value::String(val))) = vector.first() {
-                key.as_str() == Some("Hello") && val.as_str() == Some("world")
+        if let serde_cbor::value::Value::Map(vector) = bytes.value() {
+            if let Some((Value::Text(key), Value::Text(val))) = vector.iter().next() {
+                key == "Hello" && val == "world"
             } else {
                 false
             }
@@ -145,7 +144,7 @@ fn test_operate_unimplemented() {
 #[test]
 fn test_serialize_radon_string() {
     let input = RadonTypes::from(RadonString::from("Hello world!"));
-    let expected: Vec<u8> = vec![172, 72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33];
+    let expected: Vec<u8> = vec![108, 72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33];
 
     let output: Vec<u8> = RadonTypes::try_into(input).unwrap();
 

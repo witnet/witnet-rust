@@ -72,7 +72,8 @@ pub fn run_delivery() {}
 #[test]
 fn test_run_retrieval() {
     let script = vec![
-        150, 67, 116, 146, 1, 164, 109, 97, 105, 110, 116, 146, 1, 164, 116, 101, 109, 112, 114,
+        134, 24, 67, 24, 116, 130, 1, 100, 109, 97, 105, 110, 24, 116, 130, 1, 100, 116, 101, 109,
+        112, 24, 114,
     ];
 
     let retrieve = RADRetrieve {
@@ -98,34 +99,32 @@ fn test_run_consensus_and_aggregation() {
 
     let radon_types_vec = vec![f_1, f_3];
 
-    let packed_script = vec![145, 146, 86, 3];
+    let packed_script = vec![129, 130, 24, 86, 3];
 
-    let expected = RadonTypes::Float(RadonFloat::from(2f64)).try_into().ok();
+    let expected = RadonTypes::Float(RadonFloat::from(2f64)).try_into();
 
-    let output_consensus = run_consensus(
+    let output_aggregate = run_aggregation(
         radon_types_vec.clone(),
-        &RADConsensus {
+        &RADAggregate {
             script: packed_script.clone(),
         },
-    )
-    .ok();
-    let output_aggregate = run_aggregation(
+    );
+    let output_consensus = run_consensus(
         radon_types_vec,
-        &RADAggregate {
+        &RADConsensus {
             script: packed_script,
         },
-    )
-    .ok();
+    );
 
-    assert_eq!(output_consensus, expected);
     assert_eq!(output_aggregate, expected);
+    assert_eq!(output_consensus, expected);
 }
 
 #[test]
 #[ignore]
 fn test_run_retrieval_random_api() {
     let script = vec![
-        149, 83, 204, 132, 146, 1, 164, 100, 97, 116, 97, 204, 128, 146, 1, 0,
+        133, 24, 83, 24, 132, 130, 1, 100, 100, 97, 116, 97, 24, 128, 130, 1, 0,
     ];
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
@@ -148,13 +147,13 @@ fn test_run_all_risk_premium() {
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
         url: "https://wrapapi.com/use/aesedepece/ffzz/prima/0.0.3?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
-        script: vec![145, 70],
+        script: vec![129, 24, 70],
     };
     let aggregate = RADAggregate {
-        script: vec![145, 146, 86, 3],
+        script: vec![129, 130, 24, 86, 3],
     };
     let tally = RADConsensus {
-        script: vec![146, 146, 86, 3, 146, 52, 204, 80],
+        script: vec![130, 130, 24, 86, 3, 130, 24, 52, 24, 80],
     };
 
     let retrieved = run_retrieval(&retrieve).unwrap();
@@ -180,13 +179,13 @@ fn test_run_all_murders() {
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
         url: "https://wrapapi.com/use/aesedepece/ffzz/murders/0.0.2?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
-        script: vec![145, 70],
+        script: vec![129, 24, 70],
     };
     let aggregate = RADAggregate {
-        script: vec![145, 146, 86, 3],
+        script: vec![129, 130, 24, 86, 3],
     };
     let tally = RADConsensus {
-        script: vec![146, 146, 86, 3, 146, 52, 204, 200],
+        script: vec![130, 130, 24, 86, 3, 130, 24, 52, 24, 200],
     };
 
     let retrieved = run_retrieval(&retrieve).unwrap();
@@ -213,15 +212,15 @@ fn test_run_all_air_quality() {
         kind: RADType::HttpGet,
         url: "http://airemadrid.herokuapp.com/api/estacion".to_string(),
         script: vec![
-            151, 67, 112, 146, 84, 0, 146, 97, 165, 104, 111, 114, 97, 48, 116, 146, 97, 165, 118,
-            97, 108, 111, 114, 114,
+            135, 24, 67, 24, 112, 130, 24, 84, 0, 130, 24, 97, 101, 104, 111, 114, 97, 48, 24, 116,
+            130, 24, 97, 101, 118, 97, 108, 111, 114, 24, 114,
         ],
     };
     let aggregate = RADAggregate {
-        script: vec![145, 146, 86, 3],
+        script: vec![129, 130, 24, 86, 3],
     };
     let tally = RADConsensus {
-        script: vec![146, 146, 86, 3, 146, 52, 204, 10],
+        script: vec![130, 130, 24, 86, 3, 130, 24, 52, 10],
     };
 
     let retrieved = run_retrieval(&retrieve).unwrap();
@@ -248,13 +247,13 @@ fn test_run_all_elections() {
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
         url: "https://wrapapi.com/use/aesedepece/ffzz/generales/0.0.3?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
-        script: vec![148, 67, 116, 146, 97, 164, 80, 83, 79, 69, 114],
+        script: vec![132, 24, 67, 24, 116, 130, 24, 97, 100, 80, 83, 79, 69, 24, 114],
     };
     let aggregate = RADAggregate {
-        script: vec![145, 146, 86, 3],
+        script: vec![129, 130, 24, 86, 3],
     };
     let tally = RADConsensus {
-        script: vec![145, 146, 86, 3],
+        script: vec![129, 130, 24, 86, 3],
     };
 
     let retrieved = run_retrieval(&retrieve).unwrap();

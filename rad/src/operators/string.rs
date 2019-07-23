@@ -1,17 +1,18 @@
+use std::{error::Error, str::FromStr};
+
+use json;
+use num_traits::FromPrimitive;
+use serde_cbor::value::{from_value, Value};
+
 use crate::error::RadError;
 use crate::hash_functions::{self, RadonHashFunctions};
 use crate::types::{bytes::RadonBytes, float::RadonFloat, string::RadonString, RadonType};
 
-use json;
-use num_traits::FromPrimitive;
-use rmpv::{self, Value};
-use std::{error::Error, str::FromStr};
-
 pub fn parse_json(input: &RadonString) -> Result<RadonBytes, RadError> {
     match json::parse(&input.value()) {
         Ok(json_value) => {
-            let value = json_to_rmp(&json_value);
-            Ok(RadonBytes::from(value.to_owned()))
+            let value = json_to_cbor(&json_value);
+            Ok(RadonBytes::from(value))
         }
         Err(json_error) => Err(RadError::JsonParse {
             description: json_error.description().to_owned(),
@@ -25,44 +26,40 @@ pub fn to_float(input: &RadonString) -> Result<RadonFloat, RadError> {
 }
 
 pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
-    let error = || RadError::WrongArguments {
+    let wrong_args = || RadError::WrongArguments {
         input_type: "RadonString".to_string(),
         operator: "Hash".to_string(),
         args: args.to_vec(),
     };
 
-    let string = input.value();
-    let bytes = string.as_bytes();
-    let hash_function_integer = args.first().ok_or_else(error)?.as_i64().ok_or_else(error)?;
-    let hash_function_code =
-        RadonHashFunctions::from_i64(hash_function_integer).ok_or_else(error)?;
+    let input_string = input.value();
+    let input_bytes = input_string.as_bytes();
 
-    let digest = hash_functions::hash(bytes, hash_function_code)?;
+    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+    let hash_function_integer = from_value::<i64>(arg).map_err(|_| wrong_args())?;
+    let hash_function_code =
+        RadonHashFunctions::from_i64(hash_function_integer).ok_or_else(wrong_args)?;
+
+    let digest = hash_functions::hash(input_bytes, hash_function_code)?;
     let hex_string = hex::encode(digest);
 
     Ok(RadonString::from(hex_string))
 }
 
-fn json_to_rmp(value: &json::JsonValue) -> rmpv::ValueRef {
+fn json_to_cbor(value: &json::JsonValue) -> Value {
     match value {
-        json::JsonValue::Array(value) => {
-            rmpv::ValueRef::Array(value.iter().map(json_to_rmp).collect())
-        }
+        json::JsonValue::Array(value) => Value::Array(value.iter().map(json_to_cbor).collect()),
         json::JsonValue::Object(value) => {
             let entries = value
                 .iter()
-                .map(|(key, value)| (rmpv::ValueRef::from(key), json_to_rmp(value)))
+                .map(|(key, value)| (Value::Text(String::from(key)), json_to_cbor(value)))
                 .collect();
-            rmpv::ValueRef::Map(entries)
+            Value::Map(entries)
         }
-        json::JsonValue::Short(value) => {
-            rmpv::ValueRef::String(rmpv::Utf8StringRef::from(value.as_str()))
-        }
-        json::JsonValue::String(value) => {
-            rmpv::ValueRef::String(rmpv::Utf8StringRef::from(value.as_str()))
-        }
-        json::JsonValue::Number(value) => rmpv::ValueRef::F64((*value).into()),
-        _ => rmpv::ValueRef::Nil,
+        json::JsonValue::Short(value) => Value::Text(String::from(value.as_str())),
+        json::JsonValue::String(value) => Value::Text(String::from(value.as_str())),
+        json::JsonValue::Number(value) => Value::Float((*value).into()),
+        _ => Value::Null,
     }
 }
 
@@ -74,9 +71,9 @@ fn test_parse_json() {
     let valid_object = parse_json(&valid_string).unwrap();
     let invalid_object = parse_json(&invalid_string);
 
-    assert!(if let rmpv::Value::Map(vector) = valid_object.value() {
-        if let Some((rmpv::Value::String(key), rmpv::Value::String(val))) = vector.first() {
-            key.as_str() == Some("Hello") && val.as_str() == Some("world")
+    assert!(if let Value::Map(map) = valid_object.value() {
+        if let Some((Value::Text(key), Value::Text(val))) = map.iter().next() {
+            key == "Hello" && val == "world"
         } else {
             false
         }
@@ -108,7 +105,7 @@ fn test_hash() {
     assert_eq!(valid_output, valid_expected);
     assert_eq!(
         &wrong_output.unwrap_err().to_string(),
-        "Wrong `RadonString::Hash()` arguments: `[Integer(PosInt(255))]`"
+        "Wrong `RadonString::Hash()` arguments: `[Integer(255)]`"
     );
     assert_eq!(
         &unsupported_output.unwrap_err().to_string(),
