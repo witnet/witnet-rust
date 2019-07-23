@@ -837,10 +837,10 @@ fn example_data_request() -> RADRequest {
         retrieve: vec![RADRetrieve {
             kind: RADType::HttpGet,
             url: "".to_string(),
-            script: vec![0x90],
+            script: vec![0x80],
         }],
-        aggregate: RADAggregate { script: vec![0x90] },
-        consensus: RADConsensus { script: vec![0x90] },
+        aggregate: RADAggregate { script: vec![0x80] },
+        consensus: RADConsensus { script: vec![0x80] },
         deliver: vec![RADDeliver {
             kind: RADType::HttpGet,
             url: "".to_string(),
@@ -863,8 +863,8 @@ fn data_request_no_scripts() {
         // unless we add witnet_rad to Cargo.toml.
         // Anyway, these types of tests belong to witnet_rad.
         //"Failed to parse a Value from a MessagePack buffer. Error message: I/O error while reading marker byte",
-        RadError::MessagePack {
-            description: "I/O error while reading marker byte".to_string(),
+        RadError::BufferIsNotValue {
+            description: "EOF while parsing a value".to_string(),
         }
     );
 }
@@ -1299,7 +1299,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     validate_commit_transaction(&c_tx, &dr_pool, beacon, vrf, &rep_eng).map(|_| ())
 }
 
-static DR_HASH: &str = "5c480ffab6f430348c493255a111cbf07eadb09198b21584b8cc876bbe3f34dc";
+static DR_HASH: &str = "606c5809d5ed6c7380169b099e87ac2e2d680e2d612200c9f474fb1f581a6ac5";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
@@ -1578,7 +1578,7 @@ fn commitment_proof_lower_than_target() {
     let x = test_commit_difficult_proof();
     // This is just the hash of the VRF, we do not care for the exact value as
     // long as it is below the target hash
-    let vrf_hash = "322a2587a40168db8618387a84976bd0a69c0a191fe76fe77c1b70b289a261f8,"
+    let vrf_hash = "beaa07fa765bd2004b7b5da92bfb9b1e7053f346da55b2502fc268b4ecc9ba0c"
         .parse()
         .unwrap();
     assert_eq!(
@@ -2147,7 +2147,7 @@ fn tally_dr_not_tally_stage() {
     );
     let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
     // Tally value: [integer(0)]
-    let tally_value = vec![0x91, 0x00];
+    let tally_value = vec![0x81, 0x00];
     let vt0 = ValueTransferOutput {
         pkh: public_key.pkh(),
         value: 200,
@@ -2200,7 +2200,7 @@ fn tally_invalid_consensus() {
     let (dr_pool, dr_pointer, pkh, _dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
-    let tally_value = vec![0x91, 0x00];
+    let tally_value = vec![0x81, 0x00];
     // Fake tally value: [integer(1)]
     let fake_tally_value = vec![0x01];
 
@@ -2229,7 +2229,7 @@ fn tally_valid() {
     let (dr_pool, dr_pointer, pkh, dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
-    let tally_value = vec![0x91, 0x00];
+    let tally_value = vec![0x81, 0x00];
     let vt0 = ValueTransferOutput { pkh, value: 200 };
     let vt_change = ValueTransferOutput {
         pkh: dr_pkh,
@@ -2248,7 +2248,7 @@ fn tally_too_many_outputs() {
     let (dr_pool, dr_pointer, pkh, dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
-    let tally_value = vec![0x91, 0x00];
+    let tally_value = vec![0x81, 0x00];
     let vt0 = ValueTransferOutput { pkh, value: 200 };
     let vt1 = ValueTransferOutput { pkh, value: 200 };
     let vt2 = ValueTransferOutput { pkh, value: 200 };
@@ -2279,7 +2279,7 @@ fn tally_too_less_outputs() {
     let (dr_pool, dr_pointer, pkh, _pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
 
     // Tally value: [integer(0), integer(0)]
-    let tally_value = vec![0x92, 0x00, 0x00];
+    let tally_value = vec![0x82, 0x00, 0x00];
     let vt0 = ValueTransferOutput { pkh, value: 500 };
 
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0]);
@@ -2300,7 +2300,7 @@ fn tally_invalid_change() {
     let (dr_pool, dr_pointer, pkh, dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: [integer(0)]
-    let tally_value = vec![0x91, 0x00];
+    let tally_value = vec![0x81, 0x00];
     let vt0 = ValueTransferOutput { pkh, value: 200 };
     let vt_change = ValueTransferOutput {
         pkh: dr_pkh,
@@ -2325,7 +2325,7 @@ fn tally_double_reward() {
     let (dr_pool, dr_pointer, pkh, _pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
 
     // Tally value: [integer(0), integer(0)]
-    let tally_value = vec![0x92, 0x00, 0x00];
+    let tally_value = vec![0x82, 0x00, 0x00];
     let vt0 = ValueTransferOutput { pkh, value: 500 };
     let vt1 = ValueTransferOutput { pkh, value: 500 };
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt1]);
@@ -2345,7 +2345,7 @@ fn tally_reveal_not_found() {
     let (dr_pool, dr_pointer, pkh, _pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
 
     // Tally value: [integer(0), integer(0)]
-    let tally_value = vec![0x92, 0x00, 0x00];
+    let tally_value = vec![0x82, 0x00, 0x00];
     let vt0 = ValueTransferOutput { pkh, value: 500 };
     let vt1 = ValueTransferOutput {
         pkh: PublicKeyHash::default(),
@@ -2366,7 +2366,7 @@ fn tally_valid_2_reveals() {
     let (dr_pool, dr_pointer, pkh, pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
 
     // Tally value: [integer(0), integer(0)]
-    let tally_value = vec![0x92, 0x00, 0x00];
+    let tally_value = vec![0x82, 0x00, 0x00];
     let vt0 = ValueTransferOutput { pkh, value: 500 };
     let vt1 = ValueTransferOutput {
         pkh: pkh2,
