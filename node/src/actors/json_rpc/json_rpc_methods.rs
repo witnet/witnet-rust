@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use witnet_data_structures::{
     chain::{self, Block, CheckpointBeacon, Hash},
     transaction::Transaction,
+    vrf::VrfMessage,
 };
 
 use crate::actors::{
@@ -62,7 +63,9 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
 
     io.add_method("getPublicKey", |_params: Params| get_public_key());
 
-    io.add_method("signData", |params: Params| sign_data(params.parse()));
+    io.add_method("sign", |params: Params| sign_data(params.parse()));
+
+    io.add_method("createVRF", |params: Params| create_vrf(params.parse()));
 
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -553,7 +556,10 @@ pub fn status() -> JsonRpcResultAsync {
 pub fn get_public_key() -> JsonRpcResultAsync {
     let fut = signature_mngr::public_key()
         .map_err(internal_error)
-        .map(|pk| pk.to_bytes().to_vec().into());
+        .map(|pk| {
+            log::debug!("{:?}", pk);
+            pk.to_bytes().to_vec().into()
+        });
 
     Box::new(fut)
 }
@@ -568,6 +574,7 @@ pub fn sign_data(params: Result<[u8; 32], jsonrpc_core::Error>) -> JsonRpcResult
     let fut = signature_mngr::sign_data(data)
         .map_err(internal_error)
         .and_then(|ks| {
+            log::debug!("Signature: {:?}", ks.signature);
             // ks.signature.to_bytes().unwrap().to_vec().into()
             match ks.signature.to_bytes() {
                 Ok(bytes) => future::Either::A(future::ok(bytes.to_vec().into())),
@@ -576,6 +583,23 @@ pub fn sign_data(params: Result<[u8; 32], jsonrpc_core::Error>) -> JsonRpcResult
                     future::Either::B(futures::failed(err))
                 }
             }
+        });
+
+    Box::new(fut)
+}
+
+/// Create VRF
+pub fn create_vrf(params: Result<Vec<u8>, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let data = match params {
+        Ok(x) => x,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let fut = signature_mngr::vrf_prove(VrfMessage::set_data(data))
+        .map_err(internal_error)
+        .map(|(proof, _hash)| {
+            log::debug!("{:?}", proof);
+            proof.get_proof().into()
         });
 
     Box::new(fut)
