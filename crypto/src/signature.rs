@@ -31,6 +31,7 @@ pub fn verify(public_key: &PublicKey, data: &[u8], sig: &Signature) -> Result<()
 
 #[cfg(test)]
 mod tests {
+    use crate::hash::{calculate_sha256, Sha256};
     use crate::signature::{sign, verify};
     use secp256k1::{PublicKey, Secp256k1, SecretKey, Signature};
 
@@ -91,6 +92,34 @@ mod tests {
                 .unwrap();
         let s_expected =
             hex::decode("9e997d4718a7603942834fbdd22a4b856fc4083704ede62033cf1a77cb9822a9")
+                .unwrap();
+
+        assert_eq!(r.to_vec(), r_expected);
+        assert_eq!(s.to_vec(), s_expected);
+    }
+
+    #[test]
+    fn test_sign_and_verify_before_hash() {
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+
+        let i = 9;
+
+        let mut message = "Message ".to_string();
+        let i_str = i.to_string();
+        message.push_str(&i_str);
+
+        let Sha256(hashed_data) = calculate_sha256(message.as_bytes());
+
+        let signature = sign(secret_key, &hashed_data);
+
+        let r_s = signature.serialize_compact();
+        let (r, s) = r_s.split_at(32);
+
+        let r_expected =
+            hex::decode("87d0a0e4e8af2b911f5e8834a6335307ed226fcd1fabe97cffedd37240fdca33")
+                .unwrap();
+        let s_expected =
+            hex::decode("7d1cd708ea12c2701e47633745907f6d20f29c621313b8eabb1c2f24b34ebd90")
                 .unwrap();
 
         assert_eq!(r.to_vec(), r_expected);
