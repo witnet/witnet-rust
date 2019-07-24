@@ -26,6 +26,8 @@ use witnet_ethereum_bridge::{
     eth::{read_u256_from_event_log, EthState, WbiEvent},
 };
 
+use witnet_crypto::hash::{calculate_sha256, Sha256};
+
 fn handle_receipt(receipt: TransactionReceipt) -> impl Future<Item = (), Error = ()> {
     match receipt.status {
         Some(x) if x == 1.into() => {
@@ -324,6 +326,7 @@ fn post_actor(
             let wbi_contract2 = wbi_contract.clone();
             let wbi_contract3 = wbi_contract.clone();
             let wbi_contract4 = wbi_contract.clone();
+            let wbi_contract5 = wbi_contract.clone();
             let witnet_client = Arc::clone(&witnet_client);
             let witnet_client2 = Arc::clone(&witnet_client);
             let witnet_client3 = Arc::clone(&witnet_client);
@@ -358,7 +361,7 @@ fn post_actor(
                             Box::new(
                                 wbi_contract2
                                     .query(
-                                        "getPoeBody",
+                                        "getLastBeacon",
                                         (),
                                         eth_account,
                                         contract::Options::default(),
@@ -384,8 +387,11 @@ fn post_actor(
                         })
                         .and_then(move |(vrf, dr_output)| {
                             // Sign the ethereum account address with the witnet node private key
+                            // TODO: Remove unwrap
+                            let bytes_eth_account = hex::decode(eth_account.to_string()).unwrap();
+                            let Sha256(hash) = calculate_sha256(bytes_eth_account.as_slice());
                             let sign_params = json!({
-                                "message": eth_account.to_string(),
+                                "message": hash,
                             });
 
                             witnet_client3
@@ -435,6 +441,29 @@ fn post_actor(
                             };
                             info!("[{}] Checking eligibility for claiming dr", dr_id);
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
+                            // Obtain PointX and PointY from the public key
+                            Box::new(
+                                wbi_contract5
+                                    .query(
+                                        "decodePoint",
+                                        (witnet_pk.clone(),),
+                                        eth_account,
+                                        contract::Options::default(),
+                                        None,
+                                    )
+                                    .map_err(|e| error!("{:?}", e))
+                                    .map(move |x: Bytes| {
+                                        panic!("public key:{:?}\n response{:?}", witnet_pk, x);
+
+                                        (poe, sign_addr, witnet_pk, dr_output)
+                                    }),
+                            )
+                        })
+                        .and_then(move |(poe, sign_addr, witnet_pk, dr_output)| {
+*/
+////////////////////////////////////////////////////////////////////////////////////////////////////
                             Box::new(
                                 wbi_contract3
                                     .query(
@@ -565,11 +594,18 @@ fn main_actor(
                                     "postNewBlock",
                                     (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
                                     config.eth_account,
-                                    contract::Options::default(),
+                                    contract::Options{
+                                        gas: Some(U256::from_dec_str("900000").unwrap()),
+                                        gas_price: None,
+                                        value: None,
+                                        nonce: None,
+                                        condition: None
+                                    },
                                     1,
                                 )
                                 .map_err(|e| error!("postNewBlock: {:?}", e))
                                 .and_then(|tx| {
+                                    error!("---->1");
                                     debug!("postNewBlock: {:?}", tx);
                                     handle_receipt(tx)
                                 })

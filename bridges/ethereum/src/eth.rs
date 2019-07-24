@@ -55,15 +55,15 @@ impl EthState {
 
         //debug!("WBI events: {:?}", contract_abi.events);
         let post_dr_event = wbi_contract_abi
-            .event("PostDataRequest")
+            .event("PostedRequest")
             .map_err(|_| ())?
             .clone();
         let inclusion_dr_event = wbi_contract_abi
-            .event("InclusionDataRequest")
+            .event("IncludedRequest")
             .map_err(|_| ())?
             .clone();
         let post_tally_event = wbi_contract_abi
-            .event("PostResult")
+            .event("PostedResult")
             .map_err(|_| ())?
             .clone();
 
