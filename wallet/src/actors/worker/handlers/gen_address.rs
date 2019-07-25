@@ -7,16 +7,12 @@ use crate::types;
 
 pub struct GenAddress(
     pub Arc<rocksdb::DB>,
-    pub types::Secret,
-    pub String,
+    pub types::WalletUnlocked,
     pub Option<String>,
-    pub types::ExtendedSK,
-    pub u32,
-    pub u32,
 );
 
 impl Message for GenAddress {
-    type Result = worker::Result<String>;
+    type Result = worker::Result<types::Address>;
 }
 
 impl Handler<GenAddress> for worker::Worker {
@@ -24,17 +20,9 @@ impl Handler<GenAddress> for worker::Worker {
 
     fn handle(
         &mut self,
-        GenAddress(db, enc_key, wallet_id, label, parent_key, account_index, key_index): GenAddress,
+        GenAddress(db, wallet, label): GenAddress,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.gen_address(
-            &worker::Db::new(db),
-            enc_key.as_ref(),
-            &wallet_id,
-            label.as_ref(),
-            &parent_key,
-            account_index,
-            key_index,
-        )
+        self.gen_address(worker::Db::new(db.as_ref()), &wallet, label)
     }
 }

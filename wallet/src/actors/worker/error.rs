@@ -5,6 +5,8 @@ use witnet_crypto as crypto;
 #[derive(Debug, Fail)]
 #[fail(display = "error")]
 pub enum Error {
+    #[fail(display = "maximum key index reached for account")]
+    IndexOverflow,
     #[fail(display = "cannot decrypt, invalid data length")]
     InvalidDataLen,
     #[fail(display = "rad request failed: {}", _0)]
@@ -23,6 +25,8 @@ pub enum Error {
     Bincode(#[cause] bincode::Error),
     #[fail(display = "cipher failed: {}", _0)]
     Cipher(#[cause] crypto::cipher::Error),
+    #[fail(display = "bech32 failed: {}", _0)]
+    Bech32(#[cause] bech32::Error),
 }
 
 impl From<rocksdb::Error> for Error {
@@ -64,5 +68,11 @@ impl From<actix::MailboxError> for Error {
 impl From<witnet_rad::error::RadError> for Error {
     fn from(err: witnet_rad::error::RadError) -> Self {
         Error::Rad(err)
+    }
+}
+
+impl From<bech32::Error> for Error {
+    fn from(err: bech32::Error) -> Self {
+        Error::Bech32(err)
     }
 }

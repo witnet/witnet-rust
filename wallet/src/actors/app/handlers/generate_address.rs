@@ -1,7 +1,8 @@
 use actix::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
+use crate::types;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,9 +12,10 @@ pub struct GenerateAddressRequest {
     label: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
 pub struct GenerateAddressResponse {
-    address: String,
-    path: String,
+    pub address: String,
+    pub path: String,
 }
 
 impl Message for GenerateAddressRequest {
@@ -26,10 +28,9 @@ impl Handler<GenerateAddressRequest> for app::App {
     fn handle(&mut self, msg: GenerateAddressRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
             .generate_address(msg.session_id, msg.wallet_id, msg.label)
-            .map(|key, _, _| GenerateAddressResponse {
-                address: key.address(),
-                path: key.path,
-            });
+            .map(
+                |types::Address { address, path }, _, _| GenerateAddressResponse { address, path },
+            );
 
         Box::new(f)
     }

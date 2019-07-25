@@ -15,6 +15,11 @@ pub fn wallet_info_key(wallet_id: &str) -> Vec<u8> {
 }
 
 #[inline]
+pub fn wallet_pkhs_key(wallet_id: &str) -> Vec<u8> {
+    bytes!("pkhs-{}", wallet_id)
+}
+
+#[inline]
 pub fn salt_key(wallet_id: &str) -> Vec<u8> {
     bytes!("salt-{}", wallet_id)
 }
@@ -29,7 +34,7 @@ pub fn account_key(wallet_id: &str, account_index: u32) -> Vec<u8> {
 }
 
 #[inline]
-pub fn account_address_key(wallet_id: &str, account_index: u32) -> Vec<u8> {
+pub fn address_index_key(wallet_id: &str, account_index: u32) -> Vec<u8> {
     bytes!("address-index-{}-{}", wallet_id, account_index)
 }
 

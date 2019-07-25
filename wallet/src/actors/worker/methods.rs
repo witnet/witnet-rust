@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use witnet_crypto::{
     cipher,
     hash::{calculate_sha256, HashFunction, Sha256},
-    key::{ExtendedPK, ExtendedSK, KeyPath, MasterKeyGen, SignEngine},
+    key::{ExtendedSK, KeyPath, MasterKeyGen, SignEngine},
     pbkdf2::pbkdf2_sha256,
 };
 
@@ -56,17 +56,17 @@ impl Worker {
         words.to_string()
     }
 
-    pub fn flush_db(&self, db: &Db) -> Result<()> {
+    pub fn flush_db(&self, db: &Db<'_>) -> Result<()> {
         db.flush()
     }
 
-    pub fn wallet_infos(&self, db: &Db) -> Result<Vec<model::WalletInfo>> {
-        db.get_or_default(b"wallets")
+    pub fn wallet_infos(&self, db: &Db<'_>) -> Result<Vec<model::WalletInfo>> {
+        db.get_or_default(&wallets_key())
     }
 
     pub fn create_wallet(
         &mut self,
-        db: &mut Db,
+        db: Db<'_>,
         name: Option<String>,
         caption: Option<String>,
         password: &[u8],
@@ -87,87 +87,92 @@ impl Worker {
 
         let salt = &self.salt()?;
         let key = &self.key_from_password(password, salt);
+        let db = db.with_key(&key, &self.params);
+        let mut batch = db.batch();
 
-        db.merge(&wallets_key(), &info)?;
-        db.put(&wallet_info_key(&id), &info)?;
-        db.put(&salt_key(&id), salt)?;
-        db.put(&accounts_key(&id), &self.encrypt(key, &accounts)?)?;
-        db.put(
-            &account_key(&id, account.index),
-            &self.encrypt(key, &account)?,
-        )?;
+        batch.merge(&wallets_key(), &info)?;
+        batch.put(&wallet_info_key(&id), &info)?;
+        batch.put(&salt_key(&id), salt)?;
 
-        db.write()?;
+        batch.put_enc(&accounts_key(&id), &accounts)?;
+        batch.put_enc(&account_key(&id, account.index), &account)?;
+
+        db.write(batch)?;
 
         Ok(())
     }
 
     pub fn gen_address(
         &mut self,
-        db: &Db,
-        enc_key: &[u8],
-        wallet_id: &str,
-        label: Option<&String>,
-        parent_key: &types::ExtendedSK,
-        account: u32,
-        index: u32,
-    ) -> Result<String> {
-        let extended_secret_key =
-            parent_key.derive(&self.engine, &types::KeyPath::new().index(index))?;
-        let extended_key = types::ExtendedPK::from_secret_key(&self.engine, &extended_secret_key);
-        let key = extended_key.key;
+        db: Db<'_>,
+        wallet: &types::WalletUnlocked,
+        label: Option<String>,
+    ) -> Result<types::Address> {
+        let db = db.with_key(&wallet.enc_key, &self.params);
+        let mut batch = db.batch();
+        let index_key = &address_index_key(&wallet.info.id, wallet.account.index);
+
+        // FIXME: This update should be done atomic using a transaction
+        let index = db.get_or_default_dec::<u32>(index_key)?;
+        let new_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
+        batch.put_enc(index_key, &new_index)?;
+
+        let keypath = &types::KeyPath::new().index(index);
+        let extended_sk = wallet.account.external.key.derive(&self.engine, keypath)?;
+        let types::ExtendedPK { key, .. } =
+            types::ExtendedPK::from_secret_key(&self.engine, &extended_sk);
 
         match calculate_sha256(&key.serialize_uncompressed()) {
             Sha256(hash) => {
                 let pkh = hash[..20].to_vec();
                 let address = bech32::encode(
-                    if &self.params.testnet { "twit" } else { "wit" },
+                    if self.params.testnet { "twit" } else { "wit" },
                     pkh.to_base32(),
                 )?;
 
-                db.put(
-                    &address_key(wallet_id, account, index),
-                    &model::Address { pkh, index },
+                let mut pkhs =
+                    db.get_or_default_dec::<Vec<_>>(&wallet_pkhs_key(&wallet.info.id))?;
+
+                pkhs.push(pkh.clone());
+
+                batch.put_enc(&wallet_pkhs_key(&wallet.info.id), &pkhs)?;
+                batch.put_enc(
+                    &address_key(&wallet.info.id, wallet.account.index, index),
+                    &model::ReceiveKey { pkh, index, label },
                 )?;
 
-                Ok(address)
+                db.write(batch)?;
+
+                Ok(types::Address {
+                    address,
+                    path: format!("{}/{}", wallet.account.external.path, index),
+                })
             }
         }
     }
 
     pub fn unlock_wallet(
         &mut self,
-        db: &Db,
+        db: Db<'_>,
         wallet_id: &str,
         password: &[u8],
-    ) -> Result<(String, String, types::Wallet)> {
+    ) -> Result<types::WalletUnlocked> {
         let salt = &db.get::<Vec<u8>>(&salt_key(wallet_id))?;
-        let key = self.key_from_password(password, salt);
+        let enc_key = self.key_from_password(password, salt);
+        let db = db.with_key(&enc_key, &self.params);
+        let session_id = self.gen_session_id(&enc_key, salt);
 
-        let model::WalletInfo { id, name, caption } =
-            db.get::<model::WalletInfo>(&wallet_info_key(wallet_id))?;
-        let accounts =
-            self.decrypt::<model::Accounts>(&key, &db.get::<Vec<u8>>(&accounts_key(wallet_id))?)?;
-        let account = self.decrypt::<model::Account>(
-            &key,
-            &db.get::<Vec<u8>>(&account_key(wallet_id, accounts.current))?,
-        )?;
-        let next_address_index = self.decrypt(
-            &key,
-            &db.get::<Vec<u8>>(&account_address_key(wallet_id, accounts.current))?,
-        )?;
-        let session_id = self.gen_session_id(&key, salt);
-        let wallet = types::Wallet {
+        let info = db.get::<model::WalletInfo>(&wallet_info_key(wallet_id))?;
+        let accounts = db.get_dec::<model::Accounts>(&accounts_key(wallet_id))?;
+        let account = db.get_dec::<model::Account>(&account_key(wallet_id, accounts.current))?;
+
+        Ok(types::WalletUnlocked {
+            session_id,
             account,
-            name,
-            caption,
+            info,
+            enc_key,
             accounts: accounts.accounts,
-            enc_key: key,
-        };
-
-        let addr = actors::WalletWorker::start(key); // TODO: to be continued...
-
-        Ok((session_id, id, wallet))
+        })
     }
 
     pub fn key_from_password(&self, password: &[u8], salt: &[u8]) -> types::Secret {
@@ -203,9 +208,8 @@ impl Worker {
 
         let external_key = {
             let keypath = KeyPath::new().index(0);
-            let key = account_key.derive(&self.engine, &keypath)?;
 
-            ExtendedPK::from_secret_key(&self.engine, &key)
+            account_key.derive(&self.engine, &keypath)?
         };
         let internal_key = {
             let keypath = KeyPath::new().index(1);
@@ -272,40 +276,5 @@ impl Worker {
         let salt = cipher::generate_random(self.params.db_salt_length)?;
 
         Ok(salt)
-    }
-
-    pub fn iv(&self) -> Result<Vec<u8>> {
-        let iv = cipher::generate_random(self.params.db_iv_length)?;
-
-        Ok(iv)
-    }
-
-    pub fn encrypt<T>(&self, key: &[u8], value: &T) -> Result<Vec<u8>>
-    where
-        T: serde::Serialize,
-    {
-        let bytes = bincode::serialize(value)?;
-        let iv = self.iv()?;
-        let encrypted = cipher::encrypt_aes_cbc(key, &bytes, &iv)?;
-        let data = [iv, encrypted].concat();
-
-        Ok(data)
-    }
-
-    pub fn decrypt<T>(&self, key: &[u8], value: &[u8]) -> Result<T>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        let len = value.len();
-
-        if len < self.params.db_iv_length {
-            Err(Error::InvalidDataLen)?
-        }
-
-        let (iv, data) = value.split_at(self.params.db_iv_length);
-        let bytes = cipher::decrypt_aes_cbc(key, data, iv)?;
-        let value = bincode::deserialize(&bytes)?;
-
-        Ok(value)
     }
 }

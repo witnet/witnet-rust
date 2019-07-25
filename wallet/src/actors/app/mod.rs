@@ -35,7 +35,7 @@ pub struct App {
 
 #[derive(Default)]
 struct Session {
-    wallets: HashMap<String, types::Wallet>,
+    wallets: HashMap<String, types::WalletUnlocked>,
     subscriptions: HashMap<types::SubscriptionId, types::Sink>,
 }
 

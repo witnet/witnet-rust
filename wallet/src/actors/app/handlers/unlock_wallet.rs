@@ -30,14 +30,21 @@ impl Handler<UnlockWalletRequest> for app::App {
 
     fn handle(&mut self, msg: UnlockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self.unlock_wallet(msg.wallet_id, msg.password).map(
-            |(session_id, wallet), slf, ctx| {
+            |types::WalletUnlocked {
+                 info,
+                 session_id,
+                 accounts,
+                 ..
+             },
+             slf,
+             ctx| {
                 slf.set_session_to_expire(session_id.clone()).spawn(ctx);
 
                 UnlockWalletResponse {
                     session_id,
-                    name: wallet.name,
-                    caption: wallet.caption,
-                    accounts: wallet.accounts,
+                    accounts,
+                    name: info.name,
+                    caption: info.caption,
                     session_expiration_secs: slf.params.session_expires_in.as_secs(),
                 }
             },

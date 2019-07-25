@@ -16,7 +16,7 @@ impl App {
         actor.start()
     }
 
-    pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<&mut types::Wallet> {
+    pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<types::WalletUnlocked> {
         let session = self
             .sessions
             .get(session_id)
@@ -24,7 +24,8 @@ impl App {
 
         session
             .wallets
-            .get_mut(wallet_id)
+            .get(wallet_id)
+            .cloned()
             .ok_or_else(|| Error::WalletNotFound)
     }
 
@@ -78,27 +79,17 @@ impl App {
         session_id: String,
         wallet_id: String,
         label: Option<String>,
-    ) -> ResponseActFuture<types::ReceiveKey> {
-        let f = fut::result(self.wallet(&session_id, &wallet_id))
-            .into_actor(self)
-            .and_then(move |wallet, slf, _| {
-                let index = wallet.increment_receive_index();
-
+    ) -> ResponseActFuture<types::Address> {
+        let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(
+            move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
-                    .send(worker::GenAddress(
-                        self.db.clone(),
-                        wallet.enc_key.clone(),
-                        wallet_id,
-                        label,
-                        wallet.account.external.key.clone(),
-                        wallet.account.index,
-                        index,
-                    ))
+                    .send(worker::GenAddress(slf.db.clone(), wallet, label))
                     .flatten()
                     .map_err(From::from)
                     .into_actor(slf)
-            });
+            },
+        );
 
         Box::new(f)
     }
@@ -209,7 +200,7 @@ impl App {
         &self,
         wallet_id: String,
         password: types::Password,
-    ) -> ResponseActFuture<(String, types::Wallet)> {
+    ) -> ResponseActFuture<types::WalletUnlocked> {
         let f = self
             .params
             .worker
@@ -225,11 +216,14 @@ impl App {
                 err => From::from(err),
             })
             .into_actor(self)
-            .and_then(|(session_id, wallet_id, wallet), slf, _| {
-                let entry = slf.sessions.entry(session_id.clone());
-                entry.or_default().wallets.insert(wallet_id, wallet.clone());
+            .and_then(|wallet, slf, _| {
+                let entry = slf.sessions.entry(wallet.session_id.clone());
+                entry
+                    .or_default()
+                    .wallets
+                    .insert(wallet.info.id.clone(), wallet.clone());
 
-                fut::ok((session_id, wallet))
+                fut::ok(wallet)
             });
 
         Box::new(f)

@@ -15,6 +15,6 @@ impl Handler<WalletInfos> for worker::Worker {
     type Result = <WalletInfos as Message>::Result;
 
     fn handle(&mut self, WalletInfos(db): WalletInfos, _ctx: &mut Self::Context) -> Self::Result {
-        self.wallet_infos(&worker::Db::new(db))
+        self.wallet_infos(&worker::Db::new(db.as_ref()))
     }
 }
