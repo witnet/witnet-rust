@@ -10,11 +10,11 @@
       "name": "blocks",
       "outputs": [
         {
-          "name": "dr_hash_merkle_root",
+          "name": "drHashMerkleRoot",
           "type": "uint256"
         },
         {
-          "name": "tally_hash_merkle_root",
+          "name": "tallyHashMerkleRoot",
           "type": "uint256"
         }
       ],

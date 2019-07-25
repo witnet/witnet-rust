@@ -91,13 +91,13 @@ fn eth_event_stream(
     let parse_as_wbi_event = move |value: &web3::types::Log| -> Result<WbiEvent, ()> {
         match &value.topics[0] {
             x if x == &post_dr_event_sig => {
-                Ok(WbiEvent::PostDataRequest(read_u256_from_event_log(&value)?))
+                Ok(WbiEvent::PostedRequest(read_u256_from_event_log(&value)?))
             }
-            x if x == &inclusion_dr_event_sig => Ok(WbiEvent::InclusionDataRequest(
-                read_u256_from_event_log(&value)?,
-            )),
+            x if x == &inclusion_dr_event_sig => {
+                Ok(WbiEvent::IncludedRequest(read_u256_from_event_log(&value)?))
+            }
             x if x == &post_tally_event_sig => {
-                Ok(WbiEvent::PostResult(read_u256_from_event_log(&value)?))
+                Ok(WbiEvent::PostedResult(read_u256_from_event_log(&value)?))
             }
             _ => Err(()),
         }
@@ -123,7 +123,7 @@ fn eth_event_stream(
                     debug!("Got ethereum event: {:?}", value);
                     let fut: Box<dyn Future<Item = (), Error = ()> + Send> =
                         match parse_as_wbi_event(&value) {
-                            Ok(WbiEvent::PostDataRequest(dr_id)) => {
+                            Ok(WbiEvent::PostedRequest(dr_id)) => {
                                 info!("[{}] New data request posted to WBI", dr_id);
 
                                 Box::new(
@@ -132,7 +132,7 @@ fn eth_event_stream(
                                         .map_err(|_| ()),
                                 )
                             }
-                            Ok(WbiEvent::InclusionDataRequest(dr_id)) => {
+                            Ok(WbiEvent::IncludedRequest(dr_id)) => {
                                 let contract = &eth_state.wbi_contract;
                                 debug!("[{}] Reading dr_tx_hash for id", dr_id);
                                 Box::new(
@@ -157,7 +157,7 @@ fn eth_event_stream(
                                         }),
                                 )
                             }
-                            Ok(WbiEvent::PostResult(dr_id)) => {
+                            Ok(WbiEvent::PostedResult(dr_id)) => {
                                 info!("[{}] Data request has been resolved!", dr_id);
                                 Box::new(
                                     tx3.send(ActorMessage::TallyClaimed(dr_id))

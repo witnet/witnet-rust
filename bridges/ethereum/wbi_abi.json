@@ -18,7 +18,7 @@
           "type": "uint256"
         },
         {
-          "name": "tallieReward",
+          "name": "tallyReward",
           "type": "uint256"
         },
         {
@@ -67,7 +67,7 @@
           "type": "uint256"
         }
       ],
-      "name": "PostDataRequest",
+      "name": "PostedRequest",
       "type": "event"
     },
     {
@@ -84,7 +84,7 @@
           "type": "uint256"
         }
       ],
-      "name": "InclusionDataRequest",
+      "name": "IncludedRequest",
       "type": "event"
     },
     {
@@ -101,7 +101,7 @@
           "type": "uint256"
         }
       ],
-      "name": "PostResult",
+      "name": "PostedResult",
       "type": "event"
     },
     {
@@ -112,7 +112,7 @@
           "type": "bytes"
         },
         {
-          "name": "_tallieReward",
+          "name": "_tallyReward",
           "type": "uint256"
         }
       ],
@@ -135,7 +135,7 @@
           "type": "uint256"
         },
         {
-          "name": "_tallieReward",
+          "name": "_tallyReward",
           "type": "uint256"
         }
       ],
@@ -246,6 +246,25 @@
           "type": "uint256"
         }
       ],
+      "name": "readResult",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_id",
+          "type": "uint256"
+        }
+      ],
       "name": "readDrHash",
       "outputs": [
         {
@@ -261,19 +280,31 @@
       "constant": true,
       "inputs": [
         {
-          "name": "_id",
+          "name": "_poi",
+          "type": "uint256[]"
+        },
+        {
+          "name": "_root",
+          "type": "uint256"
+        },
+        {
+          "name": "_index",
+          "type": "uint256"
+        },
+        {
+          "name": "_element",
           "type": "uint256"
         }
       ],
-      "name": "readResult",
+      "name": "verifyPoi",
       "outputs": [
         {
           "name": "",
-          "type": "bytes"
+          "type": "bool"
         }
       ],
       "payable": false,
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     }
 ]

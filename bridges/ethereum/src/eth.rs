@@ -53,17 +53,17 @@ impl EthState {
             block_relay_contract_abi.clone(),
         );
 
-        //debug!("WBI events: {:?}", contract_abi.events);
+        debug!("WBI events: {:?}", wbi_contract_abi.events);
         let post_dr_event = wbi_contract_abi
-            .event("PostDataRequest")
+            .event("PostedRequest")
             .map_err(|_| ())?
             .clone();
         let inclusion_dr_event = wbi_contract_abi
-            .event("InclusionDataRequest")
+            .event("IncludedRequest")
             .map_err(|_| ())?
             .clone();
         let post_tally_event = wbi_contract_abi
-            .event("PostResult")
+            .event("PostedResult")
             .map_err(|_| ())?
             .clone();
 
@@ -99,11 +99,11 @@ pub fn read_u256_from_event_log(value: &web3::types::Log) -> Result<U256, ()> {
 /// Possible ethereum events emited by the WBI ethereum contract
 pub enum WbiEvent {
     /// A new data request has been posted to ethereum
-    PostDataRequest(U256),
+    PostedRequest(U256),
     /// A data request from ethereum has been posted to witnet with a proof of
     /// inclusion in a block
-    InclusionDataRequest(U256),
+    IncludedRequest(U256),
     /// A data request has been resolved in witnet, and the result was reported
     /// to ethereum with a proof of inclusion
-    PostResult(U256),
+    PostedResult(U256),
 }
