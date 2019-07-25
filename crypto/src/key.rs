@@ -271,7 +271,7 @@ impl fmt::Display for KeyPathIndex {
 
 /// Represents a key derivation path that can be used to derive extended private keys.
 /// See BIP-32 spec for more information.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyPath {
     path: Vec<KeyPathIndex>,
@@ -280,17 +280,12 @@ pub struct KeyPath {
 impl KeyPath {
     const HARDENED_KEY_INDEX: u32 = 0x8000_0000;
 
-    /// Start a new key path starting at the master root: m/...
-    pub fn new() -> Self {
-        Self { path: vec![] }
-    }
-
     /// Add a hardened-index index to the current path.
     ///
     /// Example
     /// ```
     /// # use witnet_crypto::key::KeyPath;
-    /// let path = KeyPath::new().hardened(3).hardened(4);
+    /// let path = KeyPath::default().hardened(3).hardened(4);
     /// assert_eq!("m/3'/4'", format!("{}", path));
     /// ```
     pub fn hardened(mut self, idx: u32) -> Self {
@@ -306,7 +301,7 @@ impl KeyPath {
     /// Example
     /// ```
     /// # use witnet_crypto::key::KeyPath;
-    /// let path = KeyPath::new().index(3).index(4);
+    /// let path = KeyPath::default().index(3).index(4);
     /// assert_eq!("m/3/4", format!("{}", path));
     /// ```
     pub fn index(mut self, index: u32) -> Self {
@@ -422,7 +417,7 @@ mod tests {
         ];
 
         let extended_sk = MasterKeyGen::new(&seed[..]).generate().unwrap();
-        let path = KeyPath::new()
+        let path = KeyPath::default()
             .hardened(44) // purpose: BIP-44
             .hardened(0) // coin_type: Bitcoin
             .hardened(0) // account: hardened 0

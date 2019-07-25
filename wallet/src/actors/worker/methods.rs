@@ -117,7 +117,7 @@ impl Worker {
         let new_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
         batch.put_enc(index_key, &new_index)?;
 
-        let keypath = &types::KeyPath::new().index(index);
+        let keypath = &types::KeyPath::default().index(index);
         let extended_sk = wallet.account.external.key.derive(&self.engine, keypath)?;
         let types::ExtendedPK { key, .. } =
             types::ExtendedPK::from_secret_key(&self.engine, &extended_sk);
@@ -199,7 +199,7 @@ impl Worker {
 
     pub fn gen_account(&self, master_key: &ExtendedSK) -> Result<model::Account> {
         let account_index = 0;
-        let account_keypath = KeyPath::new()
+        let account_keypath = KeyPath::default()
             .hardened(3)
             .hardened(4919)
             .hardened(account_index);
@@ -207,17 +207,17 @@ impl Worker {
         let account_key = master_key.derive(&self.engine, &account_keypath)?;
 
         let external_key = {
-            let keypath = KeyPath::new().index(0);
+            let keypath = KeyPath::default().index(0);
 
             account_key.derive(&self.engine, &keypath)?
         };
         let internal_key = {
-            let keypath = KeyPath::new().index(1);
+            let keypath = KeyPath::default().index(1);
 
             account_key.derive(&self.engine, &keypath)?
         };
         let rad_key = {
-            let keypath = KeyPath::new().index(2);
+            let keypath = KeyPath::default().index(2);
 
             account_key.derive(&self.engine, &keypath)?
         };
