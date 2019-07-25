@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::result;
-use std::sync::Arc;
 
 use actix::prelude::*;
 use rand::Rng as _;

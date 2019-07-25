@@ -17,7 +17,10 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             if let Some(millis) = params.timeout {
                 config.wallet.requests_timeout = millis;
             }
-            let _result = wallet::run(config)?;
+            config.wallet.testnet = config.wallet.testnet || params.testnet;
+
+            wallet::run(config)?;
+
             Ok(())
         }
         Command::ShowConfig => {
@@ -58,6 +61,9 @@ pub struct ConfigParams {
     /// Milliseconds after outgoing requests should time out.
     #[structopt(long = "timeout")]
     timeout: Option<u64>,
+    /// Whether or not this wallet communicates a testnet node.
+    #[structopt(long = "testnet")]
+    testnet: bool,
 }
 
 static WALLET_DB_HELP: &str = r#"Path to the wallet database. If not specified will use:

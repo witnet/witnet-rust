@@ -14,7 +14,7 @@ pub struct UnlockWallet(
 );
 
 impl Message for UnlockWallet {
-    type Result = worker::Result<(String, String, types::Wallet)>;
+    type Result = worker::Result<types::WalletUnlocked>;
 }
 
 impl Handler<UnlockWallet> for worker::Worker {
@@ -25,6 +25,6 @@ impl Handler<UnlockWallet> for worker::Worker {
         UnlockWallet(db, id, password): UnlockWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.unlock_wallet(&worker::Db::new(db), &id, password.as_ref())
+        self.unlock_wallet(worker::Db::new(db.as_ref()), &id, password.as_ref())
     }
 }

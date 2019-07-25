@@ -1,23 +1,30 @@
-use std::mem;
+use crate::actors::worker::*;
 
-use super::*;
-
-pub struct Db {
-    db: Arc<rocksdb::DB>,
-    batch: rocksdb::WriteBatch,
+pub struct Db<'a> {
+    db: &'a rocksdb::DB,
 }
 
-impl Db {
-    pub fn new(db: Arc<rocksdb::DB>) -> Self {
-        Self {
-            db,
-            batch: rocksdb::WriteBatch::default(),
-        }
+impl<'a> Db<'a> {
+    pub fn new(db: &'a rocksdb::DB) -> Self {
+        Self { db }
     }
 
     pub fn flush(&self) -> Result<()> {
         self.db.flush()?;
         Ok(())
+    }
+
+    pub fn write(&self, WriteBatch { batch }: WriteBatch) -> Result<()> {
+        self.db.write(batch)?;
+        Ok(())
+    }
+
+    pub fn with_key<'b, 'c>(
+        self,
+        key: &'b [u8],
+        params: &'c Params,
+    ) -> super::EncryptedDb<'b, 'c, 'a> {
+        super::EncryptedDb::new(self, key, params)
     }
 
     pub fn get<T>(&self, key: &[u8]) -> Result<T>
@@ -49,18 +56,14 @@ impl Db {
             Ok(None)
         }
     }
+}
 
-    pub fn merge<T>(&mut self, key: &[u8], value: &T) -> Result<()>
-    where
-        T: serde::Serialize,
-    {
-        let bytes = bincode::serialize(value)?;
+#[derive(Default)]
+pub struct WriteBatch {
+    batch: rocksdb::WriteBatch,
+}
 
-        self.batch.merge(key, bytes)?;
-
-        Ok(())
-    }
-
+impl WriteBatch {
     pub fn put<T>(&mut self, key: &[u8], value: &T) -> Result<()>
     where
         T: serde::Serialize,
@@ -72,11 +75,14 @@ impl Db {
         Ok(())
     }
 
-    pub fn write(&mut self) -> Result<()> {
-        self.db.write(mem::replace(
-            &mut self.batch,
-            rocksdb::WriteBatch::default(),
-        ))?;
+    pub fn merge<T>(&mut self, key: &[u8], value: &T) -> Result<()>
+    where
+        T: serde::Serialize,
+    {
+        let bytes = bincode::serialize(value)?;
+
+        self.batch.merge(key, bytes)?;
+
         Ok(())
     }
 }

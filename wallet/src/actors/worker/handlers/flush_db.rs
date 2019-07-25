@@ -14,6 +14,6 @@ impl Handler<FlushDb> for worker::Worker {
     type Result = <FlushDb as Message>::Result;
 
     fn handle(&mut self, FlushDb(db): FlushDb, _ctx: &mut Self::Context) -> Self::Result {
-        self.flush_db(&worker::Db::new(db))
+        self.flush_db(&worker::Db::new(db.as_ref()))
     }
 }

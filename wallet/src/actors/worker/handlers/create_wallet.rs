@@ -28,7 +28,7 @@ impl Handler<CreateWallet> for worker::Worker {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.create_wallet(
-            &mut worker::Db::new(db),
+            worker::Db::new(db.as_ref()),
             name,
             caption,
             password.as_ref(),

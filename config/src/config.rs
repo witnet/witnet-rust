@@ -468,6 +468,10 @@ impl Mining {
 #[derive(PartialStruct, Serialize, Debug, Clone, PartialEq)]
 #[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct Wallet {
+    /// Whether or not this wallet will comunicate with a testnet node.
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub testnet: bool,
     /// Websockets server address.
     pub server_addr: SocketAddr,
     /// Witnet node server address.
@@ -501,6 +505,7 @@ pub struct Wallet {
 impl Wallet {
     pub fn from_partial(config: &PartialWallet, defaults: &dyn Defaults) -> Self {
         Wallet {
+            testnet: config.testnet,
             session_expires_in: config.session_expires_in.unwrap_or_else(|| 3200),
             requests_timeout: config.requests_timeout.unwrap_or_else(|| 60_000),
             server_addr: config

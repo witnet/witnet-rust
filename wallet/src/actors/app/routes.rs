@@ -146,44 +146,40 @@ pub fn connect_routes<T, S>(
         handler,
         api,
         ("Get-Wallet-Infos", "getWalletInfos", WalletInfosRequest),
-        // (
-        //     "Create-Mnemonics",
-        //     "createMnemonics",
-        //     CreateMnemonicsRequest
-        // ),
-        // ("Import-Seed", "importSeed", ImportSeedRequest),
+        (
+            "Create-Mnemonics",
+            "createMnemonics",
+            CreateMnemonicsRequest
+        ),
+        ("Import-Seed", "importSeed", ImportSeedRequest),
         ("Create-Wallet", "createWallet", CreateWalletRequest),
-        // ("Lock-Wallet", "lockWallet", LockWalletRequest),
+        ("Lock-Wallet", "lockWallet", LockWalletRequest),
         ("Unlock-Wallet", "unlockWallet", UnlockWalletRequest),
-        // ("Lock-Wallet", "lockWallet", LockWalletRequest),
-        // ("Close-Session", "closeSession", CloseSessionRequest),
-        // (
-        //     "Get-Transactions",
-        //     "getTransactions",
-        //     GetTransactionsRequest
-        // ),
-        // ("Send-Vtt", "sendVTT", SendVttRequest),
-        // (
-        //     "Send-Transaction",
-        //     "sendTransaction",
-        //     SendTransactionRequest
-        // ),
-        // (
-        //     "Generate-Address",
-        //     "generateAddress",
-        //     GenerateAddressRequest
-        // ),
-        // (
-        //     "Create-Data-Request",
-        //     "createDataRequest",
-        //     CreateDataReqRequest
-        // ),
-        // ("Create-Vtt", "createVttRequest", CreateVttRequest),
-        // ("Run-Rad-Request", "runRadRequest", RunRadReqRequest),
-        // (
-        //     "Send-Data-Request",
-        //     "sendDataRequest",
-        //     SendDataReqRequest
-        // ),
+        ("Lock-Wallet", "lockWallet", LockWalletRequest),
+        ("Close-Session", "closeSession", CloseSessionRequest),
+        (
+            "Get-Transactions",
+            "getTransactions",
+            GetTransactionsRequest
+        ),
+        ("Send-Vtt", "sendVTT", SendVttRequest),
+        (
+            "Send-Transaction",
+            "sendTransaction",
+            SendTransactionRequest
+        ),
+        (
+            "Generate-Address",
+            "generateAddress",
+            GenerateAddressRequest
+        ),
+        (
+            "Create-Data-Request",
+            "createDataRequest",
+            CreateDataReqRequest
+        ),
+        ("Create-Vtt", "createVttRequest", CreateVttRequest),
+        ("Run-Rad-Request", "runRadRequest", RunRadReqRequest),
+        ("Send-Data-Request", "sendDataRequest", SendDataReqRequest),
     );
 }

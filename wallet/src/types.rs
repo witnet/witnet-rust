@@ -25,36 +25,15 @@ pub enum SeedSource {
 }
 
 #[derive(Clone)]
-pub struct Wallet {
-    pub name: Option<String>,
-    pub caption: Option<String>,
-    pub accounts: Vec<u32>,
+pub struct WalletUnlocked {
+    pub info: model::WalletInfo,
     pub account: model::Account,
+    pub session_id: String,
+    pub accounts: Vec<u32>,
     pub enc_key: Secret,
-    pub last_receive_index: u32,
 }
 
-impl Wallet {
-    /// Increment the receive index and return the old one.
-    /// This function panics if an overflow happens.
-    pub fn increment_receive_index(&mut self) -> u32 {
-        let index = self.last_receive_index;
-        self.last_receive_index = self
-            .last_receive_index
-            .checked_add(1)
-            .expect("receive index overflow");
-
-        index
-    }
-}
-
-pub struct ReceiveKey {
+pub struct Address {
     pub address: String,
     pub path: String,
-}
-
-impl ReceiveKey {
-    pub fn address(&self) -> String {
-        "todo implement".to_string()
-    }
 }

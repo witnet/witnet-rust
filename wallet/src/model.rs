@@ -2,11 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use witnet_crypto::key;
 
-pub type WalletId = String;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalletInfo {
-    pub id: WalletId,
+    pub id: String,
     pub name: Option<String>,
     pub caption: Option<String>,
 }
@@ -38,7 +36,8 @@ pub struct Accounts {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Address {
+pub struct ReceiveKey {
     pub pkh: Vec<u8>,
     pub index: u32,
+    pub label: Option<String>,
 }
