@@ -129,6 +129,7 @@ impl Worker {
                     if self.params.testnet { "twit" } else { "wit" },
                     pkh.to_base32(),
                 )?;
+                let path = format!("{}/{}", wallet.account.external.path, index);
 
                 let mut pkhs =
                     db.get_or_default_dec::<Vec<_>>(&wallet_pkhs_key(&wallet.info.id))?;
@@ -137,18 +138,52 @@ impl Worker {
 
                 batch.put_enc(&wallet_pkhs_key(&wallet.info.id), &pkhs)?;
                 batch.put_enc(
+                    &receive_key(&wallet.info.id, wallet.account.index, index),
+                    &model::ReceiveKey { pkh, index },
+                )?;
+                batch.put_enc(
                     &address_key(&wallet.info.id, wallet.account.index, index),
-                    &model::ReceiveKey { pkh, index, label },
+                    &model::Address {
+                        address: address.clone(),
+                        path: path.clone(),
+                        label,
+                    },
                 )?;
 
                 db.write(batch)?;
 
-                Ok(types::Address {
-                    address,
-                    path: format!("{}/{}", wallet.account.external.path, index),
-                })
+                Ok(types::Address { address, path })
             }
         }
+    }
+
+    pub fn get_addresses(
+        &mut self,
+        db: Db<'_>,
+        wallet: &types::WalletUnlocked,
+        offset: u32,
+        limit: u32,
+    ) -> Result<model::Addresses> {
+        let db = db.with_key(&wallet.enc_key, &self.params);
+        let last_index = db
+            .get_or_default_dec::<u32>(&address_index_key(&wallet.info.id, wallet.account.index))?;
+        let requested_last_index = offset.saturating_add(limit);
+        let range = if requested_last_index > last_index {
+            offset..last_index
+        } else {
+            offset..requested_last_index
+        };
+        let mut addresses = Vec::with_capacity(range.len());
+
+        for index in range {
+            let address = db.get_dec(&address_key(&wallet.info.id, wallet.account.index, index))?;
+            addresses.push(address);
+        }
+
+        Ok(model::Addresses {
+            addresses,
+            total: last_index,
+        })
     }
 
     pub fn unlock_wallet(

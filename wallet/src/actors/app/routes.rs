@@ -176,6 +176,7 @@ pub fn connect_routes<T, S>(
             "generateAddress",
             GenerateAddressRequest
         ),
+        ("Get-Addresses", "getAddresses", GetAddressesRequest),
         (
             "Create-Data-Request",
             "createDataRequest",

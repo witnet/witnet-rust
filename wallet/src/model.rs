@@ -39,5 +39,17 @@ pub struct Accounts {
 pub struct ReceiveKey {
     pub pkh: Vec<u8>,
     pub index: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Address {
+    pub address: String,
+    pub path: String,
     pub label: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Addresses {
+    pub addresses: Vec<Address>,
+    pub total: u32,
 }
