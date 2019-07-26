@@ -1,7 +1,7 @@
 //! Witnet <> Ethereum bridge
 use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
 use bimap::BiMap;
-use ethabi::Bytes;
+use ethabi::{Bytes, Token};
 use futures::sink::Sink;
 use log::*;
 use serde_json::{json, Value};
@@ -17,6 +17,7 @@ use web3::{
     types::TransactionReceipt,
     types::U256,
 };
+use witnet_crypto::hash::{calculate_sha256, Sha256};
 use witnet_data_structures::{
     chain::{Block, DataRequestOutput, Hash, Hashable},
     proto::ProtobufConvert,
@@ -160,7 +161,9 @@ fn eth_event_stream(
                                 Box::new(
                                     tx4.send(PostActorMessage::PostDr(dr_id))
                                         .map(|_| ())
-                                        .map_err(|_| ()),
+                                        .map_err(|e| {
+                                            warn!("Error in PostActorMessage::PostDr  {}", e);
+                                        }),
                                 )
                             }
                             Ok(WbiEvent::IncludedRequest(dr_id)) => {
@@ -369,98 +372,93 @@ fn post_actor(
                             )
                         })
                         .and_then(move |(vrf_message, dr_output)| {
-                            ////////////////////////////////////////////////////////////////////////////////////////////////
-                            /*
-                                let vrf_params = json!({
-                                    "message": vrf_message,
-                                });
 
-                                witnet_client2
-                                    .execute("createVRF", vrf_params)
-                                    .map_err(|e| error!("createVRF: {:?}", e))
-                                    .map(move |vrf| {
-                                        debug!("createVRF: {:?}", vrf);
+                            witnet_client2
+                                .execute("createVRF", vrf_message.into())
+                                .map_err(|e| error!("createVRF: {:?}", e))
+                                .map(move |vrf| {
+                                    debug!("createVRF: {:?}", vrf);
 
-                                        (vrf, dr_output)
+                                    (vrf, dr_output)
+                                })
+                        })
+                        .and_then(move |(vrf, dr_output)| {
+                            // Sign the ethereum account address with the witnet node private key
+                            let Sha256(hash) = calculate_sha256(eth_account.as_bytes());
+
+                            witnet_client3
+                                .execute("sign", hash.to_vec().into())
+                                .map_err(|e| error!("sign: {:?}", e))
+                                .map(|sign_addr| {
+                                    debug!("sign: {:?}", sign_addr);
+
+                                    (vrf, sign_addr, dr_output)
+                                })
+                        })
+                        .and_then(move |(vrf, sign_addr, dr_output)| {
+                            // Get the public key of the witnet node
+
+                            witnet_client4
+                                .execute("getPublicKey", json!(null))
+                                .map_err(|e| error!("getPublicKey: {:?}", e))
+                                .map(move |witnet_pk| {
+                                    debug!("getPublicKey: {:?}", witnet_pk);
+
+                                    (vrf, sign_addr, witnet_pk, dr_output)
+                                })
+                        })
+                        .and_then(move |(vrf, sign_addr, witnet_pk, dr_output)| {
+
+                            // Locallty execute POE verification to check for eligibility
+                            // without spending any gas
+                            // TODO: this assumes that the vrf, witnet_pk and sign_addr are returned
+                            // as an array of bytes: [1, 2, 3].
+                            let poe = convert_json_array_to_eth_bytes(vrf);
+                            let witnet_pk = convert_json_array_to_eth_bytes(witnet_pk);
+                            let sign_addr = convert_json_array_to_eth_bytes(sign_addr);
+
+                            let (poe, witnet_pk, sign_addr) = match (poe, witnet_pk, sign_addr) {
+                                (Ok(poe), Ok(witnet_pk), Ok(sign_addr)) => {
+                                    (poe, witnet_pk, sign_addr)
+                                }
+                                e => {
+                                    error!(
+                                        "Error deserializing value from witnet JSONRPC: {:?}",
+                                        e
+                                    );
+                                    let fut: Box<
+                                        dyn Future<Item = (_, _, _, _), Error = ()> + Send,
+                                    > = Box::new(futures::failed(()));
+                                    return fut;
+                                }
+                            };
+
+                            debug!(
+                                "\nPoE: {:?}\nWitnet Public Key: {:?}\nSignature Address: {:?}",
+                                poe, witnet_pk, sign_addr
+                            );
+
+                            info!("[{}] Checking eligibility for claiming dr", dr_id);
+
+                            Box::new(
+                                wbi_contract3
+                                    .query(
+                                        "claimDataRequests",
+                                        (vec![dr_id], poe.clone()),
+                                        eth_account,
+                                        contract::Options::default(),
+                                        None,
+                                    )
+                                    .map_err(move |e| {
+                                        warn!(
+                                        "[{}] the POE is invalid, no eligibility for this epoch :( {:?}",
+                                        dr_id, e);
                                     })
-                            })
-                            .and_then(move |(vrf, dr_output)| {
-                                // Sign the ethereum account address with the witnet node private key
-                                let sign_params = json!({
-                                    "message": eth_account.to_string(),
-                                });
+                                    .map(move |_: Token| (poe, sign_addr, witnet_pk, dr_output)),
+                            )
 
-                                witnet_client3
-                                    .execute("sign", sign_params)
-                                    .map_err(|e| error!("sign: {:?}", e))
-                                    .map(|sign_addr| {
-                                        debug!("sign: {:?}", sign_addr);
-
-                                        (vrf, sign_addr, dr_output)
-                                    })
-                            })
-                            .and_then(move |(vrf, sign_addr, dr_output)| {
-                                // Get the public key of the witnet node
-
-                                witnet_client4
-                                    .execute("getPublicKey", json!(null))
-                                    .map_err(|e| error!("getPublicKey: {:?}", e))
-                                    .map(move |witnet_pk| {
-                                        debug!("getPublicKey: {:?}", witnet_pk);
-
-                                        (vrf, sign_addr, witnet_pk, dr_output)
-                                    })
-                            })
-                            .and_then(move |(vrf, sign_addr, witnet_pk, dr_output)| {
-                                // Locallty execute POE verification to check for eligibility
-                                // without spending any gas
-                                // TODO: this assumes that the vrf, witnet_pk and sign_addr are returned
-                                // as an array of bytes: [1, 2, 3].
-                                let poe = convert_json_array_to_eth_bytes(vrf);
-                                let witnet_pk = convert_json_array_to_eth_bytes(witnet_pk);
-                                let sign_addr = convert_json_array_to_eth_bytes(sign_addr);
-
-                                let (poe, witnet_pk, sign_addr) = match (poe, witnet_pk, sign_addr) {
-                                    (Ok(poe), Ok(witnet_pk), Ok(sign_addr)) => {
-                                        (poe, witnet_pk, sign_addr)
-                                    }
-                                    e => {
-                                        error!("Error deserializing value from witnet JSONRPC: {:?}", e);
-                                        let fut: Box<
-                                            dyn Future<Item = (_, _, _, _), Error = ()> + Send,
-                                        > = Box::new(futures::failed(()));
-                                        return fut;
-                                    }
-                                };
-                                info!("[{}] Checking eligibility for claiming dr", dr_id);
-
-                                Box::new(
-                                    wbi_contract3
-                                        .query(
-                                            "claimDataRequests",
-                                            (
-                                                vec![dr_id],
-                                                poe.clone(),
-                                                witnet_pk.clone(),
-                                                sign_addr.clone(),
-                                            ),
-                                            eth_account,
-                                            contract::Options::default(),
-                                            None,
-                                        )
-                                        .map_err(move |_| {
-                                            warn!(
-                                            "[{}] the POE is invalid, no eligibility for this epoch :(",
-                                            dr_id
-                                        );
-                                        })
-                                        .map(move |_: Token| (poe, sign_addr, witnet_pk, dr_output)),
-                                )
-                            })
-                            .and_then(move |(poe, sign_addr, witnet_pk, dr_output)| {
-                            */
-                            let poe: Bytes = vec![];
-                            ///////////////////////////////////////////////////////////////////////////////////////////////////
+                        })
+                        .and_then(move |(poe, _sign_addr, _witnet_pk, dr_output)| {
                             // Claim dr
                             info!("[{}] Claiming dr", dr_id);
 
