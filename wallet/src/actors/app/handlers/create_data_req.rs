@@ -1,10 +1,10 @@
 use actix::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
 use crate::types;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateDataReqRequest {
     pub rad_request: types::RADRequest,

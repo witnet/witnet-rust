@@ -71,7 +71,7 @@ impl Worker {
         caption: Option<String>,
         password: &[u8],
         source: types::SeedSource,
-    ) -> Result<()> {
+    ) -> Result<String> {
         let master_key = self.gen_master_key(source)?;
         let account = self.gen_account(&master_key)?;
         let id = self.gen_id(&master_key);
@@ -99,7 +99,7 @@ impl Worker {
 
         db.write(batch)?;
 
-        Ok(())
+        Ok(id)
     }
 
     pub fn gen_address(

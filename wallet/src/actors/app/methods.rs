@@ -160,7 +160,7 @@ impl App {
         seed_source: types::SeedSource,
         name: Option<String>,
         caption: Option<String>,
-    ) -> ResponseFuture<()> {
+    ) -> ResponseFuture<String> {
         let f = self
             .params
             .worker

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CreateVttRequest {
     address: String,
     label: String,

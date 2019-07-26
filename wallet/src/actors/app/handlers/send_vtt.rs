@@ -1,9 +1,9 @@
 use actix::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SendVttRequest {
     pub wallet_id: String,
     pub to_address: Vec<u8>,

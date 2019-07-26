@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::actors::app;
 use crate::types;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RunRadReqRequest {
     #[serde(rename = "radRequest")]
     pub rad_request: types::RADRequest,

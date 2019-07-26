@@ -24,12 +24,15 @@ macro_rules! routes {
                         err
                     })
                     .and_then(move |msg| {
+                        log::trace!("=> Handling Request: {:?}", &msg);
                         // Then send the parsed message to the actor
                         addr.send(msg)
                             .flatten()
                             .and_then(
                                 |x|
-                                future::result(serde_json::to_value(x)).map_err(internal_error)
+                                future::result(serde_json::to_value(x))
+                                    .inspect(|resp| log::trace!("<= Sending Response: {:?}", resp))
+                                    .map_err(internal_error)
                             )
                             .map_err(|err| err.into())
                     })
@@ -83,31 +86,31 @@ pub fn connect_routes<T, S>(
                         Ok(request) =>
                             future::Either::A({
                                 addr_subscription_id.send(NextSubscriptionId(request.session_id.clone()))
-                                    .flatten()
-                                    .map_err(|err| err.into())
-                                    .then(move |result| match result {
-                                        Ok(subscription_id) => future::Either::A(
-                                            subscriber
-                                                .assign_id_async(subscription_id.clone())
-                                                .map_err(|()| {
-                                                    log::error!("Failed to assign id");
-                                                })
-                                                .and_then(move |sink| {
-                                                    addr_subscribe.do_send(
-                                                        Subscribe(
-                                                            request.session_id,
-                                                            subscription_id,
-                                                            sink
-                                                        )
-                                                    );
-                                                    future::ok(())
-                                                })
-                                        ),
-                                        Err(err) => future::Either::B(
-                                            subscriber.reject_async(err)
-                                        )
-                                    })
-                            }),
+                                .flatten()
+                                .map_err(|err| err.into())
+                                .then(move |result| match result {
+                                    Ok(subscription_id) => future::Either::A(
+                                        subscriber
+                                            .assign_id_async(subscription_id.clone())
+                                            .map_err(|()| {
+                                                log::error!("Failed to assign id");
+                                            })
+                                            .and_then(move |sink| {
+                                                addr_subscribe.do_send(
+                                                    Subscribe(
+                                                        request.session_id,
+                                                        subscription_id,
+                                                        sink
+                                                    )
+                                                );
+                                                future::ok(())
+                                            })
+                                    ),
+                                    Err(err) => future::Either::B(
+                                        subscriber.reject_async(err)
+                                    )
+                                })
+                        }),
                         Err(mut err) =>
                             future::Either::B(subscriber.reject_async({
                                 log::trace!("invalid subscription params");

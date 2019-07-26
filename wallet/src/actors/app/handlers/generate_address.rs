@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::actors::app;
 use crate::types;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerateAddressRequest {
     session_id: String,
