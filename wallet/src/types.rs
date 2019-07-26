@@ -1,5 +1,6 @@
 pub use jsonrpc_core::Params as RpcParams;
 pub use jsonrpc_pubsub::{Sink, Subscriber, SubscriptionId};
+use serde::Serialize;
 pub use serde_json::Value as Json;
 
 pub use witnet_crypto::{
@@ -33,6 +34,7 @@ pub struct WalletUnlocked {
     pub enc_key: Secret,
 }
 
+#[derive(Debug, Serialize)]
 pub struct Address {
     pub address: String,
     pub path: String,

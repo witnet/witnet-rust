@@ -39,6 +39,11 @@ pub fn address_index_key(wallet_id: &str, account_index: u32) -> Vec<u8> {
 }
 
 #[inline]
+pub fn receive_key(wallet_id: &str, account_index: u32, index: u32) -> Vec<u8> {
+    bytes!("receive-{}-{}-{}", wallet_id, account_index, index)
+}
+
+#[inline]
 pub fn address_key(wallet_id: &str, account_index: u32, index: u32) -> Vec<u8> {
     bytes!("address-{}-{}-{}", wallet_id, account_index, index)
 }
