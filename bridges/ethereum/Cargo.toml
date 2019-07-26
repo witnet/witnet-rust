@@ -18,3 +18,4 @@ toml = "0.4.10"
 tokio-core = "0.1"
 web3 = "0.8"
 witnet_data_structures = { path = "../../data_structures" }
+witnet_crypto = { path = "../../crypto" }
