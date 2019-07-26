@@ -53,6 +53,10 @@
           "type": "uint256"
         },
         {
+          "name": "_epoch",
+          "type": "uint256"
+        },
+        {
           "name": "_drMerkleRoot",
           "type": "uint256"
         },
@@ -99,6 +103,20 @@
         {
           "name": "tallyMerkleRoot",
           "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "getLastBeacon",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bytes"
         }
       ],
       "payable": false,
