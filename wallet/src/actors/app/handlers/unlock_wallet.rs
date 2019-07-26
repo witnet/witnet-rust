@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::actors::app;
 use crate::types;
 
-#[derive(Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnlockWalletRequest {
     pub wallet_id: String,

@@ -16,7 +16,7 @@ pub struct CreateWallet(
 );
 
 impl Message for CreateWallet {
-    type Result = worker::Result<()>;
+    type Result = worker::Result<String>;
 }
 
 impl Handler<CreateWallet> for worker::Worker {

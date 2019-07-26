@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::actors::app;
 use crate::model;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WalletInfosRequest;
 
 #[derive(Debug, Serialize)]

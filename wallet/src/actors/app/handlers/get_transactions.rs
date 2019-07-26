@@ -1,9 +1,9 @@
 use actix::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GetTransactionsRequest {
     pub wallet_id: String,
     pub limit: u32,
