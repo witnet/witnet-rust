@@ -2,7 +2,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
-use crate::types;
+use crate::model;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +29,10 @@ impl Handler<GenerateAddressRequest> for app::App {
         let f = self
             .generate_address(msg.session_id, msg.wallet_id, msg.label)
             .map(
-                |types::Address { address, path }, _, _| GenerateAddressResponse { address, path },
+                |model::Address { address, path, .. }, _, _| GenerateAddressResponse {
+                    address,
+                    path,
+                },
             );
 
         Box::new(f)

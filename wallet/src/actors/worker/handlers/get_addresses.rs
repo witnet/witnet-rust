@@ -3,11 +3,11 @@ use std::sync::Arc;
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::{model, types};
+use crate::model;
 
 pub struct GetAddresses(
     pub Arc<rocksdb::DB>,
-    pub types::WalletUnlocked,
+    pub model::WalletUnlocked,
     /// Offset
     pub u32,
     /// Limit
@@ -26,6 +26,6 @@ impl Handler<GetAddresses> for worker::Worker {
         GetAddresses(db, wallet, offset, limit): GetAddresses,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.get_addresses(worker::Db::new(db.as_ref()), &wallet, offset, limit)
+        self.addresses(worker::Db::new(db.as_ref()), &wallet, offset, limit)
     }
 }

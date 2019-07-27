@@ -8,7 +8,7 @@ use crate::model;
 pub struct WalletInfos(pub Arc<rocksdb::DB>);
 
 impl Message for WalletInfos {
-    type Result = worker::Result<Vec<model::WalletInfo>>;
+    type Result = worker::Result<Vec<model::Wallet>>;
 }
 
 impl Handler<WalletInfos> for worker::Worker {

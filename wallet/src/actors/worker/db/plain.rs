@@ -9,6 +9,17 @@ impl<'a> Db<'a> {
         Self { db }
     }
 
+    pub fn put<T>(&self, key: &[u8], value: &T) -> Result<()>
+    where
+        T: serde::Serialize,
+    {
+        let bytes = bincode::serialize(value)?;
+
+        self.db.put(key, bytes)?;
+
+        Ok(())
+    }
+
     pub fn flush(&self) -> Result<()> {
         self.db.flush()?;
         Ok(())
@@ -71,17 +82,6 @@ impl WriteBatch {
         let bytes = bincode::serialize(value)?;
 
         self.batch.put(key, bytes)?;
-
-        Ok(())
-    }
-
-    pub fn merge<T>(&mut self, key: &[u8], value: &T) -> Result<()>
-    where
-        T: serde::Serialize,
-    {
-        let bytes = bincode::serialize(value)?;
-
-        self.batch.merge(key, bytes)?;
 
         Ok(())
     }

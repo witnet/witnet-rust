@@ -6,7 +6,7 @@ use serde_json::json;
 
 use witnet_net::client::tcp::jsonrpc;
 
-use crate::types;
+use crate::{model, types};
 
 pub mod error;
 pub mod handlers;
@@ -35,7 +35,7 @@ pub struct App {
 
 #[derive(Default)]
 struct Session {
-    wallets: HashMap<String, types::WalletUnlocked>,
+    wallets: HashMap<String, model::WalletUnlocked>,
     subscriptions: HashMap<types::SubscriptionId, types::Sink>,
 }
 

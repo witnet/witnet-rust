@@ -3,16 +3,16 @@ use std::sync::Arc;
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::types;
+use crate::model;
 
 pub struct GenAddress(
     pub Arc<rocksdb::DB>,
-    pub types::WalletUnlocked,
+    pub model::WalletUnlocked,
     pub Option<String>,
 );
 
 impl Message for GenAddress {
-    type Result = worker::Result<types::Address>;
+    type Result = worker::Result<model::Address>;
 }
 
 impl Handler<GenAddress> for worker::Worker {

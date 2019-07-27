@@ -5,6 +5,8 @@ use witnet_crypto as crypto;
 #[derive(Debug, Fail)]
 #[fail(display = "error")]
 pub enum Error {
+    #[fail(display = "mutex poison error")]
+    MutexPoison,
     #[fail(display = "maximum key index reached for account")]
     IndexOverflow,
     #[fail(display = "cannot decrypt, invalid data length")]
@@ -74,5 +76,11 @@ impl From<witnet_rad::error::RadError> for Error {
 impl From<bech32::Error> for Error {
     fn from(err: bech32::Error) -> Self {
         Error::Bech32(err)
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for Error {
+    fn from(_err: std::sync::PoisonError<T>) -> Self {
+        Error::MutexPoison
     }
 }
