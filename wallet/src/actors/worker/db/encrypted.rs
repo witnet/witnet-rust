@@ -14,6 +14,36 @@ impl<'a, 'b, 'c> EncryptedDb<'a, 'b, 'c> {
         Self { db, engine }
     }
 
+    pub fn put<T>(&self, key: &[u8], value: &T) -> Result<()>
+    where
+        T: serde::Serialize,
+    {
+        self.db.put(&key, &value)
+    }
+
+    pub fn put_enc<T>(&self, key: &[u8], value: &T) -> Result<()>
+    where
+        T: serde::Serialize,
+    {
+        let bytes = self.engine.encrypt(value)?;
+
+        self.db.put(key, &bytes)
+    }
+
+    pub fn get_or_default<T>(&self, key: &[u8]) -> Result<T>
+    where
+        T: serde::de::DeserializeOwned + Default,
+    {
+        self.db.get_or_default(&key)
+    }
+
+    pub fn get_opt<T>(&self, key: &[u8]) -> Result<Option<T>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        self.db.get_opt(&key)
+    }
+
     pub fn write(&self, WriteBatch { batch, .. }: WriteBatch<'a, 'b>) -> Result<()> {
         self.db.write(batch)?;
         Ok(())
@@ -24,13 +54,6 @@ impl<'a, 'b, 'c> EncryptedDb<'a, 'b, 'c> {
             batch: Default::default(),
             engine: self.engine.clone(),
         }
-    }
-
-    pub fn get<T>(&self, key: &[u8]) -> Result<T>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        self.db.get(key)
     }
 
     pub fn get_dec<T>(&self, key: &[u8]) -> Result<T>
@@ -64,13 +87,6 @@ impl<'a, 'b> WriteBatch<'a, 'b> {
         T: serde::Serialize,
     {
         self.batch.put(key, value)
-    }
-
-    pub fn merge<T>(&mut self, key: &[u8], value: &T) -> Result<()>
-    where
-        T: serde::Serialize,
-    {
-        self.batch.merge(key, value)
     }
 
     pub fn put_enc<T>(&mut self, key: &[u8], value: &T) -> Result<()>

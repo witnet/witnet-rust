@@ -16,7 +16,7 @@ impl App {
         actor.start()
     }
 
-    pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<types::WalletUnlocked> {
+    pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<model::WalletUnlocked> {
         let session = self
             .sessions
             .get(session_id)
@@ -79,7 +79,7 @@ impl App {
         session_id: String,
         wallet_id: String,
         label: Option<String>,
-    ) -> ResponseActFuture<types::Address> {
+    ) -> ResponseActFuture<model::Address> {
         let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params
@@ -164,7 +164,7 @@ impl App {
     }
 
     /// Get public info of all the wallets stored in the database.
-    pub fn get_wallet_infos(&self) -> ResponseFuture<Vec<model::WalletInfo>> {
+    pub fn wallet_infos(&self) -> ResponseFuture<Vec<model::Wallet>> {
         let f = self
             .params
             .worker
@@ -222,7 +222,7 @@ impl App {
         &self,
         wallet_id: String,
         password: types::Password,
-    ) -> ResponseActFuture<types::WalletUnlocked> {
+    ) -> ResponseActFuture<model::WalletUnlocked> {
         let f = self
             .params
             .worker
@@ -238,12 +238,12 @@ impl App {
                 err => From::from(err),
             })
             .into_actor(self)
-            .and_then(|wallet, slf, _| {
+            .and_then(|wallet: model::WalletUnlocked, slf: &mut Self, _| {
                 let entry = slf.sessions.entry(wallet.session_id.clone());
                 entry
                     .or_default()
                     .wallets
-                    .insert(wallet.info.id.clone(), wallet.clone());
+                    .insert(wallet.id.clone(), wallet.clone());
 
                 fut::ok(wallet)
             });

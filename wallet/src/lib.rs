@@ -25,7 +25,6 @@ use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
 
 mod actors;
 mod model;
-mod rocksdb;
 mod signal;
 mod types;
 
@@ -37,9 +36,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let db_path = conf.wallet.db_path;
     let db_file_name = conf.wallet.db_file_name;
     let node_url = conf.wallet.node_url;
-    let mut rocksdb_opts = conf.rocksdb.to_rocksdb_options();
-    // https://github.com/facebook/rocksdb/wiki/Merge-Operator
-    rocksdb_opts.set_merge_operator("wallet merge operator", rocksdb::merge_operator, None);
+    let rocksdb_opts = conf.rocksdb.to_rocksdb_options();
 
     // Db-encryption params
     let db_hash_iterations = conf.wallet.db_encrypt_hash_iterations;

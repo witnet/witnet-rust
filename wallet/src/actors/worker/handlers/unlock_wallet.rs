@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::types;
+use crate::{model, types};
 
 pub struct UnlockWallet(
     pub Arc<rocksdb::DB>,
@@ -14,7 +14,7 @@ pub struct UnlockWallet(
 );
 
 impl Message for UnlockWallet {
-    type Result = worker::Result<types::WalletUnlocked>;
+    type Result = worker::Result<model::WalletUnlocked>;
 }
 
 impl Handler<UnlockWallet> for worker::Worker {

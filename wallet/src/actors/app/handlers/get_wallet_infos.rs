@@ -10,7 +10,7 @@ pub struct WalletInfosRequest;
 
 #[derive(Debug, Serialize)]
 pub struct WalletInfosResponse {
-    pub infos: Vec<model::WalletInfo>,
+    pub infos: Vec<model::Wallet>,
 }
 
 impl Message for WalletInfosRequest {
@@ -22,7 +22,7 @@ impl Handler<WalletInfosRequest> for app::App {
 
     fn handle(&mut self, _msg: WalletInfosRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
-            .get_wallet_infos()
+            .wallet_infos()
             .and_then(|infos| future::ok(WalletInfosResponse { infos }));
 
         Box::new(f)

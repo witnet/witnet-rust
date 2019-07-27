@@ -2,7 +2,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
-use crate::types;
+use crate::{model, types};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,8 +30,9 @@ impl Handler<UnlockWalletRequest> for app::App {
 
     fn handle(&mut self, msg: UnlockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self.unlock_wallet(msg.wallet_id, msg.password).map(
-            |types::WalletUnlocked {
-                 info,
+            |model::WalletUnlocked {
+                 name,
+                 caption,
                  session_id,
                  accounts,
                  ..
@@ -43,8 +44,8 @@ impl Handler<UnlockWalletRequest> for app::App {
                 UnlockWalletResponse {
                     session_id,
                     accounts,
-                    name: info.name,
-                    caption: info.caption,
+                    name,
+                    caption,
                     session_expiration_secs: slf.params.session_expires_in.as_secs(),
                 }
             },

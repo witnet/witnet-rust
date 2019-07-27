@@ -15,10 +15,15 @@ use crate::model;
 
 impl Worker {
     pub fn start(params: Params) -> Addr<Self> {
+        let wallets_mutex = Arc::new(Mutex::new(()));
+        let addresses_mutex = Arc::new(Mutex::new(()));
+
         SyncArbiter::start(num_cpus::get(), move || Self {
             params: params.clone(),
             engine: SignEngine::signing_only(),
             rng: RefCell::new(rand::thread_rng()),
+            wallets_mutex: wallets_mutex.clone(),
+            addresses_mutex: addresses_mutex.clone(),
         })
     }
 
@@ -60,8 +65,18 @@ impl Worker {
         db.flush()
     }
 
-    pub fn wallet_infos(&self, db: &Db<'_>) -> Result<Vec<model::WalletInfo>> {
-        db.get_or_default(&wallets_key())
+    pub fn wallet_infos(&self, db: &Db<'_>) -> Result<Vec<model::Wallet>> {
+        let ids = db.get_or_default::<Vec<String>>(&keys::wallet_ids())?;
+        let mut wallets = Vec::with_capacity(ids.len());
+
+        for id in ids {
+            let name = db.get_opt(&keys::wallet_name(&id))?;
+            let caption = db.get_opt(&keys::wallet_name(&id))?;
+
+            wallets.push(model::Wallet { id, name, caption })
+        }
+
+        Ok(wallets)
     }
 
     pub fn create_wallet(
@@ -75,29 +90,36 @@ impl Worker {
         let master_key = self.gen_master_key(source)?;
         let account = self.gen_account(&master_key)?;
         let id = self.gen_id(&master_key);
-        let info = model::WalletInfo {
-            id: id.clone(),
-            name,
-            caption,
-        };
-        let accounts = model::Accounts {
-            accounts: vec![account.index],
-            current: account.index,
-        };
-
         let salt = &self.salt()?;
         let key = &self.key_from_password(password, salt);
         let db = db.with_key(&key, &self.params);
         let mut batch = db.batch();
 
-        batch.merge(&wallets_key(), &info)?;
-        batch.put(&wallet_info_key(&id), &info)?;
-        batch.put(&salt_key(&id), salt)?;
+        if let Some(name) = name {
+            batch.put(&keys::wallet_name(&id), &name)?;
+        }
+        if let Some(caption) = caption {
+            batch.put(&keys::wallet_caption(&id), &caption)?;
+        }
+        batch.put(&keys::wallet_salt(&id), salt)?;
 
-        batch.put_enc(&accounts_key(&id), &accounts)?;
-        batch.put_enc(&account_key(&id, account.index), &account)?;
+        batch.put_enc(&keys::wallet_default_account(&id), &account.index)?;
+        batch.put_enc(&keys::wallet_accounts(&id), &vec![account.index])?;
+
+        batch.put_enc(&keys::account_ek(&id, account.index), &account.external)?;
+        batch.put_enc(&keys::account_ik(&id, account.index), &account.internal)?;
+        batch.put_enc(&keys::account_rk(&id, account.index), &account.rad)?;
 
         db.write(batch)?;
+
+        // FIXME: Use a rocksdb transaction when available in rocksdb crate
+        let lock = self.wallets_mutex.lock()?;
+        let mut ids = db.get_or_default::<Vec<String>>(&keys::wallet_ids())?;
+        if !ids.contains(&id) {
+            ids.push(id.clone());
+            db.put(&keys::wallet_ids(), &ids)?;
+        }
+        drop(lock);
 
         Ok(id)
     }
@@ -105,20 +127,25 @@ impl Worker {
     pub fn gen_address(
         &mut self,
         db: Db<'_>,
-        wallet: &types::WalletUnlocked,
+        wallet: &model::WalletUnlocked,
         label: Option<String>,
-    ) -> Result<types::Address> {
+    ) -> Result<model::Address> {
+        // FIXME: Use a rocksdb transaction when available in rocksdb crate
+        let _lock = self.addresses_mutex.lock()?;
         let db = db.with_key(&wallet.enc_key, &self.params);
         let mut batch = db.batch();
-        let index_key = &address_index_key(&wallet.info.id, wallet.account.index);
+        let id = &wallet.id;
+        let account = wallet.account.index;
+        let mut pkhs = db.get_or_default_dec::<Vec<_>>(&keys::wallet_pkhs(&id))?;
 
-        // FIXME: This update should be done atomic using a transaction
-        let index = db.get_or_default_dec::<u32>(index_key)?;
-        let new_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
-        batch.put_enc(index_key, &new_index)?;
+        let index = db.get_or_default_dec::<u32>(&keys::account_next_ek_index(&id, account))?;
+        let next_index = index.checked_add(1).ok_or_else(|| Error::IndexOverflow)?;
+        db.put_enc(&keys::account_next_ek_index(&id, account), &next_index)?;
 
-        let keypath = &types::KeyPath::default().index(index);
-        let extended_sk = wallet.account.external.key.derive(&self.engine, keypath)?;
+        let extended_sk = wallet
+            .account
+            .external
+            .derive(&self.engine, &types::KeyPath::default().index(index))?;
         let types::ExtendedPK { key, .. } =
             types::ExtendedPK::from_secret_key(&self.engine, &extended_sk);
 
@@ -129,44 +156,39 @@ impl Worker {
                     if self.params.testnet { "twit" } else { "wit" },
                     pkh.to_base32(),
                 )?;
-                let path = format!("{}/{}", wallet.account.external.path, index);
-
-                let mut pkhs =
-                    db.get_or_default_dec::<Vec<_>>(&wallet_pkhs_key(&wallet.info.id))?;
+                let path = format!("{}/0/{}", self.account_keypath(account), index);
 
                 pkhs.push(pkh.clone());
 
-                batch.put_enc(&wallet_pkhs_key(&wallet.info.id), &pkhs)?;
-                batch.put_enc(
-                    &receive_key(&wallet.info.id, wallet.account.index, index),
-                    &model::ReceiveKey { pkh, index },
-                )?;
-                batch.put_enc(
-                    &address_key(&wallet.info.id, wallet.account.index, index),
-                    &model::Address {
-                        address: address.clone(),
-                        path: path.clone(),
-                        label,
-                    },
-                )?;
+                batch.put_enc(&keys::wallet_pkhs(id), &pkhs)?;
+                batch.put_enc(&keys::address(&id, account, index), &address)?;
+                batch.put_enc(&keys::address_path(&id, account, index), &path)?;
+                batch.put_enc(&keys::address_label(&id, account, index), &label)?;
 
                 db.write(batch)?;
 
-                Ok(types::Address { address, path })
+                Ok(model::Address {
+                    address,
+                    path,
+                    label,
+                })
             }
         }
     }
 
-    pub fn get_addresses(
+    pub fn addresses(
         &mut self,
         db: Db<'_>,
-        wallet: &types::WalletUnlocked,
+        wallet: &model::WalletUnlocked,
         offset: u32,
         limit: u32,
     ) -> Result<model::Addresses> {
         let db = db.with_key(&wallet.enc_key, &self.params);
-        let last_index = db
-            .get_or_default_dec::<u32>(&address_index_key(&wallet.info.id, wallet.account.index))?;
+        let id = &wallet.id;
+        let account = wallet.account.index;
+        let last_index =
+            db.get_or_default_dec::<u32>(&keys::account_next_ek_index(&id, account))?;
+
         let requested_last_index = offset.saturating_add(limit);
         let range = if requested_last_index > last_index {
             offset..last_index
@@ -176,8 +198,15 @@ impl Worker {
         let mut addresses = Vec::with_capacity(range.len());
 
         for index in range {
-            let address = db.get_dec(&address_key(&wallet.info.id, wallet.account.index, index))?;
-            addresses.push(address);
+            let address = db.get_dec(&keys::address(&id, account, index))?;
+            let path = db.get_dec(&keys::address_path(&id, account, index))?;
+            let label = db.get_dec(&keys::address_label(&id, account, index))?;
+
+            addresses.push(model::Address {
+                address,
+                path,
+                label,
+            });
         }
 
         Ok(model::Addresses {
@@ -191,22 +220,34 @@ impl Worker {
         db: Db<'_>,
         wallet_id: &str,
         password: &[u8],
-    ) -> Result<types::WalletUnlocked> {
-        let salt = &db.get::<Vec<u8>>(&salt_key(wallet_id))?;
+    ) -> Result<model::WalletUnlocked> {
+        let salt = &db.get::<Vec<u8>>(&keys::wallet_salt(wallet_id))?;
         let enc_key = self.key_from_password(password, salt);
         let db = db.with_key(&enc_key, &self.params);
         let session_id = self.gen_session_id(&enc_key, salt);
 
-        let info = db.get::<model::WalletInfo>(&wallet_info_key(wallet_id))?;
-        let accounts = db.get_dec::<model::Accounts>(&accounts_key(wallet_id))?;
-        let account = db.get_dec::<model::Account>(&account_key(wallet_id, accounts.current))?;
+        let name = db.get_opt::<String>(&keys::wallet_name(wallet_id))?;
+        let caption = db.get_opt::<String>(&keys::wallet_caption(wallet_id))?;
+        let accounts = db.get_dec::<Vec<u32>>(&keys::wallet_accounts(wallet_id))?;
+        let account = db.get_dec::<u32>(&keys::wallet_default_account(wallet_id))?;
 
-        Ok(types::WalletUnlocked {
+        let external = db.get_dec(&keys::account_ek(&wallet_id, account))?;
+        let internal = db.get_dec(&keys::account_ik(&wallet_id, account))?;
+        let rad = db.get_dec(&keys::account_rk(&wallet_id, account))?;
+
+        Ok(model::WalletUnlocked {
+            name,
+            caption,
             session_id,
-            account,
-            info,
+            accounts,
             enc_key,
-            accounts: accounts.accounts,
+            id: wallet_id.to_string(),
+            account: model::Account {
+                index: account,
+                external,
+                internal,
+                rad,
+            },
         })
     }
 
@@ -232,26 +273,30 @@ impl Worker {
         Ok(key)
     }
 
-    pub fn gen_account(&self, master_key: &ExtendedSK) -> Result<model::Account> {
-        let account_index = 0;
-        let account_keypath = KeyPath::default()
+    pub fn account_keypath(&self, index: u32) -> KeyPath {
+        KeyPath::default()
             .hardened(3)
             .hardened(4919)
-            .hardened(account_index);
+            .hardened(index)
+    }
+
+    pub fn gen_account(&self, master_key: &ExtendedSK) -> Result<model::Account> {
+        let account_index = 0;
+        let account_keypath = self.account_keypath(account_index);
 
         let account_key = master_key.derive(&self.engine, &account_keypath)?;
 
-        let external_key = {
+        let external = {
             let keypath = KeyPath::default().index(0);
 
             account_key.derive(&self.engine, &keypath)?
         };
-        let internal_key = {
+        let internal = {
             let keypath = KeyPath::default().index(1);
 
             account_key.derive(&self.engine, &keypath)?
         };
-        let rad_key = {
+        let rad = {
             let keypath = KeyPath::default().index(2);
 
             account_key.derive(&self.engine, &keypath)?
@@ -259,18 +304,9 @@ impl Worker {
 
         let account = model::Account {
             index: account_index,
-            external: model::AccountKey {
-                key: external_key,
-                path: format!("{}/0", account_keypath),
-            },
-            internal: model::AccountKey {
-                key: internal_key,
-                path: format!("{}/1", account_keypath),
-            },
-            rad: model::AccountKey {
-                key: rad_key,
-                path: format!("{}/2", account_keypath),
-            },
+            external,
+            internal,
+            rad,
         };
 
         Ok(account)
