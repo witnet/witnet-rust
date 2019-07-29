@@ -106,3 +106,9 @@ pub fn address_label(wallet_id: &str, account_index: u32, key_index: u32) -> Vec
         key_index
     )
 }
+
+/// An custom key decided by the client to store something.
+#[inline]
+pub fn custom(wallet_id: &str, key: &str) -> Vec<u8> {
+    bytes!("wallet-{}-custom-{}", wallet_id, key,)
+}

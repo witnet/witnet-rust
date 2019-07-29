@@ -345,4 +345,27 @@ impl Worker {
 
         Ok(salt)
     }
+
+    pub fn get(
+        &self,
+        db: Db<'_>,
+        wallet: &model::WalletUnlocked,
+        key: &str,
+    ) -> Result<Option<String>> {
+        let db = db.with_key(&wallet.enc_key, &self.params);
+
+        db.get_opt_dec::<String>(&keys::custom(&wallet.id, key))
+    }
+
+    pub fn set(
+        &self,
+        db: Db<'_>,
+        wallet: &model::WalletUnlocked,
+        key: &str,
+        value: &str,
+    ) -> Result<()> {
+        let db = db.with_key(&wallet.enc_key, &self.params);
+
+        db.put_enc(&keys::custom(&wallet.id, key), &value)
+    }
 }

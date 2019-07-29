@@ -299,4 +299,57 @@ impl App {
             Err(e) => log::error!("Couldn't parse received block: {}", e),
         }
     }
+
+    /// Get a client's previously stored value in the db (set method) with the given key.
+    pub fn get(
+        &self,
+        session_id: String,
+        wallet_id: String,
+        key: String,
+    ) -> ResponseActFuture<Option<types::RpcValue>> {
+        let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(
+            |wallet, slf: &mut Self, _| {
+                slf.params
+                    .worker
+                    .send(worker::Get(slf.db.clone(), wallet, key))
+                    .flatten()
+                    .map_err(From::from)
+                    .and_then(|opt| match opt {
+                        Some(value) => future::result(
+                            serde_json::from_str(&value)
+                                .map_err(internal_error)
+                                .map(Some),
+                        ),
+                        None => future::result(Ok(None)),
+                    })
+                    .into_actor(slf)
+            },
+        );
+
+        Box::new(f)
+    }
+
+    /// Store a client's value in the db, associated to the given key.
+    pub fn set(
+        &self,
+        session_id: String,
+        wallet_id: String,
+        key: String,
+        value: types::RpcParams,
+    ) -> ResponseActFuture<()> {
+        let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(move |wallet, _, _| {
+            fut::result(serde_json::to_string(&value).map_err(internal_error)).and_then(
+                move |value, slf: &mut Self, _| {
+                    slf.params
+                        .worker
+                        .send(worker::Set(slf.db.clone(), wallet, key, value))
+                        .flatten()
+                        .map_err(From::from)
+                        .into_actor(slf)
+                },
+            )
+        });
+
+        Box::new(f)
+    }
 }
