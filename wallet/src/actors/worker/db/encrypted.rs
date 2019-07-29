@@ -74,6 +74,16 @@ impl<'a, 'b, 'c> EncryptedDb<'a, 'b, 'c> {
             None => Ok(Default::default()),
         }
     }
+
+    pub fn get_opt_dec<T>(&self, key: &[u8]) -> Result<Option<T>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        match self.db.get_opt::<Vec<u8>>(key)? {
+            Some(bytes) => self.engine.decrypt(&bytes).map(Some),
+            None => Ok(None),
+        }
+    }
 }
 
 pub struct WriteBatch<'a, 'b> {

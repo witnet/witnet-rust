@@ -1,4 +1,4 @@
-pub use jsonrpc_core::Params as RpcParams;
+pub use jsonrpc_core::{Params as RpcParams, Value as RpcValue};
 pub use jsonrpc_pubsub::{Sink, Subscriber, SubscriptionId};
 pub use serde_json::Value as Json;
 
