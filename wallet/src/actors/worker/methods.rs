@@ -189,15 +189,12 @@ impl Worker {
         let last_index =
             db.get_or_default_dec::<u32>(&keys::account_next_ek_index(&id, account))?;
 
-        let requested_last_index = offset.saturating_add(limit);
-        let range = if requested_last_index > last_index {
-            offset..last_index
-        } else {
-            offset..requested_last_index
-        };
+        let end = last_index.saturating_sub(offset);
+        let start = end.saturating_sub(limit);
+        let range = start..end;
         let mut addresses = Vec::with_capacity(range.len());
 
-        for index in range {
+        for index in range.rev() {
             let address = db.get_dec(&keys::address(&id, account, index))?;
             let path = db.get_dec(&keys::address_path(&id, account, index))?;
             let label = db.get_dec(&keys::address_label(&id, account, index))?;
