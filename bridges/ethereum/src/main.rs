@@ -327,6 +327,9 @@ fn post_actor(
             let wbi_contract2 = wbi_contract.clone();
             let wbi_contract3 = wbi_contract.clone();
             let wbi_contract4 = wbi_contract.clone();
+            let wbi_contract5 = wbi_contract.clone();
+            let wbi_contract6 = wbi_contract.clone();
+            let wbi_contract7 = wbi_contract.clone();
             let witnet_client = Arc::clone(&witnet_client);
             let witnet_client2 = Arc::clone(&witnet_client);
             let witnet_client3 = Arc::clone(&witnet_client);
@@ -372,6 +375,7 @@ fn post_actor(
                             )
                         })
                         .and_then(move |(vrf_message, dr_output)| {
+                            let last_beacon = vrf_message.clone();
 
                             witnet_client2
                                 .execute("createVRF", vrf_message.into())
@@ -379,10 +383,10 @@ fn post_actor(
                                 .map(move |vrf| {
                                     debug!("createVRF: {:?}", vrf);
 
-                                    (vrf, dr_output)
+                                    (vrf, dr_output, last_beacon)
                                 })
                         })
-                        .and_then(move |(vrf, dr_output)| {
+                        .and_then(move |(vrf, dr_output, last_beacon)| {
                             // Sign the ethereum account address with the witnet node private key
                             let Sha256(hash) = calculate_sha256(eth_account.as_bytes());
 
@@ -392,10 +396,10 @@ fn post_actor(
                                 .map(|sign_addr| {
                                     debug!("sign: {:?}", sign_addr);
 
-                                    (vrf, sign_addr, dr_output)
+                                    (vrf, sign_addr, dr_output, last_beacon)
                                 })
                         })
-                        .and_then(move |(vrf, sign_addr, dr_output)| {
+                        .and_then(move |(vrf, sign_addr, dr_output, last_beacon)| {
                             // Get the public key of the witnet node
 
                             witnet_client4
@@ -404,10 +408,10 @@ fn post_actor(
                                 .map(move |witnet_pk| {
                                     debug!("getPublicKey: {:?}", witnet_pk);
 
-                                    (vrf, sign_addr, witnet_pk, dr_output)
+                                    (vrf, sign_addr, witnet_pk, dr_output, last_beacon)
                                 })
                         })
-                        .and_then(move |(vrf, sign_addr, witnet_pk, dr_output)| {
+                        .and_then(move |(vrf, sign_addr, witnet_pk, dr_output, last_beacon)| {
 
                             // Locallty execute POE verification to check for eligibility
                             // without spending any gas
@@ -427,7 +431,7 @@ fn post_actor(
                                         e
                                     );
                                     let fut: Box<
-                                        dyn Future<Item = (_, _, _, _), Error = ()> + Send,
+                                        dyn Future<Item = (_, _, _, _, _), Error = ()> + Send,
                                     > = Box::new(futures::failed(()));
                                     return fut;
                                 }
@@ -435,16 +439,83 @@ fn post_actor(
 
                             debug!(
                                 "\nPoE: {:?}\nWitnet Public Key: {:?}\nSignature Address: {:?}",
-                                poe, witnet_pk, sign_addr
+                                poe, witnet_pk.clone(), sign_addr
                             );
-
                             info!("[{}] Checking eligibility for claiming dr", dr_id);
 
+                            Box::new(
+                                wbi_contract5
+                                    .query(
+                                        "decodePoint",
+                                        witnet_pk,
+                                        eth_account,
+                                        contract::Options::default(),
+                                        None,
+                                    )
+                                    .map_err(move |e| {
+                                        warn!(
+                                            "[{}] Error decoding public Key:  {}",
+                                            dr_id, e);
+                                    })
+                                    .map(move |pk: Token| {
+                                        debug!("Received public key decode Point: {:?}", pk);
+
+                                        (poe, sign_addr, pk, dr_output, last_beacon)
+                                    }),
+                            )
+                        })
+                        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
+
+                            Box::new(
+                                wbi_contract6
+                                    .query(
+                                        "decodeProof",
+                                        poe,
+                                        eth_account,
+                                        contract::Options::default(),
+                                        None,
+                                    )
+                                    .map_err(move |e| {
+                                        warn!(
+                                            "[{}] Error decoding proof:  {}",
+                                            dr_id, e);
+                                    })
+                                    .map(move |proof: Token| {
+                                        debug!("Received proof decode Point: {:?}", proof);
+
+                                        (proof, sign_addr, witnet_pk, dr_output, last_beacon)
+                                    }),
+                            )
+                        })
+                        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
+
+                            Box::new(
+                                wbi_contract7
+                                    .query(
+                                        "computeFastVerifyParams",
+                                        (witnet_pk.clone(), poe.clone(), last_beacon),
+                                        eth_account,
+                                        contract::Options::default(),
+                                        None,
+                                    )
+                                    .map_err(move |e| {
+                                        warn!(
+                                            "[{}] Error in params reception:  {}",
+                                            dr_id, e);
+                                    })
+                                    .map(move |(u_point, v_point): (Token, Token)| {
+                                        debug!("Received fast verify params: ({:?}, {:?})", u_point, v_point);
+
+                                        (poe, sign_addr, witnet_pk, dr_output, u_point , v_point)
+                                    }),
+                            )
+                        })
+                        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point)| {
                             Box::new(
                                 wbi_contract3
                                     .query(
                                         "claimDataRequests",
-                                        (vec![dr_id], poe.clone()),
+                                        (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr.clone()),
                                         eth_account,
                                         contract::Options::default(),
                                         None,
@@ -454,20 +525,26 @@ fn post_actor(
                                         "[{}] the POE is invalid, no eligibility for this epoch :( {:?}",
                                         dr_id, e);
                                     })
-                                    .map(move |_: Token| (poe, sign_addr, witnet_pk, dr_output)),
+                                    .map(move |_: Token| (poe, sign_addr, witnet_pk, dr_output, u_point, v_point)),
                             )
 
                         })
-                        .and_then(move |(poe, _sign_addr, _witnet_pk, dr_output)| {
+                        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point, v_point)| {
                             // Claim dr
                             info!("[{}] Claiming dr", dr_id);
 
                             wbi_contract4
                                 .call_with_confirmations(
                                     "claimDataRequests",
-                                    (vec![dr_id], poe),
+                                    (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr),
                                     eth_account,
-                                    contract::Options::default(),
+                                    contract::Options {
+                                        gas: Some(500_000.into()),
+                                        gas_price: None,
+                                        value: None,
+                                        nonce: None,
+                                        condition: None,
+                                    },
                                     1,
                                 )
                                 .map_err(move |e| {
@@ -730,6 +807,7 @@ fn main() {
         }
     });
 
+    // FIXME(#772): Channel closes in case of future errors and bridge fails
     let (tx1, rx) = mpsc::channel(16);
     let (ptx, prx) = mpsc::channel(16);
     let tx2 = tx1.clone();

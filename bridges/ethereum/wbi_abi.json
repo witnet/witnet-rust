@@ -3,6 +3,254 @@
       "constant": true,
       "inputs": [
         {
+          "name": "x",
+          "type": "uint256"
+        },
+        {
+          "name": "pp",
+          "type": "uint256"
+        }
+      ],
+      "name": "invMod",
+      "outputs": [
+        {
+          "name": "q",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "d",
+          "type": "uint256"
+        },
+        {
+          "name": "x",
+          "type": "uint256"
+        },
+        {
+          "name": "y",
+          "type": "uint256"
+        },
+        {
+          "name": "a",
+          "type": "uint256"
+        },
+        {
+          "name": "pp",
+          "type": "uint256"
+        }
+      ],
+      "name": "ecMul",
+      "outputs": [
+        {
+          "name": "qx",
+          "type": "uint256"
+        },
+        {
+          "name": "qy",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "x",
+          "type": "uint256"
+        },
+        {
+          "name": "y",
+          "type": "uint256"
+        },
+        {
+          "name": "a",
+          "type": "uint256"
+        },
+        {
+          "name": "b",
+          "type": "uint256"
+        },
+        {
+          "name": "pp",
+          "type": "uint256"
+        }
+      ],
+      "name": "isOnCurve",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_publicKey",
+          "type": "uint256[2]"
+        },
+        {
+          "name": "_proof",
+          "type": "uint256[4]"
+        },
+        {
+          "name": "_message",
+          "type": "bytes"
+        },
+        {
+          "name": "_uPoint",
+          "type": "uint256[2]"
+        },
+        {
+          "name": "_vComponents",
+          "type": "uint256[4]"
+        }
+      ],
+      "name": "fastVerify",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_point",
+          "type": "bytes"
+        }
+      ],
+      "name": "decodePoint",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256[2]"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "x1",
+          "type": "uint256"
+        },
+        {
+          "name": "y1",
+          "type": "uint256"
+        },
+        {
+          "name": "x2",
+          "type": "uint256"
+        },
+        {
+          "name": "y2",
+          "type": "uint256"
+        },
+        {
+          "name": "a",
+          "type": "uint256"
+        },
+        {
+          "name": "pp",
+          "type": "uint256"
+        }
+      ],
+      "name": "ecSub",
+      "outputs": [
+        {
+          "name": "qx",
+          "type": "uint256"
+        },
+        {
+          "name": "qy",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "x",
+          "type": "uint256"
+        },
+        {
+          "name": "y",
+          "type": "uint256"
+        },
+        {
+          "name": "pp",
+          "type": "uint256"
+        }
+      ],
+      "name": "ecInv",
+      "outputs": [
+        {
+          "name": "qx",
+          "type": "uint256"
+        },
+        {
+          "name": "qy",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_yByte",
+          "type": "uint8"
+        },
+        {
+          "name": "_x",
+          "type": "uint256"
+        }
+      ],
+      "name": "deriveY",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
           "name": "",
           "type": "uint256"
         }
@@ -40,6 +288,254 @@
       ],
       "payable": false,
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "prefix",
+          "type": "uint8"
+        },
+        {
+          "name": "x",
+          "type": "uint256"
+        },
+        {
+          "name": "a",
+          "type": "uint256"
+        },
+        {
+          "name": "b",
+          "type": "uint256"
+        },
+        {
+          "name": "pp",
+          "type": "uint256"
+        }
+      ],
+      "name": "deriveY",
+      "outputs": [
+        {
+          "name": "y",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "base",
+          "type": "uint256"
+        },
+        {
+          "name": "e",
+          "type": "uint256"
+        },
+        {
+          "name": "pp",
+          "type": "uint256"
+        }
+      ],
+      "name": "expMod",
+      "outputs": [
+        {
+          "name": "r",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_publicKey",
+          "type": "uint256[2]"
+        },
+        {
+          "name": "_proof",
+          "type": "uint256[4]"
+        },
+        {
+          "name": "_message",
+          "type": "bytes"
+        }
+      ],
+      "name": "verify",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "x",
+          "type": "uint256"
+        },
+        {
+          "name": "y",
+          "type": "uint256"
+        },
+        {
+          "name": "z",
+          "type": "uint256"
+        },
+        {
+          "name": "pp",
+          "type": "uint256"
+        }
+      ],
+      "name": "toAffine",
+      "outputs": [
+        {
+          "name": "x2",
+          "type": "uint256"
+        },
+        {
+          "name": "y2",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "x1",
+          "type": "uint256"
+        },
+        {
+          "name": "y1",
+          "type": "uint256"
+        },
+        {
+          "name": "x2",
+          "type": "uint256"
+        },
+        {
+          "name": "y2",
+          "type": "uint256"
+        },
+        {
+          "name": "a",
+          "type": "uint256"
+        },
+        {
+          "name": "pp",
+          "type": "uint256"
+        }
+      ],
+      "name": "ecAdd",
+      "outputs": [
+        {
+          "name": "qx",
+          "type": "uint256"
+        },
+        {
+          "name": "qy",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_d",
+          "type": "uint256"
+        },
+        {
+          "name": "_x",
+          "type": "uint256"
+        },
+        {
+          "name": "_y",
+          "type": "uint256"
+        }
+      ],
+      "name": "derivePoint",
+      "outputs": [
+        {
+          "name": "qx",
+          "type": "uint256"
+        },
+        {
+          "name": "qy",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_publicKey",
+          "type": "uint256[2]"
+        },
+        {
+          "name": "_proof",
+          "type": "uint256[4]"
+        },
+        {
+          "name": "_message",
+          "type": "bytes"
+        }
+      ],
+      "name": "computeFastVerifyParams",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256[2]"
+        },
+        {
+          "name": "",
+          "type": "uint256[4]"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_proof",
+          "type": "bytes"
+        }
+      ],
+      "name": "decodeProof",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256[4]"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
       "type": "function"
     },
     {
@@ -154,6 +650,22 @@
         },
         {
           "name": "_poe",
+          "type": "uint256[4]"
+        },
+        {
+          "name": "_publicKey",
+          "type": "uint256[2]"
+        },
+        {
+          "name": "_uPoint",
+          "type": "uint256[2]"
+        },
+        {
+          "name": "_vPointHelpers",
+          "type": "uint256[4]"
+        },
+        {
+          "name": "addrSignature",
           "type": "bytes"
         }
       ],
@@ -279,37 +791,6 @@
       ],
       "payable": false,
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "constant": true,
-      "inputs": [
-        {
-          "name": "_poi",
-          "type": "uint256[]"
-        },
-        {
-          "name": "_root",
-          "type": "uint256"
-        },
-        {
-          "name": "_index",
-          "type": "uint256"
-        },
-        {
-          "name": "_element",
-          "type": "uint256"
-        }
-      ],
-      "name": "verifyPoi",
-      "outputs": [
-        {
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "payable": false,
-      "stateMutability": "pure",
       "type": "function"
     },
     {
