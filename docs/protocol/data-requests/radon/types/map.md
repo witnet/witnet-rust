@@ -2,14 +2,14 @@
 
 ## `Map.entries()`
 ```ts
-entries(): Array<Array<Mixed>>
+entries(): Array<Array<Bytes>>
 ```
 ```ts
 OP_MAP_ENTRIES
 ```
-The `entries` operator returns an `Array<Array<Mixed>>` containing the
+The `entries` operator returns an `Array<Array<Bytes>>` containing the
 keys and values from the input `Map<K, T>` as `[ key, value ]:
-Array<Mixed>` pairs.
+Array<Bytes>` pairs.
 
 ## `Map.get(key)`
 ```ts

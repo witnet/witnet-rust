@@ -31,7 +31,7 @@ The supplied `(input: T): O` function can be either be a valid
     This operator can throw a runtime exception under several
     circumstances, including:
     
-    - `T` in the input `Array<T>` is `Mixed`
+    - `T` in the input `Array<T>` is `Bytes`
 
 ## `Array.filter(function)`
 ```ts
@@ -52,7 +52,7 @@ The supplied `(input: T): O` function can be either be a valid
     This operator can throw a runtime exception under several
     circumstances, including:
     
-    - `T` in the input `Array<T>` is `Mixed`
+    - `T` in the input `Array<T>` is `Bytes`
 
 ## `Array.flatten()`
 ```ts
@@ -122,9 +122,9 @@ type `T`.
     ```ts
     [
         OP_STRING_PARSEJSON,                    // 0x43,
-        OP_MIXED_TOARRAY,                       // 0x70,
+        OP_BYTES_TOARRAY,                       // 0x70,
         [ OP_ARRAY_MAP, [                       // [ 0x55, [
-            OP_MIXED_TOFLOAT,                   //      0x72,
+            OP_BYTES_TOFLOAT,                   //      0x72,
             OP_FLOAT_TRUNCATE                   //      0x3B
         ] ],                                    // ] ]
         [ OP_ARRAY_REDUCE, REDUCER_AVG_MEAN ]   // [ 0x56, 0x03 ]
@@ -149,7 +149,7 @@ over type `T` or one of the [predefined reducing functions][reducer].
     This operator can throw a runtime exception under several
     circumstances, including:
     
-    - `T` in the input `Array<T>` is `Mixed`
+    - `T` in the input `Array<T>` is `Bytes`
     - the reducing function is not `mode` and `T` in the input
     `Array<T>` is not `Integer` or `Float`
     

@@ -16,11 +16,11 @@ Once decoded, the resulting structure will actually represent this RADON script:
 ```ts
 [
     STRING_PARSEJSON,       // 0x43
-    MIXED_TOMAP,            // 0x74
+    BYTES_TOMAP,            // 0x74
     [ MAP_GET, "weather" ], // [ 0x61, "weather" ]
-    MIXED_TOMAP,            // 0x74
+    BYTES_TOMAP,            // 0x74
     [ MAP_GET, "temp" ],    // [ 0x61, "temp" ]
-    MIXED_TOFLOAT           // 0x72
+    BYTES_TOFLOAT           // 0x72
 ]
 ```
 

@@ -42,7 +42,7 @@ nav:
           - Integer: protocol/data-requests/radon/types/integer.md
           - Float: protocol/data-requests/radon/types/float.md
           - Map<V>: protocol/data-requests/radon/types/map.md
-          - Mixed: protocol/data-requests/radon/types/mixed.md
+          - Bytes: protocol/data-requests/radon/types/bytes.md
           - Null: protocol/data-requests/radon/types/null.md
           - Result<V>: protocol/data-requests/radon/types/result.md
           - String: protocol/data-requests/radon/types/string.md

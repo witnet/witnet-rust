@@ -10,7 +10,7 @@
 | `0x03` | `3`     | `TYPE_STRING`  |
 | `0x04` | `4`     | `TYPE_ARRAY`   |
 | `0x05` | `5`     | `TYPE_MAP`     |
-| `0x06` | `6`     | `TYPE_MIXED`   |
+| `0x06` | `6`     | `TYPE_BYTES`   |
 | `0x07` | `7`     | `TYPE_NULL`    |
 | `0x08` | `8`     | `TYPE_RESULT`  |
 
@@ -115,17 +115,17 @@ exclusively on the `Map` type.
 | `0x62` | `98`    | `OP_MAP_KEYS`    |
 | `0x63` | `99`    | `OP_MAP_VALUES`  |
 
-### `Mixed` operators
+### `Bytes` operators
 Range `0x70` to `0x7F` is reserved for operators that operate
-exclusively on the `Mixed` type.
+exclusively on the `Bytes` type.
 
 | Byte   | Decimal | Constant             |
 |:-------|:--------|:---------------------|
-| `0x70` | `112`   | `OP_MIXED_TOARRAY`   |
-| `0x71` | `113`   | `OP_MIXED_TOBOOLEAN` |
-| `0x72` | `114`   | `OP_MIXED_TOFLOAT`   |
-| `0x73` | `115`   | `OP_MIXED_TOINTEGER` |
-| `0x74` | `116`   | `OP_MIXED_TOMAP`     |
+| `0x70` | `112`   | `OP_BYTES_TOARRAY`   |
+| `0x71` | `113`   | `OP_BYTES_TOBOOLEAN` |
+| `0x72` | `114`   | `OP_BYTES_TOFLOAT`   |
+| `0x73` | `115`   | `OP_BYTES_TOINTEGER` |
+| `0x74` | `116`   | `OP_BYTES_TOMAP`     |
 
 ### `Result` operators
 Range `0x80` to `0x8F` is reserved for operators that operate

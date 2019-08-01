@@ -59,12 +59,12 @@ returns the `default: T` value otherwise.
 
 ## `String.parseJSON()`
 ```ts
-parseJSON(): Mixed
+parseJSON(): Bytes
 ```
 ```ts
 OP_STRING_PARSEJSON
 ```
-Parses the input `String` into a `Map<String, Mixed>` assuming it is a
+Parses the input `String` into a `Map<String, Bytes>` assuming it is a
 correctly formed JSON document.
 
 !!! danger ""
@@ -78,12 +78,12 @@ correctly formed JSON document.
 
 ## `String.parseXML()`
 ```ts
-parseXML(): Map<String, Mixed>
+parseXML(): Map<String, Bytes>
 ```
 ```ts
 OP_STRING_PARSEXML
 ```
-Parses the input `String` into a `Map<String, Mixed>` assuming it is a
+Parses the input `String` into a `Map<String, Bytes>` assuming it is a
 correctly formed XML document.
 
 !!! danger ""

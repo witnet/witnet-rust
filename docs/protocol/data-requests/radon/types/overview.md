@@ -12,7 +12,7 @@ Additionaly, there exist six complex data types or *structure types*:
 
 - `Array<T>`
 - `Map<T>`
-- `Mixed`
+- `Bytes`
 - `Null`
 - `Result<T>`
 

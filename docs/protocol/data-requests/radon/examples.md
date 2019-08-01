@@ -14,20 +14,20 @@ returns the current weather conditions in Berlin.
 ```ts
 [
     STRING_PARSEJSON,       // 0x43
-    MIXED_TOMAP,            // 0x74
+    BYTES_TOMAP,            // 0x74
     [ MAP_GET, "weather" ], // [ 0x61, "weather" ]
-    MIXED_TOMAP,            // 0x74
+    BYTES_TOMAP,            // 0x74
     [ MAP_GET, "temp" ],    // [ 0x61, "temp" ]
-    MIXED_TOFLOAT           // 0x72
+    BYTES_TOFLOAT           // 0x72
 ]
 ```
 
 1. Parse the input `String` as a JSON document (retrieval always starts
    with `String`),
-2. Treat the structure as `Map<String, Mixed>`,
-3. Take the value of the `"main"` key as `Mixed`,
-4. Treat the structure as `Map<String, Mixed>`.
-5. Take the value of the `"temp"` key as `Mixed`,
+2. Treat the structure as `Map<String, Bytes>`,
+3. Take the value of the `"main"` key as `Bytes`,
+4. Treat the structure as `Map<String, Bytes>`.
+5. Take the value of the `"temp"` key as `Bytes`,
 6. Emit the value as `Float`.
 
 ### Aggregation stage
@@ -89,22 +89,22 @@ the current price of a bitcoin in US dollars.
 ```ts
 [
   OP_STRING_PARSEJSON,          // 0x43,
-  OP_MIXED_TOMAP,               // 0x74.
+  OP_BYTES_TOMAP,               // 0x74.
   [ OP_MAP_GET , "bpi" ],       // [ 0x61, "bpi" ].
-  OP_MIXED_TOMAP,               // 0x74.
+  OP_BYTES_TOMAP,               // 0x74.
   [ OP_MAP_GET, "USD" ],        // [ 0x61, "USD" ].
-  OP_MIXED_TOMAP,               // 0x74.
+  OP_BYTES_TOMAP,               // 0x74.
   [ OP_MAP_GET, "rate_float" ], // [ 0x61, "rate_float" ].
-  OP_MIXED_TOFLOAT              // 0x72
+  OP_BYTES_TOFLOAT              // 0x72
 ]
 ```
 
-2. Treat the structure as `Map<String, Mixed>`,
-3. Take the value of the `"bpi"` key as `Mixed`,
-4. Treat the structure as `Map<String, Mixed>`.
-5. Take the value of the `"USD"` key as `Mixed`,
-6. Treat the structure as `Map<String, Mixed>`.
-7. Take the value of the `"rate_float"` key as `Mixed`,
+2. Treat the structure as `Map<String, Bytes>`,
+3. Take the value of the `"bpi"` key as `Bytes`,
+4. Treat the structure as `Map<String, Bytes>`.
+5. Take the value of the `"USD"` key as `Bytes`,
+6. Treat the structure as `Map<String, Bytes>`.
+7. Take the value of the `"rate_float"` key as `Bytes`,
 8. Emit the value as `Float`.
 
 ### Aggregation stage
@@ -160,19 +160,19 @@ actually fall and maps that into a `String` with value `heads` or
 ```ts
 [
   OP_STRING_PARSEJSON,      // 0x43,
-  OP_MIXED_TOMAP,           // 0x74,
+  OP_BYTES_TOMAP,           // 0x74,
   [ OP_MAP_GET, "data" ],   // [ 0x61, "data" ],
-  OP_MIXED_TOARRAY,         // 0x70,
+  OP_BYTES_TOARRAY,         // 0x70,
   [ OP_ARRAY_GET, 0 ]       // [ 0x54, 0 ]
 ]
 ```
 
 1. Parse the input `String` as a JSON document (retrieval always starts
    with `String`),
-2. Treat the structure as `Map<String, Mixed>`,
-3. Take the value of the `"data"` key as `Mixed`,
-4. Treat the structure as `Array<Mixed>`.
-5. Take the value at index `0` as `Mixed`,
+2. Treat the structure as `Map<String, Bytes>`,
+3. Take the value of the `"data"` key as `Bytes`,
+4. Treat the structure as `Array<Bytes>`.
+5. Take the value at index `0` as `Bytes`,
 6. Emit the value as `Float`.
 
 ### Aggregation stage

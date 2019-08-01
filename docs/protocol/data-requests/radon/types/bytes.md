@@ -1,68 +1,68 @@
-# `Mixed` type
-The `Mixed` type represents a value or structure whose type is undecided
+# `Bytes` type
+The `Bytes` type represents a value or structure whose type is undecided
 and cannot be automatically inferred by the interpreter.
 
 The operators available for this type assist the interpreter to handle
-`Mixed` values and structures in a deterministic way so that it can be
+`Bytes` values and structures in a deterministic way so that it can be
 safely casted to other, more useful types.
 
-## `Mixed.toArray()`
+## `Bytes.toArray()`
 ```ts
-toArray(): Array<Mixed>
+toArray(): Array<Bytes>
 ```
 ```ts
-[ OP_MIXED_TOARRAY, type ]
+[ OP_BYTES_TOARRAY, type ]
 ```
-The `toArray` operator tries to cast the input `Mixed` to an 
-`Array<Mixed>` structure.
+The `toArray` operator tries to cast the input `Bytes` to an 
+`Array<Bytes>` structure.
 
 !!! danger ""
-    This operator will throw a runtime exception if the input `Mixed` 
-    cannot be casted to a valid `Array<Mixed>` value. Exceptions are 
+    This operator will throw a runtime exception if the input `Bytes` 
+    cannot be casted to a valid `Array<Bytes>` value. Exceptions are 
     handled as specified in the [Exception handling] section.
 
-## `Mixed.toBoolean()`
+## `Bytes.toBoolean()`
 ```ts
 toBoolean(): Boolean
 ```
 ```ts
-OP_MIXED_TOBOOLEAN
+OP_BYTES_TOBOOLEAN
 ```
-The `toBoolean` operator tries to cast the input `Mixed` to a `Boolean`
+The `toBoolean` operator tries to cast the input `Bytes` to a `Boolean`
 value. That is, it returns `true` if the input is `true` as either
-`Boolean` or `String`; or `false` as `Boolean` if the input `Mixed` is
+`Boolean` or `String`; or `false` as `Boolean` if the input `Bytes` is
 `false` as either `Boolean` or `String`.
 
 !!! danger ""
-    This operator will throw a runtime exception if the input `Mixed` 
+    This operator will throw a runtime exception if the input `Bytes` 
     cannot be casted to a valid `Boolean` value. Exceptions are handled 
     as specified in the [Exception handling] section.
 
-## `Mixed.toFloat()`
+## `Bytes.toFloat()`
 ```ts
 toFloat(): Float
 ```
 ```ts
-OP_MIXED_TOFLOAT
+OP_BYTES_TOFLOAT
 ```
-The `toFloat` operator tries to cast the input `Mixed` to a `Float`
+The `toFloat` operator tries to cast the input `Bytes` to a `Float`
 value.
 
 !!! danger ""
-    This operator will throw a runtime exception if the input `Mixed` 
+    This operator will throw a runtime exception if the input `Bytes` 
     cannot be casted to a valid `Float` value for the specified base or 
     if the value overflows or underflows the range of the `Float` type.
     Exceptions are handled as specified in the [Exception handling] 
     section.
 
-## `Mixed.toInteger()`
+## `Bytes.toInteger()`
 ```ts
 toInteger(base?: Integer): Integer
 ```
 ```ts
-[ OP_MIXED_TOINTEGER, base ]
+[ OP_BYTES_TOINTEGER, base ]
 ```
-The `toInteger` operator parses the input `Mixed` as an integer of the
+The `toInteger` operator parses the input `Bytes` as an integer of the
 specified base.
 
 The accepted bases are the same as in
@@ -74,24 +74,24 @@ The accepted bases are the same as in
 !!! danger ""
     This operator will throw a runtime exception if:
     
-    - The input `Mixed` cannot be casted to a valid `Integer` value for 
+    - The input `Bytes` cannot be casted to a valid `Integer` value for 
     the specified base.
     - The value overflows or underflows the range of the `Integer` type.
 
     Exceptions are handled as specified in the [Exception handling] 
     section.
 
-## `Mixed.toMap()`
+## `Bytes.toMap()`
 ```ts
-toMap(): Map<String, Mixed>
+toMap(): Map<String, Bytes>
 ```
 ```ts
-OP_MIXED_TOMAP
+OP_BYTES_TOMAP
 ```
-The `toMap` operator tries to cast the input `Mixed` to a 
-`Map<String, Mixed>` structure.
+The `toMap` operator tries to cast the input `Bytes` to a 
+`Map<String, Bytes>` structure.
 
 !!! danger ""
-    This operator will throw a runtime exception if the input `Mixed` 
-    cannot be casted to a valid `Map<String, Mixed>` value. Exceptions 
+    This operator will throw a runtime exception if the input `Bytes` 
+    cannot be casted to a valid `Map<String, Bytes>` value. Exceptions 
     are handled as specified in the [Exception handling] section.
