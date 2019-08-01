@@ -20,9 +20,9 @@ fn test_radon_types_names() {
     let radon_map_type_name = radon_map.radon_type_name();
     assert_eq!(radon_map_type_name, String::from("RadonMap"));
 
-    let radon_mixed = RadonTypes::try_from(Value::Ext(123, vec![1, 2, 3])).unwrap();
-    let radon_mixed_type_name = radon_mixed.radon_type_name();
-    assert_eq!(radon_mixed_type_name, String::from("RadonMixed"));
+    let radon_bytes = RadonTypes::try_from(Value::Ext(123, vec![1, 2, 3])).unwrap();
+    let radon_bytes_type_name = radon_bytes.radon_type_name();
+    assert_eq!(radon_bytes_type_name, String::from("RadonBytes"));
 
     let radon_string = RadonTypes::try_from(Value::from("Hello, World!")).unwrap();
     let radon_string_type_name = radon_string.radon_type_name();
@@ -34,7 +34,7 @@ fn test_radon_types_display() {
     let radon_array = RadonTypes::try_from(Value::from(vec![Value::from(123)])).unwrap();
     let radon_array_type_display = radon_array.to_string();
     let radon_array_expected =
-        "RadonTypes::RadonArray([Mixed(RadonMixed { value: Integer(PosInt(123)) })])".to_string();
+        "RadonTypes::RadonArray([Bytes(RadonBytes { value: Integer(PosInt(123)) })])".to_string();
     assert_eq!(radon_array_type_display, radon_array_expected);
 
     let radon_float = RadonTypes::try_from(Value::from(std::f64::consts::PI)).unwrap();
@@ -48,13 +48,13 @@ fn test_radon_types_display() {
     )]))
     .unwrap();
     let radon_map_type_display = radon_map.to_string();
-    let radon_map_expected = r#"RadonTypes::RadonMap({"Hello": RadonMixed { value: String(Utf8String { s: Ok("World") }) }})"#.to_string();
+    let radon_map_expected = r#"RadonTypes::RadonMap({"Hello": RadonBytes { value: String(Utf8String { s: Ok("World") }) }})"#.to_string();
     assert_eq!(radon_map_type_display, radon_map_expected);
 
-    let radon_mixed = RadonTypes::try_from(Value::Ext(123, vec![1, 2, 3])).unwrap();
-    let radon_mixed_type_display = radon_mixed.to_string();
-    let radon_mixed_expected = "RadonTypes::RadonMixed(Ext(123, [1, 2, 3]))".to_string();
-    assert_eq!(radon_mixed_type_display, radon_mixed_expected);
+    let radon_bytes = RadonTypes::try_from(Value::Ext(123, vec![1, 2, 3])).unwrap();
+    let radon_bytes_type_display = radon_bytes.to_string();
+    let radon_bytes_expected = "RadonTypes::RadonBytes(Ext(123, [1, 2, 3]))".to_string();
+    assert_eq!(radon_bytes_type_display, radon_bytes_expected);
 
     let radon_string = RadonTypes::try_from(Value::from("Hello, World!")).unwrap();
     let radon_string_type_display = radon_string.to_string();

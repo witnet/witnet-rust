@@ -11,17 +11,17 @@ use crate::error::RadError;
 use crate::operators::{identity, map as map_operators, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
-use crate::types::{mixed::RadonMixed, RadonType};
+use crate::types::{bytes::RadonBytes, RadonType};
 
 pub const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Default)]
 pub struct RadonMap {
-    value: HashMap<String, RadonMixed>,
+    value: HashMap<String, RadonBytes>,
 }
 
-impl RadonType<HashMap<String, RadonMixed>> for RadonMap {
-    fn value(&self) -> HashMap<String, RadonMixed> {
+impl RadonType<HashMap<String, RadonBytes>> for RadonMap {
+    fn value(&self) -> HashMap<String, RadonBytes> {
         self.value.clone()
     }
 
@@ -30,8 +30,8 @@ impl RadonType<HashMap<String, RadonMixed>> for RadonMap {
     }
 }
 
-impl From<HashMap<String, RadonMixed>> for RadonMap {
-    fn from(value: HashMap<String, RadonMixed>) -> Self {
+impl From<HashMap<String, RadonBytes>> for RadonMap {
+    fn from(value: HashMap<String, RadonBytes>) -> Self {
         RadonMap { value }
     }
 }
@@ -47,8 +47,8 @@ impl TryFrom<Value> for RadonMap {
                     .iter()
                     .try_fold(HashMap::new(), |mut map, (rmpv_key, rmpv_value)| {
                         let key = rmpv_key.as_str();
-                        let value: Option<RadonMixed> =
-                            RadonMixed::try_from(rmpv_value.clone()).ok();
+                        let value: Option<RadonBytes> =
+                            RadonBytes::try_from(rmpv_value.clone()).ok();
                         if let (Some(key), Some(value)) = (key, value) {
                             map.insert(key.to_string(), value);
                             Some(map)
@@ -104,7 +104,7 @@ impl Operable for RadonMap {
 #[test]
 fn test_operate_identity() {
     let mut map = HashMap::new();
-    let value = RadonMixed::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(rmpv::Value::from(0));
     map.insert("Zero".to_string(), value);
 
     let input = RadonMap::from(map.clone());
@@ -119,7 +119,7 @@ fn test_operate_identity() {
 #[test]
 fn test_operate_unimplemented() {
     let mut map = HashMap::new();
-    let value = RadonMixed::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(rmpv::Value::from(0));
     map.insert("Zero".to_string(), value);
 
     let input = RadonMap::from(map);
@@ -137,7 +137,7 @@ fn test_operate_unimplemented() {
 #[test]
 fn test_try_into() {
     let mut map = HashMap::new();
-    let value = RadonMixed::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(rmpv::Value::from(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
@@ -155,7 +155,7 @@ fn test_try_from() {
     let result = RadonTypes::try_from(slice).unwrap();
 
     let mut map = HashMap::new();
-    let value = RadonMixed::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(rmpv::Value::from(0));
     map.insert("Zero".to_string(), value);
     let expected_input = RadonTypes::from(RadonMap::from(map));
 
@@ -165,14 +165,14 @@ fn test_try_from() {
 #[test]
 fn test_operate_map_get() {
     let mut map = HashMap::new();
-    let value = RadonMixed::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(rmpv::Value::from(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
     let call = (RadonOpCodes::Get, Some(vec![Value::from("Zero")]));
     let result = input.operate(&call).unwrap();
 
-    let expected_value = RadonTypes::Mixed(RadonMixed::from(rmpv::Value::from(0)));
+    let expected_value = RadonTypes::Bytes(RadonBytes::from(rmpv::Value::from(0)));
 
     assert_eq!(result, expected_value);
 }
@@ -180,7 +180,7 @@ fn test_operate_map_get() {
 #[test]
 fn test_operate_map_get_error() {
     let mut map = HashMap::new();
-    let value = RadonMixed::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(rmpv::Value::from(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 

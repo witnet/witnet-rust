@@ -1,9 +1,9 @@
 use crate::error::RadError;
-use crate::types::{map::RadonMap, mixed::RadonMixed, RadonType};
+use crate::types::{bytes::RadonBytes, map::RadonMap, RadonType};
 
 use rmpv::Value;
 
-pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonMixed, RadError> {
+pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonBytes, RadError> {
     let key = args.first().map(|ref value| value.as_str()).unwrap_or(None);
     match key {
         Some(key_str) => match input.value().get(key_str) {
@@ -25,7 +25,7 @@ fn test_map_get() {
     use std::collections::HashMap;
 
     let key = "Zero";
-    let value = RadonMixed::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(rmpv::Value::from(0));
     let args = vec![Value::from(key)];
 
     let mut map = HashMap::new();
@@ -43,7 +43,7 @@ fn test_map_get_error() {
     use std::collections::HashMap;
 
     let key = "Zero";
-    let value = RadonMixed::from(rmpv::Value::from(0));
+    let value = RadonBytes::from(rmpv::Value::from(0));
     let args = vec![Value::from("NotFound")];
 
     let mut map = HashMap::new();

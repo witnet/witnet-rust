@@ -4,15 +4,14 @@
 use crate::error::RadError;
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
-
 use num_derive::FromPrimitive;
 use std::fmt;
 
 pub mod array;
 pub mod boolean;
+pub mod bytes;
 pub mod float;
 pub mod map;
-pub mod mixed;
 pub mod string;
 
 #[derive(Debug, FromPrimitive, PartialEq)]
@@ -35,7 +34,7 @@ pub enum RadonOpCodes {
     // String operator codes start at 0x40
     /// Compute the hash of a string
     StringHash = 0x40,
-    /// Parse Mixed from JSON string
+    /// Parse Bytes from JSON string
     StringParseJson = 0x43,
     StringToFloat = 0x46,
     // Array operator codes start at 0x50
@@ -46,10 +45,10 @@ pub enum RadonOpCodes {
     MapGet = 0x61,
     /// Flatten a map into an Array containing only the values but not the keys
     MapValues = 0x63,
-    // Mixed operator codes start at 0x70
-    MixedToArray = 0x70,
-    MixedToFloat = 0x72,
-    MixedToMap = 0x74,
+    // Bytes operator codes start at 0x70
+    BytesToArray = 0x70,
+    BytesToFloat = 0x72,
+    BytesToMap = 0x74,
     // Result operator codes start at 0x80
 }
 
@@ -70,7 +69,7 @@ pub fn operate(input: RadonTypes, call: &RadonCall) -> Result<RadonTypes, RadErr
         RadonTypes::Float(radon_float) => radon_float.operate(call),
         RadonTypes::Map(radon_map) => radon_map.operate(call),
         RadonTypes::String(radon_string) => radon_string.operate(call),
-        RadonTypes::Mixed(radon_mixed) => radon_mixed.operate(call),
+        RadonTypes::Bytes(radon_bytes) => radon_bytes.operate(call),
     }
 }
 

@@ -4,24 +4,24 @@ use rmpv::Value;
 use serde::{Serialize, Serializer};
 
 use crate::error::RadError;
-use crate::operators::{identity, mixed as mixed_operators, Operable, RadonOpCodes};
+use crate::operators::{bytes as bytes_operators, identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
-pub const RADON_MIXED_TYPE_NAME: &str = "RadonMixed";
+pub const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct RadonMixed {
+pub struct RadonBytes {
     value: Value,
 }
 
-impl Default for RadonMixed {
+impl Default for RadonBytes {
     fn default() -> Self {
         Self { value: Value::Nil }
     }
 }
 
-impl Serialize for RadonMixed {
+impl Serialize for RadonBytes {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -30,23 +30,23 @@ impl Serialize for RadonMixed {
     }
 }
 
-impl RadonType<Value> for RadonMixed {
+impl RadonType<Value> for RadonBytes {
     fn value(&self) -> Value {
         self.value.clone()
     }
 
     fn radon_type_name() -> String {
-        RADON_MIXED_TYPE_NAME.to_string()
+        RADON_BYTES_TYPE_NAME.to_string()
     }
 }
 
-impl From<Value> for RadonMixed {
+impl From<Value> for RadonBytes {
     fn from(value: Value) -> Self {
-        RadonMixed { value }
+        RadonBytes { value }
     }
 }
 
-impl TryInto<Value> for RadonMixed {
+impl TryInto<Value> for RadonBytes {
     type Error = RadError;
 
     fn try_into(self) -> Result<Value, Self::Error> {
@@ -54,26 +54,26 @@ impl TryInto<Value> for RadonMixed {
     }
 }
 
-impl Operable for RadonMixed {
+impl Operable for RadonBytes {
     fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             // Identity
-            (RadonOpCodes::Identity, None) => identity(RadonTypes::Mixed(self)),
+            (RadonOpCodes::Identity, None) => identity(RadonTypes::Bytes(self)),
             // To Float
-            (RadonOpCodes::MixedToFloat, None) => mixed_operators::to_float(self)
+            (RadonOpCodes::BytesToFloat, None) => bytes_operators::to_float(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // To Array
-            (RadonOpCodes::MixedToArray, None) => mixed_operators::to_array(self)
+            (RadonOpCodes::BytesToArray, None) => bytes_operators::to_array(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // To Map
-            (RadonOpCodes::MixedToMap, None) => mixed_operators::to_map(self)
+            (RadonOpCodes::BytesToMap, None) => bytes_operators::to_map(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
-                input_type: RADON_MIXED_TYPE_NAME.to_string(),
+                input_type: RADON_BYTES_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),
@@ -81,17 +81,17 @@ impl Operable for RadonMixed {
     }
 }
 
-impl fmt::Display for RadonMixed {
+impl fmt::Display for RadonBytes {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}({:?})", RADON_MIXED_TYPE_NAME, self.value)
+        write!(f, "{}({:?})", RADON_BYTES_TYPE_NAME, self.value)
     }
 }
 
 #[test]
 fn test_operate_identity() {
     let value = rmpv::Value::from(0);
-    let input = RadonMixed::from(value.clone());
-    let expected = RadonTypes::Mixed(RadonMixed::from(value));
+    let input = RadonBytes::from(value.clone());
+    let expected = RadonTypes::Bytes(RadonBytes::from(value));
 
     let call = (RadonOpCodes::Identity, None);
     let output = input.operate(&call).unwrap();
@@ -101,7 +101,7 @@ fn test_operate_identity() {
 
 #[test]
 fn test_operate_unimplemented() {
-    let input = RadonMixed::from(rmpv::Value::from(0));
+    let input = RadonBytes::from(rmpv::Value::from(0));
 
     let call = (RadonOpCodes::Fail, None);
     let result = input.operate(&call);

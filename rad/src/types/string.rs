@@ -67,7 +67,7 @@ impl Operable for RadonString {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::String(self)),
             (RadonOpCodes::StringParseJson, None) => {
-                string_operators::parse_json(&self).map(RadonTypes::Mixed)
+                string_operators::parse_json(&self).map(RadonTypes::Bytes)
             }
             (RadonOpCodes::StringToFloat, None) => string_operators::to_float(&self)
                 .map(RadonTypes::from)
@@ -107,8 +107,8 @@ fn test_operate_parsejson() {
     let valid_object = valid_string.operate(&call).unwrap();
     let invalid_object = invalid_string.operate(&call);
 
-    assert!(if let RadonTypes::Mixed(mixed) = valid_object {
-        if let rmpv::Value::Map(vector) = mixed.value() {
+    assert!(if let RadonTypes::Bytes(bytes) = valid_object {
+        if let rmpv::Value::Map(vector) = bytes.value() {
             if let Some((rmpv::Value::String(key), rmpv::Value::String(val))) = vector.first() {
                 key.as_str() == Some("Hello") && val.as_str() == Some("world")
             } else {
