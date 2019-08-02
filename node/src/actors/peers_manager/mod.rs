@@ -63,8 +63,18 @@ impl PeersManager {
         });
     }
 
-    fn import_peers(&mut self, peers: Peers) {
+    fn import_peers(
+        &mut self,
+        peers: Peers,
+        known_peers: Vec<SocketAddr>,
+        server_addr: SocketAddr,
+    ) {
         self.peers = peers;
+
+        match self.peers.add_to_new(known_peers, server_addr) {
+            Ok(_duplicated_peers) => {}
+            Err(e) => log::error!("Error when adding peer addresses from config: {}", e),
+        }
     }
 
     /// Method to try a peer before to insert in the tried addresses bucket

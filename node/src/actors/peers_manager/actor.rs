@@ -39,7 +39,7 @@ impl Actor for PeersManager {
                     "Adding the following peer addresses from config: {:?}",
                     known_peers
                 );
-                match act.peers.add_to_new(known_peers, server_addr) {
+                match act.peers.add_to_new(known_peers.clone(), server_addr) {
                     Ok(_duplicated_peers) => {}
                     Err(e) => error!("Error when adding peer addresses from config: {}", e),
                 }
@@ -47,12 +47,12 @@ impl Actor for PeersManager {
                 storage_mngr::get::<_, Peers>(&PEERS_KEY)
                     .into_actor(act)
                     .map_err(|e, _, _| error!("Couldn't get peers from storage: {}", e))
-                    .and_then(|peers_from_storage, act, _| {
+                    .and_then(move |peers_from_storage, act, _| {
                         // peers_from_storage can be None if the storage does not contain that key
                         if let Some(peers_from_storage) = peers_from_storage {
                             // Add all the peers from storage
                             // The add method handles duplicates by overwriting the old values
-                            act.import_peers(peers_from_storage);
+                            act.import_peers(peers_from_storage, known_peers, server_addr);
                         }
 
                         fut::ok(())
