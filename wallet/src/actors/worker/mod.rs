@@ -27,7 +27,6 @@ pub struct Worker {
     engine: SignEngine,
     rng: RefCell<rand::rngs::ThreadRng>,
     wallets_mutex: Arc<Mutex<()>>,
-    addresses_mutex: Arc<Mutex<()>>,
 }
 
 impl Actor for Worker {

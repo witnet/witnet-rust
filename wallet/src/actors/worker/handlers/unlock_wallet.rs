@@ -14,7 +14,7 @@ pub struct UnlockWallet(
 );
 
 impl Message for UnlockWallet {
-    type Result = worker::Result<model::WalletUnlocked>;
+    type Result = worker::Result<(String, model::WalletUnlocked)>;
 }
 
 impl Handler<UnlockWallet> for worker::Worker {

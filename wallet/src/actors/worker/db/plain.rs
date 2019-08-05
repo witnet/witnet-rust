@@ -30,12 +30,13 @@ impl<'a> Db<'a> {
         Ok(())
     }
 
-    pub fn with_key<'b, 'c>(
+    pub fn with_key<'b, 'c, 'd>(
         self,
         key: &'b [u8],
-        params: &'c Params,
-    ) -> super::EncryptedDb<'b, 'c, 'a> {
-        super::EncryptedDb::new(self, key, params)
+        iv: &'c [u8],
+        params: &'d Params,
+    ) -> super::EncryptedDb<'b, 'c, 'd, 'a> {
+        super::EncryptedDb::new(self, key, iv, params)
     }
 
     pub fn get<T>(&self, key: &[u8]) -> Result<T>

@@ -23,6 +23,6 @@ impl Handler<GenAddress> for worker::Worker {
         GenAddress(db, wallet, label): GenAddress,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.gen_address(worker::Db::new(db.as_ref()), &wallet, label)
+        self.gen_address(worker::Db::new(db.as_ref()), wallet.as_ref(), label)
     }
 }

@@ -9,8 +9,6 @@ pub enum Error {
     MutexPoison,
     #[fail(display = "maximum key index reached for account")]
     IndexOverflow,
-    #[fail(display = "cannot decrypt, invalid data length")]
-    InvalidDataLen,
     #[fail(display = "rad request failed: {}", _0)]
     Rad(#[cause] witnet_rad::error::RadError),
     #[fail(display = "db key {:?} not found", _0)]

@@ -2,14 +2,14 @@ use witnet_crypto::cipher;
 
 use crate::actors::worker::*;
 
-pub struct EncryptedDb<'a, 'b, 'c> {
-    engine: CryptoEngine<'a, 'b>,
-    db: Db<'c>,
+pub struct EncryptedDb<'a, 'b, 'c, 'd> {
+    engine: CryptoEngine<'a, 'b, 'c>,
+    db: Db<'d>,
 }
 
-impl<'a, 'b, 'c> EncryptedDb<'a, 'b, 'c> {
-    pub fn new(db: Db<'c>, key: &'a [u8], params: &'b Params) -> Self {
-        let engine = CryptoEngine::new(key, params);
+impl<'a, 'b, 'c, 'd> EncryptedDb<'a, 'b, 'c, 'd> {
+    pub fn new(db: Db<'d>, key: &'a [u8], iv: &'b [u8], params: &'c Params) -> Self {
+        let engine = CryptoEngine::new(key, iv, params);
 
         Self { db, engine }
     }
@@ -25,9 +25,10 @@ impl<'a, 'b, 'c> EncryptedDb<'a, 'b, 'c> {
     where
         T: serde::Serialize,
     {
-        let bytes = self.engine.encrypt(value)?;
+        let enc_key = self.engine.encrypt(&key)?;
+        let enc_val = self.engine.encrypt(value)?;
 
-        self.db.put(key, &bytes)
+        self.db.put(&enc_key, &enc_val)
     }
 
     pub fn get_or_default<T>(&self, key: &[u8]) -> Result<T>
@@ -44,12 +45,12 @@ impl<'a, 'b, 'c> EncryptedDb<'a, 'b, 'c> {
         self.db.get_opt(&key)
     }
 
-    pub fn write(&self, WriteBatch { batch, .. }: WriteBatch<'a, 'b>) -> Result<()> {
+    pub fn write(&self, WriteBatch { batch, .. }: WriteBatch<'a, 'b, 'c>) -> Result<()> {
         self.db.write(batch)?;
         Ok(())
     }
 
-    pub fn batch(&self) -> WriteBatch<'a, 'b> {
+    pub fn batch(&self) -> WriteBatch<'a, 'b, 'c> {
         WriteBatch {
             batch: Default::default(),
             engine: self.engine.clone(),
@@ -60,7 +61,8 @@ impl<'a, 'b, 'c> EncryptedDb<'a, 'b, 'c> {
     where
         T: serde::de::DeserializeOwned,
     {
-        let bytes = self.db.get::<Vec<u8>>(key)?;
+        let enc_key = self.engine.encrypt(&key)?;
+        let bytes = self.db.get::<Vec<u8>>(&enc_key)?;
 
         self.engine.decrypt(&bytes)
     }
@@ -69,19 +71,20 @@ impl<'a, 'b, 'c> EncryptedDb<'a, 'b, 'c> {
     where
         T: serde::de::DeserializeOwned + Default,
     {
-        match self.db.get_opt::<Vec<u8>>(key)? {
+        let enc_key = self.engine.encrypt(&key)?;
+        match self.db.get_opt::<Vec<u8>>(&enc_key)? {
             Some(bytes) => self.engine.decrypt(&bytes),
             None => Ok(Default::default()),
         }
     }
 }
 
-pub struct WriteBatch<'a, 'b> {
+pub struct WriteBatch<'a, 'b, 'c> {
     batch: super::plain::WriteBatch,
-    engine: CryptoEngine<'a, 'b>,
+    engine: CryptoEngine<'a, 'b, 'c>,
 }
 
-impl<'a, 'b> WriteBatch<'a, 'b> {
+impl<'a, 'b, 'c> WriteBatch<'a, 'b, 'c> {
     pub fn put<T>(&mut self, key: &[u8], value: &T) -> Result<()>
     where
         T: serde::Serialize,
@@ -93,27 +96,23 @@ impl<'a, 'b> WriteBatch<'a, 'b> {
     where
         T: serde::Serialize,
     {
-        let bytes = self.engine.encrypt(value)?;
+        let enc_key = self.engine.encrypt(&key)?;
+        let enc_val = self.engine.encrypt(value)?;
 
-        self.batch.put(key, &bytes)
+        self.batch.put(&enc_key, &enc_val)
     }
 }
 
 #[derive(Clone)]
-struct CryptoEngine<'a, 'b> {
+struct CryptoEngine<'a, 'b, 'c> {
     key: &'a [u8],
-    params: &'b Params,
+    iv: &'b [u8],
+    params: &'c Params,
 }
 
-impl<'a, 'b> CryptoEngine<'a, 'b> {
-    pub fn new(key: &'a [u8], params: &'b Params) -> Self {
-        Self { key, params }
-    }
-
-    fn iv(&self) -> Result<Vec<u8>> {
-        let iv = cipher::generate_random(self.params.db_iv_length)?;
-
-        Ok(iv)
+impl<'a, 'b, 'c> CryptoEngine<'a, 'b, 'c> {
+    pub fn new(key: &'a [u8], iv: &'b [u8], params: &'c Params) -> Self {
+        Self { key, iv, params }
     }
 
     fn encrypt<T>(&self, value: &T) -> Result<Vec<u8>>
@@ -121,26 +120,17 @@ impl<'a, 'b> CryptoEngine<'a, 'b> {
         T: serde::Serialize,
     {
         let bytes = bincode::serialize(value)?;
-        let iv = self.iv()?;
-        let encrypted = cipher::encrypt_aes_cbc(self.key, &bytes, &iv)?;
-        let data = [iv, encrypted].concat();
+        let encrypted = cipher::encrypt_aes_cbc(self.key, &bytes, self.iv)?;
 
-        Ok(data)
+        Ok(encrypted)
     }
 
-    fn decrypt<T>(&self, value: &[u8]) -> Result<T>
+    fn decrypt<T>(&self, bytes: &[u8]) -> Result<T>
     where
         T: serde::de::DeserializeOwned,
     {
-        let len = value.len();
-
-        if len < self.params.db_iv_length {
-            Err(Error::InvalidDataLen)?
-        }
-
-        let (iv, data) = value.split_at(self.params.db_iv_length);
-        let bytes = cipher::decrypt_aes_cbc(self.key, data, iv)?;
-        let value = bincode::deserialize(&bytes)?;
+        let decrypted = cipher::decrypt_aes_cbc(self.key, bytes, self.iv)?;
+        let value = bincode::deserialize(&decrypted)?;
 
         Ok(value)
     }

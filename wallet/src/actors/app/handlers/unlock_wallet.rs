@@ -2,7 +2,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
-use crate::{model, types};
+use crate::types;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,22 +30,14 @@ impl Handler<UnlockWalletRequest> for app::App {
 
     fn handle(&mut self, msg: UnlockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self.unlock_wallet(msg.wallet_id, msg.password).map(
-            |model::WalletUnlocked {
-                 name,
-                 caption,
-                 session_id,
-                 accounts,
-                 ..
-             },
-             slf,
-             ctx| {
+            |(session_id, wallet), slf, ctx| {
                 slf.set_session_to_expire(session_id.clone()).spawn(ctx);
 
                 UnlockWalletResponse {
                     session_id,
-                    accounts,
-                    name,
-                    caption,
+                    accounts: wallet.accounts.to_owned(),
+                    name: wallet.name.to_owned(),
+                    caption: wallet.caption.to_owned(),
                     session_expiration_secs: slf.params.session_expires_in.as_secs(),
                 }
             },

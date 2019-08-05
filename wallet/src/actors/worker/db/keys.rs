@@ -28,6 +28,12 @@ pub fn wallet_salt(wallet_id: &str) -> Vec<u8> {
     bytes!("wallet-{}-salt", wallet_id)
 }
 
+/// A wallet's encryption iv.
+#[inline]
+pub fn wallet_iv(wallet_id: &str) -> Vec<u8> {
+    bytes!("wallet-{}-iv", wallet_id)
+}
+
 /// A wallet's generated account indexes.
 #[inline]
 pub fn wallet_accounts(wallet_id: &str) -> Vec<u8> {

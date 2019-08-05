@@ -183,7 +183,7 @@ impl App {
         &self,
         wallet_id: String,
         password: types::Password,
-    ) -> ResponseActFuture<model::WalletUnlocked> {
+    ) -> ResponseActFuture<(String, model::WalletUnlocked)> {
         let f = self
             .params
             .worker
@@ -199,12 +199,9 @@ impl App {
                 err => From::from(err),
             })
             .into_actor(self)
-            .and_then(|wallet: model::WalletUnlocked, slf: &mut Self, _| {
-                fut::result(
-                    slf.state
-                        .insert_wallet(wallet.session_id.clone(), wallet.clone()),
-                )
-                .map(move |(), _, _| wallet)
+            .and_then(|(session_id, wallet), slf: &mut Self, _| {
+                fut::result(slf.state.insert_wallet(session_id.clone(), wallet.clone()))
+                    .map(move |(), _, _| (session_id, wallet))
             });
 
         Box::new(f)
