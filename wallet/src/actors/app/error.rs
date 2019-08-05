@@ -9,6 +9,8 @@ use crate::actors;
 
 #[derive(Debug, Fail)]
 pub enum Error {
+    #[fail(display = "invariant state error: {}", _0)]
+    State(&'static str),
     #[fail(display = "validation error")]
     Validation(ValidationErrors),
     #[fail(display = "internal error")]
@@ -21,6 +23,8 @@ pub enum Error {
     SessionNotFound,
     #[fail(display = "wallet not found")]
     WalletNotFound,
+    #[fail(display = "wallet already unlocked")]
+    WalletAlreadyUnlocked,
 }
 
 impl Error {
@@ -33,6 +37,7 @@ impl Error {
             ),
             Error::SessionNotFound => (401, "Unauthorized", None),
             Error::WalletNotFound => (402, "Forbidden", None),
+            Error::WalletAlreadyUnlocked => (403, "Wallet Already Unlocked", None),
             Error::Node(e) => {
                 log::error!("Node Error: {}", &e);
                 (
@@ -42,6 +47,10 @@ impl Error {
                 )
             }
             Error::NodeNotConnected => (520, "Node Not Connected", None),
+            Error::State(e) => {
+                log::error!("{}", e);
+                (530, "Internal Invariant Error", None)
+            }
             Error::Internal(e) => {
                 log::error!("Internal Error: {}", &e);
                 (

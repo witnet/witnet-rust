@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -13,12 +12,14 @@ pub mod handlers;
 pub mod methods;
 pub mod params;
 pub mod routes;
+pub mod state;
 pub mod validation;
 
 pub use error::*;
 pub use handlers::*;
 pub use params::*;
 pub use routes::*;
+pub use state::*;
 pub use validation::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -30,13 +31,7 @@ pub type ResponseActFuture<T> = actix::ResponseActFuture<App, T, Error>;
 pub struct App {
     db: Arc<rocksdb::DB>,
     params: Params,
-    sessions: HashMap<String, Session>,
-}
-
-#[derive(Default)]
-struct Session {
-    wallets: HashMap<String, model::WalletUnlocked>,
-    subscriptions: HashMap<types::SubscriptionId, types::Sink>,
+    state: State,
 }
 
 impl Actor for App {
