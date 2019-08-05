@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 
 use bech32::ToBase32 as _;
@@ -9,6 +10,7 @@ use witnet_crypto::{
     key::{ExtendedSK, KeyPath, MasterKeyGen, SignEngine},
     pbkdf2::pbkdf2_sha256,
 };
+use witnet_data_structures::chain::Hashable as _;
 
 use super::*;
 use crate::model;
@@ -61,6 +63,77 @@ impl Worker {
 
     pub fn flush_db(&self, db: &Db<'_>) -> Result<()> {
         db.flush()
+    }
+
+    pub fn account_balance(&self, db: Db<'_>, wallet: &types::SimpleWallet) -> Result<u64> {
+        let db = db.with_key(&wallet.enc_key, &wallet.iv, &self.params);
+        let balance =
+            db.get_or_default_dec::<u64>(&keys::account_balance(&wallet.id, wallet.account_index))?;
+
+        Ok(balance)
+    }
+
+    pub fn index_txns(
+        &self,
+        db: Db<'_>,
+        txns: &[types::VTTransactionBody],
+        wallet: &types::SimpleWallet,
+    ) -> Result<()> {
+        let db = db.with_key(&wallet.enc_key, &wallet.iv, &self.params);
+        let wallet_id = &wallet.id;
+        let pkhs = db
+            .get_or_default_dec::<Vec<Vec<u8>>>(&keys::wallet_pkhs(wallet_id))?
+            .into_iter()
+            .collect::<HashSet<_>>();
+        let utxos_key = &keys::wallet_utxos(wallet_id);
+
+        let mut utxos = db
+            .get_or_default_dec::<Vec<((Vec<u8>, u32), u64)>>(utxos_key)?
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+        let _lock = wallet.mutex.lock()?;
+        let mut count =
+            db.get_or_default_dec::<u32>(&keys::wallet_transactions_count(wallet_id))?;
+        let mut batch = db.batch();
+
+        for txn in txns {
+            let current_txn_hash = txn.hash().as_ref().to_vec();
+
+            for input in &txn.inputs {
+                let out_pointer = input.output_pointer();
+                let transaction_hash = out_pointer.transaction_id.as_ref();
+                let utxo = &(transaction_hash.to_vec(), out_pointer.output_index);
+
+                if let Some(value) = utxos.get(utxo) {
+                    batch.put_enc(&keys::transaction_hash(wallet_id, count), &transaction_hash)?;
+                    batch.put_enc(&keys::transaction_value(wallet_id, count), value)?;
+                    batch.put_enc(&keys::transaction_type(wallet_id, count), &"debit")?;
+
+                    utxos.remove(utxo);
+                    count += 1;
+                }
+            }
+
+            for (output_index, output) in txn.outputs.iter().enumerate() {
+                if pkhs.contains(output.pkh.as_ref()) {
+                    batch.put_enc(&keys::transaction_hash(wallet_id, count), &current_txn_hash)?;
+                    batch.put_enc(&keys::transaction_value(wallet_id, count), &output.value)?;
+                    batch.put_enc(&keys::transaction_type(wallet_id, count), &"credit")?;
+
+                    utxos.insert(
+                        (current_txn_hash.clone(), output_index as u32),
+                        output.value,
+                    );
+                    count += 1;
+                }
+            }
+        }
+
+        batch.put_enc(utxos_key, &utxos)?;
+
+        db.write(batch)?;
+
+        Ok(())
     }
 
     pub fn wallet_infos(&self, db: &Db<'_>) -> Result<Vec<model::Wallet>> {
@@ -126,7 +199,7 @@ impl Worker {
     pub fn gen_address(
         &mut self,
         db: Db<'_>,
-        wallet: &model::InMemoryWallet,
+        wallet: &types::ExternalWallet,
         label: Option<String>,
     ) -> Result<model::Address> {
         let _lock = wallet.mutex.lock()?;
@@ -134,7 +207,7 @@ impl Worker {
         let db = db.with_key(&wallet.enc_key, &wallet.iv, &self.params);
         let mut batch = db.batch();
         let id = &wallet.id;
-        let account = wallet.account.index;
+        let account = wallet.account_index;
         let mut pkhs = db.get_or_default_dec::<Vec<_>>(&keys::wallet_pkhs(&id))?;
 
         let index = db.get_or_default_dec::<u32>(&keys::account_next_ek_index(&id, account))?;
@@ -142,8 +215,7 @@ impl Worker {
         db.put_enc(&keys::account_next_ek_index(&id, account), &next_index)?;
 
         let extended_sk = wallet
-            .account
-            .external
+            .account_external
             .derive(&self.engine, &types::KeyPath::default().index(index))?;
         let types::ExtendedPK { key, .. } =
             types::ExtendedPK::from_secret_key(&self.engine, &extended_sk);
@@ -160,6 +232,7 @@ impl Worker {
                 pkhs.push(pkh.clone());
 
                 batch.put_enc(&keys::wallet_pkhs(id), &pkhs)?;
+                batch.put_enc(&keys::pkh_account(&id, pkh.as_ref()), &account)?;
                 batch.put_enc(&keys::address(&id, account, index), &address)?;
                 batch.put_enc(&keys::address_path(&id, account, index), &path)?;
                 batch.put_enc(&keys::address_label(&id, account, index), &label)?;
@@ -178,13 +251,13 @@ impl Worker {
     pub fn addresses(
         &mut self,
         db: Db<'_>,
-        wallet: &model::InMemoryWallet,
+        wallet: &types::ExternalWallet,
         offset: u32,
         limit: u32,
     ) -> Result<model::Addresses> {
         let db = db.with_key(&wallet.enc_key, &wallet.iv, &self.params);
         let id = &wallet.id;
-        let account = wallet.account.index;
+        let account = wallet.account_index;
         let last_index =
             db.get_or_default_dec::<u32>(&keys::account_next_ek_index(&id, account))?;
 
@@ -216,7 +289,7 @@ impl Worker {
         db: Db<'_>,
         wallet_id: &str,
         password: &[u8],
-    ) -> Result<(String, model::WalletUnlocked)> {
+    ) -> Result<(String, WalletUnlocked)> {
         let salt = &db.get::<Vec<u8>>(&keys::wallet_salt(wallet_id))?;
         let iv = db.get::<Vec<u8>>(&keys::wallet_iv(wallet_id))?;
         let enc_key = self.key_from_password(password, salt);
@@ -226,29 +299,29 @@ impl Worker {
         let name = db.get_opt::<String>(&keys::wallet_name(wallet_id))?;
         let caption = db.get_opt::<String>(&keys::wallet_caption(wallet_id))?;
         let accounts = db.get_dec::<Vec<u32>>(&keys::wallet_accounts(wallet_id))?;
-        let account = db.get_dec::<u32>(&keys::wallet_default_account(wallet_id))?;
+        let account_index = db.get_dec::<u32>(&keys::wallet_default_account(wallet_id))?;
 
-        let external = db.get_dec(&keys::account_ek(&wallet_id, account))?;
-        let internal = db.get_dec(&keys::account_ik(&wallet_id, account))?;
-        let rad = db.get_dec(&keys::account_rk(&wallet_id, account))?;
+        let account_external = db.get_dec(&keys::account_ek(&wallet_id, account_index))?;
+        let account_internal = db.get_dec(&keys::account_ik(&wallet_id, account_index))?;
+        let account_rad = db.get_dec(&keys::account_rk(&wallet_id, account_index))?;
+        let account_balance =
+            db.get_or_default_dec(&keys::account_balance(&wallet_id, account_index))?;
 
-        let wallet = model::InMemoryWallet {
+        let wallet = WalletUnlocked {
+            id: wallet_id.to_string(),
             name,
             caption,
             accounts,
             enc_key,
             iv,
-            id: wallet_id.to_string(),
-            account: model::Account {
-                index: account,
-                external,
-                internal,
-                rad,
-            },
-            mutex: Mutex::new(()),
+            account_index,
+            account_external,
+            account_internal,
+            account_rad,
+            account_balance,
         };
 
-        Ok((session_id, Arc::new(wallet)))
+        Ok((session_id, wallet))
     }
 
     pub fn key_from_password(&self, password: &[u8], salt: &[u8]) -> types::Secret {
@@ -273,7 +346,7 @@ impl Worker {
         Ok(key)
     }
 
-    pub fn gen_account(&self, master_key: &ExtendedSK) -> Result<model::Account> {
+    pub fn gen_account(&self, master_key: &ExtendedSK) -> Result<types::Account> {
         let account_index = 0;
         let account_keypath = account_keypath(account_index);
 
@@ -294,12 +367,14 @@ impl Worker {
 
             account_key.derive(&self.engine, &keypath)?
         };
+        let balance = 0;
 
-        let account = model::Account {
+        let account = types::Account {
             index: account_index,
             external,
             internal,
             rad,
+            balance,
         };
 
         Ok(account)

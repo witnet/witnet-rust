@@ -10,8 +10,11 @@ impl Handler<jsonrpc::Notification> for app::App {
     fn handle(
         &mut self,
         jsonrpc::Notification(value): jsonrpc::Notification,
-        _ctx: &mut Self::Context,
+        ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.handle_block_notification(value)
+        match self.handle_block_notification(value) {
+            Ok(()) => ctx.notify(app::NotifyBalances),
+            Err(err) => log::error!("Couldn't parse received block: {}", err),
+        }
     }
 }

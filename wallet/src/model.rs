@@ -1,24 +1,12 @@
-use std::sync::{Arc, Mutex};
-
+//! Type definitions common to all actors and are intended to be
+//! returned to clients.
 use serde::Serialize;
-
-use witnet_crypto::key;
-
-use crate::types;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Wallet {
     pub id: String,
     pub name: Option<String>,
     pub caption: Option<String>,
-}
-
-#[derive(Clone)]
-pub struct Account {
-    pub index: u32,
-    pub external: key::ExtendedSK,
-    pub internal: key::ExtendedSK,
-    pub rad: key::ExtendedSK,
 }
 
 #[derive(Debug, Serialize)]
@@ -34,15 +22,10 @@ pub struct Addresses {
     pub total: u32,
 }
 
-pub type WalletUnlocked = Arc<InMemoryWallet>;
-
-pub struct InMemoryWallet {
-    pub id: String,
-    pub name: Option<String>,
-    pub caption: Option<String>,
-    pub account: Account,
-    pub accounts: Vec<u32>,
-    pub enc_key: types::Secret,
-    pub iv: Vec<u8>,
-    pub mutex: Mutex<()>,
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountBalance {
+    pub wallet_id: String,
+    pub account: u32,
+    pub balance: u64,
 }

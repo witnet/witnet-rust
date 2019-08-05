@@ -3,11 +3,11 @@ use std::sync::Arc;
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::model;
+use crate::{model, types};
 
 pub struct GetAddresses(
     pub Arc<rocksdb::DB>,
-    pub model::WalletUnlocked,
+    pub types::ExternalWallet,
     /// Offset
     pub u32,
     /// Limit

@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use actix::utils::TimerFunc;
 use futures::future;
 
@@ -50,7 +52,7 @@ impl App {
         wallet_id: String,
         label: Option<String>,
     ) -> ResponseActFuture<model::Address> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
+        let f = fut::result(self.state.external_wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
@@ -72,7 +74,7 @@ impl App {
         offset: u32,
         limit: u32,
     ) -> ResponseActFuture<model::Addresses> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
+        let f = fut::result(self.state.external_wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
@@ -183,7 +185,7 @@ impl App {
         &self,
         wallet_id: String,
         password: types::Password,
-    ) -> ResponseActFuture<(String, model::WalletUnlocked)> {
+    ) -> ResponseActFuture<(Session, UnlockedWallet)> {
         let f = self
             .params
             .worker
@@ -200,8 +202,31 @@ impl App {
             })
             .into_actor(self)
             .and_then(|(session_id, wallet), slf: &mut Self, _| {
-                fut::result(slf.state.insert_wallet(session_id.clone(), wallet.clone()))
-                    .map(move |(), _, _| (session_id, wallet))
+                let session = Session {
+                    id: session_id.clone(),
+                    expiration_secs: slf.params.session_expires_in.as_secs(),
+                };
+                let public_wallet = UnlockedWallet {
+                    name: wallet.name,
+                    caption: wallet.caption,
+                    balance: wallet.account_balance,
+                    account: wallet.account_index,
+                    accounts: wallet.accounts,
+                };
+                let state_wallet = types::Wallet {
+                    id: wallet.id,
+                    enc_key: wallet.enc_key,
+                    iv: wallet.iv,
+                    account_balance: wallet.account_balance,
+                    account_index: wallet.account_index,
+                    account_external: wallet.account_external,
+                    account_internal: wallet.account_internal,
+                    account_rad: wallet.account_rad,
+                    mutex: Arc::new(Mutex::new(())),
+                };
+
+                fut::result(slf.state.insert_wallet(session_id, state_wallet))
+                    .map(move |(), _, _| (session, public_wallet))
             });
 
         Box::new(f)
@@ -242,12 +267,30 @@ impl App {
     }
 
     /// Handle notifications received from the node.
-    pub fn handle_block_notification(&mut self, value: types::Json) {
-        match serde_json::from_value::<types::ChainBlock>(value) {
-            Ok(_block) => {
-                // TODO: implement
-            }
-            Err(e) => log::error!("Couldn't parse received block: {}", e),
+    pub fn handle_block_notification(
+        &mut self,
+        value: types::Json,
+    ) -> result::Result<(), serde_json::Error> {
+        log::trace!("received block notification");
+        let block = serde_json::from_value::<types::ChainBlock>(value)?;
+        let txns = block
+            .txns
+            .value_transfer_txns
+            .into_iter()
+            .map(|txn| txn.body)
+            .collect::<Vec<_>>();
+
+        for wallet in self.state.wallets() {
+            self.params
+                .worker
+                .do_send(worker::IndexTxns(self.db.clone(), txns.clone(), wallet));
         }
+
+        Ok(())
+    }
+
+    /// Notify new balances to all the unlocked wallets.
+    pub fn notify_balances(&self) {
+        log::trace!("notifying balances");
     }
 }

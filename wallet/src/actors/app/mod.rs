@@ -1,3 +1,4 @@
+use std::result;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -5,7 +6,7 @@ use serde_json::json;
 
 use witnet_net::client::tcp::jsonrpc;
 
-use crate::{model, types};
+use crate::types;
 
 pub mod error;
 pub mod handlers;
@@ -22,7 +23,7 @@ pub use routes::*;
 pub use state::*;
 pub use validation::*;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Error>;
 
 pub type ResponseFuture<T> = actix::ResponseFuture<T, Error>;
 

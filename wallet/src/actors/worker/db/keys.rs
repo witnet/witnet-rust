@@ -52,6 +52,18 @@ pub fn wallet_pkhs(wallet_id: &str) -> Vec<u8> {
     bytes!("wallet-{}-pkhs", wallet_id)
 }
 
+/// A wallet's UTXOs.
+#[inline]
+pub fn wallet_utxos(wallet_id: &str) -> Vec<u8> {
+    bytes!("wallet-{}-utxos", wallet_id)
+}
+
+/// A wallet's counter of how many transactions it has.
+#[inline]
+pub fn wallet_transactions_count(wallet_id: &str) -> Vec<u8> {
+    bytes!("wallet-{}-transactions", wallet_id)
+}
+
 /// An account's external key.
 #[inline]
 pub fn account_ek(wallet_id: &str, account_index: u32) -> Vec<u8> {
@@ -62,6 +74,12 @@ pub fn account_ek(wallet_id: &str, account_index: u32) -> Vec<u8> {
 #[inline]
 pub fn account_ik(wallet_id: &str, account_index: u32) -> Vec<u8> {
     bytes!("wallet-{}-account-{}-ik", wallet_id, account_index)
+}
+
+/// An account's balance.
+#[inline]
+pub fn account_balance(wallet_id: &str, account_index: u32) -> Vec<u8> {
+    bytes!("wallet-{}-account-{}-balance", wallet_id, account_index)
 }
 
 /// An account's rad key.
@@ -110,5 +128,41 @@ pub fn address_label(wallet_id: &str, account_index: u32, key_index: u32) -> Vec
         wallet_id,
         account_index,
         key_index
+    )
+}
+
+/// A PKH's associated account.
+#[inline]
+pub fn pkh_account(wallet_id: &str, pkh: &[u8]) -> Vec<u8> {
+    bytes!("wallet-{}-pkh-{}-account", wallet_id, hex::encode(pkh))
+}
+
+/// A transaction's hash.
+#[inline]
+pub fn transaction_hash(wallet_id: &str, transaction_index: u32) -> Vec<u8> {
+    bytes!(
+        "wallet-{}-transaction-{}-hash",
+        wallet_id,
+        transaction_index
+    )
+}
+
+/// A transaction's value.
+#[inline]
+pub fn transaction_value(wallet_id: &str, transaction_index: u32) -> Vec<u8> {
+    bytes!(
+        "wallet-{}-transaction-{}-value",
+        wallet_id,
+        transaction_index
+    )
+}
+
+/// A transaction's type.
+#[inline]
+pub fn transaction_type(wallet_id: &str, transaction_index: u32) -> Vec<u8> {
+    bytes!(
+        "wallet-{}-transaction-{}-type",
+        wallet_id,
+        transaction_index
     )
 }

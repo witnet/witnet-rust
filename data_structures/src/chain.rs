@@ -376,6 +376,14 @@ impl From<Sha256> for Hash {
     }
 }
 
+impl AsRef<[u8]> for Hash {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            Hash::SHA256(bytes) => bytes.as_ref(),
+        }
+    }
+}
+
 impl Into<Sha256> for Hash {
     fn into(self) -> Sha256 {
         match self {
@@ -450,6 +458,12 @@ pub type SHA256 = [u8; 32];
 #[protobuf_convert(pb = "witnet::PublicKeyHash")]
 pub struct PublicKeyHash {
     pub(crate) hash: [u8; 20],
+}
+
+impl AsRef<[u8]> for PublicKeyHash {
+    fn as_ref(&self) -> &[u8] {
+        self.hash.as_ref()
+    }
 }
 
 impl fmt::Display for PublicKeyHash {

@@ -6,7 +6,7 @@ use super::*;
 #[derive(Default)]
 pub struct State {
     sessions: HashMap<String, Session>,
-    wallets: HashMap<String, model::WalletUnlocked>,
+    wallets: HashMap<String, types::Wallet>,
 }
 
 #[derive(Default)]
@@ -16,8 +16,12 @@ struct Session {
 }
 
 impl State {
-    /// Get a cloned copy of an unlocked wallet.
-    pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<model::WalletUnlocked> {
+    /// Get a copy of an unlocked wallet suitable for operations with the external keychain.
+    pub fn external_wallet(
+        &self,
+        session_id: &str,
+        wallet_id: &str,
+    ) -> Result<types::ExternalWallet> {
         let session = self
             .sessions
             .get(session_id)
@@ -28,10 +32,19 @@ impl State {
             .get(wallet_id)
             .ok_or_else(|| Error::WalletNotFound)?;
 
-        self.wallets
+        let wallet = self
+            .wallets
             .get(wallet_id)
-            .cloned()
-            .ok_or_else(|| Error::State("session wallet not found"))
+            .ok_or_else(|| Error::State("session wallet not found"))?;
+
+        Ok(types::ExternalWallet {
+            id: wallet.id.clone(),
+            enc_key: wallet.enc_key.clone(),
+            iv: wallet.iv.clone(),
+            account_index: wallet.account_index,
+            account_external: wallet.account_external.clone(),
+            mutex: wallet.mutex.clone(),
+        })
     }
 
     /// Check if the session is still active.
@@ -93,11 +106,7 @@ impl State {
     }
 
     /// Insert a new wallet into the state if it is not already present.
-    pub fn insert_wallet(
-        &mut self,
-        session_id: String,
-        wallet: model::WalletUnlocked,
-    ) -> Result<()> {
+    pub fn insert_wallet(&mut self, session_id: String, wallet: types::Wallet) -> Result<()> {
         let entry = self.sessions.entry(session_id.clone());
         let wallets = &mut entry.or_default().wallets;
 
@@ -109,5 +118,11 @@ impl State {
 
             Ok(())
         }
+    }
+
+    // FIXME: Implement as Iterator
+    /// Return an Iterator over the unlocked wallets.
+    pub fn wallets(&self) -> Vec<types::SimpleWallet> {
+        self.wallets.values().map(From::from).collect()
     }
 }

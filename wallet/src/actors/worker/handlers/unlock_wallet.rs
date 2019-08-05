@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::{model, types};
+use crate::types;
 
 pub struct UnlockWallet(
     pub Arc<rocksdb::DB>,
@@ -13,8 +13,22 @@ pub struct UnlockWallet(
     pub types::Password,
 );
 
+pub struct WalletUnlocked {
+    pub id: String,
+    pub name: Option<String>,
+    pub caption: Option<String>,
+    pub account_index: u32,
+    pub account_external: types::ExtendedSK,
+    pub account_internal: types::ExtendedSK,
+    pub account_rad: types::ExtendedSK,
+    pub account_balance: u64,
+    pub accounts: Vec<u32>,
+    pub enc_key: types::Secret,
+    pub iv: Vec<u8>,
+}
+
 impl Message for UnlockWallet {
-    type Result = worker::Result<(String, model::WalletUnlocked)>;
+    type Result = worker::Result<(String, WalletUnlocked)>;
 }
 
 impl Handler<UnlockWallet> for worker::Worker {
