@@ -511,21 +511,42 @@ fn post_actor(
                             )
                         })
                         .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point)| {
+                            let mut sign_addr2 = sign_addr.clone();
+                            let fut1 = wbi_contract3
+                                .query(
+                                    "claimDataRequests",
+                                    (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr.clone()),
+                                    eth_account,
+                                    contract::Options::default(),
+                                    None,
+                                )
+                                .map(|_: Token| sign_addr);
+                            // If the query fails, we want to retry it with the signature "v" value flipped.
+                            *sign_addr2.last_mut().unwrap() ^= 0x01;
+                            let fut2 = wbi_contract3
+                                .query(
+                                    "claimDataRequests",
+                                    (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr2.clone()),
+                                    eth_account,
+                                    contract::Options::default(),
+                                    None,
+                                )
+                                .map(|_: Token| sign_addr2);
+
                             Box::new(
-                                wbi_contract3
-                                    .query(
-                                        "claimDataRequests",
-                                        (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr.clone()),
-                                        eth_account,
-                                        contract::Options::default(),
-                                        None,
-                                    )
+                                fut1
+                                    .or_else(move |e| {
+                                        debug!("claimDataRequests failed, retrying with different signature sign (v): {:?}", e);
+                                        Box::new(fut2)
+                                    })
                                     .map_err(move |e| {
                                         warn!(
                                         "[{}] the POE is invalid, no eligibility for this epoch :( {:?}",
                                         dr_id, e);
                                     })
-                                    .map(move |_: Token| (poe, sign_addr, witnet_pk, dr_output, u_point, v_point)),
+                                    .map(move |sign_addr| {
+                                        (poe, sign_addr, witnet_pk, dr_output, u_point, v_point)
+                                    }),
                             )
 
                         })
