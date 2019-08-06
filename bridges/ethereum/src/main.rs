@@ -2,6 +2,7 @@
 use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
 use bimap::BiMap;
 use ethabi::{Bytes, Token};
+use futures::future::Either;
 use futures::sink::Sink;
 use log::*;
 use serde_json::{json, Value};
@@ -178,8 +179,8 @@ fn eth_event_stream(
                                             contract::Options::default(),
                                             None,
                                         )
-                                        .then(move |res: Result<U256, _>| {
-                                            let dr_tx_hash = res.unwrap();
+                                        .map_err(|e| error!("{:?}", e))
+                                        .and_then(move |dr_tx_hash: U256| {
                                             let dr_tx_hash = Hash::SHA256(dr_tx_hash.into());
                                             info!(
                                             "[{}] Data request included in witnet with dr_tx_hash: {}",
@@ -188,7 +189,8 @@ fn eth_event_stream(
                                             tx3.send(ActorMessage::WaitForTally(dr_id, dr_tx_hash))
                                                 .map(|_| ())
                                                 .map_err(|_| ())
-                                        }),
+                                        })
+                                        .map_err(|e| error!("{:?}", e)),
                                 )
                             }
                             Ok(WbiEvent::PostedResult(dr_id)) => {
@@ -207,6 +209,8 @@ fn eth_event_stream(
 
                     fut
                 })
+                // Without this line the stream will stop on the first failure
+                .then(|_| Ok(()))
                 .for_each(|_| Ok(()))
         })
 }
@@ -274,10 +278,20 @@ fn witnet_block_stream(
                     let tx1 = tx.clone();
                     // TODO: get current epoch to distinguish between old blocks that are sent
                     // to us while synchronizing and new blocks
-                    let block = serde_json::from_value::<Block>(value).unwrap();
-                    debug!("Got witnet block: {:?}", block);
-                    tx1.send(ActorMessage::NewWitnetBlock(Box::new(block)))
-                        .map_err(|_| ())
+                    match serde_json::from_value::<Block>(value) {
+                        Ok(block) => {
+                            debug!("Got witnet block: {:?}", block);
+                            Either::A(
+                                tx1.send(ActorMessage::NewWitnetBlock(Box::new(block)))
+                                    .map_err(|_| ())
+                                    .map(|_| ()),
+                            )
+                        }
+                        Err(e) => {
+                            error!("Error parsing witnet block: {:?}", e);
+                            Either::B(futures::finished(()))
+                        }
+                    }
                 })
                 .for_each(|_| Ok(()))
         });
@@ -596,6 +610,8 @@ fn post_actor(
                                 })
                                 .map(|_| ())
                         })
+                        // Without this line the stream will stop on the first failure
+                        .then(|_| Ok(()))
                 }
             }
         }),
@@ -717,12 +733,26 @@ fn main_actor(
                             if let Some((dr_id, _)) =
                                 claimed_drs.remove_by_right(&dr.body.dr_output.hash())
                             {
-                                let dr_inclusion_proof =
-                                    dr.data_proof_of_inclusion(&block).unwrap();
+                                let dr_inclusion_proof = match dr.data_proof_of_inclusion(&block) {
+                                    Some(x) => x,
+                                    None => {
+                                        error!("Error creating data request proof of inclusion");
+                                        return Err(());
+                                    }
+                                };
+
+                                let dr_bytes = match dr.body.dr_output.to_pb_bytes() {
+                                    Ok(x) => x,
+                                    Err(e) => {
+                                        error!("Error serializing data request output to Protocol Buffers: {:?}", e);
+                                        return Err(());
+                                    }
+                                };
+
                                 debug!(
                                     "Proof of inclusion for data request {}:\nData: {:?}\n{:?}",
                                     dr.hash(),
-                                    dr.body.dr_output.to_pb_bytes().unwrap(),
+                                    dr_bytes,
                                     dr_inclusion_proof
                                 );
                                 info!("[{}] Claimed dr got included in witnet block!", dr_id);
@@ -760,7 +790,13 @@ fn main_actor(
                             {
                                 // Call report_result method of the WBI
                                 let tally_inclusion_proof =
-                                    tally.data_proof_of_inclusion(&block).unwrap();
+                                    match tally.data_proof_of_inclusion(&block) {
+                                        Some(x) => x,
+                                        None => {
+                                            error!("Error creating tally data proof of inclusion");
+                                            return Err(());
+                                        }
+                                    };
                                 let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
                                 info!("[{}] Found tally for data request, posting to WBI", dr_id);
                                 debug!(
@@ -800,6 +836,8 @@ fn main_actor(
 
                         Result::<(), ()>::Ok(())
                     })
+                    // Without this line the actor will panic on the first failure
+                    .then(|_| Result::<(), ()>::Ok(()))
                     .wait()
                     .unwrap();
                 }
