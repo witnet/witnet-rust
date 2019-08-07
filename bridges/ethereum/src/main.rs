@@ -697,34 +697,40 @@ fn main_actor(
                             match block.block_header.merkle_roots.tally_hash_merkle_root {
                                 Hash::SHA256(x) => x.into(),
                             };
-                        // Post witnet block to BlockRelay wbi_contract
-                        let fut: Box<dyn Future<Item = Box<Block>, Error = ()> + Send> = Box::new(
-                            block_relay_contract
-                                .call_with_confirmations(
-                                    "postNewBlock",
-                                    (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
-                                    config.eth_account,
-                                    contract::Options {
-                                        gas: Some(200_000.into()),
-                                        gas_price: None,
-                                        value: None,
-                                        nonce: None,
-                                        condition: None,
-                                    },
-                                    1,
-                                )
-                                .map_err(|e| error!("postNewBlock: {:?}", e))
-                                .and_then(|tx| {
-                                    debug!("postNewBlock: {:?}", tx);
-                                    handle_receipt(tx)
-                                })
-                                .map(move |_traces| block),
-                        );
-                        fut
+                        // Optimization: do not relay empty blocks
+                        let empty_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into();
+                        Either::A(if dr_merkle_root == empty_hash && tally_merkle_root == empty_hash {
+                            Either::A(futures::finished(block))
+                        } else {
+
+                            // Post witnet block to BlockRelay wbi_contract
+                            Either::B(
+                                block_relay_contract
+                                    .call_with_confirmations(
+                                        "postNewBlock",
+                                        (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
+                                        config.eth_account,
+                                        contract::Options {
+                                            gas: Some(200_000.into()),
+                                            gas_price: None,
+                                            value: None,
+                                            nonce: None,
+                                            condition: None,
+                                        },
+                                        1,
+                                    )
+                                    .map_err(|e| error!("postNewBlock: {:?}", e))
+                                    .and_then(|tx| {
+                                        debug!("postNewBlock: {:?}", tx);
+                                        handle_receipt(tx)
+                                    })
+                                    .map(move |_traces| block),
+                            )
+                        })
                     } else {
                         // TODO: Wait for someone else to publish the witnet block to ethereum
-                        //Box::new(futures::finished(block))
-                        Box::new(
+                        //Either::B(futures::finished(block))
+                        Either::B(
                             wait_for_witnet_block_in_block_relay(
                                 Arc::clone(&config),
                                 Arc::clone(&eth_state),
