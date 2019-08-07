@@ -1,5 +1,7 @@
 //! Witnet <> Ethereum bridge
-use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
+use async_jsonrpc_client::{
+    futures::Stream, transports::tcp::TcpSocket, DuplexTransport, Transport,
+};
 use bimap::BiMap;
 use ethabi::{Bytes, Token};
 use futures::future::Either;
@@ -14,9 +16,7 @@ use tokio::sync::mpsc;
 use web3::{
     contract,
     futures::{future, Future},
-    types::FilterBuilder,
-    types::TransactionReceipt,
-    types::U256,
+    types::{FilterBuilder, TransactionReceipt, U256},
 };
 use witnet_crypto::hash::{calculate_sha256, Sha256};
 use witnet_data_structures::{
@@ -313,6 +313,297 @@ fn init_logger() {
         .init();
 }
 
+fn postdr(
+    config: Arc<Config>,
+    eth_state: Arc<EthState>,
+    witnet_client: Arc<TcpSocket>,
+    tx: mpsc::Sender<ActorMessage>,
+    dr_id: U256,
+) -> impl Future<Item = (), Error = ()> {
+    let wbi_contract = eth_state.wbi_contract.clone();
+    let eth_account = config.eth_account;
+
+    let tx = tx.clone();
+    let wbi_contract = wbi_contract.clone();
+    let wbi_contract2 = wbi_contract.clone();
+    let wbi_contract3 = wbi_contract.clone();
+    let wbi_contract4 = wbi_contract.clone();
+    let wbi_contract5 = wbi_contract.clone();
+    let wbi_contract6 = wbi_contract.clone();
+    let wbi_contract7 = wbi_contract.clone();
+    let witnet_client = Arc::clone(&witnet_client);
+    let witnet_client2 = Arc::clone(&witnet_client);
+    let witnet_client3 = Arc::clone(&witnet_client);
+    let witnet_client4 = Arc::clone(&witnet_client);
+
+    wbi_contract
+        .query(
+            "readDataRequest",
+            (dr_id,),
+            eth_account,
+            contract::Options::default(),
+            None,
+        )
+        .map_err(|e| error!("{:?}", e))
+        .and_then(move |dr_bytes: Bytes| {
+            let dr_output: DataRequestOutput =
+                match ProtobufConvert::from_pb_bytes(&dr_bytes) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        warn!(
+                            "[{}] uses an invalid serialization, will be ignored: {:?}",
+                            dr_id, e
+                        );
+                        let fut: Box<dyn Future<Item = (_, _), Error = ()> + Send> =
+                            Box::new(futures::failed(()));
+                        return fut;
+                    }
+                };
+
+            Box::new(
+                wbi_contract2
+                    .query(
+                        "getLastBeacon",
+                        (),
+                        eth_account,
+                        contract::Options::default(),
+                        None,
+                    )
+                    .map(|x: Bytes| (x, dr_output))
+                    .map_err(|e| error!("{:?}", e)),
+            )
+        })
+        .and_then(move |(vrf_message, dr_output)| {
+            let last_beacon = vrf_message.clone();
+
+            witnet_client2
+                .execute("createVRF", vrf_message.into())
+                .map_err(|e| error!("createVRF: {:?}", e))
+                .map(move |vrf| {
+                    debug!("createVRF: {:?}", vrf);
+
+                    (vrf, dr_output, last_beacon)
+                })
+        })
+        .and_then(move |(vrf, dr_output, last_beacon)| {
+            // Sign the ethereum account address with the witnet node private key
+            let Sha256(hash) = calculate_sha256(eth_account.as_bytes());
+
+            witnet_client3
+                .execute("sign", hash.to_vec().into())
+                .map_err(|e| error!("sign: {:?}", e))
+                .map(|sign_addr| {
+                    debug!("sign: {:?}", sign_addr);
+
+                    (vrf, sign_addr, dr_output, last_beacon)
+                })
+        })
+        .and_then(move |(vrf, sign_addr, dr_output, last_beacon)| {
+            // Get the public key of the witnet node
+
+            witnet_client4
+                .execute("getPublicKey", json!(null))
+                .map_err(|e| error!("getPublicKey: {:?}", e))
+                .map(move |witnet_pk| {
+                    debug!("getPublicKey: {:?}", witnet_pk);
+
+                    (vrf, sign_addr, witnet_pk, dr_output, last_beacon)
+                })
+        })
+        .and_then(move |(vrf, sign_addr, witnet_pk, dr_output, last_beacon)| {
+
+            // Locallty execute POE verification to check for eligibility
+            // without spending any gas
+            // TODO: this assumes that the vrf, witnet_pk and sign_addr are returned
+            // as an array of bytes: [1, 2, 3].
+            let poe = convert_json_array_to_eth_bytes(vrf);
+            let witnet_pk = convert_json_array_to_eth_bytes(witnet_pk);
+            let sign_addr = convert_json_array_to_eth_bytes(sign_addr);
+
+            let (poe, witnet_pk, sign_addr) = match (poe, witnet_pk, sign_addr) {
+                (Ok(poe), Ok(witnet_pk), Ok(sign_addr)) => {
+                    (poe, witnet_pk, sign_addr)
+                }
+                e => {
+                    error!(
+                        "Error deserializing value from witnet JSONRPC: {:?}",
+                        e
+                    );
+                    let fut: Box<
+                        dyn Future<Item = (_, _, _, _, _), Error = ()> + Send,
+                    > = Box::new(futures::failed(()));
+                    return fut;
+                }
+            };
+
+            debug!(
+                "\nPoE: {:?}\nWitnet Public Key: {:?}\nSignature Address: {:?}",
+                poe, witnet_pk.clone(), sign_addr
+            );
+            info!("[{}] Checking eligibility for claiming dr", dr_id);
+
+            Box::new(
+                wbi_contract5
+                    .query(
+                        "decodePoint",
+                        witnet_pk,
+                        eth_account,
+                        contract::Options::default(),
+                        None,
+                    )
+                    .map_err(move |e| {
+                        warn!(
+                            "[{}] Error decoding public Key:  {}",
+                            dr_id, e);
+                    })
+                    .map(move |pk: Token| {
+                        debug!("Received public key decode Point: {:?}", pk);
+
+                        (poe, sign_addr, pk, dr_output, last_beacon)
+                    }),
+            )
+        })
+        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
+
+            Box::new(
+                wbi_contract6
+                    .query(
+                        "decodeProof",
+                        poe,
+                        eth_account,
+                        contract::Options::default(),
+                        None,
+                    )
+                    .map_err(move |e| {
+                        warn!(
+                            "[{}] Error decoding proof:  {}",
+                            dr_id, e);
+                    })
+                    .map(move |proof: Token| {
+                        debug!("Received proof decode Point: {:?}", proof);
+
+                        (proof, sign_addr, witnet_pk, dr_output, last_beacon)
+                    }),
+            )
+        })
+        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
+
+            Box::new(
+                wbi_contract7
+                    .query(
+                        "computeFastVerifyParams",
+                        (witnet_pk.clone(), poe.clone(), last_beacon),
+                        eth_account,
+                        contract::Options::default(),
+                        None,
+                    )
+                    .map_err(move |e| {
+                        warn!(
+                            "[{}] Error in params reception:  {}",
+                            dr_id, e);
+                    })
+                    .map(move |(u_point, v_point): (Token, Token)| {
+                        debug!("Received fast verify params: ({:?}, {:?})", u_point, v_point);
+
+                        (poe, sign_addr, witnet_pk, dr_output, u_point , v_point)
+                    }),
+            )
+        })
+        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point)| {
+            let mut sign_addr2 = sign_addr.clone();
+            let fut1 = wbi_contract3
+                .query(
+                    "claimDataRequests",
+                    (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr.clone()),
+                    eth_account,
+                    contract::Options::default(),
+                    None,
+                )
+                .map(|_: Token| sign_addr);
+            // If the query fails, we want to retry it with the signature "v" value flipped.
+            *sign_addr2.last_mut().unwrap() ^= 0x01;
+            let fut2 = wbi_contract3
+                .query(
+                    "claimDataRequests",
+                    (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr2.clone()),
+                    eth_account,
+                    contract::Options::default(),
+                    None,
+                )
+                .map(|_: Token| sign_addr2);
+
+            Box::new(
+                fut1
+                    .or_else(move |e| {
+                        debug!("claimDataRequests failed, retrying with different signature sign (v): {:?}", e);
+                        Box::new(fut2)
+                    })
+                    .map_err(move |e| {
+                        warn!(
+                            "[{}] the POE is invalid, no eligibility for this epoch :( {:?}",
+                            dr_id, e);
+                    })
+                    .map(move |sign_addr| {
+                        (poe, sign_addr, witnet_pk, dr_output, u_point, v_point)
+                    }),
+            )
+
+        })
+        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point, v_point)| {
+            // Claim dr
+            info!("[{}] Claiming dr", dr_id);
+
+            wbi_contract4
+                .call_with_confirmations(
+                    "claimDataRequests",
+                    (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr),
+                    eth_account,
+                    contract::Options {
+                        gas: Some(500_000.into()),
+                        gas_price: None,
+                        value: None,
+                        nonce: None,
+                        condition: None,
+                    },
+                    1,
+                )
+                .map_err(move |e| {
+                    error!("claimDataRequests: {:?}", e);
+                })
+                .and_then(move |tx| {
+                    debug!("claimDataRequests: {:?}", tx);
+                    handle_receipt(tx).map_err(move |_| {
+                        // Or the PoE became invalid because a new witnet block was
+                        // just relayed
+                        // In this case we should save this data request to retry later
+                        warn!(
+                            "[{}] has been claimed by another bridge node, or the PoE expired",
+                            dr_id
+                        );
+                    })
+                })
+                .and_then(move |_traces| {
+                    // Post dr in witnet
+                    info!("[{}] Claimed dr, posting to witnet", dr_id);
+
+                    let bdr_params = json!({"dro": dr_output, "fee": 0});
+                    witnet_client
+                        .execute("buildDataRequest", bdr_params)
+                        .map_err(|e| error!("{:?}", e))
+                        .and_then(move |bdr_res| {
+                            debug!("buildDataRequest: {:?}", bdr_res);
+                            tx.send(ActorMessage::PostedDr(dr_id, dr_output))
+                                .map_err(|e| error!("{:?}", e))
+                                .and_then(|_|  {
+                                    debug!("Sent PostedDr message");
+                                    Result::<(), ()>::Ok(())
+                                })
+                        })
+                })
+                .map(|_| ())
+        })
+}
+
 fn post_actor(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
@@ -322,8 +613,6 @@ fn post_actor(
     async_jsonrpc_client::transports::shared::EventLoopHandle,
     impl Future<Item = (), Error = ()>,
 ) {
-    let wbi_contract = eth_state.wbi_contract.clone();
-
     // Important: the handle cannot be dropped, otherwise the client stops
     // processing events
     let witnet_addr = config.witnet_jsonrpc_addr.to_string();
@@ -335,283 +624,19 @@ fn post_actor(
         handle,
         rx.map_err(|_| ()).for_each(move |msg| {
             debug!("Got PostActorMessage: {:?}", msg);
-            let eth_account = config.eth_account;
-            let tx = tx.clone();
-            let wbi_contract = wbi_contract.clone();
-            let wbi_contract2 = wbi_contract.clone();
-            let wbi_contract3 = wbi_contract.clone();
-            let wbi_contract4 = wbi_contract.clone();
-            let wbi_contract5 = wbi_contract.clone();
-            let wbi_contract6 = wbi_contract.clone();
-            let wbi_contract7 = wbi_contract.clone();
-            let witnet_client = Arc::clone(&witnet_client);
-            let witnet_client2 = Arc::clone(&witnet_client);
-            let witnet_client3 = Arc::clone(&witnet_client);
-            let witnet_client4 = Arc::clone(&witnet_client);
 
             match msg {
+                // TODO: save the dr_id, even if we are not eligible, to retry in the future
                 PostActorMessage::PostDr(dr_id) => {
-                    wbi_contract
-                        .query(
-                            "readDataRequest",
-                            (dr_id,),
-                            eth_account,
-                            contract::Options::default(),
-                            None,
-                        )
-                        .map_err(|e| error!("{:?}", e))
-                        .and_then(move |dr_bytes: Bytes| {
-                            let dr_output: DataRequestOutput =
-                                match ProtobufConvert::from_pb_bytes(&dr_bytes) {
-                                    Ok(x) => x,
-                                    Err(e) => {
-                                        warn!(
-                                        "[{}] uses an invalid serialization, will be ignored: {:?}",
-                                        dr_id, e
-                                    );
-                                        let fut: Box<dyn Future<Item = (_, _), Error = ()> + Send> =
-                                            Box::new(futures::failed(()));
-                                        return fut;
-                                    }
-                                };
-
-                            Box::new(
-                                wbi_contract2
-                                    .query(
-                                        "getLastBeacon",
-                                        (),
-                                        eth_account,
-                                        contract::Options::default(),
-                                        None,
-                                    )
-                                    .map(|x: Bytes| (x, dr_output))
-                                    .map_err(|e| error!("{:?}", e)),
-                            )
-                        })
-                        .and_then(move |(vrf_message, dr_output)| {
-                            let last_beacon = vrf_message.clone();
-
-                            witnet_client2
-                                .execute("createVRF", vrf_message.into())
-                                .map_err(|e| error!("createVRF: {:?}", e))
-                                .map(move |vrf| {
-                                    debug!("createVRF: {:?}", vrf);
-
-                                    (vrf, dr_output, last_beacon)
-                                })
-                        })
-                        .and_then(move |(vrf, dr_output, last_beacon)| {
-                            // Sign the ethereum account address with the witnet node private key
-                            let Sha256(hash) = calculate_sha256(eth_account.as_bytes());
-
-                            witnet_client3
-                                .execute("sign", hash.to_vec().into())
-                                .map_err(|e| error!("sign: {:?}", e))
-                                .map(|sign_addr| {
-                                    debug!("sign: {:?}", sign_addr);
-
-                                    (vrf, sign_addr, dr_output, last_beacon)
-                                })
-                        })
-                        .and_then(move |(vrf, sign_addr, dr_output, last_beacon)| {
-                            // Get the public key of the witnet node
-
-                            witnet_client4
-                                .execute("getPublicKey", json!(null))
-                                .map_err(|e| error!("getPublicKey: {:?}", e))
-                                .map(move |witnet_pk| {
-                                    debug!("getPublicKey: {:?}", witnet_pk);
-
-                                    (vrf, sign_addr, witnet_pk, dr_output, last_beacon)
-                                })
-                        })
-                        .and_then(move |(vrf, sign_addr, witnet_pk, dr_output, last_beacon)| {
-
-                            // Locallty execute POE verification to check for eligibility
-                            // without spending any gas
-                            // TODO: this assumes that the vrf, witnet_pk and sign_addr are returned
-                            // as an array of bytes: [1, 2, 3].
-                            let poe = convert_json_array_to_eth_bytes(vrf);
-                            let witnet_pk = convert_json_array_to_eth_bytes(witnet_pk);
-                            let sign_addr = convert_json_array_to_eth_bytes(sign_addr);
-
-                            let (poe, witnet_pk, sign_addr) = match (poe, witnet_pk, sign_addr) {
-                                (Ok(poe), Ok(witnet_pk), Ok(sign_addr)) => {
-                                    (poe, witnet_pk, sign_addr)
-                                }
-                                e => {
-                                    error!(
-                                        "Error deserializing value from witnet JSONRPC: {:?}",
-                                        e
-                                    );
-                                    let fut: Box<
-                                        dyn Future<Item = (_, _, _, _, _), Error = ()> + Send,
-                                    > = Box::new(futures::failed(()));
-                                    return fut;
-                                }
-                            };
-
-                            debug!(
-                                "\nPoE: {:?}\nWitnet Public Key: {:?}\nSignature Address: {:?}",
-                                poe, witnet_pk.clone(), sign_addr
-                            );
-                            info!("[{}] Checking eligibility for claiming dr", dr_id);
-
-                            Box::new(
-                                wbi_contract5
-                                    .query(
-                                        "decodePoint",
-                                        witnet_pk,
-                                        eth_account,
-                                        contract::Options::default(),
-                                        None,
-                                    )
-                                    .map_err(move |e| {
-                                        warn!(
-                                            "[{}] Error decoding public Key:  {}",
-                                            dr_id, e);
-                                    })
-                                    .map(move |pk: Token| {
-                                        debug!("Received public key decode Point: {:?}", pk);
-
-                                        (poe, sign_addr, pk, dr_output, last_beacon)
-                                    }),
-                            )
-                        })
-                        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
-
-                            Box::new(
-                                wbi_contract6
-                                    .query(
-                                        "decodeProof",
-                                        poe,
-                                        eth_account,
-                                        contract::Options::default(),
-                                        None,
-                                    )
-                                    .map_err(move |e| {
-                                        warn!(
-                                            "[{}] Error decoding proof:  {}",
-                                            dr_id, e);
-                                    })
-                                    .map(move |proof: Token| {
-                                        debug!("Received proof decode Point: {:?}", proof);
-
-                                        (proof, sign_addr, witnet_pk, dr_output, last_beacon)
-                                    }),
-                            )
-                        })
-                        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
-
-                            Box::new(
-                                wbi_contract7
-                                    .query(
-                                        "computeFastVerifyParams",
-                                        (witnet_pk.clone(), poe.clone(), last_beacon),
-                                        eth_account,
-                                        contract::Options::default(),
-                                        None,
-                                    )
-                                    .map_err(move |e| {
-                                        warn!(
-                                            "[{}] Error in params reception:  {}",
-                                            dr_id, e);
-                                    })
-                                    .map(move |(u_point, v_point): (Token, Token)| {
-                                        debug!("Received fast verify params: ({:?}, {:?})", u_point, v_point);
-
-                                        (poe, sign_addr, witnet_pk, dr_output, u_point , v_point)
-                                    }),
-                            )
-                        })
-                        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point)| {
-                            let mut sign_addr2 = sign_addr.clone();
-                            let fut1 = wbi_contract3
-                                .query(
-                                    "claimDataRequests",
-                                    (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr.clone()),
-                                    eth_account,
-                                    contract::Options::default(),
-                                    None,
-                                )
-                                .map(|_: Token| sign_addr);
-                            // If the query fails, we want to retry it with the signature "v" value flipped.
-                            *sign_addr2.last_mut().unwrap() ^= 0x01;
-                            let fut2 = wbi_contract3
-                                .query(
-                                    "claimDataRequests",
-                                    (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr2.clone()),
-                                    eth_account,
-                                    contract::Options::default(),
-                                    None,
-                                )
-                                .map(|_: Token| sign_addr2);
-
-                            Box::new(
-                                fut1
-                                    .or_else(move |e| {
-                                        debug!("claimDataRequests failed, retrying with different signature sign (v): {:?}", e);
-                                        Box::new(fut2)
-                                    })
-                                    .map_err(move |e| {
-                                        warn!(
-                                        "[{}] the POE is invalid, no eligibility for this epoch :( {:?}",
-                                        dr_id, e);
-                                    })
-                                    .map(move |sign_addr| {
-                                        (poe, sign_addr, witnet_pk, dr_output, u_point, v_point)
-                                    }),
-                            )
-
-                        })
-                        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point, v_point)| {
-                            // Claim dr
-                            info!("[{}] Claiming dr", dr_id);
-
-                            wbi_contract4
-                                .call_with_confirmations(
-                                    "claimDataRequests",
-                                    (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr),
-                                    eth_account,
-                                    contract::Options {
-                                        gas: Some(500_000.into()),
-                                        gas_price: None,
-                                        value: None,
-                                        nonce: None,
-                                        condition: None,
-                                    },
-                                    1,
-                                )
-                                .map_err(move |e| {
-                                    error!("claimDataRequests: {:?}", e);
-                                })
-                                .and_then(move |tx| {
-                                    debug!("claimDataRequests: {:?}", tx);
-                                    handle_receipt(tx).map_err(move |_| {
-                                        warn!(
-                                            "[{}] has been claimed by another bridge node",
-                                            dr_id
-                                        );
-                                    })
-                                })
-                                .and_then(move |_traces| {
-                                    // Post dr in witnet
-                                    info!("[{}] Claimed dr, posting to witnet", dr_id);
-
-                                    let bdr_params = json!({"dro": dr_output, "fee": 0});
-                                    witnet_client
-                                        .execute("buildDataRequest", bdr_params)
-                                        .map_err(|e| error!("{:?}", e))
-                                        .and_then(move |bdr_res| {
-                                            debug!("buildDataRequest: {:?}", bdr_res);
-                                            tx.send(ActorMessage::PostedDr(dr_id, dr_output))
-                                                .map_err(|e| error!("{:?}", e))
-                                        })
-                                })
-                                .map(|_| ())
-                        })
-                        // Without this line the stream will stop on the first failure
-                        .then(|_| Ok(()))
+                    postdr(
+                        config.clone(),
+                        eth_state.clone(),
+                        witnet_client.clone(),
+                        tx.clone(),
+                        dr_id,
+                    )
+                    // Without this line the stream will stop on the first failure
+                    .then(|_| Ok(()))
                 }
             }
         }),
