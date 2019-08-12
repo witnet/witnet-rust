@@ -13,6 +13,7 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 #![deny(missing_docs)]
+use std::sync::Arc;
 use std::time::Duration;
 
 use actix::prelude::*;
@@ -59,29 +60,31 @@ pub fn run(conf: Config) -> Result<(), Error> {
         |url| JsonRpcClient::start(url.as_ref()).map(Some),
     )?;
 
-    let db = ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
-        .map_err(|e| failure::format_err!("{}", e))?;
+    let db = Arc::new(
+        ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
+            .map_err(|e| failure::format_err!("{}", e))?,
+    );
 
-    let worker = actors::Worker::start(actors::worker::Params {
-        testnet,
-        seed_password,
-        master_key_salt,
-        id_hash_iterations,
-        id_hash_function,
-        db_hash_iterations,
-        db_iv_length,
-        db_salt_length,
-    });
-
-    let app = actors::App::start(
-        db,
-        actors::app::Params {
-            worker,
-            client,
-            session_expires_in,
-            requests_timeout,
+    let worker = actors::Worker::start(
+        db.clone(),
+        actors::worker::Params {
+            testnet,
+            seed_password,
+            master_key_salt,
+            id_hash_iterations,
+            id_hash_function,
+            db_hash_iterations,
+            db_iv_length,
+            db_salt_length,
         },
     );
+
+    let app = actors::App::start(actors::app::Params {
+        worker,
+        client,
+        session_expires_in,
+        requests_timeout,
+    });
     let mut handler = pubsub::PubSubHandler::new(rpc::MetaIoHandler::default());
 
     actors::app::connect_routes(&mut handler, app.clone(), Arbiter::current());
@@ -94,6 +97,12 @@ pub fn run(conf: Config) -> Result<(), Error> {
     });
 
     system.run()?;
+
+    log::info!("Waiting for db to shut down...");
+    while Arc::strong_count(&db) > 1 {
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    log::info!("Db shut down finished.");
 
     Ok(())
 }

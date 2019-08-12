@@ -14,11 +14,12 @@ use super::*;
 use crate::model;
 
 impl Worker {
-    pub fn start(params: Params) -> Addr<Self> {
+    pub fn start(db: Arc<rocksdb::DB>, params: Params) -> Addr<Self> {
         let wallets_mutex = Arc::new(Mutex::new(()));
         let addresses_mutex = Arc::new(Mutex::new(()));
 
         SyncArbiter::start(num_cpus::get(), move || Self {
+            db: db.clone(),
             params: params.clone(),
             engine: SignEngine::signing_only(),
             rng: RefCell::new(rand::thread_rng()),
@@ -61,11 +62,14 @@ impl Worker {
         words.to_string()
     }
 
-    pub fn flush_db(&self, db: &Db<'_>) -> Result<()> {
+    pub fn flush_db(&self) -> Result<()> {
+        let db = Db::new(self.db.as_ref());
+
         db.flush()
     }
 
-    pub fn wallet_infos(&self, db: &Db<'_>) -> Result<Vec<model::Wallet>> {
+    pub fn wallet_infos(&self) -> Result<Vec<model::Wallet>> {
+        let db = Db::new(self.db.as_ref());
         let ids = db.get_or_default::<Vec<String>>(&keys::wallet_ids())?;
         let mut wallets = Vec::with_capacity(ids.len());
 
@@ -81,7 +85,6 @@ impl Worker {
 
     pub fn create_wallet(
         &mut self,
-        db: Db<'_>,
         name: Option<String>,
         caption: Option<String>,
         password: &[u8],
@@ -92,7 +95,7 @@ impl Worker {
         let id = self.gen_id(&master_key);
         let salt = &self.salt()?;
         let key = &self.key_from_password(password, salt);
-        let db = db.with_key(&key, &self.params);
+        let db = Db::new(self.db.as_ref()).with_key(&key, &self.params);
         let mut batch = db.batch();
 
         if let Some(name) = name {
@@ -126,13 +129,12 @@ impl Worker {
 
     pub fn gen_address(
         &mut self,
-        db: Db<'_>,
         wallet: &model::WalletUnlocked,
         label: Option<String>,
     ) -> Result<model::Address> {
         // FIXME: Use a rocksdb transaction when available in rocksdb crate
         let _lock = self.addresses_mutex.lock()?;
-        let db = db.with_key(&wallet.enc_key, &self.params);
+        let db = Db::new(self.db.as_ref()).with_key(&wallet.enc_key, &self.params);
         let mut batch = db.batch();
         let id = &wallet.id;
         let account = wallet.account.index;
@@ -178,12 +180,11 @@ impl Worker {
 
     pub fn addresses(
         &mut self,
-        db: Db<'_>,
         wallet: &model::WalletUnlocked,
         offset: u32,
         limit: u32,
     ) -> Result<model::Addresses> {
-        let db = db.with_key(&wallet.enc_key, &self.params);
+        let db = Db::new(self.db.as_ref()).with_key(&wallet.enc_key, &self.params);
         let id = &wallet.id;
         let account = wallet.account.index;
         let last_index =
@@ -214,10 +215,10 @@ impl Worker {
 
     pub fn unlock_wallet(
         &mut self,
-        db: Db<'_>,
         wallet_id: &str,
         password: &[u8],
     ) -> Result<model::WalletUnlocked> {
+        let db = Db::new(self.db.as_ref());
         let salt = &db.get::<Vec<u8>>(&keys::wallet_salt(wallet_id))?;
         let enc_key = self.key_from_password(password, salt);
         let db = db.with_key(&enc_key, &self.params);
@@ -346,25 +347,14 @@ impl Worker {
         Ok(salt)
     }
 
-    pub fn get(
-        &self,
-        db: Db<'_>,
-        wallet: &model::WalletUnlocked,
-        key: &str,
-    ) -> Result<Option<String>> {
-        let db = db.with_key(&wallet.enc_key, &self.params);
+    pub fn get(&self, wallet: &model::WalletUnlocked, key: &str) -> Result<Option<String>> {
+        let db = Db::new(self.db.as_ref()).with_key(&wallet.enc_key, &self.params);
 
         db.get_opt_dec::<String>(&keys::custom(&wallet.id, key))
     }
 
-    pub fn set(
-        &self,
-        db: Db<'_>,
-        wallet: &model::WalletUnlocked,
-        key: &str,
-        value: &str,
-    ) -> Result<()> {
-        let db = db.with_key(&wallet.enc_key, &self.params);
+    pub fn set(&self, wallet: &model::WalletUnlocked, key: &str, value: &str) -> Result<()> {
+        let db = Db::new(self.db.as_ref()).with_key(&wallet.enc_key, &self.params);
 
         db.put_enc(&keys::custom(&wallet.id, key), &value)
     }

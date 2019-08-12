@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use actix::prelude::*;
 use serde_json::json;
@@ -28,7 +27,6 @@ pub type ResponseFuture<T> = actix::ResponseFuture<T, Error>;
 pub type ResponseActFuture<T> = actix::ResponseActFuture<App, T, Error>;
 
 pub struct App {
-    db: Arc<rocksdb::DB>,
     params: Params,
     sessions: HashMap<String, Session>,
 }

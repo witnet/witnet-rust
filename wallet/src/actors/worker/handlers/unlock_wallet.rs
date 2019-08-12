@@ -1,12 +1,9 @@
-use std::sync::Arc;
-
 use actix::prelude::*;
 
 use crate::actors::worker;
 use crate::{model, types};
 
 pub struct UnlockWallet(
-    pub Arc<rocksdb::DB>,
     /// Wallet id
     pub String,
     /// Wallet password
@@ -22,9 +19,9 @@ impl Handler<UnlockWallet> for worker::Worker {
 
     fn handle(
         &mut self,
-        UnlockWallet(db, id, password): UnlockWallet,
+        UnlockWallet(id, password): UnlockWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.unlock_wallet(worker::Db::new(db.as_ref()), &id, password.as_ref())
+        self.unlock_wallet(&id, password.as_ref())
     }
 }

@@ -1,12 +1,9 @@
-use std::sync::Arc;
-
 use actix::prelude::*;
 
 use crate::actors::worker;
 use crate::types;
 
 pub struct CreateWallet(
-    pub Arc<rocksdb::DB>,
     /// Wallet name
     pub Option<String>,
     /// Wallet caption
@@ -24,15 +21,9 @@ impl Handler<CreateWallet> for worker::Worker {
 
     fn handle(
         &mut self,
-        CreateWallet(db, name, caption, password, seed_source): CreateWallet,
+        CreateWallet(name, caption, password, seed_source): CreateWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.create_wallet(
-            worker::Db::new(db.as_ref()),
-            name,
-            caption,
-            password.as_ref(),
-            seed_source,
-        )
+        self.create_wallet(name, caption, password.as_ref(), seed_source)
     }
 }

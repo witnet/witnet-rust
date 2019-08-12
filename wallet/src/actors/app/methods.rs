@@ -6,10 +6,9 @@ use crate::actors::*;
 use crate::model;
 
 impl App {
-    pub fn start(db: rocksdb::DB, params: Params) -> Addr<Self> {
+    pub fn start(params: Params) -> Addr<Self> {
         let actor = Self {
             params,
-            db: Arc::new(db),
             sessions: Default::default(),
         };
 
@@ -84,7 +83,7 @@ impl App {
             move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
-                    .send(worker::GenAddress(slf.db.clone(), wallet, label))
+                    .send(worker::GenAddress(wallet, label))
                     .flatten()
                     .map_err(From::from)
                     .into_actor(slf)
@@ -106,7 +105,7 @@ impl App {
             move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
-                    .send(worker::GetAddresses(slf.db.clone(), wallet, offset, limit))
+                    .send(worker::GetAddresses(wallet, offset, limit))
                     .flatten()
                     .map_err(From::from)
                     .into_actor(slf)
@@ -168,7 +167,7 @@ impl App {
         let f = self
             .params
             .worker
-            .send(worker::WalletInfos(self.db.clone()))
+            .send(worker::WalletInfos)
             .flatten()
             .map_err(From::from);
 
@@ -186,13 +185,7 @@ impl App {
         let f = self
             .params
             .worker
-            .send(worker::CreateWallet(
-                self.db.clone(),
-                name,
-                caption,
-                password,
-                seed_source,
-            ))
+            .send(worker::CreateWallet(name, caption, password, seed_source))
             .flatten()
             .map_err(From::from);
 
@@ -226,7 +219,7 @@ impl App {
         let f = self
             .params
             .worker
-            .send(worker::UnlockWallet(self.db.clone(), wallet_id, password))
+            .send(worker::UnlockWallet(wallet_id, password))
             .flatten()
             .map_err(|err| match err {
                 worker::Error::DbKeyNotFound(_) => {
@@ -256,7 +249,7 @@ impl App {
         let fut = self
             .params
             .worker
-            .send(worker::FlushDb(self.db.clone()))
+            .send(worker::FlushDb)
             .map_err(internal_error)
             .and_then(|result| result.map_err(internal_error));
 
@@ -311,7 +304,7 @@ impl App {
             |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
-                    .send(worker::Get(slf.db.clone(), wallet, key))
+                    .send(worker::Get(wallet, key))
                     .flatten()
                     .map_err(From::from)
                     .and_then(|opt| match opt {
@@ -342,7 +335,7 @@ impl App {
                 move |value, slf: &mut Self, _| {
                     slf.params
                         .worker
-                        .send(worker::Set(slf.db.clone(), wallet, key, value))
+                        .send(worker::Set(wallet, key, value))
                         .flatten()
                         .map_err(From::from)
                         .into_actor(slf)

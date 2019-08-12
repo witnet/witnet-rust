@@ -23,6 +23,7 @@ pub use params::*;
 pub type Result<T> = result::Result<T, Error>;
 
 pub struct Worker {
+    db: Arc<rocksdb::DB>,
     params: Params,
     engine: SignEngine,
     rng: RefCell<rand::rngs::ThreadRng>,
