@@ -25,6 +25,7 @@ use witnet_config::config::Config;
 use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
 
 mod actors;
+mod constants;
 mod model;
 mod signal;
 mod types;

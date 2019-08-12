@@ -213,6 +213,58 @@ impl Worker {
         })
     }
 
+    pub fn transactions(
+        &mut self,
+        _wallet: &model::WalletUnlocked,
+        _offset: u32,
+        _limit: u32,
+    ) -> Result<model::Transactions> {
+        let transactions = vec![
+            model::Transaction {
+                hash: "4f369107485dd195d477818a27d27027b758572cce82078f6789aa6df7d1f295"
+                    .to_string(),
+                value: 341958,
+                kind: model::TransactionKind::Debit,
+            },
+            model::Transaction {
+                hash: "16c447832f337f78ae282a2e0143368d95ba83f1bf7829b52a853fd0c126b434"
+                    .to_string(),
+                value: 2349,
+                kind: model::TransactionKind::Credit,
+            },
+            model::Transaction {
+                hash: "67086e92250362daeb114ceacc0cbee5fbdd2cb40c2718a6b0b6879702d52d43"
+                    .to_string(),
+                value: 12,
+                kind: model::TransactionKind::Debit,
+            },
+            model::Transaction {
+                hash: "36a50cf934f58255c748e6f1d12f572c5c426a186387f806a1be55ff8fe1b171"
+                    .to_string(),
+                value: u64::max_value(),
+                kind: model::TransactionKind::Credit,
+            },
+            model::Transaction {
+                hash: "ea5d0f4187403bf085937ff8d1fba862923b1b40d4ae188bc52006d895c334df"
+                    .to_string(),
+                value: 1,
+                kind: model::TransactionKind::Debit,
+            },
+            model::Transaction {
+                hash: "4f369107485dd195d477818a27d27027b758572cce82078f6789aa6df7d1f295"
+                    .to_string(),
+                value: 3958,
+                kind: model::TransactionKind::Credit,
+            },
+        ];
+        let total = 20;
+
+        Ok(model::Transactions {
+            transactions,
+            total,
+        })
+    }
+
     pub fn unlock_wallet(
         &mut self,
         wallet_id: &str,

@@ -32,6 +32,25 @@ pub struct Addresses {
     pub total: u32,
 }
 
+#[derive(Debug, Serialize)]
+pub struct Transaction {
+    pub hash: String,
+    pub value: u64,
+    pub kind: TransactionKind,
+}
+
+#[derive(Debug, Serialize)]
+pub enum TransactionKind {
+    Debit,
+    Credit,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Transactions {
+    pub transactions: Vec<Transaction>,
+    pub total: u32,
+}
+
 #[derive(Clone)]
 pub struct WalletUnlocked {
     pub id: String,

@@ -4,13 +4,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
-use crate::model;
-
-static DEFAULT_OFFSET: u32 = 0;
-
-static DEFAULT_LIMIT: u32 = 10;
-
-static MAX_LIMIT: u32 = 150;
+use crate::{constants, model};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,8 +25,11 @@ impl Handler<GetAddressesRequest> for app::App {
     type Result = app::ResponseActFuture<GetAddressesResponse>;
 
     fn handle(&mut self, msg: GetAddressesRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let offset = msg.offset.unwrap_or_else(|| DEFAULT_OFFSET);
-        let limit = cmp::min(msg.offset.unwrap_or_else(|| DEFAULT_LIMIT), MAX_LIMIT);
+        let offset = msg.offset.unwrap_or_else(|| constants::DEFAULT_OFFSET);
+        let limit = cmp::min(
+            msg.offset.unwrap_or_else(|| constants::DEFAULT_LIMIT),
+            constants::MAX_LIMIT,
+        );
         let f = self.get_addresses(msg.session_id, msg.wallet_id, offset, limit);
 
         Box::new(f)

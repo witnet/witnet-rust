@@ -115,6 +115,28 @@ impl App {
         Box::new(f)
     }
 
+    /// Get a list of transactions associated to a wallet account.
+    pub fn get_transactions(
+        &mut self,
+        session_id: String,
+        wallet_id: String,
+        offset: u32,
+        limit: u32,
+    ) -> ResponseActFuture<model::Transactions> {
+        let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(
+            move |wallet, slf: &mut Self, _| {
+                slf.params
+                    .worker
+                    .send(worker::GetTransactions(wallet, offset, limit))
+                    .flatten()
+                    .map_err(From::from)
+                    .into_actor(slf)
+            },
+        );
+
+        Box::new(f)
+    }
+
     /// Run a RADRequest and return the computed result.
     pub fn run_rad_request(&self, req: types::RADRequest) -> ResponseFuture<types::RadonTypes> {
         let f = self
