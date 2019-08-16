@@ -124,7 +124,6 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
                                 e
                             )))
                             .ok();
-                        return;
                     }
                 }
             },
