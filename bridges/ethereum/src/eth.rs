@@ -1,13 +1,193 @@
 use crate::config::Config;
-use ethabi::Token;
+use bimap::BiMap;
+use ethabi::{Bytes, Token};
 use futures::Future;
+use futures_locks::RwLock;
 use log::*;
+use std::collections::{HashMap, HashSet};
 use web3::{
     contract::Contract,
     types::{H160, H256, U256},
 };
+use witnet_data_structures::chain::Hash;
+
+/// State of a data request in the WBI contract, including local intermediate states
+#[derive(Debug)]
+pub enum DrState {
+    /// The data request was just posted, and may be available for claiming
+    Posted,
+    /// The node sent a transaction to claim this data request, but that transaction
+    /// is not yet confirmed. This state prevents the node from double-claiming the
+    /// same data request multiple times in parallel.
+    Claiming,
+    /// The data request was claimed by this node.
+    /// Data requests claimed by other nodes are in `Posted` state, so we can
+    /// try to claim it in the future.
+    Claimed,
+    /// The data request was included in a Witnet block, and the proof of inclusion
+    /// was sent to Ethereum, but it was not yet included in an Ethereum block.
+    Including {
+        /// Proof of inclusion: lemma
+        poi: Vec<U256>,
+        /// Proof of inclusion: index
+        poi_index: U256,
+        /// Hash of the block containing the data request
+        block_hash: U256,
+    },
+    /// The data request was included in a Witnet block, and the reward for doing so
+    /// was already paid to the bridge node. The data request is now waiting to be
+    /// resolved.
+    Included,
+    /// The data request was resolved in a Witnet block, and the proof of inclusion
+    /// was sent to Ethereum, but it was not yet included in an Ethereum block.
+    Resolving {
+        /// Proof of inclusion: lemma
+        poi: Vec<U256>,
+        /// Proof of inclusion: index
+        poi_index: U256,
+        /// Hash of the block containing the data request
+        block_hash: U256,
+        /// Result of the data request, serialized as CBOR
+        result: Bytes,
+    },
+    /// The data request was resolved in a Witnet block, and the reward for doing so
+    /// (the tally fee) was already paid to the node that reported the result.
+    Resolved {
+        /// Result of the data request, serialized as CBOR
+        result: Vec<u8>,
+    },
+}
+
+/// List of all the data requests posted to the WBI, categorized by state.
+/// This allows for an efficient functionality of the bridge.
+#[derive(Debug, Default)]
+pub struct WbiRequests {
+    requests: HashMap<U256, DrState>,
+    posted: HashSet<U256>,
+    claiming: HashSet<U256>,
+    // Claimed by our node, used to reportInclusion
+    // dr_output_hash: Hash
+    claimed: BiMap<U256, Hash>,
+    including: HashSet<U256>,
+    // dr_tx_hash: Hash
+    included: BiMap<U256, Hash>,
+    resolving: HashSet<U256>,
+    resolved: HashSet<U256>,
+}
+
+impl WbiRequests {
+    fn remove_from_all_helper_maps(&mut self, dr_id: U256) {
+        self.posted.remove(&dr_id);
+        self.claiming.remove(&dr_id);
+        self.claimed.remove_by_left(&dr_id);
+        self.including.remove(&dr_id);
+        self.included.remove_by_left(&dr_id);
+        self.resolving.remove(&dr_id);
+        self.resolved.remove(&dr_id);
+    }
+    /// Insert a data request in `Posted` state
+    pub fn insert_posted(&mut self, dr_id: U256) {
+        self.remove_from_all_helper_maps(dr_id);
+        self.requests.insert(dr_id, DrState::Posted);
+        self.posted.insert(dr_id);
+    }
+    /// Insert a data request in `Included` state, with the data request
+    /// transaction hash from Witnet stored to allow a map
+    /// from WBI_dr_id to Witnet_dr_tx_hash
+    pub fn insert_included(&mut self, dr_id: U256, dr_tx_hash: Hash) {
+        self.remove_from_all_helper_maps(dr_id);
+        self.requests.insert(dr_id, DrState::Included);
+        self.included.insert(dr_id, dr_tx_hash);
+    }
+    /// Insert a data request in `Resolved` state, with the result as a vector
+    /// of bytes.
+    pub fn insert_result(&mut self, dr_id: U256, result: Vec<u8>) {
+        self.remove_from_all_helper_maps(dr_id);
+        self.requests.insert(dr_id, DrState::Resolved { result });
+        self.resolved.insert(dr_id);
+    }
+    /// Mark this data request as `Including`
+    pub fn set_including(
+        &mut self,
+        dr_id: U256,
+        poi: Vec<U256>,
+        poi_index: U256,
+        block_hash: U256,
+    ) {
+        self.remove_from_all_helper_maps(dr_id);
+        self.requests.insert(
+            dr_id,
+            DrState::Including {
+                poi,
+                poi_index,
+                block_hash,
+            },
+        );
+        self.including.insert(dr_id);
+    }
+    /// Mark this data request as `Claiming`
+    pub fn set_claiming(&mut self, dr_id: U256) {
+        self.remove_from_all_helper_maps(dr_id);
+        self.requests.insert(dr_id, DrState::Claiming);
+        self.claiming.insert(dr_id);
+    }
+    /// Mark this data request as `Resolving`
+    pub fn set_resolving(
+        &mut self,
+        dr_id: U256,
+        poi: Vec<U256>,
+        poi_index: U256,
+        block_hash: U256,
+        result: Bytes,
+    ) {
+        self.remove_from_all_helper_maps(dr_id);
+        self.requests.insert(
+            dr_id,
+            DrState::Resolving {
+                poi,
+                poi_index,
+                block_hash,
+                result,
+            },
+        );
+        self.resolving.insert(dr_id);
+    }
+    /// If the data request is in claiming state, undo the claim.
+    /// Otherwise, do nothing.
+    pub fn undo_claim(&mut self, dr_id: U256) {
+        if self.claiming.remove(&dr_id) {
+            self.requests.insert(dr_id, DrState::Posted);
+            self.posted.insert(dr_id);
+        }
+    }
+    /// If the data request is in claiming state, confirm the claim.
+    /// Otherwise, do nothing.
+    pub fn confirm_claim(&mut self, dr_id: U256, dr_output_hash: Hash) {
+        // If the data request is in claiming state, confirm the claim
+        // Otherwise, do nothing
+        if self.claiming.remove(&dr_id) {
+            self.requests.insert(dr_id, DrState::Claimed);
+            self.claimed.insert(dr_id, dr_output_hash);
+        }
+    }
+    /// View of all the data requests in `Posted` state.
+    pub fn posted(&self) -> &HashSet<U256> {
+        &self.posted
+    }
+    /// View of all the data requests in `Claimed` state, with an auxiliar
+    /// `dr_output_hash`.
+    pub fn claimed(&self) -> &BiMap<U256, Hash> {
+        &self.claimed
+    }
+    /// View of all the data requests in `Claimed` state, with an auxiliar
+    /// `dr_tx_hash`
+    pub fn included(&self) -> &BiMap<U256, Hash> {
+        &self.included
+    }
+}
 
 /// State needed to interact with the ethereum side of the bridge
+#[derive(Debug)]
 pub struct EthState {
     /// Web3 event loop handle
     pub _eloop: web3::transports::EventLoopHandle,
@@ -25,6 +205,8 @@ pub struct EthState {
     pub post_tally_event_sig: H256,
     /// BlockRelay contract
     pub block_relay_contract: Contract<web3::transports::Http>,
+    /// Internal state of the WBI
+    pub wbi_requests: RwLock<WbiRequests>,
 }
 
 impl EthState {
@@ -71,6 +253,8 @@ impl EthState {
         let inclusion_dr_event_sig = inclusion_dr_event.signature();
         let post_tally_event_sig = post_tally_event.signature();
 
+        let wbi_requests = RwLock::new(Default::default());
+
         Ok(Self {
             _eloop,
             web3,
@@ -80,6 +264,7 @@ impl EthState {
             post_dr_event_sig,
             inclusion_dr_event_sig,
             post_tally_event_sig,
+            wbi_requests,
         })
     }
 }

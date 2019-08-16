@@ -2,14 +2,13 @@
 use async_jsonrpc_client::{
     futures::Stream, transports::tcp::TcpSocket, DuplexTransport, Transport,
 };
-use bimap::BiMap;
 use ethabi::{Bytes, Token};
 use futures::future::Either;
 use futures::sink::Sink;
 use log::*;
 use rand::{thread_rng, Rng};
 use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::process;
 use std::time::{Duration, Instant};
 use std::{sync::Arc, time};
@@ -162,7 +161,7 @@ fn wait_for_witnet_block_in_block_relay(
 fn eth_event_stream(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
-    tx: mpsc::Sender<ActorMessage>,
+    _tx: mpsc::Sender<ActorMessage>,
     tx4: mpsc::Sender<PostActorMessage>,
 ) -> impl Future<Item = (), Error = ()> {
     let web3 = &eth_state.web3;
@@ -236,18 +235,21 @@ fn eth_event_stream(
                     parse_as_wbi_event(&value)
                 })
                 .for_each(move |value| {
-                    let tx3 = tx.clone();
                     let tx4 = tx4.clone();
+                    let eth_state2 = eth_state.clone();
                     let fut: Box<dyn Future<Item = (), Error = ()> + Send> =
                         match value {
                             Ok(WbiEvent::PostedRequest(dr_id)) => {
                                 info!("[{}] New data request posted to WBI", dr_id);
 
                                 Box::new(
-                                    tx4.send(PostActorMessage::NewDr(dr_id))
-                                        .map(|_| ())
-                                        .map_err(|e| error!("Error sending message to PostActorMessage channel: {:?}", e))
-
+                                    eth_state.wbi_requests.write().map(move |mut wbi_requests| {
+                                        wbi_requests.insert_posted(dr_id);
+                                    }).and_then(move |()| {
+                                        tx4.send(PostActorMessage::NewDr(dr_id))
+                                            .map(|_| ())
+                                            .map_err(|e| error!("Error sending message to PostActorMessage channel: {:?}", e))
+                                    })
                                 )
                             }
                             Ok(WbiEvent::IncludedRequest(dr_id)) => {
@@ -266,25 +268,24 @@ fn eth_event_stream(
                                         .and_then(move |dr_tx_hash: U256| {
                                             let dr_tx_hash = Hash::SHA256(dr_tx_hash.into());
                                             info!(
-                                            "[{}] Data request included in witnet with dr_tx_hash: {}",
-                                            dr_id, dr_tx_hash
-                                        );
-                                            tx3.send(ActorMessage::WaitForTally(dr_id, dr_tx_hash))
-                                                .join(
-                                                    tx4.send(PostActorMessage::ReportIncludedDr(dr_id))
-                                                )
-                                                .map_err(|e| error!("Error sending message to channel: {:?}", e))
-                                                .map(|_| ())
+                                                "[{}] Data request included in witnet with dr_tx_hash: {}",
+                                                dr_id, dr_tx_hash
+                                            );
+
+                                            eth_state2.wbi_requests.write().map(move |mut wbi_requests| {
+                                                wbi_requests.insert_included(dr_id, dr_tx_hash);
+                                            })
                                         })
                                 )
                             }
                             Ok(WbiEvent::PostedResult(dr_id)) => {
                                 info!("[{}] Data request has been resolved!", dr_id);
-                                Box::new(
-                                    tx3.send(ActorMessage::TallyClaimed(dr_id))
-                                        .map_err(|e| error!("Error sending message to ActorMessage channel: {:?}", e))
-                                        .map(|_| ())
-                                )
+
+                                // TODO: actually get result?
+                                let result = vec![];
+                                Box::new(eth_state.wbi_requests.write().map(move |mut wbi_requests| {
+                                    wbi_requests.insert_result(dr_id, result);
+                                }))
                             }
                             _ => {
                                 warn!("Received unknown ethereum event");
@@ -401,13 +402,11 @@ fn postdr(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
     witnet_client: Arc<TcpSocket>,
-    tx: mpsc::Sender<ActorMessage>,
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
     let wbi_contract = eth_state.wbi_contract.clone();
     let eth_account = config.eth_account;
 
-    let tx = tx.clone();
     let wbi_contract = wbi_contract.clone();
     let wbi_contract2 = wbi_contract.clone();
     let wbi_contract3 = wbi_contract.clone();
@@ -636,48 +635,83 @@ fn postdr(
         .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point, v_point)| {
             // Claim dr
             info!("[{}] Claiming dr", dr_id);
+            let dr_output_hash = dr_output.hash();
 
-            wbi_contract4
-                .call_with_confirmations(
-                    "claimDataRequests",
-                    (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr),
-                    eth_account,
-                    contract::Options::with(|opt| {
-                        opt.gas = Some(500_000.into());
-                    }),
-                    1,
-                )
-                .map_err(move |e| {
-                    error!("claimDataRequests: {:?}", e);
-                })
-                .and_then(move |tx| {
-                    debug!("claimDataRequests: {:?}", tx);
-                    handle_receipt(tx).map_err(move |_| {
-                        // Or the PoE became invalid because a new witnet block was
-                        // just relayed
-                        // In this case we should save this data request to retry later
-                        warn!(
-                            "[{}] has been claimed by another bridge node, or the PoE expired",
-                            dr_id
-                        );
-                    })
+            // Mark the data request as claimed to prevent double claims by other threads
+            eth_state.wbi_requests.write().then(move |wbi_requests| {
+                match wbi_requests {
+                    Ok(mut wbi_requests) => {
+                        if wbi_requests.posted().contains(&dr_id) {
+                            wbi_requests.set_claiming(dr_id);
+                            Ok(())
+                        } else {
+                            // This data request is not available, abort.
+                            warn!("[{}] is already marked as claimed, we will not claim it again", dr_id);
+                            Err(())
+                        }
+                    }
+                    Err(e) => {
+                        // According to the documentation of the futures-locks crate,
+                        // this error cannot happen
+                        error!("Failed to acquire RwLock: {:?}", e);
+                        Err(())
+                    }
+                }
+            })
+                .and_then(move |()| {
+                    let eth_state2 = eth_state.clone();
+
+                    wbi_contract4
+                        .call_with_confirmations(
+                            "claimDataRequests",
+                            (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr),
+                            eth_account,
+                            contract::Options::with(|opt| {
+                                opt.gas = Some(500_000.into());
+                            }),
+                            1,
+                        )
+                        .map_err(|e| {
+                            error!("claimDataRequests: {:?}", e);
+                        })
+                        .and_then(move |tx| {
+                            debug!("claimDataRequests: {:?}", tx);
+                            handle_receipt(tx).map_err(move |_| {
+                                // Or the PoE became invalid because a new witnet block was
+                                // just relayed
+                                // In this case we should save this data request to retry later
+                                warn!(
+                                    "[{}] has been claimed by another bridge node, or the PoE expired",
+                                    dr_id
+                                );
+                            })
+                        })
+                        .and_then(move |()| {
+                            eth_state.wbi_requests.write().map(move |mut wbi_requests| {
+                                wbi_requests.confirm_claim(dr_id, dr_output_hash);
+                            })
+                        })
+                        .or_else(move |()| {
+                            // Undo the claim
+                            eth_state2.wbi_requests.write().map(move |mut wbi_requests| {
+                                wbi_requests.undo_claim(dr_id);
+                            }).then(|_| {
+                                // Short-circuit the and_then cascade
+                                Err(())
+                            })
+                        })
                 })
                 .and_then(move |_traces| {
                     // Post dr in witnet
                     info!("[{}] Claimed dr, posting to witnet", dr_id);
 
                     let bdr_params = json!({"dro": dr_output, "fee": 0});
+
                     witnet_client
                         .execute("buildDataRequest", bdr_params)
                         .map_err(|e| error!("{:?}", e))
-                        .and_then(move |bdr_res| {
+                        .map(move |bdr_res| {
                             debug!("buildDataRequest: {:?}", bdr_res);
-                            tx.send(ActorMessage::PostedDr(dr_id, dr_output))
-                                .map_err(|e| error!("{:?}", e))
-                                .and_then(|_|  {
-                                    debug!("Sent PostedDr message");
-                                    Result::<(), ()>::Ok(())
-                                })
                         })
                 })
                 .map(|_| ())
@@ -687,7 +721,6 @@ fn postdr(
 fn post_actor(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
-    tx: mpsc::Sender<ActorMessage>,
     rx: mpsc::Receiver<PostActorMessage>,
 ) -> (
     async_jsonrpc_client::transports::shared::EventLoopHandle,
@@ -700,53 +733,83 @@ fn post_actor(
         async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
     let witnet_client = Arc::new(witnet_client);
 
-    let mut known_dr_ids = HashSet::new();
-
     (
         handle,
         rx.map_err(|_| ()).for_each(move |msg| {
             debug!("Got PostActorMessage: {:?}", msg);
-            debug!("Known data requests in WBI: {:?}", known_dr_ids);
 
-            match msg {
-                PostActorMessage::NewDr(dr_id) => {
-                    // Save the dr_id to retry in the future if we are not eligible
-                    known_dr_ids.insert(dr_id);
+            let config2 = Arc::clone(&config);
+            let eth_state2 = Arc::clone(&eth_state);
+            let witnet_client2 = Arc::clone(&witnet_client);
 
-                    Either::A(postdr(
-                        config.clone(),
-                        eth_state.clone(),
-                        witnet_client.clone(),
-                        tx.clone(),
-                        dr_id,
-                    ))
-                }
-                PostActorMessage::ReportIncludedDr(dr_id) => {
-                    // This data request was already included in a witnet block and
-                    // verified with a proof of inclusion, so stop trying to claim it
-                    known_dr_ids.remove(&dr_id);
-
-                    Either::B(futures::finished(()))
-                }
+            let fut = match msg {
+                PostActorMessage::NewDr(dr_id) => Either::A(postdr(
+                    config.clone(),
+                    eth_state.clone(),
+                    witnet_client.clone(),
+                    dr_id,
+                )),
                 PostActorMessage::Tick => {
-                    if known_dr_ids.is_empty() {
-                        Either::B(futures::finished(()))
-                    } else {
-                        let i = thread_rng().gen_range(0, known_dr_ids.len());
-                        let dr_id = known_dr_ids.iter().nth(i).unwrap();
+                    Either::B(eth_state.wbi_requests.read().and_then(move |known_dr_ids| {
+                        let known_dr_ids_posted = known_dr_ids.posted();
+                        let known_dr_ids_claimed = known_dr_ids.claimed();
+                        debug!(
+                            "Known data requests in WBI: {:?}{:?}",
+                            known_dr_ids_posted, known_dr_ids_claimed
+                        );
 
-                        Either::A(postdr(
-                            config.clone(),
-                            eth_state.clone(),
-                            witnet_client.clone(),
-                            tx.clone(),
-                            *dr_id,
-                        ))
-                    }
+                        // Chose a random data request and try to claim and post it.
+                        // Gives preference to newly posted data requests
+                        match (
+                            known_dr_ids_posted.is_empty(),
+                            known_dr_ids_claimed.is_empty(),
+                        ) {
+                            (true, true) => Either::B(futures::finished(())),
+                            (false, _) => {
+                                let i = thread_rng().gen_range(0, known_dr_ids_posted.len());
+                                let dr_id = *known_dr_ids_posted.iter().nth(i).unwrap();
+                                std::mem::drop(known_dr_ids);
+
+                                Either::A(postdr(
+                                    config2.clone(),
+                                    eth_state2.clone(),
+                                    witnet_client2.clone(),
+                                    dr_id,
+                                ))
+                            }
+                            _ => {
+                                // Should we claim an already claimed data request?
+                                // This can be useful in the following scenarios:
+                                // * The data request is posted to Witnet, but it
+                                //   is not accepted into a Witnet block
+                                //   (or is invalid because of double-spending).
+                                //   In this case probably there is no need to claim
+                                //   again, just build another transaction in Witnet.
+                                // * The data request is accepted into a Witnet
+                                //   block, but the reportInclusion transaction
+                                //   is not accepted into an Ethereum block.
+                                //   In this case the data request will be in
+                                //   "Including" state, and we do not handle that here.
+                                let i = thread_rng().gen_range(0, known_dr_ids_claimed.len());
+                                let dr_id = *known_dr_ids_claimed.iter().nth(i).unwrap().0;
+                                std::mem::drop(known_dr_ids);
+
+                                Either::A(postdr(
+                                    config2.clone(),
+                                    eth_state2.clone(),
+                                    witnet_client2.clone(),
+                                    dr_id,
+                                ))
+                            }
+                        }
+                    }))
                 }
-            }
-            // Without this line the stream will stop on the first failure
-            .then(|_| Ok(()))
+            };
+
+            // Start the claim as a separate task, to avoid blocking this receiver
+            tokio::spawn(fut);
+
+            Ok(())
         }),
     )
 }
@@ -754,15 +817,11 @@ fn post_actor(
 #[derive(Debug)]
 enum PostActorMessage {
     NewDr(U256),
-    ReportIncludedDr(U256),
     Tick,
 }
 
 #[derive(Debug)]
 enum ActorMessage {
-    PostedDr(U256, DataRequestOutput),
-    WaitForTally(U256, Hash),
-    TallyClaimed(U256),
     NewWitnetBlock(Box<Block>),
 }
 
@@ -771,8 +830,6 @@ fn main_actor(
     eth_state: Arc<EthState>,
     rx: mpsc::Receiver<ActorMessage>,
 ) -> impl Future<Item = (), Error = ()> {
-    let mut claimed_drs = BiMap::new();
-    let mut waiting_for_tally = BiMap::new();
     // A list of all the tallies from all the blocks since we started listening
     // This is a workaround around a race condition with ethereum events:
     // If the reportDataRequestInclusion event is emitted after the data request
@@ -791,31 +848,15 @@ fn main_actor(
     rx.map_err(|_| ())
         .for_each(move |msg| {
             debug!("Got ActorMessage: {:?}", msg);
+
             debug!("all_seen_tallies.len() == {}", all_seen_tallies.len());
             match msg {
-                ActorMessage::PostedDr(dr_id, dr_output) => {
-                    claimed_drs.insert(dr_id, dr_output.hash());
-                }
-                ActorMessage::WaitForTally(dr_id, dr_tx_hash) => {
-                    claimed_drs.remove_by_left(&dr_id);
-                    waiting_for_tally.insert(dr_id, dr_tx_hash);
-
-                    // TODO: maybe the data request has already been resolved?
-                    // Check with dataRequestReport on witnet node
-                    // Then, somehow create proof of inclusion...
-                    // Well, for now just assume that never happens.
-                }
-                ActorMessage::TallyClaimed(dr_id) => {
-                    if let Some((_dr_id, dr_tx_hash)) = waiting_for_tally.remove_by_left(&dr_id) {
-                        all_seen_tallies.remove(&dr_tx_hash);
-                    }
-                }
                 ActorMessage::NewWitnetBlock(block) => {
                     // Optimization: do not process empty blocks
                     let empty_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".parse().unwrap();
                     if block.block_header.merkle_roots.dr_hash_merkle_root == empty_hash && block.block_header.merkle_roots.tally_hash_merkle_root == empty_hash {
                         debug!("Skipping empty block");
-                        return Ok(());
+                        return futures::finished(());
                     }
 
                     let block_hash: U256 = match block.hash() {
@@ -864,11 +905,19 @@ fn main_actor(
                         Arc::clone(&config),
                         Arc::clone(&eth_state),
                         block_hash,
-                    )
-                    .and_then(|()| {
+                    ).and_then(|()| {
+                        eth_state.wbi_requests.read()
+                    })
+                    .and_then(|wbi_requests| {
                         let block_hash: U256 = match block.hash() {
                             Hash::SHA256(x) => x.into(),
                         };
+
+                        let mut including = vec![];
+                        let mut resolving = vec![];
+
+                        let claimed_drs = wbi_requests.claimed();
+                        let waiting_for_tally = wbi_requests.included();
                         /*
                         // Verify that the block was posted correctly
                         block_relay_contract.query(
@@ -887,14 +936,14 @@ fn main_actor(
                         // TODO: double check that the bridge contains this block?
 
                         for dr in &block.txns.data_request_txns {
-                            if let Some((dr_id, _)) =
-                                claimed_drs.remove_by_right(&dr.body.dr_output.hash())
+                            if let Some(dr_id) =
+                                claimed_drs.get_by_right(&dr.body.dr_output.hash())
                             {
                                 let dr_inclusion_proof = match dr.data_proof_of_inclusion(&block) {
                                     Some(x) => x,
                                     None => {
                                         error!("Error creating data request proof of inclusion");
-                                        return Err(());
+                                        continue;
                                     }
                                 };
 
@@ -902,7 +951,7 @@ fn main_actor(
                                     Ok(x) => x,
                                     Err(e) => {
                                         error!("Error serializing data request output to Protocol Buffers: {:?}", e);
-                                        return Err(());
+                                        continue;
                                     }
                                 };
 
@@ -923,11 +972,12 @@ fn main_actor(
                                     })
                                     .collect();
                                 let poi_index = U256::from(dr_inclusion_proof.index);
+                                including.push((*dr_id, poi.clone(), poi_index, block_hash));
                                 tokio::spawn(
                                     wbi_contract
                                         .call_with_confirmations(
                                             "reportDataRequestInclusion",
-                                            (dr_id, poi, poi_index, block_hash),
+                                            (*dr_id, poi, poi_index, block_hash),
                                             config.eth_account,
                                             contract::Options::default(),
                                             1,
@@ -953,8 +1003,7 @@ fn main_actor(
                             Some((tally.dr_pointer, (tally.clone(), tally_inclusion_proof, block_hash)))
                         }));
 
-                        // TODO: this method can lead to double reporting...
-                        for (dr_id, dr_tx_hash) in &waiting_for_tally {
+                        for (dr_id, dr_tx_hash) in waiting_for_tally {
                             if let Some((tally, tally_inclusion_proof, tally_block_hash)) = all_seen_tallies.get(&dr_tx_hash)
                             {
                                 // Call report_result method of the WBI
@@ -977,6 +1026,7 @@ fn main_actor(
                                     .collect();
                                 let poi_index = U256::from(tally_inclusion_proof.index);
                                 let result: Bytes = tally.tally.clone();
+                                resolving.push((*dr_id, poi.clone(), poi_index, *tally_block_hash, result.clone()));
                                 tokio::spawn(
                                     wbi_contract
                                         .call_with_confirmations(
@@ -995,16 +1045,31 @@ fn main_actor(
                             }
                         }
 
-                        Result::<(), ()>::Ok(())
+                        // Update the wbi_requests map
+                        //std::mem::drop(wbi_requests);
+                        // Check if we need to acquire a write lock
+                        if !including.is_empty() || !resolving.is_empty() {
+                            Either::A(eth_state.wbi_requests.write().map(|mut wbi_requests| {
+                                for (dr_id, poi, poi_index, block_hash) in including {
+                                    wbi_requests.set_including(dr_id, poi, poi_index, block_hash);
+                                }
+                                for (dr_id, poi, poi_index, block_hash, result) in resolving {
+                                    wbi_requests.set_resolving(dr_id, poi, poi_index, block_hash, result);
+                                }
+                            }))
+                        } else {
+                            Either::B(futures::finished(()))
+                        }
                     })
                     // Without this line the actor will panic on the first failure
                     .then(|_| Result::<(), ()>::Ok(()))
-                    .wait()
-                    .unwrap();
+                    // Synchronously wait for the future because we do not want to be processing
+                    // multiple blocks in parallel
+                    .wait().unwrap();
+
+                    futures::finished(())
                 }
             }
-
-            Result::<(), ()>::Ok(())
         })
         .map(|_| ())
 }
@@ -1032,12 +1097,11 @@ fn main() {
     let (tx1, rx) = mpsc::channel(16);
     let (ptx, prx) = mpsc::channel(16);
     let tx2 = tx1.clone();
-    let tx3 = tx1.clone();
     let ptx2 = ptx.clone();
 
     let ees = eth_event_stream(Arc::clone(&config), Arc::clone(&eth_state), tx1, ptx);
     let (_handle, wbs) = witnet_block_stream(Arc::clone(&config), tx2);
-    let (_handle, pct) = post_actor(Arc::clone(&config), Arc::clone(&eth_state), tx3, prx);
+    let (_handle, pct) = post_actor(Arc::clone(&config), Arc::clone(&eth_state), prx);
     let act = main_actor(Arc::clone(&config), Arc::clone(&eth_state), rx);
 
     // Every 30 seconds, try to claim a random data request

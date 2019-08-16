@@ -10,6 +10,7 @@ bimap = "0.3.1"
 env_logger = "0.6.1"
 ethabi = "8.0"
 futures = "0.1.28"
+futures-locks = "0.3"
 log = "0.4.6"
 rand = "0.7.0"
 serde = { version = "1.0", features = ["derive"] }
