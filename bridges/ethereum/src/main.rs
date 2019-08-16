@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::process;
 use std::time::{Duration, Instant};
 use std::{sync::Arc, time};
-use tokio::{prelude::FutureExt, sync::mpsc, timer::Interval};
+use tokio::{prelude::FutureExt, sync::mpsc, sync::oneshot, timer::Interval};
 use web3::{
     contract,
     futures::{future, Future},
@@ -51,111 +51,6 @@ fn handle_receipt(receipt: TransactionReceipt) -> impl Future<Item = (), Error =
 fn convert_json_array_to_eth_bytes(value: Value) -> Result<Bytes, serde_json::Error> {
     // Convert json values such as [1, 2, 3] into bytes
     serde_json::from_value(value)
-}
-
-fn wait_for_witnet_block_in_block_relay(
-    config: Arc<Config>,
-    eth_state: Arc<EthState>,
-    block_hash: U256,
-) -> impl Future<Item = (), Error = ()> {
-    // TODO: this function is not async
-    // Because for some reason timers aren't working
-    loop {
-        debug!("Waiting for block {:x} in block relay", block_hash);
-
-        let res = eth_state
-            .block_relay_contract
-            .query(
-                "readDrMerkleRoot",
-                (block_hash,),
-                config.eth_account,
-                contract::Options::default(),
-                None,
-            )
-            .map(move |_res: U256| {
-                debug!(
-                    "Block {:x} was included in BlockRelay contract!",
-                    block_hash
-                );
-            })
-            .wait();
-
-        if res.is_ok() {
-            break;
-        }
-
-        std::thread::sleep(Duration::from_millis(10_000));
-    }
-
-    futures::finished(())
-
-    // This does not work
-    /*
-    Interval::new(Instant::now(), Duration::from_millis(30_000))
-        .map_err(|e| error!("Error creating interval: {:?}", e))
-        .for_each(move |_instant| {
-            // This line is never printed
-            error!("BlockRelay tick");
-            eth_state
-                .block_relay_contract
-                .query(
-                    "readDrMerkleRoot",
-                    (block_hash,),
-                    config.eth_account,
-                    contract::Options::default(),
-                    None,
-                )
-                .map(move |_res: U256| {
-                    debug!("Block {} was included in BlockRelay contract!", block_hash);
-                })
-                .map_err(move |e| {
-                    debug!(
-                        "Block {} not yet included in BlockRelay contract: {:?}",
-                        block_hash, e
-                    )
-                })
-                .then(|res| {
-                    // We want to exit this function when the future returns Ok,
-                    // but streams only abort if the future returns Err.
-                    match res {
-                        Ok(()) => Err(()),
-                        Err(()) => Ok(()),
-                    }
-                })
-        })
-    */
-
-    // This does not work, and may result in a stack overflow
-    /*
-    Box::new(
-        eth_state
-            .block_relay_contract
-            .query(
-                "readDrMerkleRoot",
-                (block_hash,),
-                config.eth_account,
-                contract::Options::default(),
-                None,
-            )
-            .map(move |_res: U256| {
-                debug!("Block {} was included in BlockRelay contract!", block_hash);
-            })
-            .or_else(move |e| {
-                /*
-                debug!("Block {} not found in BlockRelay, retrying in 30 seconds: {:?}", block_hash, e);
-                // Retry in 30 seconds
-                let when = Instant::now() + Duration::from_millis(30_000);
-
-                Delay::new(when)
-                    .map_err(|e| panic!("delay errored; err={:?}", e))
-                    .and_then(move |_| {
-                        wait_for_witnet_block_in_block_relay(config, eth_state, block_hash)
-                    })
-                */
-                wait_for_witnet_block_in_block_relay(config, eth_state, block_hash)
-            }),
-    )
-    */
 }
 
 fn eth_event_stream(
@@ -829,6 +724,7 @@ fn main_actor(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
     rx: mpsc::Receiver<ActorMessage>,
+    wait_for_witnet_block_tx: mpsc::Sender<(U256, oneshot::Sender<()>)>,
 ) -> impl Future<Item = (), Error = ()> {
     // A list of all the tallies from all the blocks since we started listening
     // This is a workaround around a race condition with ethereum events:
@@ -901,11 +797,12 @@ fn main_actor(
                     }
 
                     // Wait for someone else to publish the witnet block to ethereum
-                    wait_for_witnet_block_in_block_relay(
-                        Arc::clone(&config),
-                        Arc::clone(&eth_state),
-                        block_hash,
-                    ).and_then(|()| {
+                    let (wbtx, wbrx) = oneshot::channel();
+                    wait_for_witnet_block_tx.clone().send((block_hash, wbtx)).map_err(|_| ())
+                    .and_then(|_| {
+                        wbrx.map_err(|_| ())
+                    })
+                    .and_then(|()| {
                         eth_state.wbi_requests.read()
                     })
                     .and_then(|wbi_requests| {
@@ -918,22 +815,6 @@ fn main_actor(
 
                         let claimed_drs = wbi_requests.claimed();
                         let waiting_for_tally = wbi_requests.included();
-                        /*
-                        // Verify that the block was posted correctly
-                        block_relay_contract.query(
-                            "readDrMerkleRoot",
-                            (block_hash,),
-                            config.eth_account,
-                            contract::Options::default(),
-                            None,
-                        ).then(|tx: Result<U256, _>| {
-                            debug!("readDrMerkleRoot: {:?}", tx);
-                            Result::<(), ()>::Ok(())
-                        }).wait().unwrap();
-                        */
-                        // The futures executed after this point should be executed *after* the
-                        // postNewBlock transaction has been confirmed
-                        // TODO: double check that the bridge contains this block?
 
                         for dr in &block.txns.data_request_txns {
                             if let Some(dr_id) =
@@ -1074,6 +955,84 @@ fn main_actor(
         .map(|_| ())
 }
 
+fn block_ticker(
+    config: Arc<Config>,
+    eth_state: Arc<EthState>,
+) -> (
+    mpsc::Sender<(U256, oneshot::Sender<()>)>,
+    impl Future<Item = (), Error = ()>,
+) {
+    // Used for wait_for_witnet_block_in_block_relay implementation
+    let (self_tx, rx) = mpsc::channel(16);
+    let return_tx = self_tx.clone();
+    let block_hashes: futures_locks::RwLock<HashMap<U256, oneshot::Sender<()>>> =
+        futures_locks::RwLock::new(HashMap::new());
+    let block_ticker = Interval::new(Instant::now(), Duration::from_millis(30_000))
+        .map_err(|e| error!("Error creating interval: {:?}", e))
+        .map(Either::A)
+        .select(
+            rx.map_err(|e| error!("Error receiving from block ticker channel: {:?}", e))
+                .map(Either::B),
+        )
+        .and_then(move |x| block_hashes.write().map(|block_hashes| (block_hashes, x)))
+        .and_then(move |(mut block_hashes, x)| match x {
+            Either::A(_instant) => {
+                debug!("BlockRelay tick");
+                let mut futs = vec![];
+                for (block_hash, tx) in block_hashes.drain() {
+                    let self_tx = self_tx.clone();
+                    let fut = eth_state
+                        .block_relay_contract
+                        .query(
+                            "readDrMerkleRoot",
+                            (block_hash,),
+                            config.eth_account,
+                            contract::Options::default(),
+                            None,
+                        )
+                        .then(move |x: Result<U256, _>| match x {
+                            Ok(_res) => {
+                                debug!("Block {} was included in BlockRelay contract!", block_hash);
+                                tx.send(()).unwrap();
+
+                                Either::A(futures::finished(()))
+                            }
+                            Err(e) => {
+                                debug!(
+                                    "Block {} not yet included in BlockRelay contract: {:?}",
+                                    block_hash, e
+                                );
+
+                                Either::B(
+                                    self_tx
+                                        .send((block_hash, tx))
+                                        .map_err(|e| {
+                                            error!("Error sending message to BlockTicker: {:?}", e)
+                                        })
+                                        .map(|_| {
+                                            debug!("Successfully sent message to BlockTicker")
+                                        }),
+                                )
+                            }
+                        })
+                        .map(|_| ());
+                    futs.push(fut);
+                }
+
+                Either::A(future::join_all(futs).map(|_| ()))
+            }
+            Either::B((block_hash, tx)) => {
+                debug!("BlockTicker got new subscription to {:x}", block_hash);
+                block_hashes.insert(block_hash, tx);
+
+                Either::B(futures::finished(()))
+            }
+        })
+        .for_each(|_| Ok(()));
+
+    (return_tx, block_ticker)
+}
+
 fn main() {
     init_logger();
     let config = Arc::new(match read_config() {
@@ -1102,7 +1061,13 @@ fn main() {
     let ees = eth_event_stream(Arc::clone(&config), Arc::clone(&eth_state), tx1, ptx);
     let (_handle, wbs) = witnet_block_stream(Arc::clone(&config), tx2);
     let (_handle, pct) = post_actor(Arc::clone(&config), Arc::clone(&eth_state), prx);
-    let act = main_actor(Arc::clone(&config), Arc::clone(&eth_state), rx);
+    let (bttx, block_ticker_fut) = block_ticker(Arc::clone(&config), Arc::clone(&eth_state));
+    let act = main_actor(
+        Arc::clone(&config),
+        Arc::clone(&eth_state),
+        rx,
+        bttx.clone(),
+    );
 
     // Every 30 seconds, try to claim a random data request
     // This has a problem with race conditions: the same data request can be
@@ -1124,5 +1089,6 @@ fn main() {
         tokio::spawn(pct);
         tokio::spawn(act);
         tokio::spawn(post_ticker);
+        tokio::spawn(block_ticker_fut);
     }));
 }
