@@ -1,10 +1,10 @@
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::model;
+use crate::types;
 
 pub struct Set(
-    pub model::WalletUnlocked,
+    pub types::SessionWallet,
     /// Key
     pub String,
     /// Value

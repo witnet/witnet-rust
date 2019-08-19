@@ -24,9 +24,14 @@ use jsonrpc_pubsub as pubsub;
 use witnet_config::config::Config;
 use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
 
+mod account;
 mod actors;
 mod constants;
+mod crypto;
+mod db;
 mod model;
+mod params;
+mod repository;
 mod signal;
 mod types;
 
@@ -65,20 +70,18 @@ pub fn run(conf: Config) -> Result<(), Error> {
         ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
             .map_err(|e| failure::format_err!("{}", e))?,
     );
+    let params = params::Params {
+        testnet,
+        seed_password,
+        master_key_salt,
+        id_hash_iterations,
+        id_hash_function,
+        db_hash_iterations,
+        db_iv_length,
+        db_salt_length,
+    };
 
-    let worker = actors::Worker::start(
-        db.clone(),
-        actors::worker::Params {
-            testnet,
-            seed_password,
-            master_key_salt,
-            id_hash_iterations,
-            id_hash_function,
-            db_hash_iterations,
-            db_iv_length,
-            db_salt_length,
-        },
-    );
+    let worker = actors::Worker::start(db.clone(), params);
 
     let app = actors::App::start(actors::app::Params {
         worker,

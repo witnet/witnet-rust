@@ -1,36 +1,42 @@
 use failure::Fail;
 
-use witnet_crypto as crypto;
-
 #[derive(Debug, Fail)]
-#[fail(display = "db error")]
+#[fail(display = "Database Error")]
 pub enum Error {
     #[fail(display = "mutex poison error")]
     MutexPoison,
-    #[fail(display = "db key {:?} not found", _0)]
-    KeyNotFound(String),
-    #[fail(display = "rocksdb error: {}", _0)]
-    Db(#[cause] rocksdb::Error),
-    #[fail(display = "db ser/der failed: {}", _0)]
-    Serde(#[cause] bincode::Error),
-    #[fail(display = "db enc/dec failed: {}", _0)]
-    Cipher(#[cause] crypto::cipher::Error),
+    #[fail(display = "db key not found")]
+    DbKeyNotFound,
+    #[fail(display = "rocksdb failed: {}", _0)]
+    Rocksdb(#[cause] rocksdb::Error),
+    #[fail(display = "bincode failed: {}", _0)]
+    Bincode(#[cause] bincode::Error),
+    #[fail(display = "cipher failed {}", _0)]
+    Cipher(#[cause] witnet_crypto::cipher::Error),
+    #[fail(display = "{}", _0)]
+    Failure(#[cause] failure::Error),
 }
 
 impl From<rocksdb::Error> for Error {
     fn from(err: rocksdb::Error) -> Self {
-        Error::Db(err)
+        Error::Rocksdb(err)
     }
 }
 
 impl From<bincode::Error> for Error {
     fn from(err: bincode::Error) -> Self {
-        Error::Serde(err)
+        Error::Bincode(err)
     }
 }
 
-impl From<crypto::cipher::Error> for Error {
-    fn from(err: crypto::cipher::Error) -> Self {
+impl From<failure::Error> for Error {
+    fn from(err: failure::Error) -> Self {
+        Error::Failure(err)
+    }
+}
+
+impl From<witnet_crypto::cipher::Error> for Error {
+    fn from(err: witnet_crypto::cipher::Error) -> Self {
         Error::Cipher(err)
     }
 }

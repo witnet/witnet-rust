@@ -15,7 +15,7 @@ impl App {
         actor.start()
     }
 
-    pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<model::WalletUnlocked> {
+    pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<types::SessionWallet> {
         let session = self
             .sessions
             .get(session_id)
@@ -237,30 +237,35 @@ impl App {
         &self,
         wallet_id: String,
         password: types::Password,
-    ) -> ResponseActFuture<model::WalletUnlocked> {
+    ) -> ResponseActFuture<types::UnlockedWallet> {
         let f = self
             .params
             .worker
-            .send(worker::UnlockWallet(wallet_id, password))
+            .send(worker::UnlockWallet(wallet_id.clone(), password))
             .flatten()
             .map_err(|err| match err {
-                worker::Error::DbKeyNotFound(_) => {
+                worker::Error::WalletNotFound => {
                     validation_error(field_error("wallet_id", "Wallet not found"))
                 }
-                worker::Error::Cipher(_) => {
+                worker::Error::WrongPassword => {
                     validation_error(field_error("password", "Wrong password"))
                 }
                 err => From::from(err),
             })
             .into_actor(self)
-            .and_then(|wallet: model::WalletUnlocked, slf: &mut Self, _| {
-                let entry = slf.sessions.entry(wallet.session_id.clone());
+            .and_then(move |res, slf: &mut Self, _| {
+                let types::UnlockedSessionWallet {
+                    wallet,
+                    session_id,
+                    data,
+                } = res;
+                let entry = slf.sessions.entry(session_id.clone());
                 entry
                     .or_default()
                     .wallets
-                    .insert(wallet.id.clone(), wallet.clone());
+                    .insert(wallet_id, Arc::new(wallet));
 
-                fut::ok(wallet)
+                fut::ok(types::UnlockedWallet { data, session_id })
             });
 
         Box::new(f)

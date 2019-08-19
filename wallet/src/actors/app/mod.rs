@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use actix::prelude::*;
 use serde_json::json;
 
 use witnet_net::client::tcp::jsonrpc;
 
-use crate::{model, types};
+use crate::types;
 
 pub mod error;
 pub mod handlers;
@@ -33,7 +34,7 @@ pub struct App {
 
 #[derive(Default)]
 struct Session {
-    wallets: HashMap<String, model::WalletUnlocked>,
+    wallets: HashMap<String, types::SessionWallet>,
     subscriptions: HashMap<types::SubscriptionId, types::Sink>,
 }
 

@@ -26,6 +26,11 @@ use witnet_protected::ProtectedString;
 pub struct Mnemonic(bip39::Mnemonic);
 
 impl Mnemonic {
+    /// Return a Mnemonic builder.
+    pub fn build() -> MnemonicGen {
+        MnemonicGen::default()
+    }
+
     /// Get the list of mnemonic words
     pub fn words(&self) -> &str {
         self.0.phrase()
@@ -36,14 +41,29 @@ impl Mnemonic {
         Seed(bip39::Seed::new(&self.0, passphrase.as_ref()))
     }
 
+    /// Get the binary seed used for generating a master secret key
+    pub fn seed_ref(&self, passphrase: &str) -> Seed {
+        Seed(bip39::Seed::new(&self.0, passphrase))
+    }
+
     /// Get a mnemonic from a existing phrase in English.
     pub fn from_phrase(phrase: ProtectedString) -> Result<Mnemonic, Error> {
         Self::from_phrase_lang(phrase, Lang::English)
     }
 
+    /// Get a mnemonic from a existing phrase in English.
+    pub fn from_phrase_ref(phrase: &str) -> Result<Mnemonic, Error> {
+        Self::from_phrase_lang_ref(phrase, Lang::English)
+    }
+
     /// Get a mnemonic from a existing phrase in another language.
     pub fn from_phrase_lang(phrase: ProtectedString, language: Lang) -> Result<Mnemonic, Error> {
         bip39::Mnemonic::from_phrase(AsRef::<str>::as_ref(&phrase), language.into()).map(Mnemonic)
+    }
+
+    /// Get a mnemonic from a existing phrase in another language.
+    pub fn from_phrase_lang_ref(phrase: &str, language: Lang) -> Result<Mnemonic, Error> {
+        bip39::Mnemonic::from_phrase(phrase, language.into()).map(Mnemonic)
     }
 }
 

@@ -24,6 +24,6 @@ impl Handler<CreateWallet> for worker::Worker {
         CreateWallet(name, caption, password, seed_source): CreateWallet,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.create_wallet(name, caption, password.as_ref(), seed_source)
+        self.create_wallet(name, caption, password.as_ref(), &seed_source)
     }
 }

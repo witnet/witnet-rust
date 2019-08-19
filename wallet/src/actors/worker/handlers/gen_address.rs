@@ -1,9 +1,9 @@
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::model;
+use crate::{model, types};
 
-pub struct GenAddress(pub model::WalletUnlocked, pub Option<String>);
+pub struct GenAddress(pub types::SessionWallet, pub Option<String>);
 
 impl Message for GenAddress {
     type Result = worker::Result<model::Address>;

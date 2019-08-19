@@ -1,10 +1,10 @@
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::model;
+use crate::{model, types};
 
 pub struct GetAddresses(
-    pub model::WalletUnlocked,
+    pub types::SessionWallet,
     /// Offset
     pub u32,
     /// Limit

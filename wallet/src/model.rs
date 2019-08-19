@@ -1,8 +1,6 @@
-use serde::{Deserialize, Serialize};
+//! Types that are serializable and can be returned as a response.
 
-use witnet_crypto::key;
-
-use crate::types;
+use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Wallet {
@@ -11,12 +9,13 @@ pub struct Wallet {
     pub caption: Option<String>,
 }
 
-#[derive(Clone)]
-pub struct Account {
-    pub index: u32,
-    pub external: key::ExtendedSK,
-    pub internal: key::ExtendedSK,
-    pub rad: key::ExtendedSK,
+#[derive(Debug, Clone, Serialize)]
+pub struct UnlockedWallet {
+    pub name: Option<String>,
+    pub caption: Option<String>,
+    pub current_account: u32,
+    pub session_id: String,
+    pub available_accounts: Vec<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,49 +48,4 @@ pub enum TransactionKind {
 pub struct Transactions {
     pub transactions: Vec<Transaction>,
     pub total: u32,
-}
-
-#[derive(Clone)]
-pub struct WalletUnlocked {
-    pub id: String,
-    pub name: Option<String>,
-    pub caption: Option<String>,
-    pub account: Account,
-    pub session_id: String,
-    pub accounts: Vec<u32>,
-    pub enc_key: types::Secret,
-}
-
-// ---------------------------- OLD
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WalletInfo {
-    pub id: String,
-    pub name: Option<String>,
-    pub caption: Option<String>,
-}
-
-impl PartialEq<WalletInfo> for WalletInfo {
-    fn eq(&self, other: &WalletInfo) -> bool {
-        self.id == other.id
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Accounts {
-    pub accounts: Vec<u32>,
-    pub current: u32,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct ReceiveKey {
-    pub pkh: Vec<u8>,
-    pub index: u32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OldAddress {
-    pub address: String,
-    pub path: String,
-    pub label: Option<String>,
 }

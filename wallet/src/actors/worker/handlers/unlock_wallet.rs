@@ -1,7 +1,7 @@
 use actix::prelude::*;
 
 use crate::actors::worker;
-use crate::{model, types};
+use crate::types;
 
 pub struct UnlockWallet(
     /// Wallet id
@@ -11,7 +11,7 @@ pub struct UnlockWallet(
 );
 
 impl Message for UnlockWallet {
-    type Result = worker::Result<model::WalletUnlocked>;
+    type Result = worker::Result<types::UnlockedSessionWallet>;
 }
 
 impl Handler<UnlockWallet> for worker::Worker {
