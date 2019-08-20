@@ -10,3 +10,6 @@ block_relay_contract_addr = "0x59053ACa5E548636F0B0e78eAf36De812f939E9d"
 eth_account = "0x33Cb9179aF22b4C0392b1E2C651e233E894E48Ff"
 # Enable block relay from witnet to ethereum?
 enable_block_relay = true
+# Post data request more than once? Useful to retry if the data request
+# was not included in a block
+post_to_witnet_more_than_once = true

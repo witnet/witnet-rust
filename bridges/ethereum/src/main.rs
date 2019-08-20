@@ -531,6 +531,9 @@ fn postdr(
             // Claim dr
             info!("[{}] Claiming dr", dr_id);
             let dr_output_hash = dr_output.hash();
+            let dr_output = Arc::new(dr_output);
+            let dr_output2 = Arc::clone(&dr_output);
+            let witnet_client2 = witnet_client.clone();
 
             // Mark the data request as claimed to prevent double claims by other threads
             eth_state.wbi_requests.write().then(move |wbi_requests| {
@@ -538,18 +541,36 @@ fn postdr(
                     Ok(mut wbi_requests) => {
                         if wbi_requests.posted().contains(&dr_id) {
                             wbi_requests.set_claiming(dr_id);
-                            Ok(())
+                            Either::A(futures::finished(()))
+                        } else if config.post_to_witnet_more_than_once && wbi_requests.claimed().contains_left(&dr_id) {
+                            // Post dr in witnet again.
+                            // This may lead to double spending wits.
+                            // This can be useful in the following scenarios:
+                            // * The data request is posted to Witnet, but it
+                            //   is not accepted into a Witnet block
+                            //   (or is invalid because of double-spending).
+
+                            warn!("[{}] Posting to witnet again as we have not received a block containing this data request yet", dr_id);
+
+                            let bdr_params = json!({"dro": dr_output2, "fee": 0});
+
+                            Either::B(witnet_client2
+                                .execute("buildDataRequest", bdr_params)
+                                .map_err(|e| error!("{:?}", e))
+                                .map(move |bdr_res| {
+                                    debug!("buildDataRequest: {:?}", bdr_res);
+                                }).then(|_| futures::failed(())))
                         } else {
                             // This data request is not available, abort.
-                            warn!("[{}] is already marked as claimed, we will not claim it again", dr_id);
-                            Err(())
+                            debug!("[{}] is not available for claiming, skipping", dr_id);
+                            Either::A(futures::failed(()))
                         }
                     }
                     Err(e) => {
                         // According to the documentation of the futures-locks crate,
                         // this error cannot happen
                         error!("Failed to acquire RwLock: {:?}", e);
-                        Err(())
+                        Either::A(futures::failed(()))
                     }
                 }
             })
@@ -673,18 +694,8 @@ fn post_actor(
                                 ))
                             }
                             _ => {
-                                // Should we claim an already claimed data request?
-                                // This can be useful in the following scenarios:
-                                // * The data request is posted to Witnet, but it
-                                //   is not accepted into a Witnet block
-                                //   (or is invalid because of double-spending).
-                                //   In this case probably there is no need to claim
-                                //   again, just build another transaction in Witnet.
-                                // * The data request is accepted into a Witnet
-                                //   block, but the reportInclusion transaction
-                                //   is not accepted into an Ethereum block.
-                                //   In this case the data request will be in
-                                //   "Including" state, and we do not handle that here.
+                                // Try to claim already-claimed data request as the claim may
+                                // have expired.
                                 let i = thread_rng().gen_range(0, known_dr_ids_claimed.len());
                                 let dr_id = *known_dr_ids_claimed.iter().nth(i).unwrap().0;
                                 std::mem::drop(known_dr_ids);
