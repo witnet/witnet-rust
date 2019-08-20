@@ -1271,17 +1271,25 @@ pub struct DataRequestReport {
     pub reveals: Vec<RevealTransaction>,
     /// Tally output pointer (contains final result)
     pub tally: TallyTransaction,
+    /// Hash of the block with the DataRequestTransaction
+    pub block_hash_dr_tx: Hash,
+    /// Hash of the block with the TallyTransaction
+    pub block_hash_tally_tx: Hash,
 }
 
 impl TryFrom<DataRequestInfo> for DataRequestReport {
     type Error = failure::Error;
 
     fn try_from(x: DataRequestInfo) -> Result<Self, failure::Error> {
-        if let Some(tally) = x.tally {
+        if let (Some(tally), Some(block_hash_dr_tx), Some(block_hash_tally_tx)) =
+            (x.tally, x.block_hash_dr_tx, x.block_hash_tally_tx)
+        {
             Ok(DataRequestReport {
                 commits: x.commits.values().cloned().collect(),
                 reveals: x.reveals.values().cloned().collect(),
                 tally,
+                block_hash_dr_tx,
+                block_hash_tally_tx,
             })
         } else {
             Err(DataRequestError::UnfinishedDataRequest)?
@@ -1298,6 +1306,10 @@ pub struct DataRequestInfo {
     pub reveals: HashMap<PublicKeyHash, RevealTransaction>,
     /// Tally of data request (contains final result)
     pub tally: Option<TallyTransaction>,
+    /// Hash of the block with the DataRequestTransaction
+    pub block_hash_dr_tx: Option<Hash>,
+    /// Hash of the block with the TallyTransaction
+    pub block_hash_tally_tx: Option<Hash>,
 }
 
 /// State of data requests in progress (stored in memory)
@@ -1318,8 +1330,14 @@ pub struct DataRequestState {
 
 impl DataRequestState {
     /// Add a new data request state
-    pub fn new(data_request: DataRequestOutput, pkh: PublicKeyHash, epoch: Epoch) -> Self {
-        let info = DataRequestInfo::default();
+    pub fn new(
+        data_request: DataRequestOutput,
+        pkh: PublicKeyHash,
+        epoch: Epoch,
+        block_hash_dr_tx: &Hash,
+    ) -> Self {
+        let mut info = DataRequestInfo::default();
+        info.block_hash_dr_tx = Some(*block_hash_dr_tx);
         let stage = DataRequestStage::COMMIT;
 
         Self {
@@ -1365,9 +1383,11 @@ impl DataRequestState {
     pub fn add_tally(
         mut self,
         tally: TallyTransaction,
+        block_hash_tally_tx: &Hash,
     ) -> Result<DataRequestReport, failure::Error> {
         if let DataRequestStage::TALLY = self.stage {
             self.info.tally = Some(tally);
+            self.info.block_hash_tally_tx = Some(*block_hash_tally_tx);
 
             // This try_from can only fail if the tally is None, and we have just set it to Some
             let data_request_report = DataRequestReport::try_from(self.info)?;

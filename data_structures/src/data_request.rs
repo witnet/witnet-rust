@@ -74,6 +74,7 @@ impl DataRequestPool {
         &mut self,
         epoch: Epoch,
         data_request: DRTransaction,
+        block_hash: &Hash,
     ) -> Result<(), failure::Error> {
         let dr_hash = data_request.hash();
         if data_request.signatures.is_empty() {
@@ -81,7 +82,8 @@ impl DataRequestPool {
         }
 
         let pkh = data_request.signatures[0].public_key.pkh();
-        let dr_state = DataRequestState::new(data_request.body.dr_output.clone(), pkh, epoch);
+        let dr_state =
+            DataRequestState::new(data_request.body.dr_output.clone(), pkh, epoch, block_hash);
 
         self.data_requests_by_epoch
             .entry(epoch)
@@ -178,7 +180,7 @@ impl DataRequestPool {
             });
         let dr_state = dr_state?;
 
-        dr_state.add_tally(tally_tx)
+        dr_state.add_tally(tally_tx, block_hash)
     }
 
     /// Return the list of data requests in which this node has participated and are ready
@@ -270,6 +272,7 @@ impl DataRequestPool {
         &mut self,
         dr_transaction: &DRTransaction,
         epoch: Epoch,
+        block_hash: &Hash,
     ) -> Result<(), failure::Error> {
         // A data request output should have a valid value transfer input
         // Which we assume valid as it should have been already verified
@@ -281,7 +284,7 @@ impl DataRequestPool {
         // calls to GetEpoch
         let time_lock_epoch = 0;
         let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
-        self.add_data_request(dr_epoch, dr_transaction.clone())
+        self.add_data_request(dr_epoch, dr_transaction.clone(), block_hash)
     }
 
     /// New tallies are added to their respective data requests and finish them
@@ -365,7 +368,8 @@ mod tests {
     fn add_data_requests() -> (u32, Hash, DataRequestPool, Hash) {
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
-        let empty_info = DataRequestInfo::default();
+        let mut empty_info = DataRequestInfo::default();
+        empty_info.block_hash_dr_tx = Some(fake_block_hash);
         let dr_transaction = DRTransaction::new(
             DRTransactionBody::new(vec![Input::default()], vec![], DataRequestOutput::default()),
             vec![KeyedSignature::default()],
@@ -373,7 +377,8 @@ mod tests {
         let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::default();
-        p.process_data_request(&dr_transaction, epoch).unwrap();
+        p.process_data_request(&dr_transaction, epoch, &fake_block_hash)
+            .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
         assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
