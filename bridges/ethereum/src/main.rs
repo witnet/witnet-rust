@@ -19,6 +19,7 @@ use web3::{
     types::{FilterBuilder, TransactionReceipt, U256},
 };
 use witnet_crypto::hash::{calculate_sha256, Sha256};
+use witnet_data_structures::chain::DataRequestReport;
 use witnet_data_structures::{
     chain::{Block, DataRequestOutput, Hash, Hashable},
     proto::ProtobufConvert,
@@ -747,7 +748,7 @@ fn main_actor(
     // When the dataRequestReport method will be implemented on the witnet
     // node JSON-RPC, we will be able to query data request status, and use
     // that information to prove inclusion of any data request.
-    let mut all_seen_tallies = HashMap::new();
+    //let mut all_seen_tallies = HashMap::new();
 
     let wbi_contract = eth_state.wbi_contract.clone();
     let block_relay_contract = eth_state.block_relay_contract.clone();
@@ -756,7 +757,6 @@ fn main_actor(
         .for_each(move |msg| {
             debug!("Got ActorMessage: {:?}", msg);
 
-            debug!("all_seen_tallies.len() == {}", all_seen_tallies.len());
             match msg {
                 ActorMessage::NewWitnetBlock(block) => {
                     // Optimization: do not process empty blocks
@@ -803,6 +803,9 @@ fn main_actor(
                                 })
                                 .map(move |()| {
                                     info!("Posted block {:x} to block relay", block_hash);
+                                })
+                                .map_err(move |()| {
+                                    warn!("Failed to post block {:x} to block relay, maybe it was already posted?", block_hash);
                                 })
                         );
                     }
@@ -883,24 +886,18 @@ fn main_actor(
                             }
                         }
 
-                        all_seen_tallies.extend(block.txns.tally_txns.iter().filter_map(|tally| {
-                            let tally_inclusion_proof = match tally.data_proof_of_inclusion(&block) {
-                                Some(x) => x,
-                                None => {
-                                    error!("Error creating tally data proof of inclusion");
-                                    return None;
-                                }
-                            };
-
-                            Some((tally.dr_pointer, (tally.clone(), tally_inclusion_proof, block_hash)))
-                        }));
-
-                        for (dr_id, dr_tx_hash) in waiting_for_tally {
-                            if let Some((tally, tally_inclusion_proof, tally_block_hash)) = all_seen_tallies.get(&dr_tx_hash)
+                        for tally in &block.txns.tally_txns {
+                            if let Some(dr_id) = waiting_for_tally.get_by_right(&tally.dr_pointer)
                             {
-                                // Call report_result method of the WBI
                                 let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
                                 info!("[{}] Found tally for data request, posting to WBI", dr_id);
+                                let tally_inclusion_proof = match tally.data_proof_of_inclusion(&block) {
+                                    Some(x) => x,
+                                    None => {
+                                        error!("Error creating tally data proof of inclusion");
+                                        continue;
+                                    }
+                                };
                                 debug!(
                                     "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
                                     tally.hash(),
@@ -918,12 +915,12 @@ fn main_actor(
                                     .collect();
                                 let poi_index = U256::from(tally_inclusion_proof.index);
                                 let result: Bytes = tally.tally.clone();
-                                resolving.push((*dr_id, poi.clone(), poi_index, *tally_block_hash, result.clone()));
+                                resolving.push((*dr_id, poi.clone(), poi_index, block_hash, result.clone()));
                                 tokio::spawn(
                                     wbi_contract
                                         .call_with_confirmations(
                                             "reportResult",
-                                            (*dr_id, poi, poi_index, *tally_block_hash, result),
+                                            (*dr_id, poi, poi_index, block_hash, result),
                                             config.eth_account,
                                             contract::Options::default(),
                                             1,
@@ -1044,6 +1041,82 @@ fn block_ticker(
     (return_tx, block_ticker)
 }
 
+fn report_ticker(
+    config: Arc<Config>,
+    eth_state: Arc<EthState>,
+    tx: mpsc::Sender<ActorMessage>,
+) -> (
+    async_jsonrpc_client::transports::shared::EventLoopHandle,
+    impl Future<Item = (), Error = ()>,
+) {
+    let witnet_addr = config.witnet_jsonrpc_addr.to_string();
+    // Important: the handle cannot be dropped, otherwise the client stops
+    // processing events
+    let (handle, witnet_client) =
+        async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
+    let witnet_client1 = witnet_client.clone();
+
+    (handle, Interval::new(Instant::now(), Duration::from_millis(20_000))
+        .map_err(|e| error!("Error creating interval: {:?}", e))
+        .and_then(move |x| eth_state.wbi_requests.read().map(move |wbi_requests| (wbi_requests, x)))
+        .and_then(move |(wbi_requests, _instant)| {
+            debug!("Report tick");
+            // Try to get the report of a random data request, maybe it already was resolved
+            let included = wbi_requests.included();
+            debug!("Included data requests: {:?}", included);
+            if included.is_empty() {
+                return Either::A(futures::failed(()));
+            }
+            let i = thread_rng().gen_range(0, included.len());
+            let (dr_id, dr_tx_hash) = included.iter().nth(i).unwrap();
+            debug!("[{}] Report ticker will check data request {}", dr_id, dr_tx_hash);
+
+            Either::B(witnet_client
+                .execute("dataRequestReport", json!([*dr_tx_hash]))
+                .map_err(|e| error!("createVRF: {:?}", e))
+            )
+        })
+        .and_then(move |report| {
+            debug!("dataRequestReport: {}", report);
+
+            match serde_json::from_value::<Option<DataRequestReport>>(report) {
+                Ok(Some(report)) => {
+                    info!("Found possible tally to be reported from an old witnet block {}", report.block_hash_tally_tx);
+                    Either::A(witnet_client1.execute("getBlock", json!([report.block_hash_tally_tx]))
+                        .map_err(|e| error!("getBlock: {:?}", e)))
+                }
+                Ok(None) => {
+                    // No problem, this means the data request has not been resolved yet
+                    debug!("Data request not resolved yet");
+                    Either::B(futures::failed(()))
+                }
+                Err(e) => {
+                    error!("dataRequestReport deserialize error: {:?}", e);
+                    Either::B(futures::failed(()))
+                }
+            }
+        })
+        .and_then(move |value| {
+            match serde_json::from_value::<Block>(value) {
+                Ok(block) => {
+                    debug!("Replaying an old witnet block so that we can report the resolved data requests: {:?}", block);
+                    Either::A(
+                        tx.clone().send(ActorMessage::NewWitnetBlock(Box::new(block)))
+                            .map_err(|_| ())
+                            .map(|_| ()),
+                    )
+                }
+                Err(e) => {
+                    error!("Error parsing witnet block: {:?}", e);
+                    Either::B(futures::finished(()))
+                }
+            }
+
+        })
+        .then(|_| Ok(()))
+        .for_each(|_| Ok(())))
+}
+
 fn main() {
     init_logger();
     let config = Arc::new(match read_config() {
@@ -1067,6 +1140,7 @@ fn main() {
     let (tx1, rx) = mpsc::channel(16);
     let (ptx, prx) = mpsc::channel(16);
     let tx2 = tx1.clone();
+    let tx3 = tx1.clone();
     let ptx2 = ptx.clone();
 
     let ees = eth_event_stream(Arc::clone(&config), Arc::clone(&eth_state), tx1, ptx);
@@ -1094,6 +1168,9 @@ fn main() {
         })
         .for_each(|_| Ok(()));
 
+    let (_handle, report_ticker_fut) =
+        report_ticker(Arc::clone(&config), Arc::clone(&eth_state), tx3);
+
     tokio::run(future::ok(()).map(move |_| {
         tokio::spawn(wbs);
         tokio::spawn(ees);
@@ -1101,5 +1178,6 @@ fn main() {
         tokio::spawn(act);
         tokio::spawn(post_ticker);
         tokio::spawn(block_ticker_fut);
+        tokio::spawn(report_ticker_fut);
     }));
 }
