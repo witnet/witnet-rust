@@ -28,7 +28,7 @@ use crate::actors::{
     },
     sessions_manager::SessionsManager,
 };
-use crate::signature_mngr;
+use crate::{signature_mngr, storage_mngr};
 
 //use std::str::FromStr;
 use super::Subscriptions;
@@ -38,6 +38,7 @@ use self::mock_actix::System;
 use crate::actors::chain_manager::StateMachine;
 use crate::actors::messages::GetHighestCheckpointBeacon;
 use futures::future;
+use witnet_data_structures::chain::DataRequestReport;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
@@ -60,12 +61,12 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
         build_value_transfer(params.parse())
     });
     io.add_method("status", |_params: Params| status());
-
     io.add_method("getPublicKey", |_params: Params| get_public_key());
-
     io.add_method("sign", |params: Params| sign_data(params.parse()));
-
     io.add_method("createVRF", |params: Params| create_vrf(params.parse()));
+    io.add_method("dataRequestReport", |params: Params| {
+        data_request_report(params.parse())
+    });
 
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -600,6 +601,30 @@ pub fn create_vrf(params: Result<Vec<u8>, jsonrpc_core::Error>) -> JsonRpcResult
         .map(|(proof, _hash)| {
             log::debug!("{:?}", proof);
             proof.get_proof().into()
+        });
+
+    Box::new(fut)
+}
+
+/// Data request report
+pub fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let dr_pointer = match params {
+        Ok(x) => x.0,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
+    let fut = storage_mngr::get::<_, DataRequestReport>(&dr_pointer_string)
+        .map_err(internal_error)
+        .and_then(move |dr_report| match dr_report {
+            Some(x) => match serde_json::to_value(&x) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error(e);
+                    futures::failed(err)
+                }
+            },
+            None => futures::finished(Value::Null),
         });
 
     Box::new(fut)

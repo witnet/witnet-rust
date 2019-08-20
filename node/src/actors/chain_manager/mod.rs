@@ -208,8 +208,8 @@ impl ChainManager {
     /// Method to persist a Data Request into the Storage
     fn persist_data_request(&self, ctx: &mut Context<Self>, dr_report: &DataRequestReport) {
         let dr_pointer = &dr_report.tally.dr_pointer;
-        let dr_pointer_string = dr_pointer.to_string();
-        storage_mngr::put(dr_pointer, dr_report)
+        let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
+        storage_mngr::put(&dr_pointer_string, dr_report)
             .into_actor(self)
             .map_err(|e, _, _| error!("Failed to persist data request report into storage: {}", e))
             .and_then(move |_, _, _| {

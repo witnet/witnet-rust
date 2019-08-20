@@ -294,13 +294,11 @@ impl DataRequestPool {
     }
 
     /// Get the detailed state of a data request.
-    #[allow(unused)]
     pub fn data_request_state(&self, dr_pointer: &Hash) -> Option<&DataRequestState> {
         self.data_request_pool.get(dr_pointer)
     }
 
     /// Get the data request info of the finished data requests, to be persisted to the storage
-    #[allow(unused)]
     pub fn finished_data_requests(&mut self) -> Vec<DataRequestReport> {
         std::mem::replace(&mut self.to_be_stored, vec![])
     }
