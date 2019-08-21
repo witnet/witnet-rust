@@ -87,21 +87,55 @@ impl WbiRequests {
     }
     /// Insert a data request in `Posted` state
     pub fn insert_posted(&mut self, dr_id: U256) {
-        self.remove_from_all_helper_maps(dr_id);
-        self.requests.insert(dr_id, DrState::Posted);
-        self.posted.insert(dr_id);
+        // This is only safe if the data request did not exist yet
+        match self.requests.get(&dr_id) {
+            None => {
+                self.remove_from_all_helper_maps(dr_id);
+                self.requests.insert(dr_id, DrState::Posted);
+                self.posted.insert(dr_id);
+            }
+            Some(DrState::Posted) => {
+                debug!("Invalid state in WbiRequests: [{}] was being set to Posted, but it is already Posted", dr_id);
+            }
+            _ => {
+                warn!(
+                    "Invalid state in WbiRequests: [{}] was being set to Posted, but it is: {:?}",
+                    dr_id, self.requests[&dr_id]
+                );
+            }
+        }
     }
     /// Insert a data request in `Included` state, with the data request
     /// transaction hash from Witnet stored to allow a map
     /// from WBI_dr_id to Witnet_dr_tx_hash
     pub fn insert_included(&mut self, dr_id: U256, dr_tx_hash: Hash) {
-        self.remove_from_all_helper_maps(dr_id);
-        self.requests.insert(dr_id, DrState::Included);
-        self.included.insert(dr_id, dr_tx_hash);
+        // This is only safe if the data request was
+        // in a state "before" Included
+        match self.requests.get(&dr_id) {
+            None
+            | Some(DrState::Posted)
+            | Some(DrState::Claiming)
+            | Some(DrState::Claimed)
+            | Some(DrState::Including { .. }) => {
+                self.remove_from_all_helper_maps(dr_id);
+                self.requests.insert(dr_id, DrState::Included);
+                self.included.insert(dr_id, dr_tx_hash);
+            }
+            Some(DrState::Included) => {
+                debug!("Invalid state in WbiRequests: [{}] was being set to Included, but it is already Included", dr_id);
+            }
+            _ => {
+                warn!(
+                    "Invalid state in WbiRequests: [{}] was being set to Included, but it is: {:?}",
+                    dr_id, self.requests[&dr_id]
+                );
+            }
+        }
     }
     /// Insert a data request in `Resolved` state, with the result as a vector
     /// of bytes.
     pub fn insert_result(&mut self, dr_id: U256, result: Vec<u8>) {
+        // This is always safe, we can just overwrite the old value if it exists
         self.remove_from_all_helper_maps(dr_id);
         self.requests.insert(dr_id, DrState::Resolved { result });
         self.resolved.insert(dr_id);
@@ -183,6 +217,10 @@ impl WbiRequests {
     /// `dr_tx_hash`
     pub fn included(&self) -> &BiMap<U256, Hash> {
         &self.included
+    }
+    /// View of all the data requests indexed by id
+    pub fn requests(&self) -> &HashMap<U256, DrState> {
+        &self.requests
     }
 }
 

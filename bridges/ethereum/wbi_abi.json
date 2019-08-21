@@ -681,6 +681,25 @@
       "type": "function"
     },
     {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_ids",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "checkDataRequestsClaimability",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool[]"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "constant": false,
       "inputs": [
         {
@@ -796,6 +815,20 @@
     {
       "constant": true,
       "inputs": [],
+      "name": "numRequests",
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
       "name": "getLastBeacon",
       "outputs": [
         {
@@ -808,4 +841,3 @@
       "type": "function"
     }
 ]
-

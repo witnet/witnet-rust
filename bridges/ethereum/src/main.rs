@@ -1132,6 +1132,114 @@ fn report_ticker(
         .for_each(|_| Ok(())))
 }
 
+fn wbi_requests_initial_sync(
+    config: Arc<Config>,
+    eth_state: Arc<EthState>,
+) -> impl Future<Item = (), Error = ()> {
+    // On startup, read all the existing data requests in the wbi in order to
+    // build a local copy and use it for faster queries.
+    // This should be able to run in parallel with the other actors.
+    let wbi_contract = eth_state.wbi_contract.clone();
+    wbi_contract
+        .query(
+            "numRequests",
+            (),
+            config.eth_account,
+            contract::Options::default(),
+            None,
+        )
+        .map_err(|e| error!("numRequests: {:?}", e))
+        .and_then(move |num_requests: U256| {
+            debug!("{} requests in WBI", num_requests);
+            let eth_account = config.eth_account;
+            futures::stream::unfold(U256::from(0), move |dr_id| {
+                if dr_id >= num_requests {
+                    None
+                } else {
+                    debug!("[{}] Getting request", dr_id);
+                    let eth_state = eth_state.clone();
+                    Some(
+                        eth_state
+                            .wbi_contract
+                            .query(
+                                "readResult",
+                                (dr_id,),
+                                eth_account,
+                                contract::Options::default(),
+                                None,
+                            )
+                            .map_err(|e| error!("readResult: {:?}", e))
+                            .map(move |x: Bytes| (x, dr_id))
+                            .and_then(move |(result, dr_id)| {
+                                if !result.is_empty() {
+                                    // In resolved state
+                                    debug!("[{}] Request has already been resolved", dr_id);
+                                    Either::A(eth_state.wbi_requests.write().map(
+                                        move |mut wbi_requests| {
+                                            wbi_requests.insert_result(dr_id, result);
+                                        },
+                                    ))
+                                } else {
+                                    // Not in Resolved state
+                                    Either::B(
+                                        eth_state
+                                            .wbi_contract
+                                            .query(
+                                                "readDrHash",
+                                                (dr_id,),
+                                                eth_account,
+                                                contract::Options::default(),
+                                                None,
+                                            )
+                                            .map_err(|e| error!("readResult: {:?}", e))
+                                            .map(move |x: U256| (x, dr_id))
+                                            .and_then(move |(dr_tx_hash, dr_id)| {
+                                                if dr_tx_hash != U256::from(0) {
+                                                    // In included state
+                                                    debug!(
+                                                        "[{}] Request has already been included",
+                                                        dr_id
+                                                    );
+                                                    Either::A(eth_state.wbi_requests.write().map(
+                                                        move |mut wbi_requests| {
+                                                            let dr_tx_hash =
+                                                                Hash::SHA256(dr_tx_hash.into());
+                                                            wbi_requests
+                                                                .insert_included(dr_id, dr_tx_hash);
+                                                        },
+                                                    ))
+                                                } else {
+                                                    debug!(
+                                                        "[{}] Request has already been posted",
+                                                        dr_id
+                                                    );
+                                                    // Not in included state, must be in posted state
+                                                    Either::B(eth_state.wbi_requests.write().map(
+                                                        move |mut wbi_requests| {
+                                                            wbi_requests.insert_posted(dr_id);
+                                                        },
+                                                    ))
+                                                }
+                                            }),
+                                    )
+                                }
+                            })
+                            .map(move |a| {
+                                let b = dr_id + 1;
+                                (a, b)
+                            }),
+                    )
+                }
+            })
+            .then(|_| Ok(()))
+            .for_each(|_| Ok(()))
+        })
+        .then(|_| {
+            info!("Initial WBI Requests synchronization finished!");
+            Ok(())
+        })
+}
+
 fn main() {
     init_logger();
     let config = Arc::new(match read_config() {
@@ -1185,6 +1293,7 @@ fn main() {
 
     let (_handle, report_ticker_fut) =
         report_ticker(Arc::clone(&config), Arc::clone(&eth_state), tx3);
+    let wbi_requests_fut = wbi_requests_initial_sync(Arc::clone(&config), Arc::clone(&eth_state));
 
     tokio::run(future::ok(()).map(move |_| {
         tokio::spawn(wbs);
@@ -1194,5 +1303,6 @@ fn main() {
         tokio::spawn(post_ticker);
         tokio::spawn(block_ticker_fut);
         tokio::spawn(report_ticker_fut);
+        tokio::spawn(wbi_requests_fut);
     }));
 }
