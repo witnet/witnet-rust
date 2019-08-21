@@ -782,30 +782,45 @@ fn main_actor(
                                 Hash::SHA256(x) => x.into(),
                             };
 
-                        debug!("Trying to relay block {:x}", block_hash);
+                        let config2 = Arc::clone(&config);
+                        let block_relay_contract2 = block_relay_contract.clone();
 
                         // Post witnet block to BlockRelay wbi_contract
                         tokio::spawn(
                             block_relay_contract
-                                .call_with_confirmations(
-                                    "postNewBlock",
-                                    (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
-                                    config.eth_account,
-                                    contract::Options::with(|opt| {
-                                        opt.gas = Some(100_000.into());
-                                    }),
-                                    1,
+                                .query(
+                                    "readDrMerkleRoot",
+                                    (block_hash,),
+                                    config2.eth_account,
+                                    contract::Options::default(),
+                                    None,
                                 )
-                                .map_err(|e| error!("postNewBlock: {:?}", e))
-                                .and_then(|tx| {
-                                    debug!("postNewBlock: {:?}", tx);
-                                    handle_receipt(tx)
+                                .map(move |_: U256| {
+                                    debug!("Block {:x} was already posted", block_hash);
                                 })
-                                .map(move |()| {
-                                    info!("Posted block {:x} to block relay", block_hash);
-                                })
-                                .map_err(move |()| {
-                                    warn!("Failed to post block {:x} to block relay, maybe it was already posted?", block_hash);
+                                .or_else(move |_| {
+                                    debug!("Trying to relay block {:x}", block_hash);
+                                    block_relay_contract2
+                                        .call_with_confirmations(
+                                            "postNewBlock",
+                                            (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
+                                            config2.eth_account,
+                                            contract::Options::with(|opt| {
+                                                opt.gas = Some(100_000.into());
+                                            }),
+                                            1,
+                                        )
+                                        .map_err(|e| error!("postNewBlock: {:?}", e))
+                                        .and_then(|tx| {
+                                            debug!("postNewBlock: {:?}", tx);
+                                            handle_receipt(tx)
+                                        })
+                                        .map(move |()| {
+                                            info!("Posted block {:x} to block relay", block_hash);
+                                        })
+                                        .map_err(move |()| {
+                                            warn!("Failed to post block {:x} to block relay, maybe it was already posted?", block_hash);
+                                        })
                                 })
                         );
                     }
