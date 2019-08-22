@@ -9,7 +9,7 @@ use witnet_data_structures::{
 };
 use witnet_validations::validations::{
     compare_blocks, validate_block, validate_commit_transaction, validate_dr_transaction,
-    validate_reveal_transaction, validate_vt_transaction, UtxoDiff,
+    validate_rad_request, validate_reveal_transaction, validate_vt_transaction, UtxoDiff,
 };
 
 use super::{ChainManager, ChainManagerError, StateMachine};
@@ -753,6 +753,9 @@ impl Handler<BuildDrt> for ChainManager {
         if self.sm_state != StateMachine::Synced {
             return Box::new(actix::fut::err(ChainManagerError::NotSynced.into()));
         }
+        if let Err(e) = validate_rad_request(&msg.dro.data_request) {
+            return Box::new(actix::fut::err(e));
+        }
         match transaction_factory::build_drt(
             msg.dro,
             msg.fee,
@@ -765,7 +768,7 @@ impl Handler<BuildDrt> for ChainManager {
                 Box::new(actix::fut::err(e.into()))
             }
             Ok(drt) => {
-                log::debug!("Created vtt:\n{:?}", drt);
+                log::debug!("Created drt:\n{:?}", drt);
                 let fut = transaction_factory::sign_transaction(&drt, drt.inputs.len())
                     .into_actor(self)
                     .then(|s, _act, ctx| match s {

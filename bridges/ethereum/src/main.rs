@@ -28,6 +28,7 @@ use witnet_ethereum_bridge::{
     config::{read_config, Config},
     eth::{read_u256_from_event_log, EthState, WbiEvent},
 };
+use witnet_validations::validations::validate_rad_request;
 
 fn handle_receipt(receipt: TransactionReceipt) -> impl Future<Item = (), Error = ()> {
     match receipt.status {
@@ -326,8 +327,16 @@ fn postdr(
         .map_err(|e| error!("{:?}", e))
         .and_then(move |dr_bytes: Bytes| {
             let dr_output: DataRequestOutput =
-                match ProtobufConvert::from_pb_bytes(&dr_bytes) {
-                    Ok(x) => x,
+                match ProtobufConvert::from_pb_bytes(&dr_bytes).and_then(|dr: DataRequestOutput| {
+                    validate_rad_request(&dr.data_request)?;
+                    Ok(dr)
+                }) {
+                    Ok(x) => {
+                        // TODO: check if we want to claim this data request:
+                        // Is the price ok?
+
+                        x
+                    },
                     Err(e) => {
                         warn!(
                             "[{}] uses an invalid serialization, will be ignored: {:?}",
