@@ -750,12 +750,14 @@ fn main_actor(
     // that information to prove inclusion of any data request.
     //let mut all_seen_tallies = HashMap::new();
 
-    let wbi_contract = eth_state.wbi_contract.clone();
-    let block_relay_contract = eth_state.block_relay_contract.clone();
-
     rx.map_err(|_| ())
         .for_each(move |msg| {
             debug!("Got ActorMessage: {:?}", msg);
+            let eth_state = eth_state.clone();
+            let eth_state2 = eth_state.clone();
+            let eth_account = config.eth_account;
+            let wbi_contract = eth_state.wbi_contract.clone();
+            let block_relay_contract = eth_state.block_relay_contract.clone();
 
             match msg {
                 ActorMessage::NewWitnetBlock(block) => {
@@ -782,7 +784,6 @@ fn main_actor(
                                 Hash::SHA256(x) => x.into(),
                             };
 
-                        let config2 = Arc::clone(&config);
                         let block_relay_contract2 = block_relay_contract.clone();
 
                         // Post witnet block to BlockRelay wbi_contract
@@ -791,7 +792,7 @@ fn main_actor(
                                 .query(
                                     "readDrMerkleRoot",
                                     (block_hash,),
-                                    config2.eth_account,
+                                    eth_account,
                                     contract::Options::default(),
                                     None,
                                 )
@@ -804,7 +805,7 @@ fn main_actor(
                                         .call_with_confirmations(
                                             "postNewBlock",
                                             (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
-                                            config2.eth_account,
+                                            eth_account,
                                             contract::Options::with(|opt| {
                                                 opt.gas = Some(100_000.into());
                                             }),
@@ -827,14 +828,14 @@ fn main_actor(
 
                     // Wait for someone else to publish the witnet block to ethereum
                     let (wbtx, wbrx) = oneshot::channel();
-                    wait_for_witnet_block_tx.clone().send((block_hash, wbtx)).map_err(|_| ())
+                    let fut = wait_for_witnet_block_tx.clone().send((block_hash, wbtx)).map_err(|_| ())
                     .and_then(|_| {
                         wbrx.map_err(|_| ())
                     })
-                    .and_then(|()| {
+                    .and_then(move |()| {
                         eth_state.wbi_requests.read()
                     })
-                    .and_then(|wbi_requests| {
+                    .and_then(move |wbi_requests| {
                         let block_hash: U256 = match block.hash() {
                             Hash::SHA256(x) => x.into(),
                         };
@@ -888,7 +889,7 @@ fn main_actor(
                                         .call_with_confirmations(
                                             "reportDataRequestInclusion",
                                             (*dr_id, poi, poi_index, block_hash),
-                                            config.eth_account,
+                                            eth_account,
                                             contract::Options::default(),
                                             1,
                                         )
@@ -936,7 +937,7 @@ fn main_actor(
                                         .call_with_confirmations(
                                             "reportResult",
                                             (*dr_id, poi, poi_index, block_hash, result),
-                                            config.eth_account,
+                                            eth_account,
                                             contract::Options::default(),
                                             1,
                                         )
@@ -949,11 +950,9 @@ fn main_actor(
                             }
                         }
 
-                        // Update the wbi_requests map
-                        //std::mem::drop(wbi_requests);
                         // Check if we need to acquire a write lock
                         if !including.is_empty() || !resolving.is_empty() {
-                            Either::A(eth_state.wbi_requests.write().map(|mut wbi_requests| {
+                            Either::A(eth_state2.wbi_requests.write().map(|mut wbi_requests| {
                                 for (dr_id, poi, poi_index, block_hash) in including {
                                     wbi_requests.set_including(dr_id, poi, poi_index, block_hash);
                                 }
@@ -966,10 +965,10 @@ fn main_actor(
                         }
                     })
                     // Without this line the actor will panic on the first failure
-                    .then(|_| Result::<(), ()>::Ok(()))
-                    // Synchronously wait for the future because we do not want to be processing
-                    // multiple blocks in parallel
-                    .wait().unwrap();
+                    .then(|_| Result::<(), ()>::Ok(()));
+
+                    // Process multiple blocks in parallel
+                    tokio::spawn(fut);
 
                     futures::finished(())
                 }
