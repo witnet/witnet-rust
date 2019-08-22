@@ -131,7 +131,7 @@ impl Worker {
 
         let wallet = repository::Wallet::new(wallet_db, self.params.clone(), self.engine.clone());
 
-        let data = wallet.data()?;
+        let data = wallet.unlock()?;
 
         Ok(types::UnlockedSessionWallet {
             wallet,
@@ -221,6 +221,16 @@ impl Worker {
 
     pub fn set(&self, wallet: &types::Wallet, key: &str, value: &str) -> Result<()> {
         wallet.db_set(key, value)?;
+
+        Ok(())
+    }
+
+    pub fn index_txns(
+        &self,
+        wallet: &types::Wallet,
+        txns: &[types::VTTransactionBody],
+    ) -> Result<()> {
+        wallet.index_txns(txns)?;
 
         Ok(())
     }

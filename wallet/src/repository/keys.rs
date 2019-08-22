@@ -16,6 +16,24 @@ pub fn wallet_caption() -> &'static str {
     "caption"
 }
 
+/// A wallet's pkhs.
+#[inline]
+pub fn wallet_pkhs() -> &'static str {
+    "pkhs"
+}
+
+/// A wallet's utxo set.
+#[inline]
+pub fn wallet_utxo_set() -> &'static str {
+    "utxo-set"
+}
+
+/// A wallet's transactions count per account.
+#[inline]
+pub fn wallet_transactions_count() -> &'static str {
+    "transactions-count"
+}
+
 /// A wallet's name.
 #[inline]
 pub fn wallet_id_name(id: &str) -> String {
@@ -98,4 +116,26 @@ pub fn address_label(account_index: u32, key_index: u32) -> String {
 #[inline]
 pub fn custom(key: &str) -> String {
     format!("custom-{}", key,)
+}
+
+/// A transaction's value.
+#[inline]
+pub fn transaction_value(account_index: u32, id: u32) -> String {
+    format!("account-{}-transaction-{}-value", account_index, id)
+}
+
+/// A transaction's type.
+#[inline]
+pub fn transaction_type(account_index: u32, id: u32) -> String {
+    format!("account-{}-transaction-{}-type", account_index, id)
+}
+
+/// The account a transaction's is bound to.
+#[inline]
+pub fn transaction_output_recipient(txn_hash: &[u8], output_index: u32) -> Vec<u8> {
+    let mut key = Vec::with_capacity(txn_hash.len() + 4);
+    key.extend_from_slice(txn_hash);
+    key.extend_from_slice(&output_index.to_le_bytes());
+
+    key
 }

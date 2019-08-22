@@ -1,8 +1,11 @@
-use std::sync::Mutex;
+use std::collections::HashMap;
+use std::ops::Deref as _;
+use std::sync::{Mutex, RwLock};
 
 use bech32::ToBase32 as _;
 
 use super::*;
+use crate::types::Hashable as _;
 use crate::{
     crypto,
     db::{Database, WriteBatch as _},
@@ -16,6 +19,12 @@ pub struct Wallet<T> {
     params: Params,
     engine: types::SignEngine,
     gen_address_mutex: Mutex<()>,
+    /// Number of transactions per account
+    transactions_count: RwLock<HashMap<u32, u32>>,
+    /// Map pkh -> account index
+    pkhs: RwLock<HashMap<Vec<u8>, u32>>,
+    /// Map account index -> utxo set, which maps output pointer -> value
+    utxo_set: RwLock<HashMap<u32, HashMap<(Vec<u8>, u32), u64>>>,
 }
 
 impl<T> Wallet<T>
@@ -27,15 +36,33 @@ where
             db,
             params,
             engine,
-            gen_address_mutex: Mutex::new(()),
+            gen_address_mutex: Default::default(),
+            transactions_count: Default::default(),
+            pkhs: Default::default(),
+            utxo_set: Default::default(),
         }
     }
 
-    pub fn data(&self) -> Result<types::WalletData> {
+    pub fn unlock(&self) -> Result<types::WalletData> {
         let name: Option<String> = self.db.get_opt(keys::wallet_name())?;
         let caption: Option<String> = self.db.get_opt(keys::wallet_caption())?;
         let accounts: Vec<u32> = self.db.get(keys::wallet_accounts())?;
         let account: u32 = self.db.get(keys::wallet_default_account())?;
+        let wallet_pkhs = self.db.get(keys::wallet_pkhs())?;
+        let wallet_utxo_set = self.db.get(keys::wallet_utxo_set())?;
+        let wallet_transactions_count = self.db.get(keys::wallet_transactions_count())?;
+
+        let mut transactions_count = self.transactions_count.write()?;
+        *transactions_count = wallet_transactions_count;
+        drop(transactions_count);
+
+        let mut pkhs = self.pkhs.write()?;
+        *pkhs = wallet_pkhs;
+        drop(pkhs);
+
+        let mut utxo_set = self.utxo_set.write()?;
+        *utxo_set = wallet_utxo_set;
+        drop(utxo_set);
 
         let wallet = types::WalletData {
             name,
@@ -84,6 +111,9 @@ where
         }
 
         self.db.write(batch)?;
+        let mut pkhs = self.pkhs.write()?;
+        pkhs.insert(pkh, account_index);
+        drop(pkhs);
 
         Ok(model::Address {
             address,
@@ -135,6 +165,100 @@ where
         self.db.put(&keys::custom(key), value)?;
 
         Ok(())
+    }
+
+    pub fn index_txns(&self, txns: &[types::VTTransactionBody]) -> Result<()> {
+        let mut batch = self.db.batch();
+
+        for txn in txns {
+            let txn_hash = txn.hash().as_ref().to_vec();
+
+            for input in &txn.inputs {
+                let p = input.output_pointer();
+                let pointed_txn_hash = p.transaction_id.as_ref().to_vec();
+                let pointed_output_index = p.output_index;
+
+                if let Some(account_index) =
+                    self.db
+                        .get_opt::<_, u32>(&keys::transaction_output_recipient(
+                            &pointed_txn_hash,
+                            pointed_output_index,
+                        ))?
+                {
+                    let utxo_key = (pointed_txn_hash, pointed_output_index);
+
+                    // remove the UTXO from the utxo set
+                    let mut utxo_set = self.utxo_set.write()?;
+                    let account_utxo_set = utxo_set
+                        .get_mut(&account_index)
+                        .expect("utxo set not found for account_index");
+                    let value = match account_utxo_set.remove(&utxo_key) {
+                        Some(value) => value,
+                        None => Err(Error::NoUtxoForInput)?,
+                    };
+                    drop(utxo_set);
+
+                    // record transaction for this account
+                    let txn_id = self.next_transaction_id(account_index)?;
+                    batch.put(&keys::transaction_value(account_index, txn_id), value)?;
+                    batch.put(&keys::transaction_type(account_index, txn_id), "debit")?;
+                }
+            }
+
+            for (output_index, output) in txn.outputs.iter().enumerate() {
+                let pkh = output.pkh.as_ref();
+                let value = output.value;
+
+                if let Some(account_index) = self.pkhs.read()?.get(pkh).cloned() {
+                    // add UTXO to the utxo set
+                    let mut utxo_set = self.utxo_set.write()?;
+                    let account_utxo_set = utxo_set
+                        .get_mut(&account_index)
+                        .expect("utxo set not found for account");
+                    account_utxo_set.insert((txn_hash.clone(), output_index as u32), value);
+                    drop(utxo_set);
+
+                    // record transaction for this account
+                    let txn_id = self.next_transaction_id(account_index)?;
+                    batch.put(&keys::transaction_value(account_index, txn_id), value)?;
+                    batch.put(&keys::transaction_type(account_index, txn_id), "credit")?;
+                    batch.put(
+                        &keys::transaction_output_recipient(&txn_hash, output_index as u32),
+                        account_index,
+                    )?;
+                }
+            }
+        }
+
+        // persist modified utxo set
+        let utxo_set_guard = self.utxo_set.read()?;
+        let utxo_set = utxo_set_guard.deref();
+        self.db.put(keys::wallet_utxo_set(), utxo_set)?;
+
+        // persist modified transactions count per account
+        let transactions_count_guard = self.transactions_count.read()?;
+        let transactions_count = transactions_count_guard.deref();
+        self.db
+            .put(keys::wallet_transactions_count(), transactions_count)?;
+
+        // persist transactions
+        self.db.write(batch)?;
+
+        Ok(())
+    }
+
+    fn next_transaction_id(&self, account_index: u32) -> Result<u32> {
+        let transactions_count = self.transactions_count.write()?;
+        let next_id = transactions_count
+            .get(&account_index)
+            .expect("transactions count not found for account index");
+        let id = *next_id;
+
+        next_id
+            .checked_add(1)
+            .ok_or_else(|| Error::TransactionIdOverflow)?;
+
+        Ok(id)
     }
 }
 

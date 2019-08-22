@@ -9,8 +9,10 @@ pub use witnet_crypto::{
     key::{ExtendedPK, ExtendedSK, KeyDerivationError, KeyPath, SignEngine},
     mnemonic::{Length as MnemonicLength, Mnemonic, MnemonicGen},
 };
-pub use witnet_data_structures::chain::Block as ChainBlock;
-pub use witnet_data_structures::chain::RADRequest;
+pub use witnet_data_structures::{
+    chain::{Block as ChainBlock, Hashable, RADRequest, ValueTransferOutput},
+    transaction::VTTransactionBody,
+};
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
 pub use witnet_rad::types::RadonTypes;

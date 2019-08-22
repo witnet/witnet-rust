@@ -7,6 +7,10 @@ use crate::{db, types};
 pub enum Error {
     #[fail(display = "maximum key index reached for account")]
     IndexOverflow,
+    #[fail(display = "maximum transaction id reached for account")]
+    TransactionIdOverflow,
+    #[fail(display = "an input points to an utxo that's not present")]
+    NoUtxoForInput,
     #[fail(display = "mutex poison error")]
     MutexPoison,
     #[fail(display = "database failed: {}", _0)]

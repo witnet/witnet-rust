@@ -321,4 +321,32 @@ impl App {
 
         Box::new(f)
     }
+
+    /// Handle notifications received from the node.
+    pub fn handle_block_notification(&mut self, value: types::Json) -> Result<()> {
+        log::trace!("received block notification");
+        let block = serde_json::from_value::<types::ChainBlock>(value).map_err(node_error)?;
+        // NOTE: Possible enhancement.
+        // Maybe is a good idea to use a shared reference Arc
+        // instead of cloning this vector of txns if this vector
+        // results to be too big, problm is that doing so conflicts
+        // with the internal Cell of the txns type which cannot be
+        // shared between threads.
+        let txns = block
+            .txns
+            .value_transfer_txns
+            .into_iter()
+            .map(|txn| txn.body)
+            .collect::<Vec<_>>();
+
+        for (id, wallet) in self.state.wallets() {
+            self.params.worker.do_send(worker::IndexTxns(
+                id.to_owned(),
+                wallet.clone(),
+                txns.clone(),
+            ));
+        }
+
+        Ok(())
+    }
 }
