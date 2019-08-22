@@ -318,13 +318,34 @@ fn postdr(
 
     wbi_contract
         .query(
-            "readDataRequest",
-            (dr_id,),
+            "checkDataRequestsClaimability",
+            (vec![dr_id],),
             eth_account,
             contract::Options::default(),
             None,
         )
-        .map_err(|e| error!("{:?}", e))
+        .map_err(|e| error!("checkDataRequestsClaimability {:?}", e))
+        .and_then(move |claimable: Vec<bool>| {
+            match claimable.get(0) {
+                Some(true) => {
+                    Either::A(wbi_contract
+                        .query(
+                            "readDataRequest",
+                            (dr_id,),
+                            eth_account,
+                            contract::Options::default(),
+                            None,
+                        ).map_err(|e| error!("readDataRequest {:?}", e)))
+                }
+                _ => {
+                    debug!("[{}] is not claimable", dr_id);
+
+                    Either::B(futures::failed(()))
+                }
+            }
+
+
+        })
         .and_then(move |dr_bytes: Bytes| {
             let dr_output: DataRequestOutput =
                 match ProtobufConvert::from_pb_bytes(&dr_bytes).and_then(|dr: DataRequestOutput| {
@@ -342,13 +363,11 @@ fn postdr(
                             "[{}] uses an invalid serialization, will be ignored: {:?}",
                             dr_id, e
                         );
-                        let fut: Box<dyn Future<Item = (_, _), Error = ()> + Send> =
-                            Box::new(futures::failed(()));
-                        return fut;
+                        return Either::B(futures::failed(()));
                     }
                 };
 
-            Box::new(
+            Either::A(
                 wbi_contract2
                     .query(
                         "getLastBeacon",
@@ -358,7 +377,7 @@ fn postdr(
                         None,
                     )
                     .map(|x: Bytes| (x, dr_output))
-                    .map_err(|e| error!("{:?}", e)),
+                    .map_err(|e| error!("getLastBeacon {:?}", e)),
             )
         })
         .and_then(move |(vrf_message, dr_output)| {
