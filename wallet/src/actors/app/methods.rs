@@ -9,28 +9,15 @@ impl App {
     pub fn start(params: Params) -> Addr<Self> {
         let actor = Self {
             params,
-            sessions: Default::default(),
+            state: Default::default(),
         };
 
         actor.start()
     }
 
-    pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<types::SessionWallet> {
-        let session = self
-            .sessions
-            .get(session_id)
-            .ok_or_else(|| Error::SessionNotFound)?;
-
-        session
-            .wallets
-            .get(wallet_id)
-            .cloned()
-            .ok_or_else(|| Error::WalletNotFound)
-    }
-
     /// Return a new subscription id for a session.
     pub fn next_subscription_id(&mut self, session_id: String) -> Result<types::SubscriptionId> {
-        if self.sessions.contains_key(&session_id) {
+        if self.state.is_session_active(&session_id) {
             // We are re-using the session id as the subscription id, this is because using a number
             // can let any client call the unsubscribe method for any other session.
             Ok(types::SubscriptionId::String(session_id.clone()))
@@ -47,29 +34,15 @@ impl App {
         subscription_id: types::SubscriptionId,
         sink: types::Sink,
     ) -> Result<()> {
-        if let Some(session) = self.sessions.get_mut(&session_id) {
-            session.subscriptions.insert(subscription_id, sink);
-            Ok(())
-        } else {
-            Err(Error::SessionNotFound)
-        }
+        self.state
+            .add_subscription(&session_id, subscription_id, sink)
     }
 
     /// Remove a subscription.
     pub fn unsubscribe(&mut self, id: &types::SubscriptionId) -> Result<()> {
         // Session id and subscription id are currently the same thing. See comment in
         // next_subscription_id method.
-        let session_id_opt = match id {
-            types::SubscriptionId::String(session_id) => Some(session_id),
-            _ => None,
-        };
-
-        session_id_opt
-            .and_then(|session_id| self.sessions.get_mut(session_id))
-            .map(|session| {
-                session.subscriptions.remove(id);
-            })
-            .ok_or_else(|| Error::SessionNotFound)
+        self.state.remove_subscription(id)
     }
 
     /// Generate a receive address for the wallet's current account.
@@ -79,7 +52,7 @@ impl App {
         wallet_id: String,
         label: Option<String>,
     ) -> ResponseActFuture<model::Address> {
-        let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
@@ -101,7 +74,7 @@ impl App {
         offset: u32,
         limit: u32,
     ) -> ResponseActFuture<model::Addresses> {
-        let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
@@ -123,7 +96,7 @@ impl App {
         offset: u32,
         limit: u32,
     ) -> ResponseActFuture<model::Transactions> {
-        let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
@@ -220,16 +193,7 @@ impl App {
     /// This means the state of this wallet won't be updated with information received from the
     /// node.
     pub fn lock_wallet(&mut self, session_id: String, wallet_id: String) -> Result<()> {
-        let session = self
-            .sessions
-            .get_mut(&session_id)
-            .ok_or_else(|| Error::SessionNotFound)?;
-
-        // Remove all addresses to Wallet actor, this means the actor will stop and the
-        // wallet will be efectively locked.
-        session.wallets.remove(&wallet_id);
-
-        Ok(())
+        self.state.remove_wallet(&session_id, &wallet_id)
     }
 
     /// Load a wallet's private information and keys in memory.
@@ -259,11 +223,9 @@ impl App {
                     session_id,
                     data,
                 } = res;
-                let entry = slf.sessions.entry(session_id.clone());
-                entry
-                    .or_default()
-                    .wallets
-                    .insert(wallet_id, Arc::new(wallet));
+
+                slf.state
+                    .create_session(session_id.clone(), wallet_id, Arc::new(wallet));
 
                 fut::ok(types::UnlockedWallet { data, session_id })
             });
@@ -302,22 +264,7 @@ impl App {
 
     /// Remove a session from the list of active sessions.
     pub fn close_session(&mut self, session_id: String) -> Result<()> {
-        // Remove only the wallet-actor addressess bound to this session but keep the ones in
-        // unlocked_wallets so they can still be updated with information received from the network.
-        self.sessions
-            .remove(&session_id)
-            .map(|_| ())
-            .ok_or_else(|| Error::SessionNotFound)
-    }
-
-    /// Handle notifications received from the node.
-    pub fn handle_block_notification(&mut self, value: types::Json) {
-        match serde_json::from_value::<types::ChainBlock>(value) {
-            Ok(_block) => {
-                // TODO: implement
-            }
-            Err(e) => log::error!("Couldn't parse received block: {}", e),
-        }
+        self.state.remove_session(&session_id)
     }
 
     /// Get a client's previously stored value in the db (set method) with the given key.
@@ -327,7 +274,7 @@ impl App {
         wallet_id: String,
         key: String,
     ) -> ResponseActFuture<Option<types::RpcValue>> {
-        let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
             |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
@@ -357,18 +304,20 @@ impl App {
         key: String,
         value: types::RpcParams,
     ) -> ResponseActFuture<()> {
-        let f = fut::result(self.wallet(&session_id, &wallet_id)).and_then(move |wallet, _, _| {
-            fut::result(serde_json::to_string(&value).map_err(internal_error)).and_then(
-                move |value, slf: &mut Self, _| {
-                    slf.params
-                        .worker
-                        .send(worker::Set(wallet, key, value))
-                        .flatten()
-                        .map_err(From::from)
-                        .into_actor(slf)
-                },
-            )
-        });
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
+            move |wallet, _, _| {
+                fut::result(serde_json::to_string(&value).map_err(internal_error)).and_then(
+                    move |value, slf: &mut Self, _| {
+                        slf.params
+                            .worker
+                            .send(worker::Set(wallet, key, value))
+                            .flatten()
+                            .map_err(From::from)
+                            .into_actor(slf)
+                    },
+                )
+            },
+        );
 
         Box::new(f)
     }

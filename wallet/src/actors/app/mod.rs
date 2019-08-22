@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use actix::prelude::*;
@@ -13,6 +12,7 @@ pub mod handlers;
 pub mod methods;
 pub mod params;
 pub mod routes;
+mod state;
 pub mod validation;
 
 pub use error::*;
@@ -29,13 +29,7 @@ pub type ResponseActFuture<T> = actix::ResponseActFuture<App, T, Error>;
 
 pub struct App {
     params: Params,
-    sessions: HashMap<String, Session>,
-}
-
-#[derive(Default)]
-struct Session {
-    wallets: HashMap<String, types::SessionWallet>,
-    subscriptions: HashMap<types::SubscriptionId, types::Sink>,
+    state: state::State,
 }
 
 impl Actor for App {
