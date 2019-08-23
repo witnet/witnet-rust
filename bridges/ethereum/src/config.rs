@@ -27,6 +27,15 @@ pub struct Config {
     pub post_to_witnet_more_than_once: bool,
     /// Subscribe to witnet blocks? This is only necessary for block relay
     pub subscribe_to_witnet_blocks: bool,
+    /// Period to check for new blocks in block relay
+    pub block_relay_polling_rate_ms: u64,
+    /// Period to check for resolved data request using the witnet `dataRequestReport`
+    /// method
+    pub witnet_dr_report_polling_rate_ms: u64,
+    /// Period to try to claim old data request whose claim expired
+    pub claim_dr_rate_ms: u64,
+    /// Period to check for new Ethereum events
+    pub eth_event_polling_rate_ms: u64,
 }
 
 /// Load configuration from a file written in Toml format.

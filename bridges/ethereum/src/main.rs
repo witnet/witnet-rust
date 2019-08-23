@@ -126,7 +126,7 @@ fn eth_event_stream(
             filter
                 // This poll interval was set to 0 in the example, which resulted in the
                 // bridge having 100% cpu usage...
-                .stream(time::Duration::from_secs(1))
+                .stream(time::Duration::from_millis(config.eth_event_polling_rate_ms))
                 .map_err(|e| error!("ethereum event error = {:?}", e))
                 .map(move |value| {
                     debug!("Got ethereum event: {:?}", value);
@@ -1024,68 +1024,69 @@ fn block_ticker(
     let return_tx = self_tx.clone();
     let block_hashes: futures_locks::RwLock<HashMap<U256, oneshot::Sender<()>>> =
         futures_locks::RwLock::new(HashMap::new());
-    let block_ticker = Interval::new(Instant::now(), Duration::from_millis(30_000))
-        .map_err(|e| error!("Error creating interval: {:?}", e))
-        .map(Either::A)
-        .select(
-            rx.map_err(|e| error!("Error receiving from block ticker channel: {:?}", e))
-                .map(Either::B),
-        )
-        .and_then(move |x| block_hashes.write().map(|block_hashes| (block_hashes, x)))
-        .and_then(move |(mut block_hashes, x)| match x {
-            Either::A(_instant) => {
-                debug!("BlockRelay tick");
-                let mut futs = vec![];
-                for (block_hash, tx) in block_hashes.drain() {
-                    let self_tx = self_tx.clone();
-                    let fut = eth_state
-                        .block_relay_contract
-                        .query(
-                            "readDrMerkleRoot",
-                            (block_hash,),
-                            config.eth_account,
-                            contract::Options::default(),
-                            None,
-                        )
-                        .then(move |x: Result<U256, _>| match x {
-                            Ok(_res) => {
-                                debug!("Block {} was included in BlockRelay contract!", block_hash);
-                                tx.send(()).unwrap();
+    let block_ticker = Interval::new(
+        Instant::now(),
+        Duration::from_millis(config.block_relay_polling_rate_ms),
+    )
+    .map_err(|e| error!("Error creating interval: {:?}", e))
+    .map(Either::A)
+    .select(
+        rx.map_err(|e| error!("Error receiving from block ticker channel: {:?}", e))
+            .map(Either::B),
+    )
+    .and_then(move |x| block_hashes.write().map(|block_hashes| (block_hashes, x)))
+    .and_then(move |(mut block_hashes, x)| match x {
+        Either::A(_instant) => {
+            debug!("BlockRelay tick");
+            let mut futs = vec![];
+            for (block_hash, tx) in block_hashes.drain() {
+                let self_tx = self_tx.clone();
+                let fut = eth_state
+                    .block_relay_contract
+                    .query(
+                        "readDrMerkleRoot",
+                        (block_hash,),
+                        config.eth_account,
+                        contract::Options::default(),
+                        None,
+                    )
+                    .then(move |x: Result<U256, _>| match x {
+                        Ok(_res) => {
+                            debug!("Block {} was included in BlockRelay contract!", block_hash);
+                            tx.send(()).unwrap();
 
-                                Either::A(futures::finished(()))
-                            }
-                            Err(e) => {
-                                debug!(
-                                    "Block {} not yet included in BlockRelay contract: {:?}",
-                                    block_hash, e
-                                );
+                            Either::A(futures::finished(()))
+                        }
+                        Err(e) => {
+                            debug!(
+                                "Block {} not yet included in BlockRelay contract: {:?}",
+                                block_hash, e
+                            );
 
-                                Either::B(
-                                    self_tx
-                                        .send((block_hash, tx))
-                                        .map_err(|e| {
-                                            error!("Error sending message to BlockTicker: {:?}", e)
-                                        })
-                                        .map(|_| {
-                                            debug!("Successfully sent message to BlockTicker")
-                                        }),
-                                )
-                            }
-                        })
-                        .map(|_| ());
-                    futs.push(fut);
-                }
-
-                Either::A(future::join_all(futs).map(|_| ()))
+                            Either::B(
+                                self_tx
+                                    .send((block_hash, tx))
+                                    .map_err(|e| {
+                                        error!("Error sending message to BlockTicker: {:?}", e)
+                                    })
+                                    .map(|_| debug!("Successfully sent message to BlockTicker")),
+                            )
+                        }
+                    })
+                    .map(|_| ());
+                futs.push(fut);
             }
-            Either::B((block_hash, tx)) => {
-                debug!("BlockTicker got new subscription to {:x}", block_hash);
-                block_hashes.insert(block_hash, tx);
 
-                Either::B(futures::finished(()))
-            }
-        })
-        .for_each(|_| Ok(()));
+            Either::A(future::join_all(futs).map(|_| ()))
+        }
+        Either::B((block_hash, tx)) => {
+            debug!("BlockTicker got new subscription to {:x}", block_hash);
+            block_hashes.insert(block_hash, tx);
+
+            Either::B(futures::finished(()))
+        }
+    })
+    .for_each(|_| Ok(()));
 
     (return_tx, block_ticker)
 }
@@ -1105,7 +1106,7 @@ fn report_ticker(
         async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
     let witnet_client1 = witnet_client.clone();
 
-    (handle, Interval::new(Instant::now(), Duration::from_millis(20_000))
+    (handle, Interval::new(Instant::now(), Duration::from_millis(config.witnet_dr_report_polling_rate_ms))
         .map_err(|e| error!("Error creating interval: {:?}", e))
         .and_then(move |x| eth_state.wbi_requests.read().map(move |wbi_requests| (wbi_requests, x)))
         .and_then(move |(wbi_requests, _instant)| {
@@ -1394,15 +1395,18 @@ fn main() {
     // claimed twice (leading to an invalid transaction).
     // Also, when the PostActor is busy posting a different data request,
     // all the Tick messages get queued and then processed at once.
-    let post_ticker = Interval::new(Instant::now(), Duration::from_millis(30_000))
-        .map_err(|e| error!("Error creating interval: {:?}", e))
-        .and_then(move |_instant| {
-            post_tx
-                .clone()
-                .send(PostActorMessage::Tick)
-                .map_err(|e| error!("Error sending tick to PostActor: {:?}", e))
-        })
-        .for_each(|_| Ok(()));
+    let post_ticker = Interval::new(
+        Instant::now(),
+        Duration::from_millis(config.claim_dr_rate_ms),
+    )
+    .map_err(|e| error!("Error creating interval: {:?}", e))
+    .and_then(move |_instant| {
+        post_tx
+            .clone()
+            .send(PostActorMessage::Tick)
+            .map_err(|e| error!("Error sending tick to PostActor: {:?}", e))
+    })
+    .for_each(|_| Ok(()));
 
     let (_handle, report_ticker_fut) = report_ticker(
         Arc::clone(&config),

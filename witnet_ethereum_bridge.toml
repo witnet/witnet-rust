@@ -15,3 +15,12 @@ enable_block_relay = true
 post_to_witnet_more_than_once = true
 # Subscribe to witnet blocks? This is only necessary for block relay
 subscribe_to_witnet_blocks = true
+# Period to check for new blocks in block relay
+block_relay_polling_rate_ms = 30_000
+# Period to check for resolved data request using the witnet `dataRequestReport`
+# method
+witnet_dr_report_polling_rate_ms = 20_000
+# Period to try to claim old data request whose claim expired
+claim_dr_rate_ms = 30_000
+# Period to check for new Ethereum events
+eth_event_polling_rate_ms = 1_000
