@@ -53,6 +53,7 @@ pub struct Account {
 pub struct WalletData {
     pub name: Option<String>,
     pub caption: Option<String>,
+    pub balance: u64,
     pub current_account: u32,
     pub available_accounts: Vec<u32>,
 }

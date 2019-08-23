@@ -34,6 +34,12 @@ pub fn wallet_transactions_count() -> &'static str {
     "transactions-count"
 }
 
+/// A wallet's balances for all created accounts.
+#[inline]
+pub fn wallet_account_balances() -> &'static str {
+    "account-balances"
+}
+
 /// A wallet's name.
 #[inline]
 pub fn wallet_id_name(id: &str) -> String {

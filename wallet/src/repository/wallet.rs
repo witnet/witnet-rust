@@ -14,17 +14,26 @@ use crate::{
     types,
 };
 
+type AccountIndex = u32;
+type TransactionId = u32;
+type Balance = u64;
+type Pkh = Vec<u8>;
+type Index = u32;
+type Utxo = (Pkh, Index);
+
 pub struct Wallet<T> {
     db: T,
     params: Params,
     engine: types::SignEngine,
     gen_address_mutex: Mutex<()>,
     /// Number of transactions per account
-    transactions_count: RwLock<HashMap<u32, u32>>,
+    transactions_count: RwLock<HashMap<AccountIndex, TransactionId>>,
+    /// Account balances for the wallet
+    account_balances: RwLock<HashMap<AccountIndex, Balance>>,
     /// Map pkh -> account index
-    pkhs: RwLock<HashMap<Vec<u8>, u32>>,
+    pkhs: RwLock<HashMap<Pkh, AccountIndex>>,
     /// Map account index -> utxo set, which maps output pointer -> value
-    utxo_set: RwLock<HashMap<u32, HashMap<(Vec<u8>, u32), u64>>>,
+    utxo_set: RwLock<HashMap<AccountIndex, HashMap<Utxo, Balance>>>,
 }
 
 impl<T> Wallet<T>
@@ -38,6 +47,7 @@ where
             engine,
             gen_address_mutex: Default::default(),
             transactions_count: Default::default(),
+            account_balances: Default::default(),
             pkhs: Default::default(),
             utxo_set: Default::default(),
         }
@@ -46,15 +56,30 @@ where
     pub fn unlock(&self) -> Result<types::WalletData> {
         let name: Option<String> = self.db.get_opt(keys::wallet_name())?;
         let caption: Option<String> = self.db.get_opt(keys::wallet_caption())?;
-        let accounts: Vec<u32> = self.db.get(keys::wallet_accounts())?;
-        let account: u32 = self.db.get(keys::wallet_default_account())?;
-        let wallet_pkhs = self.db.get(keys::wallet_pkhs())?;
-        let wallet_utxo_set = self.db.get(keys::wallet_utxo_set())?;
-        let wallet_transactions_count = self.db.get(keys::wallet_transactions_count())?;
+        let account: u32 = self.db.get_or_default(keys::wallet_default_account())?;
+        let accounts: Vec<u32> = self
+            .db
+            .get_opt(keys::wallet_accounts())?
+            .unwrap_or_else(|| vec![account]);
+        let wallet_pkhs: HashMap<Pkh, AccountIndex> = self.db.get_or_default(keys::wallet_pkhs())?;
+        let wallet_utxo_set: HashMap<AccountIndex, HashMap<Utxo, Balance>> =
+            self.db.get_or_default(keys::wallet_utxo_set())?;
+        let wallet_transactions_count: HashMap<AccountIndex, TransactionId> =
+            self.db.get_or_default(keys::wallet_transactions_count())?;
+        let wallet_account_balances: HashMap<AccountIndex, Balance> =
+            self.db.get_or_default(keys::wallet_account_balances())?;
+        let balance = wallet_account_balances
+            .get(&account)
+            .cloned()
+            .unwrap_or_else(|| 0);
 
         let mut transactions_count = self.transactions_count.write()?;
         *transactions_count = wallet_transactions_count;
         drop(transactions_count);
+
+        let mut account_balances = self.account_balances.write()?;
+        *account_balances = wallet_account_balances;
+        drop(account_balances);
 
         let mut pkhs = self.pkhs.write()?;
         *pkhs = wallet_pkhs;
@@ -67,6 +92,7 @@ where
         let wallet = types::WalletData {
             name,
             caption,
+            balance,
             current_account: account,
             available_accounts: accounts,
         };
@@ -110,10 +136,12 @@ where
             batch.put(keys::address_label(account_index, address_index), label)?;
         }
 
-        self.db.write(batch)?;
         let mut pkhs = self.pkhs.write()?;
         pkhs.insert(pkh, account_index);
+        batch.put(keys::wallet_pkhs(), pkhs.deref())?;
         drop(pkhs);
+
+        self.db.write(batch)?;
 
         Ok(model::Address {
             address,
@@ -202,6 +230,9 @@ where
                     let txn_id = self.next_transaction_id(account_index)?;
                     batch.put(&keys::transaction_value(account_index, txn_id), value)?;
                     batch.put(&keys::transaction_type(account_index, txn_id), "debit")?;
+
+                    // update balance
+                    self.update_account_balance(account_index, value, BalanceOp::Sub)?;
                 }
             }
 
@@ -222,10 +253,14 @@ where
                     let txn_id = self.next_transaction_id(account_index)?;
                     batch.put(&keys::transaction_value(account_index, txn_id), value)?;
                     batch.put(&keys::transaction_type(account_index, txn_id), "credit")?;
-                    batch.put(
+
+                    self.db.put(
                         &keys::transaction_output_recipient(&txn_hash, output_index as u32),
                         account_index,
                     )?;
+
+                    // update balance
+                    self.update_account_balance(account_index, value, BalanceOp::Add)?;
                 }
             }
         }
@@ -260,6 +295,33 @@ where
 
         Ok(id)
     }
+
+    fn update_account_balance(&self, account_index: u32, value: u64, op: BalanceOp) -> Result<()> {
+        let mut account_balances = self.account_balances.write()?;
+        let balance = account_balances
+            .get_mut(&account_index)
+            .expect("balance not found for account index");
+
+        match op {
+            BalanceOp::Add => {
+                balance
+                    .checked_add(value)
+                    .ok_or_else(|| Error::BalanceOverflow)?;
+            }
+            BalanceOp::Sub => {
+                balance
+                    .checked_sub(1)
+                    .ok_or_else(|| Error::BalanceUnderflow)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+enum BalanceOp {
+    Add,
+    Sub,
 }
 
 #[inline]

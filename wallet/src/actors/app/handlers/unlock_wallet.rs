@@ -19,6 +19,7 @@ pub struct UnlockWalletResponse {
     caption: Option<String>,
     available_accounts: Vec<u32>,
     current_account: u32,
+    account_balance: u64,
     session_expiration_secs: u64,
 }
 
@@ -40,6 +41,7 @@ impl Handler<UnlockWalletRequest> for app::App {
                     caption: data.caption,
                     current_account: data.current_account,
                     available_accounts: data.available_accounts,
+                    account_balance: data.balance,
                     session_expiration_secs: slf.params.session_expires_in.as_secs(),
                 }
             },

@@ -57,7 +57,6 @@ impl<T: Database> Wallets<T> {
         if let Some(caption) = caption {
             wbatch.put(keys::wallet_caption(), caption)?;
         }
-        wbatch.put(keys::wallet_accounts(), &vec![account.index])?;
         wbatch.put(keys::wallet_default_account(), account.index)?;
         wbatch.put(keys::account_ek(account.index), &account.external)?;
         wbatch.put(keys::account_ik(account.index), &account.internal)?;
