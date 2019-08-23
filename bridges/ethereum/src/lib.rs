@@ -6,6 +6,8 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
+/// Actors
+pub mod actors;
 /// Configuration
 pub mod config;
 /// Ethereum related state
