@@ -25,6 +25,8 @@ pub struct Config {
     /// Post data request more than once? Useful to retry if the data request
     /// was not included in a block
     pub post_to_witnet_more_than_once: bool,
+    /// Subscribe to witnet blocks? This is only necessary for block relay
+    pub subscribe_to_witnet_blocks: bool,
 }
 
 /// Load configuration from a file written in Toml format.
@@ -40,9 +42,4 @@ pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, Box<dyn std::error::
     let mut file = File::open(file)?;
     file.read_to_string(&mut contents)?;
     Ok(toml::from_str(&contents)?)
-}
-
-/// Read config from default file
-pub fn read_config() -> Result<Config, Box<dyn std::error::Error>> {
-    from_file("witnet_ethereum_bridge.toml")
 }

@@ -9,9 +9,11 @@ use log::*;
 use rand::{thread_rng, Rng};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::process;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{sync::Arc, time};
+use structopt::StructOpt;
 use tokio::{prelude::FutureExt, sync::mpsc, sync::oneshot, timer::Interval};
 use web3::{
     contract,
@@ -25,7 +27,7 @@ use witnet_data_structures::{
     proto::ProtobufConvert,
 };
 use witnet_ethereum_bridge::{
-    config::{read_config, Config},
+    config::Config,
     eth::{read_u256_from_event_log, EthState, WbiEvent},
 };
 use witnet_validations::validations::validate_rad_request;
@@ -213,7 +215,7 @@ fn witnet_block_stream(
         async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
     let witnet_client1 = witnet_client.clone();
 
-    let fut = witnet_client
+    let fut1 = witnet_client
         .execute("witnet_subscribe", json!(["newBlocks"]))
         .timeout(Duration::from_secs(1))
         .map_err(move |e| {
@@ -277,6 +279,13 @@ fn witnet_block_stream(
                 })
                 .for_each(|_| Ok(()))
         });
+    let fut1 = Either::A(fut1);
+    let fut2 = Either::B(futures::finished(()));
+    let fut = if config.subscribe_to_witnet_blocks {
+        fut1
+    } else {
+        fut2
+    };
 
     (handle, fut)
 }
@@ -666,9 +675,9 @@ fn postdr(
 fn post_actor(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
-    rx: mpsc::Receiver<PostActorMessage>,
 ) -> (
     async_jsonrpc_client::transports::shared::EventLoopHandle,
+    mpsc::Sender<PostActorMessage>,
     impl Future<Item = (), Error = ()>,
 ) {
     // Important: the handle cannot be dropped, otherwise the client stops
@@ -677,9 +686,11 @@ fn post_actor(
     let (handle, witnet_client) =
         async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
     let witnet_client = Arc::new(witnet_client);
+    let (tx, rx) = mpsc::channel(16);
 
     (
         handle,
+        tx,
         rx.map_err(|_| ()).for_each(move |msg| {
             debug!("Got PostActorMessage: {:?}", msg);
 
@@ -764,22 +775,14 @@ enum ActorMessage {
 fn main_actor(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
-    rx: mpsc::Receiver<ActorMessage>,
     wait_for_witnet_block_tx: mpsc::Sender<(U256, oneshot::Sender<()>)>,
-) -> impl Future<Item = (), Error = ()> {
-    // A list of all the tallies from all the blocks since we started listening
-    // This is a workaround around a race condition with ethereum events:
-    // If the reportDataRequestInclusion event is emitted after the data request
-    // has been resolved in witnet, we will never see the tally transaction
-    // and the result will not be reported to the WBI.
-    // By storing all the tallies we avoid this problem, but obviously this
-    // does not scale.
-    // When the dataRequestReport method will be implemented on the witnet
-    // node JSON-RPC, we will be able to query data request status, and use
-    // that information to prove inclusion of any data request.
-    //let mut all_seen_tallies = HashMap::new();
+) -> (
+    mpsc::Sender<ActorMessage>,
+    impl Future<Item = (), Error = ()>,
+) {
+    let (tx, rx) = mpsc::channel(16);
 
-    rx.map_err(|_| ())
+    let fut = rx.map_err(|_| ())
         .for_each(move |msg| {
             debug!("Got ActorMessage: {:?}", msg);
             let eth_state = eth_state.clone();
@@ -1004,7 +1007,9 @@ fn main_actor(
 
                     futures::finished(())
         })
-        .map(|_| ())
+        .map(|_| ());
+
+    (tx, fut)
 }
 
 fn block_ticker(
@@ -1117,7 +1122,7 @@ fn report_ticker(
 
             Either::B(witnet_client
                 .execute("dataRequestReport", json!([*dr_tx_hash]))
-                .map_err(|e| error!("createVRF: {:?}", e))
+                .map_err(|e| error!("dataRequestReport: {:?}", e))
             )
         })
         .and_then(move |report| {
@@ -1269,42 +1274,120 @@ fn wbi_requests_initial_sync(
         })
 }
 
+fn data_request_example() -> DataRequestOutput {
+    let start = SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+
+    let build_dr_str = include_str!("../../../examples/bitcoin_price.json");
+    let build_dr: serde_json::Value = serde_json::from_str(build_dr_str).unwrap();
+    let mut data_request_output: DataRequestOutput =
+        serde_json::from_value(build_dr["params"]["dro"].clone()).unwrap();
+    data_request_output.data_request.not_before = since_the_epoch.as_secs();
+
+    data_request_output
+}
+
+fn post_example_dr(
+    config: Arc<Config>,
+    eth_state: Arc<EthState>,
+) -> impl Future<Item = (), Error = ()> {
+    let wbi_contract = eth_state.wbi_contract.clone();
+
+    let data_request_output = data_request_example();
+
+    let tally_value = U256::from_dec_str("500000000000000").unwrap();
+    let data_request_bytes = data_request_output.to_pb_bytes().unwrap();
+
+    wbi_contract
+        .call(
+            "postDataRequest",
+            (data_request_bytes, tally_value),
+            config.eth_account,
+            contract::Options::with(|opt| {
+                opt.value = Some(U256::from_dec_str("2500000000000000").unwrap());
+                opt.gas = Some(1_000_000.into());
+            }),
+        )
+        .map(|tx| {
+            debug!("posted dr to wbi: {:?}", tx);
+        })
+        .map_err(|e| error!("Error posting dr to wbi: {}", e))
+}
+
+#[derive(Debug, StructOpt)]
+struct App {
+    /// Path of the config file
+    #[structopt(short = "c", long)]
+    config: Option<PathBuf>,
+    /// Post data request and exit
+    #[structopt(long = "post-dr")]
+    post_dr: bool,
+    /// Read data requests state and exit
+    #[structopt(long = "read-requests", conflicts_with = "post_dr")]
+    read_requests: bool,
+}
+
 fn main() {
     init_logger();
-    let config = Arc::new(match read_config() {
-        Ok(x) => x,
+    let app = App::from_args();
+
+    let config = match app.config {
+        Some(x) => witnet_ethereum_bridge::config::from_file(x),
+        None => witnet_ethereum_bridge::config::from_file("witnet_ethereum_bridge.toml"),
+    };
+    let config = match config {
+        Ok(x) => Arc::new(x),
         Err(e) => {
             error!("Error reading configuration file: {}", e);
-            process::exit(1);
+            return;
         }
-    });
+    };
+
     let eth_state = Arc::new(match EthState::create(&config) {
         Ok(x) => x,
         Err(()) => {
             error!("Error when trying to initialize ethereum related stuff");
             error!("Is the ethereum node running at {}?", config.eth_client_url);
-            process::exit(1);
+            return;
         }
     });
 
+    if app.post_dr {
+        // Post example data request to WBI and exit
+        let fut = post_example_dr(Arc::clone(&config), Arc::clone(&eth_state));
+        tokio::run(future::ok(()).map(move |_| {
+            tokio::spawn(fut);
+        }));
+
+        return;
+    }
+
+    let wbi_requests_fut = wbi_requests_initial_sync(Arc::clone(&config), Arc::clone(&eth_state));
+    if app.read_requests {
+        tokio::run(future::ok(()).map(move |_| {
+            tokio::spawn(wbi_requests_fut);
+        }));
+
+        return;
+    }
+
     // FIXME(#772): Channel closes in case of future errors and bridge fails
     // TODO: prefer bounded or unbounded channels?
-    let (tx1, rx) = mpsc::channel(16);
-    let (ptx, prx) = mpsc::channel(16);
-    let tx2 = tx1.clone();
-    let tx3 = tx1.clone();
-    let ptx2 = ptx.clone();
-
-    let ees = eth_event_stream(Arc::clone(&config), Arc::clone(&eth_state), tx1, ptx);
-    let (_handle, wbs) = witnet_block_stream(Arc::clone(&config), tx2);
-    let (_handle, pct) = post_actor(Arc::clone(&config), Arc::clone(&eth_state), prx);
     let (bttx, block_ticker_fut) = block_ticker(Arc::clone(&config), Arc::clone(&eth_state));
-    let act = main_actor(
+    let (main_actor_tx, main_actor_fut) =
+        main_actor(Arc::clone(&config), Arc::clone(&eth_state), bttx.clone());
+
+    let (_handle, post_tx, post_fut) = post_actor(Arc::clone(&config), Arc::clone(&eth_state));
+    let eth_event_fut = eth_event_stream(
         Arc::clone(&config),
         Arc::clone(&eth_state),
-        rx,
-        bttx.clone(),
+        main_actor_tx.clone(),
+        post_tx.clone(),
     );
+    let (_handle, witnet_event_fut) =
+        witnet_block_stream(Arc::clone(&config), main_actor_tx.clone());
 
     // Every 30 seconds, try to claim a random data request
     // This has a problem with race conditions: the same data request can be
@@ -1314,21 +1397,24 @@ fn main() {
     let post_ticker = Interval::new(Instant::now(), Duration::from_millis(30_000))
         .map_err(|e| error!("Error creating interval: {:?}", e))
         .and_then(move |_instant| {
-            ptx2.clone()
+            post_tx
+                .clone()
                 .send(PostActorMessage::Tick)
                 .map_err(|e| error!("Error sending tick to PostActor: {:?}", e))
         })
         .for_each(|_| Ok(()));
 
-    let (_handle, report_ticker_fut) =
-        report_ticker(Arc::clone(&config), Arc::clone(&eth_state), tx3);
-    let wbi_requests_fut = wbi_requests_initial_sync(Arc::clone(&config), Arc::clone(&eth_state));
+    let (_handle, report_ticker_fut) = report_ticker(
+        Arc::clone(&config),
+        Arc::clone(&eth_state),
+        main_actor_tx.clone(),
+    );
 
     tokio::run(future::ok(()).map(move |_| {
-        tokio::spawn(wbs);
-        tokio::spawn(ees);
-        tokio::spawn(pct);
-        tokio::spawn(act);
+        tokio::spawn(witnet_event_fut);
+        tokio::spawn(eth_event_fut);
+        tokio::spawn(post_fut);
+        tokio::spawn(main_actor_fut);
         tokio::spawn(post_ticker);
         tokio::spawn(block_ticker_fut);
         tokio::spawn(report_ticker_fut);

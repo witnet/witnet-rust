@@ -13,3 +13,5 @@ enable_block_relay = true
 # Post data request more than once? Useful to retry if the data request
 # was not included in a block
 post_to_witnet_more_than_once = true
+# Subscribe to witnet blocks? This is only necessary for block relay
+subscribe_to_witnet_blocks = true
