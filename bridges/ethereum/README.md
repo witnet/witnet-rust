@@ -131,7 +131,7 @@ It will try to subscribe to blocks from Witnet and WBI events from Ethereum.
 
 If that's successful, we can post a data request to the WBI:
 
-    cargo run -p witnet-ethereum-bridge --example post_dr
+    cargo run -p witnet-ethereum-bridge -- --post-dr
 
 This will send a data request querying the price of bitcoin.
 
@@ -156,4 +156,4 @@ event indicating that the data request has been resolved.
 A crucial component needed for the correct functionality of the bridge is the
 block relay: an Ethereum contract that stores the headers of Witnet blocks.
 The current version of the bridge also acts as a block relay, but that can be
-disable in the configuration file.
+disabled in the configuration file.

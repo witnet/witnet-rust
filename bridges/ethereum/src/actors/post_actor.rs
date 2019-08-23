@@ -415,6 +415,9 @@ pub fn post_actor(
         handle,
         tx,
         rx.map_err(|_| ()).for_each(move |msg| {
+            if !config.enable_claim_and_inclusion {
+                return futures::finished(());
+            }
             debug!("Got PostActorMessage: {:?}", msg);
 
             let config2 = Arc::clone(&config);
@@ -478,7 +481,7 @@ pub fn post_actor(
             // Start the claim as a separate task, to avoid blocking this receiver
             tokio::spawn(fut);
 
-            Ok(())
+            futures::finished(())
         }),
     )
 }

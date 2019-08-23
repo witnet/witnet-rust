@@ -22,6 +22,10 @@ pub struct Config {
     pub eth_account: H160,
     /// Enable block relay from witnet to ethereum?
     pub enable_block_relay: bool,
+    /// Enable data request claim + inclusion
+    pub enable_claim_and_inclusion: bool,
+    /// Enable data request result reporting
+    pub enable_result_reporting: bool,
     /// Post data request more than once? Useful to retry if the data request
     /// was not included in a block
     pub post_to_witnet_more_than_once: bool,

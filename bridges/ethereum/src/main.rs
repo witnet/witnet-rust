@@ -77,7 +77,7 @@ fn post_example_dr(
             }),
         )
         .map(|tx| {
-            debug!("posted dr to wbi: {:?}", tx);
+            info!("posted dr to wbi: {:?}", tx);
         })
         .map_err(|e| error!("Error posting dr to wbi: {}", e))
 }

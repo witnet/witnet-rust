@@ -29,6 +29,8 @@ pub fn main_actor(
             let eth_state = eth_state.clone();
             let eth_state2 = eth_state.clone();
             let eth_account = config.eth_account;
+            let enable_claim_and_inclusion = config.enable_claim_and_inclusion;
+            let enable_result_reporting = config.enable_result_reporting;
             let wbi_contract = eth_state.wbi_contract.clone();
             let block_relay_contract = eth_state.block_relay_contract.clone();
 
@@ -122,107 +124,111 @@ pub fn main_actor(
                     let claimed_drs = wbi_requests.claimed();
                     let waiting_for_tally = wbi_requests.included();
 
-                    for dr in &block.txns.data_request_txns {
-                        if let Some(dr_id) =
-                        claimed_drs.get_by_right(&dr.body.dr_output.hash())
-                        {
-                            let dr_inclusion_proof = match dr.data_proof_of_inclusion(&block) {
-                                Some(x) => x,
-                                None => {
-                                    error!("Error creating data request proof of inclusion");
-                                    continue;
-                                }
-                            };
+                    if enable_claim_and_inclusion {
+                        for dr in &block.txns.data_request_txns {
+                            if let Some(dr_id) =
+                            claimed_drs.get_by_right(&dr.body.dr_output.hash())
+                            {
+                                let dr_inclusion_proof = match dr.data_proof_of_inclusion(&block) {
+                                    Some(x) => x,
+                                    None => {
+                                        error!("Error creating data request proof of inclusion");
+                                        continue;
+                                    }
+                                };
 
-                            let dr_bytes = match dr.body.dr_output.to_pb_bytes() {
-                                Ok(x) => x,
-                                Err(e) => {
-                                    error!("Error serializing data request output to Protocol Buffers: {:?}", e);
-                                    continue;
-                                }
-                            };
+                                let dr_bytes = match dr.body.dr_output.to_pb_bytes() {
+                                    Ok(x) => x,
+                                    Err(e) => {
+                                        error!("Error serializing data request output to Protocol Buffers: {:?}", e);
+                                        continue;
+                                    }
+                                };
 
-                            debug!(
-                                "Proof of inclusion for data request {}:\nData: {:?}\n{:?}",
-                                dr.hash(),
-                                dr_bytes,
-                                dr_inclusion_proof
-                            );
-                            info!("[{}] Claimed dr got included in witnet block!", dr_id);
-                            info!("[{}] Sending proof of inclusion to WBI wbi_contract", dr_id);
+                                debug!(
+                                    "Proof of inclusion for data request {}:\nData: {:?}\n{:?}",
+                                    dr.hash(),
+                                    dr_bytes,
+                                    dr_inclusion_proof
+                                );
+                                info!("[{}] Claimed dr got included in witnet block!", dr_id);
+                                info!("[{}] Sending proof of inclusion to WBI wbi_contract", dr_id);
 
-                            let poi: Vec<U256> = dr_inclusion_proof
-                                .lemma
-                                .iter()
-                                .map(|x| match x {
-                                    Hash::SHA256(x) => x.into(),
-                                })
-                                .collect();
-                            let poi_index = U256::from(dr_inclusion_proof.index);
-                            including.push((*dr_id, poi.clone(), poi_index, block_hash));
-                            tokio::spawn(
-                                wbi_contract
-                                    .call_with_confirmations(
-                                        "reportDataRequestInclusion",
-                                        (*dr_id, poi, poi_index, block_hash),
-                                        eth_account,
-                                        contract::Options::default(),
-                                        1,
-                                    )
-                                    .map_err(|e| error!("reportDataRequestInclusion: {:?}", e))
-                                    .and_then(move |tx| {
-                                        debug!("reportDataRequestInclusion: {:?}", tx);
-                                        handle_receipt(tx)
-                                    }),
-                            );
+                                let poi: Vec<U256> = dr_inclusion_proof
+                                    .lemma
+                                    .iter()
+                                    .map(|x| match x {
+                                        Hash::SHA256(x) => x.into(),
+                                    })
+                                    .collect();
+                                let poi_index = U256::from(dr_inclusion_proof.index);
+                                including.push((*dr_id, poi.clone(), poi_index, block_hash));
+                                tokio::spawn(
+                                    wbi_contract
+                                        .call_with_confirmations(
+                                            "reportDataRequestInclusion",
+                                            (*dr_id, poi, poi_index, block_hash),
+                                            eth_account,
+                                            contract::Options::default(),
+                                            1,
+                                        )
+                                        .map_err(|e| error!("reportDataRequestInclusion: {:?}", e))
+                                        .and_then(move |tx| {
+                                            debug!("reportDataRequestInclusion: {:?}", tx);
+                                            handle_receipt(tx)
+                                        }),
+                                );
+                            }
                         }
                     }
 
-                    for tally in &block.txns.tally_txns {
-                        if let Some(dr_id) = waiting_for_tally.get_by_right(&tally.dr_pointer)
-                        {
-                            let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
-                            info!("[{}] Found tally for data request, posting to WBI", dr_id);
-                            let tally_inclusion_proof = match tally.data_proof_of_inclusion(&block) {
-                                Some(x) => x,
-                                None => {
-                                    error!("Error creating tally data proof of inclusion");
-                                    continue;
-                                }
-                            };
-                            debug!(
-                                "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
-                                tally.hash(),
-                                [&dr_pointer_bytes[..], &tally.tally].concat(),
-                                tally_inclusion_proof
-                            );
+                    if enable_result_reporting {
+                        for tally in &block.txns.tally_txns {
+                            if let Some(dr_id) = waiting_for_tally.get_by_right(&tally.dr_pointer)
+                            {
+                                let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
+                                info!("[{}] Found tally for data request, posting to WBI", dr_id);
+                                let tally_inclusion_proof = match tally.data_proof_of_inclusion(&block) {
+                                    Some(x) => x,
+                                    None => {
+                                        error!("Error creating tally data proof of inclusion");
+                                        continue;
+                                    }
+                                };
+                                debug!(
+                                    "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
+                                    tally.hash(),
+                                    [&dr_pointer_bytes[..], &tally.tally].concat(),
+                                    tally_inclusion_proof
+                                );
 
-                            // Call report_result
-                            let poi: Vec<U256> = tally_inclusion_proof
-                                .lemma
-                                .iter()
-                                .map(|x| match x {
-                                    Hash::SHA256(x) => x.into(),
-                                })
-                                .collect();
-                            let poi_index = U256::from(tally_inclusion_proof.index);
-                            let result: Bytes = tally.tally.clone();
-                            resolving.push((*dr_id, poi.clone(), poi_index, block_hash, result.clone()));
-                            tokio::spawn(
-                                wbi_contract
-                                    .call_with_confirmations(
-                                        "reportResult",
-                                        (*dr_id, poi, poi_index, block_hash, result),
-                                        eth_account,
-                                        contract::Options::default(),
-                                        1,
-                                    )
-                                    .map_err(|e| error!("reportResult: {:?}", e))
-                                    .and_then(|tx| {
-                                        debug!("reportResult: {:?}", tx);
-                                        handle_receipt(tx)
-                                    }),
-                            );
+                                // Call report_result
+                                let poi: Vec<U256> = tally_inclusion_proof
+                                    .lemma
+                                    .iter()
+                                    .map(|x| match x {
+                                        Hash::SHA256(x) => x.into(),
+                                    })
+                                    .collect();
+                                let poi_index = U256::from(tally_inclusion_proof.index);
+                                let result: Bytes = tally.tally.clone();
+                                resolving.push((*dr_id, poi.clone(), poi_index, block_hash, result.clone()));
+                                tokio::spawn(
+                                    wbi_contract
+                                        .call_with_confirmations(
+                                            "reportResult",
+                                            (*dr_id, poi, poi_index, block_hash, result),
+                                            eth_account,
+                                            contract::Options::default(),
+                                            1,
+                                        )
+                                        .map_err(|e| error!("reportResult: {:?}", e))
+                                        .and_then(|tx| {
+                                            debug!("reportResult: {:?}", tx);
+                                            handle_receipt(tx)
+                                        }),
+                                );
+                            }
                         }
                     }
 
