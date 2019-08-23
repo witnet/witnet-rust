@@ -1,6 +1,8 @@
 use std::convert::TryFrom;
 
+use jsonrpc_core as rpc;
 use rayon::prelude::*;
+use serde_json::json;
 
 use super::*;
 use crate::{account, crypto, db::Database as _, model, params};
@@ -240,6 +242,21 @@ impl Worker {
         txns: &[types::VTTransactionBody],
     ) -> Result<()> {
         wallet.index_txns(txns)?;
+
+        Ok(())
+    }
+
+    pub fn notify_balance(&self, wallet: &types::Wallet, sink: &types::Sink) -> Result<()> {
+        let (account, balance) = wallet.balance()?;
+        let payload = json!({
+            "accountBalance": {
+                "account": account,
+                "balance": balance
+            }
+        });
+        let send = sink.notify(rpc::Params::Array(vec![payload]));
+
+        send.wait()?;
 
         Ok(())
     }

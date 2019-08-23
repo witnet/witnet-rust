@@ -23,6 +23,8 @@ pub enum Error {
     WrongPassword,
     #[fail(display = "wallet not found")]
     WalletNotFound,
+    #[fail(display = "send error: {}", _0)]
+    Send(#[cause] futures::sync::mpsc::SendError<std::string::String>),
 }
 
 impl From<crypto::key::MasterKeyGenError> for Error {
@@ -58,5 +60,11 @@ impl From<failure::Error> for Error {
 impl From<db::Error> for Error {
     fn from(err: db::Error) -> Self {
         Error::Db(err)
+    }
+}
+
+impl From<futures::sync::mpsc::SendError<std::string::String>> for Error {
+    fn from(err: futures::sync::mpsc::SendError<std::string::String>) -> Self {
+        Error::Send(err)
     }
 }

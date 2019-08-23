@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 pub use jsonrpc_core::{Params as RpcParams, Value as RpcValue};
-pub use jsonrpc_pubsub::{Sink, Subscriber, SubscriptionId};
+pub use jsonrpc_pubsub::{Sink, SinkResult, Subscriber, SubscriptionId};
 pub use serde_json::Value as Json;
 
 pub use witnet_crypto::{

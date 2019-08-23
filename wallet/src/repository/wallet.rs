@@ -26,6 +26,8 @@ pub struct Wallet<T> {
     params: Params,
     engine: types::SignEngine,
     gen_address_mutex: Mutex<()>,
+    /// Current account being used by the client.
+    current_account: RwLock<u32>,
     /// Number of transactions per account
     transactions_count: RwLock<HashMap<AccountIndex, TransactionId>>,
     /// Account balances for the wallet
@@ -45,6 +47,7 @@ where
             db,
             params,
             engine,
+            current_account: Default::default(),
             gen_address_mutex: Default::default(),
             transactions_count: Default::default(),
             account_balances: Default::default(),
@@ -56,7 +59,10 @@ where
     pub fn unlock(&self) -> Result<types::WalletData> {
         let name: Option<String> = self.db.get_opt(keys::wallet_name())?;
         let caption: Option<String> = self.db.get_opt(keys::wallet_caption())?;
-        let account: u32 = self.db.get_or_default(keys::wallet_default_account())?;
+        let account: u32 = self
+            .db
+            .get_opt(keys::wallet_default_account())?
+            .unwrap_or(*self.current_account.read()?);
         let accounts: Vec<u32> = self
             .db
             .get_opt(keys::wallet_accounts())?
@@ -72,6 +78,10 @@ where
             .get(&account)
             .cloned()
             .unwrap_or_else(|| 0);
+
+        let mut current_account = self.current_account.write()?;
+        *current_account = account;
+        drop(current_account);
 
         let mut transactions_count = self.transactions_count.write()?;
         *transactions_count = wallet_transactions_count;
@@ -280,6 +290,19 @@ where
         self.db.write(batch)?;
 
         Ok(())
+    }
+
+    /// Retrieve the balance for the current wallet account.
+    pub fn balance(&self) -> Result<(AccountIndex, Balance)> {
+        let account = *self.current_account.read()?;
+        let balance = self
+            .account_balances
+            .read()?
+            .get(&account)
+            .cloned()
+            .expect("balance not found for account");
+
+        Ok((account, balance))
     }
 
     fn next_transaction_id(&self, account_index: u32) -> Result<u32> {

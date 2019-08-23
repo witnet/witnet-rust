@@ -31,18 +31,17 @@ impl App {
     pub fn subscribe(
         &mut self,
         session_id: String,
-        subscription_id: types::SubscriptionId,
+        _subscription_id: types::SubscriptionId,
         sink: types::Sink,
     ) -> Result<()> {
-        self.state
-            .add_subscription(&session_id, subscription_id, sink)
+        self.state.subscribe(&session_id, sink)
     }
 
     /// Remove a subscription.
     pub fn unsubscribe(&mut self, id: &types::SubscriptionId) -> Result<()> {
         // Session id and subscription id are currently the same thing. See comment in
         // next_subscription_id method.
-        self.state.remove_subscription(id)
+        self.state.unsubscribe(id)
     }
 
     /// Generate a receive address for the wallet's current account.
@@ -345,6 +344,13 @@ impl App {
                 wallet.clone(),
                 txns.clone(),
             ));
+        }
+
+        log::trace!("notifying balances to sessions");
+        for (wallet, sink) in self.state.notifiable_wallets() {
+            self.params
+                .worker
+                .do_send(worker::NotifyBalance(wallet, sink));
         }
 
         Ok(())

@@ -12,10 +12,27 @@ pub struct State {
 #[derive(Default)]
 struct Session {
     wallets: HashMap<String, types::SessionWallet>,
-    subscriptions: HashMap<types::SubscriptionId, types::Sink>,
+    subscription: Option<types::Sink>,
 }
 
 impl State {
+    /// Get a list of wallets to which notifications can be sent
+    /// through the returned sink.
+    pub fn notifiable_wallets(&self) -> Vec<(types::SessionWallet, types::Sink)> {
+        self.sessions
+            .values()
+            .filter_map(|session| {
+                session.subscription.as_ref().map(|sink| {
+                    session
+                        .wallets
+                        .values()
+                        .map(move |wallet| (wallet.clone(), sink.clone()))
+                })
+            })
+            .flatten()
+            .collect()
+    }
+
     /// Get a reference to an unlocked wallet.
     pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<types::SessionWallet> {
         let session = self
@@ -38,15 +55,10 @@ impl State {
     }
 
     /// Add a sink and subscription id to a session.
-    pub fn add_subscription(
-        &mut self,
-        session_id: &str,
-        subscription_id: types::SubscriptionId,
-        sink: types::Sink,
-    ) -> Result<()> {
+    pub fn subscribe(&mut self, session_id: &str, sink: types::Sink) -> Result<()> {
         match self.sessions.get_mut(session_id) {
             Some(session) => {
-                session.subscriptions.insert(subscription_id, sink);
+                session.subscription = Some(sink);
                 Ok(())
             }
             None => Err(Error::SessionNotFound),
@@ -54,7 +66,7 @@ impl State {
     }
 
     /// Remove a subscription sink from a session.
-    pub fn remove_subscription(&mut self, subscription_id: &types::SubscriptionId) -> Result<()> {
+    pub fn unsubscribe(&mut self, subscription_id: &types::SubscriptionId) -> Result<()> {
         // Session id and subscription id are currently the same thing.
         let session_id_opt = match subscription_id {
             types::SubscriptionId::String(session_id) => Some(session_id),
@@ -64,7 +76,7 @@ impl State {
         session_id_opt
             .and_then(|session_id| self.sessions.get_mut(session_id))
             .map(|session| {
-                session.subscriptions.remove(subscription_id);
+                session.subscription = None;
             })
             .ok_or_else(|| Error::SessionNotFound)
     }
