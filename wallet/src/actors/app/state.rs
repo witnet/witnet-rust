@@ -106,7 +106,7 @@ impl State {
     }
 
     /// Return an Iterator over the unlocked wallets.
-    pub fn wallets<'a>(&'a self) -> impl Iterator<Item = (&'a String, &'a types::SessionWallet)> {
+    pub fn wallets(&self) -> impl Iterator<Item = (&String, &types::SessionWallet)> {
         self.wallets.iter()
     }
 }

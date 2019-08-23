@@ -57,3 +57,12 @@ pub struct WalletData {
     pub current_account: u32,
     pub available_accounts: Vec<u32>,
 }
+
+pub struct CreateWalletData<'a> {
+    pub id: &'a str,
+    pub name: Option<String>,
+    pub caption: Option<String>,
+    pub iv: Vec<u8>,
+    pub salt: Vec<u8>,
+    pub account: &'a Account,
+}

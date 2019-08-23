@@ -39,16 +39,19 @@ impl<T: Database> Wallets<T> {
         Ok(wallets)
     }
 
-    pub fn create<D: Database>(
+    pub fn create<'a, D: Database>(
         &self,
         wallet_db: D,
-        id: &str,
-        name: Option<String>,
-        caption: Option<String>,
-        iv: Vec<u8>,
-        salt: Vec<u8>,
-        account: &types::Account,
+        wallet_data: types::CreateWalletData<'a>,
     ) -> Result<()> {
+        let types::CreateWalletData {
+            id,
+            name,
+            caption,
+            iv,
+            salt,
+            account,
+        } = wallet_data;
         let mut wbatch = wallet_db.batch();
 
         if let Some(name) = name {

@@ -96,8 +96,17 @@ impl Worker {
         let wallet_db = db::EncryptedDb::new(self.db.clone(), prefix, key, iv.clone());
         wallet_db.put("", ())?; // used when unlocking to check if the password is correct
 
-        self.wallets
-            .create(wallet_db, &id, name, caption, iv, salt, &default_account)?;
+        self.wallets.create(
+            wallet_db,
+            types::CreateWalletData {
+                name,
+                caption,
+                iv,
+                salt,
+                id: &id,
+                account: &default_account,
+            },
+        )?;
 
         Ok(id)
     }
@@ -171,7 +180,7 @@ impl Worker {
             model::Transaction {
                 hash: "4f369107485dd195d477818a27d27027b758572cce82078f6789aa6df7d1f295"
                     .to_string(),
-                value: 341958,
+                value: 341_958,
                 kind: model::TransactionKind::Debit,
             },
             model::Transaction {
