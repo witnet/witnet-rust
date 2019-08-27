@@ -228,7 +228,7 @@ impl WbiRequests {
 #[derive(Debug)]
 pub struct EthState {
     /// Web3 event loop handle
-    pub _eloop: web3::transports::EventLoopHandle,
+    pub eloop: web3::transports::EventLoopHandle,
     /// Web3
     pub web3: web3::Web3<web3::transports::Http>,
     /// Accounts
@@ -249,23 +249,28 @@ pub struct EthState {
 
 impl EthState {
     /// Read addresses from config and create `State` struct
-    pub fn create(config: &Config) -> Result<Self, ()> {
-        let (_eloop, web3_http) =
-            web3::transports::Http::new(&config.eth_client_url).map_err(|_| ())?;
+    pub fn create(config: &Config) -> Result<Self, String> {
+        let (eloop, web3_http) =
+            web3::transports::Http::new(&config.eth_client_url).map_err(|e| format!("Failed to connect to Ethereum client.\nIs the ethereum node running at {}?\nError: {:?}", config.eth_client_url, e))?;
         let web3 = web3::Web3::new(web3_http);
-        let accounts = web3.eth().accounts().wait().map_err(|_| ())?;
+        let accounts = web3
+            .eth()
+            .accounts()
+            .wait()
+            .map_err(|e| format!("Unable to get list of available accounts: {:?}", e))?;
         debug!("Web3 accounts: {:?}", accounts);
 
         // Why read files at runtime when you can read files at compile time
         let wbi_contract_abi_json: &[u8] = include_bytes!("../wbi_abi.json");
-        let wbi_contract_abi = ethabi::Contract::load(wbi_contract_abi_json).map_err(|_| ())?;
+        let wbi_contract_abi = ethabi::Contract::load(wbi_contract_abi_json)
+            .map_err(|e| format!("Unable to load WBI contract from ABI: {:?}", e))?;
         let wbi_contract_address = config.wbi_contract_addr;
         let wbi_contract =
             Contract::new(web3.eth(), wbi_contract_address, wbi_contract_abi.clone());
 
         let block_relay_contract_abi_json: &[u8] = include_bytes!("../block_relay_abi.json");
-        let block_relay_contract_abi =
-            ethabi::Contract::load(block_relay_contract_abi_json).map_err(|_| ())?;
+        let block_relay_contract_abi = ethabi::Contract::load(block_relay_contract_abi_json)
+            .map_err(|e| format!("Unable to load BlockRelay contract from ABI: {:?}", e))?;
         let block_relay_contract_address = config.block_relay_contract_addr;
         let block_relay_contract = Contract::new(
             web3.eth(),
@@ -276,15 +281,15 @@ impl EthState {
         debug!("WBI events: {:?}", wbi_contract_abi.events);
         let post_dr_event = wbi_contract_abi
             .event("PostedRequest")
-            .map_err(|_| ())?
+            .map_err(|e| format!("Unable to get PostedRequest event: {:?}", e))?
             .clone();
         let inclusion_dr_event = wbi_contract_abi
             .event("IncludedRequest")
-            .map_err(|_| ())?
+            .map_err(|e| format!("Unable to get IncludedRequest event: {:?}", e))?
             .clone();
         let post_tally_event = wbi_contract_abi
             .event("PostedResult")
-            .map_err(|_| ())?
+            .map_err(|e| format!("Unable to get PostedResult event: {:?}", e))?
             .clone();
 
         let post_dr_event_sig = post_dr_event.signature();
@@ -294,7 +299,7 @@ impl EthState {
         let wbi_requests = RwLock::new(Default::default());
 
         Ok(Self {
-            _eloop,
+            eloop,
             web3,
             accounts,
             wbi_contract,
@@ -313,6 +318,7 @@ pub fn read_u256_from_event_log(value: &web3::types::Log) -> Result<U256, ()> {
     let event_data = ethabi::decode(&event_types, &value.data.0);
     debug!("Event data: {:?}", event_data);
 
+    // Errors are handled by the caller, if this fails there is nothing we can do
     match event_data.map_err(|_| ())?.get(0).ok_or(())? {
         Token::Uint(x) => Ok(*x),
         _ => Err(()),

@@ -73,7 +73,7 @@ fn post_example_dr(
             config.eth_account,
             contract::Options::with(|opt| {
                 opt.value = Some(U256::from_dec_str("2500000000000000").unwrap());
-                opt.gas = Some(1_000_000.into());
+                //opt.gas = Some(1_000_000.into());
             }),
         )
         .map(|tx| {
@@ -82,6 +82,7 @@ fn post_example_dr(
         .map_err(|e| error!("Error posting dr to wbi: {}", e))
 }
 
+/// Command line usage and flags
 #[derive(Debug, StructOpt)]
 struct App {
     /// Path of the config file
@@ -113,9 +114,8 @@ fn main() {
 
     let eth_state = Arc::new(match EthState::create(&config) {
         Ok(x) => x,
-        Err(()) => {
-            error!("Error when trying to initialize ethereum related stuff");
-            error!("Is the ethereum node running at {}?", config.eth_client_url);
+        Err(e) => {
+            error!("{}", e);
             return;
         }
     });
@@ -139,22 +139,13 @@ fn main() {
         return;
     }
 
-    // FIXME(#772): Channel closes in case of future errors and bridge fails
-    // TODO: prefer bounded or unbounded channels?
-    let (bttx, block_ticker_fut) = block_ticker(Arc::clone(&config), Arc::clone(&eth_state));
+    let (bttx, block_ticker_fut) = block_ticker(&config, Arc::clone(&eth_state));
     let (main_actor_tx, main_actor_fut) =
         main_actor(Arc::clone(&config), Arc::clone(&eth_state), bttx.clone());
-
     let (_handle, post_tx, post_fut) = post_actor(Arc::clone(&config), Arc::clone(&eth_state));
-    let eth_event_fut = eth_event_stream(
-        Arc::clone(&config),
-        Arc::clone(&eth_state),
-        main_actor_tx.clone(),
-        post_tx.clone(),
-    );
+    let eth_event_fut = eth_event_stream(&config, Arc::clone(&eth_state), post_tx.clone());
     let (_handle, witnet_event_fut) =
         witnet_block_stream(Arc::clone(&config), main_actor_tx.clone());
-
     let post_ticker = post_ticker(Arc::clone(&config), post_tx.clone());
 
     let (_handle, report_ticker_fut) = report_ticker(
@@ -164,7 +155,29 @@ fn main() {
     );
 
     tokio::run(future::ok(()).map(move |_| {
-        tokio::spawn(witnet_event_fut);
+        // Wait here to ensure that the Ethereum client is running before starting
+        // the entire system
+        let eth_event_fut = match eth_event_fut.wait() {
+            Ok(x) => x,
+            Err(e) => {
+                error!("{}", e);
+                return;
+            }
+        };
+
+        // Wait here to ensure that the Witnet node is running before starting
+        // the entire system
+        let witnet_event_fut = match witnet_event_fut.wait() {
+            Ok(x) => x,
+            Err(e) => {
+                error!("{}", e);
+                return;
+            }
+        };
+
+        if config.subscribe_to_witnet_blocks {
+            tokio::spawn(witnet_event_fut);
+        }
         tokio::spawn(eth_event_fut);
         tokio::spawn(post_fut);
         tokio::spawn(main_actor_fut);

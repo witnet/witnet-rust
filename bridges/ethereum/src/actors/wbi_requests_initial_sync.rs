@@ -20,13 +20,13 @@ pub fn wbi_requests_initial_sync(
     let wbi_contract = eth_state.wbi_contract.clone();
     wbi_contract
         .query(
-            "numRequests",
+            "requestsCount",
             (),
             config.eth_account,
             contract::Options::default(),
             None,
         )
-        .map_err(|e| error!("numRequests: {:?}", e))
+        .map_err(|e| error!("requestsCount: {:?}", e))
         .and_then(move |num_requests: U256| {
             debug!("{} requests in WBI", num_requests);
             let eth_account = config.eth_account;

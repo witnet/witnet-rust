@@ -25,28 +25,28 @@ pub enum PostActorMessage {
 #[derive(Debug)]
 pub enum ActorMessage {
     /// The subscription to new Witnet blocks just sent us a new block
-    NewWitnetBlock(Box<Block>),
+    NewWitnetBlock(Block),
     /// This old block may have tallies for data requests whose inclusion can
     /// be reported to the WBI
-    ReplayWitnetBlock(Box<Block>),
+    ReplayWitnetBlock(Block),
 }
 
 /// Handle Ethereum transaction receipt
+// This function returns a future because in the future it may be possible
+// to retrieve the failure reason (for example: transaction reverted, invalid
+// opcode).
 pub fn handle_receipt(receipt: TransactionReceipt) -> impl Future<Item = (), Error = ()> {
     match receipt.status {
         Some(x) if x == 1.into() => {
-            //debug!("Success!");
             // Success
             futures::finished(())
         }
         Some(x) if x == 0.into() => {
-            error!("Error :(");
             // Fail
-            // TODO: Reason?
             futures::failed(())
         }
         x => {
-            error!("Wtf is a {:?} status", x);
+            error!("Unknwon return code, should be 0 or 1, is: {:?}", x);
             futures::failed(())
         }
     }

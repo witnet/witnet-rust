@@ -1,14 +1,14 @@
 //! Stream of Ethereum events
 
 use crate::{
-    actors::{ActorMessage, PostActorMessage},
+    actors::PostActorMessage,
     config::Config,
     eth::{read_u256_from_event_log, EthState, WbiEvent},
 };
 use async_jsonrpc_client::futures::Stream;
-use futures::sink::Sink;
+use futures::{future::Either, sink::Sink};
 use log::*;
-use std::{process, sync::Arc, time};
+use std::{sync::Arc, time};
 use tokio::sync::mpsc;
 use web3::{
     contract,
@@ -18,23 +18,27 @@ use web3::{
 use witnet_data_structures::chain::Hash;
 
 /// Stream of ethereum events
+/// This function returns a future which has a nested future inside.
+/// This is because we want to be able to exit the process in the case when
+/// we fail to connect to the node, so we await on the outer future, and in
+/// the error case we exit the main function.
 pub fn eth_event_stream(
-    config: Arc<Config>,
+    config: &Config,
     eth_state: Arc<EthState>,
-    _tx: mpsc::Sender<ActorMessage>,
-    tx4: mpsc::Sender<PostActorMessage>,
-) -> impl Future<Item = (), Error = ()> {
+    tx: mpsc::Sender<PostActorMessage>,
+) -> impl Future<Item = impl Future<Item = (), Error = ()>, Error = String> {
     let web3 = &eth_state.web3;
     let accounts = eth_state.accounts.clone();
     if !accounts.contains(&config.eth_account) {
-        error!(
-            "Account does not exists: {}\nAvailable accounts:\n{:#?}",
+        return Either::A(futures::failed(format!(
+            "Account does not exist: {}\nAvailable accounts:\n{:#?}",
             config.eth_account, accounts
-        );
-        process::exit(1);
+        )));
     }
 
     let contract_address = config.wbi_contract_addr;
+    let eth_event_polling_rate_ms = config.eth_event_polling_rate_ms;
+    let eth_account = config.eth_account;
 
     let post_dr_event_sig = eth_state.post_dr_event_sig;
     let inclusion_dr_event_sig = eth_state.inclusion_dr_event_sig;
@@ -75,19 +79,18 @@ pub fn eth_event_stream(
         }
     };
 
-    web3.eth_filter()
+    let fut = web3.eth_filter()
         .create_logs_filter(post_dr_filter)
         .map_err(|e| {
-            error!("Failed to create logs filter: {}", e);
-            process::exit(1);
+            format!("Failed to create logs filter: {}", e)
         })
-        .and_then(move |filter| {
+        .map(move |filter| {
             debug!("Created filter: {:?}", filter);
             info!("Subscribed to ethereum events");
             filter
                 // This poll interval was set to 0 in the example, which resulted in the
                 // bridge having 100% cpu usage...
-                .stream(time::Duration::from_millis(config.eth_event_polling_rate_ms))
+                .stream(time::Duration::from_millis(eth_event_polling_rate_ms))
                 .map_err(|e| error!("ethereum event error = {:?}", e))
                 .map(move |value| {
                     debug!("Got ethereum event: {:?}", value);
@@ -95,7 +98,7 @@ pub fn eth_event_stream(
                     parse_as_wbi_event(&value)
                 })
                 .for_each(move |value| {
-                    let tx4 = tx4.clone();
+                    let tx4 = tx.clone();
                     let eth_state2 = eth_state.clone();
                     let fut: Box<dyn Future<Item = (), Error = ()> + Send> =
                         match value {
@@ -120,7 +123,7 @@ pub fn eth_event_stream(
                                         .query(
                                             "readDrHash",
                                             (dr_id,),
-                                            config.eth_account,
+                                            eth_account,
                                             contract::Options::default(),
                                             None,
                                         )
@@ -157,5 +160,7 @@ pub fn eth_event_stream(
                 })
                 // Without this line the stream will stop on the first failure
                 .then(|_| Ok(()))
-        })
+        });
+
+    Either::B(fut)
 }

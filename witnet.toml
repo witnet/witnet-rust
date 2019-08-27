@@ -2,7 +2,8 @@
 # https://docs.witnet.io/configuration/toml-file/
 [connections]
 server_addr = "0.0.0.0:21337"
-known_peers = ["52.166.178.145:21337"]
+#known_peers = ["52.166.178.145:21337"]
+known_peers = ["127.0.0.1:21337"]
 outbound_limit = 1
 bootstrap_peers_period_seconds = 15
 

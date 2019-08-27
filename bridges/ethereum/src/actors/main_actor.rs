@@ -7,23 +7,20 @@ use log::*;
 use std::sync::Arc;
 use tokio::{sync::mpsc, sync::oneshot};
 use web3::{contract, futures::Future, types::U256};
-use witnet_data_structures::{
-    chain::{Hash, Hashable},
-    proto::ProtobufConvert,
-};
+use witnet_data_structures::chain::{Hash, Hashable};
 
 /// Actor which receives Witnet blocks and sends proofs of inclusion to Ethereum
 pub fn main_actor(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
-    wait_for_witnet_block_tx: mpsc::Sender<(U256, oneshot::Sender<()>)>,
+    wait_for_witnet_block_tx: mpsc::UnboundedSender<(U256, oneshot::Sender<()>)>,
 ) -> (
     mpsc::Sender<ActorMessage>,
     impl Future<Item = (), Error = ()>,
 ) {
     let (tx, rx) = mpsc::channel(16);
 
-    let fut = rx.map_err(|_| ())
+    let fut = rx.map_err(|e| error!("Failed to receive message in main_actor: {:?}", e))
         .for_each(move |msg| {
             debug!("Got ActorMessage: {:?}", msg);
             let eth_state = eth_state.clone();
@@ -84,21 +81,21 @@ pub fn main_actor(
                                     "postNewBlock",
                                     (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
                                     eth_account,
-                                    contract::Options::with(|opt| {
-                                        opt.gas = Some(100_000.into());
+                                    contract::Options::with(|_opt| {
+                                        //opt.gas = Some(100_000.into());
                                     }),
                                     1,
                                 )
                                 .map_err(|e| error!("postNewBlock: {:?}", e))
-                                .and_then(|tx| {
+                                .and_then(move |tx| {
                                     debug!("postNewBlock: {:?}", tx);
-                                    handle_receipt(tx)
+
+                                    handle_receipt(tx).map_err(move |()| {
+                                        warn!("Failed to post block {:x} to block relay, maybe it was already posted?", block_hash)
+                                    })
                                 })
                                 .map(move |()| {
                                     info!("Posted block {:x} to block relay", block_hash);
-                                })
-                                .map_err(move |()| {
-                                    warn!("Failed to post block {:x} to block relay, maybe it was already posted?", block_hash);
                                 })
                         })
                 );
@@ -106,9 +103,16 @@ pub fn main_actor(
 
             // Wait for someone else to publish the witnet block to ethereum
             let (wbtx, wbrx) = oneshot::channel();
-            let fut = wait_for_witnet_block_tx.clone().send((block_hash, wbtx)).map_err(|_| ())
-                .and_then(|_| {
-                    wbrx.map_err(|_| ())
+            let fut = wait_for_witnet_block_tx.clone().send((block_hash, wbtx))
+                .map_err(|e| error!("Failed to send message to block_ticker channel: {}", e))
+                .and_then(move |_| {
+                    // Receiving the new block notification can fail if the block_ticker got
+                    // a different subscription to the same block hash.
+                    // In that case, since there already is another future waiting for the
+                    // same block, we can exit this one
+                    wbrx.map_err(move |e| {
+                        debug!("Failed to receive message through oneshot channel while waiting for block {}: {:x}", e, block_hash)
+                    })
                 })
                 .and_then(move |()| {
                     eth_state.wbi_requests.read()
@@ -137,23 +141,6 @@ pub fn main_actor(
                                     }
                                 };
 
-                                let dr_bytes = match dr.body.dr_output.to_pb_bytes() {
-                                    Ok(x) => x,
-                                    Err(e) => {
-                                        error!("Error serializing data request output to Protocol Buffers: {:?}", e);
-                                        continue;
-                                    }
-                                };
-
-                                debug!(
-                                    "Proof of inclusion for data request {}:\nData: {:?}\n{:?}",
-                                    dr.hash(),
-                                    dr_bytes,
-                                    dr_inclusion_proof
-                                );
-                                info!("[{}] Claimed dr got included in witnet block!", dr_id);
-                                info!("[{}] Sending proof of inclusion to WBI wbi_contract", dr_id);
-
                                 let poi: Vec<U256> = dr_inclusion_proof
                                     .lemma
                                     .iter()
@@ -162,6 +149,16 @@ pub fn main_actor(
                                     })
                                     .collect();
                                 let poi_index = U256::from(dr_inclusion_proof.index);
+
+                                debug!(
+                                    "Proof of inclusion for data request {}:\nPoi: {:x?}\nPoi index: {}",
+                                    dr.hash(),
+                                    poi,
+                                    poi_index,
+                                );
+                                info!("[{}] Claimed dr got included in witnet block!", dr_id);
+                                info!("[{}] Sending proof of inclusion to WBI wbi_contract", dr_id);
+
                                 including.push((*dr_id, poi.clone(), poi_index, block_hash));
                             }
                         }
@@ -208,6 +205,7 @@ pub fn main_actor(
                             for (dr_id, poi, poi_index, block_hash) in including {
                                 if wbi_requests.claimed().contains_left(&dr_id) {
                                     wbi_requests.set_including(dr_id, poi.clone(), poi_index, block_hash);
+                                    let params_str = format!("{:?}", (dr_id, poi.clone(), poi_index, block_hash));
                                     tokio::spawn(
                                         wbi_contract
                                             .call_with_confirmations(
@@ -217,10 +215,10 @@ pub fn main_actor(
                                                 contract::Options::default(),
                                                 1,
                                             )
-                                            .map_err(|e| error!("reportDataRequestInclusion: {:?}", e))
+                                            .map_err(move |e| error!("reportDataRequestInclusion{}: {:?}", params_str, e))
                                             .and_then(move |tx| {
                                                 debug!("reportDataRequestInclusion: {:?}", tx);
-                                                handle_receipt(tx)
+                                                handle_receipt(tx).map_err(|()| error!("handle_receipt: transaction failed"))
                                             }),
                                     );
                                 }
@@ -228,6 +226,7 @@ pub fn main_actor(
                             for (dr_id, poi, poi_index, block_hash, result) in resolving {
                                 if wbi_requests.included().contains_left(&dr_id) {
                                     wbi_requests.set_resolving(dr_id, poi.clone(), poi_index, block_hash, result.clone());
+                                    let params_str = format!("{:?}", &(dr_id, poi.clone(), poi_index, block_hash, result.clone()));
                                     tokio::spawn(
                                         wbi_contract
                                             .call_with_confirmations(
@@ -237,10 +236,10 @@ pub fn main_actor(
                                                 contract::Options::default(),
                                                 1,
                                             )
-                                            .map_err(|e| error!("reportResult: {:?}", e))
+                                            .map_err(move |e| error!("reportResult{}: {:?}", params_str, e))
                                             .and_then(|tx| {
                                                 debug!("reportResult: {:?}", tx);
-                                                handle_receipt(tx)
+                                                handle_receipt(tx).map_err(|()| error!("handle_receipt: transaction failed"))
                                             }),
                                     );
                                 }

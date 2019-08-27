@@ -75,8 +75,8 @@ pub fn report_ticker(
                 Ok(block) => {
                     debug!("Replaying an old witnet block so that we can report the resolved data requests: {:?}", block);
                     Either::A(
-                        tx.clone().send(ActorMessage::ReplayWitnetBlock(Box::new(block)))
-                            .map_err(|_| ())
+                        tx.clone().send(ActorMessage::ReplayWitnetBlock(block))
+                            .map_err(|e| error!("Failed to send message to main_actor: {:?}", e))
                             .map(|_| ()),
                     )
                 }

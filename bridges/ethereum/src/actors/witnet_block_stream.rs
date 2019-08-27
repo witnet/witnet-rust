@@ -5,18 +5,22 @@ use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
 use futures::{future::Either, sink::Sink};
 use log::*;
 use serde_json::json;
-use std::{process, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::{prelude::FutureExt, sync::mpsc};
 use web3::futures::Future;
 use witnet_data_structures::chain::Block;
 
 /// Stream of Witnet events
+/// This function returns a future which has a nested future inside.
+/// This is because we want to be able to exit the process in the case when
+/// we fail to connect to the node, so we await on the outer future, and in
+/// the error case we exit the main function.
 pub fn witnet_block_stream(
     config: Arc<Config>,
     tx: mpsc::Sender<ActorMessage>,
 ) -> (
     async_jsonrpc_client::transports::shared::EventLoopHandle,
-    impl Future<Item = (), Error = ()>,
+    impl Future<Item = impl Future<Item = (), Error = ()>, Error = String>,
 ) {
     let witnet_addr = config.witnet_jsonrpc_addr.to_string();
     let witnet_addr1 = witnet_addr.clone();
@@ -27,7 +31,7 @@ pub fn witnet_block_stream(
         async_jsonrpc_client::transports::tcp::TcpSocket::new(&witnet_addr).unwrap();
     let witnet_client1 = witnet_client.clone();
 
-    let fut1 = witnet_client
+    let fut = witnet_client
         .execute("witnet_subscribe", json!(["newBlocks"]))
         .timeout(Duration::from_secs(1))
         .map_err(move |e| {
@@ -52,12 +56,15 @@ pub fn witnet_block_stream(
             let witnet_subscription_id = match witnet_subscription_id_value {
                 Ok(serde_json::Value::String(s)) => s,
                 Ok(x) => {
-                    error!("Witnet subscription id must be a string, is {:?}", x);
-                    process::exit(1);
+                    return futures::failed(format!(
+                        "Witnet subscription id must be a string, is {:?}",
+                        x
+                    ));
                 }
                 Err(_) => {
-                    error!("Failed to subscribe to newBlocks from witnet node");
-                    process::exit(1);
+                    return futures::failed(
+                        "Failed to subscribe to newBlocks from witnet node".to_string(),
+                    );
                 }
             };
             info!(
@@ -67,37 +74,32 @@ pub fn witnet_block_stream(
 
             let witnet_client = witnet_client1;
 
-            witnet_client
-                .subscribe(&witnet_subscription_id.into())
-                .map_err(|e| error!("witnet notification error = {:?}", e))
-                .and_then(move |value| {
-                    let tx1 = tx.clone();
-                    // TODO: get current epoch to distinguish between old blocks that are sent
-                    // to us while synchronizing and new blocks
-                    match serde_json::from_value::<Block>(value) {
-                        Ok(block) => {
-                            debug!("Got witnet block: {:?}", block);
-                            Either::A(
-                                tx1.send(ActorMessage::NewWitnetBlock(Box::new(block)))
-                                    .map_err(|_| ())
-                                    .map(|_| ()),
-                            )
+            futures::finished(
+                witnet_client
+                    .subscribe(&witnet_subscription_id.into())
+                    .map_err(|e| error!("witnet notification error = {:?}", e))
+                    .and_then(move |value| {
+                        let tx1 = tx.clone();
+                        match serde_json::from_value::<Block>(value) {
+                            Ok(block) => {
+                                debug!("Got witnet block: {:?}", block);
+                                Either::A(
+                                    tx1.send(ActorMessage::NewWitnetBlock(block))
+                                        .map_err(|e| {
+                                            error!("Failed to send message to main_actor: {:?}", e)
+                                        })
+                                        .map(|_| ()),
+                                )
+                            }
+                            Err(e) => {
+                                error!("Error parsing witnet block: {:?}", e);
+                                Either::B(futures::finished(()))
+                            }
                         }
-                        Err(e) => {
-                            error!("Error parsing witnet block: {:?}", e);
-                            Either::B(futures::finished(()))
-                        }
-                    }
-                })
-                .for_each(|_| Ok(()))
+                    })
+                    .for_each(|_| Ok(())),
+            )
         });
-    let fut1 = Either::A(fut1);
-    let fut2 = Either::B(futures::finished(()));
-    let fut = if config.subscribe_to_witnet_blocks {
-        fut1
-    } else {
-        fut2
-    };
 
     (handle, fut)
 }

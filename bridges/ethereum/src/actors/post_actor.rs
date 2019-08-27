@@ -27,13 +27,14 @@ fn convert_json_array_to_eth_bytes(value: Value) -> Result<Bytes, serde_json::Er
 
 /// Try to claim DR in WBI and post it to Witnet
 fn postdr(
-    config: Arc<Config>,
+    config: &Config,
     eth_state: Arc<EthState>,
     witnet_client: Arc<TcpSocket>,
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
     let wbi_contract = eth_state.wbi_contract.clone();
     let eth_account = config.eth_account;
+    let post_to_witnet_more_than_once = config.post_to_witnet_more_than_once;
 
     let wbi_contract = wbi_contract.clone();
     let wbi_contract2 = wbi_contract.clone();
@@ -302,7 +303,7 @@ fn postdr(
                         if wbi_requests.posted().contains(&dr_id) {
                             wbi_requests.set_claiming(dr_id);
                             Either::A(futures::finished(()))
-                        } else if config.post_to_witnet_more_than_once && wbi_requests.claimed().contains_left(&dr_id) {
+                        } else if post_to_witnet_more_than_once && wbi_requests.claimed().contains_left(&dr_id) {
                             // Post dr in witnet again.
                             // This may lead to double spending wits.
                             // This can be useful in the following scenarios:
@@ -342,8 +343,8 @@ fn postdr(
                             "claimDataRequests",
                             (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr),
                             eth_account,
-                            contract::Options::with(|opt| {
-                                opt.gas = Some(500_000.into());
+                            contract::Options::with(|_opt| {
+                                //opt.gas = Some(500_000.into());
                             }),
                             1,
                         )
@@ -426,7 +427,7 @@ pub fn post_actor(
 
             let fut = match msg {
                 PostActorMessage::NewDr(dr_id) => Either::A(postdr(
-                    config.clone(),
+                    &config,
                     eth_state.clone(),
                     witnet_client.clone(),
                     dr_id,
@@ -453,7 +454,7 @@ pub fn post_actor(
                                 std::mem::drop(known_dr_ids);
 
                                 Either::A(postdr(
-                                    config2.clone(),
+                                    &config2,
                                     eth_state2.clone(),
                                     witnet_client2.clone(),
                                     dr_id,
@@ -467,7 +468,7 @@ pub fn post_actor(
                                 std::mem::drop(known_dr_ids);
 
                                 Either::A(postdr(
-                                    config2.clone(),
+                                    &config2,
                                     eth_state2.clone(),
                                     witnet_client2.clone(),
                                     dr_id,
