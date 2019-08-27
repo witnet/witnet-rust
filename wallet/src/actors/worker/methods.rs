@@ -8,11 +8,11 @@ use super::*;
 use crate::{account, crypto, db::Database as _, model, params};
 
 impl Worker {
-    pub fn start(db: Arc<rocksdb::DB>, params: params::Params) -> Addr<Self> {
+    pub fn start(concurrency: usize, db: Arc<rocksdb::DB>, params: params::Params) -> Addr<Self> {
         let engine = types::SignEngine::signing_only();
         let wallets = Arc::new(repository::Wallets::new(db::PlainDb::new(db.clone())));
 
-        SyncArbiter::start(num_cpus::get(), move || Self {
+        SyncArbiter::start(concurrency, move || Self {
             db: db.clone(),
             wallets: wallets.clone(),
             params: params.clone(),

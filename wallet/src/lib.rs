@@ -59,6 +59,9 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let id_hash_iterations = conf.wallet.id_hash_iterations;
     let id_hash_function = conf.wallet.id_hash_function;
 
+    // Wallet concurrency
+    let concurrency = conf.wallet.concurrency.unwrap_or_else(num_cpus::get);
+
     let system = System::new("witnet-wallet");
 
     let client = node_url.clone().map_or_else(
@@ -81,7 +84,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         db_salt_length,
     };
 
-    let worker = actors::Worker::start(db.clone(), params);
+    let worker = actors::Worker::start(concurrency, db.clone(), params);
 
     let app = actors::App::start(actors::app::Params {
         worker,

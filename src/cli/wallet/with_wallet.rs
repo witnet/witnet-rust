@@ -17,6 +17,9 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             if let Some(millis) = params.timeout {
                 config.wallet.requests_timeout = millis;
             }
+            if let Some(n) = params.concurrency {
+                config.wallet.concurrency = Some(n);
+            }
             config.wallet.testnet = config.wallet.testnet || params.testnet;
 
             wallet::run(config)?;
@@ -64,6 +67,9 @@ pub struct ConfigParams {
     /// Whether or not this wallet communicates a testnet node.
     #[structopt(long = "testnet")]
     testnet: bool,
+    /// Number of worker-threads used by the wallet. Defaults to number of logical cores.
+    #[structopt(short = "C", long = "concurrency")]
+    concurrency: Option<usize>,
 }
 
 static WALLET_DB_HELP: &str = r#"Path to the wallet database. If not specified will use:

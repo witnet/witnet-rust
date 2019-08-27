@@ -478,6 +478,10 @@ pub struct Wallet {
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
     pub node_url: Option<String>,
+    /// How many worker threads the wallet uses.
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub concurrency: Option<usize>,
     /// Database path.
     pub db_path: PathBuf,
     /// Database file name.
@@ -512,6 +516,7 @@ impl Wallet {
                 .server_addr
                 .unwrap_or_else(|| defaults.wallet_server_addr()),
             node_url: config.node_url.clone(),
+            concurrency: config.concurrency,
             db_path: config.db_path.clone().unwrap_or_else(dirs::data_dir),
             db_file_name: config
                 .db_file_name
