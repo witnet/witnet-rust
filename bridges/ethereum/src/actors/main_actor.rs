@@ -163,21 +163,6 @@ pub fn main_actor(
                                     .collect();
                                 let poi_index = U256::from(dr_inclusion_proof.index);
                                 including.push((*dr_id, poi.clone(), poi_index, block_hash));
-                                tokio::spawn(
-                                    wbi_contract
-                                        .call_with_confirmations(
-                                            "reportDataRequestInclusion",
-                                            (*dr_id, poi, poi_index, block_hash),
-                                            eth_account,
-                                            contract::Options::default(),
-                                            1,
-                                        )
-                                        .map_err(|e| error!("reportDataRequestInclusion: {:?}", e))
-                                        .and_then(move |tx| {
-                                            debug!("reportDataRequestInclusion: {:?}", tx);
-                                            handle_receipt(tx)
-                                        }),
-                                );
                             }
                         }
                     }
@@ -213,33 +198,52 @@ pub fn main_actor(
                                 let poi_index = U256::from(tally_inclusion_proof.index);
                                 let result: Bytes = tally.tally.clone();
                                 resolving.push((*dr_id, poi.clone(), poi_index, block_hash, result.clone()));
-                                tokio::spawn(
-                                    wbi_contract
-                                        .call_with_confirmations(
-                                            "reportResult",
-                                            (*dr_id, poi, poi_index, block_hash, result),
-                                            eth_account,
-                                            contract::Options::default(),
-                                            1,
-                                        )
-                                        .map_err(|e| error!("reportResult: {:?}", e))
-                                        .and_then(|tx| {
-                                            debug!("reportResult: {:?}", tx);
-                                            handle_receipt(tx)
-                                        }),
-                                );
                             }
                         }
                     }
 
                     // Check if we need to acquire a write lock
                     if !including.is_empty() || !resolving.is_empty() {
-                        Either::A(eth_state2.wbi_requests.write().map(|mut wbi_requests| {
+                        Either::A(eth_state2.wbi_requests.write().map(move |mut wbi_requests| {
                             for (dr_id, poi, poi_index, block_hash) in including {
-                                wbi_requests.set_including(dr_id, poi, poi_index, block_hash);
+                                if wbi_requests.claimed().contains_left(&dr_id) {
+                                    wbi_requests.set_including(dr_id, poi.clone(), poi_index, block_hash);
+                                    tokio::spawn(
+                                        wbi_contract
+                                            .call_with_confirmations(
+                                                "reportDataRequestInclusion",
+                                                (dr_id, poi, poi_index, block_hash),
+                                                eth_account,
+                                                contract::Options::default(),
+                                                1,
+                                            )
+                                            .map_err(|e| error!("reportDataRequestInclusion: {:?}", e))
+                                            .and_then(move |tx| {
+                                                debug!("reportDataRequestInclusion: {:?}", tx);
+                                                handle_receipt(tx)
+                                            }),
+                                    );
+                                }
                             }
                             for (dr_id, poi, poi_index, block_hash, result) in resolving {
-                                wbi_requests.set_resolving(dr_id, poi, poi_index, block_hash, result);
+                                if wbi_requests.included().contains_left(&dr_id) {
+                                    wbi_requests.set_resolving(dr_id, poi.clone(), poi_index, block_hash, result.clone());
+                                    tokio::spawn(
+                                        wbi_contract
+                                            .call_with_confirmations(
+                                                "reportResult",
+                                                (dr_id, poi, poi_index, block_hash, result),
+                                                eth_account,
+                                                contract::Options::default(),
+                                                1,
+                                            )
+                                            .map_err(|e| error!("reportResult: {:?}", e))
+                                            .and_then(|tx| {
+                                                debug!("reportResult: {:?}", tx);
+                                                handle_receipt(tx)
+                                            }),
+                                    );
+                                }
                             }
                         }))
                     } else {
