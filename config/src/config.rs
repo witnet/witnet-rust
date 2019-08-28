@@ -510,8 +510,8 @@ impl Wallet {
     pub fn from_partial(config: &PartialWallet, defaults: &dyn Defaults) -> Self {
         Wallet {
             testnet: config.testnet,
-            session_expires_in: config.session_expires_in.unwrap_or_else(|| 3200),
-            requests_timeout: config.requests_timeout.unwrap_or_else(|| 60_000),
+            session_expires_in: config.session_expires_in.unwrap_or(3200),
+            requests_timeout: config.requests_timeout.unwrap_or(60_000),
             server_addr: config
                 .server_addr
                 .unwrap_or_else(|| defaults.wallet_server_addr()),

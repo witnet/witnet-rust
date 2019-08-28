@@ -47,7 +47,6 @@ pub struct Account {
     pub index: u32,
     pub external: ExtendedSK,
     pub internal: ExtendedSK,
-    pub rad: ExtendedSK,
 }
 
 pub struct WalletData {

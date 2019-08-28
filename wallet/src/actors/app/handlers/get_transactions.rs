@@ -25,10 +25,13 @@ impl Handler<GetTransactionsRequest> for app::App {
     type Result = app::ResponseActFuture<GetTransactionsResponse>;
 
     fn handle(&mut self, msg: GetTransactionsRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let offset = msg.offset.unwrap_or_else(|| constants::DEFAULT_OFFSET);
+        let offset = msg
+            .offset
+            .unwrap_or_else(|| constants::DEFAULT_PAGINATION_OFFSET);
         let limit = cmp::min(
-            msg.offset.unwrap_or_else(|| constants::DEFAULT_LIMIT),
-            constants::MAX_LIMIT,
+            msg.offset
+                .unwrap_or_else(|| constants::DEFAULT_PAGINATION_LIMIT),
+            constants::MAX_PAGINATION_LIMIT,
         );
         let f = self.get_transactions(msg.session_id, msg.wallet_id, offset, limit);
 

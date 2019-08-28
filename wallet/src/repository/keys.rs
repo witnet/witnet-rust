@@ -88,12 +88,6 @@ pub fn account_ik(account_index: u32) -> String {
     format!("account-{}-ik", account_index)
 }
 
-/// An account's rad key.
-#[inline]
-pub fn account_rk(account_index: u32) -> String {
-    format!("account-{}-rk", account_index)
-}
-
 /// An account's next index to use for generating an external key.
 #[inline]
 pub fn account_next_ek_index(account_index: u32) -> String {

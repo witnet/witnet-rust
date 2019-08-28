@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use serde_json::json;
 
 use super::*;
-use crate::{account, crypto, db::Database as _, model, params};
+use crate::{account, constants, crypto, db::Database as _, model, params};
 
 impl Worker {
     pub fn start(concurrency: usize, db: Arc<rocksdb::DB>, params: params::Params) -> Addr<Self> {
@@ -90,13 +90,17 @@ impl Worker {
         let default_account =
             account::gen_account(&self.engine, default_account_index, &master_key)?;
 
+        // This is for storage encryption
         let prefix = id.as_bytes().to_vec();
         let salt = crypto::salt(&mut self.rng, self.params.db_salt_length);
         let iv = crypto::salt(&mut self.rng, self.params.db_iv_length);
         let key = crypto::key_from_password(password, &salt, self.params.db_hash_iterations);
 
         let wallet_db = db::EncryptedDb::new(self.db.clone(), prefix, key, iv.clone());
-        wallet_db.put("", ())?; // used when unlocking to check if the password is correct
+        wallet_db.put(
+            constants::ENCRYPTION_CHECK_KEY,
+            constants::ENCRYPTION_CHECK_VALUE,
+        )?; // used when unlocking to check if the password is correct
 
         self.wallets.create(
             wallet_db,
@@ -135,10 +139,14 @@ impl Worker {
         );
         let prefix = wallet_id.as_bytes().to_vec();
         let wallet_db = db::EncryptedDb::new(self.db.clone(), prefix, key, iv);
-        wallet_db.get::<_, ()>("").map_err(|err| match err {
-            db::Error::DbKeyNotFound => Error::WrongPassword,
-            err => Error::Db(err),
-        })?;
+
+        // Check if password-derived key is able to read the special stored value
+        wallet_db
+            .get(constants::ENCRYPTION_CHECK_KEY)
+            .map_err(|err| match err {
+                db::Error::DbKeyNotFound => Error::WrongPassword,
+                err => Error::Db(err),
+            })?;
 
         let wallet = repository::Wallet::new(wallet_db, self.params.clone(), self.engine.clone());
 

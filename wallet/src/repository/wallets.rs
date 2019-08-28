@@ -63,7 +63,6 @@ impl<T: Database> Wallets<T> {
         wbatch.put(keys::wallet_default_account(), account.index)?;
         wbatch.put(keys::account_ek(account.index), &account.external)?;
         wbatch.put(keys::account_ik(account.index), &account.internal)?;
-        wbatch.put(keys::account_rk(account.index), &account.rad)?;
 
         wallet_db.write(wbatch)?;
 

@@ -25,10 +25,13 @@ impl Handler<GetAddressesRequest> for app::App {
     type Result = app::ResponseActFuture<GetAddressesResponse>;
 
     fn handle(&mut self, msg: GetAddressesRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let offset = msg.offset.unwrap_or_else(|| constants::DEFAULT_OFFSET);
+        let offset = msg
+            .offset
+            .unwrap_or_else(|| constants::DEFAULT_PAGINATION_OFFSET);
         let limit = cmp::min(
-            msg.offset.unwrap_or_else(|| constants::DEFAULT_LIMIT),
-            constants::MAX_LIMIT,
+            msg.offset
+                .unwrap_or_else(|| constants::DEFAULT_PAGINATION_LIMIT),
+            constants::MAX_PAGINATION_LIMIT,
         );
         let f = self.get_addresses(msg.session_id, msg.wallet_id, offset, limit);
 

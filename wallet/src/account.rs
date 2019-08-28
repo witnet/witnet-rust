@@ -1,14 +1,17 @@
-use crate::types;
+use crate::{constants, types};
 
 /// Result type for accounts-related operations that can fail.
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
 /// Root KeyPath used for wallet accounts.
+///
+/// Path levels are described here:
+/// https://github.com/aesedepece/WIPs/blob/wip-adansdpc-hdwallets/wip-adansdpc-hdwallets.md#path-levels
 #[inline]
 pub fn account_keypath(index: u32) -> types::KeyPath {
     types::KeyPath::default()
-        .hardened(3)
-        .hardened(4919)
+        .hardened(constants::KEYPATH_PURPOSE)
+        .hardened(constants::KEYPATH_COIN_TYPE)
         .hardened(index)
 }
 
@@ -34,17 +37,11 @@ pub fn gen_account(
 
         account_key.derive(engine, &keypath)?
     };
-    let rad = {
-        let keypath = types::KeyPath::default().index(2);
-
-        account_key.derive(engine, &keypath)?
-    };
 
     let account = types::Account {
         index: account_index,
         external,
         internal,
-        rad,
     };
 
     Ok(account)
