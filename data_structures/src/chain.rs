@@ -266,24 +266,13 @@ impl Default for Signature {
 
 impl Signature {
     /// Serialize the Signature for interoperability with OpenSSL.
-    pub fn to_bytes(&self) -> Result<[u8; 65], failure::Error> {
+    pub fn to_bytes(&self) -> Result<[u8; 64], failure::Error> {
         match self {
             Secp256k1(x) => {
                 let signature = Secp256k1_Signature::from_der(x.der.as_slice())
                     .map_err(|_| Secp256k1ConversionError::FailSignatureConversion)?;
 
-                let v = match x.der[1] {
-                    68 => 0 as u8,
-                    69 => 1 as u8,
-                    _ => Err(Secp256k1ConversionError::FailSignatureConversion)?,
-                };
-
-                let mut vrs = [0 as u8; 65];
-                let rs = signature.serialize_compact();
-                vrs[0..64].copy_from_slice(&rs);
-                vrs[64] = v;
-
-                Ok(vrs)
+                Ok(signature.serialize_compact())
             }
         }
     }

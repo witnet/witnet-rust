@@ -250,6 +250,11 @@ fn postdr(
         })
         .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point , v_point)| {
             let mut sign_addr2 = sign_addr.clone();
+            // Append v value to the signature, as it is needed by Ethereum but
+            // it is not provided by OpenSSL. Fortunately, it is only 1 bit so
+            // we can bruteforce the v value by setting it to 0, and if it
+            // fails, setting it to 1.
+            sign_addr2.push(0);
             let fut1 = wbi_contract3
                 .query(
                     "claimDataRequests",
