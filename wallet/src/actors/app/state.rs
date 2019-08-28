@@ -5,7 +5,7 @@ use super::*;
 /// Struct to manage the App actor state and its invariants.
 #[derive(Default)]
 pub struct State {
-    sessions: HashMap<String, Session>,
+    sessions: HashMap<types::SessionId, Session>,
     wallets: HashMap<String, types::SessionWallet>,
 }
 
@@ -34,7 +34,11 @@ impl State {
     }
 
     /// Get a reference to an unlocked wallet.
-    pub fn wallet(&self, session_id: &str, wallet_id: &str) -> Result<types::SessionWallet> {
+    pub fn wallet(
+        &self,
+        session_id: &types::SessionId,
+        wallet_id: &str,
+    ) -> Result<types::SessionWallet> {
         let session = self
             .sessions
             .get(session_id)
@@ -50,12 +54,12 @@ impl State {
     }
 
     /// Check if the session is still active.
-    pub fn is_session_active(&self, session_id: &str) -> bool {
+    pub fn is_session_active(&self, session_id: &types::SessionId) -> bool {
         self.sessions.contains_key(session_id)
     }
 
     /// Add a sink and subscription id to a session.
-    pub fn subscribe(&mut self, session_id: &str, sink: types::Sink) -> Result<()> {
+    pub fn subscribe(&mut self, session_id: &types::SessionId, sink: types::Sink) -> Result<()> {
         match self.sessions.get_mut(session_id) {
             Some(session) => {
                 session.subscription = Some(sink);
@@ -69,12 +73,12 @@ impl State {
     pub fn unsubscribe(&mut self, subscription_id: &types::SubscriptionId) -> Result<()> {
         // Session id and subscription id are currently the same thing.
         let session_id_opt = match subscription_id {
-            types::SubscriptionId::String(session_id) => Some(session_id),
+            types::SubscriptionId::String(id) => Some(types::SessionId::from(id.clone())),
             _ => None,
         };
 
         session_id_opt
-            .and_then(|session_id| self.sessions.get_mut(session_id))
+            .and_then(|session_id| self.sessions.get_mut(&session_id))
             .map(|session| {
                 session.subscription = None;
             })
@@ -82,7 +86,7 @@ impl State {
     }
 
     /// Remove a session but keep its wallets.
-    pub fn remove_session(&mut self, session_id: &str) -> Result<()> {
+    pub fn remove_session(&mut self, session_id: &types::SessionId) -> Result<()> {
         self.sessions
             .remove(session_id)
             .map(|_| ())
@@ -90,7 +94,7 @@ impl State {
     }
 
     /// Remove a wallet completely.
-    pub fn remove_wallet(&mut self, session_id: &str, wallet_id: &str) -> Result<()> {
+    pub fn remove_wallet(&mut self, session_id: &types::SessionId, wallet_id: &str) -> Result<()> {
         let session = self
             .sessions
             .get_mut(session_id)
@@ -105,7 +109,7 @@ impl State {
     /// Insert a new wallet into the state of the session if it is not already present.
     pub fn create_session(
         &mut self,
-        session_id: String,
+        session_id: types::SessionId,
         wallet_id: String,
         wallet: types::SessionWallet,
     ) {

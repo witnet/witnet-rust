@@ -7,7 +7,7 @@ use crate::types;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetRequest {
-    session_id: String,
+    session_id: types::SessionId,
     wallet_id: String,
     key: String,
 }

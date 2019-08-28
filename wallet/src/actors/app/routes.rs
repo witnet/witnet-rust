@@ -31,7 +31,6 @@ macro_rules! routes {
                             .and_then(
                                 |x|
                                 future::result(serde_json::to_value(x))
-                                    .inspect(|resp| log::trace!("<= Sending Response: {:?}", resp))
                                     .map_err(internal_error)
                             )
                             .map_err(|err| err.into())

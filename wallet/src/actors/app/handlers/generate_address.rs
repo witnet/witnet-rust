@@ -2,12 +2,12 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
-use crate::model;
+use crate::{model, types};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerateAddressRequest {
-    session_id: String,
+    session_id: types::SessionId,
     wallet_id: String,
     label: Option<String>,
 }

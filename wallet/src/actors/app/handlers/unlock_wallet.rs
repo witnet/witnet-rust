@@ -14,7 +14,7 @@ pub struct UnlockWalletRequest {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnlockWalletResponse {
-    session_id: String,
+    session_id: types::SessionId,
     name: Option<String>,
     caption: Option<String>,
     available_accounts: Vec<u32>,

@@ -1,7 +1,9 @@
+use std::fmt;
 use std::sync::Arc;
 
 pub use jsonrpc_core::{Params as RpcParams, Value as RpcValue};
 pub use jsonrpc_pubsub::{Sink, SinkResult, Subscriber, SubscriptionId};
+use serde::{Deserialize, Serialize};
 pub use serde_json::Value as Json;
 
 pub use witnet_crypto::{
@@ -27,6 +29,35 @@ pub type SessionWallet = Arc<repository::Wallet<db::EncryptedDb>>;
 
 pub type Wallet = repository::Wallet<db::EncryptedDb>;
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct SessionId(String);
+
+impl fmt::Display for SessionId {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}...", &self.0[..5])
+    }
+}
+
+impl fmt::Debug for SessionId {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}...", &self.0[..5])
+    }
+}
+
+impl Into<String> for SessionId {
+    fn into(self) -> String {
+        self.0
+    }
+}
+
+impl From<String> for SessionId {
+    fn from(id: String) -> Self {
+        SessionId(id)
+    }
+}
+
 pub enum SeedSource {
     Mnemonics(Mnemonic),
     Xprv,
@@ -35,12 +66,12 @@ pub enum SeedSource {
 pub struct UnlockedSessionWallet {
     pub wallet: repository::Wallet<db::EncryptedDb>,
     pub data: WalletData,
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 pub struct UnlockedWallet {
     pub data: WalletData,
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 pub struct Account {

@@ -7,10 +7,14 @@ use crate::types;
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeRequest {
-    pub session_id: String,
+    pub session_id: types::SessionId,
 }
 
-pub struct Subscribe(pub String, pub types::SubscriptionId, pub types::Sink);
+pub struct Subscribe(
+    pub types::SessionId,
+    pub types::SubscriptionId,
+    pub types::Sink,
+);
 
 impl Message for Subscribe {
     type Result = app::Result<()>;

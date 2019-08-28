@@ -4,12 +4,12 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
-use crate::{constants, model};
+use crate::{constants, model, types};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAddressesRequest {
-    session_id: String,
+    session_id: types::SessionId,
     wallet_id: String,
     offset: Option<u32>,
     limit: Option<u32>,

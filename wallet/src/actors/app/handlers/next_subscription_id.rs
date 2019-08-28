@@ -3,7 +3,7 @@ use actix::prelude::*;
 use crate::actors::app;
 use crate::types;
 
-pub struct NextSubscriptionId(pub String);
+pub struct NextSubscriptionId(pub types::SessionId);
 
 impl Message for NextSubscriptionId {
     type Result = app::Result<types::SubscriptionId>;

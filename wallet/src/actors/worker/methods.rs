@@ -130,13 +130,13 @@ impl Worker {
                 err => Error::Repository(err),
             })?;
         let key = crypto::key_from_password(password, &salt, self.params.db_hash_iterations);
-        let session_id = crypto::gen_session_id(
+        let session_id = From::from(crypto::gen_session_id(
             &mut self.rng,
             &self.params.id_hash_function,
             &key,
             &salt,
             self.params.id_hash_iterations,
-        );
+        ));
         let prefix = wallet_id.as_bytes().to_vec();
         let wallet_db = db::EncryptedDb::new(self.db.clone(), prefix, key, iv);
 
