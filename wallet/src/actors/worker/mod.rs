@@ -19,7 +19,7 @@ pub struct Worker {
     wallets: Arc<repository::Wallets<db::PlainDb>>,
     params: params::Params,
     engine: types::SignEngine,
-    rng: rand_os::OsRng,
+    rng: rand::rngs::OsRng,
 }
 
 impl Actor for Worker {

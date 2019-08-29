@@ -16,7 +16,7 @@ impl Worker {
             db: db.clone(),
             wallets: wallets.clone(),
             params: params.clone(),
-            rng: rand_os::OsRng,
+            rng: rand::rngs::OsRng,
             engine: engine.clone(),
         })
     }
