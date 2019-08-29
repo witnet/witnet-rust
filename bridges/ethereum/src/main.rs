@@ -100,27 +100,24 @@ struct App {
 
 fn main() {
     init_logger();
+
+    if let Err(err) = run() {
+        error!("{}", err);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<(), String> {
     let app = App::from_args();
 
-    let config = match app.config {
-        Some(x) => witnet_ethereum_bridge::config::from_file(x),
-        None => witnet_ethereum_bridge::config::from_file("witnet_ethereum_bridge.toml"),
-    };
-    let config = match config {
-        Ok(x) => Arc::new(x),
-        Err(e) => {
-            error!("Error reading configuration file: {}", e);
-            return;
-        }
-    };
+    let config = witnet_ethereum_bridge::config::from_file(
+        app.config
+            .unwrap_or_else(|| "witnet_ethereum_bridge.toml".into()),
+    )
+    .map(Arc::new)
+    .map_err(|e| format!("Error reading configuration file: {}", e))?;
 
-    let eth_state = Arc::new(match EthState::create(&config) {
-        Ok(x) => x,
-        Err(e) => {
-            error!("{}", e);
-            return;
-        }
-    });
+    let eth_state = EthState::create(&config).map(Arc::new)?;
 
     if app.post_dr {
         // Post example data request to WBI and exit
@@ -128,64 +125,64 @@ fn main() {
         tokio::run(future::ok(()).map(move |_| {
             tokio::spawn(fut);
         }));
+    } else {
+        let wbi_requests_fut =
+            wbi_requests_initial_sync(Arc::clone(&config), Arc::clone(&eth_state));
+        if app.read_requests {
+            tokio::run(future::ok(()).map(move |_| {
+                tokio::spawn(wbi_requests_fut);
+            }));
+        } else {
+            let (bttx, block_ticker_fut) = block_ticker(&config, Arc::clone(&eth_state));
+            let (main_actor_tx, main_actor_fut) =
+                main_actor(Arc::clone(&config), Arc::clone(&eth_state), bttx.clone());
+            let (_handle, post_tx, post_fut) =
+                post_actor(Arc::clone(&config), Arc::clone(&eth_state));
+            let eth_event_fut = eth_event_stream(&config, Arc::clone(&eth_state), post_tx.clone());
+            let (_handle, witnet_event_fut) =
+                witnet_block_stream(Arc::clone(&config), main_actor_tx.clone());
+            let post_ticker = post_ticker(Arc::clone(&config), post_tx.clone());
 
-        return;
-    }
+            let (_handle, report_ticker_fut) = report_ticker(
+                Arc::clone(&config),
+                Arc::clone(&eth_state),
+                main_actor_tx.clone(),
+            );
 
-    let wbi_requests_fut = wbi_requests_initial_sync(Arc::clone(&config), Arc::clone(&eth_state));
-    if app.read_requests {
-        tokio::run(future::ok(()).map(move |_| {
-            tokio::spawn(wbi_requests_fut);
-        }));
+            tokio::run(future::ok(()).map(move |_| {
+                // Wait here to ensure that the Ethereum client is running before starting
+                // the entire system
+                let eth_event_fut = match eth_event_fut.wait() {
+                    Ok(x) => x,
+                    Err(e) => {
+                        error!("{}", e);
+                        return;
+                    }
+                };
 
-        return;
-    }
+                // Wait here to ensure that the Witnet node is running before starting
+                // the entire system
+                let witnet_event_fut = match witnet_event_fut.wait() {
+                    Ok(x) => x,
+                    Err(e) => {
+                        error!("{}", e);
+                        return;
+                    }
+                };
 
-    let (bttx, block_ticker_fut) = block_ticker(&config, Arc::clone(&eth_state));
-    let (main_actor_tx, main_actor_fut) =
-        main_actor(Arc::clone(&config), Arc::clone(&eth_state), bttx.clone());
-    let (_handle, post_tx, post_fut) = post_actor(Arc::clone(&config), Arc::clone(&eth_state));
-    let eth_event_fut = eth_event_stream(&config, Arc::clone(&eth_state), post_tx.clone());
-    let (_handle, witnet_event_fut) =
-        witnet_block_stream(Arc::clone(&config), main_actor_tx.clone());
-    let post_ticker = post_ticker(Arc::clone(&config), post_tx.clone());
-
-    let (_handle, report_ticker_fut) = report_ticker(
-        Arc::clone(&config),
-        Arc::clone(&eth_state),
-        main_actor_tx.clone(),
-    );
-
-    tokio::run(future::ok(()).map(move |_| {
-        // Wait here to ensure that the Ethereum client is running before starting
-        // the entire system
-        let eth_event_fut = match eth_event_fut.wait() {
-            Ok(x) => x,
-            Err(e) => {
-                error!("{}", e);
-                return;
-            }
-        };
-
-        // Wait here to ensure that the Witnet node is running before starting
-        // the entire system
-        let witnet_event_fut = match witnet_event_fut.wait() {
-            Ok(x) => x,
-            Err(e) => {
-                error!("{}", e);
-                return;
-            }
-        };
-
-        if config.subscribe_to_witnet_blocks {
-            tokio::spawn(witnet_event_fut);
+                if config.subscribe_to_witnet_blocks {
+                    tokio::spawn(witnet_event_fut);
+                }
+                tokio::spawn(eth_event_fut);
+                tokio::spawn(post_fut);
+                tokio::spawn(main_actor_fut);
+                tokio::spawn(post_ticker);
+                tokio::spawn(block_ticker_fut);
+                tokio::spawn(report_ticker_fut);
+                tokio::spawn(wbi_requests_fut);
+            }));
         }
-        tokio::spawn(eth_event_fut);
-        tokio::spawn(post_fut);
-        tokio::spawn(main_actor_fut);
-        tokio::spawn(post_ticker);
-        tokio::spawn(block_ticker_fut);
-        tokio::spawn(report_ticker_fut);
-        tokio::spawn(wbi_requests_fut);
-    }));
+    }
+
+    Ok(())
 }
