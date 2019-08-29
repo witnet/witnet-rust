@@ -3325,7 +3325,7 @@ dependencies = [
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "witnet_config 0.3.2",
  "witnet_data_structures 0.3.2",
- "witnet_node 0.3.2",
+ "witnet_node 0.4.0",
  "witnet_wallet 0.3.2",
 ]
 
@@ -3428,7 +3428,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "actix 0.7.10 (git+https://github.com/actix/actix.git?rev=d28d286ac652f81e72c2aa413e7c0d3fc6c6099c)",
  "ansi_term 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",

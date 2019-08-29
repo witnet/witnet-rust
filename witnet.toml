@@ -2,18 +2,17 @@
 # https://docs.witnet.io/configuration/toml-file/
 [connections]
 server_addr = "0.0.0.0:21337"
-#known_peers = ["52.166.178.145:21337"]
-known_peers = ["127.0.0.1:21337"]
+known_peers = ["52.166.178.145:21337"]
 outbound_limit = 1
 bootstrap_peers_period_seconds = 15
 
 [storage]
-db_path = ".witnet-rust-testnet-3"
+db_path = ".witnet-rust-testnet-4"
 
 [consensus_constants]
 checkpoints_period = 30
-checkpoint_zero_timestamp = 1560643200
-genesis_hash = "00000000000000000000000000000000000000007769746e65742d302e332e31"
+checkpoint_zero_timestamp = 1567036800
+genesis_hash = "00000000000000000000000000000000000000007769746e65742d302e342e30"
 
 [log]
 level = "debug"
