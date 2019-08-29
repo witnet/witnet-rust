@@ -1,6 +1,6 @@
 //! Actor which tries to claim data requests from WBI and posts them to Witnet
 
-use crate::{actors::handle_receipt, actors::PostActorMessage, config::Config, eth::EthState};
+use crate::{actors::handle_receipt, actors::ClaimMsg, config::Config, eth::EthState};
 use async_jsonrpc_client::{futures::Stream, transports::tcp::TcpSocket, Transport};
 use ethabi::{Bytes, Token};
 use futures::{future::Either, sink::Sink};
@@ -25,21 +25,23 @@ fn convert_json_array_to_eth_bytes(value: Value) -> Result<Bytes, serde_json::Er
     serde_json::from_value(value)
 }
 
-/// Try to claim DR in WBI and post it to Witnet
-fn postdr(
+type ClaimDataRequestsParams = (Vec<U256>, [U256; 4], [U256; 2], [U256; 2], [U256; 4], Bytes);
+
+/// Check if we can claim a DR from the WBI locally,
+/// without sending any transactions to Ethereum,
+/// and return all the parameters needed for the real transaction
+fn try_to_claim_local_query(
     config: &Config,
     eth_state: Arc<EthState>,
     witnet_client: Arc<TcpSocket>,
     dr_id: U256,
-) -> impl Future<Item = (), Error = ()> {
+) -> impl Future<Item = (DataRequestOutput, ClaimDataRequestsParams), Error = ()> {
     let wbi_contract = eth_state.wbi_contract.clone();
     let eth_account = config.eth_account;
-    let post_to_witnet_more_than_once = config.post_to_witnet_more_than_once;
 
     let wbi_contract = wbi_contract.clone();
     let wbi_contract2 = wbi_contract.clone();
     let wbi_contract3 = wbi_contract.clone();
-    let wbi_contract4 = wbi_contract.clone();
     let wbi_contract5 = wbi_contract.clone();
     let wbi_contract6 = wbi_contract.clone();
     let wbi_contract7 = wbi_contract.clone();
@@ -151,10 +153,8 @@ fn postdr(
         })
         .and_then(move |(vrf, sign_addr, witnet_pk, dr_output, last_beacon)| {
 
-            // Locallty execute POE verification to check for eligibility
+            // Locally execute POE verification to check for eligibility
             // without spending any gas
-            // TODO: this assumes that the vrf, witnet_pk and sign_addr are returned
-            // as an array of bytes: [1, 2, 3].
             let poe = convert_json_array_to_eth_bytes(vrf);
             let witnet_pk = convert_json_array_to_eth_bytes(witnet_pk);
             let sign_addr = convert_json_array_to_eth_bytes(sign_addr);
@@ -195,7 +195,7 @@ fn postdr(
                             "[{}] Error decoding public Key:  {}",
                             dr_id, e);
                     })
-                    .map(move |pk: Token| {
+                    .map(move |pk: [U256; 2]| {
                         debug!("Received public key decode Point: {:?}", pk);
 
                         (poe, sign_addr, pk, dr_output, last_beacon)
@@ -218,7 +218,7 @@ fn postdr(
                             "[{}] Error decoding proof:  {}",
                             dr_id, e);
                     })
-                    .map(move |proof: Token| {
+                    .map(move |proof: [U256; 4]| {
                         debug!("Received proof decode Point: {:?}", proof);
 
                         (proof, sign_addr, witnet_pk, dr_output, last_beacon)
@@ -231,7 +231,7 @@ fn postdr(
                 wbi_contract7
                     .query(
                         "computeFastVerifyParams",
-                        (witnet_pk.clone(), poe.clone(), last_beacon),
+                        (witnet_pk, poe, last_beacon),
                         eth_account,
                         contract::Options::default(),
                         None,
@@ -241,7 +241,7 @@ fn postdr(
                             "[{}] Error in params reception:  {}",
                             dr_id, e);
                     })
-                    .map(move |(u_point, v_point): (Token, Token)| {
+                    .map(move |(u_point, v_point): ([U256; 2], [U256; 4])| {
                         debug!("Received fast verify params: ({:?}, {:?})", u_point, v_point);
 
                         (poe, sign_addr, witnet_pk, dr_output, u_point , v_point)
@@ -258,7 +258,7 @@ fn postdr(
             let fut1 = wbi_contract3
                 .query(
                     "claimDataRequests",
-                    (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr.clone()),
+                    (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr.clone()),
                     eth_account,
                     contract::Options::default(),
                     None,
@@ -269,7 +269,7 @@ fn postdr(
             let fut2 = wbi_contract3
                 .query(
                     "claimDataRequests",
-                    (vec![dr_id], poe.clone(), witnet_pk.clone(), u_point.clone(), v_point.clone(), sign_addr2.clone()),
+                    (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr2.clone()),
                     eth_account,
                     contract::Options::default(),
                     None,
@@ -293,7 +293,28 @@ fn postdr(
             )
 
         })
-        .and_then(move |(poe, sign_addr, witnet_pk, dr_output, u_point, v_point)| {
+        .map(move |(poe, sign_addr, witnet_pk, dr_output, u_point, v_point)| {
+            (dr_output, (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr))
+        })
+}
+
+/// Try to claim DR in WBI and post it to Witnet
+fn claim_and_post_dr(
+    config: &Config,
+    eth_state: Arc<EthState>,
+    witnet_client: Arc<TcpSocket>,
+    dr_id: U256,
+) -> impl Future<Item = (), Error = ()> {
+    let wbi_contract = eth_state.wbi_contract.clone();
+    let eth_account = config.eth_account;
+    let post_to_witnet_more_than_once = config.post_to_witnet_more_than_once;
+
+    let wbi_contract = wbi_contract.clone();
+    let wbi_contract4 = wbi_contract.clone();
+    let witnet_client = Arc::clone(&witnet_client);
+
+    try_to_claim_local_query(config, Arc::clone(&eth_state), Arc::clone(&witnet_client), dr_id)
+        .and_then(move |(dr_output, claim_data_requests_params)| {
             // Claim dr
             info!("[{}] Claiming dr", dr_id);
             let dr_output_hash = dr_output.hash();
@@ -302,51 +323,42 @@ fn postdr(
             let witnet_client2 = witnet_client.clone();
 
             // Mark the data request as claimed to prevent double claims by other threads
-            eth_state.wbi_requests.write().then(move |wbi_requests| {
-                match wbi_requests {
-                    Ok(mut wbi_requests) => {
-                        if wbi_requests.posted().contains(&dr_id) {
-                            wbi_requests.set_claiming(dr_id);
-                            Either::A(futures::finished(()))
-                        } else if post_to_witnet_more_than_once && wbi_requests.claimed().contains_left(&dr_id) {
-                            // Post dr in witnet again.
-                            // This may lead to double spending wits.
-                            // This can be useful in the following scenarios:
-                            // * The data request is posted to Witnet, but it
-                            //   is not accepted into a Witnet block
-                            //   (or is invalid because of double-spending).
+            eth_state.wbi_requests.write()
+                .and_then(move |mut wbi_requests| {
+                    if wbi_requests.posted().contains(&dr_id) {
+                        wbi_requests.set_claiming(dr_id);
+                        Either::A(futures::finished(()))
+                    } else if post_to_witnet_more_than_once && wbi_requests.claimed().contains_left(&dr_id) {
+                        // Post dr in witnet again.
+                        // This may lead to double spending wits.
+                        // This can be useful in the following scenarios:
+                        // * The data request is posted to Witnet, but it
+                        //   is not accepted into a Witnet block
+                        //   (or is invalid because of double-spending).
 
-                            warn!("[{}] Posting to witnet again as we have not received a block containing this data request yet", dr_id);
+                        warn!("[{}] Posting to witnet again as we have not received a block containing this data request yet", dr_id);
 
-                            let bdr_params = json!({"dro": dr_output2, "fee": 0});
+                        let bdr_params = json!({"dro": dr_output2, "fee": 0});
 
-                            Either::B(witnet_client2
-                                .execute("buildDataRequest", bdr_params)
-                                .map_err(|e| error!("{:?}", e))
-                                .map(move |bdr_res| {
-                                    debug!("buildDataRequest: {:?}", bdr_res);
-                                }).then(|_| futures::failed(())))
-                        } else {
-                            // This data request is not available, abort.
-                            debug!("[{}] is not available for claiming, skipping", dr_id);
-                            Either::A(futures::failed(()))
-                        }
-                    }
-                    Err(e) => {
-                        // According to the documentation of the futures-locks crate,
-                        // this error cannot happen
-                        error!("Failed to acquire RwLock: {:?}", e);
+                        Either::B(witnet_client2
+                            .execute("buildDataRequest", bdr_params)
+                            .map_err(|e| error!("{:?}", e))
+                            .map(move |bdr_res| {
+                                debug!("buildDataRequest: {:?}", bdr_res);
+                            }).then(|_| futures::failed(())))
+                    } else {
+                        // This data request is not available, abort.
+                        debug!("[{}] is not available for claiming, skipping", dr_id);
                         Either::A(futures::failed(()))
                     }
-                }
-            })
+                })
                 .and_then(move |()| {
                     let eth_state2 = eth_state.clone();
 
                     wbi_contract4
                         .call_with_confirmations(
                             "claimDataRequests",
-                            (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr),
+                            claim_data_requests_params,
                             eth_account,
                             contract::Options::with(|opt| {
                                 opt.gas = Some(500_000.into());
@@ -401,12 +413,12 @@ fn postdr(
 }
 
 /// Actor which tries to claim data requests from WBI and posts them to Witnet
-pub fn post_actor(
+pub fn claim_and_post(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
 ) -> (
     async_jsonrpc_client::transports::shared::EventLoopHandle,
-    mpsc::Sender<PostActorMessage>,
+    mpsc::Sender<ClaimMsg>,
     impl Future<Item = (), Error = ()>,
 ) {
     // Important: the handle cannot be dropped, otherwise the client stops
@@ -431,13 +443,13 @@ pub fn post_actor(
             let witnet_client2 = Arc::clone(&witnet_client);
 
             let fut = match msg {
-                PostActorMessage::NewDr(dr_id) => Either::A(postdr(
+                ClaimMsg::NewDr(dr_id) => Either::A(claim_and_post_dr(
                     &config,
                     eth_state.clone(),
                     witnet_client.clone(),
                     dr_id,
                 )),
-                PostActorMessage::Tick => {
+                ClaimMsg::Tick => {
                     Either::B(eth_state.wbi_requests.read().and_then(move |known_dr_ids| {
                         let known_dr_ids_posted = known_dr_ids.posted();
                         let known_dr_ids_claimed = known_dr_ids.claimed();
@@ -458,7 +470,7 @@ pub fn post_actor(
                                 let dr_id = *known_dr_ids_posted.iter().nth(i).unwrap();
                                 std::mem::drop(known_dr_ids);
 
-                                Either::A(postdr(
+                                Either::A(claim_and_post_dr(
                                     &config2,
                                     eth_state2.clone(),
                                     witnet_client2.clone(),
@@ -472,7 +484,7 @@ pub fn post_actor(
                                 let dr_id = *known_dr_ids_claimed.iter().nth(i).unwrap().0;
                                 std::mem::drop(known_dr_ids);
 
-                                Either::A(postdr(
+                                Either::A(claim_and_post_dr(
                                     &config2,
                                     eth_state2.clone(),
                                     witnet_client2.clone(),
@@ -493,9 +505,9 @@ pub fn post_actor(
 }
 
 /// Periodically try to claim a random data request
-pub fn post_ticker(
+pub fn claim_ticker(
     config: Arc<Config>,
-    post_tx: mpsc::Sender<PostActorMessage>,
+    post_tx: mpsc::Sender<ClaimMsg>,
 ) -> impl Future<Item = (), Error = ()> {
     Interval::new(
         Instant::now(),
@@ -505,7 +517,7 @@ pub fn post_ticker(
     .and_then(move |_instant| {
         post_tx
             .clone()
-            .send(PostActorMessage::Tick)
+            .send(ClaimMsg::Tick)
             .map_err(|e| error!("Error sending tick to PostActor: {:?}", e))
     })
     .for_each(|_| Ok(()))

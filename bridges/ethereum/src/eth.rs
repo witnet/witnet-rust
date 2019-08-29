@@ -250,8 +250,12 @@ pub struct EthState {
 impl EthState {
     /// Read addresses from config and create `State` struct
     pub fn create(config: &Config) -> Result<Self, String> {
-        let (eloop, web3_http) =
-            web3::transports::Http::new(&config.eth_client_url).map_err(|e| format!("Failed to connect to Ethereum client.\nIs the ethereum node running at {}?\nError: {:?}", config.eth_client_url, e))?;
+        info!(
+            "Connecting to Ethereum node running at {}",
+            config.eth_client_url
+        );
+        let (eloop, web3_http) = web3::transports::Http::new(&config.eth_client_url)
+            .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))?;
         let web3 = web3::Web3::new(web3_http);
         let accounts = web3
             .eth()

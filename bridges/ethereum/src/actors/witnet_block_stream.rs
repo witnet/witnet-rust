@@ -1,6 +1,6 @@
 //! Stream of Witnet events
 
-use crate::{actors::ActorMessage, config::Config};
+use crate::{actors::WitnetBlock, config::Config};
 use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
 use futures::{future::Either, sink::Sink};
 use log::*;
@@ -17,7 +17,7 @@ use witnet_data_structures::chain::Block;
 /// the error case we exit the main function.
 pub fn witnet_block_stream(
     config: Arc<Config>,
-    tx: mpsc::Sender<ActorMessage>,
+    tx: mpsc::Sender<WitnetBlock>,
 ) -> (
     async_jsonrpc_client::transports::shared::EventLoopHandle,
     impl Future<Item = impl Future<Item = (), Error = ()>, Error = String>,
@@ -84,9 +84,12 @@ pub fn witnet_block_stream(
                             Ok(block) => {
                                 debug!("Got witnet block: {:?}", block);
                                 Either::A(
-                                    tx1.send(ActorMessage::NewWitnetBlock(block))
+                                    tx1.send(WitnetBlock::New(block))
                                         .map_err(|e| {
-                                            error!("Failed to send message to main_actor: {:?}", e)
+                                            error!(
+                                                "Failed to send WitnetBlock::New message: {:?}",
+                                                e
+                                            )
                                         })
                                         .map(|_| ()),
                                 )

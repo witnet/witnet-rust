@@ -14,11 +14,11 @@ use web3::{
 use witnet_data_structures::{chain::DataRequestOutput, proto::ProtobufConvert};
 use witnet_ethereum_bridge::{
     actors::{
-        block_ticker::block_ticker,
+        block_relay_and_poi::block_relay_and_poi,
+        block_relay_check::block_relay_check,
+        claim_and_post::{claim_and_post, claim_ticker},
         eth_event_stream::eth_event_stream,
-        main_actor::main_actor,
-        post_actor::{post_actor, post_ticker},
-        report_ticker::report_ticker,
+        tally_finder::tally_finder,
         wbi_requests_initial_sync::wbi_requests_initial_sync,
         witnet_block_stream::witnet_block_stream,
     },
@@ -126,27 +126,33 @@ fn run() -> Result<(), String> {
             tokio::spawn(fut);
         }));
     } else {
-        let wbi_requests_fut =
+        let wbi_requests_initial_sync_fut =
             wbi_requests_initial_sync(Arc::clone(&config), Arc::clone(&eth_state));
         if app.read_requests {
+            // Read all the requests from WBI and exit
             tokio::run(future::ok(()).map(move |_| {
-                tokio::spawn(wbi_requests_fut);
+                tokio::spawn(wbi_requests_initial_sync_fut);
             }));
         } else {
-            let (bttx, block_ticker_fut) = block_ticker(&config, Arc::clone(&eth_state));
-            let (main_actor_tx, main_actor_fut) =
-                main_actor(Arc::clone(&config), Arc::clone(&eth_state), bttx.clone());
-            let (_handle, post_tx, post_fut) =
-                post_actor(Arc::clone(&config), Arc::clone(&eth_state));
-            let eth_event_fut = eth_event_stream(&config, Arc::clone(&eth_state), post_tx.clone());
-            let (_handle, witnet_event_fut) =
-                witnet_block_stream(Arc::clone(&config), main_actor_tx.clone());
-            let post_ticker = post_ticker(Arc::clone(&config), post_tx.clone());
-
-            let (_handle, report_ticker_fut) = report_ticker(
+            let (block_relay_check_tx, block_relay_check_fut) =
+                block_relay_check(&config, Arc::clone(&eth_state));
+            let (block_relay_and_poi_tx, block_relay_and_poi_fut) = block_relay_and_poi(
                 Arc::clone(&config),
                 Arc::clone(&eth_state),
-                main_actor_tx.clone(),
+                block_relay_check_tx.clone(),
+            );
+            let (_handle, claim_and_post_tx, claim_and_post_fut) =
+                claim_and_post(Arc::clone(&config), Arc::clone(&eth_state));
+            let eth_event_fut =
+                eth_event_stream(&config, Arc::clone(&eth_state), claim_and_post_tx.clone());
+            let (_handle, witnet_block_fut) =
+                witnet_block_stream(Arc::clone(&config), block_relay_and_poi_tx.clone());
+            let claim_ticker_fut = claim_ticker(Arc::clone(&config), claim_and_post_tx.clone());
+
+            let (_handle, tally_finder_fut) = tally_finder(
+                Arc::clone(&config),
+                Arc::clone(&eth_state),
+                block_relay_and_poi_tx.clone(),
             );
 
             tokio::run(future::ok(()).map(move |_| {
@@ -162,7 +168,7 @@ fn run() -> Result<(), String> {
 
                 // Wait here to ensure that the Witnet node is running before starting
                 // the entire system
-                let witnet_event_fut = match witnet_event_fut.wait() {
+                let witnet_event_fut = match witnet_block_fut.wait() {
                     Ok(x) => x,
                     Err(e) => {
                         error!("{}", e);
@@ -170,16 +176,16 @@ fn run() -> Result<(), String> {
                     }
                 };
 
+                tokio::spawn(wbi_requests_initial_sync_fut);
                 if config.subscribe_to_witnet_blocks {
                     tokio::spawn(witnet_event_fut);
                 }
                 tokio::spawn(eth_event_fut);
-                tokio::spawn(post_fut);
-                tokio::spawn(main_actor_fut);
-                tokio::spawn(post_ticker);
-                tokio::spawn(block_ticker_fut);
-                tokio::spawn(report_ticker_fut);
-                tokio::spawn(wbi_requests_fut);
+                tokio::spawn(claim_and_post_fut);
+                tokio::spawn(block_relay_and_poi_fut);
+                tokio::spawn(claim_ticker_fut);
+                tokio::spawn(block_relay_check_fut);
+                tokio::spawn(tally_finder_fut);
             }));
         }
     }

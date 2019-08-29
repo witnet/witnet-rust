@@ -1,7 +1,7 @@
 //! Stream of Ethereum events
 
 use crate::{
-    actors::PostActorMessage,
+    actors::ClaimMsg,
     config::Config,
     eth::{read_u256_from_event_log, EthState, WbiEvent},
 };
@@ -25,7 +25,7 @@ use witnet_data_structures::chain::Hash;
 pub fn eth_event_stream(
     config: &Config,
     eth_state: Arc<EthState>,
-    tx: mpsc::Sender<PostActorMessage>,
+    tx: mpsc::Sender<ClaimMsg>,
 ) -> impl Future<Item = impl Future<Item = (), Error = ()>, Error = String> {
     let web3 = &eth_state.web3;
     let accounts = eth_state.accounts.clone();
@@ -109,7 +109,7 @@ pub fn eth_event_stream(
                                     eth_state.wbi_requests.write().map(move |mut wbi_requests| {
                                         wbi_requests.insert_posted(dr_id);
                                     }).and_then(move |()| {
-                                        tx4.send(PostActorMessage::NewDr(dr_id))
+                                        tx4.send(ClaimMsg::NewDr(dr_id))
                                             .map(|_| ())
                                             .map_err(|e| error!("Error sending message to PostActorMessage channel: {:?}", e))
                                     })

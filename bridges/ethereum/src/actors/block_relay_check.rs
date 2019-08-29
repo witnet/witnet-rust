@@ -29,7 +29,7 @@ use web3::{
 ///
 /// And f is a future that will resolve when the block with hash `block_hash`
 /// is included into the block relay.
-pub fn block_ticker(
+pub fn block_relay_check(
     config: &Config,
     eth_state: Arc<EthState>,
 ) -> (
@@ -45,7 +45,7 @@ pub fn block_ticker(
     // corresponding oneshot channel
     let block_hashes: futures_locks::RwLock<HashMap<U256, oneshot::Sender<()>>> =
         futures_locks::RwLock::new(HashMap::new());
-    let block_ticker = Interval::new(
+    let block_relay_check_fut = Interval::new(
         Instant::now(),
         Duration::from_millis(config.block_relay_polling_rate_ms),
     )
@@ -114,5 +114,5 @@ pub fn block_ticker(
     })
     .for_each(|_| Ok(()));
 
-    (return_tx, block_ticker)
+    (return_tx, block_relay_check_fut)
 }

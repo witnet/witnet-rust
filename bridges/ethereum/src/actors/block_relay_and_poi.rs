@@ -1,6 +1,7 @@
-//! Actor which receives Witnet blocks and sends proofs of inclusion to Ethereum
+//! Actor which receives Witnet blocks, posts them to the block relay,
+//! and sends proofs of inclusion to Ethereum
 
-use crate::{actors::handle_receipt, actors::ActorMessage, config::Config, eth::EthState};
+use crate::{actors::handle_receipt, actors::WitnetBlock, config::Config, eth::EthState};
 use ethabi::Bytes;
 use futures::{future::Either, sink::Sink, stream::Stream};
 use log::*;
@@ -9,18 +10,19 @@ use tokio::{sync::mpsc, sync::oneshot};
 use web3::{contract, futures::Future, types::U256};
 use witnet_data_structures::chain::{Hash, Hashable};
 
-/// Actor which receives Witnet blocks and sends proofs of inclusion to Ethereum
-pub fn main_actor(
+/// Actor which receives Witnet blocks, posts them to the block relay,
+/// and sends Proofs of Inclusion to Ethereum
+pub fn block_relay_and_poi(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
     wait_for_witnet_block_tx: mpsc::UnboundedSender<(U256, oneshot::Sender<()>)>,
 ) -> (
-    mpsc::Sender<ActorMessage>,
+    mpsc::Sender<WitnetBlock>,
     impl Future<Item = (), Error = ()>,
 ) {
     let (tx, rx) = mpsc::channel(16);
 
-    let fut = rx.map_err(|e| error!("Failed to receive message in main_actor: {:?}", e))
+    let fut = rx.map_err(|e| error!("Failed to receive WitnetBlock message: {:?}", e))
         .for_each(move |msg| {
             debug!("Got ActorMessage: {:?}", msg);
             let eth_state = eth_state.clone();
@@ -32,8 +34,8 @@ pub fn main_actor(
             let block_relay_contract = eth_state.block_relay_contract.clone();
 
             let (block, is_new_block) = match msg {
-                ActorMessage::NewWitnetBlock(block) => (block, true),
-                ActorMessage::ReplayWitnetBlock(block) => (block, false),
+                WitnetBlock::New(block) => (block, true),
+                WitnetBlock::Replay(block) => (block, false),
             };
 
             // Optimization: do not process empty blocks

@@ -1,6 +1,6 @@
 //! Periodically ask the Witnet node for resolved data requests
 
-use crate::{actors::ActorMessage, config::Config, eth::EthState};
+use crate::{actors::WitnetBlock, config::Config, eth::EthState};
 use async_jsonrpc_client::{futures::Stream, Transport};
 use futures::{future::Either, sink::Sink};
 use log::*;
@@ -15,10 +15,10 @@ use web3::futures::Future;
 use witnet_data_structures::{chain::Block, chain::DataRequestReport};
 
 /// Periodically ask the Witnet node for resolved data requests
-pub fn report_ticker(
+pub fn tally_finder(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
-    tx: mpsc::Sender<ActorMessage>,
+    tx: mpsc::Sender<WitnetBlock>,
 ) -> (
     async_jsonrpc_client::transports::shared::EventLoopHandle,
     impl Future<Item = (), Error = ()>,
@@ -75,8 +75,8 @@ pub fn report_ticker(
                 Ok(block) => {
                     debug!("Replaying an old witnet block so that we can report the resolved data requests: {:?}", block);
                     Either::A(
-                        tx.clone().send(ActorMessage::ReplayWitnetBlock(block))
-                            .map_err(|e| error!("Failed to send message to main_actor: {:?}", e))
+                        tx.clone().send(WitnetBlock::Replay(block))
+                            .map_err(|e| error!("Failed to send WitnetBlock::Replay: {:?}", e))
                             .map(|_| ()),
                     )
                 }
