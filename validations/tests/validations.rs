@@ -2878,11 +2878,18 @@ fn block_change_merkle_tree() {
         false
     });
     assert_eq!(
-        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        x.unwrap_err()
+            .downcast::<BlockError>()
+            .map(|mut x| {
+                // Erase block hash as it is not deterministic
+                if let BlockError::VerifySignatureFail { ref mut hash } = x {
+                    *hash = Default::default()
+                }
+                x
+            })
+            .unwrap(),
         BlockError::VerifySignatureFail {
-            hash: "4eebf363d7e67ea3d4214581e2f39b62bdfee350eb0e99870f632213f490848e"
-                .parse()
-                .unwrap()
+            hash: Default::default()
         },
     );
 }
