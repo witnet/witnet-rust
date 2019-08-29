@@ -28,7 +28,7 @@ use crate::actors::{
     },
     sessions_manager::SessionsManager,
 };
-use crate::{signature_mngr, storage_mngr};
+use crate::signature_mngr;
 
 //use std::str::FromStr;
 use super::Subscriptions;
@@ -36,9 +36,8 @@ use super::Subscriptions;
 #[cfg(test)]
 use self::mock_actix::System;
 use crate::actors::chain_manager::StateMachine;
-use crate::actors::messages::GetHighestCheckpointBeacon;
+use crate::actors::messages::{GetDataRequestReport, GetHighestCheckpointBeacon};
 use futures::future;
-use witnet_data_structures::chain::DataRequestReport;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
@@ -613,18 +612,20 @@ pub fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -> Json
         Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
-    let fut = storage_mngr::get::<_, DataRequestReport>(&dr_pointer_string)
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+
+    let fut = chain_manager_addr
+        .send(GetDataRequestReport { dr_pointer })
         .map_err(internal_error)
-        .and_then(move |dr_report| match dr_report {
-            Some(x) => match serde_json::to_value(&x) {
+        .and_then(|dr_info| match dr_info {
+            Ok(x) => match serde_json::to_value(&x) {
                 Ok(x) => futures::finished(x),
                 Err(e) => {
                     let err = internal_error(e);
                     futures::failed(err)
                 }
             },
-            None => futures::finished(Value::Null),
+            Err(_e) => futures::finished(Value::Null),
         });
 
     Box::new(fut)
@@ -632,6 +633,9 @@ pub fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -> Json
 
 #[cfg(test)]
 mod mock_actix {
+    use actix::{MailboxError, Message};
+    use futures::Future;
+
     pub struct System;
 
     pub struct SystemRegistry;
@@ -655,6 +659,13 @@ mod mock_actix {
 
     impl Addr {
         pub fn do_send<T>(&self, _msg: T) {}
+        pub fn send<T: Message>(
+            &self,
+            _msg: T,
+        ) -> impl Future<Item = T::Result, Error = MailboxError> {
+            // We cannot test methods which use `send`, so return an error
+            futures::failed(MailboxError::Closed)
+        }
     }
 }
 

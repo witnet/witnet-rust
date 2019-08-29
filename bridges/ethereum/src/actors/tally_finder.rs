@@ -12,7 +12,7 @@ use std::{
 };
 use tokio::{sync::mpsc, timer::Interval};
 use web3::futures::Future;
-use witnet_data_structures::{chain::Block, chain::DataRequestReport};
+use witnet_data_structures::{chain::Block, chain::DataRequestInfo};
 
 /// Periodically ask the Witnet node for resolved data requests
 pub fn tally_finder(
@@ -53,13 +53,13 @@ pub fn tally_finder(
         .and_then(move |report| {
             debug!("dataRequestReport: {}", report);
 
-            match serde_json::from_value::<Option<DataRequestReport>>(report) {
-                Ok(Some(report)) => {
-                    info!("Found possible tally to be reported from an old witnet block {}", report.block_hash_tally_tx);
-                    Either::A(witnet_client1.execute("getBlock", json!([report.block_hash_tally_tx]))
+            match serde_json::from_value::<Option<DataRequestInfo>>(report) {
+                Ok(Some(DataRequestInfo { block_hash_tally_tx: Some(block_hash_tally_tx), .. })) => {
+                    info!("Found possible tally to be reported from an old witnet block {}", block_hash_tally_tx);
+                    Either::A(witnet_client1.execute("getBlock", json!([block_hash_tally_tx]))
                         .map_err(|e| error!("getBlock: {:?}", e)))
                 }
-                Ok(None) => {
+                Ok(..) => {
                     // No problem, this means the data request has not been resolved yet
                     debug!("Data request not resolved yet");
                     Either::B(futures::failed(()))

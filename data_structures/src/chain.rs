@@ -1301,6 +1301,22 @@ pub struct DataRequestInfo {
     pub block_hash_tally_tx: Option<Hash>,
 }
 
+impl From<DataRequestReport> for DataRequestInfo {
+    fn from(x: DataRequestReport) -> Self {
+        Self {
+            commits: x
+                .commits
+                .into_iter()
+                .map(|c| (c.body.proof.proof.pkh(), c))
+                .collect(),
+            reveals: x.reveals.into_iter().map(|r| (r.body.pkh, r)).collect(),
+            tally: Some(x.tally),
+            block_hash_dr_tx: Some(x.block_hash_dr_tx),
+            block_hash_tally_tx: Some(x.block_hash_tally_tx),
+        }
+    }
+}
+
 /// State of data requests in progress (stored in memory)
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestState {

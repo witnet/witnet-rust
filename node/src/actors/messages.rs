@@ -12,8 +12,8 @@ use tokio::net::TcpStream;
 
 use witnet_data_structures::{
     chain::{
-        Block, CheckpointBeacon, DataRequestOutput, Epoch, Hash, InventoryEntry, InventoryItem,
-        RADConsensus, RADRequest, ValueTransferOutput,
+        Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash, InventoryEntry,
+        InventoryItem, RADConsensus, RADRequest, ValueTransferOutput,
     },
     transaction::Transaction,
 };
@@ -173,6 +173,17 @@ pub struct GetState;
 
 impl Message for GetState {
     type Result = Result<StateMachine, ()>;
+}
+
+/// Get Data Request Report
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetDataRequestReport {
+    /// `DataRequest` transaction hash
+    pub dr_pointer: Hash,
+}
+
+impl Message for GetDataRequestReport {
+    type Result = Result<DataRequestInfo, failure::Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

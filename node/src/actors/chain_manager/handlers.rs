@@ -1,10 +1,14 @@
 use actix::{fut::WrapFuture, prelude::*};
+use futures::Future;
 use log;
 use std::cmp::Ordering;
 
 use witnet_data_structures::{
-    chain::{ChainState, CheckpointBeacon, Epoch, Hash, Hashable, InventoryItem, PublicKeyHash},
-    error::{ChainInfoError, TransactionError},
+    chain::{
+        ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch, Hash, Hashable,
+        InventoryItem, PublicKeyHash,
+    },
+    error::{ChainInfoError, TransactionError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
 use witnet_validations::validations::{
@@ -13,6 +17,7 @@ use witnet_validations::validations::{
 };
 
 use super::{ChainManager, ChainManagerError, StateMachine};
+use crate::actors::messages::GetDataRequestReport;
 use crate::{
     actors::{
         chain_manager::transaction_factory,
@@ -23,6 +28,7 @@ use crate::{
         },
         sessions_manager::SessionsManager,
     },
+    storage_mngr,
     utils::mode_consensus,
 };
 
@@ -798,5 +804,35 @@ impl Handler<GetState> for ChainManager {
 
     fn handle(&mut self, _msg: GetState, _ctx: &mut Self::Context) -> Self::Result {
         Ok(self.sm_state)
+    }
+}
+
+impl Handler<GetDataRequestReport> for ChainManager {
+    type Result = ResponseFuture<DataRequestInfo, failure::Error>;
+
+    fn handle(&mut self, msg: GetDataRequestReport, _ctx: &mut Self::Context) -> Self::Result {
+        let dr_pointer = msg.dr_pointer;
+
+        // First, try to get it from memory
+        if let Some(dr_info) = self
+            .chain_state
+            .data_request_pool
+            .data_request_pool
+            .get(&dr_pointer)
+            .map(|dr_state| dr_state.info.clone())
+        {
+            Box::new(futures::finished(dr_info))
+        } else {
+            let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
+            // Otherwise, try to get it from storage
+            let fut = storage_mngr::get::<_, DataRequestReport>(&dr_pointer_string).and_then(
+                move |dr_report| match dr_report {
+                    Some(x) => futures::finished(DataRequestInfo::from(x)),
+                    None => futures::failed(DataRequestNotFound { hash: dr_pointer }.into()),
+                },
+            );
+
+            Box::new(fut)
+        }
     }
 }
