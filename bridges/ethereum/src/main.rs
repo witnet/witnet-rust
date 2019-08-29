@@ -73,7 +73,9 @@ fn post_example_dr(
             config.eth_account,
             contract::Options::with(|opt| {
                 opt.value = Some(U256::from_dec_str("2500000000000000").unwrap());
-                //opt.gas = Some(1_000_000.into());
+                // The cost of posting a data request is mainly the storage, so
+                // big data requests may need bigger amounts of gas
+                opt.gas = Some(1_000_000.into());
             }),
         )
         .map(|tx| {

@@ -81,8 +81,8 @@ pub fn main_actor(
                                     "postNewBlock",
                                     (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
                                     eth_account,
-                                    contract::Options::with(|_opt| {
-                                        //opt.gas = Some(100_000.into());
+                                    contract::Options::with(|opt| {
+                                        opt.gas = Some(200_000.into());
                                     }),
                                     1,
                                 )

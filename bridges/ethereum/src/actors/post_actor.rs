@@ -348,8 +348,8 @@ fn postdr(
                             "claimDataRequests",
                             (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr),
                             eth_account,
-                            contract::Options::with(|_opt| {
-                                //opt.gas = Some(500_000.into());
+                            contract::Options::with(|opt| {
+                                opt.gas = Some(500_000.into());
                             }),
                             1,
                         )
