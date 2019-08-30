@@ -2,6 +2,7 @@ use std::sync::Mutex;
 
 use super::*;
 use crate::{
+    constants,
     db::{Database, WriteBatch as _},
     model, types,
 };
@@ -41,7 +42,7 @@ impl<T: Database> Wallets<T> {
 
     pub fn create<'a, D: Database>(
         &self,
-        wallet_db: D,
+        wallet_db: &D,
         wallet_data: types::CreateWalletData<'a>,
     ) -> Result<()> {
         let types::CreateWalletData {
@@ -61,8 +62,14 @@ impl<T: Database> Wallets<T> {
             wbatch.put(keys::wallet_caption(), caption)?;
         }
         wbatch.put(keys::wallet_default_account(), account.index)?;
-        wbatch.put(keys::account_ek(account.index), &account.external)?;
-        wbatch.put(keys::account_ik(account.index), &account.internal)?;
+        wbatch.put(
+            keys::account_key(account.index, constants::EXTERNAL_KEYCHAIN),
+            &account.external,
+        )?;
+        wbatch.put(
+            keys::account_key(account.index, constants::INTERNAL_KEYCHAIN),
+            &account.internal,
+        )?;
 
         wallet_db.write(wbatch)?;
 

@@ -7,14 +7,18 @@ use crate::{db, types};
 pub enum Error {
     #[fail(display = "maximum key index reached for account")]
     IndexOverflow,
+    #[fail(display = "overflow when calculating transaction value")]
+    TransactionValueOverflow,
     #[fail(display = "account balance overflowed")]
     BalanceOverflow,
     #[fail(display = "account balance underflowed")]
     BalanceUnderflow,
+    #[fail(display = "Invalid PKH: {}", _0)]
+    Pkh(#[cause] types::PublicKeyHashParseError),
+    #[fail(display = "not enough balance in account")]
+    InsufficientBalance,
     #[fail(display = "maximum transaction id reached for account")]
     TransactionIdOverflow,
-    #[fail(display = "an input points to an utxo that's not present")]
-    NoUtxoForInput,
     #[fail(display = "mutex poison error")]
     MutexPoison,
     #[fail(display = "database failed: {}", _0)]
@@ -62,5 +66,11 @@ impl From<types::KeyDerivationError> for Error {
 impl From<bech32::Error> for Error {
     fn from(err: bech32::Error) -> Self {
         Error::Bech32(err)
+    }
+}
+
+impl From<types::PublicKeyHashParseError> for Error {
+    fn from(err: types::PublicKeyHashParseError) -> Self {
+        Error::Pkh(err)
     }
 }

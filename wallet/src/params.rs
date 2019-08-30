@@ -16,7 +16,7 @@ pub struct Params {
 impl Default for Params {
     fn default() -> Self {
         Self {
-            testnet: true,
+            testnet: false,
             seed_password: "".into(),
             master_key_salt: b"Bitcoin seed".to_vec(),
             id_hash_iterations: 4096,

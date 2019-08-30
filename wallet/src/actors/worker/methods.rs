@@ -103,7 +103,7 @@ impl Worker {
         )?; // used when unlocking to check if the password is correct
 
         self.wallets.create(
-            wallet_db,
+            &wallet_db,
             types::CreateWalletData {
                 name,
                 caption,
@@ -148,9 +148,9 @@ impl Worker {
                 err => Error::Db(err),
             })?;
 
-        let wallet = repository::Wallet::new(wallet_db, self.params.clone(), self.engine.clone());
-
-        let data = wallet.unlock()?;
+        let wallet =
+            repository::Wallet::unlock(wallet_db, self.params.clone(), self.engine.clone())?;
+        let data = wallet.public_data()?;
 
         Ok(types::UnlockedSessionWallet {
             wallet,
@@ -164,7 +164,7 @@ impl Worker {
         wallet: &types::Wallet,
         label: Option<String>,
     ) -> Result<model::Address> {
-        let address = wallet.gen_address(label)?;
+        let address = wallet.gen_external_address(label)?;
 
         Ok(address)
     }
@@ -175,71 +175,30 @@ impl Worker {
         offset: u32,
         limit: u32,
     ) -> Result<model::Addresses> {
-        let addresses = wallet.addresses(offset, limit)?;
+        let addresses = wallet.external_addresses(offset, limit)?;
 
         Ok(addresses)
     }
 
     pub fn transactions(
         &mut self,
-        _wallet: &types::Wallet,
-        _offset: u32,
-        _limit: u32,
+        wallet: &types::Wallet,
+        offset: u32,
+        limit: u32,
     ) -> Result<model::Transactions> {
-        let transactions = vec![
-            model::Transaction {
-                hash: "4f369107485dd195d477818a27d27027b758572cce82078f6789aa6df7d1f295"
-                    .to_string(),
-                value: 341_958,
-                kind: model::TransactionKind::Debit,
-            },
-            model::Transaction {
-                hash: "16c447832f337f78ae282a2e0143368d95ba83f1bf7829b52a853fd0c126b434"
-                    .to_string(),
-                value: 2349,
-                kind: model::TransactionKind::Credit,
-            },
-            model::Transaction {
-                hash: "67086e92250362daeb114ceacc0cbee5fbdd2cb40c2718a6b0b6879702d52d43"
-                    .to_string(),
-                value: 12,
-                kind: model::TransactionKind::Debit,
-            },
-            model::Transaction {
-                hash: "36a50cf934f58255c748e6f1d12f572c5c426a186387f806a1be55ff8fe1b171"
-                    .to_string(),
-                value: u64::max_value(),
-                kind: model::TransactionKind::Credit,
-            },
-            model::Transaction {
-                hash: "ea5d0f4187403bf085937ff8d1fba862923b1b40d4ae188bc52006d895c334df"
-                    .to_string(),
-                value: 1,
-                kind: model::TransactionKind::Debit,
-            },
-            model::Transaction {
-                hash: "4f369107485dd195d477818a27d27027b758572cce82078f6789aa6df7d1f295"
-                    .to_string(),
-                value: 3958,
-                kind: model::TransactionKind::Credit,
-            },
-        ];
-        let total = 20;
+        let transactions = wallet.transactions(offset, limit)?;
 
-        Ok(model::Transactions {
-            transactions,
-            total,
-        })
+        Ok(transactions)
     }
 
     pub fn get(&self, wallet: &types::Wallet, key: &str) -> Result<Option<String>> {
-        let value = wallet.db_get(key)?;
+        let value = wallet.kv_get(key)?;
 
         Ok(value)
     }
 
     pub fn set(&self, wallet: &types::Wallet, key: &str, value: &str) -> Result<()> {
-        wallet.db_set(key, value)?;
+        wallet.kv_set(key, value)?;
 
         Ok(())
     }
@@ -247,19 +206,20 @@ impl Worker {
     pub fn index_txns(
         &self,
         wallet: &types::Wallet,
+        block: &model::BlockInfo,
         txns: &[types::VTTransactionBody],
     ) -> Result<()> {
-        wallet.index_txns(txns)?;
+        wallet.index_transactions(block, txns)?;
 
         Ok(())
     }
 
     pub fn notify_balance(&self, wallet: &types::Wallet, sink: &types::Sink) -> Result<()> {
-        let (account, balance) = wallet.balance()?;
+        let balance = wallet.balance()?;
         let payload = json!({
             "accountBalance": {
-                "account": account,
-                "balance": balance
+                "account": balance.account,
+                "amount": balance.amount,
             }
         });
         let send = sink.notify(rpc::Params::Array(vec![payload]));
@@ -267,5 +227,15 @@ impl Worker {
         send.wait()?;
 
         Ok(())
+    }
+
+    pub fn create_vtt(
+        &self,
+        wallet: &types::Wallet,
+        params: types::VttParams,
+    ) -> Result<types::Transaction> {
+        let txn = wallet.create_vtt(params)?;
+
+        Ok(txn)
     }
 }

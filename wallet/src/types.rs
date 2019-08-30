@@ -8,16 +8,24 @@ pub use serde_json::Value as Json;
 
 pub use witnet_crypto::{
     hash::HashFunction,
-    key::{ExtendedPK, ExtendedSK, KeyDerivationError, KeyPath, SignEngine},
+    key::{ExtendedPK, ExtendedSK, KeyDerivationError, KeyPath, SignEngine, ONE_KEY, PK, SK},
     mnemonic::{Length as MnemonicLength, Mnemonic, MnemonicGen},
+    signature,
 };
 pub use witnet_data_structures::{
-    chain::{Block as ChainBlock, Hashable, RADRequest, ValueTransferOutput},
-    transaction::VTTransactionBody,
+    chain::{
+        Block as ChainBlock, Hash as TransactionId, Hashable, Input as TransactionInput,
+        KeyedSignature, OutputPointer, PublicKeyHash, PublicKeyHashParseError, RADRequest,
+        ValueTransferOutput,
+    },
+    proto::ProtobufConvert,
+    transaction::{Transaction, VTTransaction, VTTransactionBody},
 };
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
 pub use witnet_rad::types::RadonTypes;
+
+use crate::model;
 
 use super::{db, repository};
 
@@ -95,4 +103,26 @@ pub struct CreateWalletData<'a> {
     pub iv: Vec<u8>,
     pub salt: Vec<u8>,
     pub account: &'a Account,
+}
+
+pub struct VttParams {
+    pub pkh: PublicKeyHash,
+    pub label: Option<String>,
+    pub value: u64,
+    pub fee: u64,
+}
+
+pub struct Balance {
+    pub account: u32,
+    pub amount: u64,
+}
+
+#[derive(Debug)]
+pub struct VttComponents {
+    pub value: u64,
+    pub change: u64,
+    pub inputs: Vec<TransactionInput>,
+    pub outputs: Vec<ValueTransferOutput>,
+    pub sign_keys: Vec<SK>,
+    pub used: Vec<model::OutPtr>,
 }

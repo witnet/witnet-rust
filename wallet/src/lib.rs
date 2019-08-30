@@ -87,6 +87,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let worker = actors::Worker::start(concurrency, db.clone(), params);
 
     let app = actors::App::start(actors::app::Params {
+        testnet,
         worker,
         client,
         session_expires_in,

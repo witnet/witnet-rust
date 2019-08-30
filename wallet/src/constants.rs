@@ -19,6 +19,14 @@ pub static KEYPATH_PURPOSE: u32 = 3;
 /// Coin-type section for an account keypath.
 pub static KEYPATH_COIN_TYPE: u32 = 4919;
 
+/// The value for the 'change' path in an account keypath intended for
+/// receiving payments.
+pub static EXTERNAL_KEYCHAIN: u32 = 0;
+
+/// The value for the 'change' path in an account keypath intended to
+/// be used as a change address.
+pub static INTERNAL_KEYCHAIN: u32 = 1;
+
 /// Special key used to check if a decryption key is the correct one
 /// for a wallet.
 pub static ENCRYPTION_CHECK_KEY: &str = "ENC_KEY";

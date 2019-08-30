@@ -12,6 +12,7 @@ use std::{fmt, slice};
 
 use failure::Fail;
 use hmac::{Hmac, Mac};
+pub use secp256k1::key::ONE_KEY;
 use secp256k1::{PublicKey, Secp256k1, SecretKey, SignOnly, VerifyOnly};
 pub use secp256k1::{Signing, Verification};
 #[cfg(feature = "serde")]
