@@ -3,7 +3,7 @@ use futures::future;
 
 use super::*;
 use crate::actors::*;
-use crate::model;
+use crate::{model, repository, types::Hashable as _};
 
 impl App {
     pub fn start(params: Params) -> Addr<Self> {
@@ -235,6 +235,34 @@ impl App {
         Box::new(f)
     }
 
+    pub fn create_vtt(
+        &self,
+        session_id: &types::SessionId,
+        wallet_id: &str,
+        vtt_params: types::VttParams,
+    ) -> ResponseActFuture<types::Transaction> {
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
+            move |wallet, slf: &mut Self, _| {
+                slf.params
+                    .worker
+                    .send(worker::CreateVtt(wallet, vtt_params))
+                    .flatten()
+                    .map_err(|err| match err {
+                        worker::Error::Repository(repository::Error::InsufficientBalance) => {
+                            validation_error(field_error(
+                                "balance",
+                                "Wallet account has not enough balance",
+                            ))
+                        }
+                        err => From::from(err),
+                    })
+                    .into_actor(slf)
+            },
+        );
+
+        Box::new(f)
+    }
+
     /// Perform all the tasks needed to properly stop the application.
     pub fn stop(&self) -> ResponseFuture<()> {
         let fut = self
@@ -334,6 +362,15 @@ impl App {
         // results to be too big, problm is that doing so conflicts
         // with the internal Cell of the txns type which cannot be
         // shared between threads.
+        let block_epoch = block.block_header.beacon.checkpoint;
+        // NOTE: We are calculating the hash of the block here (it's
+        // just the hash of the header) since it's not memoized and
+        // not doing it would imply that all threads indexing wallet
+        // UTXOs call this method over and over. If calculating the
+        // hash here degrades performance too much we should consider
+        // to calculate it in a worker thread instead and then proceed
+        // with indexing transactions.
+        let block_hash = block.hash().as_ref().to_vec();
         let txns = block
             .txns
             .value_transfer_txns
@@ -346,6 +383,10 @@ impl App {
                 id.to_owned(),
                 wallet.clone(),
                 txns.clone(),
+                model::BlockInfo {
+                    epoch: block_epoch,
+                    hash: block_hash.clone(),
+                },
             ));
         }
 

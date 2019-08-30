@@ -525,6 +525,21 @@ impl PublicKeyHash {
 
         Self { hash: pkh }
     }
+
+    /// Create from existing bytes representing the PKH.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, PublicKeyHashParseError> {
+        let len = bytes.len();
+
+        match len {
+            20 => {
+                let mut pkh = [0; 20];
+                pkh.copy_from_slice(bytes);
+
+                Ok(Self { hash: pkh })
+            }
+            _ => Err(PublicKeyHashParseError::InvalidLength(len)),
+        }
+    }
 }
 
 /// Input data structure

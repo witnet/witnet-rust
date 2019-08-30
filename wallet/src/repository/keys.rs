@@ -16,30 +16,6 @@ pub fn wallet_caption() -> &'static str {
     "caption"
 }
 
-/// A wallet's pkhs.
-#[inline]
-pub fn wallet_pkhs() -> &'static str {
-    "pkhs"
-}
-
-/// A wallet's utxo set.
-#[inline]
-pub fn wallet_utxo_set() -> &'static str {
-    "utxo-set"
-}
-
-/// A wallet's transactions count per account.
-#[inline]
-pub fn wallet_transactions_count() -> &'static str {
-    "transactions-count"
-}
-
-/// A wallet's balances for all created accounts.
-#[inline]
-pub fn wallet_account_balances() -> &'static str {
-    "account-balances"
-}
-
 /// A wallet's name.
 #[inline]
 pub fn wallet_id_name(id: &str) -> String {
@@ -78,38 +54,68 @@ pub fn wallet_default_account() -> &'static str {
 
 /// An account's external key.
 #[inline]
-pub fn account_ek(account_index: u32) -> String {
-    format!("account-{}-ek", account_index)
+pub fn account_key(account_index: u32, keychain: u32) -> String {
+    format!("account-{}-{}-key", account_index, keychain)
 }
 
-/// An account's internal key.
+/// An account's total balance.
 #[inline]
-pub fn account_ik(account_index: u32) -> String {
-    format!("account-{}-ik", account_index)
+pub fn account_balance(account_index: u32) -> String {
+    format!("account-{}-balance", account_index)
 }
 
-/// An account's next index to use for generating an external key.
+/// An account's UTXO set.
 #[inline]
-pub fn account_next_ek_index(account_index: u32) -> String {
-    format!("account-{}-next-ek-index", account_index)
+pub fn account_utxo_set(account_index: u32) -> String {
+    format!("account-{}-utxo-set", account_index)
+}
+
+/// An account's next index to use for generating an address.
+#[inline]
+pub fn account_next_index(account_index: u32, keychain: u32) -> String {
+    format!("account-{}-{}-next-index", account_index, keychain)
 }
 
 /// A wallet's account address.
 #[inline]
-pub fn address(account_index: u32, key_index: u32) -> String {
-    format!("account-{}-key-{}-address", account_index, key_index)
+pub fn address(account_index: u32, keychain: u32, key_index: u32) -> String {
+    format!(
+        "account-{}-key-{}-{}-address",
+        account_index, keychain, key_index
+    )
 }
 
 /// An address' path.
 #[inline]
-pub fn address_path(account_index: u32, key_index: u32) -> String {
-    format!("account-{}-key-{}-address-path", account_index, key_index)
+pub fn address_path(account_index: u32, keychain: u32, key_index: u32) -> String {
+    format!(
+        "account-{}-key-{}-{}-address-path",
+        account_index, keychain, key_index
+    )
+}
+
+/// An address' pkh.
+#[inline]
+pub fn address_pkh(account_index: u32, keychain: u32, key_index: u32) -> String {
+    format!(
+        "account-{}-key-{}-{}-address-pkh",
+        account_index, keychain, key_index
+    )
 }
 
 /// An address's label.
 #[inline]
-pub fn address_label(account_index: u32, key_index: u32) -> String {
-    format!("account-{}-key-{}-address-label", account_index, key_index)
+pub fn address_label(account_index: u32, keychain: u32, key_index: u32) -> String {
+    format!(
+        "account-{}-key-{}-{}-address-label",
+        account_index, keychain, key_index
+    )
+}
+
+/// Info associated to a pkh.
+#[inline]
+pub fn pkh(pkh: &[u8]) -> Vec<u8> {
+    [pkh, b"-pkh"].concat().to_vec()
 }
 
 /// An custom key decided by the client to store something.
@@ -118,24 +124,77 @@ pub fn custom(key: &str) -> String {
     format!("custom-{}", key,)
 }
 
+/// A pending VTT transaction.
+#[inline]
+pub fn vtt(transaction_hash: &str) -> String {
+    format!("vtt-{}", transaction_hash)
+}
+
+/// Next transaction id.
+#[inline]
+pub fn transaction_next_id(account_index: u32) -> String {
+    format!("account-{}-transactions-next-id", account_index)
+}
+
 /// A transaction's value.
 #[inline]
-pub fn transaction_value(account_index: u32, id: u32) -> String {
-    format!("account-{}-transaction-{}-value", account_index, id)
+pub fn transaction_value(account_index: u32, transaction_id: u32) -> String {
+    format!(
+        "account-{}-transaction-{}-value",
+        account_index, transaction_id
+    )
 }
 
-/// A transaction's type.
+/// A transaction's fee.
 #[inline]
-pub fn transaction_type(account_index: u32, id: u32) -> String {
-    format!("account-{}-transaction-{}-type", account_index, id)
+pub fn transaction_fee(account_index: u32, transaction_id: u32) -> String {
+    format!(
+        "account-{}-transaction-{}-fee",
+        account_index, transaction_id
+    )
 }
 
-/// The account a transaction's is bound to.
+/// A transaction's label.
 #[inline]
-pub fn transaction_output_recipient(txn_hash: &[u8], output_index: u32) -> Vec<u8> {
-    let mut key = Vec::with_capacity(txn_hash.len() + 4);
-    key.extend_from_slice(txn_hash);
-    key.extend_from_slice(&output_index.to_le_bytes());
+pub fn transaction_label(account_index: u32, transaction_id: u32) -> String {
+    format!(
+        "account-{}-transaction-{}-label",
+        account_index, transaction_id
+    )
+}
 
-    key
+/// If a transaction is debit or credit.
+#[inline]
+pub fn transaction_type(account_index: u32, transaction_id: u32) -> String {
+    format!(
+        "account-{}-transaction-{}-type",
+        account_index, transaction_id
+    )
+}
+
+/// The block where a transaction is.
+#[inline]
+pub fn transaction_block(account_index: u32, transaction_id: u32) -> String {
+    format!(
+        "account-{}-transaction-{}-block",
+        account_index, transaction_id
+    )
+}
+
+/// Transaction timestamp.
+#[inline]
+pub fn transaction_timestamp(account_index: u32, transaction_id: u32) -> String {
+    format!(
+        "account-{}-transaction-{}-timestamp",
+        account_index, transaction_id
+    )
+}
+
+/// Transaction hash.
+#[inline]
+pub fn transaction_hash(account_index: u32, transaction_id: u32) -> String {
+    format!(
+        "account-{}-transaction-{}-hash",
+        account_index, transaction_id
+    )
 }

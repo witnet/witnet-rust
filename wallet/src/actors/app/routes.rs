@@ -181,7 +181,7 @@ pub fn connect_routes<T, S>(
             "createDataRequest",
             CreateDataReqRequest
         ),
-        ("Create-Vtt", "createVttRequest", CreateVttRequest),
+        ("Create-Vtt", "createVtt", CreateVttRequest),
         ("Run-Rad-Request", "runRadRequest", RunRadReqRequest),
         ("Send-Data-Request", "sendDataRequest", SendDataReqRequest),
         ("Set", "set", SetRequest),

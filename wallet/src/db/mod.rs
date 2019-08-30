@@ -1,10 +1,14 @@
 mod encrypted;
 mod error;
 mod plain;
+#[cfg(test)]
+mod tests;
 
 pub use encrypted::*;
 pub use error::Error;
 pub use plain::*;
+#[cfg(test)]
+pub use tests::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
