@@ -1251,7 +1251,7 @@ pub enum InventoryItem {
 
 /// Data request report to be persisted into Storage and
 /// using as index the Data Request OutputPointer
-// TODO: Review if this struct is needed
+// FIXME (#792): Review if this struct is needed
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestReport {
     /// List of commitment output pointers to resolve the data request
