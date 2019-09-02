@@ -190,10 +190,10 @@ pub enum BlockError {
         block_epoch: Epoch,
     },
     #[fail(
-        display = "Ignoring block because previous hash (\"{}\") is unknown",
-        hash
+        display = "Ignoring block because previous hash (\"{}\") is different from our top block hash (\"{}\")",
+        block_hash, our_hash
     )]
-    PreviousHashNotKnown { hash: Hash },
+    PreviousHashMismatch { block_hash: Hash, our_hash: Hash },
     #[fail(
         display = "Block candidate's epoch differs from current epoch ({} != {})",
         block_epoch, current_epoch

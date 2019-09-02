@@ -2479,6 +2479,8 @@ fn block_signatures() {
 static MILLION_TX_OUTPUT: &str =
     "0f0f000000000000000000000000000000000000000000000000000000000000:0";
 
+static LAST_BLOCK_HASH: &str = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41";
+
 fn test_block<F: FnMut(&mut Block) -> bool>(mut mut_block: F) -> Result<(), failure::Error> {
     let dr_pool = DataRequestPool::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -2499,9 +2501,7 @@ fn test_block<F: FnMut(&mut Block) -> bool>(mut mut_block: F) -> Result<(), fail
     };
     let current_epoch = 1000;
     let genesis_block_hash = Hash::default();
-    let last_block_hash = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41"
-        .parse()
-        .unwrap();
+    let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
     let chain_beacon = CheckpointBeacon {
         checkpoint: current_epoch,
         hash_prev_block: last_block_hash,
@@ -2620,6 +2620,7 @@ fn block_unknown_hash_prev_block() {
     let unknown_hash = "2222222222222222222222222222222222222222222222222222222222222222"
         .parse()
         .unwrap();
+    let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
 
     let x = test_block(|b| {
         assert_ne!(unknown_hash, b.block_header.beacon.hash_prev_block);
@@ -2638,7 +2639,10 @@ fn block_unknown_hash_prev_block() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::PreviousHashNotKnown { hash: unknown_hash },
+        BlockError::PreviousHashMismatch {
+            block_hash: unknown_hash,
+            our_hash: last_block_hash,
+        },
     );
 }
 
@@ -2681,9 +2685,7 @@ fn block_difficult_proof() {
     };
     let current_epoch = 1000;
     let genesis_block_hash = Hash::default();
-    let last_block_hash = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41"
-        .parse()
-        .unwrap();
+    let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
     let chain_beacon = CheckpointBeacon {
         checkpoint: current_epoch,
         hash_prev_block: last_block_hash,
@@ -2925,9 +2927,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
     };
     let mut current_epoch = 1000;
     let genesis_block_hash = Hash::default();
-    let mut last_block_hash = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41"
-        .parse()
-        .unwrap();
+    let mut last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
     let my_pkh = PublicKeyHash::default();
 
     for (mut txns, fees) in txns {

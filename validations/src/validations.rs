@@ -801,8 +801,9 @@ pub fn validate_block(
             block_epoch,
         })?
     } else if chain_beacon.hash_prev_block != hash_prev_block {
-        Err(BlockError::PreviousHashNotKnown {
-            hash: hash_prev_block,
+        Err(BlockError::PreviousHashMismatch {
+            block_hash: hash_prev_block,
+            our_hash: chain_beacon.hash_prev_block,
         })?
     } else {
         let total_identities = rep_eng.ars.active_identities_number() as u32;
