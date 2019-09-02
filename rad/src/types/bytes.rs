@@ -71,6 +71,10 @@ impl Operable for RadonBytes {
             (RadonOpCodes::BytesAsMap, None) => bytes_operators::to_map(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
+            // To Boolean
+            (RadonOpCodes::BytesAsBoolean, None) => bytes_operators::to_bool(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_BYTES_TYPE_NAME.to_string(),

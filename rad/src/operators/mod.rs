@@ -97,7 +97,7 @@ pub enum RadonOpCodes {
     MapValues = 0x63,
     // Bytes operator codes (start at 0x70)
     BytesAsArray = 0x70,
-    //    BytesAsBoolean = 0x71,
+    BytesAsBoolean = 0x71,
     BytesAsFloat = 0x72,
     //    BytesAsInteger = 0x73,
     BytesAsMap = 0x74,
