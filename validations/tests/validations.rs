@@ -2647,6 +2647,38 @@ fn block_unknown_hash_prev_block() {
 }
 
 #[test]
+fn block_hash_prev_block_genesis_hash() {
+    // This is a regression test for issue #797
+    // Make sure that blocks with prev_block_hash equal to genesis_hash are only accepted when
+    // checkpoint_beacon.hash_prev_block is equal to unknown_hash
+    let genesis_hash = Hash::default();
+    let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
+
+    let x = test_block(|b| {
+        assert_ne!(genesis_hash, b.block_header.beacon.hash_prev_block);
+        b.block_header.beacon.hash_prev_block = genesis_hash;
+
+        // Re-create a valid VRF proof
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let secret_key = SecretKey {
+            bytes: Protected::from(vec![0xcd; 32]),
+        };
+
+        b.block_header.proof =
+            BlockEligibilityClaim::create(vrf, &secret_key, b.block_header.beacon).unwrap();
+
+        true
+    });
+    assert_eq!(
+        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        BlockError::PreviousHashMismatch {
+            block_hash: genesis_hash,
+            our_hash: last_block_hash,
+        },
+    );
+}
+
+#[test]
 fn block_invalid_poe() {
     let x = test_block(|b| {
         b.block_header.proof = BlockEligibilityClaim::default();
