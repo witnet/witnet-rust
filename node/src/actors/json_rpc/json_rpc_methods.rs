@@ -53,12 +53,8 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
     });
     io.add_method("getBlock", |params: Params| get_block(params.parse()));
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
-    io.add_method("buildDataRequest", |params: Params| {
-        build_data_request(params.parse())
-    });
-    io.add_method("buildValueTransfer", |params: Params| {
-        build_value_transfer(params.parse())
-    });
+    io.add_method("sendRequest", |params: Params| send_request(params.parse()));
+    io.add_method("sendValue", |params: Params| send_value(params.parse()));
     io.add_method("status", |_params: Params| status());
     io.add_method("getPublicKey", |_params: Params| get_public_key());
     io.add_method("sign", |params: Params| sign_data(params.parse()));
@@ -437,7 +433,7 @@ pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> Jso
 }
 */
 /// Build data request transaction
-pub fn build_data_request(params: Result<BuildDrt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+pub fn send_request(params: Result<BuildDrt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
     debug!("Creating data request from JSON-RPC.");
 
     match params {
@@ -467,8 +463,8 @@ pub fn build_data_request(params: Result<BuildDrt, jsonrpc_core::Error>) -> Json
 }
 
 /// Build value transfer transaction
-pub fn build_value_transfer(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
-    debug!("Creating data request from JSON-RPC.");
+pub fn send_value(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    debug!("Creating value transfer from JSON-RPC.");
 
     match params {
         Ok(msg) => Box::new(

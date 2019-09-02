@@ -144,7 +144,7 @@ Response:
 {"jsonrpc":"2.0","result":{"DataRequest":{"backup_witnesses":0,"commit_fee":0,"data_request":{"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"}],"not_before":0,"retrieve":[{"kind":"HTTP-GET","script":[0],"url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}]},"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"reveal_fee":0,"tally_fee":0,"time_lock":0,"value":0,"witnesses":0}},"id":"1"}
 ```
 
-#### buildDataRequest
+#### sendRequest
 Create and broadcast a data request transaction with the given `DataRequestOutput` and fee.
 
 Returns the transaction `Hash`, or an error.
@@ -161,7 +161,7 @@ Response:
 {"jsonrpc":"2.0","result":"d0843d21f5b4185741c0bf1f9c05432079ea901f28516578dd2f5cc58f98b443","id":1}
 ```
 
-#### buildValueTransfer
+#### sendValue
 Create and broadcast a value transfer transaction with the given list of `ValueTransferOutput`s and fee.
 
 A `ValueTransferOutput` is defined as

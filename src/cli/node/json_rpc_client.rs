@@ -94,7 +94,7 @@ pub fn send_vtt(
         fee,
     };
     let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "buildValueTransfer", "params": {}, "id": "1"}}"#,
+        r#"{{"jsonrpc": "2.0","method": "sendValue", "params": {}, "id": "1"}}"#,
         serde_json::to_string(&params)?
     );
     let response = send_request(&mut stream, &request)?;
