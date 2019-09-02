@@ -4,7 +4,7 @@ use crate::{
     error::RadError,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        map::RadonMap, RadonType,
+        map::RadonMap, string::RadonString, RadonType,
     },
 };
 
@@ -22,6 +22,10 @@ pub fn to_array(input: RadonBytes) -> Result<RadonArray, RadError> {
 
 pub fn to_bool(input: RadonBytes) -> Result<RadonBoolean, RadError> {
     RadonBoolean::try_from(input.value())
+}
+
+pub fn to_string(input: RadonBytes) -> Result<RadonString, RadError> {
+    RadonString::try_from(input.value())
 }
 
 #[test]
@@ -53,5 +57,20 @@ fn test_as_bool() {
     assert_eq!(
         &to_bool(radon_bytes_error).unwrap_err().to_string(),
         "Failed to decode RadonBoolean from cbor::value::Value"
+    );
+}
+
+#[test]
+fn test_as_string() {
+    use serde_cbor::value::Value;
+
+    let radon_string = RadonString::from("Hello world!");
+    let radon_bytes = RadonBytes::from(Value::try_from(String::from("Hello world!")).unwrap());
+    assert_eq!(to_string(radon_bytes).unwrap(), radon_string);
+
+    let radon_bytes_error = RadonBytes::from(Value::try_from(std::f64::consts::PI).unwrap());
+    assert_eq!(
+        &to_string(radon_bytes_error).unwrap_err().to_string(),
+        "Failed to decode RadonString from serde_cbor::value::Value"
     );
 }
