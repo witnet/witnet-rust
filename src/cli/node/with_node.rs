@@ -7,6 +7,7 @@ use witnet_config::config::Config;
 use witnet_node as node;
 
 use super::json_rpc_client as rpc;
+use witnet_data_structures::chain::PublicKeyHash;
 
 pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Error> {
     match command {
@@ -21,6 +22,17 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
         Command::Output { node, pointer } => rpc::get_output(
             node.unwrap_or_else(|| config.connections.server_addr),
             pointer,
+        ),
+        Command::Send {
+            node,
+            pkh,
+            value,
+            fee,
+        } => rpc::send_vtt(
+            node.unwrap_or_else(|| config.connections.server_addr),
+            pkh,
+            value,
+            fee,
         ),
         Command::Raw { node } => rpc::raw(node.unwrap_or_else(|| config.jsonrpc.server_address)),
         Command::ShowConfig => {
@@ -100,6 +112,21 @@ pub enum Command {
             help = "Output pointer of the transaction, that is: <transaction id>:<output index>"
         )]
         pointer: String,
+    },
+    #[structopt(name = "send", about = "Create a value transfer transaction")]
+    Send {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Pkh of the destination
+        #[structopt(long = "pkh")]
+        pkh: PublicKeyHash,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: u64,
     },
     #[structopt(
         name = "show-config",

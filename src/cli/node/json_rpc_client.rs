@@ -9,8 +9,8 @@ use std::{
 use failure::Fail;
 use serde::Deserialize;
 
-use witnet_data_structures::chain::OutputPointer;
-use witnet_node::actors::json_rpc::json_rpc_methods::GetBlockChainParams;
+use witnet_data_structures::chain::{OutputPointer, PublicKeyHash, ValueTransferOutput};
+use witnet_node::actors::{json_rpc::json_rpc_methods::GetBlockChainParams, messages::BuildVtt};
 
 pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
@@ -76,6 +76,28 @@ pub fn get_output(addr: SocketAddr, pointer: String) -> Result<(), failure::Erro
     );
     //let response = send_request(&mut stream, &request)?;
     let response = "unimplemented yet";
+
+    println!("{}", response);
+
+    Ok(())
+}
+
+pub fn send_vtt(
+    addr: SocketAddr,
+    pkh: PublicKeyHash,
+    value: u64,
+    fee: u64,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let params = BuildVtt {
+        vto: vec![ValueTransferOutput { pkh, value }],
+        fee,
+    };
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "buildValueTransfer", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params)?
+    );
+    let response = send_request(&mut stream, &request)?;
 
     println!("{}", response);
 
