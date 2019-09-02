@@ -781,7 +781,7 @@ pub fn validate_block(
     block: &Block,
     current_epoch: Epoch,
     chain_beacon: CheckpointBeacon,
-    genesis_block_hash: Hash,
+    _genesis_block_hash: Hash,
     utxo_set: &UnspentOutputsPool,
     data_request_pool: &DataRequestPool,
     vrf: &mut VrfCtx,
@@ -800,9 +800,7 @@ pub fn validate_block(
             chain_epoch: chain_beacon.checkpoint,
             block_epoch,
         })?
-    } else if hash_prev_block != genesis_block_hash
-        && chain_beacon.hash_prev_block != hash_prev_block
-    {
+    } else if chain_beacon.hash_prev_block != hash_prev_block {
         Err(BlockError::PreviousHashNotKnown {
             hash: hash_prev_block,
         })?
