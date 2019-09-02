@@ -12,29 +12,26 @@ use witnet_data_structures::chain::PublicKeyHash;
 pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Error> {
     match command {
         Command::Block { node, hash } => {
-            rpc::get_block(node.unwrap_or_else(|| config.connections.server_addr), hash)
+            rpc::get_block(node.unwrap_or(config.jsonrpc.server_address), hash)
         }
-        Command::BlockChain { node, epoch, limit } => rpc::get_blockchain(
-            node.unwrap_or_else(|| config.connections.server_addr),
-            epoch,
-            limit,
-        ),
-        Command::Output { node, pointer } => rpc::get_output(
-            node.unwrap_or_else(|| config.connections.server_addr),
-            pointer,
-        ),
+        Command::BlockChain { node, epoch, limit } => {
+            rpc::get_blockchain(node.unwrap_or(config.jsonrpc.server_address), epoch, limit)
+        }
+        Command::Output { node, pointer } => {
+            rpc::get_output(node.unwrap_or(config.jsonrpc.server_address), pointer)
+        }
         Command::Send {
             node,
             pkh,
             value,
             fee,
         } => rpc::send_vtt(
-            node.unwrap_or_else(|| config.connections.server_addr),
+            node.unwrap_or(config.jsonrpc.server_address),
             pkh,
             value,
             fee,
         ),
-        Command::Raw { node } => rpc::raw(node.unwrap_or_else(|| config.jsonrpc.server_address)),
+        Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
             // TODO: Implementation requires to make Config serializable
             Ok(())
