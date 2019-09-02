@@ -190,7 +190,7 @@ fn test_operate_map_float_multiply() {
     let call = (
         RadonOpCodes::ArrayMap,
         Some(vec![
-            Value::Array(vec![Value::Integer(0x36), Value::Integer(2i128)]), // [ OP_FLOAT_MULTIPLY, 2 ]
+            Value::Array(vec![Value::Integer(0x38), Value::Integer(2i128)]), // [ OP_FLOAT_MULTIPLY, 2 ]
         ]),
     );
     let expected = RadonTypes::from(RadonArray::from(vec![

@@ -79,18 +79,18 @@ fn test_execute_radon_script() {
 
     let input = RadonString::from(r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#).into();
     let script = vec![
-        (RadonOpCodes::StringParseJson, None),
-        (RadonOpCodes::BytesToMap, None),
+        (RadonOpCodes::StringParseJSON, None),
+        (RadonOpCodes::BytesAsMap, None),
         (
             RadonOpCodes::Get,
             Some(vec![Value::Text(String::from("main"))]),
         ),
-        (RadonOpCodes::BytesToMap, None),
+        (RadonOpCodes::BytesAsMap, None),
         (
             RadonOpCodes::Get,
             Some(vec![Value::Text(String::from("temp"))]),
         ),
-        (RadonOpCodes::BytesToFloat, None),
+        (RadonOpCodes::BytesAsFloat, None),
     ];
     let output = execute_radon_script(input, &script).unwrap();
 
@@ -102,22 +102,22 @@ fn test_execute_radon_script() {
 #[test]
 fn test_unpack_radon_script() {
     let packed = [
-        134, 24, 67, 24, 116, 130, 1, 100, 109, 97, 105, 110, 24, 116, 130, 1, 100, 116, 101, 109,
+        134, 24, 69, 24, 116, 130, 1, 100, 109, 97, 105, 110, 24, 116, 130, 1, 100, 116, 101, 109,
         112, 24, 114,
     ];
     let expected = vec![
-        (RadonOpCodes::StringParseJson, None),
-        (RadonOpCodes::BytesToMap, None),
+        (RadonOpCodes::StringParseJSON, None),
+        (RadonOpCodes::BytesAsMap, None),
         (
             RadonOpCodes::Get,
             Some(vec![Value::Text(String::from("main"))]),
         ),
-        (RadonOpCodes::BytesToMap, None),
+        (RadonOpCodes::BytesAsMap, None),
         (
             RadonOpCodes::Get,
             Some(vec![Value::Text(String::from("temp"))]),
         ),
-        (RadonOpCodes::BytesToFloat, None),
+        (RadonOpCodes::BytesAsFloat, None),
     ];
     println!("{:?}", expected);
 

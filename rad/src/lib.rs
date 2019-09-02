@@ -81,7 +81,7 @@ pub fn run_delivery() {}
 #[test]
 fn test_run_retrieval() {
     let script = vec![
-        134, 24, 67, 24, 116, 130, 1, 100, 109, 97, 105, 110, 24, 116, 130, 1, 100, 116, 101, 109,
+        134, 24, 69, 24, 116, 130, 1, 100, 109, 97, 105, 110, 24, 116, 130, 1, 100, 116, 101, 109,
         112, 24, 114,
     ];
 
@@ -109,7 +109,7 @@ fn test_run_consensus_and_aggregation() {
 
     let radon_types_vec = vec![f_1, f_3];
 
-    let packed_script = vec![129, 130, 24, 86, 3];
+    let packed_script = vec![129, 130, 24, 87, 3];
 
     let expected = RadonTypes::Float(RadonFloat::from(2f64)).try_into();
 
@@ -158,14 +158,14 @@ fn test_run_all_risk_premium() {
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
         url: "https://wrapapi.com/use/aesedepece/ffzz/prima/0.0.3?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
-        script: vec![129, 24, 70],
+        script: vec![129, 24, 65],
     };
     let response = "84";
     let aggregate = RADAggregate {
-        script: vec![129, 130, 24, 86, 3],
+        script: vec![129, 130, 24, 87, 3],
     };
     let tally = RADConsensus {
-        script: vec![130, 130, 24, 86, 3, 130, 24, 52, 24, 80],
+        script: vec![130, 130, 24, 87, 3, 130, 24, 52, 24, 80],
     };
 
     let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
@@ -191,14 +191,14 @@ fn test_run_all_murders() {
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
         url: "https://wrapapi.com/use/aesedepece/ffzz/murders/0.0.2?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
-        script: vec![129, 24, 70],
+        script: vec![129, 24, 65],
     };
     let response = "307";
     let aggregate = RADAggregate {
-        script: vec![129, 130, 24, 86, 3],
+        script: vec![129, 130, 24, 87, 3],
     };
     let tally = RADConsensus {
-        script: vec![130, 130, 24, 86, 3, 130, 24, 52, 24, 200],
+        script: vec![130, 130, 24, 87, 3, 130, 24, 52, 24, 200],
     };
 
     let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
@@ -225,17 +225,17 @@ fn test_run_all_air_quality() {
         kind: RADType::HttpGet,
         url: "http://airemadrid.herokuapp.com/api/estacion".to_string(),
         script: vec![
-            135, 24, 67, 24, 112, 130, 24, 84, 0, 130, 24, 97, 101, 104, 111, 114, 97, 48, 24, 116,
+            135, 24, 69, 24, 112, 130, 24, 85, 0, 130, 24, 97, 101, 104, 111, 114, 97, 48, 24, 116,
             130, 24, 97, 101, 118, 97, 108, 111, 114, 24, 114,
         ],
     };
     // This response was modified because the original was about 100KB.
     let response = r#"[{"estacion_nombre":"Pza. de España","estacion_numero":4,"fecha":"03092019","hora0":{"estado":"Pasado","valor":"00008"}}]"#;
     let aggregate = RADAggregate {
-        script: vec![129, 130, 24, 86, 3],
+        script: vec![129, 130, 24, 87, 3],
     };
     let tally = RADConsensus {
-        script: vec![130, 130, 24, 86, 3, 130, 24, 52, 10],
+        script: vec![130, 130, 24, 87, 3, 130, 24, 52, 10],
     };
 
     let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
@@ -262,14 +262,14 @@ fn test_run_all_elections() {
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
         url: "https://wrapapi.com/use/aesedepece/ffzz/generales/0.0.3?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
-        script: vec![132, 24, 67, 24, 116, 130, 24, 97, 100, 80, 83, 79, 69, 24, 114],
+        script: vec![132, 24, 69, 24, 116, 130, 24, 97, 100, 80, 83, 79, 69, 24, 114],
     };
     let response = r#"{"PSOE":123,"PP":66,"Cs":57,"UP":42,"VOX":24,"ERC-SOBIRANISTES":15,"JxCAT-JUNTS":7,"PNV":6,"EH Bildu":4,"CCa-PNC":2,"NA+":2,"COMPROMÍS 2019":1,"PRC":1,"PACMA":0,"FRONT REPUBLICÀ":0,"BNG":0,"RECORTES CERO-GV":0,"NCa":0,"PACT":0,"ARA-MES-ESQUERRA":0,"GBAI":0,"PUM+J":0,"EN MAREA":0,"PCTE":0,"EL PI":0,"AxSI":0,"PCOE":0,"PCPE":0,"AVANT ADELANTE LOS VERDES":0,"EB":0,"CpM":0,"SOMOS REGIÓN":0,"PCPA":0,"PH":0,"UIG-SOM-CUIDES":0,"ERPV":0,"IZQP":0,"PCPC":0,"AHORA CANARIAS":0,"CxG":0,"PPSO":0,"CNV":0,"PREPAL":0,"C.Ex-C.R.Ex-P.R.Ex":0,"PR+":0,"P-LIB":0,"CILU-LINARES":0,"ANDECHA ASTUR":0,"JF":0,"PYLN":0,"FIA":0,"FE de las JONS":0,"SOLIDARIA":0,"F8":0,"DPL":0,"UNIÓN REGIONALISTA":0,"centrados":0,"DP":0,"VOU":0,"PDSJE-UDEC":0,"IZAR":0,"RISA":0,"C 21":0,"+MAS+":0,"UDT":0}"#;
     let aggregate = RADAggregate {
-        script: vec![129, 130, 24, 86, 3],
+        script: vec![129, 130, 24, 87, 3],
     };
     let tally = RADConsensus {
-        script: vec![129, 130, 24, 86, 3],
+        script: vec![129, 130, 24, 87, 3],
     };
 
     let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();

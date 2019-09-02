@@ -60,15 +60,15 @@ impl Operable for RadonBytes {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Bytes(self)),
             // To Float
-            (RadonOpCodes::BytesToFloat, None) => bytes_operators::to_float(self)
+            (RadonOpCodes::BytesAsFloat, None) => bytes_operators::to_float(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // To Array
-            (RadonOpCodes::BytesToArray, None) => bytes_operators::to_array(self)
+            (RadonOpCodes::BytesAsArray, None) => bytes_operators::to_array(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // To Map
-            (RadonOpCodes::BytesToMap, None) => bytes_operators::to_map(self)
+            (RadonOpCodes::BytesAsMap, None) => bytes_operators::to_map(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             // Unsupported / unimplemented
