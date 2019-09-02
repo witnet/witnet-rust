@@ -50,6 +50,89 @@ pub enum RadonOpCodes {
     BytesToFloat = 0x72,
     BytesToMap = 0x74,
     // Result operator codes start at 0x80
+
+    ///////////////////////////////////////////////////////////////////////
+    // Boolean operator codes (start at 0x10)
+    //    BooleanMatch = 0x10,
+    //    BooleanNegate = 0x11,
+    //    BooleanAsString = 0x12,
+
+    // Integer operator codes (start at 0x20)
+    //    IntegerAbsolute = 0x20,
+    //    IntegerAsBytes = 0x21,
+    //    IntegerAsFloat = 0x22,
+    //    IntegerAsString = 0x23,
+    //    IntegerGreaterThan = 0x24,
+    //    IntegerLessThan = 0x25,
+    //    IntegerMatch = 0x26,
+    //    IntegerModulo = 0x27,
+    //    IntegerMultiply = 0x28,
+    //    IntegerNegate = 0x29,
+    //    IntegerPower = 0x2A,
+    //    IntegerReciprocal = 0x2B,
+    //    IntegerSum = 0x2C,
+
+    // Float operator codes (start at 0x30)
+    //    FloatAbsolute = 0x30,
+    //    FloatAsBytes = 0x31,
+    //    FloatAsString = 0x32,
+    //    FloatCeiling = 0x33,
+    //    FloatGreaterThan = 0x34,
+    //    FloatFloor = 0x35,
+    //    FloatLessThan = 0x36,
+    //    FloatModulo = 0x37,
+    //    FloatMultiply = 0x38,
+    //    FloatNegate = 0x39,
+    //    FloatPower = 0x3A,
+    //    FloatReciprocal = 0x3B,
+    //    FloatRound = 0x3C,
+    //    FloatSum = 0x3D,
+    //    FloatTruncate = 0x3E,
+
+    // String operator codes (start at 0x40)
+    //    StringAsBytes = 0x40,
+    //    StringAsFloat = 0x41,
+    //    StringAsInteger = 0x42,
+    //    StringLength = 0x43,
+    //    StringMatch = 0x44,
+    //    StringParseJSON = 0x45,
+    //    StringParseXML = 0x46,
+    //    StringAsBoolean = 0x47,
+    //    StringToLowerCase = 0x48,
+    //    StringToUpperCase = 0x49,
+
+    // Array operator codes (start at 0x50)
+    //    ArrayAsBytes = 0x50,
+    //    ArrayCount = 0x51,
+    //    ArrayEvery = 0x52,
+    //    ArrayFilter = 0x53,
+    //    ArrayFlatten = 0x54,
+    //    ArrayGet = 0x55,
+    //    ArrayMap = 0x56,
+    //    ArrayReduce = 0x57,
+    //    ArraySome = 0x58,
+    //    ArraySort = 0x59,
+    //    ArrayTake = 0x5A,
+
+    // Map operator codes (start at 0x60)
+    //    MapEntries = 0x60,
+    //    MapGet = 0x61,
+    //    MapKeys = 0x62,
+    //    MapValues = 0x63,
+
+    // Bytes operator codes (start at 0x70)
+    //    BytesAsArray = 0x70,
+    //    BytesAsBoolean = 0x71,
+    //    BytesAsFloat = 0x72,
+    //    BytesAsInteger = 0x73,
+    //    BytesAsMap = 0x74,
+    //    BytesAsString = 0x75,
+    //    BytesHash = 0x76,
+
+    // Result operator codes (start at 0x80)
+    //    ResultGet = 0x80,
+    //    ResultGetOr = 0x81,
+    //    ResultIsOk = 0x82,
 }
 
 impl fmt::Display for RadonOpCodes {
