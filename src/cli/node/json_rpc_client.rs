@@ -53,8 +53,22 @@ pub fn get_blockchain(addr: SocketAddr, epoch: u32, limit: u32) -> Result<(), fa
     Ok(())
 }
 
-pub fn get_balance(addr: SocketAddr, pkh: PublicKeyHash) -> Result<(), failure::Error> {
+pub fn get_balance(addr: SocketAddr, pkh: Option<PublicKeyHash>) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
+
+    let pkh = match pkh {
+        Some(pkh) => pkh,
+        None => {
+            log::info!("No pkh specified, will default to node pkh");
+            let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
+            let response = send_request(&mut stream, &request)?;
+            let node_pkh = parse_response::<PublicKeyHash>(&response)?;
+            log::info!("Node pkh: {}", node_pkh);
+
+            node_pkh
+        }
+    };
+
     let request = format!(
         r#"{{"jsonrpc": "2.0","method": "getBalance", "params": [{}], "id": "1"}}"#,
         serde_json::to_string(&pkh)?,
@@ -64,6 +78,18 @@ pub fn get_balance(addr: SocketAddr, pkh: PublicKeyHash) -> Result<(), failure::
     let amount = parse_response::<u64>(&response)?;
 
     println!("{}", amount);
+
+    Ok(())
+}
+
+pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
+    let response = send_request(&mut stream, &request)?;
+    log::info!("{}", response);
+    let pkh = parse_response::<PublicKeyHash>(&response)?;
+
+    println!("{}", pkh);
 
     Ok(())
 }

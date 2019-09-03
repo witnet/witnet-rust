@@ -20,6 +20,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
         Command::GetBalance { node, pkh } => {
             rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), pkh)
         }
+        Command::GetPkh { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
         Command::Output { node, pointer } => {
             rpc::get_output(node.unwrap_or(config.jsonrpc.server_address), pointer)
         }
@@ -107,9 +108,15 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public key hash for which to get balance
+        /// Public key hash for which to get balance. If omitted, defaults to the node pkh.
         #[structopt(long = "pkh")]
-        pkh: PublicKeyHash,
+        pkh: Option<PublicKeyHash>,
+    },
+    #[structopt(name = "getPkh", about = "Get the public key hash of the node")]
+    GetPkh {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
     },
     #[structopt(name = "output", about = "Find an output of a transaction ")]
     Output {

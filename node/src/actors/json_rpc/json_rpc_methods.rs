@@ -58,6 +58,7 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
     io.add_method("sendValue", |params: Params| send_value(params.parse()));
     io.add_method("status", |_params: Params| status());
     io.add_method("getPublicKey", |_params: Params| get_public_key());
+    io.add_method("getPkh", |_params: Params| get_pkh());
     io.add_method("sign", |params: Params| sign_data(params.parse()));
     io.add_method("createVRF", |params: Params| create_vrf(params.parse()));
     io.add_method("dataRequestReport", |params: Params| {
@@ -558,6 +559,15 @@ pub fn get_public_key() -> JsonRpcResultAsync {
             log::debug!("{:?}", pk);
             pk.to_bytes().to_vec().into()
         });
+
+    Box::new(fut)
+}
+
+/// Get public key hash
+pub fn get_pkh() -> JsonRpcResultAsync {
+    let fut = signature_mngr::pkh()
+        .map_err(internal_error)
+        .map(|pkh| Value::String(pkh.to_string()));
 
     Box::new(fut)
 }
