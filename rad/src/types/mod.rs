@@ -9,18 +9,19 @@ use serde_cbor::{from_slice, to_vec, Value};
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::Hash;
 
-use crate::error::RadError;
-use crate::types::array::RadonArray;
-use crate::types::boolean::RadonBoolean;
-use crate::types::bytes::RadonBytes;
-use crate::types::float::RadonFloat;
-use crate::types::map::RadonMap;
-use crate::types::string::RadonString;
+use crate::{
+    error::RadError,
+    types::{
+        array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
+        integer::RadonInteger, map::RadonMap, string::RadonString,
+    },
+};
 
 pub mod array;
 pub mod boolean;
 pub mod bytes;
 pub mod float;
+pub mod integer;
 pub mod map;
 pub mod string;
 
@@ -41,6 +42,7 @@ pub enum RadonTypes {
     Map(RadonMap),
     Bytes(RadonBytes),
     String(RadonString),
+    Integer(RadonInteger),
 }
 
 impl RadonTypes {
@@ -59,6 +61,7 @@ impl RadonTypes {
             RadonTypes::Map(_) => RadonMap::radon_type_name(),
             RadonTypes::Bytes(_) => RadonBytes::radon_type_name(),
             RadonTypes::String(_) => RadonString::radon_type_name(),
+            RadonTypes::Integer(_) => RadonInteger::radon_type_name(),
         }
     }
 }
@@ -72,6 +75,7 @@ impl fmt::Display for RadonTypes {
             RadonTypes::Map(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Bytes(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::String(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::Integer(inner) => write!(f, "RadonTypes::{}", inner),
         }
     }
 }
@@ -112,6 +116,12 @@ impl From<RadonString> for RadonTypes {
     }
 }
 
+impl From<RadonInteger> for RadonTypes {
+    fn from(integer: RadonInteger) -> Self {
+        RadonTypes::Integer(integer)
+    }
+}
+
 impl TryFrom<Value> for RadonTypes {
     type Error = RadError;
 
@@ -122,6 +132,7 @@ impl TryFrom<Value> for RadonTypes {
             Value::Float(_) => RadonFloat::try_from(value).map(Into::into),
             Value::Map(_) => RadonMap::try_from(value).map(Into::into),
             Value::Text(_) => RadonString::try_from(value).map(Into::into),
+            Value::Integer(_) => RadonInteger::try_from(value).map(Into::into),
             _ => Ok(RadonBytes::from(value).into()),
         }
     }
@@ -138,6 +149,7 @@ impl TryInto<Value> for RadonTypes {
             RadonTypes::Map(radon_map) => radon_map.try_into(),
             RadonTypes::Bytes(radon_bytes) => radon_bytes.try_into(),
             RadonTypes::String(radon_string) => radon_string.try_into(),
+            RadonTypes::Integer(radon_integer) => radon_integer.try_into(),
         }
     }
 }

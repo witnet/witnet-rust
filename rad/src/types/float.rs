@@ -7,11 +7,12 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_cbor::value::Value;
 
-use crate::error::RadError;
-use crate::operators::float as float_operators;
-use crate::operators::{identity, Operable, RadonOpCodes};
-use crate::script::RadonCall;
-use crate::types::{RadonType, RadonTypes};
+use crate::{
+    error::RadError,
+    operators::{float as float_operators, identity, Operable, RadonOpCodes},
+    script::RadonCall,
+    types::{RadonType, RadonTypes},
+};
 
 pub const RADON_FLOAT_TYPE_NAME: &str = "RadonFloat";
 
@@ -41,6 +42,7 @@ impl TryFrom<Value> for RadonFloat {
 
         match value {
             Value::Float(f64_value) => Ok(Self::from(f64_value)),
+            Value::Integer(i128_value) => Ok(Self::from(i128_value as f64)),
             Value::Text(string_value) => Self::try_from(string_value.as_str()),
             _ => Err(error()),
         }

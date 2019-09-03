@@ -92,6 +92,15 @@ pub enum RadError {
         message
     )]
     ParseFloat { message: String },
+    /// Failed to convert string to int
+    #[fail(
+        display = "Failed to convert string to int with error message: {}",
+        message
+    )]
+    ParseInt { message: String },
+    /// Overflow error
+    #[fail(display = "Overflow error")]
+    Overflow,
 }
 
 impl From<reqwest::Error> for RadError {
@@ -105,6 +114,14 @@ impl From<reqwest::Error> for RadError {
 impl From<std::num::ParseFloatError> for RadError {
     fn from(err: std::num::ParseFloatError) -> RadError {
         RadError::ParseFloat {
+            message: err.to_string(),
+        }
+    }
+}
+
+impl From<std::num::ParseIntError> for RadError {
+    fn from(err: std::num::ParseIntError) -> RadError {
+        RadError::ParseInt {
             message: err.to_string(),
         }
     }

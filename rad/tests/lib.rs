@@ -31,7 +31,7 @@ fn test_radon_types_display() {
     let radon_array = RadonTypes::try_from(Value::Array(vec![Value::Integer(123)])).unwrap();
     let radon_array_type_display = radon_array.to_string();
     let radon_array_expected =
-        "RadonTypes::RadonArray([Bytes(RadonBytes { value: Integer(123) })])".to_string();
+        "RadonTypes::RadonArray([Integer(RadonInteger { value: 123 })])".to_string();
     assert_eq!(radon_array_type_display, radon_array_expected);
 
     let radon_float = RadonTypes::try_from(Value::Float(std::f64::consts::PI)).unwrap();

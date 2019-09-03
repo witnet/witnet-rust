@@ -11,6 +11,7 @@ pub mod array;
 pub mod boolean;
 pub mod bytes;
 pub mod float;
+pub mod integer;
 pub mod map;
 pub mod string;
 
@@ -32,17 +33,17 @@ pub enum RadonOpCodes {
     //    BooleanAsString = 0x12,
 
     // Integer operator codes (start at 0x20)
-    //    IntegerAbsolute = 0x20,
-    //    IntegerAsBytes = 0x21,
-    //    IntegerAsFloat = 0x22,
-    //    IntegerAsString = 0x23,
-    //    IntegerGreaterThan = 0x24,
-    //    IntegerLessThan = 0x25,
+    IntegerAbsolute = 0x20,
+    IntegerAsBytes = 0x21,
+    IntegerAsFloat = 0x22,
+    IntegerAsString = 0x23,
+    IntegerGreaterThan = 0x24,
+    IntegerLessThan = 0x25,
     //    IntegerMatch = 0x26,
-    //    IntegerModulo = 0x27,
-    //    IntegerMultiply = 0x28,
-    //    IntegerNegate = 0x29,
-    //    IntegerPower = 0x2A,
+    IntegerModulo = 0x27,
+    IntegerMultiply = 0x28,
+    IntegerNegate = 0x29,
+    IntegerPower = 0x2A,
     //    IntegerReciprocal = 0x2B,
     //    IntegerSum = 0x2C,
 
@@ -128,6 +129,7 @@ pub fn operate(input: RadonTypes, call: &RadonCall) -> Result<RadonTypes, RadErr
         RadonTypes::Map(radon_map) => radon_map.operate(call),
         RadonTypes::String(radon_string) => radon_string.operate(call),
         RadonTypes::Bytes(radon_bytes) => radon_bytes.operate(call),
+        RadonTypes::Integer(radon_integer) => radon_integer.operate(call),
     }
 }
 
