@@ -154,7 +154,6 @@ impl ChainManager {
                         &block,
                         current_epoch,
                         beacon,
-                        act.genesis_block_hash,
                         &act.chain_state.unspent_outputs_pool,
                         &act.chain_state.data_request_pool,
                         // The unwrap is safe because if there is no VRF context,

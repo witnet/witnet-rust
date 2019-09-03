@@ -248,7 +248,6 @@ impl ChainManager {
                 block,
                 current_epoch,
                 chain_beacon,
-                self.genesis_block_hash,
                 &self.chain_state.unspent_outputs_pool,
                 &self.chain_state.data_request_pool,
                 self.vrf_ctx.as_mut().unwrap(),

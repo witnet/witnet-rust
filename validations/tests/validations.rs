@@ -2500,7 +2500,6 @@ fn test_block<F: FnMut(&mut Block) -> bool>(mut mut_block: F) -> Result<(), fail
         bytes: Protected::from(vec![0xcd; 32]),
     };
     let current_epoch = 1000;
-    let genesis_block_hash = Hash::default();
     let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
     let chain_beacon = CheckpointBeacon {
         checkpoint: current_epoch,
@@ -2550,7 +2549,6 @@ fn test_block<F: FnMut(&mut Block) -> bool>(mut mut_block: F) -> Result<(), fail
         &b,
         current_epoch,
         chain_beacon,
-        genesis_block_hash,
         &utxo_set,
         &dr_pool,
         vrf,
@@ -2716,7 +2714,6 @@ fn block_difficult_proof() {
         bytes: Protected::from(vec![0xcd; 32]),
     };
     let current_epoch = 1000;
-    let genesis_block_hash = Hash::default();
     let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
     let chain_beacon = CheckpointBeacon {
         checkpoint: current_epoch,
@@ -2762,7 +2759,6 @@ fn block_difficult_proof() {
                 &b,
                 current_epoch,
                 chain_beacon,
-                genesis_block_hash,
                 &utxo_set,
                 &dr_pool,
                 vrf,
@@ -2958,7 +2954,6 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
         bytes: Protected::from(vec![0xcd; 32]),
     };
     let mut current_epoch = 1000;
-    let genesis_block_hash = Hash::default();
     let mut last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
     let my_pkh = PublicKeyHash::default();
 
@@ -3007,7 +3002,6 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &b,
             current_epoch,
             chain_beacon,
-            genesis_block_hash,
             &utxo_set,
             &dr_pool,
             vrf,

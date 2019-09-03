@@ -781,7 +781,6 @@ pub fn validate_block(
     block: &Block,
     current_epoch: Epoch,
     chain_beacon: CheckpointBeacon,
-    _genesis_block_hash: Hash,
     utxo_set: &UnspentOutputsPool,
     data_request_pool: &DataRequestPool,
     vrf: &mut VrfCtx,
