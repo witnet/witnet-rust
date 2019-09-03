@@ -18,6 +18,18 @@ pub mod types;
 
 pub type Result<T> = std::result::Result<T, RadError>;
 
+/// Run retrieval without performing any external network requests.
+pub fn run_retrieval_with_data(retrieve: &RADRetrieve, response: String) -> Result<RadonTypes> {
+    match retrieve.kind {
+        RADType::HttpGet => {
+            let input = RadonTypes::from(RadonString::from(response));
+            let radon_script = unpack_radon_script(&retrieve.script)?;
+
+            execute_radon_script(input, &radon_script)
+        }
+    }
+}
+
 /// Run retrieval stage of a data request.
 pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
     match retrieve.kind {
@@ -27,10 +39,7 @@ pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
                 .text()
                 .map_err(RadError::from)?;
 
-            let input = RadonTypes::from(RadonString::from(response));
-            let radon_script = unpack_radon_script(&retrieve.script)?;
-
-            execute_radon_script(input, &radon_script)
+            run_retrieval_with_data(retrieve, response)
         }
     }
 }
@@ -81,8 +90,9 @@ fn test_run_retrieval() {
         url: "https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22".to_string(),
         script
     };
+    let response = r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":500,"main":"Rain","description":"light rain","icon":"10d"}],"base":"stations","main":{"temp":17.59,"pressure":1022,"humidity":67,"temp_min":15,"temp_max":20},"visibility":10000,"wind":{"speed":3.6,"deg":260},"rain":{"1h":0.51},"clouds":{"all":20},"dt":1567501321,"sys":{"type":1,"id":1275,"message":0.0089,"country":"DE","sunrise":1567484402,"sunset":1567533129},"timezone":7200,"id":2950159,"name":"Berlin","cod":200}"#;
 
-    let result = run_retrieval(&retrieve).unwrap();
+    let result = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
 
     match result {
         RadonTypes::Float(_) => {}
@@ -132,7 +142,8 @@ fn test_run_retrieval_random_api() {
         script,
     };
 
-    let result = run_retrieval(&retrieve).unwrap();
+    let response = r#"{"type":"uint8","length":1,"data":[4],"success":true}"#;
+    let result = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
 
     match result {
         RadonTypes::Float(_) => {}
@@ -149,6 +160,7 @@ fn test_run_all_risk_premium() {
         url: "https://wrapapi.com/use/aesedepece/ffzz/prima/0.0.3?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
         script: vec![129, 24, 70],
     };
+    let response = "84";
     let aggregate = RADAggregate {
         script: vec![129, 130, 24, 86, 3],
     };
@@ -156,7 +168,7 @@ fn test_run_all_risk_premium() {
         script: vec![130, 130, 24, 86, 3, 130, 24, 52, 24, 80],
     };
 
-    let retrieved = run_retrieval(&retrieve).unwrap();
+    let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
     let aggregated = RadonTypes::try_from(
         run_aggregation(vec![retrieved], &aggregate)
             .unwrap()
@@ -181,6 +193,7 @@ fn test_run_all_murders() {
         url: "https://wrapapi.com/use/aesedepece/ffzz/murders/0.0.2?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
         script: vec![129, 24, 70],
     };
+    let response = "307";
     let aggregate = RADAggregate {
         script: vec![129, 130, 24, 86, 3],
     };
@@ -188,7 +201,7 @@ fn test_run_all_murders() {
         script: vec![130, 130, 24, 86, 3, 130, 24, 52, 24, 200],
     };
 
-    let retrieved = run_retrieval(&retrieve).unwrap();
+    let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
     let aggregated = RadonTypes::try_from(
         run_aggregation(vec![retrieved], &aggregate)
             .unwrap()
@@ -216,6 +229,8 @@ fn test_run_all_air_quality() {
             130, 24, 97, 101, 118, 97, 108, 111, 114, 24, 114,
         ],
     };
+    // This response was modified because the original was about 100KB.
+    let response = r#"[{"estacion_nombre":"Pza. de España","estacion_numero":4,"fecha":"03092019","hora0":{"estado":"Pasado","valor":"00008"}}]"#;
     let aggregate = RADAggregate {
         script: vec![129, 130, 24, 86, 3],
     };
@@ -223,7 +238,7 @@ fn test_run_all_air_quality() {
         script: vec![130, 130, 24, 86, 3, 130, 24, 52, 10],
     };
 
-    let retrieved = run_retrieval(&retrieve).unwrap();
+    let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
     let aggregated = RadonTypes::try_from(
         run_aggregation(vec![retrieved], &aggregate)
             .unwrap()
@@ -249,6 +264,7 @@ fn test_run_all_elections() {
         url: "https://wrapapi.com/use/aesedepece/ffzz/generales/0.0.3?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
         script: vec![132, 24, 67, 24, 116, 130, 24, 97, 100, 80, 83, 79, 69, 24, 114],
     };
+    let response = r#"{"PSOE":123,"PP":66,"Cs":57,"UP":42,"VOX":24,"ERC-SOBIRANISTES":15,"JxCAT-JUNTS":7,"PNV":6,"EH Bildu":4,"CCa-PNC":2,"NA+":2,"COMPROMÍS 2019":1,"PRC":1,"PACMA":0,"FRONT REPUBLICÀ":0,"BNG":0,"RECORTES CERO-GV":0,"NCa":0,"PACT":0,"ARA-MES-ESQUERRA":0,"GBAI":0,"PUM+J":0,"EN MAREA":0,"PCTE":0,"EL PI":0,"AxSI":0,"PCOE":0,"PCPE":0,"AVANT ADELANTE LOS VERDES":0,"EB":0,"CpM":0,"SOMOS REGIÓN":0,"PCPA":0,"PH":0,"UIG-SOM-CUIDES":0,"ERPV":0,"IZQP":0,"PCPC":0,"AHORA CANARIAS":0,"CxG":0,"PPSO":0,"CNV":0,"PREPAL":0,"C.Ex-C.R.Ex-P.R.Ex":0,"PR+":0,"P-LIB":0,"CILU-LINARES":0,"ANDECHA ASTUR":0,"JF":0,"PYLN":0,"FIA":0,"FE de las JONS":0,"SOLIDARIA":0,"F8":0,"DPL":0,"UNIÓN REGIONALISTA":0,"centrados":0,"DP":0,"VOU":0,"PDSJE-UDEC":0,"IZAR":0,"RISA":0,"C 21":0,"+MAS+":0,"UDT":0}"#;
     let aggregate = RADAggregate {
         script: vec![129, 130, 24, 86, 3],
     };
@@ -256,7 +272,7 @@ fn test_run_all_elections() {
         script: vec![129, 130, 24, 86, 3],
     };
 
-    let retrieved = run_retrieval(&retrieve).unwrap();
+    let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
     let aggregated = RadonTypes::try_from(
         run_aggregation(vec![retrieved], &aggregate)
             .unwrap()
