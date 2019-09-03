@@ -53,6 +53,21 @@ pub fn get_blockchain(addr: SocketAddr, epoch: u32, limit: u32) -> Result<(), fa
     Ok(())
 }
 
+pub fn get_balance(addr: SocketAddr, pkh: PublicKeyHash) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "getBalance", "params": [{}], "id": "1"}}"#,
+        serde_json::to_string(&pkh)?,
+    );
+    let response = send_request(&mut stream, &request)?;
+    log::info!("{}", response);
+    let amount = parse_response::<u64>(&response)?;
+
+    println!("{}", amount);
+
+    Ok(())
+}
+
 pub fn get_block(addr: SocketAddr, hash: String) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let request = format!(

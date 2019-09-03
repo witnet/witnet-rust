@@ -17,7 +17,7 @@ use witnet_validations::validations::{
 };
 
 use super::{ChainManager, ChainManagerError, StateMachine};
-use crate::actors::messages::GetDataRequestReport;
+use crate::actors::messages::{GetBalance, GetDataRequestReport};
 use crate::{
     actors::{
         chain_manager::transaction_factory,
@@ -833,5 +833,20 @@ impl Handler<GetDataRequestReport> for ChainManager {
 
             Box::new(fut)
         }
+    }
+}
+
+impl Handler<GetBalance> for ChainManager {
+    type Result = Result<u64, failure::Error>;
+
+    fn handle(&mut self, GetBalance { pkh }: GetBalance, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced.into());
+        }
+
+        Ok(transaction_factory::get_total_balance(
+            &self.chain_state.unspent_outputs_pool,
+            pkh,
+        ))
     }
 }

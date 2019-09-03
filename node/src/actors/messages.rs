@@ -13,7 +13,7 @@ use tokio::net::TcpStream;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash, InventoryEntry,
-        InventoryItem, RADConsensus, RADRequest, ValueTransferOutput,
+        InventoryItem, PublicKeyHash, RADConsensus, RADRequest, ValueTransferOutput,
     },
     transaction::Transaction,
 };
@@ -184,6 +184,17 @@ pub struct GetDataRequestReport {
 
 impl Message for GetDataRequestReport {
     type Result = Result<DataRequestInfo, failure::Error>;
+}
+
+/// Get Balance
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetBalance {
+    /// Public key hash
+    pub pkh: PublicKeyHash,
+}
+
+impl Message for GetBalance {
+    type Result = Result<u64, failure::Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

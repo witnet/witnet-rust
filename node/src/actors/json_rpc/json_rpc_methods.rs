@@ -36,8 +36,9 @@ use super::Subscriptions;
 #[cfg(test)]
 use self::mock_actix::System;
 use crate::actors::chain_manager::StateMachine;
-use crate::actors::messages::{GetDataRequestReport, GetHighestCheckpointBeacon};
+use crate::actors::messages::{GetBalance, GetDataRequestReport, GetHighestCheckpointBeacon};
 use futures::future;
+use witnet_data_structures::chain::PublicKeyHash;
 
 type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
@@ -62,6 +63,7 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
     io.add_method("dataRequestReport", |params: Params| {
         data_request_report(params.parse())
     });
+    io.add_method("getBalance", |params: Params| get_balance(params.parse()));
 
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -617,11 +619,37 @@ pub fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -> Json
             Ok(x) => match serde_json::to_value(&x) {
                 Ok(x) => futures::finished(x),
                 Err(e) => {
-                    let err = internal_error(e);
+                    let err = internal_error_s(e);
                     futures::failed(err)
                 }
             },
-            Err(_e) => futures::finished(Value::Null),
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
+/// Get balance
+pub fn get_balance(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let pkh = match params {
+        Ok(x) => x.0,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+
+    let fut = chain_manager_addr
+        .send(GetBalance { pkh })
+        .map_err(internal_error)
+        .and_then(|dr_info| match dr_info {
+            Ok(x) => match serde_json::to_value(&x) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            },
+            Err(e) => futures::failed(internal_error_s(e)),
         });
 
     Box::new(fut)

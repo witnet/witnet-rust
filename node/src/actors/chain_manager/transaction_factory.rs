@@ -54,6 +54,21 @@ pub fn take_enough_utxos<S: std::hash::BuildHasher>(
     }
 }
 
+/// Get total balance
+pub fn get_total_balance(all_utxos: &UnspentOutputsPool, pkh: PublicKeyHash) -> u64 {
+    // FIXME: this does not scale, we need to be able to get UTXOs by PKH
+    all_utxos
+        .iter()
+        .filter_map(|(_output_pointer, vto)| {
+            if vto.pkh == pkh {
+                Some(vto.value)
+            } else {
+                None
+            }
+        })
+        .sum()
+}
+
 /// If the change_amount is greater than 0, insert a change output using the supplied `pkh`.
 pub fn insert_change_output(
     outputs: &mut Vec<ValueTransferOutput>,
