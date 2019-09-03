@@ -76,36 +76,6 @@ fn p2p_peers_remove() {
 }
 
 #[test]
-fn p2p_peers_get_random() {
-    // Create peers struct
-    let mut peers = Peers::default();
-
-    // Add addresses
-    let address1 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
-    let address2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 8080);
-    peers.add_to_tried(address1).unwrap();
-    peers.add_to_tried(address2).unwrap();
-
-    // Get random address for a "big" number
-    let mut diff: i32 = 0;
-    for _ in 0..100_000 {
-        // Get a random address (there is only 1)
-        match peers.get_random().unwrap() {
-            Some(addr) if addr == address1 => diff += 1,
-            Some(addr) if addr == address2 => diff -= 1,
-            _ => panic!("Get random function should retrieve a random address"),
-        }
-    }
-
-    // Check that both addresses are the same
-    // Acceptance criteria for randomness is 1%
-    assert!(
-        diff < 1000 && diff > -1000,
-        "Get random seems not to be following a uniform distribution"
-    );
-}
-
-#[test]
 fn p2p_peers_get_all_from_new() {
     // Create peers struct
     let mut peers = Peers::default();
