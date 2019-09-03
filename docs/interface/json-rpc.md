@@ -70,6 +70,24 @@ Response:
 {"jsonrpc":"2.0","result":true,"id":1}
 ```
 
+#### getBalance
+Get the total balance of the given public key hash.
+
+Returns a `u64`, representing balance. The unit is 10^-8 wits.
+
+Example:
+
+```
+{"jsonrpc":"2.0","id":1,"method":"getBalance","params":["2dbf2cefcf626d661a8cb1797be92624ca1835f7"]}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":428150000000000,"id":1}
+```
+
+
 #### getBlockChain
 
 Get the list of all the known block hashes.
@@ -142,6 +160,23 @@ Response:
 
 ```
 {"jsonrpc":"2.0","result":{"DataRequest":{"backup_witnesses":0,"commit_fee":0,"data_request":{"aggregate":{"script":[0]},"consensus":{"script":[0]},"deliver":[{"kind":"HTTP-GET","url":"https://hooks.zapier.com/hooks/catch/3860543/l2awcd/"}],"not_before":0,"retrieve":[{"kind":"HTTP-GET","script":[0],"url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}]},"pkh":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"reveal_fee":0,"tally_fee":0,"time_lock":0,"value":0,"witnesses":0}},"id":"1"}
+```
+
+#### getPkh
+Get the public key hash of the node. This pkh is used for mining blocks and resolving data requests.
+
+Returns a `PublicKeyHash`.
+
+Example:
+
+```
+{"jsonrpc":"2.0","id":1,"method":"getPkh"}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":"121747ea4a2103b38b7213ac6d67e949add96cfb","id":1}
 ```
 
 #### sendRequest
