@@ -136,6 +136,12 @@ pub enum TransactionError {
         outputs: usize,
         expected_outputs: usize,
     },
+    /// Transaction has a time lock and cannot be included in this epoch
+    #[fail(
+        display = "Transaction cannot be included before {} but the block timestamp is {}",
+        expected, current
+    )]
+    TimeLock { current: i64, expected: i64 },
 }
 
 /// The error type for operations on a [`Block`](Block)

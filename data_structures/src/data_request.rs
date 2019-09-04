@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::{
     chain::{
-        DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch, Hash,
-        Hashable, PublicKeyHash, ValueTransferOutput,
+        DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch,
+        EpochConstants, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
@@ -272,17 +272,23 @@ impl DataRequestPool {
         &mut self,
         dr_transaction: &DRTransaction,
         epoch: Epoch,
+        epoch_constants: EpochConstants,
         block_hash: &Hash,
     ) -> Result<(), failure::Error> {
         // A data request output should have a valid value transfer input
         // Which we assume valid as it should have been already verified
+
         // time_lock_epoch: The epoch during which we will start accepting
         // commitments for this data request
-        // FIXME(#338): implement time lock
-        // An enhancement to the epoch manager would be a handler GetState which returns
-        // the needed constants to calculate the current epoch. This way we avoid all the
-        // calls to GetEpoch
-        let time_lock_epoch = 0;
+        // This is not the epoch which contains the timestamp, but the next one
+        let time_lock_epoch = epoch_constants
+            .epoch_at(
+                (dr_transaction.body.dr_output.time_lock as i64)
+                    .saturating_add(i64::from(epoch_constants.checkpoints_period - 1)),
+            )
+            // Any data request with time lock set to before checkpoint zero
+            // will be executed as soon as possible.
+            .unwrap_or(0);
         let dr_epoch = std::cmp::max(epoch, time_lock_epoch);
         self.add_data_request(dr_epoch, dr_transaction.clone(), block_hash)
     }
@@ -377,8 +383,13 @@ mod tests {
         let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::default();
-        p.process_data_request(&dr_transaction, epoch, &fake_block_hash)
-            .unwrap();
+        p.process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &fake_block_hash,
+        )
+        .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
         assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));

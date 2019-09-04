@@ -125,6 +125,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     reputation_engine: Some(ref mut rep_engine),
                     ..
                 } => {
+                    if self.epoch_constants.is_none() || self.vrf_ctx.is_none() {
+                        log::error!("{}", ChainManagerError::ChainNotReady);
+                        return;
+                    }
                     // Decide the best candidate
                     // TODO: replace for loop with a try_fold
                     let mut chosen_candidate = None;
@@ -150,6 +154,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             &self.chain_state.data_request_pool,
                             self.vrf_ctx.as_mut().unwrap(),
                             rep_engine,
+                            self.epoch_constants.unwrap(),
                         ) {
                             Ok(utxo_diff) => {
                                 let block_pkh = &block_candidate.block_sig.public_key.pkh();
@@ -414,24 +419,41 @@ impl Handler<AddTransaction> for ChainManager {
                     return;
                 }
 
-                let mut dr_beacon = self.get_chain_beacon();
-                // We need a checkpoint beacon with the current epoch, but `get_chain_beacon`
-                // returns the epoch of the last block.
-                if let Some(epoch) = self.current_epoch {
-                    dr_beacon.checkpoint = epoch;
-                }
+                match (
+                    self.chain_state
+                        .chain_info
+                        .as_ref()
+                        .map(|x| x.highest_block_checkpoint),
+                    self.current_epoch,
+                    self.epoch_constants,
+                    self.chain_state.reputation_engine.as_ref(),
+                    self.vrf_ctx.as_mut(),
+                ) {
+                    (
+                        Some(mut dr_beacon),
+                        Some(current_epoch),
+                        Some(epoch_constants),
+                        Some(rep_eng),
+                        Some(vrf_ctx),
+                    ) => {
+                        // We need a checkpoint beacon with the current epoch,
+                        // but `chain_info.highest_block_checkpoint` returns
+                        // the epoch of the last block.
+                        dr_beacon.checkpoint = current_epoch;
 
-                let rep_eng = self.chain_state.reputation_engine.as_ref().unwrap();
-                validate_commit_transaction(
-                    tx,
-                    &self.chain_state.data_request_pool,
-                    dr_beacon,
-                    // The unwrap is safe because if there is no VRF context,
-                    // the actor should have stopped execution
-                    self.vrf_ctx.as_mut().unwrap(),
-                    rep_eng,
-                )
-                .map(|_| ())
+                        validate_commit_transaction(
+                            tx,
+                            &self.chain_state.data_request_pool,
+                            dr_beacon,
+                            vrf_ctx,
+                            rep_eng,
+                            current_epoch,
+                            epoch_constants,
+                        )
+                        .map(|_| ())
+                    }
+                    _ => Err(ChainManagerError::ChainNotReady.into()),
+                }
             }
             Transaction::Reveal(tx) => {
                 let dr_pointer = tx.body.dr_pointer;

@@ -81,7 +81,7 @@ pub enum ChainManagerError {
     /// A block does not exist
     #[fail(display = "A block does not exist")]
     BlockDoesNotExist,
-    /// StorageError
+    /// Optional fields of ChainManager are not properly initialized yet
     #[fail(display = "ChainManager is not ready yet")]
     ChainNotReady,
     /// The node is not in Synced state
@@ -240,10 +240,18 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         block: &Block,
     ) -> Result<(), failure::Error> {
-        if let (Some(current_epoch), Some(chain_info), Some(rep_engine)) = (
+        if let (
+            Some(current_epoch),
+            Some(epoch_constants),
+            Some(chain_info),
+            Some(rep_engine),
+            Some(vrf_ctx),
+        ) = (
             self.current_epoch,
+            self.epoch_constants,
             self.chain_state.chain_info.as_ref(),
             self.chain_state.reputation_engine.as_mut(),
+            self.vrf_ctx.as_mut(),
         ) {
             let chain_beacon = chain_info.highest_block_checkpoint;
 
@@ -253,8 +261,9 @@ impl ChainManager {
                 chain_beacon,
                 &self.chain_state.unspent_outputs_pool,
                 &self.chain_state.data_request_pool,
-                self.vrf_ctx.as_mut().unwrap(),
+                vrf_ctx,
                 rep_engine,
+                epoch_constants,
             ) {
                 Ok(utxo_diff) => {
                     // Persist block and update ChainState
@@ -314,6 +323,13 @@ impl ChainManager {
 
     fn consolidate_block(&mut self, ctx: &mut Context<Self>, block: &Block, utxo_diff: Diff) {
         // Update chain_info and reputation_engine
+        let epoch_constants = match self.epoch_constants {
+            Some(x) => x,
+            None => {
+                error!("No EpochConstants loaded in ChainManager");
+                return;
+            }
+        };
         match self.chain_state {
             ChainState {
                 chain_info: Some(ref mut chain_info),
@@ -346,6 +362,7 @@ impl ChainManager {
                     utxo_diff,
                     self.own_pkh,
                     &mut self.chain_state.own_utxos,
+                    epoch_constants,
                 );
 
                 let miner_pkh = block.txns.mint.output.pkh;
@@ -468,6 +485,7 @@ impl ReputationInfo {
 }
 
 // Helper methods
+#[allow(clippy::too_many_arguments)]
 fn update_pools(
     block: &Block,
     unspent_outputs_pool: &mut UnspentOutputsPool,
@@ -476,6 +494,7 @@ fn update_pools(
     utxo_diff: Diff,
     own_pkh: Option<PublicKeyHash>,
     own_utxos: &mut HashSet<OutputPointer>,
+    epoch_constants: EpochConstants,
 ) -> ReputationInfo {
     let mut rep_info = ReputationInfo::new();
 
@@ -497,6 +516,7 @@ fn update_pools(
         if let Err(e) = data_request_pool.process_data_request(
             &dr_tx,
             block.block_header.beacon.checkpoint,
+            epoch_constants,
             &block.hash(),
         ) {
             log::error!("Error processing data request transaction:\n{}", e);

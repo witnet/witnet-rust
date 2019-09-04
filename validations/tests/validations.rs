@@ -1297,7 +1297,16 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
 
-    validate_commit_transaction(&c_tx, &dr_pool, beacon, vrf, &rep_eng).map(|_| ())
+    validate_commit_transaction(
+        &c_tx,
+        &dr_pool,
+        beacon,
+        vrf,
+        &rep_eng,
+        0,
+        EpochConstants::default(),
+    )
+    .map(|_| ())
 }
 
 static DR_HASH: &str = "606c5809d5ed6c7380169b099e87ac2e2d680e2d612200c9f474fb1f581a6ac5";
@@ -1322,10 +1331,24 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
 
-    validate_commit_transaction(&c_tx, &dr_pool, commit_beacon, vrf, &rep_eng).map(|_| ())
+    validate_commit_transaction(
+        &c_tx,
+        &dr_pool,
+        commit_beacon,
+        vrf,
+        &rep_eng,
+        0,
+        EpochConstants::default(),
+    )
+    .map(|_| ())
 }
 
 // Helper function to test a commit with an existing data request,
@@ -1362,7 +1385,12 @@ fn test_commit_difficult_proof() -> Result<(), failure::Error> {
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
 
     // Insert valid proof
@@ -1374,7 +1402,16 @@ fn test_commit_difficult_proof() -> Result<(), failure::Error> {
     let cs = sign_t(&cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
-    validate_commit_transaction(&c_tx, &dr_pool, commit_beacon, vrf, &rep_eng).map(|_| ())
+    validate_commit_transaction(
+        &c_tx,
+        &dr_pool,
+        commit_beacon,
+        vrf,
+        &rep_eng,
+        0,
+        EpochConstants::default(),
+    )
+    .map(|_| ())
 }
 
 // Helper function to test a commit with an existing data request
@@ -1400,7 +1437,12 @@ fn test_commit() -> Result<(), failure::Error> {
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
 
     // Insert valid proof
@@ -1412,7 +1454,16 @@ fn test_commit() -> Result<(), failure::Error> {
     let cs = sign_t(&cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
-    validate_commit_transaction(&c_tx, &dr_pool, commit_beacon, vrf, &rep_eng).map(|_| ())
+    validate_commit_transaction(
+        &c_tx,
+        &dr_pool,
+        commit_beacon,
+        vrf,
+        &rep_eng,
+        0,
+        EpochConstants::default(),
+    )
+    .map(|_| ())
 }
 
 #[test]
@@ -1567,14 +1618,28 @@ fn commitment_invalid_proof() {
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
 
     // Sign commitment
     let cs = sign_t(&cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
-    let x = validate_commit_transaction(&c_tx, &dr_pool, commit_beacon, vrf, &rep_eng).map(|_| ());
+    let x = validate_commit_transaction(
+        &c_tx,
+        &dr_pool,
+        commit_beacon,
+        vrf,
+        &rep_eng,
+        0,
+        EpochConstants::default(),
+    )
+    .map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1622,7 +1687,12 @@ fn commitment_dr_in_reveal_stage() {
     let dr_hash = dr_transaction.hash();
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
     dr_pool.update_data_request_stages();
 
@@ -1638,7 +1708,15 @@ fn commitment_dr_in_reveal_stage() {
     dr_pool.process_commit(&c_tx, &block_hash).unwrap();
     dr_pool.update_data_request_stages();
 
-    let x = validate_commit_transaction(&c_tx, &dr_pool, commit_beacon, vrf, &rep_eng);
+    let x = validate_commit_transaction(
+        &c_tx,
+        &dr_pool,
+        commit_beacon,
+        vrf,
+        &rep_eng,
+        0,
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
         DataRequestError::NotCommitStage,
@@ -1649,6 +1727,84 @@ fn commitment_dr_in_reveal_stage() {
 fn commitment_valid() {
     let x = test_commit();
     assert_eq!(x.unwrap(), ());
+}
+
+#[test]
+fn commitment_timelock() {
+    // 1 epoch = 1000 seconds, for easy testing
+    let epoch_constants = EpochConstants {
+        checkpoint_zero_timestamp: 0,
+        checkpoints_period: 1_000,
+    };
+    let test_commit_epoch = |epoch, time_lock| {
+        let mut dr_pool = DataRequestPool::default();
+        let commit_beacon = CheckpointBeacon::default();
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let rep_eng = ReputationEngine::new(100);
+        let secret_key = SecretKey {
+            bytes: Protected::from(vec![0xcd; 32]),
+        };
+
+        let dro = DataRequestOutput {
+            value: 1000,
+            witnesses: 1,
+            time_lock,
+            data_request: example_data_request(),
+            ..DataRequestOutput::default()
+        };
+        let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+        let drs = sign_t(&dr_body);
+        let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
+        let dr_hash = dr_transaction.hash();
+        let dr_epoch = 0;
+        dr_pool
+            .process_data_request(
+                &dr_transaction,
+                dr_epoch,
+                EpochConstants::default(),
+                &Hash::default(),
+            )
+            .unwrap();
+
+        // Insert valid proof
+        let mut cb = CommitTransactionBody::default();
+        cb.dr_pointer = dr_hash;
+        cb.proof =
+            DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+        // Sign commitment
+        let cs = sign_t(&cb);
+        let c_tx = CommitTransaction::new(cb, vec![cs]);
+
+        validate_commit_transaction(
+            &c_tx,
+            &dr_pool,
+            commit_beacon,
+            vrf,
+            &rep_eng,
+            epoch,
+            epoch_constants,
+        )
+        .map(|_| ())
+    };
+
+    // (epoch, time_lock, should_be_accepted_into_block)
+    let tests = vec![
+        (0, 0, true),
+        (0, 1, false),
+        (0, 1_000_000, false),
+        (999, 1_000_000, false),
+        (999, 999_999, false),
+        (1000, 999_999, true),
+        (1000, 1_000_000, true),
+        (1000, 1_000_001, false),
+        (1001, 1_000_000, true),
+        (1001, 1_000_001, true),
+    ];
+
+    for (epoch, time_lock, is_ok) in tests {
+        let x = test_commit_epoch(epoch, time_lock);
+        assert_eq!(x.is_ok(), is_ok, "{:?}: {:?}", (epoch, time_lock, is_ok), x);
+    }
 }
 
 fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
@@ -1674,7 +1830,12 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
     dr_pool.update_data_request_stages();
     dr_pool.process_commit(&c_tx, &block_hash).unwrap();
@@ -1910,7 +2071,12 @@ fn reveal_valid_commitment() {
 
     // Include DRTransaction in DataRequestPool
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
     dr_pool.update_data_request_stages();
 
@@ -1986,7 +2152,12 @@ fn dr_pool_with_dr_in_tally_stage(
 
     // Include DRTransaction in DataRequestPool
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
     dr_pool.update_data_request_stages();
 
@@ -2050,7 +2221,12 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
 
     // Include DRTransaction in DataRequestPool
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
     dr_pool.update_data_request_stages();
 
@@ -2179,7 +2355,12 @@ fn tally_dr_not_tally_stage() {
         TransactionError::DataRequestNotFound { hash: dr_pointer },
     );
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
         .unwrap();
     dr_pool.update_data_request_stages();
     let x = validate_tally_transaction(&tally_transaction, &dr_pool);
@@ -2553,6 +2734,7 @@ fn test_block<F: FnMut(&mut Block) -> bool>(mut mut_block: F) -> Result<(), fail
         &dr_pool,
         vrf,
         &rep_eng,
+        EpochConstants::default(),
     )
     .map(|_| ())
 }
@@ -2763,6 +2945,7 @@ fn block_difficult_proof() {
                 &dr_pool,
                 vrf,
                 &rep_eng,
+                EpochConstants::default(),
             )
             .map(|_| ())
         };
@@ -3006,6 +3189,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &dr_pool,
             vrf,
             &rep_eng,
+            EpochConstants::default(),
         )?;
 
         // FIXME(#685): add sequence validations

@@ -1644,13 +1644,24 @@ pub fn generate_unspent_outputs_pool(
 }
 
 /// Constants used to convert between epoch and timestamp
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub struct EpochConstants {
     /// Timestamp of checkpoint #0 (the second in which epoch #0 started)
     pub checkpoint_zero_timestamp: i64,
 
     /// Period between checkpoints, in seconds
     pub checkpoints_period: u16,
+}
+
+// This default is only used for tests
+impl Default for EpochConstants {
+    fn default() -> Self {
+        Self {
+            checkpoint_zero_timestamp: 0,
+            // This cannot be 0 because we would divide by zero
+            checkpoints_period: 1,
+        }
+    }
 }
 
 impl EpochConstants {

@@ -160,6 +160,7 @@ impl ChainManager {
                         // the actor should have stopped execution
                         act.vrf_ctx.as_mut().unwrap(),
                         act.chain_state.reputation_engine.as_ref().unwrap(),
+                        act.epoch_constants.unwrap(),
                     ) {
                         Ok(_) => {
                             // Send AddCandidates message to self

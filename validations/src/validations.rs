@@ -9,6 +9,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
+use witnet_data_structures::chain::EpochConstants;
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
@@ -271,6 +272,8 @@ pub fn validate_commit_transaction(
     beacon: CheckpointBeacon,
     vrf: &mut VrfCtx,
     rep_eng: &ReputationEngine,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -283,6 +286,17 @@ pub fn validate_commit_transaction(
     }
 
     let dr_output = &dr_state.data_request;
+
+    // Verify that commits are only accepted after the time lock expired
+    let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+    let dr_time_lock = dr_output.time_lock as i64;
+    if dr_time_lock > epoch_timestamp {
+        Err(TransactionError::TimeLock {
+            expected: dr_time_lock,
+            current: epoch_timestamp,
+        })?
+    }
+
     let commit_signature = validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures)?;
 
     let pkh = commit_signature.public_key.pkh();
@@ -631,7 +645,9 @@ pub fn validate_block_transactions(
     block: &Block,
     vrf: &mut VrfCtx,
     rep_eng: &ReputationEngine,
+    epoch_constants: EpochConstants,
 ) -> Result<Diff, failure::Error> {
+    let epoch = block.block_header.beacon.checkpoint;
     let mut utxo_diff = UtxoDiff::new(utxo_set);
 
     // Init total fee
@@ -673,8 +689,15 @@ pub fn validate_block_transactions(
     let mut commits_number = HashMap::new();
     let block_beacon = block.block_header.beacon;
     for transaction in &block.txns.commit_txns {
-        let (dr_pointer, dr_witnesses, fee) =
-            validate_commit_transaction(&transaction, dr_pool, block_beacon, vrf, rep_eng)?;
+        let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(
+            &transaction,
+            dr_pool,
+            block_beacon,
+            vrf,
+            rep_eng,
+            epoch,
+            epoch_constants,
+        )?;
 
         increment_witnesses_counter(
             &mut commits_number,
@@ -785,6 +808,7 @@ pub fn validate_block(
     data_request_pool: &DataRequestPool,
     vrf: &mut VrfCtx,
     rep_eng: &ReputationEngine,
+    epoch_constants: EpochConstants,
 ) -> Result<Diff, failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -816,7 +840,14 @@ pub fn validate_block(
         validate_block_signature(&block)?;
 
         // TODO: in the future, a block without any transactions may be invalid
-        validate_block_transactions(&utxo_set, &data_request_pool, &block, vrf, rep_eng)
+        validate_block_transactions(
+            &utxo_set,
+            &data_request_pool,
+            &block,
+            vrf,
+            rep_eng,
+            epoch_constants,
+        )
     }
 }
 
