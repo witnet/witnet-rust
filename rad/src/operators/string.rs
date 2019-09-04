@@ -4,9 +4,18 @@ use json;
 use num_traits::FromPrimitive;
 use serde_cbor::value::{from_value, Value};
 
-use crate::error::RadError;
-use crate::hash_functions::{self, RadonHashFunctions};
-use crate::types::{bytes::RadonBytes, float::RadonFloat, string::RadonString, RadonType};
+use crate::{
+    error::RadError,
+    hash_functions::{self, RadonHashFunctions},
+    types::{
+        boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
+        string::RadonString, RadonType,
+    },
+};
+
+pub fn to_bytes(input: RadonString) -> RadonBytes {
+    RadonBytes::from(Value::Text(input.value()))
+}
 
 pub fn parse_json(input: &RadonString) -> Result<RadonBytes, RadError> {
     match json::parse(&input.value()) {
@@ -23,6 +32,30 @@ pub fn to_float(input: &RadonString) -> Result<RadonFloat, RadError> {
     f64::from_str(&input.value())
         .map(RadonFloat::from)
         .map_err(Into::into)
+}
+
+pub fn to_int(input: &RadonString) -> Result<RadonInteger, RadError> {
+    i128::from_str(&input.value())
+        .map(RadonInteger::from)
+        .map_err(Into::into)
+}
+
+pub fn to_bool(input: &RadonString) -> Result<RadonBoolean, RadError> {
+    bool::from_str(&input.value())
+        .map(RadonBoolean::from)
+        .map_err(Into::into)
+}
+
+pub fn length(input: &RadonString) -> RadonInteger {
+    RadonInteger::from(input.value().len() as i128)
+}
+
+pub fn to_lowercase(input: &RadonString) -> RadonString {
+    RadonString::from(input.value().as_str().to_lowercase())
+}
+
+pub fn to_uppercase(input: &RadonString) -> RadonString {
+    RadonString::from(input.value().as_str().to_uppercase())
 }
 
 pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
@@ -111,4 +144,49 @@ fn test_hash() {
         &unsupported_output.unwrap_err().to_string(),
         "Hash function `RadonHashFunctions::Fail` is not implemented"
     );
+}
+
+#[test]
+fn test_string_to_integer() {
+    let rad_int = RadonInteger::from(10);
+    let rad_string: RadonString = RadonString::from("10");
+
+    assert_eq!(to_int(&rad_string).unwrap(), rad_int);
+}
+
+#[test]
+fn test_string_to_float() {
+    let rad_float = RadonFloat::from(10.2);
+    let rad_string: RadonString = RadonString::from("10.2");
+
+    assert_eq!(to_float(&rad_string).unwrap(), rad_float);
+}
+
+#[test]
+fn test_string_to_bool() {
+    let rad_float = RadonBoolean::from(false);
+    let rad_string: RadonString = RadonString::from("false");
+
+    assert_eq!(to_bool(&rad_string).unwrap(), rad_float);
+}
+
+#[test]
+fn test_string_length() {
+    let rad_string: RadonString = RadonString::from("Hello");
+
+    assert_eq!(length(&rad_string), RadonInteger::from(5));
+}
+
+#[test]
+fn test_string_to_lowercase() {
+    let rad_string: RadonString = RadonString::from("HeLlO");
+
+    assert_eq!(to_lowercase(&rad_string), RadonString::from("hello"));
+}
+
+#[test]
+fn test_string_to_uppercase() {
+    let rad_string: RadonString = RadonString::from("HeLlO");
+
+    assert_eq!(to_uppercase(&rad_string), RadonString::from("HELLO"));
 }

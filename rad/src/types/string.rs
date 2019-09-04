@@ -65,12 +65,30 @@ impl Operable for RadonString {
     fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::String(self)),
+            (RadonOpCodes::StringAsBytes, None) => {
+                Ok(RadonTypes::from(string_operators::to_bytes(self)))
+            }
             (RadonOpCodes::StringParseJSON, None) => {
                 string_operators::parse_json(&self).map(RadonTypes::Bytes)
             }
             (RadonOpCodes::StringAsFloat, None) => string_operators::to_float(&self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
+            (RadonOpCodes::StringAsInteger, None) => string_operators::to_int(&self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
+            (RadonOpCodes::StringAsBoolean, None) => string_operators::to_bool(&self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
+            (RadonOpCodes::StringLength, None) => {
+                Ok(RadonTypes::from(string_operators::length(&self)))
+            }
+            (RadonOpCodes::StringToLowerCase, None) => {
+                Ok(RadonTypes::from(string_operators::to_lowercase(&self)))
+            }
+            (RadonOpCodes::StringToUpperCase, None) => {
+                Ok(RadonTypes::from(string_operators::to_uppercase(&self)))
+            }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_STRING_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),

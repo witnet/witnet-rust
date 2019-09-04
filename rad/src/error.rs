@@ -98,6 +98,12 @@ pub enum RadError {
         message
     )]
     ParseInt { message: String },
+    /// Failed to convert string to bool
+    #[fail(
+        display = "Failed to convert string to bool with error message: {}",
+        message
+    )]
+    ParseBool { message: String },
     /// Overflow error
     #[fail(display = "Overflow error")]
     Overflow,
@@ -122,6 +128,14 @@ impl From<std::num::ParseFloatError> for RadError {
 impl From<std::num::ParseIntError> for RadError {
     fn from(err: std::num::ParseIntError) -> RadError {
         RadError::ParseInt {
+            message: err.to_string(),
+        }
+    }
+}
+
+impl From<std::str::ParseBoolError> for RadError {
+    fn from(err: std::str::ParseBoolError) -> RadError {
+        RadError::ParseBool {
             message: err.to_string(),
         }
     }

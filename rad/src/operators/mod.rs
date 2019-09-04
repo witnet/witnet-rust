@@ -65,17 +65,17 @@ pub enum RadonOpCodes {
     FloatTruncate = 0x3E,
 
     // String operator codes (start at 0x40)
-    //    StringAsBytes = 0x40,
+    StringAsBytes = 0x40,
     StringAsFloat = 0x41,
-    //    StringAsInteger = 0x42,
-    //    StringLength = 0x43,
+    StringAsInteger = 0x42,
+    StringLength = 0x43,
     //    StringMatch = 0x44,
     /// Parse Bytes from JSON string
     StringParseJSON = 0x45,
     //    StringParseXML = 0x46,
-    //    StringAsBoolean = 0x47,
-    //    StringToLowerCase = 0x48,
-    //    StringToUpperCase = 0x49,
+    StringAsBoolean = 0x47,
+    StringToLowerCase = 0x48,
+    StringToUpperCase = 0x49,
 
     // Array operator codes (start at 0x50)
     //    ArrayAsBytes = 0x50,
