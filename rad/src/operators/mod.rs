@@ -93,9 +93,9 @@ pub enum RadonOpCodes {
     // Map operator codes (start at 0x60)
     //    MapEntries = 0x60,
     MapGet = 0x61,
-    //    MapKeys = 0x62,
+    MapKeys = 0x62,
     /// Flatten a map into an Array containing only the values but not the keys
-    MapValues = 0x63,
+    //    MapValues = 0x63,
     // Bytes operator codes (start at 0x70)
     BytesAsArray = 0x70,
     BytesAsBoolean = 0x71,

@@ -107,6 +107,7 @@ impl Operable for RadonMap {
             (RadonOpCodes::Get, Some(args)) | (RadonOpCodes::MapGet, Some(args)) => {
                 map_operators::get(&self, args.as_slice()).map(Into::into)
             }
+            (RadonOpCodes::MapKeys, None) => Ok(RadonTypes::from(map_operators::keys(&self))),
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_MAP_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),

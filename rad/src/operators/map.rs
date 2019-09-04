@@ -1,5 +1,10 @@
-use crate::error::RadError;
-use crate::types::{bytes::RadonBytes, map::RadonMap, RadonType};
+use crate::{
+    error::RadError,
+    types::{
+        array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString, RadonType,
+        RadonTypes,
+    },
+};
 
 use serde_cbor::value::{from_value, Value};
 
@@ -19,6 +24,15 @@ pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonBytes, RadError> {
         .get(&key)
         .map(Clone::clone)
         .ok_or_else(|| not_found(key))
+}
+
+pub fn keys(input: &RadonMap) -> RadonArray {
+    let v: Vec<RadonTypes> = input
+        .value()
+        .keys()
+        .map(|key| RadonTypes::from(RadonString::from(key.to_string())))
+        .collect();
+    RadonArray::from(v)
 }
 
 #[test]
@@ -56,4 +70,33 @@ fn test_map_get_error() {
     let not_found_object = get(&input, &args);
 
     assert!(not_found_object.is_err());
+}
+
+#[test]
+fn test_map_keys() {
+    use std::collections::HashMap;
+    use std::convert::TryFrom;
+
+    let key0 = "Zero";
+    let value0 = RadonBytes::from(Value::try_from(0).unwrap());
+    let key1 = "One";
+    let value1 = RadonBytes::from(Value::try_from(1).unwrap());
+    let key2 = "Two";
+    let value2 = RadonBytes::from(Value::try_from(2).unwrap());
+
+    let mut map = HashMap::new();
+    map.insert(key0.to_string(), value0.clone());
+    map.insert(key1.to_string(), value1.clone());
+    map.insert(key2.to_string(), value2.clone());
+
+    let input = RadonMap::from(map.clone());
+    let keys = keys(&input);
+
+    for key in keys.value() {
+        match key {
+            RadonTypes::String(rad_string) => assert!(map.contains_key(&rad_string.value())),
+
+            _ => panic!("No RadonString as a key"),
+        }
+    }
 }
