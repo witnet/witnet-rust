@@ -12,8 +12,9 @@ use tokio::net::TcpStream;
 
 use witnet_data_structures::{
     chain::{
-        Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, Hash, InventoryEntry,
-        InventoryItem, PublicKeyHash, RADConsensus, RADRequest, ValueTransferOutput,
+        Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
+        InventoryEntry, InventoryItem, PublicKeyHash, RADConsensus, RADRequest,
+        ValueTransferOutput,
     },
     transaction::Transaction,
 };
@@ -28,7 +29,6 @@ use super::{
     inventory_manager::InventoryManagerError,
     session::Session,
 };
-use crate::actors::epoch_manager::EpochConstants;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CHAIN MANAGER

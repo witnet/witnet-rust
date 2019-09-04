@@ -7,7 +7,10 @@ use log::{debug, error, info, warn};
 
 use std::{collections::BTreeMap, time::Duration};
 
-use witnet_data_structures::chain::Epoch;
+use witnet_data_structures::{
+    chain::{Epoch, EpochConstants},
+    error::EpochCalculationError,
+};
 use witnet_util::timestamp::{get_timestamp, get_timestamp_nanos};
 
 use crate::actors::messages::{EpochNotification, EpochResult};
@@ -30,6 +33,17 @@ pub enum EpochManagerError {
     Overflow,
 }
 
+impl From<EpochCalculationError> for EpochManagerError {
+    fn from(x: EpochCalculationError) -> Self {
+        match x {
+            EpochCalculationError::CheckpointZeroInTheFuture(x) => {
+                EpochManagerError::CheckpointZeroInTheFuture(x)
+            }
+            EpochCalculationError::Overflow => EpochManagerError::Overflow,
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR BASIC STRUCTURE
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -47,44 +61,6 @@ pub struct EpochManager {
 
     /// Last epoch that was checked by the epoch monitor process
     last_checked_epoch: Option<Epoch>,
-}
-
-/// Constants used to convert between epoch and timestamp
-#[derive(Copy, Clone, Debug, Default)]
-pub struct EpochConstants {
-    /// Timestamp of checkpoint #0 (the second in which epoch #0 started)
-    checkpoint_zero_timestamp: i64,
-
-    /// Period between checkpoints, in seconds
-    checkpoints_period: u16,
-}
-
-impl EpochConstants {
-    /// Calculate the last checkpoint (current epoch) at the supplied timestamp
-    pub fn epoch_at(&self, timestamp: i64) -> EpochResult<Epoch> {
-        let zero = self.checkpoint_zero_timestamp;
-        let period = self.checkpoints_period;
-        let elapsed = timestamp - zero;
-        if elapsed < 0 {
-            Err(EpochManagerError::CheckpointZeroInTheFuture(zero))
-        } else {
-            let epoch = elapsed as Epoch / Epoch::from(period);
-            Ok(epoch)
-        }
-    }
-
-    /// Calculate the timestamp for a checkpoint (the start of an epoch)
-    pub fn epoch_timestamp(&self, epoch: Epoch) -> EpochResult<i64> {
-        let zero = self.checkpoint_zero_timestamp;
-        let period = self.checkpoints_period;
-
-        Epoch::from(period)
-            .checked_mul(epoch)
-            .filter(|&x| x <= Epoch::max_value() as Epoch)
-            .map(i64::from)
-            .and_then(|x| x.checked_add(zero))
-            .ok_or(EpochManagerError::Overflow)
-    }
 }
 
 /// Required trait for being able to retrieve EpochManager address from system registry
@@ -114,7 +90,7 @@ impl EpochManager {
     /// Calculate the last checkpoint (current epoch) at the supplied timestamp
     pub fn epoch_at(&self, timestamp: i64) -> EpochResult<Epoch> {
         match &self.constants {
-            Some(x) => x.epoch_at(timestamp),
+            Some(x) => Ok(x.epoch_at(timestamp)?),
 
             None => Err(EpochManagerError::UnknownEpochConstants),
         }
@@ -128,7 +104,7 @@ impl EpochManager {
     pub fn epoch_timestamp(&self, epoch: Epoch) -> EpochResult<i64> {
         match &self.constants {
             // Calculate (period * epoch + zero) with overflow checks
-            Some(x) => x.epoch_timestamp(epoch),
+            Some(x) => Ok(x.epoch_timestamp(epoch)?),
             None => Err(EpochManagerError::UnknownEpochConstants),
         }
     }

@@ -41,7 +41,6 @@ use log::{debug, error, info, warn};
 
 use crate::{
     actors::{
-        epoch_manager::EpochConstants,
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{AddItem, AddTransaction, Broadcast, NewBlock, SendInventoryItem},
@@ -53,8 +52,9 @@ use crate::{
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
-        ConsensusConstants, DataRequestReport, Epoch, Hash, Hashable, InventoryItem, OutputPointer,
-        PublicKeyHash, Reputation, ReputationEngine, TransactionsPool, UnspentOutputsPool,
+        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash, Hashable,
+        InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
+        TransactionsPool, UnspentOutputsPool,
     },
     data_request::{true_revealer, DataRequestPool},
     transaction::{TallyTransaction, Transaction},

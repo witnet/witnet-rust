@@ -23,7 +23,9 @@ use witnet_util::parser::parse_hex;
 use crate::chain::Signature::Secp256k1;
 use crate::{
     data_request::DataRequestPool,
-    error::{DataRequestError, OutputPointerParseError, Secp256k1ConversionError},
+    error::{
+        DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
+    },
     proto::{schema::witnet, ProtobufConvert},
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
@@ -1639,6 +1641,45 @@ pub fn generate_unspent_outputs_pool(
     }
 
     unspent_outputs
+}
+
+/// Constants used to convert between epoch and timestamp
+#[derive(Copy, Clone, Debug, Default)]
+pub struct EpochConstants {
+    /// Timestamp of checkpoint #0 (the second in which epoch #0 started)
+    pub checkpoint_zero_timestamp: i64,
+
+    /// Period between checkpoints, in seconds
+    pub checkpoints_period: u16,
+}
+
+impl EpochConstants {
+    /// Calculate the last checkpoint (current epoch) at the supplied timestamp
+    pub fn epoch_at(&self, timestamp: i64) -> Result<Epoch, EpochCalculationError> {
+        let zero = self.checkpoint_zero_timestamp;
+        let period = self.checkpoints_period;
+        let elapsed = timestamp - zero;
+
+        if elapsed < 0 {
+            Err(EpochCalculationError::CheckpointZeroInTheFuture(zero))
+        } else {
+            let epoch = elapsed as Epoch / Epoch::from(period);
+            Ok(epoch)
+        }
+    }
+
+    /// Calculate the timestamp for a checkpoint (the start of an epoch)
+    pub fn epoch_timestamp(&self, epoch: Epoch) -> Result<i64, EpochCalculationError> {
+        let zero = self.checkpoint_zero_timestamp;
+        let period = self.checkpoints_period;
+
+        Epoch::from(period)
+            .checked_mul(epoch)
+            .filter(|&x| x <= Epoch::max_value() as Epoch)
+            .map(i64::from)
+            .and_then(|x| x.checked_add(zero))
+            .ok_or(EpochCalculationError::Overflow)
+    }
 }
 
 // Auxiliar functions for test

@@ -306,3 +306,14 @@ pub enum DataRequestError {
     #[fail(display = "Cannot persist unfinished data request (with no Tally)")]
     UnfinishedDataRequest,
 }
+
+/// Possible errors when converting between epoch and timestamp
+#[derive(Copy, Clone, Debug, PartialEq, Fail)]
+pub enum EpochCalculationError {
+    /// Checkpoint zero is in the future
+    #[fail(display = "Checkpoint zero is in the future (timestamp: {})", _0)]
+    CheckpointZeroInTheFuture(i64),
+    /// Overflow when calculating the epoch timestamp
+    #[fail(display = "Overflow when calculating the epoch timestamp")]
+    Overflow,
+}
