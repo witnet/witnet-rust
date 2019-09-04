@@ -7,7 +7,7 @@ use super::{
 };
 use crate::actors::{
     epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
-    messages::{GetEpoch, Subscribe},
+    messages::{GetEpoch, GetEpochConstants, Subscribe},
     storage_keys::CHAIN_STATE_KEY,
 };
 use crate::config_mngr;
@@ -163,18 +163,26 @@ impl ChainManager {
         }).wait(ctx);
     }
 
-    /// Get epoch from EpochManager and subscribe to future epochs
+    /// Get epoch constants and current epoch from EpochManager, and subscribe to future epochs
     fn subscribe_to_epoch_manager(&mut self, ctx: &mut Context<ChainManager>) {
         // Get EpochManager address from registry
         let epoch_manager_addr = System::current().registry().get::<EpochManager>();
+        let epoch_manager_addr2 = epoch_manager_addr.clone();
 
-        // Start chain of actions
-        epoch_manager_addr
-            // Send GetEpoch message to epoch manager actor
-            // This returns a RequestFuture, representing an asynchronous message sending process
-            .send(GetEpoch)
-            // Convert a normal future into an ActorFuture
-            .into_actor(self)
+        // Get epoch constants
+        epoch_manager_addr.send(GetEpochConstants).into_actor(self).then(move |res, act, _ctx| {
+            match res {
+                Ok(f) => act.epoch_constants = f,
+                error => error!("Failed to get epoch constants: {:?}", error),
+            }
+
+            epoch_manager_addr2
+                // Send GetEpoch message to epoch manager actor
+                // This returns a RequestFuture, representing an asynchronous message sending process
+                .send(GetEpoch)
+                // Convert a normal future into an ActorFuture
+                .into_actor(act)
+        })
             // Process the response from the EpochManager
             // This returns a FutureResult containing the socket address if present
             .then(move |res, act, ctx| {

@@ -5,7 +5,10 @@ use log::{debug, error};
 use witnet_data_structures::chain::Epoch;
 
 use super::EpochManager;
-use crate::actors::messages::{EpochResult, GetEpoch, SubscribeAll, SubscribeEpoch};
+use crate::actors::{
+    epoch_manager::EpochConstants,
+    messages::{EpochResult, GetEpoch, GetEpochConstants, SubscribeAll, SubscribeEpoch},
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -54,5 +57,16 @@ impl Handler<SubscribeAll> for EpochManager {
 
         // Store subscription to all checkpoints
         self.subscriptions_all.push(msg.notification);
+    }
+}
+
+impl Handler<GetEpochConstants> for EpochManager {
+    type Result = Option<EpochConstants>;
+
+    /// Return a function which can be used to calculate the timestamp for a
+    /// checkpoint (the start of an epoch). This assumes that the
+    /// checkpoint_zero_timestamp and checkpoints_period constants never change
+    fn handle(&mut self, _msg: GetEpochConstants, _ctx: &mut Self::Context) -> Self::Result {
+        self.constants
     }
 }

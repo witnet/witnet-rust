@@ -19,10 +19,8 @@ mod handlers;
 /// Possible errors when getting the current epoch
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum EpochManagerError {
-    /// Epoch zero time is unknown
-    UnknownEpochZero,
-    /// Checkpoint period is unknown
-    UnknownCheckpointPeriod,
+    /// Epoch zero time and checkpoints period unknown
+    UnknownEpochConstants,
     // Current time is unknown
     // (unused because get_timestamp() cannot fail)
     //UnknownTimestamp,
@@ -38,11 +36,8 @@ pub enum EpochManagerError {
 /// EpochManager actor
 #[derive(Default)]
 pub struct EpochManager {
-    /// Timestamp of checkpoint #0 (the second in which epoch #0 started)
-    checkpoint_zero_timestamp: Option<i64>,
-
-    /// Period between checkpoints, in seconds
-    checkpoints_period: Option<u16>,
+    /// Epoch constants
+    constants: Option<EpochConstants>,
 
     /// Subscriptions to a particular epoch
     subscriptions_epoch: BTreeMap<Epoch, Vec<Box<dyn SendableNotification>>>,
@@ -54,6 +49,44 @@ pub struct EpochManager {
     last_checked_epoch: Option<Epoch>,
 }
 
+/// Constants used to convert between epoch and timestamp
+#[derive(Copy, Clone, Debug, Default)]
+pub struct EpochConstants {
+    /// Timestamp of checkpoint #0 (the second in which epoch #0 started)
+    checkpoint_zero_timestamp: i64,
+
+    /// Period between checkpoints, in seconds
+    checkpoints_period: u16,
+}
+
+impl EpochConstants {
+    /// Calculate the last checkpoint (current epoch) at the supplied timestamp
+    pub fn epoch_at(&self, timestamp: i64) -> EpochResult<Epoch> {
+        let zero = self.checkpoint_zero_timestamp;
+        let period = self.checkpoints_period;
+        let elapsed = timestamp - zero;
+        if elapsed < 0 {
+            Err(EpochManagerError::CheckpointZeroInTheFuture(zero))
+        } else {
+            let epoch = elapsed as Epoch / Epoch::from(period);
+            Ok(epoch)
+        }
+    }
+
+    /// Calculate the timestamp for a checkpoint (the start of an epoch)
+    pub fn epoch_timestamp(&self, epoch: Epoch) -> EpochResult<i64> {
+        let zero = self.checkpoint_zero_timestamp;
+        let period = self.checkpoints_period;
+
+        Epoch::from(period)
+            .checked_mul(epoch)
+            .filter(|&x| x <= Epoch::max_value() as Epoch)
+            .map(i64::from)
+            .and_then(|x| x.checked_add(zero))
+            .ok_or(EpochManagerError::Overflow)
+    }
+}
+
 /// Required trait for being able to retrieve EpochManager address from system registry
 impl actix::Supervised for EpochManager {}
 
@@ -62,32 +95,28 @@ impl SystemService for EpochManager {}
 
 /// Auxiliary methods for EpochManager actor
 impl EpochManager {
-    /// Set the timestamp for the start of the epoch zero
-    pub fn set_checkpoint_zero(&mut self, timestamp: i64) {
-        self.checkpoint_zero_timestamp = Some(timestamp);
-    }
-    /// Set the checkpoint period (epoch duration)
-    pub fn set_period(&mut self, mut period: u16) {
-        if period == 0 {
+    /// Set the timestamp for the start of the epoch zero and the checkpoint
+    /// period (epoch duration)
+    pub fn set_checkpoint_zero_and_period(
+        &mut self,
+        checkpoint_zero_timestamp: i64,
+        mut checkpoints_period: u16,
+    ) {
+        if checkpoints_period == 0 {
             warn!("Setting the checkpoint period to the minimum value of 1 second");
-            period = 1;
+            checkpoints_period = 1;
         }
-        self.checkpoints_period = Some(period);
+        self.constants = Some(EpochConstants {
+            checkpoint_zero_timestamp,
+            checkpoints_period,
+        });
     }
     /// Calculate the last checkpoint (current epoch) at the supplied timestamp
     pub fn epoch_at(&self, timestamp: i64) -> EpochResult<Epoch> {
-        match (self.checkpoint_zero_timestamp, self.checkpoints_period) {
-            (Some(zero), Some(period)) => {
-                let elapsed = timestamp - zero;
-                if elapsed < 0 {
-                    Err(EpochManagerError::CheckpointZeroInTheFuture(zero))
-                } else {
-                    let epoch = elapsed as Epoch / Epoch::from(period);
-                    Ok(epoch)
-                }
-            }
-            (None, _) => Err(EpochManagerError::UnknownEpochZero),
-            (_, None) => Err(EpochManagerError::UnknownCheckpointPeriod),
+        match &self.constants {
+            Some(x) => x.epoch_at(timestamp),
+
+            None => Err(EpochManagerError::UnknownEpochConstants),
         }
     }
     /// Calculate the last checkpoint (current epoch)
@@ -97,16 +126,10 @@ impl EpochManager {
     }
     /// Calculate the timestamp for a checkpoint (the start of an epoch)
     pub fn epoch_timestamp(&self, epoch: Epoch) -> EpochResult<i64> {
-        match (self.checkpoint_zero_timestamp, self.checkpoints_period) {
+        match &self.constants {
             // Calculate (period * epoch + zero) with overflow checks
-            (Some(zero), Some(period)) => Epoch::from(period)
-                .checked_mul(epoch)
-                .filter(|&x| x <= Epoch::max_value() as Epoch)
-                .map(i64::from)
-                .and_then(|x| x.checked_add(zero))
-                .ok_or(EpochManagerError::Overflow),
-            (None, _) => Err(EpochManagerError::UnknownEpochZero),
-            (_, None) => Err(EpochManagerError::UnknownCheckpointPeriod),
+            Some(x) => x.epoch_timestamp(epoch),
+            None => Err(EpochManagerError::UnknownEpochConstants),
         }
     }
     /// Method to process the configuration received from the config manager
@@ -114,12 +137,14 @@ impl EpochManager {
         config_mngr::get()
             .into_actor(self)
             .and_then(|config, actor, ctx| {
-                actor.set_checkpoint_zero(config.consensus_constants.checkpoint_zero_timestamp);
-                actor.set_period(config.consensus_constants.checkpoints_period);
+                actor.set_checkpoint_zero_and_period(
+                    config.consensus_constants.checkpoint_zero_timestamp,
+                    config.consensus_constants.checkpoints_period,
+                );
                 info!(
                     "Checkpoint zero timestamp: {}, checkpoints period: {}",
-                    actor.checkpoint_zero_timestamp.unwrap(),
-                    actor.checkpoints_period.unwrap()
+                    actor.constants.as_ref().unwrap().checkpoint_zero_timestamp,
+                    actor.constants.as_ref().unwrap().checkpoints_period,
                 );
 
                 // Start checkpoint monitoring process
@@ -161,7 +186,9 @@ impl EpochManager {
         // Wait until next checkpoint to execute the periodic function
         ctx.run_later(
             self.time_to_next_checkpoint().unwrap_or_else(|_| {
-                Duration::from_secs(u64::from(self.checkpoints_period.unwrap()))
+                Duration::from_secs(u64::from(
+                    self.constants.as_ref().unwrap().checkpoints_period,
+                ))
             }),
             move |act, ctx| {
                 // Get current epoch

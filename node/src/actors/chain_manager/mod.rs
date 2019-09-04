@@ -41,6 +41,7 @@ use log::{debug, error, info, warn};
 
 use crate::{
     actors::{
+        epoch_manager::EpochConstants,
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
         messages::{AddItem, AddTransaction, Broadcast, NewBlock, SendInventoryItem},
@@ -139,6 +140,8 @@ pub struct ChainManager {
     peers_beacons_received: bool,
     /// Consensus parameter (in %)
     consensus_c: u32,
+    /// Constants used to convert between epoch and timestamp
+    epoch_constants: Option<EpochConstants>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry

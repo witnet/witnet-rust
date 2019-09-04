@@ -5,8 +5,7 @@ fn epoch_zero_range() {
     let zero = 1000;
     let period = 90;
     let mut em = EpochManager::default();
-    em.set_checkpoint_zero(zero);
-    em.set_period(period as u16);
+    em.set_checkpoint_zero_and_period(zero, period as u16);
 
     // [1000, 1089] are in epoch 0
     for now in zero..zero + period {
@@ -29,8 +28,7 @@ fn epoch_zero_in_the_future() {
     let now = 999;
     let period = 90;
     let mut em = EpochManager::default();
-    em.set_checkpoint_zero(zero);
-    em.set_period(period);
+    em.set_checkpoint_zero_and_period(zero, period as u16);
 
     assert_eq!(
         em.epoch_at(now),
@@ -42,5 +40,8 @@ fn epoch_zero_in_the_future() {
 fn epoch_unknown() {
     let em = EpochManager::default();
     // By default, the epoch manager doesn't know when the epoch zero started
-    assert_eq!(em.epoch_at(1234), Err(EpochManagerError::UnknownEpochZero));
+    assert_eq!(
+        em.epoch_at(1234),
+        Err(EpochManagerError::UnknownEpochConstants)
+    );
 }

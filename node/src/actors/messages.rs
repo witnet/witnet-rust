@@ -28,6 +28,7 @@ use super::{
     inventory_manager::InventoryManagerError,
     session::Session,
 };
+use crate::actors::epoch_manager::EpochConstants;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CHAIN MANAGER
@@ -238,7 +239,6 @@ pub type EpochResult<T> = Result<T, EpochManagerError>;
 impl Message for GetEpoch {
     type Result = EpochResult<Epoch>;
 }
-
 /// Subscribe
 pub struct Subscribe;
 
@@ -308,6 +308,15 @@ pub struct EpochNotification<T: Send> {
 
     /// Payload for the epoch notification
     pub payload: T,
+}
+
+/// Return a function which can be used to calculate the timestamp for a
+/// checkpoint (the start of an epoch). This assumes that the
+/// checkpoint_zero_timestamp and checkpoints_period constants never change
+pub struct GetEpochConstants;
+
+impl Message for GetEpochConstants {
+    type Result = Option<EpochConstants>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
