@@ -64,6 +64,9 @@ impl Operable for RadonBoolean {
     fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::BooleanNegate, None) => Ok(boolean_operators::negate(&self).into()),
+            (RadonOpCodes::BooleanAsString, None) => boolean_operators::to_string(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_BOOLEAN_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),

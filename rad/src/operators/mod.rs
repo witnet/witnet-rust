@@ -30,7 +30,7 @@ pub enum RadonOpCodes {
     // Boolean operator codes (start at 0x10)
     //    BooleanMatch = 0x10,
     BooleanNegate = 0x11,
-    //    BooleanAsString = 0x12,
+    BooleanAsString = 0x12,
 
     // Integer operator codes (start at 0x20)
     IntegerAbsolute = 0x20,
