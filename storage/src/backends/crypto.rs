@@ -100,6 +100,9 @@ mod tests {
 
         let backend2 = Backend::new(password2, backend1.inner().clone());
 
-        assert!(backend2.get(b"name").is_err());
+        assert_ne!(
+            backend2.get(b"name").unwrap_or(None),
+            Some(b"johnny".to_vec())
+        );
     }
 }
