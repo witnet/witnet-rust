@@ -1,11 +1,28 @@
-use std::borrow::ToOwned;
-
 use serde_cbor::value::{from_value, Value};
+use std::{borrow::ToOwned, convert::TryFrom};
 
 use crate::error::RadError;
 use crate::types::boolean::RadonBoolean;
+use crate::types::bytes::RadonBytes;
 use crate::types::float::RadonFloat;
+use crate::types::string::RadonString;
 use crate::types::RadonType;
+
+pub fn absolute(input: &RadonFloat) -> RadonFloat {
+    RadonFloat::from(input.value().abs())
+}
+
+pub fn to_bytes(input: RadonFloat) -> RadonBytes {
+    RadonBytes::from(Value::Float(input.value()))
+}
+
+pub fn to_string(input: RadonFloat) -> Result<RadonString, RadError> {
+    RadonString::try_from(Value::Text(input.value().to_string()))
+}
+
+pub fn ceiling(input: &RadonFloat) -> RadonFloat {
+    RadonFloat::from(input.value().ceil())
+}
 
 pub fn multiply(input: &RadonFloat, args: &[Value]) -> Result<RadonFloat, RadError> {
     let wrong_args = || RadError::WrongArguments {
@@ -41,4 +58,196 @@ pub fn less_than(input: &RadonFloat, args: &[Value]) -> Result<RadonBoolean, Rad
     let arg = args.first().ok_or_else(wrong_args)?.to_owned();
     let other = from_value::<f64>(arg).map_err(|_| wrong_args())?;
     Ok(RadonBoolean::from(input.value() < other))
+}
+
+pub fn modulo(input: &RadonFloat, args: &[Value]) -> Result<RadonFloat, RadError> {
+    let wrong_args = || RadError::WrongArguments {
+        input_type: RadonFloat::radon_type_name(),
+        operator: "Modulo".to_string(),
+        args: args.to_vec(),
+    };
+
+    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+    let modulo = from_value::<f64>(arg).map_err(|_| wrong_args())?;
+    Ok(RadonFloat::from(input.value() % modulo))
+}
+
+pub fn negate(input: &RadonFloat) -> RadonFloat {
+    RadonFloat::from(-input.value())
+}
+
+pub fn power(input: &RadonFloat, args: &[Value]) -> Result<RadonFloat, RadError> {
+    let wrong_args = || RadError::WrongArguments {
+        input_type: RadonFloat::radon_type_name(),
+        operator: "Power".to_string(),
+        args: args.to_vec(),
+    };
+
+    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+    let exp = from_value::<f64>(arg).map_err(|_| wrong_args())?;
+
+    Ok(RadonFloat::from(input.value().powf(exp)))
+}
+
+pub fn floor(input: &RadonFloat) -> RadonFloat {
+    RadonFloat::from(input.value().floor())
+}
+
+pub fn round(input: &RadonFloat) -> RadonFloat {
+    RadonFloat::from(input.value().round())
+}
+
+pub fn truncate(input: &RadonFloat) -> RadonFloat {
+    RadonFloat::from(input.value().trunc())
+}
+
+#[test]
+fn test_float_absolute() {
+    let positive_integer = RadonFloat::from(10.0);
+    let negative_integer = RadonFloat::from(-10.0);
+
+    assert_eq!(absolute(&positive_integer), positive_integer);
+    assert_eq!(absolute(&negative_integer), positive_integer);
+}
+
+#[test]
+fn test_float_to_string() {
+    let rad_int = RadonFloat::from(10.2);
+    let rad_string: RadonString = RadonString::from("10.2");
+
+    assert_eq!(to_string(rad_int).unwrap(), rad_string);
+}
+
+#[test]
+fn test_float_multiply() {
+    let rad_int = RadonFloat::from(10.0);
+    let value = Value::Float(3.0);
+
+    assert_eq!(
+        multiply(&rad_int, &[value]).unwrap(),
+        RadonFloat::from(30.0)
+    );
+}
+
+#[test]
+fn test_float_greater() {
+    let rad_int = RadonFloat::from(10.0);
+    let value = Value::Float(9.9);
+    let value2 = Value::Float(10.0);
+    let value3 = Value::Float(10.1);
+
+    assert_eq!(
+        greater_than(&rad_int, &[value]).unwrap(),
+        RadonBoolean::from(true)
+    );
+    assert_eq!(
+        greater_than(&rad_int, &[value2]).unwrap(),
+        RadonBoolean::from(false)
+    );
+    assert_eq!(
+        greater_than(&rad_int, &[value3]).unwrap(),
+        RadonBoolean::from(false)
+    );
+}
+
+#[test]
+fn test_float_less() {
+    let rad_int = RadonFloat::from(10.0);
+    let value = Value::Float(9.9);
+    let value2 = Value::Float(10.0);
+    let value3 = Value::Float(10.1);
+
+    assert_eq!(
+        less_than(&rad_int, &[value]).unwrap(),
+        RadonBoolean::from(false)
+    );
+    assert_eq!(
+        less_than(&rad_int, &[value2]).unwrap(),
+        RadonBoolean::from(false)
+    );
+    assert_eq!(
+        less_than(&rad_int, &[value3]).unwrap(),
+        RadonBoolean::from(true)
+    );
+}
+
+#[test]
+fn test_float_negate() {
+    let positive_integer = RadonFloat::from(10.0);
+    let negative_integer = RadonFloat::from(-10.0);
+
+    assert_eq!(negate(&positive_integer), negative_integer);
+    assert_eq!(negate(&negative_integer), positive_integer);
+}
+
+#[test]
+fn test_float_modulo() {
+    assert_eq!(
+        modulo(&RadonFloat::from(5.0), &[Value::Float(3.0)]).unwrap(),
+        RadonFloat::from(2.0)
+    );
+    assert_eq!(
+        modulo(&RadonFloat::from(5.0), &[Value::Float(-3.0)]).unwrap(),
+        RadonFloat::from(2.0)
+    );
+    assert_eq!(
+        modulo(&RadonFloat::from(-5.0), &[Value::Float(3.0)]).unwrap(),
+        RadonFloat::from(-2.0)
+    );
+    assert_eq!(
+        modulo(&RadonFloat::from(-5.0), &[Value::Float(-3.0)]).unwrap(),
+        RadonFloat::from(-2.0)
+    );
+}
+
+#[test]
+fn test_float_power() {
+    let rad_int = RadonFloat::from(10.0);
+    let value = Value::Float(3.0);
+
+    assert_eq!(power(&rad_int, &[value]).unwrap(), RadonFloat::from(1000.0));
+}
+
+#[test]
+fn test_float_ceiling() {
+    let float1 = RadonFloat::from(10.01);
+    let float2 = RadonFloat::from(11.0);
+    let float3 = RadonFloat::from(-10.99);
+
+    assert_eq!(ceiling(&float1), RadonFloat::from(11.0));
+    assert_eq!(ceiling(&float2), RadonFloat::from(11.0));
+    assert_eq!(ceiling(&float3), RadonFloat::from(-10.0));
+}
+
+#[test]
+fn test_float_floor() {
+    let float1 = RadonFloat::from(10.0);
+    let float2 = RadonFloat::from(10.99);
+    let float3 = RadonFloat::from(-10.01);
+
+    assert_eq!(floor(&float1), RadonFloat::from(10.0));
+    assert_eq!(floor(&float2), RadonFloat::from(10.0));
+    assert_eq!(floor(&float3), RadonFloat::from(-11.0));
+}
+
+#[test]
+fn test_float_round() {
+    let float1 = RadonFloat::from(10.49);
+    let float2 = RadonFloat::from(10.5);
+    let float3 = RadonFloat::from(10.51);
+
+    assert_eq!(round(&float1), RadonFloat::from(10.0));
+    assert_eq!(round(&float2), RadonFloat::from(11.0));
+    assert_eq!(round(&float3), RadonFloat::from(11.0));
+}
+
+#[test]
+fn test_float_trunc() {
+    let float1 = RadonFloat::from(10.0);
+    let float2 = RadonFloat::from(10.99);
+    let float3 = RadonFloat::from(-10.01);
+
+    assert_eq!(truncate(&float1), RadonFloat::from(10.0));
+    assert_eq!(truncate(&float2), RadonFloat::from(10.0));
+    assert_eq!(truncate(&float3), RadonFloat::from(-10.0));
 }

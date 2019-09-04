@@ -76,14 +76,48 @@ impl<'a> Operable for RadonFloat {
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::Float(self)),
+            (RadonOpCodes::FloatAbsolute, None) => {
+                Ok(RadonTypes::from(float_operators::absolute(&self)))
+            }
+
+            (RadonOpCodes::FloatAsBytes, None) => {
+                Ok(RadonTypes::from(float_operators::to_bytes(self)))
+            }
+
+            (RadonOpCodes::FloatAsString, None) => float_operators::to_string(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
+            (RadonOpCodes::FloatCeiling, None) => {
+                Ok(RadonTypes::from(float_operators::ceiling(&self)))
+            }
+
             (RadonOpCodes::FloatGreaterThan, Some(args)) => {
                 float_operators::greater_than(&self, args).map(Into::into)
             }
+
             (RadonOpCodes::FloatLessThan, Some(args)) => {
                 float_operators::less_than(&self, args).map(Into::into)
             }
+
             (RadonOpCodes::FloatMultiply, Some(args)) => {
                 float_operators::multiply(&self, args.as_slice()).map(Into::into)
+            }
+
+            (RadonOpCodes::FloatModulo, Some(args)) => {
+                float_operators::modulo(&self, args.as_slice()).map(Into::into)
+            }
+
+            (RadonOpCodes::FloatFloor, None) => Ok(RadonTypes::from(float_operators::floor(&self))),
+
+            (RadonOpCodes::FloatNegate, None) => {
+                Ok(RadonTypes::from(float_operators::negate(&self)))
+            }
+            (RadonOpCodes::FloatPower, Some(args)) => {
+                float_operators::power(&self, args.as_slice()).map(Into::into)
+            }
+            (RadonOpCodes::FloatRound, None) => Ok(RadonTypes::from(float_operators::round(&self))),
+            (RadonOpCodes::FloatTruncate, None) => {
+                Ok(RadonTypes::from(float_operators::truncate(&self)))
             }
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
