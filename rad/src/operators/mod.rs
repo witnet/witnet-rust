@@ -100,7 +100,7 @@ pub enum RadonOpCodes {
     BytesAsArray = 0x70,
     BytesAsBoolean = 0x71,
     BytesAsFloat = 0x72,
-    //    BytesAsInteger = 0x73,
+    BytesAsInteger = 0x73,
     BytesAsMap = 0x74,
     BytesAsString = 0x75,
     //    BytesHash = 0x76,

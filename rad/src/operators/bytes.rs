@@ -4,12 +4,16 @@ use crate::{
     error::RadError,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        map::RadonMap, string::RadonString, RadonType,
+        integer::RadonInteger, map::RadonMap, string::RadonString, RadonType,
     },
 };
 
 pub fn to_float(input: RadonBytes) -> Result<RadonFloat, RadError> {
     RadonFloat::try_from(input.value())
+}
+
+pub fn to_int(input: RadonBytes) -> Result<RadonInteger, RadError> {
+    RadonInteger::try_from(input.value())
 }
 
 pub fn to_map(input: RadonBytes) -> Result<RadonMap, RadError> {
@@ -41,6 +45,22 @@ fn test_as_float() {
     assert_eq!(
         &to_float(radon_bytes_error).unwrap_err().to_string(),
         "Failed to convert string to float with error message: invalid float literal"
+    );
+}
+
+#[test]
+fn test_as_integer() {
+    use serde_cbor::value::Value;
+
+    let radon_int = RadonInteger::from(10);
+    let radon_bytes = RadonBytes::from(Value::try_from(10).unwrap());
+    assert_eq!(to_int(radon_bytes).unwrap(), radon_int);
+
+    let radon_bytes_error =
+        RadonBytes::from(Value::try_from(String::from("Hello world!")).unwrap());
+    assert_eq!(
+        &to_int(radon_bytes_error).unwrap_err().to_string(),
+        "Failed to convert string to int with error message: invalid digit found in string"
     );
 }
 

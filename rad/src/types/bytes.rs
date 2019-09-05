@@ -63,6 +63,10 @@ impl Operable for RadonBytes {
             (RadonOpCodes::BytesAsFloat, None) => bytes_operators::to_float(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
+            // To Integer
+            (RadonOpCodes::BytesAsInteger, None) => bytes_operators::to_int(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
             // To Array
             (RadonOpCodes::BytesAsArray, None) => bytes_operators::to_array(self)
                 .map(RadonTypes::from)
