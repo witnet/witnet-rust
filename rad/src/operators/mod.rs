@@ -97,6 +97,7 @@ pub enum RadonOpCodes {
     /// Flatten a map into an Array containing only the values but not the keys
     MapValues = 0x63,
     // Bytes operator codes (start at 0x70)
+    // TODO: Remove unspecified Bytes struct
     BytesAsArray = 0x70,
     BytesAsBoolean = 0x71,
     BytesAsFloat = 0x72,
