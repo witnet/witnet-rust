@@ -10,7 +10,7 @@ use crate::types::{RadonType, RadonTypes};
 
 pub const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RadonBytes {
     value: Value,
 }

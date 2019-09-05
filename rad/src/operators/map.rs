@@ -35,6 +35,15 @@ pub fn keys(input: &RadonMap) -> RadonArray {
     RadonArray::from(v)
 }
 
+pub fn values(input: &RadonMap) -> RadonArray {
+    let v: Vec<RadonTypes> = input
+        .value()
+        .values()
+        .map(|v| RadonTypes::from(v.clone()))
+        .collect();
+    RadonArray::from(v)
+}
+
 #[test]
 fn test_map_get() {
     use std::collections::HashMap;
@@ -99,4 +108,40 @@ fn test_map_keys() {
             _ => panic!("No RadonString as a key"),
         }
     }
+}
+
+#[test]
+fn test_map_values() {
+    use std::collections::HashMap;
+    use std::convert::TryFrom;
+
+    let key0 = "Zero";
+    let value0 = RadonBytes::from(Value::try_from(0).unwrap());
+    let key1 = "One";
+    let value1 = RadonBytes::from(Value::try_from(1).unwrap());
+    let key2 = "Two";
+    let value2 = RadonBytes::from(Value::try_from(2).unwrap());
+
+    let mut map = HashMap::new();
+    map.insert(key0.to_string(), value0.clone());
+    map.insert(key1.to_string(), value1.clone());
+    map.insert(key2.to_string(), value2.clone());
+
+    let input = RadonMap::from(map.clone());
+    let values = values(&input);
+
+    let mut vec1 = [value0, value1, value2].to_vec();
+    let mut vec2: Vec<RadonBytes> = values
+        .value()
+        .into_iter()
+        .map(|x| match x {
+            RadonTypes::Bytes(y) => y,
+            _ => panic!("No RadonBytes as a value"),
+        })
+        .collect();
+
+    vec1.sort();
+    vec2.sort();
+
+    assert_eq!(vec1, vec2);
 }
