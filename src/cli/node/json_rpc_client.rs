@@ -9,8 +9,10 @@ use std::{
 use failure::Fail;
 use serde::Deserialize;
 
+use itertools::Itertools;
+use std::collections::HashMap;
 use witnet_data_structures::chain::{
-    Environment, OutputPointer, PublicKeyHash, ValueTransferOutput,
+    Environment, OutputPointer, PublicKeyHash, Reputation, ValueTransferOutput,
 };
 use witnet_node::actors::{json_rpc::json_rpc_methods::GetBlockChainParams, messages::BuildVtt};
 
@@ -94,6 +96,60 @@ pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
     println!("{}", pkh);
     println!("Testnet address: {}", pkh.bech32(Environment::Testnet1));
     println!("Mainnet address: {}", pkh.bech32(Environment::Mainnet));
+
+    Ok(())
+}
+
+pub fn get_reputation(
+    addr: SocketAddr,
+    pkh: Option<PublicKeyHash>,
+    all: bool,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    if all {
+        let request = r#"{"jsonrpc": "2.0","method": "getReputationAll", "id": "1"}"#;
+        let response = send_request(&mut stream, &request)?;
+        let rep_map = parse_response::<HashMap<PublicKeyHash, (Reputation, bool)>>(&response)?;
+        println!("Total Reputation: {{");
+        for (pkh, (rep, active)) in rep_map
+            .into_iter()
+            .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
+        {
+            let active = if active { 'A' } else { ' ' };
+            println!("    [{}] {}: {}", active, pkh, rep.0);
+        }
+        println!("}}");
+        return Ok(());
+    }
+
+    let pkh = match pkh {
+        Some(pkh) => pkh,
+        None => {
+            log::info!("No pkh specified, will default to node pkh");
+            let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
+            let response = send_request(&mut stream, &request)?;
+            let node_pkh = parse_response::<PublicKeyHash>(&response)?;
+            log::info!("Node pkh: {}", node_pkh);
+
+            node_pkh
+        }
+    };
+
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "getReputation", "params": [{}], "id": "1"}}"#,
+        serde_json::to_string(&pkh)?,
+    );
+    let response = send_request(&mut stream, &request)?;
+    log::info!("{}", response);
+    let (amount, active) = parse_response::<(Reputation, bool)>(&response)?;
+
+    println!(
+        "Identity {} has {} reputation and is {}",
+        pkh,
+        amount.0,
+        if active { "active" } else { "not active" }
+    );
 
     Ok(())
 }

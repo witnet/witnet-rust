@@ -21,6 +21,9 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), pkh)
         }
         Command::GetPkh { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
+        Command::GetReputation { node, pkh, all } => {
+            rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), pkh, all)
+        }
         Command::Output { node, pointer } => {
             rpc::get_output(node.unwrap_or(config.jsonrpc.server_address), pointer)
         }
@@ -103,7 +106,7 @@ pub enum Command {
         #[structopt(name = "hash", help = "SHA-256 block hash in hex format")]
         hash: String,
     },
-    #[structopt(name = "getBalance", about = "Get total balance of the node")]
+    #[structopt(name = "getBalance", about = "Get total balance of the given accout")]
     GetBalance {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
@@ -117,6 +120,21 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
+    },
+    #[structopt(
+        name = "getReputation",
+        about = "Get the reputation of the given account"
+    )]
+    GetReputation {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Public key hash for which to get reputation. If omitted, defaults to the node pkh.
+        #[structopt(long = "pkh")]
+        pkh: Option<PublicKeyHash>,
+        /// Print all the reputation?
+        #[structopt(long = "all", conflicts_with = "pkh")]
+        all: bool,
     },
     #[structopt(name = "output", about = "Find an output of a transaction ")]
     Output {
