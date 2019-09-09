@@ -27,12 +27,16 @@ impl Actor for PeersManager {
 
                 // Get server address
                 let server_addr = config.connections.server_addr;
+                act.peers.set_server(server_addr);
 
                 // Get bucketing update period
                 act.bucketing_update_period = config.connections.bucketing_update_period;
 
                 // Get handshake time_out
                 act.handshake_timeout = config.connections.handshake_timeout;
+
+                // Get feeler period
+                let feeler_peers_period = config.connections.feeler_peers_period;
 
                 // Add all peers
                 info!(
@@ -47,7 +51,7 @@ impl Actor for PeersManager {
                 storage_mngr::get::<_, Peers>(&PEERS_KEY)
                     .into_actor(act)
                     .map_err(|e, _, _| error!("Couldn't get peers from storage: {}", e))
-                    .and_then(move |peers_from_storage, act, _| {
+                    .and_then(move |peers_from_storage, act, _ctx| {
                         // peers_from_storage can be None if the storage does not contain that key
                         if let Some(peers_from_storage) = peers_from_storage {
                             // Add all the peers from storage
@@ -61,6 +65,9 @@ impl Actor for PeersManager {
 
                 // Start the storage peers process on SessionsManager start
                 act.persist_peers(ctx, storage_peers_period);
+
+                // Start the feeleer peers process on SessionsManager start
+                act.feeler(ctx, feeler_peers_period);
 
                 fut::ok(())
             })

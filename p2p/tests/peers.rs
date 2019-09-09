@@ -54,7 +54,7 @@ fn p2p_peers_add_to_tried() {
 }
 
 #[test]
-fn p2p_peers_remove() {
+fn p2p_peers_remove_from_tried() {
     // Create peers struct
     let mut peers = Peers::default();
 
@@ -73,6 +73,31 @@ fn p2p_peers_remove() {
 
     // Remove the same address twice doesn't panic
     assert_eq!(peers.remove_from_tried(&[address, address]), vec![]);
+}
+
+#[test]
+fn p2p_peers_remove_from_new_with_index() {
+    // Create peers struct
+    let mut peers = Peers::default();
+
+    // Add address
+    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
+    let src_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(168, 0, 0, 12)), 8080);
+    peers.add_to_new(vec![address], src_address).unwrap();
+
+    let index = peers.new_bucket_index(&address, &src_address);
+
+    // Remove address
+    assert_eq!(peers.remove_from_new_with_index(&[index]), vec![address]);
+
+    // Get a random address
+    let result = peers.get_random();
+
+    // Check that both addresses are the same
+    assert_eq!(result.unwrap(), None);
+
+    // Remove the same address twice doesn't panic
+    assert_eq!(peers.remove_from_new_with_index(&[index]), vec![]);
 }
 
 #[test]

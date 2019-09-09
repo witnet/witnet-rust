@@ -60,6 +60,12 @@ pub trait Defaults {
         Duration::from_secs(30)
     }
 
+    /// Default period for trying connecting to recently discovered peer addresses
+    /// in search for quality peers
+    fn connections_feeler_peers_period(&self) -> Duration {
+        Duration::from_secs(2)
+    }
+
     /// Default handshake timeout
     fn connections_handshake_timeout(&self) -> Duration {
         Duration::from_secs(5)

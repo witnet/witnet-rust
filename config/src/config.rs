@@ -179,6 +179,14 @@ pub struct Connections {
     ))]
     pub discovery_peers_period: Duration,
 
+    /// Period of the feeler task (try_peer)
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "feeler_peers_period_seconds"
+    ))]
+    pub feeler_peers_period: Duration,
+
     /// Handshake timeout
     #[partial_struct(serde(
         default,
@@ -406,6 +414,10 @@ impl Connections {
                 .discovery_peers_period
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_discovery_peers_period()),
+            feeler_peers_period: config
+                .feeler_peers_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_feeler_peers_period()),
             handshake_timeout: config
                 .handshake_timeout
                 .unwrap_or_else(|| defaults.connections_handshake_timeout()),
@@ -674,6 +686,7 @@ mod tests {
             bootstrap_peers_period: Some(Duration::from_secs(10)),
             storage_peers_period: Some(Duration::from_secs(60)),
             discovery_peers_period: Some(Duration::from_secs(100)),
+            feeler_peers_period: Some(Duration::from_secs(1)),
             handshake_timeout: Some(Duration::from_secs(3)),
             blocks_timeout: Some(5),
             consensus_c: Some(51),
@@ -688,6 +701,7 @@ mod tests {
         assert_eq!(config.bootstrap_peers_period, Duration::from_secs(10));
         assert_eq!(config.storage_peers_period, Duration::from_secs(60));
         assert_eq!(config.discovery_peers_period, Duration::from_secs(100));
+        assert_eq!(config.feeler_peers_period, Duration::from_secs(1));
         assert_eq!(config.handshake_timeout, Duration::from_secs(3));
         assert_eq!(config.blocks_timeout, 5);
         assert_eq!(config.consensus_c, 51);
@@ -747,6 +761,10 @@ mod tests {
         assert_eq!(
             config.connections.discovery_peers_period,
             Testnet3.connections_discovery_peers_period()
+        );
+        assert_eq!(
+            config.connections.feeler_peers_period,
+            Testnet3.connections_feeler_peers_period()
         );
         assert_eq!(
             config.connections.handshake_timeout,

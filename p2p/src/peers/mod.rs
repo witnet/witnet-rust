@@ -158,6 +158,16 @@ impl Peers {
             .collect()
     }
 
+    /// Remove a peer given an index from new addresses bucket
+    /// Returns the removed addresses
+    pub fn remove_from_new_with_index(&mut self, indexes: &[u16]) -> Vec<SocketAddr> {
+        indexes
+            .iter()
+            .filter_map(|index| self.new_bucket.remove(&index))
+            .map(|info| info.address)
+            .collect()
+    }
+
     /// Get a random socket address from the peers list
     pub fn get_random(&self) -> Result<Option<SocketAddr>, failure::Error> {
         let bucket = match (self.new_bucket.is_empty(), self.tried_bucket.is_empty()) {
@@ -177,6 +187,21 @@ impl Peers {
         let index = thread_rng().gen_range(0, bucket.len());
 
         Ok(bucket.values().nth(index).map(|v| v.address.to_owned()))
+    }
+
+    /// Get a random socket address from the new peers list
+    pub fn get_new_random(&self) -> Option<(u16, SocketAddr)> {
+        if self.new_bucket.is_empty() {
+            return None;
+        }
+
+        // Random index with range [0, len) of the peers vector
+        let index = thread_rng().gen_range(0, self.new_bucket.len());
+
+        self.new_bucket
+            .iter()
+            .nth(index)
+            .map(|(k, v)| (*k, v.address.to_owned()))
     }
 
     /// Get all the peers from the tried bucket
