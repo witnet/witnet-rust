@@ -179,7 +179,48 @@ Response:
 {"jsonrpc":"2.0","result":"121747ea4a2103b38b7213ac6d67e949add96cfb","id":1}
 ```
 
-#### sendRequest
+#### getReputation
+Get the reputation of the given public key hash.
+
+Returns a tuple of `(Reputation, bool)`, where `Reputation` is a `u32` and the boolean
+indicates whether this identity is active.
+
+Example:
+
+```
+{"jsonrpc":"2.0","id":1,"method":"getReputation","params":["32a2e5a644bebf5f7c8ee8b299047160154f9201"]}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":[1,true],"id":1}
+```
+
+In this case, the identity `32a2e5a644bebf5f7c8ee8b299047160154f9201` has 1 reputation
+point and is active.
+
+#### getReputationAll
+Get the reputation of all the identities in the system.
+
+Returns a map of `PublicKeyHash => (Reputation, bool)`, where `Reputation` is a `u32` and the boolean
+indicates whether this identity is active.
+
+Example:
+
+```
+{"jsonrpc":"2.0","id":1,"method":"getReputationAll"}
+```
+
+Response:
+
+```
+{"jsonrpc":"2.0","result":{"32a2e5a644bebf5f7c8ee8b299047160154f9201":[1,true],"b8b7e97172e888a25cb3f277d045ed32696d0491":[1,true]},"id":1}
+```
+
+In this case, there are two identities with 1 reputation point each, and both are active.
+
+### sendRequest
 Create and broadcast a data request transaction with the given `DataRequestOutput` and fee.
 
 Returns the transaction `Hash`, or an error.
