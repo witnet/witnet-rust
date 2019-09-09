@@ -269,6 +269,8 @@ Returns an object containing some information about the node:
 * Chain beacon (current epoch and hash of the previous block)
 * Number of inbound and outbound peers
 * Is the node fully synchronized?
+* How many active identities are there in the system?
+* What is the total active reputation?
 
 ```json
 {
@@ -278,7 +280,9 @@ Returns an object containing some information about the node:
   },
   "numPeersInbound": 1,
   "numPeersOutbound": 1,
-  "synchronized": true
+  "synchronized": true,
+  "numActiveIdentities": 2,
+  "totalActiveReputation": 2,
 }
 ```
 
@@ -291,7 +295,7 @@ Example:
 Response:
 
 ```
-{"jsonrpc":"2.0","result":{"chainBeacon":{"checkpoint":576448,"hashPrevBlock":"eb1a106824538b226454423d7e988b0ec72ce74b9b28f5d0252de2381d41d405"},"numPeersInbound":1,"numPeersOutbound":1,"synchronized":true},"id":1}
+{"jsonrpc":"2.0","result":{"chainBeacon":{"checkpoint":33559,"hashPrevBlock":"04b362872b4b47c40c120982c8c89c75d422e5ccb0adbc8643a7f0b44c6495eb"},"numActiveIdentities":2,"numPeersInbound":2,"numPeersOutbound":1,"synchronized":true,"totalActiveReputation":2},"id":1}
 ```
 
 [json_rpc_server]: https://github.com/witnet/witnet-rust/blob/master/node/src/actors/json_rpc/server.rs
