@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt,
     fmt::Debug,
     marker::Send,
@@ -13,7 +14,7 @@ use tokio::net::TcpStream;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, PublicKeyHash, RADConsensus, RADRequest,
+        InventoryEntry, InventoryItem, PublicKeyHash, RADConsensus, RADRequest, Reputation,
         ValueTransferOutput,
     },
     transaction::Transaction,
@@ -196,6 +197,41 @@ pub struct GetBalance {
 
 impl Message for GetBalance {
     type Result = Result<u64, failure::Error>;
+}
+
+/// Get Reputation of one pkh
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetReputation {
+    /// Public key hash
+    pub pkh: PublicKeyHash,
+}
+
+impl Message for GetReputation {
+    type Result = Result<(Reputation, bool), failure::Error>;
+}
+
+/// Get all reputation from all identities
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetReputationAll;
+
+impl Message for GetReputationAll {
+    type Result = Result<HashMap<PublicKeyHash, (Reputation, bool)>, failure::Error>;
+}
+
+/// Get Reputation status: number of active identities and total active reputation
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetReputationStatus;
+
+/// Number of active identities and total active reputation
+pub struct GetReputationStatusResult {
+    /// Number of active identities
+    pub num_active_identities: u32,
+    /// Total active reputation
+    pub total_active_reputation: Reputation,
+}
+
+impl Message for GetReputationStatus {
+    type Result = Result<GetReputationStatusResult, failure::Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

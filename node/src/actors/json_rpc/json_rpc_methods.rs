@@ -13,32 +13,31 @@ use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
 use witnet_data_structures::{
-    chain::{self, Block, CheckpointBeacon, Hash},
+    chain::{self, Block, CheckpointBeacon, Hash, PublicKeyHash, Reputation},
     transaction::Transaction,
     vrf::VrfMessage,
 };
-
-use crate::actors::{
-    chain_manager::{ChainManager, ChainManagerError},
-    epoch_manager::EpochManager,
-    inventory_manager::InventoryManager,
-    messages::{
-        AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBlocksEpochRange, GetEpoch, GetItem,
-        GetState, NumSessions,
-    },
-    sessions_manager::SessionsManager,
-};
-use crate::signature_mngr;
 
 //use std::str::FromStr;
 use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::System;
-use crate::actors::chain_manager::StateMachine;
-use crate::actors::messages::{GetBalance, GetDataRequestReport, GetHighestCheckpointBeacon};
+use crate::{
+    actors::{
+        chain_manager::{ChainManager, ChainManagerError, StateMachine},
+        epoch_manager::EpochManager,
+        inventory_manager::InventoryManager,
+        messages::{
+            AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
+            GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon, GetItem, GetReputation,
+            GetReputationAll, GetReputationStatus, GetState, NumSessions,
+        },
+        sessions_manager::SessionsManager,
+    },
+    signature_mngr,
+};
 use futures::future;
-use witnet_data_structures::chain::PublicKeyHash;
 
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
 
@@ -64,6 +63,10 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
         data_request_report(params.parse())
     });
     io.add_method("getBalance", |params: Params| get_balance(params.parse()));
+    io.add_method("getReputation", |params: Params| {
+        get_reputation(params.parse())
+    });
+    io.add_method("getReputationAll", |_params: Params| get_reputation_all());
 
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -510,6 +513,8 @@ pub struct Status {
     synchronized: bool,
     num_peers_inbound: u32,
     num_peers_outbound: u32,
+    num_active_identities: u32,
+    total_active_reputation: Reputation,
 }
 
 /// Get node status
@@ -517,43 +522,59 @@ pub fn status() -> JsonRpcResultAsync {
     let chain_manager = ChainManager::from_registry();
     let sessions_manager = SessionsManager::from_registry();
 
-    let synchronized_fut =
-        chain_manager
-            .send(GetState)
-            .map_err(internal_error)
-            .then(|res| match res {
-                Ok(Ok(StateMachine::Synced)) => Ok(true),
-                Ok(Ok(..)) => Ok(false),
-                Ok(Err(())) => Err(internal_error(())),
-                Err(e) => Err(internal_error(e)),
-            });
+    let synchronized_fut = chain_manager
+        .send(GetState)
+        .map_err(internal_error_s)
+        .then(|res| match res {
+            Ok(Ok(StateMachine::Synced)) => Ok(true),
+            Ok(Ok(..)) => Ok(false),
+            Ok(Err(())) => Err(internal_error(())),
+            Err(e) => Err(internal_error(e)),
+        });
     let num_peers_fut = sessions_manager.send(NumSessions).then(|res| match res {
         Ok(Ok(res)) => Ok(res),
         Ok(Err(())) => Err(internal_error(())),
-        Err(e) => Err(internal_error(e)),
+        Err(e) => Err(internal_error_s(e)),
     });
     let chain_beacon_fut = chain_manager
         .send(GetHighestCheckpointBeacon)
         .then(|res| match res {
             Ok(Ok(x)) => Ok(x),
-            Ok(Err(e)) => Err(internal_error(e)),
-            Err(e) => Err(internal_error(e)),
+            Ok(Err(e)) => Err(internal_error_s(e)),
+            Err(e) => Err(internal_error_s(e)),
         });
 
-    let j = Future::join3(synchronized_fut, num_peers_fut, chain_beacon_fut)
-        .map(|(synchronized, num_peers, chain_beacon)| Status {
+    let reputation_fut = chain_manager
+        .send(GetReputationStatus)
+        .then(|res| match res {
+            Ok(Ok(x)) => Ok(x),
+            Ok(Err(e)) => Err(internal_error_s(e)),
+            Err(e) => Err(internal_error_s(e)),
+        });
+
+    let j = Future::join4(
+        synchronized_fut,
+        num_peers_fut,
+        chain_beacon_fut,
+        reputation_fut,
+    )
+    .map(
+        |(synchronized, num_peers, chain_beacon, reputation_status)| Status {
             synchronized,
             num_peers_inbound: num_peers.inbound as u32,
             num_peers_outbound: num_peers.outbound as u32,
             chain_beacon,
-        })
-        .and_then(|res| match serde_json::to_value(res) {
-            Ok(x) => futures::finished(x),
-            Err(e) => {
-                let err = internal_error(e);
-                futures::failed(err)
-            }
-        });
+            num_active_identities: reputation_status.num_active_identities,
+            total_active_reputation: reputation_status.total_active_reputation,
+        },
+    )
+    .and_then(|res| match serde_json::to_value(res) {
+        Ok(x) => futures::finished(x),
+        Err(e) => {
+            let err = internal_error_s(e);
+            futures::failed(err)
+        }
+    });
 
     Box::new(j)
 }
@@ -657,6 +678,53 @@ pub fn get_balance(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> Jso
 
     let fut = chain_manager_addr
         .send(GetBalance { pkh })
+        .map_err(internal_error)
+        .and_then(|dr_info| match dr_info {
+            Ok(x) => match serde_json::to_value(&x) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            },
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
+/// Get Reputation of one pkh
+pub fn get_reputation(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let pkh = match params {
+        Ok(x) => x.0,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+
+    let fut = chain_manager_addr
+        .send(GetReputation { pkh })
+        .map_err(internal_error)
+        .and_then(|dr_info| match dr_info {
+            Ok(x) => match serde_json::to_value(&x) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            },
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
+/// Get all reputation from all identities
+pub fn get_reputation_all() -> JsonRpcResultAsync {
+    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+
+    let fut = chain_manager_addr
+        .send(GetReputationAll)
         .map_err(internal_error)
         .and_then(|dr_info| match dr_info {
             Ok(x) => match serde_json::to_value(&x) {

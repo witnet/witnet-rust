@@ -1,12 +1,12 @@
 use actix::{fut::WrapFuture, prelude::*};
 use futures::Future;
 use log;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashMap};
 
 use witnet_data_structures::{
     chain::{
         ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch, Hash, Hashable,
-        InventoryItem, PublicKeyHash,
+        InventoryItem, PublicKeyHash, Reputation,
     },
     error::{ChainInfoError, TransactionError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -17,14 +17,14 @@ use witnet_validations::validations::{
 };
 
 use super::{ChainManager, ChainManagerError, StateMachine};
-use crate::actors::messages::{GetBalance, GetDataRequestReport};
 use crate::{
     actors::{
         chain_manager::transaction_factory,
         messages::{
             AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, BuildDrt, BuildVtt,
-            EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetState,
-            PeersBeacons, SendLastBeacon, SessionUnitResult,
+            EpochNotification, GetBalance, GetBlocksEpochRange, GetDataRequestReport,
+            GetHighestCheckpointBeacon, GetReputation, GetReputationAll, GetReputationStatus,
+            GetReputationStatusResult, GetState, PeersBeacons, SendLastBeacon, SessionUnitResult,
         },
         sessions_manager::SessionsManager,
     },
@@ -876,5 +876,69 @@ impl Handler<GetBalance> for ChainManager {
             &self.chain_state.unspent_outputs_pool,
             pkh,
         ))
+    }
+}
+
+impl Handler<GetReputation> for ChainManager {
+    type Result = Result<(Reputation, bool), failure::Error>;
+
+    fn handle(
+        &mut self,
+        GetReputation { pkh }: GetReputation,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            Err(ChainManagerError::NotSynced)?;
+        }
+
+        let rep_eng = match self.chain_state.reputation_engine.as_ref() {
+            Some(x) => x,
+            None => Err(ChainManagerError::ChainNotReady)?,
+        };
+
+        Ok((rep_eng.trs.get(&pkh), rep_eng.ars.contains(&pkh)))
+    }
+}
+
+impl Handler<GetReputationAll> for ChainManager {
+    type Result = Result<HashMap<PublicKeyHash, (Reputation, bool)>, failure::Error>;
+
+    fn handle(&mut self, _msg: GetReputationAll, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            Err(ChainManagerError::NotSynced)?;
+        }
+
+        let rep_eng = match self.chain_state.reputation_engine.as_ref() {
+            Some(x) => x,
+            None => Err(ChainManagerError::ChainNotReady)?,
+        };
+
+        Ok(rep_eng
+            .trs
+            .identities()
+            .map(|(k, v)| (*k, (*v, rep_eng.ars.contains(k))))
+            .collect())
+    }
+}
+impl Handler<GetReputationStatus> for ChainManager {
+    type Result = Result<GetReputationStatusResult, failure::Error>;
+
+    fn handle(&mut self, _msg: GetReputationStatus, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            Err(ChainManagerError::NotSynced)?;
+        }
+
+        let rep_eng = match self.chain_state.reputation_engine.as_ref() {
+            Some(x) => x,
+            None => Err(ChainManagerError::ChainNotReady)?,
+        };
+
+        let num_active_identities = rep_eng.ars.active_identities_number() as u32;
+        let total_active_reputation = rep_eng.trs.get_sum(rep_eng.ars.active_identities());
+
+        Ok(GetReputationStatusResult {
+            num_active_identities,
+            total_active_reputation,
+        })
     }
 }
