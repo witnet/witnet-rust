@@ -6,6 +6,8 @@ use witnet_p2p::peers::*;
 fn p2p_peers_add_to_new() {
     // Create peers struct
     let mut peers = Peers::default();
+    let server = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 2, 20)), 8080);
+    peers.set_server(server);
 
     // Add address
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
@@ -79,6 +81,8 @@ fn p2p_peers_remove_from_tried() {
 fn p2p_peers_remove_from_new_with_index() {
     // Create peers struct
     let mut peers = Peers::default();
+    let server = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 2, 20)), 8080);
+    peers.set_server(server);
 
     // Add address
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
@@ -104,6 +108,8 @@ fn p2p_peers_remove_from_new_with_index() {
 fn p2p_peers_get_all_from_new() {
     // Create peers struct
     let mut peers = Peers::default();
+    let server = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 2, 20)), 8080);
+    peers.set_server(server);
 
     // Add 100 addresses
     let many_peers: Vec<_> = (0..100)
@@ -129,4 +135,17 @@ fn p2p_peers_get_all_from_tried() {
 
     assert!(peers.get_all_from_new().unwrap().is_empty());
     assert!(!peers.get_all_from_tried().unwrap().is_empty());
+}
+
+#[test]
+fn p2p_add_2_peers_in_collision() {
+    // Create peers struct
+    let mut peers = Peers::default();
+
+    let peer1 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21305);
+    let peer2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21306);
+    peers.add_to_tried(peer1).unwrap();
+    peers.add_to_tried(peer2).unwrap();
+
+    assert_eq!(peers.get_all_from_tried().unwrap().len(), 1);
 }
