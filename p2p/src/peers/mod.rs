@@ -23,6 +23,8 @@ pub struct Peers {
     new_bucket: HashMap<u16, PeerInfo>,
     /// Nonce value
     sk: u64,
+    /// Server SocketAddress
+    server_address: Option<SocketAddr>,
 }
 
 impl Peers {
@@ -32,7 +34,13 @@ impl Peers {
             sk: thread_rng().gen(),
             tried_bucket: HashMap::new(),
             new_bucket: HashMap::new(),
+            server_address: None,
         }
+    }
+
+    /// Set server address
+    pub fn set_server(&mut self, server: SocketAddr) {
+        self.server_address = Some(server);
     }
 
     /// Algorithm to calculate index for the new addresses buckets
@@ -80,6 +88,15 @@ impl Peers {
         self.tried_bucket.get(&index).map(|p| p.address)
     }
 
+    /// Returns true if the address is the server address
+    pub fn is_server_address(&self, addr: &SocketAddr) -> Option<bool> {
+        if let Some(server) = self.server_address {
+            Some(server == *addr)
+        } else {
+            None
+        }
+    }
+
     /// Add multiple peer addresses and save timestamp in the new addresses bucket
     /// If an address did already exist, it gets overwritten
     /// Returns all the overwritten addresses
@@ -92,9 +109,24 @@ impl Peers {
         // Note: if the peer address exists, the peer info will be overwritten
         let result = addrs
             .into_iter()
-            // Filter out unspecified addresses (aka 0.0.0.0)
-            .filter(|address| !address.ip().is_unspecified())
             .filter_map(|address| {
+                // Filter out unspecified addresses (aka 0.0.0.0), and the server address
+                if address.ip().is_unspecified()
+                    || self.is_server_address(&address).is_none()
+                    || self.is_server_address(&address).unwrap()
+                {
+                    return None;
+                }
+
+                let index = self.tried_bucket_index(&address);
+                let elem = self.tried_bucket.get(&index);
+
+                // If the index point to the same address that it is already
+                // in tried, we don't include in new bucket
+                if elem.is_some() && (elem.unwrap().address == address) {
+                    return None;
+                }
+
                 let index = self.new_bucket_index(&address, &src_address);
 
                 self.new_bucket
