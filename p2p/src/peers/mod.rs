@@ -1,8 +1,9 @@
 //! Library for managing a list of available peers
 
+use log;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, net::SocketAddr};
+use std::{collections::HashMap, fmt, net::SocketAddr};
 
 use witnet_crypto::hash::calculate_sha256;
 use witnet_util::timestamp::get_timestamp;
@@ -141,6 +142,8 @@ impl Peers {
             })
             .collect();
 
+        log::trace!("Added new peers: \n{}", self);
+
         Ok(result)
     }
 
@@ -168,13 +171,15 @@ impl Peers {
             None
         };
 
+        log::trace!("Added a tried peer: \n{}", self);
+
         Ok(result)
     }
 
     /// Remove a peer given an address from tried addresses bucket
     /// Returns the removed addresses
     pub fn remove_from_tried(&mut self, addrs: &[SocketAddr]) -> Vec<SocketAddr> {
-        addrs
+        let v = addrs
             .iter()
             .filter_map(|address| {
                 let index = self.tried_bucket_index(&address);
@@ -187,17 +192,25 @@ impl Peers {
                 }
             })
             .map(|info| info.address)
-            .collect()
+            .collect();
+
+        log::trace!("Removed a tried peer: \n{}", self);
+
+        v
     }
 
     /// Remove a peer given an index from new addresses bucket
     /// Returns the removed addresses
     pub fn remove_from_new_with_index(&mut self, indexes: &[u16]) -> Vec<SocketAddr> {
-        indexes
+        let v = indexes
             .iter()
             .filter_map(|index| self.new_bucket.remove(&index))
             .map(|info| info.address)
-            .collect()
+            .collect();
+
+        log::trace!("Removed new peers: \n{}", self);
+
+        v
     }
 
     /// Get a random socket address from the peers list
@@ -249,11 +262,37 @@ impl Peers {
     /// Clear tried addresses bucket
     pub fn clear_tried_bucket(&mut self) {
         self.tried_bucket.clear();
+
+        log::trace!("Cleared tried bucket: \n{}", self);
     }
 
     /// Clear new addresses bucket
     pub fn clear_new_bucket(&mut self) {
         self.new_bucket.clear();
+
+        log::trace!("Cleared new bucket: \n{}", self);
+    }
+}
+
+impl fmt::Display for Peers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f)?;
+        writeln!(f, "--------------")?;
+        writeln!(f, "New Peers List")?;
+        writeln!(f, "--------------")?;
+
+        for p in self.new_bucket.values() {
+            writeln!(f, "> {}", p.address)?;
+        }
+
+        writeln!(f, "----------------")?;
+        writeln!(f, "Tried Peers List")?;
+        writeln!(f, "----------------")?;
+
+        for p in self.tried_bucket.values() {
+            writeln!(f, "> {}", p.address)?;
+        }
+        writeln!(f)
     }
 }
 

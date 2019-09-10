@@ -11,6 +11,7 @@ failure = "0.1.5"
 rand = "0.6.5"
 witnet_util = { path = "../util" }
 witnet_crypto = { path = "../crypto" }
+log = "0.4.6"
 
 [dependencies.serde]
 features = ["derive"]
