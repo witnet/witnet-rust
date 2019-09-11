@@ -11,7 +11,7 @@ use serde_cbor::value::{from_value, Value};
 pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonBytes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonMap::radon_type_name(),
-        operator: "Multiply".to_string(),
+        operator: "Get".to_string(),
         args: args.to_vec(),
     };
     let not_found = |key: String| RadError::MapKeyNotFound { key };
