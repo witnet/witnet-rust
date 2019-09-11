@@ -64,9 +64,20 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     let system = System::new("witnet-wallet");
 
+    let node_jsonrpc_server_address = conf.jsonrpc.server_address;
     let client = node_url.clone().map_or_else(
-        || Ok(None),
-        |url| JsonRpcClient::start(url.as_ref()).map(Some),
+        || {
+            log::error!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
+                        [wallet]\n\
+                        node_url = \"{}\"\n", node_jsonrpc_server_address);
+            Ok(None)
+        },
+        |url| {
+            if url != node_jsonrpc_server_address.to_string() {
+                log::warn!("The local Witnet node JSON-RPC server is configured to listen at {} but the wallet will connect to {}", node_jsonrpc_server_address, url);
+            }
+            JsonRpcClient::start(url.as_ref()).map(Some)
+        },
     )?;
 
     let db = Arc::new(
