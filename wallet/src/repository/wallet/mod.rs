@@ -583,6 +583,13 @@ where
 
         Ok(address)
     }
+
+    /// Get previously created Value Transfer Transaction by its hash.
+    pub fn get_vtt(&self, transaction_hash: &str) -> Result<types::Transaction> {
+        let vtt = self.db.get(&keys::vtt(transaction_hash))?;
+
+        Ok(vtt)
+    }
 }
 
 #[cfg(test)]

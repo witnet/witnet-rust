@@ -4,6 +4,8 @@ use futures::future;
 use super::*;
 use crate::actors::*;
 use crate::{model, repository, types::Hashable as _};
+use actix::fut::Either;
+use witnet_data_structures::chain::InventoryItem;
 
 impl App {
     pub fn start(params: Params) -> Addr<Self> {
@@ -398,5 +400,58 @@ impl App {
         }
 
         Ok(())
+    }
+
+    pub fn send_vtt(
+        &self,
+        session_id: &types::SessionId,
+        wallet_id: &str,
+        transaction_hash: String,
+    ) -> ResponseActFuture<bool> {
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
+            move |wallet, slf: &mut Self, _| {
+                slf.params
+                    .worker
+                    .send(worker::GetVtt(wallet, transaction_hash))
+                    .flatten()
+                    .map_err(|err| match err {
+                        err => From::from(err),
+                    })
+                    .into_actor(slf)
+                    .and_then(|vtt, act, _ctx| {
+                        // Send transaction to witnet using inventory method
+                        let method = "inventory".to_string();
+                        let params = InventoryItem::Transaction(vtt);
+
+                        match &act.params.client {
+                            Some(addr) => {
+                                let req = types::RpcRequest::method(method)
+                                    .timeout(act.params.requests_timeout)
+                                    .params(params)
+                                    .expect("params failed serialization");
+                                let f = addr
+                                    .send(req)
+                                    .flatten()
+                                    .map_err(From::from)
+                                    .map(|res| {
+                                        log::debug!("inventory: {:?}", res);
+
+                                        serde_json::from_value(res).unwrap_or(false)
+                                    })
+                                    .into_actor(act);
+
+                                Box::new(Either::A(f))
+                            }
+                            None => {
+                                let f = future::err(Error::NodeNotConnected).into_actor(act);
+
+                                Box::new(Either::B(f))
+                            }
+                        }
+                    })
+            },
+        );
+
+        Box::new(f)
     }
 }

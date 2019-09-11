@@ -238,4 +238,14 @@ impl Worker {
 
         Ok(txn)
     }
+
+    pub fn get_vtt(
+        &self,
+        wallet: &types::Wallet,
+        transaction_id: String,
+    ) -> Result<types::Transaction> {
+        let vtt = wallet.get_vtt(&transaction_id)?;
+
+        Ok(vtt)
+    }
 }
