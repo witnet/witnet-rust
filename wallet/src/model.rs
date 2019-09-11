@@ -118,7 +118,7 @@ impl From<&types::OutputPointer> for OutPtr {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KeyBalance {
     /// PKH receiving this balance
-    pub pkh: Vec<u8>,
+    pub pkh: types::PublicKeyHash,
     /// Amount of the UTXO
     pub amount: u64,
 }

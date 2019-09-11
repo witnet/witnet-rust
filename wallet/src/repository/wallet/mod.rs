@@ -526,7 +526,7 @@ where
         output: &types::ValueTransferOutput,
         block: &model::BlockInfo,
     ) -> Result<()> {
-        let pkh = output.pkh.as_ref().to_vec();
+        let pkh = output.pkh;
         let amount = output.value;
         let txn_id = state.transaction_next_id;
         let old_balance = state.balance;
@@ -543,7 +543,11 @@ where
                 .db
                 .get(&keys::account_utxo_set(account))
                 .unwrap_or_default();
-            let address = types::PublicKeyHash::from_bytes(&pkh)?;
+            let address = pkh.bech32(if self.params.testnet {
+                Environment::Testnet1
+            } else {
+                Environment::Mainnet
+            });
             let key_balance = model::KeyBalance { pkh, amount };
 
             match db_utxo_set.insert(out_ptr.clone(), key_balance.clone()) {

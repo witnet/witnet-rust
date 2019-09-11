@@ -1,3 +1,5 @@
+use crate::types::PublicKeyHash;
+
 /// The list of wallet ids stored in the database.
 #[inline]
 pub fn wallet_ids() -> &'static str {
@@ -114,8 +116,8 @@ pub fn address_label(account_index: u32, keychain: u32, key_index: u32) -> Strin
 
 /// Info associated to a pkh.
 #[inline]
-pub fn pkh(pkh: &[u8]) -> Vec<u8> {
-    [pkh, b"-pkh"].concat().to_vec()
+pub fn pkh(pkh: &PublicKeyHash) -> Vec<u8> {
+    [b"pkh-", pkh.as_ref()].concat().to_vec()
 }
 
 /// An custom key decided by the client to store something.
