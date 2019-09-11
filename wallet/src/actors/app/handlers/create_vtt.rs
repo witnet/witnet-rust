@@ -1,10 +1,10 @@
 use actix::prelude::*;
-use bech32::FromBase32;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::app;
 use crate::types;
 use crate::types::{Hashable as _, ProtobufConvert as _};
+use witnet_data_structures::chain::Environment;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -76,26 +76,16 @@ fn validate_address(
     testnet: bool,
     address: &str,
 ) -> Result<types::PublicKeyHash, app::ValidationErrors> {
-    let (prefix, pkh_u5) = bech32::decode(address).map_err(|err| {
+    types::PublicKeyHash::from_bech32(
+        if testnet {
+            Environment::Testnet1
+        } else {
+            Environment::Mainnet
+        },
+        address,
+    )
+    .map_err(|err| {
         log::warn!("Invalid address: {}", err);
         app::field_error("address", "Address failed to deserialize.")
-    })?;
-    let pkh_vec = Vec::from_base32(&pkh_u5).map_err(|err| {
-        log::warn!("Invalid address: {}", err);
-        app::field_error("address", "Address failed to deserialize from base 32.")
-    })?;
-
-    if same_network(testnet, &prefix) {
-        types::PublicKeyHash::from_bytes(&pkh_vec)
-            .map_err(|err| app::field_error("address", format!("{}", err)))
-    } else {
-        Err(app::field_error(
-            "address",
-            "Address not in the same network.",
-        ))
-    }
-}
-
-fn same_network(testnet: bool, prefix: &str) -> bool {
-    prefix == "twit" && testnet || prefix == "wit" && !testnet
+    })
 }

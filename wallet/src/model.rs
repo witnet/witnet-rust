@@ -30,7 +30,7 @@ pub struct Address {
     pub account: u32,
     pub path: String,
     pub label: Option<String>,
-    pub pkh: Vec<u8>,
+    pub pkh: types::PublicKeyHash,
 }
 
 #[derive(Debug, Serialize)]

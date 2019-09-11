@@ -1,11 +1,9 @@
 use std::sync::RwLock;
 
-use bech32::ToBase32 as _;
-
 use super::*;
 use crate::types::Hashable as _;
 use crate::{
-    account, constants, crypto,
+    account, constants,
     db::{Database, WriteBatch as _},
     model,
     params::Params,
@@ -17,6 +15,7 @@ mod state;
 mod tests;
 
 use state::State;
+use witnet_data_structures::chain::Environment;
 
 pub struct Wallet<T> {
     db: T,
@@ -106,12 +105,12 @@ where
         let types::ExtendedPK { key, .. } =
             types::ExtendedPK::from_secret_key(&self.engine, &extended_sk);
 
-        let bytes = crypto::calculate_sha256(&key.serialize_uncompressed());
-        let pkh = bytes.as_ref()[..20].to_vec();
-        let address = bech32::encode(
-            if self.params.testnet { "twit" } else { "wit" },
-            pkh.to_base32(),
-        )?;
+        let pkh = witnet_data_structures::chain::PublicKey::from(key).pkh();
+        let address = pkh.bech32(if self.params.testnet {
+            Environment::Testnet1
+        } else {
+            Environment::Mainnet
+        });
         let path = format!(
             "{}/{}/{}",
             account::account_keypath(account),
@@ -441,9 +440,11 @@ where
 
             if change > 0 {
                 let change_address = self._gen_internal_address(&mut state, None)?;
-                let pkh = types::PublicKeyHash::from_bytes(&change_address.pkh)?;
 
-                outputs.push(types::ValueTransferOutput { pkh, value: change });
+                outputs.push(types::ValueTransferOutput {
+                    pkh: change_address.pkh,
+                    value: change,
+                });
             }
 
             Ok(types::VttComponents {

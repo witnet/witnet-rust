@@ -88,7 +88,7 @@ fn test_gen_external_address_saves_details_in_db() {
     );
     assert_eq!(
         address.pkh,
-        db.get::<_, Vec<u8>>(&keys::address_pkh(account, keychain, index))
+        db.get::<_, types::PublicKeyHash>(&keys::address_pkh(account, keychain, index))
             .unwrap()
     );
     assert_eq!(
@@ -106,7 +106,7 @@ fn test_gen_external_address_associates_pkh_to_account_in_db() {
     let address = wallet.gen_external_address(None).unwrap();
     let pkh = &address.pkh;
 
-    let path: model::Path = db.get(&keys::pkh(pkh)).unwrap();
+    let path: model::Path = db.get(pkh).unwrap();
 
     assert_eq!(account, path.account);
     assert_eq!(keychain, path.keychain);
@@ -238,7 +238,7 @@ fn test_gen_internal_address_saves_details_in_db() {
     );
     assert_eq!(
         address.pkh,
-        db.get::<_, Vec<u8>>(&keys::address_pkh(account, keychain, index))
+        db.get::<_, types::PublicKeyHash>(&keys::address_pkh(account, keychain, index))
             .unwrap()
     );
     assert_eq!(
@@ -256,7 +256,7 @@ fn test_gen_internal_address_associates_pkh_to_account_in_db() {
     let address = wallet.gen_internal_address(None).unwrap();
     let pkh = &address.pkh;
 
-    let path: model::Path = db.get(&keys::pkh(pkh)).unwrap();
+    let path: model::Path = db.get(pkh).unwrap();
 
     assert_eq!(account, path.account);
     assert_eq!(keychain, path.keychain,);

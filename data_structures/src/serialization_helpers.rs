@@ -76,7 +76,9 @@ impl Into<PublicKeyHash> for PublicKeyHashSerializationHelper {
 impl Serialize for PublicKeyHash {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if serializer.is_human_readable() {
-            serializer.collect_str(&self)
+            // TODO: how do we handle Bech32 here?
+            // For now just use hex
+            serializer.collect_str(&self.to_hex())
         } else {
             PublicKeyHashSerializationHelper::from(*self).serialize(serializer)
         }

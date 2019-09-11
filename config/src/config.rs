@@ -300,7 +300,7 @@ impl Config {
         };
 
         Config {
-            environment: config.environment.clone(),
+            environment: config.environment,
             connections: Connections::from_partial(&config.connections, defaults),
             storage: Storage::from_partial(&config.storage, defaults),
             log: Log::from_partial(&config.log, defaults),

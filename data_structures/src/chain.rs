@@ -33,6 +33,7 @@ use crate::{
     },
     vrf::BlockEligibilityClaim,
 };
+use bech32::{FromBase32, ToBase32};
 
 pub trait Hashable {
     fn hash(&self) -> Hash;
@@ -52,7 +53,7 @@ pub struct ChainInfo {
 }
 
 /// Possible values for the "environment" configuration param.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
 pub enum Environment {
     /// "mainnet" environment
     #[serde(rename = "mainnet")]
@@ -68,6 +69,27 @@ pub enum Environment {
 impl Default for Environment {
     fn default() -> Environment {
         Environment::Testnet3
+    }
+}
+
+impl fmt::Display for Environment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = match self {
+            Environment::Mainnet => "mainnet",
+            Environment::Testnet1 => "testnet1",
+            Environment::Testnet3 => "testnet3",
+        };
+
+        f.write_str(s)
+    }
+}
+
+impl Environment {
+    pub fn bech32_prefix(&self) -> &str {
+        match self {
+            Environment::Mainnet => "wit",
+            _ => "twit",
+        }
     }
 }
 
@@ -485,12 +507,9 @@ impl AsRef<[u8]> for PublicKeyHash {
 
 impl fmt::Display for PublicKeyHash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(
-            self.hash
-                .iter()
-                .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x))
-                .as_str(),
-        )
+        let address = self.to_hex();
+
+        f.write_str(&address)
     }
 }
 
@@ -499,12 +518,24 @@ impl fmt::Display for PublicKeyHash {
 pub enum PublicKeyHashParseError {
     #[fail(display = "Invalid PKH length: expected 20 bytes but got {}", _0)]
     InvalidLength(usize),
+    #[fail(
+        display = "Address is for different environment: prefix \"{}\" is not valid for {}",
+        prefix, expected_environment
+    )]
+    WrongEnvironment {
+        prefix: String,
+        expected_environment: Environment,
+    },
+    #[fail(display = "Failed to deserialize Bech32: {}", _0)]
+    Bech32(#[cause] bech32::Error),
 }
 
 impl FromStr for PublicKeyHash {
     type Err = PublicKeyHashParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // TODO: how do we handle Bech32 here?
+        // For now it is not implemented, so calling Pkh::from_str(pkh.to_string()) may fail
         let mut hash = [0; 20];
         let h_bytes = parse_hex(&s);
         if h_bytes.len() != 20 {
@@ -538,6 +569,40 @@ impl PublicKeyHash {
                 Ok(Self { hash: pkh })
             }
             _ => Err(PublicKeyHashParseError::InvalidLength(len)),
+        }
+    }
+
+    /// Serialize the PKH as hex bytes
+    pub fn to_hex(&self) -> String {
+        self.hash
+            .iter()
+            .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x))
+    }
+
+    /// Serialize PKH according to Bech32
+    pub fn bech32(&self, environment: Environment) -> String {
+        // This unwrap is safe because every PKH will serialize correctly,
+        // and every possible prefix is valid according the Bech32 rules
+        bech32::encode(environment.bech32_prefix(), self.hash.to_base32()).unwrap()
+    }
+
+    /// Deserialize PKH according to Bech32, checking prefix to avoid mixing mainnet and testned addresses
+    pub fn from_bech32(
+        environment: Environment,
+        address: &str,
+    ) -> Result<Self, PublicKeyHashParseError> {
+        let (prefix, pkh_u5) = bech32::decode(address).map_err(PublicKeyHashParseError::Bech32)?;
+        let pkh_vec = Vec::from_base32(&pkh_u5).map_err(PublicKeyHashParseError::Bech32)?;
+
+        let expected_prefix = environment.bech32_prefix();
+
+        if prefix != expected_prefix {
+            Err(PublicKeyHashParseError::WrongEnvironment {
+                prefix,
+                expected_environment: environment,
+            })
+        } else {
+            Self::from_bytes(&pkh_vec)
         }
     }
 }
@@ -1930,5 +1995,29 @@ mod tests {
         let b = Hash::from_str("2111111111111111111111111111111111111111111111111111111111111110")
             .unwrap();
         assert!(a < b);
+    }
+
+    #[test]
+    fn bech32_ser_de() {
+        let addr = "wit1gdm8mqlz8lxtj05w05mw63jvecyenvua7ajdk5";
+        let hex = "43767d83e23fccb93e8e7d36ed464cce0999b39d";
+
+        let addr_to_pkh = PublicKeyHash::from_bech32(Environment::Mainnet, addr).unwrap();
+        let hex_to_pkh = PublicKeyHash::from_str(hex).unwrap();
+        assert_eq!(addr_to_pkh, hex_to_pkh);
+
+        let pkh = addr_to_pkh;
+        assert_eq!(pkh.bech32(Environment::Mainnet), addr);
+
+        // If we change the environment, the prefix and the checksum change
+        let addr_testnet = "twit1gdm8mqlz8lxtj05w05mw63jvecyenvuasgmfk9";
+        assert_eq!(pkh.bech32(Environment::Testnet1), addr_testnet);
+        // But the PKH is the same as mainnet
+        assert_eq!(
+            PublicKeyHash::from_bech32(Environment::Testnet1, addr_testnet).unwrap(),
+            pkh
+        );
+        // Although if we try to deserialize this as a mainnet address, it will fail
+        assert!(PublicKeyHash::from_bech32(Environment::Mainnet, addr_testnet).is_err());
     }
 }

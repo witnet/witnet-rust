@@ -29,8 +29,6 @@ pub enum Error {
     Failure(#[cause] failure::Error),
     #[fail(display = "key derivation failed: {}", _0)]
     KeyDerivation(#[cause] types::KeyDerivationError),
-    #[fail(display = "bech32 failed: {}", _0)]
-    Bech32(#[cause] bech32::Error),
 }
 
 impl From<failure::Error> for Error {
@@ -60,12 +58,6 @@ impl From<db::Error> for Error {
 impl From<types::KeyDerivationError> for Error {
     fn from(err: types::KeyDerivationError) -> Self {
         Error::KeyDerivation(err)
-    }
-}
-
-impl From<bech32::Error> for Error {
-    fn from(err: bech32::Error) -> Self {
-        Error::Bech32(err)
     }
 }
 

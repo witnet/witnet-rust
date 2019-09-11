@@ -54,7 +54,8 @@ impl ChainManager {
     pub fn initialize_from_storage(&mut self, ctx: &mut Context<ChainManager>) {
         config_mngr::get().into_actor(self).and_then(|config, act, ctx| {
             // Get environment and consensus_constants parameters from config
-            let environment = (&config.environment).clone();
+            let environment = config.environment;
+
             let consensus_constants = (&config.consensus_constants).clone();
             act.max_block_weight = consensus_constants.max_block_weight;
 
