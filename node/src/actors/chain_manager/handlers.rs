@@ -370,9 +370,9 @@ impl Handler<AddCandidates> for ChainManager {
 
 /// Handler for AddTransaction message
 impl Handler<AddTransaction> for ChainManager {
-    type Result = SessionUnitResult;
+    type Result = Result<(), failure::Error>;
 
-    fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) -> Self::Result {
         log::debug!(
             "AddTransaction received while StateMachine is in state {:?}",
             self.sm_state
@@ -381,7 +381,7 @@ impl Handler<AddTransaction> for ChainManager {
         match self.sm_state {
             StateMachine::Synced => {}
             _ => {
-                return;
+                Err(ChainManagerError::NotSynced)?;
             }
         };
 
@@ -393,7 +393,7 @@ impl Handler<AddTransaction> for ChainManager {
             Transaction::ValueTransfer(tx) => {
                 if self.transactions_pool.vt_contains(&tx_hash) {
                     log::debug!("Transaction is already in the pool: {}", tx_hash);
-                    return;
+                    return Ok(());
                 }
 
                 validate_vt_transaction(tx, &utxo_diff).map(|_| ())
@@ -402,7 +402,7 @@ impl Handler<AddTransaction> for ChainManager {
             Transaction::DataRequest(tx) => {
                 if self.transactions_pool.dr_contains(&tx_hash) {
                     log::debug!("Transaction is already in the pool: {}", tx_hash);
-                    return;
+                    return Ok(());
                 }
 
                 validate_dr_transaction(tx, &utxo_diff).map(|_| ())
@@ -416,7 +416,7 @@ impl Handler<AddTransaction> for ChainManager {
                     .commit_contains(&dr_pointer, &pkh, &tx_hash)
                 {
                     log::debug!("Transaction is already in the pool: {}", tx_hash);
-                    return;
+                    return Ok(());
                 }
 
                 match (
@@ -464,7 +464,7 @@ impl Handler<AddTransaction> for ChainManager {
                     .reveal_contains(&dr_pointer, &pkh, &tx_hash)
                 {
                     log::debug!("Transaction is already in the pool: {}", tx_hash);
-                    return;
+                    return Ok(());
                 }
 
                 validate_reveal_transaction(tx, &self.chain_state.data_request_pool).map(|_| ())
@@ -480,9 +480,15 @@ impl Handler<AddTransaction> for ChainManager {
 
                 // Add valid transaction to transactions_pool
                 self.transactions_pool.insert(msg.transaction);
+
+                Ok(())
             }
 
-            Err(e) => log::warn!("{}", e),
+            Err(e) => {
+                log::warn!("{}", e);
+
+                Err(e)
+            }
         }
     }
 }

@@ -322,12 +322,14 @@ impl ChainManager {
 
                     // Send AddTransaction message to self
                     // And broadcast it to all of peers
-                    act.handle(
+                    if let Err(e) = act.handle(
                         AddTransaction {
                             transaction: commit_transaction,
                         },
                         ctx,
-                    );
+                    ) {
+                        log::warn!("Failed to add commit transaction: {}", e);
+                    }
 
                     actix::fut::ok(())
                 })

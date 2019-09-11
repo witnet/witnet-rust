@@ -72,7 +72,7 @@ pub struct AddTransaction {
 }
 
 impl Message for AddTransaction {
-    type Result = SessionUnitResult;
+    type Result = Result<(), failure::Error>;
 }
 
 /// Ask for a block identified by its hash

@@ -9,7 +9,7 @@ use actix::System;
 use actix::{MailboxError, SystemService};
 use jsonrpc_core::{futures, futures::Future, BoxFuture, MetaIoHandler, Params, Value};
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
-use log::{debug, error, info};
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
 use witnet_data_structures::{
@@ -40,7 +40,6 @@ use crate::actors::messages::{GetBalance, GetDataRequestReport, GetHighestCheckp
 use futures::future;
 use witnet_data_structures::chain::PublicKeyHash;
 
-type JsonRpcResult = Result<Value, jsonrpc_core::Error>;
 type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Error> + Send>;
 
 /// Define the JSON-RPC interface:
@@ -48,7 +47,7 @@ type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Err
 pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Session>> {
     let mut io = PubSubHandler::new(MetaIoHandler::default());
 
-    io.add_method("inventory", |params: Params| inventory(params.parse()?));
+    io.add_method("inventory", |params: Params| inventory(params.parse()));
     io.add_method("getBlockChain", |params: Params| {
         get_block_chain(params.parse())
     });
@@ -213,44 +212,52 @@ pub enum InventoryItem {
 /* Test string:
 {"jsonrpc": "2.0","method": "inventory","params": {"block": {"block_header":{"version":1,"beacon":{"checkpoint":2,"hash_prev_block": {"SHA256": [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]}},"hash_merkle_root":{"SHA256":[3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]}},"proof":{"block_sig": null}"txns":[null]}},"id": 1}
 */
-pub fn inventory(inv_elem: InventoryItem) -> JsonRpcResult {
+pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let inv_elem = match params {
+        Ok(x) => x,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
     match inv_elem {
         InventoryItem::Block(block) => {
             debug!("Got block from JSON-RPC. Sending AnnounceItems message.");
 
-            // Get SessionsManager's address
             let chain_manager_addr = System::current().registry().get::<ChainManager>();
-            // If this function was called asynchronously, it could wait for the result
-            // But it's not so we just assume success
-            chain_manager_addr.do_send(AddCandidates {
-                blocks: vec![block],
-            });
+            let fut = chain_manager_addr
+                .send(AddCandidates {
+                    blocks: vec![block],
+                })
+                .map_err(internal_error)
+                .map(|()| Value::Bool(true));
 
-            // Returns a boolean indicating success
-            Ok(Value::Bool(true))
+            Box::new(fut)
         }
 
         InventoryItem::Transaction(transaction) => {
             debug!("Got transaction from JSON-RPC. Sending AnnounceItems message.");
 
-            // Get SessionsManager's address
             let chain_manager_addr = System::current().registry().get::<ChainManager>();
-            // If this function was called asynchronously, it could wait for the result
-            // But it's not so we just assume success
-            chain_manager_addr.do_send(AddTransaction { transaction });
+            let fut = chain_manager_addr
+                .send(AddTransaction { transaction })
+                .map_err(internal_error)
+                .and_then(|res| match res {
+                    Ok(()) => futures::finished(Value::Bool(true)),
+                    Err(e) => futures::failed(internal_error_s(e)),
+                });
 
-            // Returns a boolean indicating success
-            Ok(Value::Bool(true))
+            Box::new(fut)
         }
 
         inv_elem => {
-            info!(
+            debug!(
                 "Invalid type of inventory item from JSON-RPC: {:?}",
                 inv_elem
             );
-            Err(jsonrpc_core::Error::invalid_params(
+            let fut = futures::failed(jsonrpc_core::Error::invalid_params(
                 "Item type not implemented",
-            ))
+            ));
+
+            Box::new(fut)
         }
     }
 }
@@ -692,7 +699,6 @@ mod mock_actix {
     }
 
     impl Addr {
-        pub fn do_send<T>(&self, _msg: T) {}
         pub fn send<T: Message>(
             &self,
             _msg: T,
@@ -739,7 +745,7 @@ mod tests {
         );
 
         // Expected result: true
-        let expected = r#"{"jsonrpc":"2.0","result":true,"id":1}"#.to_string();
+        let expected = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"MailboxError(Mailbox has closed)"},"id":1}"#.to_string();
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
@@ -789,7 +795,7 @@ mod tests {
             r#"{{"jsonrpc":"2.0","method":"inventory","params":{},"id":1}}"#,
             serde_json::to_string(&inv_elem).unwrap()
         );
-        let expected = r#"{"jsonrpc":"2.0","result":true,"id":1}"#.to_string();
+        let expected = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"MailboxError(Mailbox has closed)"},"id":1}"#.to_string();
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
