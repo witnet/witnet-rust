@@ -164,7 +164,7 @@ pub fn connect_routes<T, S>(
             "getTransactions",
             GetTransactionsRequest
         ),
-        ("Send-Vtt", "sendVTT", SendVttRequest),
+        ("Send-Vtt", "sendVtt", SendVttRequest),
         (
             "Send-Transaction",
             "sendTransaction",
