@@ -3,7 +3,7 @@ use log;
 
 use super::PeersManager;
 use crate::actors::messages::{
-    AddConsolidatedPeer, AddPeers, GetRandomPeer, PeersSocketAddrResult, PeersSocketAddrsResult,
+    AddConsolidatedPeer, AddPeers, GetRandomPeers, PeersSocketAddrResult, PeersSocketAddrsResult,
     RemovePeers, RequestPeers,
 };
 use witnet_util::timestamp::get_timestamp;
@@ -54,20 +54,16 @@ impl Handler<RemovePeers> for PeersManager {
 }
 
 /// Handler for GetRandomPeer message
-impl Handler<GetRandomPeer> for PeersManager {
-    type Result = PeersSocketAddrResult;
+impl Handler<GetRandomPeers> for PeersManager {
+    type Result = PeersSocketAddrsResult;
 
-    fn handle(&mut self, _msg: GetRandomPeer, _: &mut Context<Self>) -> Self::Result {
-        let result = self.peers.get_random();
+    fn handle(&mut self, msg: GetRandomPeers, _: &mut Context<Self>) -> Self::Result {
+        let result = self.peers.get_random_peers(msg.n);
 
         match result {
-            Ok(Some(address)) => {
-                log::debug!("Selected a random peer address: {:?}", address);
-                result
-            }
-            Ok(None) => {
-                log::warn!("Could not select a random peer address because there were none");
-                result
+            Ok(peers) => {
+                log::debug!("Selected random peer addresses: {:?}", peers);
+                Ok(peers)
             }
             error => {
                 log::error!("Error selecting a random peer address: {:?}", error);

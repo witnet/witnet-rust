@@ -24,10 +24,10 @@ fn p2p_peers_add_to_new() {
     );
 
     // Get a random address (there is only 1)
-    let result = peers.get_random();
+    let result = peers.get_random_peers(1);
 
     // Check that both addresses are the same
-    assert_eq!(result.unwrap(), Some(address));
+    assert_eq!(result.unwrap(), vec![address]);
 
     // There is only 1 address
     assert_eq!(peers.get_all_from_new().unwrap(), vec![address]);
@@ -46,13 +46,38 @@ fn p2p_peers_add_to_tried() {
     assert_eq!(peers.add_to_tried(address).unwrap(), Some(address));
 
     // Get a random address (there is only 1)
-    let result = peers.get_random().unwrap();
+    let result = peers.get_random_peers(1);
 
     // Check that both addresses are the same
-    assert_eq!(result, Some(address));
+    assert_eq!(result.unwrap(), vec![address]);
 
     // There is only 1 address
     assert_eq!(peers.get_all_from_tried().unwrap(), vec![address]);
+}
+
+#[test]
+fn p2p_peers_random() {
+    // Create peers struct
+    let mut peers = Peers::default();
+    let server = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 2, 20)), 8080);
+    peers.set_server(server);
+
+    // Add addresses
+    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
+    let src_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 8080);
+    let address2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 8080);
+
+    peers.add_to_new(vec![address], src_address).unwrap();
+    peers.add_to_tried(address2).unwrap();
+
+    // Get 2 random address (there is only 2)
+    let result = peers.get_random_peers(2);
+
+    // Check that both addresses are the same
+    assert_eq!(result.unwrap(), vec![address, address2]);
+
+    assert_eq!(peers.get_all_from_new().unwrap(), vec![address]);
+    assert_eq!(peers.get_all_from_tried().unwrap(), vec![address2]);
 }
 
 #[test]
@@ -68,10 +93,10 @@ fn p2p_peers_remove_from_tried() {
     assert_eq!(peers.remove_from_tried(&[address]), vec![address]);
 
     // Get a random address
-    let result = peers.get_random();
+    let result = peers.get_random_peers(1);
 
     // Check that both addresses are the same
-    assert_eq!(result.unwrap(), None);
+    assert_eq!(result.unwrap(), vec![]);
 
     // Remove the same address twice doesn't panic
     assert_eq!(peers.remove_from_tried(&[address, address]), vec![]);
@@ -95,10 +120,10 @@ fn p2p_peers_remove_from_new_with_index() {
     assert_eq!(peers.remove_from_new_with_index(&[index]), vec![address]);
 
     // Get a random address
-    let result = peers.get_random();
+    let result = peers.get_random_peers(1);
 
     // Check that both addresses are the same
-    assert_eq!(result.unwrap(), None);
+    assert_eq!(result.unwrap(), vec![]);
 
     // Remove the same address twice doesn't panic
     assert_eq!(peers.remove_from_new_with_index(&[index]), vec![]);

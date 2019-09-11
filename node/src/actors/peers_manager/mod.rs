@@ -116,7 +116,7 @@ impl PeersManager {
     pub fn feeler(&mut self, ctx: &mut Context<Self>, feeler_peers_period: Duration) {
         // Schedule the discovery_peers with a given period
         ctx.run_later(feeler_peers_period, move |act, ctx| {
-            if let Some((key, peer)) = act.peers.get_new_random() {
+            if let Some((key, peer)) = act.peers.get_new_random_peer() {
                 act.peers.remove_from_new_with_index(&[key]);
                 act.try_peer(ctx, peer);
             }

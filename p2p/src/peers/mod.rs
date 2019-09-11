@@ -3,8 +3,9 @@
 use log;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt, net::SocketAddr};
+use std::{cmp, collections::HashMap, fmt, net::SocketAddr};
 
+use rand::seq::IteratorRandom;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_util::timestamp::get_timestamp;
 
@@ -213,39 +214,59 @@ impl Peers {
     }
 
     /// Get a random socket address from the peers list
-    pub fn get_random(&self) -> Result<Option<SocketAddr>, failure::Error> {
-        let bucket = match (self.new_bucket.is_empty(), self.tried_bucket.is_empty()) {
-            (true, true) => return Ok(None),
-            (true, false) => &self.tried_bucket,
-            (false, true) => &self.new_bucket,
-            (false, false) => {
-                if thread_rng().gen() {
-                    &self.tried_bucket
-                } else {
-                    &self.new_bucket
-                }
-            }
+    /// This method provides the same probability to tried and new bucket peers
+    pub fn get_random_peers(&self, n: usize) -> Result<Vec<SocketAddr>, failure::Error> {
+        let mut rng = rand::thread_rng();
+
+        let tried_len = self.tried_bucket.len();
+        let new_len = self.new_bucket.len();
+
+        // Upper limit for this method is the sum of the two buckets length
+        let n_peers = cmp::min(tried_len + new_len, n);
+
+        // In case of 0 peers required, returns an empty vector
+        let mut v_peers: Vec<SocketAddr> = vec![];
+        if n_peers == 0 {
+            return Ok(v_peers);
+        }
+        // In case of not enough tried peers to complete the request
+        // A minimum of new peers is required
+        let min_new_required = cmp::max(0, n_peers as i32 - tried_len as i32) as usize;
+
+        // Run n experiments with probability of success 50% to obtain
+        // the peers number required from the new bucket
+        let index_new_peers = (0..n_peers).fold(0, |acc, _| acc + rng.gen_range(0, 1));
+        // Apply upper and lower limits to index_new_peers
+        let index_new_peers = match index_new_peers {
+            x if x < min_new_required => min_new_required,
+            x if x > new_len => new_len,
+            x => x,
         };
 
-        // Random index with range [0, len) of the peers vector
-        let index = thread_rng().gen_range(0, bucket.len());
+        // Obtains random peers from each bucket
+        v_peers.extend(
+            self.new_bucket
+                .values()
+                .map(|p| p.address)
+                .choose_multiple(&mut rng, index_new_peers),
+        );
+        v_peers.extend(
+            self.tried_bucket
+                .values()
+                .map(|p| p.address)
+                .choose_multiple(&mut rng, n_peers - index_new_peers),
+        );
 
-        Ok(bucket.values().nth(index).map(|v| v.address.to_owned()))
+        Ok(v_peers)
     }
 
     /// Get a random socket address from the new peers list
-    pub fn get_new_random(&self) -> Option<(u16, SocketAddr)> {
-        if self.new_bucket.is_empty() {
-            return None;
-        }
-
-        // Random index with range [0, len) of the peers vector
-        let index = thread_rng().gen_range(0, self.new_bucket.len());
-
+    pub fn get_new_random_peer(&self) -> Option<(u16, SocketAddr)> {
+        let mut rng = rand::thread_rng();
         self.new_bucket
             .iter()
-            .nth(index)
-            .map(|(k, v)| (*k, v.address.to_owned()))
+            .choose(&mut rng)
+            .map(|(k, v)| (*k, v.address))
     }
 
     /// Get all the peers from the tried bucket

@@ -1,4 +1,4 @@
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, trace};
 use std::{net::SocketAddr, time::Duration};
 
 use actix::{
@@ -15,8 +15,8 @@ use crate::actors::{
     connections_manager::ConnectionsManager,
     epoch_manager::EpochManager,
     messages::{
-        Anycast, CloseSession, GetRandomPeer, OutboundTcpConnect, PeersBeacons,
-        PeersSocketAddrResult, SendGetPeers, Subscribe,
+        Anycast, CloseSession, GetRandomPeers, OutboundTcpConnect, PeersBeacons,
+        PeersSocketAddrsResult, SendGetPeers, Subscribe,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -60,7 +60,7 @@ impl SessionsManager {
                 peers_manager_addr
                     // Send GetPeer message to peers manager actor
                     // This returns a Request Future, representing an asynchronous message sending process
-                    .send(GetRandomPeer)
+                    .send(GetRandomPeers { n: 1 })
                     // Convert a normal future into an ActorFuture
                     .into_actor(act)
                     // Process the response from the peers manager
@@ -71,16 +71,21 @@ impl SessionsManager {
                     })
                     // Process the socket address received
                     // This returns a FutureResult containing a success or error
-                    .and_then(|address, _act, _ctx| {
-                        debug!("Trying to create a new outbound connection to {}", address);
+                    .and_then(|addresses, _act, _ctx| {
+                        debug!(
+                            "Trying to create a new outbound connection to {:?}",
+                            addresses
+                        );
 
-                        // Get ConnectionsManager from registry and send an OutboundTcpConnect message to it
-                        let connections_manager_addr =
-                            System::current().registry().get::<ConnectionsManager>();
-                        connections_manager_addr.do_send(OutboundTcpConnect {
-                            address,
-                            session_type: SessionType::Outbound,
-                        });
+                        for address in addresses {
+                            // Get ConnectionsManager from registry and send an OutboundTcpConnect message to it
+                            let connections_manager_addr =
+                                System::current().registry().get::<ConnectionsManager>();
+                            connections_manager_addr.do_send(OutboundTcpConnect {
+                                address,
+                                session_type: SessionType::Outbound,
+                            });
+                        }
 
                         actix::fut::ok(())
                     })
@@ -107,38 +112,26 @@ impl SessionsManager {
     /// Method to process peers manager RequestPeer response
     fn process_get_peer_response(
         &mut self,
-        response: Result<PeersSocketAddrResult, MailboxError>,
-    ) -> FutureResult<SocketAddr, (), Self> {
-        response
+        response: Result<PeersSocketAddrsResult, MailboxError>,
+    ) -> FutureResult<Vec<SocketAddr>, (), Self> {
+        let peers: Vec<SocketAddr> = response
             // Unwrap the Result<PeersSocketAddrResult, MailboxError>
             .unwrap_or_else(|_| {
                 error!("Failed to communicate with PeersManager");
-                Ok(None)
+                Ok(vec![])
             })
             // Unwrap the PeersSocketAddrResult
             .unwrap_or_else(|_| {
                 error!("Error when trying to get a peer address from PeersManager");
-                None
-            })
-            // Check if PeersSocketAddrResult returned `None`
-            .or_else(|| {
-                warn!("Did not obtain any peer addresses from PeersManager");
-                None
+                vec![]
             })
             // Filter the result checking if outbound address is eligible as new peer
-            .filter(|address: &SocketAddr| {
-                self.sessions.is_outbound_address_eligible(address.clone())
-            })
-            // Check if there is a peer after filter
-            .or_else(|| {
-                debug!(
-                    "The peer address obtained from PeersManager is not eligible for a new session"
-                );
-                None
-            })
-            // Convert Some(SocketAddr) or None to FutureResult<SocketAddr, (), Self>
-            .map(actix::fut::ok)
-            .unwrap_or_else(|| actix::fut::err(()))
+            .into_iter()
+            .filter(|address| self.sessions.is_outbound_address_eligible(*address))
+            .collect();
+
+        // Convert to FutureResult<Vec<SocketAddr>, (), Self>
+        actix::fut::ok(peers)
     }
 
     /// Method to process Session SendMessage response

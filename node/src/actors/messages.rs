@@ -420,10 +420,13 @@ impl Message for RemovePeers {
 }
 
 /// Message to get a (random) peer address from the list
-pub struct GetRandomPeer;
+pub struct GetRandomPeers {
+    /// Number of random peers
+    pub n: usize,
+}
 
-impl Message for GetRandomPeer {
-    type Result = PeersSocketAddrResult;
+impl Message for GetRandomPeers {
+    type Result = PeersSocketAddrsResult;
 }
 
 /// Message to get all the peer addresses from the list
