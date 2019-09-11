@@ -10,10 +10,12 @@ pub enum Error {
     #[fail(display = "couldn't start client due to invalid url")]
     InvalidUrl,
     /// The error ocurred at the transport layer, e.g.: connection or event loop might be down.
-    #[fail(display = "request failed")]
+    #[fail(display = "request failed: {}", message)]
     RequestFailed {
         /// The source of the error.
         error_kind: TransportErrorKind,
+        /// Error message.
+        message: String,
     },
     /// The error ocurred when serializaing the request params to json.
     #[fail(display = "request params failed to serialize to json")]

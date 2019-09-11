@@ -72,7 +72,10 @@ impl JsonRpcClient {
             .inspect(|resp| log::trace!(">> Received response: {:?}", resp))
             .map_err(|err| {
                 log::trace!(">> Received error: {}", err);
-                Error::RequestFailed { error_kind: err.0 }
+                Error::RequestFailed {
+                    message: err.to_string(),
+                    error_kind: err.0,
+                }
             })
     }
 }
@@ -206,7 +209,10 @@ impl Handler<Subscribe> for JsonRpcClient {
                                     );
                                     Notification(value)
                                 })
-                                .map_err(|err| Error::RequestFailed { error_kind: err.0 });
+                                .map_err(|err| Error::RequestFailed {
+                                    message: err.to_string(),
+                                    error_kind: err.0,
+                                });
                             Self::add_stream(stream, ctx);
                             act.subscription_id = Some(id);
                             log::info!("Client subscription created");
@@ -255,7 +261,7 @@ impl StreamHandler<Notification, Error> for JsonRpcClient {
 
 fn is_connection_error(err: &Error) -> bool {
     match err {
-        Error::RequestFailed { error_kind } => match error_kind {
+        Error::RequestFailed { error_kind, .. } => match error_kind {
             TransportErrorKind::Transport(_) => true,
             _ => false,
         },

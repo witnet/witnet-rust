@@ -13,8 +13,8 @@ pub enum Error {
     Validation(ValidationErrors),
     #[fail(display = "internal error")]
     Internal(failure::Error),
-    #[fail(display = "node error")]
-    Node(failure::Error),
+    #[fail(display = "node error: {}", _0)]
+    Node(#[cause] failure::Error),
     #[fail(display = "wallet is not connected to a node")]
     NodeNotConnected,
     #[fail(display = "session not found")]
