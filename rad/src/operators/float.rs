@@ -21,8 +21,8 @@ pub fn to_string(input: RadonFloat) -> Result<RadonString, RadError> {
     RadonString::try_from(Value::Text(input.value().to_string()))
 }
 
-pub fn ceiling(input: &RadonFloat) -> RadonFloat {
-    RadonFloat::from(input.value().ceil())
+pub fn ceiling(input: &RadonFloat) -> RadonInteger {
+    RadonInteger::from(input.value().ceil() as i128)
 }
 
 pub fn multiply(input: &RadonFloat, args: &[Value]) -> Result<RadonFloat, RadError> {
@@ -90,16 +90,16 @@ pub fn power(input: &RadonFloat, args: &[Value]) -> Result<RadonFloat, RadError>
     Ok(RadonFloat::from(input.value().powf(exp)))
 }
 
-pub fn floor(input: &RadonFloat) -> RadonFloat {
-    RadonFloat::from(input.value().floor())
+pub fn floor(input: &RadonFloat) -> RadonInteger {
+    RadonInteger::from(input.value().floor() as i128)
 }
 
 pub fn round(input: &RadonFloat) -> RadonInteger {
     RadonInteger::from(input.value().round() as i128)
 }
 
-pub fn truncate(input: &RadonFloat) -> RadonFloat {
-    RadonFloat::from(input.value().trunc())
+pub fn truncate(input: &RadonFloat) -> RadonInteger {
+    RadonInteger::from(input.value().trunc() as i128)
 }
 
 #[test]
@@ -215,9 +215,9 @@ fn test_float_ceiling() {
     let float2 = RadonFloat::from(11.0);
     let float3 = RadonFloat::from(-10.99);
 
-    assert_eq!(ceiling(&float1), RadonFloat::from(11.0));
-    assert_eq!(ceiling(&float2), RadonFloat::from(11.0));
-    assert_eq!(ceiling(&float3), RadonFloat::from(-10.0));
+    assert_eq!(ceiling(&float1), RadonInteger::from(11));
+    assert_eq!(ceiling(&float2), RadonInteger::from(11));
+    assert_eq!(ceiling(&float3), RadonInteger::from(-10));
 }
 
 #[test]
@@ -226,9 +226,9 @@ fn test_float_floor() {
     let float2 = RadonFloat::from(10.99);
     let float3 = RadonFloat::from(-10.01);
 
-    assert_eq!(floor(&float1), RadonFloat::from(10.0));
-    assert_eq!(floor(&float2), RadonFloat::from(10.0));
-    assert_eq!(floor(&float3), RadonFloat::from(-11.0));
+    assert_eq!(floor(&float1), RadonInteger::from(10));
+    assert_eq!(floor(&float2), RadonInteger::from(10));
+    assert_eq!(floor(&float3), RadonInteger::from(-11));
 }
 
 #[test]
@@ -248,7 +248,7 @@ fn test_float_trunc() {
     let float2 = RadonFloat::from(10.99);
     let float3 = RadonFloat::from(-10.01);
 
-    assert_eq!(truncate(&float1), RadonFloat::from(10.0));
-    assert_eq!(truncate(&float2), RadonFloat::from(10.0));
-    assert_eq!(truncate(&float3), RadonFloat::from(-10.0));
+    assert_eq!(truncate(&float1), RadonInteger::from(10));
+    assert_eq!(truncate(&float2), RadonInteger::from(10));
+    assert_eq!(truncate(&float3), RadonInteger::from(-10));
 }
