@@ -5,6 +5,7 @@ use crate::error::RadError;
 use crate::types::boolean::RadonBoolean;
 use crate::types::bytes::RadonBytes;
 use crate::types::float::RadonFloat;
+use crate::types::integer::RadonInteger;
 use crate::types::string::RadonString;
 use crate::types::RadonType;
 
@@ -93,8 +94,8 @@ pub fn floor(input: &RadonFloat) -> RadonFloat {
     RadonFloat::from(input.value().floor())
 }
 
-pub fn round(input: &RadonFloat) -> RadonFloat {
-    RadonFloat::from(input.value().round())
+pub fn round(input: &RadonFloat) -> RadonInteger {
+    RadonInteger::from(input.value().round() as i128)
 }
 
 pub fn truncate(input: &RadonFloat) -> RadonFloat {
@@ -236,9 +237,9 @@ fn test_float_round() {
     let float2 = RadonFloat::from(10.5);
     let float3 = RadonFloat::from(10.51);
 
-    assert_eq!(round(&float1), RadonFloat::from(10.0));
-    assert_eq!(round(&float2), RadonFloat::from(11.0));
-    assert_eq!(round(&float3), RadonFloat::from(11.0));
+    assert_eq!(round(&float1), RadonInteger::from(10));
+    assert_eq!(round(&float2), RadonInteger::from(11));
+    assert_eq!(round(&float3), RadonInteger::from(11));
 }
 
 #[test]
