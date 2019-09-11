@@ -543,9 +543,27 @@ where
                 .db
                 .get(&keys::account_utxo_set(account))
                 .unwrap_or_default();
+            let address = types::PublicKeyHash::from_bytes(&pkh)?;
             let key_balance = model::KeyBalance { pkh, amount };
 
-            db_utxo_set.insert(out_ptr.clone(), key_balance.clone());
+            match db_utxo_set.insert(out_ptr.clone(), key_balance.clone()) {
+                None => {
+                    log::info!(
+                        "Found transaction to our address {}! Amount: +{} satowits",
+                        address,
+                        amount
+                    );
+                }
+                Some(x) => {
+                    if x != key_balance {
+                        log::info!(
+                            "Found transaction to our address {}! Amount: +{} satowits",
+                            address,
+                            amount
+                        );
+                    }
+                }
+            }
 
             batch.put(&keys::transaction_value(account, txn_id), amount)?;
             batch.put(
