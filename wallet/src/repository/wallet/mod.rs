@@ -538,7 +538,10 @@ where
             let txn_next_id = txn_id
                 .checked_add(1)
                 .ok_or_else(|| Error::TransactionValueOverflow)?;
-            let mut db_utxo_set: model::UtxoSet = self.db.get(&keys::account_utxo_set(account))?;
+            let mut db_utxo_set: model::UtxoSet = self
+                .db
+                .get(&keys::account_utxo_set(account))
+                .unwrap_or_default();
             let key_balance = model::KeyBalance { pkh, amount };
 
             db_utxo_set.insert(out_ptr.clone(), key_balance.clone());
