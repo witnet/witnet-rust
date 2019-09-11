@@ -9,7 +9,9 @@ use std::{
 use failure::Fail;
 use serde::Deserialize;
 
-use witnet_data_structures::chain::{OutputPointer, PublicKeyHash, ValueTransferOutput};
+use witnet_data_structures::chain::{
+    Environment, OutputPointer, PublicKeyHash, ValueTransferOutput,
+};
 use witnet_node::actors::{json_rpc::json_rpc_methods::GetBlockChainParams, messages::BuildVtt};
 
 pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
@@ -90,6 +92,8 @@ pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
     let pkh = parse_response::<PublicKeyHash>(&response)?;
 
     println!("{}", pkh);
+    println!("Testnet address: {}", pkh.bech32(Environment::Testnet1));
+    println!("Mainnet address: {}", pkh.bech32(Environment::Mainnet));
 
     Ok(())
 }
