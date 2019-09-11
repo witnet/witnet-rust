@@ -289,3 +289,19 @@ fn test_run_all_elections() {
         err => panic!("Error in run_retrieval: {:?}", err),
     }
 }
+
+#[test]
+fn test_run_football() {
+    use crate::types::integer::RadonInteger;
+
+    let retrieve = RADRetrieve {
+        kind: RADType::HttpGet,
+        url: "https://www.sofascore.com/event/8397714/json".to_string(),
+        script: vec![
+            137,  24,  69,  24, 116, 130,  24,  97, 101, 101, 118, 101, 110, 116,  24, 116, 130,  24,  97, 105, 97, 119,  97, 121,  83, 99, 111, 114, 101,  24, 116, 130,  24,  97, 103, 99, 117, 114, 114, 101, 110, 116,  24, 114,  24, 60
+        ]
+    };
+    let retrieved = run_retrieval(&retrieve).unwrap();
+    let expected = RadonTypes::Integer(RadonInteger::from(9));
+    assert_eq!(retrieved, expected)
+}
