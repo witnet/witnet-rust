@@ -87,10 +87,35 @@ fn try_to_claim_local_query(
                     Ok(dr)
                 }) {
                     Ok(x) => {
+                        debug!("{:?}", x);
                         // TODO: check if we want to claim this data request:
                         // Is the price ok?
 
-                        x
+                        // Is the data request serialized correctly?
+                        // Check that serializing the deserialized struct results in exactly the same bytes
+                        let witnet_dr_bytes = x.to_pb_bytes();
+
+                        match witnet_dr_bytes {
+                            Ok(witnet_dr_bytes) => if dr_bytes == witnet_dr_bytes {
+                                x
+                            } else {
+                                warn!(
+                                    "[{}] uses an invalid serialization, will be ignored.\nETH DR BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
+                                    dr_id, dr_bytes, witnet_dr_bytes
+                                );
+                                warn!("This usually happens when some fields are set to 0. \
+                                       The Rust implementation of ProtocolBuffer skips those fields, \
+                                       as missing fields are deserialized with the default value.");
+                                return Either::B(futures::failed(()));
+                            },
+                            Err(e) => {
+                                warn!(
+                                    "[{}] uses an invalid serialization, will be ignored: {:?}",
+                                    dr_id, e
+                                );
+                                return Either::B(futures::failed(()));
+                            }
+                        }
                     },
                     Err(e) => {
                         warn!(
