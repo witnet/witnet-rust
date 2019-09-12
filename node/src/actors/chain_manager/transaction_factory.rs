@@ -88,7 +88,7 @@ pub fn insert_change_output(
 pub fn build_vtt<S: std::hash::BuildHasher>(
     outputs: Vec<ValueTransferOutput>,
     fee: u64,
-    own_utxos: &HashSet<OutputPointer, S>,
+    own_utxos: &mut HashSet<OutputPointer, S>,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
 ) -> Result<VTTransactionBody, NoMoney> {
@@ -102,7 +102,7 @@ pub fn build_vtt<S: std::hash::BuildHasher>(
 pub fn build_drt<S: std::hash::BuildHasher>(
     dr_output: DataRequestOutput,
     fee: u64,
-    own_utxos: &HashSet<OutputPointer, S>,
+    own_utxos: &mut HashSet<OutputPointer, S>,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
 ) -> Result<DRTransactionBody, NoMoney> {
@@ -118,7 +118,7 @@ fn build_inputs_outputs_inner<S: std::hash::BuildHasher>(
     outputs: Vec<ValueTransferOutput>,
     dr_output: Option<&DataRequestOutput>,
     fee: u64,
-    own_utxos: &HashSet<OutputPointer, S>,
+    own_utxos: &mut HashSet<OutputPointer, S>,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
 ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), NoMoney> {
@@ -131,9 +131,15 @@ fn build_inputs_outputs_inner<S: std::hash::BuildHasher>(
             total_balance,
         }),
         Ok((output_pointers, input_value)) => {
-            let inputs = output_pointers.into_iter().map(Input::new).collect();
+            let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
             let mut outputs = outputs;
             insert_change_output(&mut outputs, own_pkh, input_value - output_value - fee);
+
+            // Mark UTXOs as used so we don't double spend
+            for input in &inputs {
+                own_utxos.remove(input.output_pointer());
+            }
+
             Ok((inputs, outputs))
         }
     }
@@ -187,7 +193,7 @@ mod tests {
     fn build_vtt_tx<S: std::hash::BuildHasher>(
         outputs: Vec<ValueTransferOutput>,
         fee: u64,
-        own_utxos: &HashSet<OutputPointer, S>,
+        own_utxos: &mut HashSet<OutputPointer, S>,
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
     ) -> Result<Transaction, NoMoney> {
@@ -202,7 +208,7 @@ mod tests {
     fn build_drt_tx<S: std::hash::BuildHasher>(
         dr_output: DataRequestOutput,
         fee: u64,
-        own_utxos: &HashSet<OutputPointer, S>,
+        own_utxos: &mut HashSet<OutputPointer, S>,
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
     ) -> Result<Transaction, NoMoney> {
@@ -344,31 +350,33 @@ mod tests {
     fn empty_utxo() {
         let own_pkh = my_pkh();
         let outputs = vec![];
-        let (own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         // Outputs was empty, so own_utxos is also empty
         assert!(own_utxos.is_empty(), "{:?}", own_utxos);
 
         // Building a zero value transaction returns an error
         assert_eq!(
-            build_vtt_tx(vec![], 0, &own_utxos, own_pkh, &all_utxos).map_err(|x| x.total_balance),
+            build_vtt_tx(vec![], 0, &mut own_utxos, own_pkh, &all_utxos)
+                .map_err(|x| x.total_balance),
             Err(0)
         );
 
         // Building any transaction with an empty own_utxos returns an error
         assert_eq!(
-            build_vtt_tx(vec![pay_bob(1000)], 0, &own_utxos, own_pkh, &all_utxos)
+            build_vtt_tx(vec![pay_bob(1000)], 0, &mut own_utxos, own_pkh, &all_utxos)
                 .map_err(|x| x.total_balance),
             Err(0)
         );
         assert_eq!(
-            build_vtt_tx(vec![], 50, &own_utxos, own_pkh, &all_utxos).map_err(|x| x.total_balance),
+            build_vtt_tx(vec![], 50, &mut own_utxos, own_pkh, &all_utxos)
+                .map_err(|x| x.total_balance),
             Err(0)
         );
         assert_eq!(
             build_vtt_tx(
                 vec![pay_me(0), pay_bob(0)],
                 0,
-                &own_utxos,
+                &mut own_utxos,
                 own_pkh,
                 &all_utxos
             )
@@ -391,13 +399,14 @@ mod tests {
         assert_eq!(own_utxos.len(), 2);
 
         let outputs = vec![pay_me(50), pay_me(100)];
-        let (own_utxos, all_utxos) = build_utxo_set(outputs, (own_utxos, all_utxos), vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, (own_utxos, all_utxos), vec![]);
         // There are 2 pay_me in outputs, so there should be 2 new outputs in own_utxos
         assert_eq!(own_utxos.len(), 2 + 2);
 
         // The total value of own_utxos is 300, so trying to spend more than 300 will fail
         assert_eq!(
-            build_vtt_tx(vec![], 301, &own_utxos, own_pkh, &all_utxos).map_err(|x| x.total_balance),
+            build_vtt_tx(vec![], 301, &mut own_utxos, own_pkh, &all_utxos)
+                .map_err(|x| x.total_balance),
             Err(300)
         );
     }
@@ -406,22 +415,22 @@ mod tests {
     fn poor_utxo() {
         let own_pkh = my_pkh();
         let outputs = vec![pay_me(1000)];
-        let (own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         // There is one pay_me in outputs, so there should be one output in own_utxos
         assert_eq!(own_utxos.len(), 1);
 
         assert_eq!(
-            build_vtt_tx(vec![pay_bob(2000)], 0, &own_utxos, own_pkh, &all_utxos)
+            build_vtt_tx(vec![pay_bob(2000)], 0, &mut own_utxos, own_pkh, &all_utxos)
                 .map_err(|x| x.total_balance),
             Err(1000)
         );
         assert_eq!(
-            build_vtt_tx(vec![], 1001, &own_utxos, own_pkh, &all_utxos)
+            build_vtt_tx(vec![], 1001, &mut own_utxos, own_pkh, &all_utxos)
                 .map_err(|x| x.total_balance),
             Err(1000)
         );
         assert_eq!(
-            build_vtt_tx(vec![pay_bob(500)], 600, &own_utxos, own_pkh, &all_utxos)
+            build_vtt_tx(vec![pay_bob(500)], 600, &mut own_utxos, own_pkh, &all_utxos)
                 .map_err(|x| x.total_balance),
             Err(1000)
         );
@@ -431,22 +440,25 @@ mod tests {
     fn exact_change() {
         let own_pkh = my_pkh();
         let outputs = vec![pay_me(1000)];
-        let (own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 1);
 
-        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t1), 1000);
 
-        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t2), 990);
 
-        let t3 = build_vtt_tx(vec![], 1000, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t3), 0);
 
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         let t4 = build_vtt_tx(
             vec![pay_bob(500), pay_me(500)],
             0,
-            &own_utxos,
+            &mut own_utxos,
             own_pkh,
             &all_utxos,
         )
@@ -463,25 +475,28 @@ mod tests {
     fn one_big_utxo() {
         let own_pkh = my_pkh();
         let outputs = vec![pay_me(1_000_000)];
-        let (own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 1);
 
-        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t1), 1_000_000);
         assert_eq!(outputs_sum_not_mine(&t1), 1000);
 
-        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t2), 999_990);
         assert_eq!(outputs_sum_not_mine(&t2), 990);
 
-        let t3 = build_vtt_tx(vec![], 1000, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t3), 999_000);
         assert_eq!(outputs_sum_not_mine(&t3), 0);
 
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         let t4 = build_vtt_tx(
             vec![pay_bob(500), pay_me(500)],
             0,
-            &own_utxos,
+            &mut own_utxos,
             own_pkh,
             &all_utxos,
         )
@@ -490,7 +505,7 @@ mod tests {
 
         // Execute transaction t1
         // This should create a change output with value 1_000_000 - 1_000
-        let (own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t1]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t1]);
         assert_eq!(own_utxos.len(), 1);
         assert_eq!(
             all_utxos[own_utxos.iter().next().unwrap()].value,
@@ -500,7 +515,7 @@ mod tests {
             build_vtt_tx(
                 vec![],
                 1_000_000 - 1_000 + 1,
-                &own_utxos,
+                &mut own_utxos,
                 own_pkh,
                 &all_utxos
             )
@@ -509,7 +524,14 @@ mod tests {
         );
 
         // Now we can spend that new utxo
-        let t5 = build_vtt_tx(vec![], 1_000_000 - 1_000, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let t5 = build_vtt_tx(
+            vec![],
+            1_000_000 - 1_000,
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
         // Execute transaction t5
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t5]);
         assert!(own_utxos.is_empty(), "{:?}", own_utxos);
@@ -520,33 +542,35 @@ mod tests {
         let own_pkh = my_pkh();
         // 1000 utxos with 1 value each
         let outputs = vec![pay_me(1); 1000];
-        let (own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 1000);
 
-        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t1), 1000);
         assert_eq!(inputs_len(&t1), 1000);
 
-        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &own_utxos, own_pkh, &all_utxos).unwrap();
-
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t2), 990);
         assert_eq!(inputs_len(&t2), 1000);
 
-        let t3 = build_vtt_tx(vec![], 1000, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t3), 0);
         assert_eq!(inputs_len(&t3), 1000);
 
-        let t4 = build_vtt_tx(vec![pay_bob(500)], 20, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t4 = build_vtt_tx(vec![pay_bob(500)], 20, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t4), 500);
         assert_eq!(inputs_len(&t4), 520);
 
         // Execute transaction t4
         // This will not create any change outputs because all our utxos have value 1
-        let (own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t4]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t4]);
         assert_eq!(own_utxos.len(), 480);
 
         assert_eq!(
-            build_vtt_tx(vec![], 480 + 1, &own_utxos, own_pkh, &all_utxos)
+            build_vtt_tx(vec![], 480 + 1, &mut own_utxos, own_pkh, &all_utxos)
                 .map_err(|x| x.total_balance),
             Err(480)
         );
@@ -565,45 +589,48 @@ mod tests {
             pay_me(500),
             pay_me(334),
         ];
-        let (own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 7);
 
-        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let t1 = build_vtt_tx(vec![pay_bob(1000)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum_not_mine(&t1), 1000);
 
-        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t2 = build_vtt_tx(vec![pay_bob(990)], 10, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum_not_mine(&t2), 990);
 
-        let t3 = build_vtt_tx(vec![], 1000, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum_not_mine(&t3), 0);
 
-        let t4 = build_vtt_tx(vec![pay_bob(500)], 20, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let t4 = build_vtt_tx(vec![pay_bob(500)], 20, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum_not_mine(&t4), 500);
 
         // Execute transaction t4
-        let (own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t4]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t4]);
         // This will create a change output with an unknown value, but the total available will be 1000 - 520
         assert_eq!(
-            build_vtt_tx(vec![], 480 + 1, &own_utxos, own_pkh, &all_utxos)
+            build_vtt_tx(vec![], 480 + 1, &mut own_utxos, own_pkh, &all_utxos)
                 .map_err(|x| x.total_balance),
             Err(480)
         );
 
         // A transaction to ourselves with no fees will maintain our total balance
-        let t5 = build_vtt_tx(vec![pay_me(480)], 0, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let t5 = build_vtt_tx(vec![pay_me(480)], 0, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         // Execute transaction t5
-        let (own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t5]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t5]);
         // Since we are spending everything, the result is merging all the unspent outputs into one
         assert_eq!(own_utxos.len(), 1);
         assert_eq!(all_utxos[own_utxos.iter().next().unwrap()].value, 480);
         assert_eq!(
-            build_vtt_tx(vec![], 480 + 1, &own_utxos, own_pkh, &all_utxos)
+            build_vtt_tx(vec![], 480 + 1, &mut own_utxos, own_pkh, &all_utxos)
                 .map_err(|x| x.total_balance),
             Err(480)
         );
 
         // Now spend everything
-        let t6 = build_vtt_tx(vec![pay_bob(400)], 80, &own_utxos, own_pkh, &all_utxos).unwrap();
+        let t6 = build_vtt_tx(vec![pay_bob(400)], 80, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         // Execute transaction t6
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t6]);
         assert!(own_utxos.is_empty(), "{:?}", own_utxos);
@@ -613,7 +640,7 @@ mod tests {
     fn exact_change_data_request() {
         let own_pkh = my_pkh();
         let outputs = vec![pay_me(1000)];
-        let (own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 1);
 
         let t1 = build_drt_tx(
@@ -628,13 +655,14 @@ mod tests {
                 time_lock: 0,
             },
             0,
-            &own_utxos,
+            &mut own_utxos,
             own_pkh,
             &all_utxos,
         )
         .unwrap();
         assert_eq!(outputs_sum(&t1), 1000);
 
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         let t2 = build_drt_tx(
             DataRequestOutput {
                 data_request: RADRequest::default(),
@@ -647,7 +675,7 @@ mod tests {
                 time_lock: 0,
             },
             0,
-            &own_utxos,
+            &mut own_utxos,
             own_pkh,
             &all_utxos,
         )
@@ -663,7 +691,7 @@ mod tests {
     fn one_big_utxo_data_request() {
         let own_pkh = my_pkh();
         let outputs = vec![pay_me(1_000_000)];
-        let (own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 1);
 
         let t1 = build_drt_tx(
@@ -678,13 +706,14 @@ mod tests {
                 time_lock: 0,
             },
             0,
-            &own_utxos,
+            &mut own_utxos,
             own_pkh,
             &all_utxos,
         )
         .unwrap();
         assert_eq!(outputs_sum(&t1), 1_000_000);
 
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         let t2 = build_drt_tx(
             DataRequestOutput {
                 data_request: RADRequest::default(),
@@ -697,7 +726,7 @@ mod tests {
                 time_lock: 0,
             },
             0,
-            &own_utxos,
+            &mut own_utxos,
             own_pkh,
             &all_utxos,
         )
@@ -705,7 +734,7 @@ mod tests {
         assert_eq!(outputs_sum(&t2), 1_000_000);
 
         // Execute transaction t2
-        let (own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
         // This will create a change output with value 1_000_000 - 1_000
         assert_eq!(own_utxos.len(), 1);
         assert_eq!(
@@ -716,7 +745,7 @@ mod tests {
             build_vtt_tx(
                 vec![],
                 1_000_000 - 1_000 + 1,
-                &own_utxos,
+                &mut own_utxos,
                 own_pkh,
                 &all_utxos
             )
