@@ -341,10 +341,10 @@ fn claim_and_post_dr(
                         let bdr_params = json!({"dro": dr_output2, "fee": 0});
 
                         Either::B(witnet_client2
-                            .execute("buildDataRequest", bdr_params)
+                            .execute("sendRequest", bdr_params)
                             .map_err(|e| error!("{:?}", e))
                             .map(move |bdr_res| {
-                                debug!("buildDataRequest: {:?}", bdr_res);
+                                debug!("sendRequest: {:?}", bdr_res);
                             }).then(|_| futures::failed(())))
                     } else {
                         // This data request is not available, abort.
@@ -402,10 +402,10 @@ fn claim_and_post_dr(
                     let bdr_params = json!({"dro": dr_output, "fee": 0});
 
                     witnet_client
-                        .execute("buildDataRequest", bdr_params)
+                        .execute("sendRequest", bdr_params)
                         .map_err(|e| error!("{:?}", e))
                         .map(move |bdr_res| {
-                            debug!("buildDataRequest: {:?}", bdr_res);
+                            debug!("sendRequest: {:?}", bdr_res);
                         })
                 })
                 .map(|_| ())
