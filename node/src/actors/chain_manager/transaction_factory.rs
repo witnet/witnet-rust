@@ -753,4 +753,58 @@ mod tests {
             Err(1_000_000 - 1_000)
         );
     }
+
+    #[test]
+    fn cannot_double_spend() {
+        let own_pkh = my_pkh();
+        let outputs = vec![pay_me(1_000_000)];
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        assert_eq!(own_utxos.len(), 1);
+
+        let t1 = build_drt_tx(
+            DataRequestOutput {
+                data_request: RADRequest::default(),
+                value: 1000,
+                witnesses: 4,
+                backup_witnesses: 0,
+                commit_fee: 0,
+                reveal_fee: 0,
+                tally_fee: 0,
+                time_lock: 0,
+            },
+            0,
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        )
+        .unwrap();
+        assert_eq!(outputs_sum(&t1), 1_000_000);
+
+        // Creating another transaction will fail because the old one is not confirmed yet
+        // and this account only has 1 UTXO
+        let t2 = build_drt_tx(
+            DataRequestOutput {
+                data_request: RADRequest::default(),
+                value: 1000,
+                witnesses: 4,
+                backup_witnesses: 0,
+                commit_fee: 300,
+                reveal_fee: 400,
+                tally_fee: 100,
+                time_lock: 0,
+            },
+            0,
+            &mut own_utxos,
+            own_pkh,
+            &all_utxos,
+        );
+        assert_eq!(
+            t2,
+            Err(NoMoney {
+                transaction_outputs: 1000,
+                transaction_fee: 0,
+                total_balance: 0,
+            })
+        );
+    }
 }
