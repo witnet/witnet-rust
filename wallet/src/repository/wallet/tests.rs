@@ -106,7 +106,7 @@ fn test_gen_external_address_associates_pkh_to_account_in_db() {
     let address = wallet.gen_external_address(None).unwrap();
     let pkh = &address.pkh;
 
-    let path: model::Path = db.get(pkh).unwrap();
+    let path: model::Path = db.get(&keys::pkh(pkh)).unwrap();
 
     assert_eq!(account, path.account);
     assert_eq!(keychain, path.keychain);
@@ -256,7 +256,7 @@ fn test_gen_internal_address_associates_pkh_to_account_in_db() {
     let address = wallet.gen_internal_address(None).unwrap();
     let pkh = &address.pkh;
 
-    let path: model::Path = db.get(pkh).unwrap();
+    let path: model::Path = db.get(&keys::pkh(pkh)).unwrap();
 
     assert_eq!(account, path.account);
     assert_eq!(keychain, path.keychain,);
@@ -315,17 +315,14 @@ fn test_create_vtt_components_when_wallet_have_no_utxos() {
 
 #[test]
 fn test_create_vtt_components_without_a_change_address() {
-    let pkh = pkh_factory().as_ref().to_vec();
+    let pkh = pkh_factory();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
         out_pointer.clone(),
-        model::KeyBalance {
-            pkh: pkh.clone(),
-            amount: 1,
-        },
+        model::KeyBalance { pkh, amount: 1 },
     )]);
     let path = model::Path {
         account: 0,
@@ -356,17 +353,14 @@ fn test_create_vtt_components_without_a_change_address() {
 
 #[test]
 fn test_create_vtt_components_whith_a_change_address() {
-    let pkh = pkh_factory().as_ref().to_vec();
+    let pkh = pkh_factory();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
         out_pointer.clone(),
-        model::KeyBalance {
-            pkh: pkh.clone(),
-            amount: 2,
-        },
+        model::KeyBalance { pkh, amount: 2 },
     )]);
     let path = model::Path {
         account: 0,
@@ -401,17 +395,14 @@ fn test_create_vtt_components_whith_a_change_address() {
 
 #[test]
 fn test_create_vtt_components_which_value_overflows() {
-    let pkh = pkh_factory().as_ref().to_vec();
+    let pkh = pkh_factory();
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![
         (
             model::OutPtr {
                 txn_hash: vec![0; 32],
                 output_index: 0,
             },
-            model::KeyBalance {
-                pkh: pkh.clone(),
-                amount: 2,
-            },
+            model::KeyBalance { pkh, amount: 2 },
         ),
         (
             model::OutPtr {
@@ -419,7 +410,7 @@ fn test_create_vtt_components_which_value_overflows() {
                 output_index: 1,
             },
             model::KeyBalance {
-                pkh: pkh.clone(),
+                pkh,
                 amount: std::u64::MAX - 1,
             },
         ),
@@ -451,17 +442,14 @@ fn test_create_vtt_components_which_value_overflows() {
 
 #[test]
 fn test_create_vtt_spends_utxos() {
-    let pkh = pkh_factory().as_ref().to_vec();
+    let pkh = pkh_factory();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
         out_pointer.clone(),
-        model::KeyBalance {
-            pkh: pkh.clone(),
-            amount: 1,
-        },
+        model::KeyBalance { pkh, amount: 1 },
     )]);
     let path = model::Path {
         account: 0,
