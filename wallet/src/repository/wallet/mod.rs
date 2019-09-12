@@ -199,8 +199,14 @@ where
         let mut transactions = Vec::with_capacity(range.len());
 
         for index in range.rev() {
-            let transaction = self.get_transaction(account, index)?;
-            transactions.push(transaction);
+            match self.get_transaction(account, index) {
+                Ok(transaction) => {
+                    transactions.push(transaction);
+                }
+                Err(e) => {
+                    log::error!("transactions: {}", e);
+                }
+            }
         }
 
         Ok(model::Transactions {
