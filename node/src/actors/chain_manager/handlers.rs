@@ -746,7 +746,7 @@ impl Handler<BuildVtt> for ChainManager {
         match transaction_factory::build_vtt(
             msg.vto,
             msg.fee,
-            &self.chain_state.own_utxos,
+            &mut self.chain_state.own_utxos,
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
         ) {
@@ -792,7 +792,7 @@ impl Handler<BuildDrt> for ChainManager {
         match transaction_factory::build_drt(
             msg.dro,
             msg.fee,
-            &self.chain_state.own_utxos,
+            &mut self.chain_state.own_utxos,
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
         ) {
