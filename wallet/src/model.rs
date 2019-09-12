@@ -39,6 +39,14 @@ pub struct Addresses {
     pub total: u32,
 }
 
+#[derive(Debug, Serialize)]
+pub struct Balance {
+    pub available: String,
+    pub confirmed: String,
+    pub unconfirmed: String,
+    pub total: String,
+}
+
 #[cfg(test)]
 impl Addresses {
     /// Number of addresses contained in the internal buffer.

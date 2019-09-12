@@ -186,5 +186,6 @@ pub fn connect_routes<T, S>(
         ("Send-Data-Request", "sendDataRequest", SendDataReqRequest),
         ("Set", "set", SetRequest),
         ("Get", "get", GetRequest),
+        ("Get-Balance", "getBalance", GetBalanceRequest),
     );
 }

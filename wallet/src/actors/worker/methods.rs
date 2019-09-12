@@ -180,6 +180,17 @@ impl Worker {
         Ok(addresses)
     }
 
+    pub fn balance(&mut self, wallet: &types::Wallet) -> Result<model::Balance> {
+        let balance = wallet.balance()?;
+
+        Ok(model::Balance {
+            available: 0.to_string(),
+            confirmed: 0.to_string(),
+            unconfirmed: 0.to_string(),
+            total: balance.amount.to_string(),
+        })
+    }
+
     pub fn transactions(
         &mut self,
         wallet: &types::Wallet,
