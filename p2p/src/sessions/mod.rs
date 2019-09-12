@@ -166,6 +166,15 @@ where
             .map(|limit| num_outbound_sessions < limit as usize)
             .unwrap_or(true)
     }
+    /// Method to return the diff between limit and outbounds number
+    pub fn num_missing_outbound(&self) -> usize {
+        let num_outbound_sessions = self.get_num_outbound_sessions();
+
+        self.outbound_consolidated
+            .limit
+            .map(|limit| limit as usize - num_outbound_sessions)
+            .unwrap_or(1)
+    }
     /// Method to get a random consolidated outbound session
     pub fn get_random_anycast_session(&self, safu: bool) -> Option<T> {
         // Get iterator over the values of the hashmap

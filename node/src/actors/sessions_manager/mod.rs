@@ -60,7 +60,9 @@ impl SessionsManager {
                 peers_manager_addr
                     // Send GetPeer message to peers manager actor
                     // This returns a Request Future, representing an asynchronous message sending process
-                    .send(GetRandomPeers { n: 1 })
+                    .send(GetRandomPeers {
+                        n: act.sessions.num_missing_outbound(),
+                    })
                     // Convert a normal future into an ActorFuture
                     .into_actor(act)
                     // Process the response from the peers manager
