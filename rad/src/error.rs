@@ -1,5 +1,6 @@
 //! Error type definitions for the RAD module.
 
+use crate::types::array::RadonArray;
 use failure::{self, Fail};
 use serde_cbor::value::Value;
 
@@ -70,6 +71,15 @@ pub enum RadError {
         reducer, inner_type
     )]
     UnsupportedReducer { inner_type: String, reducer: String },
+    /// There was a tie after applying the mode reducer
+    #[fail(
+        display = "There was a tie after applying the mode reducer on values: `{:?}`",
+        values
+    )]
+    ModeTie { values: RadonArray },
+    /// Tried to apply mod reducer on an empty array
+    #[fail(display = "Tried to apply mode reducer on an empty array")]
+    ModeEmpty,
     /// The given arguments are not valid for the given operator
     #[fail(
         display = "Wrong `{}::{}()` arguments: `{:?}`",
