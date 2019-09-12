@@ -67,6 +67,16 @@ impl RadonTypes {
     }
 }
 
+impl std::cmp::Eq for RadonTypes {}
+
+impl std::hash::Hash for RadonTypes {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let vec: Result<Vec<u8>, RadError> = self.clone().try_into();
+        let res = vec.unwrap();
+        res.hash(state);
+    }
+}
+
 impl fmt::Display for RadonTypes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

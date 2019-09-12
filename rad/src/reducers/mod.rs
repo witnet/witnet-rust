@@ -5,6 +5,7 @@ use crate::error::RadError;
 use crate::types::{array::RadonArray, RadonTypes};
 
 mod average;
+mod mode;
 
 use num_derive::FromPrimitive;
 use std::fmt;
@@ -41,6 +42,7 @@ pub fn reduce(input: &RadonArray, reducer_code: RadonReducers) -> Result<RadonTy
     if input.is_homogeneous() {
         match reducer_code {
             RadonReducers::AverageMean => average::mean(input),
+            RadonReducers::Mode => mode::mode(input),
             _ => error(),
         }
     } else {
