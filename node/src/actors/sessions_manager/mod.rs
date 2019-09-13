@@ -41,18 +41,18 @@ impl SessionsManager {
     fn bootstrap_peers(&self, ctx: &mut Context<Self>, bootstrap_peers_period: Duration) {
         // Schedule the bootstrap with a given period
         ctx.run_later(bootstrap_peers_period, move |act, ctx| {
-            info!(
-                "{} Inbound: {} | Outbound: {}",
-                Cyan.bold().paint("[Sessions]"),
-                Cyan.bold()
-                    .paint(act.sessions.get_num_inbound_sessions().to_string()),
-                Cyan.bold()
-                    .paint(act.sessions.get_num_outbound_sessions().to_string())
-            );
-            trace!("{:#?}", act.sessions.show_ips());
-
             // Check if bootstrap is needed
             if act.sessions.is_outbound_bootstrap_needed() {
+                info!(
+                    "{} Inbound: {} | Outbound: {}",
+                    Cyan.bold().paint("[Sessions]"),
+                    Cyan.bold()
+                        .paint(act.sessions.get_num_inbound_sessions().to_string()),
+                    Cyan.bold()
+                        .paint(act.sessions.get_num_outbound_sessions().to_string())
+                );
+                trace!("{:#?}", act.sessions.show_ips());
+
                 // Get peers manager address
                 let peers_manager_addr = System::current().registry().get::<PeersManager>();
 

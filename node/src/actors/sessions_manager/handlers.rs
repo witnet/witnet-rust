@@ -7,7 +7,8 @@ use actix::{
     io::FramedWrite, Actor, ActorFuture, Context, ContextFutureSpawner, Handler, Message,
     StreamHandler, System, WrapFuture,
 };
-use log::{debug, error, warn};
+use ansi_term::Color::Cyan;
+use log::{debug, error, info, trace, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use super::SessionsManager;
@@ -254,6 +255,16 @@ impl Handler<EpochNotification<()>> for SessionsManager {
         // been executed. We could avoid this by only clearing beacons from past epochs, and
         // accepting beacons for future epochs, but that would add complexity.
         self.clear_beacons();
+
+        info!(
+            "{} Inbound: {} | Outbound: {}",
+            Cyan.bold().paint("[Sessions]"),
+            Cyan.bold()
+                .paint(self.sessions.get_num_inbound_sessions().to_string()),
+            Cyan.bold()
+                .paint(self.sessions.get_num_outbound_sessions().to_string())
+        );
+        trace!("{:#?}", self.sessions.show_ips());
     }
 }
 
