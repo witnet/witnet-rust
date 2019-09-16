@@ -8,7 +8,7 @@ use actix::{
 
 use ansi_term::Color::Cyan;
 
-use witnet_p2p::sessions::Sessions;
+use witnet_p2p::sessions::{SessionType, Sessions};
 
 use crate::actors::{
     chain_manager::ChainManager,
@@ -79,7 +79,7 @@ impl SessionsManager {
                             System::current().registry().get::<ConnectionsManager>();
                         connections_manager_addr.do_send(OutboundTcpConnect {
                             address,
-                            feeler: false,
+                            session_type: SessionType::Outbound,
                         });
 
                         actix::fut::ok(())

@@ -18,7 +18,8 @@ pub enum SessionsError {
     #[fail(display = "Is not an outbound consolidated peer")]
     NotOutboundConsolidatedPeer,
     /// Errors when using SessionType::Feeler sessions in SessionsManager
-    #[fail(display = "Peer provided from feeler has been used in SessionsManager")]
+    #[fail(display = "SessionsManager was told to manage a Feeler session.\
+                      The session will be ignored because Feeler sessions should not be managed.")]
     NotExpectedFeelerPeer,
 }
 

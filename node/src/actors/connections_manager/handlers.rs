@@ -32,7 +32,7 @@ impl Handler<OutboundTcpConnect> for ConnectionsManager {
             .send(ConnectAddr(msg.address))
             .into_actor(self)
             .then(move |res, _act, _ctx| {
-                ConnectionsManager::process_connect_addr_response(res, msg.feeler)
+                ConnectionsManager::process_connect_addr_response(res, msg.session_type)
             })
             .wait(ctx);
     }

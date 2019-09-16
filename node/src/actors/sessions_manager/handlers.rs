@@ -99,7 +99,7 @@ impl Handler<Unregister> for SessionsManager {
     fn handle(&mut self, msg: Unregister, _: &mut Context<Self>) -> Self::Result {
         // First evaluate Feeler case
         if msg.session_type == SessionType::Feeler {
-            // Feeler sessions are not working with SessionsManager
+            // Feeler sessions should not be managed by `SessionsManager`
             Ok(())
         } else {
             // Call method register session from sessions library

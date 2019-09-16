@@ -13,7 +13,7 @@ use crate::{
     },
     storage_mngr,
 };
-use witnet_p2p::peers::Peers;
+use witnet_p2p::{peers::Peers, sessions::SessionType};
 use witnet_util::timestamp::get_timestamp;
 
 // Internal Actor implementation for PeersManager
@@ -89,7 +89,7 @@ impl PeersManager {
                 log::debug!("Trying new address {} ", address);
                 connections_manager_addr.do_send(OutboundTcpConnect {
                     address,
-                    feeler: true,
+                    session_type: SessionType::Feeler,
                 });
             }
             Some(ts) if current_ts - ts > self.bucketing_update_period => {
@@ -100,7 +100,7 @@ impl PeersManager {
                 log::debug!("Trying old address {} ", address);
                 connections_manager_addr.do_send(OutboundTcpConnect {
                     address: old_address,
-                    feeler: true,
+                    session_type: SessionType::Feeler,
                 });
 
                 // Remove from tried bucket (in case of old address is ok, it will be

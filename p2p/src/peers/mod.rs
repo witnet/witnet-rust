@@ -112,33 +112,32 @@ impl Peers {
             .into_iter()
             .filter_map(|address| {
                 // Filter out unspecified addresses (aka 0.0.0.0), and the server address
-                if address.ip().is_unspecified()
-                    || self.is_server_address(&address).is_none()
-                    || self.is_server_address(&address).unwrap()
+                if !address.ip().is_unspecified()
+                    && !self.is_server_address(&address).unwrap_or(true)
                 {
-                    return None;
+                    let index = self.tried_bucket_index(&address);
+                    let elem = self.tried_bucket.get(&index);
+
+                    // If the index point to the same address that it is already
+                    // in tried, we don't include in new bucket
+                    if elem.is_none() || (elem.unwrap().address != address) {
+                        let index = self.new_bucket_index(&address, &src_address);
+
+                        self.new_bucket
+                            .insert(
+                                index,
+                                PeerInfo {
+                                    address,
+                                    timestamp: get_timestamp(), //msg.timestamp,
+                                },
+                            )
+                            .map(|v| v.address)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
                 }
-
-                let index = self.tried_bucket_index(&address);
-                let elem = self.tried_bucket.get(&index);
-
-                // If the index point to the same address that it is already
-                // in tried, we don't include in new bucket
-                if elem.is_some() && (elem.unwrap().address == address) {
-                    return None;
-                }
-
-                let index = self.new_bucket_index(&address, &src_address);
-
-                self.new_bucket
-                    .insert(
-                        index,
-                        PeerInfo {
-                            address,
-                            timestamp: get_timestamp(), //msg.timestamp,
-                        },
-                    )
-                    .map(|v| v.address)
             })
             .collect();
 
