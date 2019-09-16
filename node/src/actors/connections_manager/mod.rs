@@ -70,6 +70,7 @@ impl ConnectionsManager {
     /// Method to process resolver ConnectAddr response
     fn process_connect_addr_response(
         response: Result<ResolverResult, MailboxError>,
+        feeler_flag: bool,
     ) -> actix::fut::FutureResult<(), (), Self> {
         // Process the Result<ResolverResult, MailboxError>
         match response {
@@ -93,7 +94,17 @@ impl ConnectionsManager {
                             });
 
                         // Request the creation of a new session actor from connection
-                        ConnectionsManager::request_session_creation(stream, SessionType::Outbound);
+                        if feeler_flag {
+                            ConnectionsManager::request_session_creation(
+                                stream,
+                                SessionType::Feeler,
+                            );
+                        } else {
+                            ConnectionsManager::request_session_creation(
+                                stream,
+                                SessionType::Outbound,
+                            );
+                        }
 
                         actix::fut::ok(())
                     }

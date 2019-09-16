@@ -35,59 +35,73 @@ impl Actor for Session {
             }
         });
 
-        self.subscribe_to_epoch_manager(ctx);
+        // Peer registered if it is not come from feeler
+        if self.session_type == SessionType::Feeler {
+            // FIXME(#142): include the checkpoint of the current tip of the local blockchain
+            let version_msg = WitnetMessage::build_version(
+                self.magic_number,
+                self.server_addr,
+                self.remote_addr,
+                0,
+            );
+            self.send_message(version_msg);
+            // Set HandshakeFlag of sent version message
+            self.handshake_flags.version_tx = true;
+        } else {
+            self.subscribe_to_epoch_manager(ctx);
 
-        // Get SessionsManager address
-        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+            // Get SessionsManager address
+            let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
 
-        // Register self in SessionsManager. `AsyncContext::wait` register
-        // future within context, but context waits until this future resolves
-        // before processing any other events.
-        sessions_manager_addr
-            .send(Register {
-                address: self.remote_addr,
-                actor: ctx.address(),
-                session_type: self.session_type,
-            })
-            .into_actor(self)
-            .then(|res, act, ctx| {
-                match res {
-                    Ok(Ok(_)) => {
-                        debug!(
-                            "Successfully registered session {:?} into SessionManager",
-                            act.remote_addr
+            // Register self in SessionsManager. `AsyncContext::wait` register
+            // future within context, but context waits until this future resolves
+            // before processing any other events.
+            sessions_manager_addr
+                .send(Register {
+                    address: self.remote_addr,
+                    actor: ctx.address(),
+                    session_type: self.session_type,
+                })
+                .into_actor(self)
+                .then(|res, act, ctx| {
+                    match res {
+                        Ok(Ok(_)) => {
+                            debug!(
+                                "Successfully registered session {:?} into SessionManager",
+                                act.remote_addr
+                            );
+
+                            actix::fut::ok(())
+                        }
+                        _ => {
+                            error!("Session register into Session Manager failed");
+                            // FIXME(#72): a full stop of the session is not correct (unregister should
+                            // be skipped)
+                            ctx.stop();
+
+                            actix::fut::err(())
+                        }
+                    }
+                })
+                .and_then(|_, act, _ctx| {
+                    // Send version if outbound session
+                    if let SessionType::Outbound = act.session_type {
+                        // FIXME(#142): include the checkpoint of the current tip of the local blockchain
+                        let version_msg = WitnetMessage::build_version(
+                            act.magic_number,
+                            act.server_addr,
+                            act.remote_addr,
+                            0,
                         );
-
-                        actix::fut::ok(())
+                        act.send_message(version_msg);
+                        // Set HandshakeFlag of sent version message
+                        act.handshake_flags.version_tx = true;
                     }
-                    _ => {
-                        error!("Session register into Session Manager failed");
-                        // FIXME(#72): a full stop of the session is not correct (unregister should
-                        // be skipped)
-                        ctx.stop();
 
-                        actix::fut::err(())
-                    }
-                }
-            })
-            .and_then(|_, act, _ctx| {
-                // Send version if outbound session
-                if let SessionType::Outbound = act.session_type {
-                    // FIXME(#142): include the checkpoint of the current tip of the local blockchain
-                    let version_msg = WitnetMessage::build_version(
-                        act.magic_number,
-                        act.server_addr,
-                        act.remote_addr,
-                        0,
-                    );
-                    act.send_message(version_msg);
-                    // Set HandshakeFlag of sent version message
-                    act.handshake_flags.version_tx = true;
-                }
-
-                actix::fut::ok(())
-            })
-            .wait(ctx);
+                    actix::fut::ok(())
+                })
+                .wait(ctx);
+        }
     }
 
     /// Method to be executed when the actor is stopping

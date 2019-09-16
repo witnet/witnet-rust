@@ -77,7 +77,10 @@ impl SessionsManager {
                         // Get ConnectionsManager from registry and send an OutboundTcpConnect message to it
                         let connections_manager_addr =
                             System::current().registry().get::<ConnectionsManager>();
-                        connections_manager_addr.do_send(OutboundTcpConnect { address });
+                        connections_manager_addr.do_send(OutboundTcpConnect {
+                            address,
+                            feeler: false,
+                        });
 
                         actix::fut::ok(())
                     })

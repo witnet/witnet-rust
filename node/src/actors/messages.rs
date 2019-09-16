@@ -257,6 +257,8 @@ impl InboundTcpConnect {
 pub struct OutboundTcpConnect {
     /// Address of the outbound connection
     pub address: SocketAddr,
+    /// Flag to indicate if it is a peers provided from the feeler function
+    pub feeler: bool,
 }
 
 /// Returned type by the Resolver actor for the ConnectAddr message

@@ -10,12 +10,14 @@ use rand::{thread_rng, Rng};
 use super::{error::SessionsError, sessions::bounded_sessions::BoundedSessions};
 
 /// Session type
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum SessionType {
     /// Inbound session
     Inbound,
     /// Outbound session
     Outbound,
+    /// Session created by feeler function
+    Feeler,
 }
 
 /// Session Status (used for bootstrapping)
@@ -89,16 +91,17 @@ where
         &mut self,
         session_type: SessionType,
         status: SessionStatus,
-    ) -> &mut BoundedSessions<T> {
+    ) -> Result<&mut BoundedSessions<T>, failure::Error> {
         match session_type {
             SessionType::Inbound => match status {
-                SessionStatus::Unconsolidated => &mut self.inbound_unconsolidated,
-                SessionStatus::Consolidated => &mut self.inbound_consolidated,
+                SessionStatus::Unconsolidated => Ok(&mut self.inbound_unconsolidated),
+                SessionStatus::Consolidated => Ok(&mut self.inbound_consolidated),
             },
             SessionType::Outbound => match status {
-                SessionStatus::Unconsolidated => &mut self.outbound_unconsolidated,
-                SessionStatus::Consolidated => &mut self.outbound_consolidated,
+                SessionStatus::Unconsolidated => Ok(&mut self.outbound_unconsolidated),
+                SessionStatus::Consolidated => Ok(&mut self.outbound_consolidated),
             },
+            _ => Err(SessionsError::NotExpectedFeelerPeer)?,
         }
     }
     /// Method to set the server address
@@ -214,7 +217,7 @@ where
         reference: T,
     ) -> Result<(), failure::Error> {
         // Get map to insert session to
-        let sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated);
+        let sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated)?;
 
         // Register session and return result
         sessions.register_session(address, reference)
@@ -238,7 +241,7 @@ where
         }
 
         // Get map to insert session to
-        let sessions = self.get_sessions(session_type, status);
+        let sessions = self.get_sessions(session_type, status)?;
 
         // Remove session and return result
         sessions.unregister_session(address).map(|_| ())
@@ -250,13 +253,13 @@ where
         address: SocketAddr,
     ) -> Result<(), failure::Error> {
         // Get map to remove session from
-        let uncons_sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated);
+        let uncons_sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated)?;
 
         // Remove session from unconsolidated collection
         let session_info = uncons_sessions.unregister_session(address)?;
 
         // Get map to insert session to
-        let cons_sessions = self.get_sessions(session_type, SessionStatus::Consolidated);
+        let cons_sessions = self.get_sessions(session_type, SessionStatus::Consolidated)?;
 
         // Register session into consolidated collection
         cons_sessions.register_session(address, session_info.reference)

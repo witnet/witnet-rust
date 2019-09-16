@@ -22,6 +22,7 @@ use witnet_data_structures::{
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use super::Session;
+use crate::actors::messages::AddConsolidatedPeer;
 use crate::actors::{
     chain_manager::ChainManager,
     codec::BytesMut,
@@ -122,10 +123,8 @@ impl StreamHandler<BytesMut, Error> for Session {
                             self.send_message(msg);
                         }
 
-                        // TODO: It is needed?
                         try_consolidate_session(self, ctx);
                     }
-                    // Handler Verack message
                     (_, SessionStatus::Unconsolidated, Command::Verack(_)) => {
                         handshake_verack(self);
                         try_consolidate_session(self, ctx);
@@ -307,45 +306,60 @@ fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
 
 // Function to notify the SessionsManager that the session has been consolidated
 fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
-    // Get session manager address
-    let session_manager_addr = System::current().registry().get::<SessionsManager>();
+    // First evaluate Feeler case
+    if session.session_type == SessionType::Feeler {
+        // Get peer manager address
+        let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
-    // Register self in session manager. `AsyncContext::wait` register
-    // future within context, but context waits until this future resolves
-    // before processing any other events.
-    session_manager_addr
-        .send(Consolidate {
-            address: session.remote_addr,
-            potential_new_peer: session.remote_sender_addr.unwrap(),
-            session_type: session.session_type,
-        })
-        .into_actor(session)
-        .then(|res, act, ctx| {
-            match res {
-                Ok(Ok(_)) => {
-                    debug!(
-                        "Successfully consolidated session {:?} in SessionManager",
-                        act.remote_addr
-                    );
-                    // Set status to consolidate
-                    act.status = SessionStatus::Consolidated;
+        // Send AddConsolidatedPeer message to the peers manager
+        // Try to add this potential peer in the tried addresses bucket
+        peers_manager_addr.do_send(AddConsolidatedPeer {
+            address: session.remote_sender_addr.unwrap_or(session.remote_addr),
+        });
 
-                    actix::fut::ok(())
+        // After add peer to tried bucket, this session is not longer useful
+        ctx.stop();
+    } else {
+        // Get session manager address
+        let session_manager_addr = System::current().registry().get::<SessionsManager>();
+
+        // Register self in session manager. `AsyncContext::wait` register
+        // future within context, but context waits until this future resolves
+        // before processing any other events.
+        session_manager_addr
+            .send(Consolidate {
+                address: session.remote_addr,
+                potential_new_peer: session.remote_sender_addr.unwrap(),
+                session_type: session.session_type,
+            })
+            .into_actor(session)
+            .then(|res, act, ctx| {
+                match res {
+                    Ok(Ok(_)) => {
+                        debug!(
+                            "Successfully consolidated session {:?} in SessionManager",
+                            act.remote_addr
+                        );
+                        // Set status to consolidate
+                        act.status = SessionStatus::Consolidated;
+
+                        actix::fut::ok(())
+                    }
+                    _ => {
+                        warn!(
+                            "Failed to consolidate session {:?} in SessionManager",
+                            act.remote_addr
+                        );
+                        // FIXME(#72): a full stop of the session is not correct (unregister should
+                        // be skipped)
+                        ctx.stop();
+
+                        actix::fut::err(())
+                    }
                 }
-                _ => {
-                    warn!(
-                        "Failed to consolidate session {:?} in SessionManager",
-                        act.remote_addr
-                    );
-                    // FIXME(#72): a full stop of the session is not correct (unregister should
-                    // be skipped)
-                    ctx.stop();
-
-                    actix::fut::err(())
-                }
-            }
-        })
-        .wait(ctx);
+            })
+            .wait(ctx);
+    }
 }
 
 /// Function called when GetPeers message is received

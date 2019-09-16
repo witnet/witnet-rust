@@ -20,6 +20,7 @@ use crate::actors::{
     peers_manager::PeersManager,
     session::Session,
 };
+use witnet_p2p::sessions::SessionType;
 
 /// Handler for Create message.
 impl Handler<Create> for SessionsManager {
@@ -96,23 +97,29 @@ impl Handler<Unregister> for SessionsManager {
     type Result = SessionsUnitResult;
 
     fn handle(&mut self, msg: Unregister, _: &mut Context<Self>) -> Self::Result {
-        // Call method register session from sessions library
-        let result = self
-            .sessions
-            .unregister_session(msg.session_type, msg.status, msg.address);
+        // First evaluate Feeler case
+        if msg.session_type == SessionType::Feeler {
+            // Feeler sessions are not working with SessionsManager
+            Ok(())
+        } else {
+            // Call method register session from sessions library
+            let result =
+                self.sessions
+                    .unregister_session(msg.session_type, msg.status, msg.address);
 
-        match &result {
-            Ok(_) => debug!(
-                "Session (type {:?}) unregistered for peer {}",
-                msg.session_type, msg.address
-            ),
-            Err(error) => error!(
-                "Error while unregistering peer {} (session type {:?}): {}",
-                msg.address, msg.session_type, error
-            ),
+            match &result {
+                Ok(_) => debug!(
+                    "Session (type {:?}) unregistered for peer {}",
+                    msg.session_type, msg.address
+                ),
+                Err(error) => error!(
+                    "Error while unregistering peer {} (session type {:?}): {}",
+                    msg.address, msg.session_type, error
+                ),
+            }
+
+            result
         }
-
-        result
     }
 }
 

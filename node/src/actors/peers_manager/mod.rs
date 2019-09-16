@@ -78,7 +78,7 @@ impl PeersManager {
     }
 
     /// Method to try a peer before to insert in the tried addresses bucket
-    pub fn try_peer(&mut self, ctx: &mut Context<Self>, address: SocketAddr) {
+    pub fn try_peer(&mut self, _ctx: &mut Context<Self>, address: SocketAddr) {
         let connections_manager_addr = System::current().registry().get::<ConnectionsManager>();
         let current_ts = get_timestamp();
 
@@ -87,7 +87,10 @@ impl PeersManager {
             None => {
                 // Empty slot, try new peer
                 log::debug!("Trying new address {} ", address);
-                connections_manager_addr.do_send(OutboundTcpConnect { address });
+                connections_manager_addr.do_send(OutboundTcpConnect {
+                    address,
+                    feeler: true,
+                });
             }
             Some(ts) if current_ts - ts > self.bucketing_update_period => {
                 // No empty slot, first try the old one
@@ -97,16 +100,12 @@ impl PeersManager {
                 log::debug!("Trying old address {} ", address);
                 connections_manager_addr.do_send(OutboundTcpConnect {
                     address: old_address,
+                    feeler: true,
                 });
 
                 // Remove from tried bucket (in case of old address is ok, it will be
                 // added again, in the other case the slot will be free to accept the new one)
                 self.peers.remove_from_tried(&[old_address]);
-
-                // Try the new address after 2 times a handshake_timeout
-                ctx.run_later(self.handshake_timeout * 2, move |act, ctx| {
-                    act.try_peer(ctx, address)
-                });
             }
             // Case peer updated recently ( do nothing )
             _ => {}

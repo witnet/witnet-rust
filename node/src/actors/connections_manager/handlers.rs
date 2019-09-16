@@ -31,7 +31,9 @@ impl Handler<OutboundTcpConnect> for ConnectionsManager {
         Resolver::from_registry()
             .send(ConnectAddr(msg.address))
             .into_actor(self)
-            .then(|res, _act, _ctx| ConnectionsManager::process_connect_addr_response(res))
+            .then(move |res, _act, _ctx| {
+                ConnectionsManager::process_connect_addr_response(res, msg.feeler)
+            })
             .wait(ctx);
     }
 }
