@@ -48,6 +48,8 @@ pub fn exec(command: Cli) -> Result<(), failure::Error> {
             }
 
             init_logger(log_opts);
+            witnet_data_structures::set_environment(config.environment);
+
             exec_cmd(cmd, config)
         }
     }
