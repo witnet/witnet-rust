@@ -49,11 +49,21 @@ lazy_static! {
 
 /// Environment in which we are running: mainnet or testnet.
 pub fn get_environment() -> Environment {
+    // This unwrap is safe as long as the lock is not poisoned.
+    // The lock can only become poisoned when a writer panics.
+    // The only writer is the one used in `set_environment`, which should only
+    // be used during initialization, when there is only one thread running.
+    // So a panic there should have stopped the node before this function
+    // is ever called.
     *ENVIRONMENT.read().unwrap()
 }
 
 /// Set the environment: mainnet or testnet.
 /// This function should only be called once during initialization.
+// Changing the environment in tests is not supported, as it can cause spurious failures:
+// multiple tests can run in parallel and some tests might fail when the environment changes.
+// But if you need to change the environment in some test, just create a separate thread-local
+// variable and mock get and set.
 #[cfg(not(test))]
 pub fn set_environment(environment: Environment) {
     match ENVIRONMENT.write() {
@@ -67,29 +77,14 @@ pub fn set_environment(environment: Environment) {
     }
 }
 
-/// Set the environment: mainnet or testnet.
-/// This function should only be called once during initialization.
-#[cfg(test)]
-pub fn set_environment(_environment: Environment) {
-    panic!(
-        "Dont set the environment in tests, as it can cause sporious failures: \
-         multiple tests can run in parallel so some tests might fail when the \
-         environment changes."
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn default_environment() {
+        // If this default changes, all the tests that rely on hardcoded
+        // addresses serialized as Bech32 will fail
         assert_eq!(get_environment(), Environment::Mainnet);
-    }
-
-    #[test]
-    #[should_panic]
-    fn change_environment_in_tests() {
-        set_environment(Environment::Mainnet);
     }
 }

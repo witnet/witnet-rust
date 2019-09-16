@@ -15,8 +15,8 @@ use witnet_rad::error::RadError;
 
 use crate::validations::*;
 
-static MY_PKH: &str = "3e13996ed18be842d9d4303b428dd30c85db8e9e";
-static MY_PKH_2: &str = "11f66b6ff5ed1ed21200c0a01f22540cd828ca1f";
+static MY_PKH: &str = "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm";
+static MY_PKH_2: &str = "wit1z8mxkml4a50dyysqczsp7gj5pnvz3jsldras8t";
 
 fn sign_t<H: Hashable>(tx: &H) -> KeyedSignature {
     let Hash::SHA256(data) = tx.hash();
@@ -3030,7 +3030,7 @@ fn block_difficult_proof() {
     let mut rep_eng = ReputationEngine::new(100);
     rep_eng
         .ars
-        .push_activity((0..512).map(|x| format!("{:040}", x).parse().unwrap()));
+        .push_activity((0..512).map(|x| PublicKeyHash::from_hex(&format!("{:040}", x)).unwrap()));
     let mut utxo_set = UnspentOutputsPool::default();
     // Insert output to utxo
     let output1 = ValueTransferOutput {

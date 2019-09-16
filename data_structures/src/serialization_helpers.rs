@@ -7,6 +7,7 @@
 // Ideally all this code would be generated with a `#[serde(human_readable_string)]` macro.
 
 use crate::chain::{Hash, OutputPointer, PublicKeyHash, SHA256};
+use crate::get_environment;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Deserialize, Serialize)]
@@ -76,9 +77,7 @@ impl Into<PublicKeyHash> for PublicKeyHashSerializationHelper {
 impl Serialize for PublicKeyHash {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if serializer.is_human_readable() {
-            // TODO: how do we handle Bech32 here?
-            // For now just use hex
-            serializer.collect_str(&self.to_hex())
+            serializer.collect_str(&self.bech32(get_environment()))
         } else {
             PublicKeyHashSerializationHelper::from(*self).serialize(serializer)
         }
@@ -91,9 +90,8 @@ impl<'de> Deserialize<'de> for PublicKeyHash {
         D: Deserializer<'de>,
     {
         if deserializer.is_human_readable() {
-            String::deserialize(deserializer)?
-                .parse::<PublicKeyHash>()
-                .map_err(de::Error::custom)
+            let s = String::deserialize(deserializer)?;
+            PublicKeyHash::from_bech32(get_environment(), &s).map_err(de::Error::custom)
         } else {
             PublicKeyHashSerializationHelper::deserialize(deserializer).map(Into::into)
         }

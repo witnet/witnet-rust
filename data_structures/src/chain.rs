@@ -26,6 +26,7 @@ use crate::{
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
     },
+    get_environment,
     proto::{schema::witnet, ProtobufConvert},
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
@@ -507,7 +508,7 @@ impl AsRef<[u8]> for PublicKeyHash {
 
 impl fmt::Display for PublicKeyHash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let address = self.to_hex();
+        let address = self.bech32(get_environment());
 
         f.write_str(&address)
     }
@@ -534,16 +535,7 @@ impl FromStr for PublicKeyHash {
     type Err = PublicKeyHashParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // TODO: how do we handle Bech32 here?
-        // For now it is not implemented, so calling Pkh::from_str(pkh.to_string()) may fail
-        let mut hash = [0; 20];
-        let h_bytes = parse_hex(&s);
-        if h_bytes.len() != 20 {
-            Err(PublicKeyHashParseError::InvalidLength(h_bytes.len()))
-        } else {
-            hash.copy_from_slice(&h_bytes);
-            Ok(PublicKeyHash { hash })
-        }
+        Self::from_bech32(get_environment(), s)
     }
 }
 
@@ -577,6 +569,18 @@ impl PublicKeyHash {
         self.hash
             .iter()
             .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x))
+    }
+
+    /// Deserialize PKH from hex bytes
+    pub fn from_hex(s: &str) -> Result<Self, PublicKeyHashParseError> {
+        let mut hash = [0; 20];
+        let h_bytes = parse_hex(&s);
+        if h_bytes.len() != 20 {
+            Err(PublicKeyHashParseError::InvalidLength(h_bytes.len()))
+        } else {
+            hash.copy_from_slice(&h_bytes);
+            Ok(PublicKeyHash { hash })
+        }
     }
 
     /// Serialize PKH according to Bech32
@@ -1981,7 +1985,7 @@ mod tests {
         let hex = "43767d83e23fccb93e8e7d36ed464cce0999b39d";
 
         let addr_to_pkh = PublicKeyHash::from_bech32(Environment::Mainnet, addr).unwrap();
-        let hex_to_pkh = PublicKeyHash::from_str(hex).unwrap();
+        let hex_to_pkh = PublicKeyHash::from_hex(hex).unwrap();
         assert_eq!(addr_to_pkh, hex_to_pkh);
 
         let pkh = addr_to_pkh;
