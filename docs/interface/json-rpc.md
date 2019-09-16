@@ -71,14 +71,14 @@ Response:
 ```
 
 #### getBalance
-Get the total balance of the given public key hash.
+Get the total balance of the given address.
 
 Returns a `u64`, representing balance. The unit is 10^-8 wits.
 
 Example:
 
 ```
-{"jsonrpc":"2.0","id":1,"method":"getBalance","params":["2dbf2cefcf626d661a8cb1797be92624ca1835f7"]}
+{"jsonrpc":"2.0","id":1,"method":"getBalance","params":["wit19kljem70vfkkvx5vk9uhh6fxyn9psd0h43ec8w"]}
 ```
 
 Response:
@@ -176,11 +176,11 @@ Example:
 Response:
 
 ```
-{"jsonrpc":"2.0","result":"121747ea4a2103b38b7213ac6d67e949add96cfb","id":1}
+{"jsonrpc":"2.0","result":"wit1zgt506j2yypm8zmjzwkx6elffxkajm8m9z2cdu","id":1}
 ```
 
 #### getReputation
-Get the reputation of the given public key hash.
+Get the reputation of the given identity by address.
 
 Returns a tuple of `(Reputation, bool)`, where `Reputation` is a `u32` and the boolean
 indicates whether this identity is active.
@@ -188,7 +188,7 @@ indicates whether this identity is active.
 Example:
 
 ```
-{"jsonrpc":"2.0","id":1,"method":"getReputation","params":["32a2e5a644bebf5f7c8ee8b299047160154f9201"]}
+{"jsonrpc":"2.0","id":1,"method":"getReputation","params":["wit1x23wtfjyh6l47lywazefjpr3vq25lyspjf0p8z"]}
 ```
 
 Response:
@@ -197,7 +197,7 @@ Response:
 {"jsonrpc":"2.0","result":[1,true],"id":1}
 ```
 
-In this case, the identity `32a2e5a644bebf5f7c8ee8b299047160154f9201` has 1 reputation
+In this case, the identity `wit1x23wtfjyh6l47lywazefjpr3vq25lyspjf0p8z` has 1 reputation
 point and is active.
 
 #### getReputationAll
@@ -215,7 +215,7 @@ Example:
 Response:
 
 ```
-{"jsonrpc":"2.0","result":{"32a2e5a644bebf5f7c8ee8b299047160154f9201":[1,true],"b8b7e97172e888a25cb3f277d045ed32696d0491":[1,true]},"id":1}
+{"jsonrpc":"2.0","result":{"wit1x23wtfjyh6l47lywazefjpr3vq25lyspjf0p8z":[1,true],"wit1hzm7jutjazy2yh9n7fmaq30dxf5k6py39uwq0x":[1,true]},"id":1}
 ```
 
 In this case, there are two identities with 1 reputation point each, and both are active.
@@ -244,7 +244,7 @@ A `ValueTransferOutput` is defined as
 
 ```
 {
-  "pkh": "f4536182389999071632d5f8dbf5326f3464617a",
+  "pkh": "wit173fkrq3cnxvsw93j6hudhafjdu6xgct6lcgm9w",
   "value: 1000,
 }
 ```
@@ -254,7 +254,7 @@ Returns the transaction `Hash`, or an error.
 Example:
 
 ```
-{"jsonrpc":"2.0","method":"buildValueTransfer","id":1,"params":{"vto":[{"pkh":"f4536182389999071632d5f8dbf5326f3464617a","value":1000}],"fee":10}}
+{"jsonrpc":"2.0","method":"buildValueTransfer","id":1,"params":{"vto":[{"pkh":"wit173fkrq3cnxvsw93j6hudhafjdu6xgct6lcgm9w","value":1000}],"fee":10}}
 ```
 
 Response:

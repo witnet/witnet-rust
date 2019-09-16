@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::Path;
 use web3::types::H160;
+use witnet_data_structures::chain::Environment;
 
 /// Configuration
 #[derive(Serialize, Deserialize)]
@@ -40,6 +41,8 @@ pub struct Config {
     pub claim_dr_rate_ms: u64,
     /// Period to check for new Ethereum events
     pub eth_event_polling_rate_ms: u64,
+    /// Running in the witnet testnet?
+    pub witnet_testnet: bool,
 }
 
 /// Load configuration from a file written in Toml format.
@@ -54,5 +57,13 @@ pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, Box<dyn std::error::
 
     let mut file = File::open(file)?;
     file.read_to_string(&mut contents)?;
-    Ok(toml::from_str(&contents)?)
+    let c: Config = toml::from_str(&contents)?;
+    // Set environment: must be the same as the witnet node
+    witnet_data_structures::set_environment(if c.witnet_testnet {
+        Environment::Testnet1
+    } else {
+        Environment::Mainnet
+    });
+
+    Ok(c)
 }

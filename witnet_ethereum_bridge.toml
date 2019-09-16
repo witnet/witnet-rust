@@ -28,3 +28,5 @@ witnet_dr_report_polling_rate_ms = 20_000
 claim_dr_rate_ms = 30_000
 # Period to check for new Ethereum events
 eth_event_polling_rate_ms = 1_000
+# Running in the witnet testnet?
+witnet_testnet = true
