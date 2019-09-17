@@ -41,6 +41,17 @@ impl Database for PlainDb {
         }
     }
 
+    fn contains<K>(&self, key: &K) -> Result<bool>
+    where
+        K: AsRef<[u8]> + ?Sized,
+    {
+        let res = self.as_ref().get(key)?;
+        match res {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
+
     fn put<K, V>(&self, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,

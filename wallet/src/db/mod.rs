@@ -40,6 +40,10 @@ pub trait Database {
         K: AsRef<[u8]> + ?Sized,
         V: serde::de::DeserializeOwned;
 
+    fn contains<K>(&self, key: &K) -> Result<bool>
+    where
+        K: AsRef<[u8]> + ?Sized;
+
     fn put<K, V>(&self, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,

@@ -38,6 +38,16 @@ impl Database for HashMapDb {
         Ok(res)
     }
 
+    fn contains<K>(&self, key: &K) -> Result<bool>
+    where
+        K: AsRef<[u8]> + ?Sized,
+    {
+        let k = key.as_ref().to_vec();
+        let res = self.rc.borrow().contains_key(&k);
+
+        Ok(res)
+    }
+
     fn put<K, V>(&self, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,
@@ -106,10 +116,12 @@ fn test_hashmap_db() {
     let storage: Rc<RefCell<HashMap<Bytes, Bytes>>> = Default::default();
     let db = HashMapDb::new(storage.clone());
 
+    assert!(!db.contains(b"key").unwrap());
     assert!(db.get_opt::<_, Bytes>(b"key").unwrap().is_none());
 
     db.put(b"key", b"value".to_vec()).unwrap();
 
+    assert!(db.contains(b"key").unwrap());
     assert_eq!(b"value".to_vec(), db.get::<_, Bytes>(b"key").unwrap());
 }
 

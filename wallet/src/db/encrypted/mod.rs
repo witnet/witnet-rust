@@ -58,6 +58,20 @@ impl Database for EncryptedDb {
         }
     }
 
+    fn contains<K>(&self, key: &K) -> Result<bool>
+    where
+        K: AsRef<[u8]> + ?Sized,
+    {
+        let prefix_key = self.prefixer.prefix(key);
+        let enc_key = self.engine.encrypt(&prefix_key)?;
+        let res = self.as_ref().get(&enc_key)?;
+
+        match res {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
+
     fn put<K, V>(&self, key: K, value: V) -> Result<()>
     where
         K: AsRef<[u8]>,
