@@ -24,10 +24,6 @@ pub enum Command {
     GetPeers(GetPeers),
     Peers(Peers),
 
-    // Heartbeat messages
-    Ping(Ping),
-    Pong(Pong),
-
     // Handshake messages
     Verack(Verack),
     Version(Version),
@@ -45,8 +41,6 @@ impl fmt::Display for Command {
         match self {
             Command::GetPeers(_) => f.write_str(&"GET_PEERS".to_string()),
             Command::Peers(_) => f.write_str(&"PEERS".to_string()),
-            Command::Ping(_) => f.write_str(&"PING".to_string()),
-            Command::Pong(_) => f.write_str(&"PONG".to_string()),
             Command::Verack(_) => f.write_str(&"VERACK".to_string()),
             Command::Version(_) => f.write_str(&"VERSION".to_string()),
             Command::Block(block) => f.write_str(&format!("BLOCK: {}", block.hash())),
@@ -78,21 +72,6 @@ pub struct GetPeers;
 #[protobuf_convert(pb = "witnet::Peers")]
 pub struct Peers {
     pub peers: Vec<Address>,
-}
-
-///////////////////////////////////////////////////////////
-// HEARTBEAT MESSAGES
-///////////////////////////////////////////////////////////
-#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Ping")]
-pub struct Ping {
-    pub nonce: u64,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Pong")]
-pub struct Pong {
-    pub nonce: u64,
 }
 
 ///////////////////////////////////////////////////////////

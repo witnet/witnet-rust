@@ -9,13 +9,11 @@ message Message {
             Verack Verack = 2;
             GetPeers GetPeers = 3;
             Peers Peers = 4;
-            Ping Ping = 5;
-            Pong Pong = 6;
-            Block Block = 7;
-            InventoryAnnouncement InventoryAnnouncement = 8;
-            InventoryRequest InventoryRequest = 9;
-            LastBeacon LastBeacon = 10;
-            Transaction Transaction = 11;
+            Block Block = 5;
+            InventoryAnnouncement InventoryAnnouncement = 6;
+            InventoryRequest InventoryRequest = 7;
+            LastBeacon LastBeacon = 8;
+            Transaction Transaction = 9;
         }
     }
 
@@ -45,14 +43,6 @@ message GetPeers {
 
 message Peers {
     repeated Address peers = 1;
-}
-
-message Ping {
-    fixed64 nonce = 1;
-}
-
-message Pong {
-    fixed64 nonce = 1;
 }
 
 message Block {

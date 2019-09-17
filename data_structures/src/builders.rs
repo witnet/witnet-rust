@@ -13,7 +13,7 @@ use crate::{
     transaction::Transaction,
     types::{
         Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress, LastBeacon,
-        Message, Peers, Ping, Pong, Verack, Version,
+        Message, Peers, Verack, Version,
     },
 };
 
@@ -36,21 +36,6 @@ pub const GENESIS: u64 = 0x0123_4567_89AB_CDEF;
 // BUILDER PUBLIC FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////////////
 impl Message {
-    /// Function to build Ping messages
-    pub fn build_ping(magic: u16) -> Message {
-        Message::build_message(
-            magic,
-            Command::Ping(Ping {
-                nonce: random_nonce(),
-            }),
-        )
-    }
-
-    /// Function to build Pong messages
-    pub fn build_pong(magic: u16, nonce: u64) -> Message {
-        Message::build_message(magic, Command::Pong(Pong { nonce }))
-    }
-
     /// Function to build GetPeers messages
     pub fn build_get_peers(magic: u16) -> Message {
         Message::build_message(magic, Command::GetPeers(GetPeers))

@@ -102,38 +102,6 @@ fn builders_build_peers() {
 }
 
 #[test]
-fn builders_build_ping() {
-    // Expected message (except nonce which is random)
-    let msg = Message {
-        kind: Command::Ping(Ping { nonce: 1234 }),
-        magic: 0xABCD,
-    };
-
-    // Build message
-    let built_msg = Message::build_ping(0xABCD);
-
-    // Check that the build_ping function builds the expected message
-    assert_eq!(built_msg.magic, msg.magic);
-    match built_msg.kind {
-        Command::Ping(Ping { .. }) => (),
-        _ => panic!("Expected ping, found another type"),
-    };
-}
-
-#[test]
-fn builders_build_pong() {
-    // Expected message
-    let nonce = 1234;
-    let msg = Message {
-        kind: Command::Pong(Pong { nonce }),
-        magic: 0xABCD,
-    };
-
-    // Check that the build_pong function builds the expected message
-    assert_eq!(msg, Message::build_pong(0xABCD, nonce));
-}
-
-#[test]
 fn builders_build_version() {
     // Expected message (except nonce which is random and timestamp which is the current one)
     let hardcoded_last_epoch = 1234;
