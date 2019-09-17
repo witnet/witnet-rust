@@ -303,7 +303,8 @@ fn test_run_football() {
             114, 101, 110, 116, 24, 114, 24, 60,
         ],
     };
-    let retrieved = run_retrieval(&retrieve).unwrap();
+    let response = r#"{"event":{"homeTeam":{"name":"Ryazan-VDV","slug":"ryazan-vdv","gender":"F","national":false,"id":171120,"shortName":"Ryazan-VDV","subTeams":[]},"awayTeam":{"name":"Olympique Lyonnais","slug":"olympique-lyonnais","gender":"F","national":false,"id":26245,"shortName":"Lyon","subTeams":[]},"homeScore":{"current":0,"display":0,"period1":0,"normaltime":0},"awayScore":{"current":9,"display":9,"period1":5,"normaltime":9}}}"#;
+    let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
     let expected = RadonTypes::Integer(RadonInteger::from(9));
     assert_eq!(retrieved, expected)
 }
