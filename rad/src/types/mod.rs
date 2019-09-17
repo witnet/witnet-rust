@@ -35,7 +35,7 @@ where
     fn radon_type_name() -> String;
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub enum RadonTypes {
     Array(RadonArray),
     Boolean(RadonBoolean),
@@ -68,6 +68,18 @@ impl RadonTypes {
 }
 
 impl std::cmp::Eq for RadonTypes {}
+
+// Manually implement PartialEq to ensure
+// k1 == k2 ⇒ hash(k1) == hash(k2)
+// https://rust-lang.github.io/rust-clippy/master/index.html#derive_hash_xor_eq
+impl PartialEq for RadonTypes {
+    fn eq(&self, other: &RadonTypes) -> bool {
+        let vec1: Result<Vec<u8>, RadError> = self.clone().try_into();
+        let vec2: Result<Vec<u8>, RadError> = other.clone().try_into();
+
+        vec1 == vec2
+    }
+}
 
 impl std::hash::Hash for RadonTypes {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
