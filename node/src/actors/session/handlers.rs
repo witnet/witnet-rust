@@ -152,11 +152,10 @@ impl StreamHandler<BytesMut, Error> for Session {
                         let inventory_mngr = System::current().registry().get::<InventoryManager>();
                         let item_requests: Vec<_> = inventory
                             .iter()
-                            .filter_map(|item| match item {
+                            .map(|item| match item {
                                 InventoryEntry::Block(hash) | InventoryEntry::Tx(hash) => {
-                                    Some(inventory_mngr.send(GetItem { hash: *hash }))
+                                    inventory_mngr.send(GetItem { hash: *hash })
                                 }
-                                _ => None,
                             })
                             .collect();
 
@@ -473,11 +472,7 @@ fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
     session.requested_block_hashes = inv_entries
         .iter()
         .map(|inv_entry| match inv_entry.clone() {
-            InventoryEntry::Error(hash)
-            | InventoryEntry::Block(hash)
-            | InventoryEntry::DataRequest(hash)
-            | InventoryEntry::DataResult(hash)
-            | InventoryEntry::Tx(hash) => hash,
+            InventoryEntry::Block(hash) | InventoryEntry::Tx(hash) => hash,
         })
         .collect();
 

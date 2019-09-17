@@ -1299,11 +1299,8 @@ impl FromStr for OutputPointer {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::InventoryEntry")]
 pub enum InventoryEntry {
-    Error(Hash),
     Tx(Hash),
     Block(Hash),
-    DataRequest(Hash),
-    DataResult(Hash),
 }
 
 /// Inventory element: block, txns

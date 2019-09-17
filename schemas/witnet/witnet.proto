@@ -245,12 +245,8 @@ message CheckpointBeacon {
 
 message InventoryEntry {
     oneof kind {
-        Hash Error = 1;
+        Hash Block = 1;
         Hash Tx = 2;
-        Hash Block = 3;
-        // TODO: these are unused
-        Hash DataRequest = 4;
-        Hash DataResult = 5;
     }
 }
 
