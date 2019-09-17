@@ -80,6 +80,7 @@ pub fn insert_change_output(
         outputs.push(ValueTransferOutput {
             pkh: own_pkh,
             value: change_amount,
+            time_lock: 0,
         });
     }
 }
@@ -321,7 +322,11 @@ mod tests {
     }
 
     fn pay(pkh: PublicKeyHash, value: u64) -> ValueTransferOutput {
-        ValueTransferOutput { pkh, value }
+        ValueTransferOutput {
+            pkh,
+            value,
+            time_lock: 0,
+        }
     }
 
     fn pay_me(value: u64) -> ValueTransferOutput {
@@ -766,7 +771,6 @@ mod tests {
                 commit_fee: 0,
                 reveal_fee: 0,
                 tally_fee: 0,
-                time_lock: 0,
             },
             0,
             &mut own_utxos,
@@ -787,7 +791,6 @@ mod tests {
                 commit_fee: 300,
                 reveal_fee: 400,
                 tally_fee: 100,
-                time_lock: 0,
             },
             0,
             &mut own_utxos,

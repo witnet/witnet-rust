@@ -110,6 +110,7 @@ pub struct VttParams {
     pub label: Option<String>,
     pub value: u64,
     pub fee: u64,
+    pub time_lock: u64,
 }
 
 pub struct Balance {

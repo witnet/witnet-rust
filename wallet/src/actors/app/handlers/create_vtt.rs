@@ -15,6 +15,7 @@ pub struct CreateVttRequest {
     label: Option<String>,
     amount: u64,
     fee: u64,
+    time_lock: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -42,6 +43,7 @@ impl Handler<CreateVttRequest> for app::App {
                 label: msg.label,
                 value: msg.amount,
                 fee: msg.fee,
+                time_lock: msg.time_lock,
             };
 
             slf.create_vtt(&msg.session_id, &msg.wallet_id, params)

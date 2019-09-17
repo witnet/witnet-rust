@@ -188,10 +188,15 @@ pub fn send_vtt(
     pkh: PublicKeyHash,
     value: u64,
     fee: u64,
+    time_lock: u64,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let params = BuildVtt {
-        vto: vec![ValueTransferOutput { pkh, value }],
+        vto: vec![ValueTransferOutput {
+            pkh,
+            value,
+            time_lock,
+        }],
         fee,
     };
     let request = format!(

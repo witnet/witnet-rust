@@ -323,10 +323,11 @@ where
             value,
             fee,
             label,
+            time_lock,
         }: types::VttParams,
     ) -> Result<types::Transaction> {
         // Gather all the required components for creating the VTT
-        let vtt = self.create_vtt_components(pkh, value, fee)?;
+        let vtt = self.create_vtt_components(pkh, value, fee, time_lock)?;
 
         let body = types::VTTransactionBody::new(vtt.inputs, vtt.outputs);
         let sign_data = body.hash();
@@ -403,6 +404,7 @@ where
         pkh: types::PublicKeyHash,
         value: u64,
         fee: u64,
+        time_lock: u64,
     ) -> Result<types::VttComponents> {
         let mut state = self.state.write()?;
         let target = value.saturating_add(fee);
@@ -412,7 +414,11 @@ where
         let mut sign_keys = Vec::with_capacity(5);
         let mut used = Vec::with_capacity(5);
 
-        outputs.push(types::ValueTransferOutput { pkh, value });
+        outputs.push(types::ValueTransferOutput {
+            pkh,
+            value,
+            time_lock,
+        });
 
         for (out_ptr, key_balance) in state.utxo_set.iter() {
             if payment >= target {
@@ -450,6 +456,7 @@ where
                 outputs.push(types::ValueTransferOutput {
                     pkh: change_address.pkh,
                     value: change,
+                    time_lock: 0,
                 });
             }
 

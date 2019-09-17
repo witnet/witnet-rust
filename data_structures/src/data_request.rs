@@ -343,6 +343,7 @@ pub fn create_tally(
                 let vt_output = ValueTransferOutput {
                     pkh: reveal.body.pkh,
                     value: reveal_reward,
+                    time_lock: 0,
                 };
                 Some(vt_output)
             } else {
@@ -359,6 +360,7 @@ pub fn create_tally(
         let vt_output_change = ValueTransferOutput {
             pkh,
             value: tally_change,
+            time_lock: 0,
         };
         outputs.push(vt_output_change);
     }

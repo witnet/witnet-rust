@@ -305,7 +305,10 @@ fn test_create_vtt_components_when_wallet_have_no_utxos() {
     let value = 1;
     let fee = 0;
     let pkh = pkh_factory();
-    let err = wallet.create_vtt_components(pkh, value, fee).unwrap_err();
+    let time_lock = 0;
+    let err = wallet
+        .create_vtt_components(pkh, value, fee, time_lock)
+        .unwrap_err();
 
     assert_eq!(
         mem::discriminant(&repository::Error::InsufficientBalance),
@@ -341,7 +344,10 @@ fn test_create_vtt_components_without_a_change_address() {
     let pkh = pkh_factory();
     let value = 1;
     let fee = 0;
-    let vtt = wallet.create_vtt_components(pkh, value, fee).unwrap();
+    let time_lock = 0;
+    let vtt = wallet
+        .create_vtt_components(pkh, value, fee, time_lock)
+        .unwrap();
 
     assert_eq!(1, vtt.value);
     assert_eq!(0, vtt.change);
@@ -383,7 +389,10 @@ fn test_create_vtt_components_whith_a_change_address() {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
-    let vtt = wallet.create_vtt_components(pkh, value, fee).unwrap();
+    let time_lock = 0;
+    let vtt = wallet
+        .create_vtt_components(pkh, value, fee, time_lock)
+        .unwrap();
 
     assert_eq!(1, vtt.value);
     assert_eq!(1, vtt.change);
@@ -432,7 +441,10 @@ fn test_create_vtt_components_which_value_overflows() {
     let pkh = pkh_factory();
     let value = std::u64::MAX;
     let fee = 0;
-    let err = wallet.create_vtt_components(pkh, value, fee).unwrap_err();
+    let time_lock = 0;
+    let err = wallet
+        .create_vtt_components(pkh, value, fee, time_lock)
+        .unwrap_err();
 
     assert_eq!(
         mem::discriminant(&repository::Error::TransactionValueOverflow),
@@ -468,6 +480,7 @@ fn test_create_vtt_spends_utxos() {
     let pkh = pkh_factory();
     let value = 1;
     let fee = 0;
+    let time_lock = 0;
 
     let state_utxo_set = wallet.utxo_set().unwrap();
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
@@ -482,6 +495,7 @@ fn test_create_vtt_spends_utxos() {
             value,
             fee,
             label: None,
+            time_lock,
         })
         .unwrap();
 

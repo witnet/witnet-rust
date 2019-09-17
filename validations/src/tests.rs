@@ -85,6 +85,7 @@ fn mint_mismatched_reward() {
     let output = ValueTransferOutput {
         pkh: Default::default(),
         value: 100,
+        time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, output);
     let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
@@ -107,6 +108,7 @@ fn mint_invalid_epoch() {
     let output = ValueTransferOutput {
         pkh: Default::default(),
         value: reward + total_fees,
+        time_lock: 0,
     };
     // Build a mint for the next epoch
     let mint_tx = MintTransaction::new(epoch + 1, output);
@@ -129,6 +131,7 @@ fn mint_valid() {
     let output = ValueTransferOutput {
         pkh: Default::default(),
         value: total_fees + reward,
+        time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, output);
     let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
@@ -158,7 +161,11 @@ fn vtt_no_inputs_zero_output() {
 
     // Try to create a data request with no inputs
     let pkh = PublicKeyHash::default();
-    let vto0 = ValueTransferOutput { pkh, value: 0 };
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 0,
+        time_lock: 0,
+    };
 
     let vt_body = VTTransactionBody::new(vec![], vec![vto0]);
     let vt_tx = VTTransaction::new(vt_body, vec![]);
@@ -178,7 +185,11 @@ fn vtt_no_inputs() {
 
     // Try to create a data request with no inputs
     let pkh = PublicKeyHash::default();
-    let vto0 = ValueTransferOutput { pkh, value: 1000 };
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
 
     let vt_body = VTTransactionBody::new(vec![], vec![vto0]);
     let vt_tx = VTTransaction::new(vt_body, vec![]);
@@ -198,7 +209,11 @@ fn vtt_no_inputs_but_one_signature() {
 
     // No inputs but 1 signature
     let pkh = PublicKeyHash::default();
-    let vto0 = ValueTransferOutput { pkh, value: 1000 };
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
 
     let vt_body = VTTransactionBody::new(vec![], vec![vto0]);
     let vts = sign_t(&vt_body);
@@ -225,7 +240,11 @@ fn vtt_one_input_but_no_signature() {
 
     // No signatures but 1 input
     let pkh = PublicKeyHash::default();
-    let vto0 = ValueTransferOutput { pkh, value: 1000 };
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
     let vt_tx = VTTransaction::new(vt_body, vec![]);
@@ -336,13 +355,18 @@ fn vtt_one_input_signatures() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
     let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
 
     let pkh = PublicKeyHash::default();
-    let vto0 = ValueTransferOutput { pkh, value: 1000 };
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
 
@@ -364,7 +388,11 @@ fn vtt_input_not_in_utxo() {
     );
 
     let pkh = PublicKeyHash::default();
-    let vto0 = ValueTransferOutput { pkh, value: 1000 };
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
     let vts = sign_t(&vt_body);
@@ -385,13 +413,18 @@ fn vtt_input_not_enough_value() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
     let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
 
     let pkh = PublicKeyHash::default();
-    let vto0 = ValueTransferOutput { pkh, value: 1000 };
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
     let vts = sign_t(&vt_body);
@@ -408,6 +441,7 @@ fn vtt_one_input_zero_value_output() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -416,6 +450,7 @@ fn vtt_one_input_zero_value_output() {
     let zero_output = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 0,
+        time_lock: 0,
     };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![zero_output]);
@@ -436,6 +471,7 @@ fn vtt_one_input_two_outputs_negative_fee() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 2,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -444,10 +480,12 @@ fn vtt_one_input_two_outputs_negative_fee() {
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1,
+        time_lock: 0,
     };
     let vto1 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 2,
+        time_lock: 0,
     };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0, vto1]);
@@ -465,6 +503,7 @@ fn vtt_one_input_two_outputs() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -473,10 +512,12 @@ fn vtt_one_input_two_outputs() {
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 13,
+        time_lock: 0,
     };
     let vto1 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 7,
+        time_lock: 0,
     };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0, vto1]);
@@ -491,10 +532,12 @@ fn vtt_two_inputs_one_signature() {
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
+        time_lock: 0,
     };
     let vto_13 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 13,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -504,6 +547,7 @@ fn vtt_two_inputs_one_signature() {
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 10,
+        time_lock: 0,
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0]);
@@ -524,10 +568,12 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
+        time_lock: 0,
     };
     let vto_13 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 13,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -537,6 +583,7 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 10,
+        time_lock: 0,
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0]);
@@ -563,10 +610,12 @@ fn vtt_two_inputs_three_signatures() {
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
+        time_lock: 0,
     };
     let vto_13 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 13,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -576,6 +625,7 @@ fn vtt_two_inputs_three_signatures() {
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 10,
+        time_lock: 0,
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0]);
@@ -596,10 +646,12 @@ fn vtt_two_inputs_two_outputs() {
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
+        time_lock: 0,
     };
     let vto_13 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 13,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -609,10 +661,12 @@ fn vtt_two_inputs_two_outputs() {
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 10,
+        time_lock: 0,
     };
     let vto1 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 20,
+        time_lock: 0,
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0, vto1]);
@@ -627,13 +681,18 @@ fn vtt_valid() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
     let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
 
     let pkh = PublicKeyHash::default();
-    let vto0 = ValueTransferOutput { pkh, value: 1000 };
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
     let vts = sign_t(&vt_body);
@@ -696,6 +755,7 @@ fn data_request_one_input_but_no_signature() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -727,6 +787,7 @@ fn data_request_one_input_signatures() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -783,6 +844,7 @@ fn data_request_input_not_enough_value() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -810,6 +872,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -1195,6 +1258,7 @@ fn data_request_miner_fee() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
+        time_lock: 0,
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
@@ -1223,8 +1287,10 @@ fn data_request_miner_fee_with_change() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
+        time_lock: 0,
     };
     let change_output = ValueTransferOutput {
+        time_lock: 0,
         pkh: PublicKeyHash::default(),
         value: 200,
     };
@@ -1253,10 +1319,12 @@ fn data_request_miner_fee_with_too_much_change() {
     };
 
     let vto = ValueTransferOutput {
+        time_lock: 0,
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
     };
     let change_output = ValueTransferOutput {
+        time_lock: 0,
         pkh: PublicKeyHash::default(),
         value: 300,
     };
@@ -1286,10 +1354,12 @@ fn data_request_zero_value_output() {
     };
 
     let vto = ValueTransferOutput {
+        time_lock: 0,
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
     };
     let change_output = ValueTransferOutput {
+        time_lock: 0,
         pkh: PublicKeyHash::default(),
         value: 0,
     };
@@ -2360,10 +2430,12 @@ fn tally_dr_not_tally_stage() {
     // Tally value: [integer(0)]
     let tally_value = vec![0x81, 0x00];
     let vt0 = ValueTransferOutput {
+        time_lock: 0,
         pkh: public_key.pkh(),
         value: 200,
     };
     let vt_change = ValueTransferOutput {
+        time_lock: 0,
         pkh: dr_pkh,
         value: 800,
     };
@@ -2420,8 +2492,13 @@ fn tally_invalid_consensus() {
     // Fake tally value: [integer(1)]
     let fake_tally_value = vec![0x01];
 
-    let vt0 = ValueTransferOutput { pkh, value: 200 };
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 200,
+    };
     let vt_change = ValueTransferOutput {
+        time_lock: 0,
         pkh: PublicKeyHash::default(),
         value: 800,
     };
@@ -2446,8 +2523,13 @@ fn tally_valid() {
 
     // Tally value: [integer(0)]
     let tally_value = vec![0x81, 0x00];
-    let vt0 = ValueTransferOutput { pkh, value: 200 };
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 200,
+    };
     let vt_change = ValueTransferOutput {
+        time_lock: 0,
         pkh: dr_pkh,
         value: 800,
     };
@@ -2465,11 +2547,28 @@ fn tally_too_many_outputs() {
 
     // Tally value: [integer(0)]
     let tally_value = vec![0x81, 0x00];
-    let vt0 = ValueTransferOutput { pkh, value: 200 };
-    let vt1 = ValueTransferOutput { pkh, value: 200 };
-    let vt2 = ValueTransferOutput { pkh, value: 200 };
-    let vt3 = ValueTransferOutput { pkh, value: 200 };
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 200,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 200,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 200,
+    };
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 200,
+    };
     let vt_change = ValueTransferOutput {
+        time_lock: 0,
         pkh: dr_pkh,
         value: 800,
     };
@@ -2496,7 +2595,11 @@ fn tally_too_less_outputs() {
 
     // Tally value: [integer(0), integer(0)]
     let tally_value = vec![0x82, 0x00, 0x00];
-    let vt0 = ValueTransferOutput { pkh, value: 500 };
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 500,
+    };
 
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
@@ -2517,8 +2620,13 @@ fn tally_invalid_change() {
 
     // Tally value: [integer(0)]
     let tally_value = vec![0x81, 0x00];
-    let vt0 = ValueTransferOutput { pkh, value: 200 };
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 200,
+    };
     let vt_change = ValueTransferOutput {
+        time_lock: 0,
         pkh: dr_pkh,
         value: 1000,
     };
@@ -2542,8 +2650,16 @@ fn tally_double_reward() {
 
     // Tally value: [integer(0), integer(0)]
     let tally_value = vec![0x82, 0x00, 0x00];
-    let vt0 = ValueTransferOutput { pkh, value: 500 };
-    let vt1 = ValueTransferOutput { pkh, value: 500 };
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 500,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 500,
+    };
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt1]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
@@ -2562,8 +2678,13 @@ fn tally_reveal_not_found() {
 
     // Tally value: [integer(0), integer(0)]
     let tally_value = vec![0x82, 0x00, 0x00];
-    let vt0 = ValueTransferOutput { pkh, value: 500 };
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 500,
+    };
     let vt1 = ValueTransferOutput {
+        time_lock: 0,
         pkh: PublicKeyHash::default(),
         value: 500,
     };
@@ -2583,8 +2704,13 @@ fn tally_valid_2_reveals() {
 
     // Tally value: [integer(0), integer(0)]
     let tally_value = vec![0x82, 0x00, 0x00];
-    let vt0 = ValueTransferOutput { pkh, value: 500 };
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 500,
+    };
     let vt1 = ValueTransferOutput {
+        time_lock: 0,
         pkh: pkh2,
         value: 500,
     };
@@ -2691,6 +2817,7 @@ fn test_block<F: FnMut(&mut Block) -> bool>(mut mut_block: F) -> Result<(), fail
     let mut utxo_set = UnspentOutputsPool::default();
     // Insert output to utxo
     let output1 = ValueTransferOutput {
+        time_lock: 0,
         pkh: MY_PKH.parse().unwrap(),
         value: 1_000_000,
     };
@@ -2718,6 +2845,7 @@ fn test_block<F: FnMut(&mut Block) -> bool>(mut mut_block: F) -> Result<(), fail
     txns.mint = MintTransaction::new(
         current_epoch,
         ValueTransferOutput {
+            time_lock: 0,
             pkh: my_pkh,
             value: block_reward(current_epoch),
         },
@@ -2906,6 +3034,7 @@ fn block_difficult_proof() {
     let mut utxo_set = UnspentOutputsPool::default();
     // Insert output to utxo
     let output1 = ValueTransferOutput {
+        time_lock: 0,
         pkh: MY_PKH.parse().unwrap(),
         value: 1_000_000,
     };
@@ -2933,6 +3062,7 @@ fn block_difficult_proof() {
     txns.mint = MintTransaction::new(
         current_epoch,
         ValueTransferOutput {
+            time_lock: 0,
             pkh: my_pkh,
             value: block_reward(current_epoch),
         },
@@ -2993,6 +3123,7 @@ fn block_change_mint() {
         b.txns.mint = MintTransaction::new(
             b.txns.mint.epoch,
             ValueTransferOutput {
+                time_lock: 0,
                 pkh: MY_PKH.parse().unwrap(),
                 ..b.txns.mint.output
             },
@@ -3011,6 +3142,7 @@ fn block_add_vtt_but_dont_update_mint() {
     let mut old_mint_value = None;
     let x = test_block(|b| {
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 1,
         };
@@ -3038,6 +3170,7 @@ fn block_add_vtt_but_dont_update_mint() {
 fn block_add_vtt_but_dont_update_merkle_tree() {
     let x = test_block(|b| {
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 1,
         };
@@ -3050,6 +3183,7 @@ fn block_add_vtt_but_dont_update_merkle_tree() {
         b.txns.mint = MintTransaction::new(
             b.txns.mint.epoch,
             ValueTransferOutput {
+                time_lock: 0,
                 value: b.txns.mint.output.value + 1_000_000 - 1,
                 ..b.txns.mint.output
             },
@@ -3147,6 +3281,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
     let mut utxo_set = UnspentOutputsPool::default();
     // Insert output to utxo
     let output1 = ValueTransferOutput {
+        time_lock: 0,
         pkh: MY_PKH.parse().unwrap(),
         value: 1_000_000,
     };
@@ -3167,6 +3302,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
         txns.mint = MintTransaction::new(
             current_epoch,
             ValueTransferOutput {
+                time_lock: 0,
                 pkh: my_pkh,
                 value: block_reward(current_epoch) + fees,
             },
@@ -3250,6 +3386,7 @@ fn block_add_vtt_no_inputs() {
         // (actually the fee is -1)
         let extra_fee = 0;
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 1,
         };
@@ -3279,6 +3416,7 @@ fn block_add_vtt_no_inputs() {
 fn block_add_vtt() {
     let t0 = {
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 10,
         };
@@ -3303,6 +3441,7 @@ fn block_add_vtt() {
 fn block_add_2_vtt_same_input() {
     let t0 = {
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 1,
         };
@@ -3312,6 +3451,7 @@ fn block_add_2_vtt_same_input() {
         let vt_tx1 = VTTransaction::new(vt_body, vec![vts]);
 
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 1,
         };
@@ -3345,6 +3485,7 @@ fn block_vtt_sequence() {
     let t0_hash;
     let t0 = {
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 1_000_000 - 10,
         };
@@ -3365,6 +3506,7 @@ fn block_vtt_sequence() {
 
     let t1 = {
         let o1 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 1_000_000 - 10 - 20,
         };
@@ -3408,6 +3550,7 @@ fn block_add_drt() {
         };
 
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 10,
         };
@@ -3441,6 +3584,7 @@ fn block_add_2_drt_same_input() {
         };
 
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 10,
         };
@@ -3459,6 +3603,7 @@ fn block_add_2_drt_same_input() {
         };
 
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 10,
         };
@@ -3497,6 +3642,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
         };
 
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 10,
         };
@@ -3507,6 +3653,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
         let dr_tx = DRTransaction::new(dr_tx_body, vec![drs]);
 
         let vto0 = ValueTransferOutput {
+            time_lock: 0,
             pkh: Default::default(),
             value: 10,
         };

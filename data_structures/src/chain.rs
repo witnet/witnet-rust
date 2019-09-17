@@ -635,6 +635,10 @@ impl Input {
 pub struct ValueTransferOutput {
     pub pkh: PublicKeyHash,
     pub value: u64,
+    /// The value attached to a time-locked output cannot be spent before the specified
+    /// timestamp. That is, they cannot be used as an input in any transaction of a
+    /// subsequent block proposed for an epoch whose opening timestamp predates the time lock.
+    pub time_lock: u64,
 }
 
 /// Data request output transaction data structure
@@ -760,6 +764,9 @@ impl Default for RADType {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest", crate = "crate")]
 pub struct RADRequest {
+    /// Commitments for this request will not be accepted in any block proposed for an epoch
+    /// whose opening timestamp predates the specified time lock. This effectively prevents
+    /// a request from being processed before a specific future point in time.
     pub time_lock: u64,
     pub retrieve: Vec<RADRetrieve>,
     pub aggregate: RADAggregate,
