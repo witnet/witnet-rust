@@ -1,11 +1,13 @@
-use std::{cell::RefCell, collections::HashMap, iter::FromIterator as _, mem, rc::Rc};
+use std::{collections::HashMap, iter::FromIterator as _, mem};
 
 use super::*;
 use crate::*;
 
+mod factories;
+
 #[test]
 fn test_wallet_public_data() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
     let data = wallet.public_data().unwrap();
 
     assert!(data.name.is_none());
@@ -17,7 +19,7 @@ fn test_wallet_public_data() {
 
 #[test]
 fn test_gen_external_address() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
     let label = "address label".to_string();
     let address = wallet.gen_external_address(Some(label.clone())).unwrap();
 
@@ -32,7 +34,7 @@ fn test_gen_external_address() {
 
 #[test]
 fn test_gen_external_address_creates_different_addresses() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
     let address = wallet.gen_external_address(None).unwrap();
 
     assert_eq!("m/3'/4919'/0'/0/0", &address.path);
@@ -46,7 +48,7 @@ fn test_gen_external_address_creates_different_addresses() {
 
 #[test]
 fn test_gen_external_address_stores_next_address_index_in_db() {
-    let (wallet, db) = wallet_factory(None);
+    let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::EXTERNAL_KEYCHAIN;
 
@@ -69,7 +71,7 @@ fn test_gen_external_address_stores_next_address_index_in_db() {
 
 #[test]
 fn test_gen_external_address_saves_details_in_db() {
-    let (wallet, db) = wallet_factory(None);
+    let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::EXTERNAL_KEYCHAIN;
     let index = 0;
@@ -100,7 +102,7 @@ fn test_gen_external_address_saves_details_in_db() {
 
 #[test]
 fn test_gen_external_address_associates_pkh_to_account_in_db() {
-    let (wallet, db) = wallet_factory(None);
+    let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::EXTERNAL_KEYCHAIN;
     let address = wallet.gen_external_address(None).unwrap();
@@ -115,7 +117,7 @@ fn test_gen_external_address_associates_pkh_to_account_in_db() {
 
 #[test]
 fn test_list_external_addresses() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
 
     let address1 = wallet.gen_external_address(None).unwrap();
     let address2 = wallet.gen_external_address(None).unwrap();
@@ -133,7 +135,7 @@ fn test_list_external_addresses() {
 
 #[test]
 fn test_list_external_addresses_paginated() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
 
     let _ = wallet.gen_external_address(None).unwrap();
     let address2 = wallet.gen_external_address(None).unwrap();
@@ -150,7 +152,7 @@ fn test_list_external_addresses_paginated() {
 
 #[test]
 fn test_get_address() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::EXTERNAL_KEYCHAIN;
     let index = 0;
@@ -168,7 +170,7 @@ fn test_get_address() {
 
 #[test]
 fn test_gen_internal_address() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
     let label = "address label".to_string();
     let address = wallet.gen_internal_address(Some(label.clone())).unwrap();
 
@@ -183,7 +185,7 @@ fn test_gen_internal_address() {
 
 #[test]
 fn test_gen_internal_address_creates_different_addresses() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
     let address = wallet.gen_internal_address(None).unwrap();
 
     assert_eq!("m/3'/4919'/0'/1/0", &address.path);
@@ -197,7 +199,7 @@ fn test_gen_internal_address_creates_different_addresses() {
 
 #[test]
 fn test_gen_internal_address_stores_next_address_index_in_db() {
-    let (wallet, db) = wallet_factory(None);
+    let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::INTERNAL_KEYCHAIN;
     wallet.gen_internal_address(None).unwrap();
@@ -219,7 +221,7 @@ fn test_gen_internal_address_stores_next_address_index_in_db() {
 
 #[test]
 fn test_gen_internal_address_saves_details_in_db() {
-    let (wallet, db) = wallet_factory(None);
+    let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::INTERNAL_KEYCHAIN;
     let index = 0;
@@ -250,7 +252,7 @@ fn test_gen_internal_address_saves_details_in_db() {
 
 #[test]
 fn test_gen_internal_address_associates_pkh_to_account_in_db() {
-    let (wallet, db) = wallet_factory(None);
+    let (wallet, db) = factories::wallet(None);
     let account = 0;
     let keychain = constants::INTERNAL_KEYCHAIN;
     let address = wallet.gen_internal_address(None).unwrap();
@@ -265,7 +267,7 @@ fn test_gen_internal_address_associates_pkh_to_account_in_db() {
 
 #[test]
 fn test_custom_kv() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
 
     wallet.kv_set("my-key", "my-value").unwrap();
 
@@ -284,7 +286,7 @@ fn test_custom_kv() {
 
 #[test]
 fn test_balance() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
 
     assert_eq!(0, wallet.balance().unwrap().amount);
 
@@ -294,17 +296,17 @@ fn test_balance() {
         bincode::serialize(&99u64).unwrap(),
     );
 
-    let (wallet, _db) = wallet_factory(Some(db));
+    let (wallet, _db) = factories::wallet(Some(db));
 
     assert_eq!(99, wallet.balance().unwrap().amount);
 }
 
 #[test]
 fn test_create_vtt_components_when_wallet_have_no_utxos() {
-    let (wallet, _db) = wallet_factory(None);
+    let (wallet, _db) = factories::wallet(None);
     let value = 1;
     let fee = 0;
-    let pkh = pkh_factory();
+    let pkh = factories::pkh();
     let time_lock = 0;
     let err = wallet
         .create_vtt_components(pkh, value, fee, time_lock)
@@ -318,7 +320,7 @@ fn test_create_vtt_components_when_wallet_have_no_utxos() {
 
 #[test]
 fn test_create_vtt_components_without_a_change_address() {
-    let pkh = pkh_factory();
+    let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
         output_index: 0,
@@ -340,8 +342,8 @@ fn test_create_vtt_components_without_a_change_address() {
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
 
-    let (wallet, _db) = wallet_factory(Some(db));
-    let pkh = pkh_factory();
+    let (wallet, _db) = factories::wallet(Some(db));
+    let pkh = factories::pkh();
     let value = 1;
     let fee = 0;
     let time_lock = 0;
@@ -359,7 +361,7 @@ fn test_create_vtt_components_without_a_change_address() {
 
 #[test]
 fn test_create_vtt_components_whith_a_change_address() {
-    let pkh = pkh_factory();
+    let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
         output_index: 0,
@@ -381,8 +383,8 @@ fn test_create_vtt_components_whith_a_change_address() {
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
 
-    let (wallet, _db) = wallet_factory(Some(db));
-    let pkh = pkh_factory();
+    let (wallet, _db) = factories::wallet(Some(db));
+    let pkh = factories::pkh();
     let value = 1;
     let fee = 0;
     let out_pointer = model::OutPtr {
@@ -404,7 +406,7 @@ fn test_create_vtt_components_whith_a_change_address() {
 
 #[test]
 fn test_create_vtt_components_which_value_overflows() {
-    let pkh = pkh_factory();
+    let pkh = factories::pkh();
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![
         (
             model::OutPtr {
@@ -437,8 +439,8 @@ fn test_create_vtt_components_which_value_overflows() {
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
 
-    let (wallet, _db) = wallet_factory(Some(db));
-    let pkh = pkh_factory();
+    let (wallet, _db) = factories::wallet(Some(db));
+    let pkh = factories::pkh();
     let value = std::u64::MAX;
     let fee = 0;
     let time_lock = 0;
@@ -454,7 +456,7 @@ fn test_create_vtt_components_which_value_overflows() {
 
 #[test]
 fn test_create_vtt_spends_utxos() {
-    let pkh = pkh_factory();
+    let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
         output_index: 0,
@@ -476,8 +478,8 @@ fn test_create_vtt_spends_utxos() {
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
 
-    let (wallet, db) = wallet_factory(Some(db));
-    let pkh = pkh_factory();
+    let (wallet, db) = factories::wallet(Some(db));
+    let pkh = factories::pkh();
     let value = 1;
     let fee = 0;
     let time_lock = 0;
@@ -489,7 +491,7 @@ fn test_create_vtt_spends_utxos() {
     assert!(utxo_set.contains_key(&out_pointer));
     assert!(state_utxo_set.contains_key(&out_pointer));
 
-    wallet
+    let vtt = wallet
         .create_vtt(types::VttParams {
             pkh,
             value,
@@ -505,57 +507,212 @@ fn test_create_vtt_spends_utxos() {
 
     assert!(!new_utxo_set.contains_key(&out_pointer));
     assert!(!state_utxo_set.contains_key(&out_pointer));
+
+    assert!(db.contains(&keys::transaction_timestamp(0, 0)).unwrap());
+    assert!(db
+        .contains(&keys::vtt(&hex::encode(vtt.hash().as_ref())))
+        .unwrap());
+    assert_eq!(
+        value,
+        db.get::<_, u64>(&keys::transaction_value(0, 0)).unwrap()
+    );
+    assert_eq!(
+        vtt.hash().as_ref(),
+        db.get::<_, Vec<u8>>(&keys::transaction_hash(0, 0))
+            .unwrap()
+            .as_slice()
+    );
+    assert_eq!(fee, db.get::<_, u64>(&keys::transaction_fee(0, 0)).unwrap());
+    assert_eq!(
+        None,
+        db.get_opt::<_, u64>(&keys::transaction_block(0, 0))
+            .unwrap()
+    );
+    assert_eq!(
+        mem::discriminant(&model::TransactionKind::Debit),
+        mem::discriminant(
+            &db.get::<_, model::TransactionKind>(&keys::transaction_type(0, 0))
+                .unwrap()
+        )
+    );
+    assert_eq!(
+        0,
+        db.get::<_, u32>(&keys::transactions_index(vtt.hash().as_ref()))
+            .unwrap()
+    );
 }
 
-/// Create an empty Wallet repository and return it along with its
-/// underlying database so the tests can spy underneath it.
-fn wallet_factory(
-    data: Option<HashMap<Vec<u8>, Vec<u8>>>,
-) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
-    let params = params::Params::default();
-    let mnemonic = types::MnemonicGen::new()
-        .with_len(types::MnemonicLength::Words12)
-        .generate();
-    let source = types::SeedSource::Mnemonics(mnemonic);
-    let master_key = crypto::gen_master_key(
-        params.seed_password.as_ref(),
-        params.master_key_salt.as_ref(),
-        &source,
-    )
-    .unwrap();
-    let engine = types::SignEngine::signing_only();
-    let default_account_index = 0;
-    let default_account =
-        account::gen_account(&engine, default_account_index, &master_key).unwrap();
+#[test]
+fn test_index_transaction_output_affects_balance() {
+    let (wallet, db) = factories::wallet(None);
 
-    let mut rng = rand::rngs::OsRng;
-    let salt = crypto::salt(&mut rng, params.db_salt_length);
-    let iv = crypto::salt(&mut rng, params.db_iv_length);
+    assert_eq!(
+        0,
+        db.get_or_default::<_, u64>(&keys::account_balance(0))
+            .unwrap()
+    );
 
-    let storage = Rc::new(RefCell::new(data.unwrap_or_default()));
-    let db = db::HashMapDb::new(storage);
-    let wallets = Wallets::new(db.clone());
+    let value = 1u64;
+    let address = wallet.gen_external_address(None).unwrap();
+    let block = factories::BlockInfo::default().create();
+    let inputs = vec![factories::Input::default().create()];
+    let outputs = vec![factories::VttOutput::default()
+        .with_pkh(address.pkh)
+        .with_value(value)
+        .create()];
+    let txn = types::VTTransactionBody::new(inputs, outputs);
 
-    // Create the initial data required by the wallet
-    wallets
-        .create(
-            &db,
-            types::CreateWalletData {
-                iv,
-                salt,
-                id: "test-wallet-id",
-                name: None,
-                caption: None,
-                account: &default_account,
-            },
+    wallet.index_transactions(&block, &[txn]).unwrap();
+
+    assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
+}
+
+#[test]
+fn test_index_transaction_input_affects_balance() {
+    let (wallet, db) = factories::wallet(None);
+
+    assert_eq!(
+        0,
+        db.get_or_default::<_, u64>(&keys::account_balance(0))
+            .unwrap()
+    );
+
+    let address = wallet.gen_external_address(None).unwrap();
+
+    let a_block = factories::BlockInfo::default().create();
+
+    // txn1 gives a credit of 3 to our pkh
+    let txn1 = types::VTTransactionBody::new(
+        vec![factories::Input::default().create()],
+        vec![factories::VttOutput::default()
+            .with_pkh(address.pkh)
+            .with_value(3)
+            .create()],
+    );
+
+    // txn2 spends the previous credit and gives back a change of 1 to our pkh
+    let txn2 = types::VTTransactionBody::new(
+        vec![factories::Input::default()
+            .with_transaction(txn1.hash())
+            .with_output_index(0)
+            .create()],
+        vec![factories::VttOutput::default()
+            .with_pkh(address.pkh)
+            .with_value(1)
+            .create()],
+    );
+
+    wallet.index_transactions(&a_block, &[txn1]).unwrap();
+    wallet.index_transactions(&a_block, &[txn2]).unwrap();
+
+    assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
+}
+
+#[test]
+fn test_index_transaction_does_not_duplicate_transactions() {
+    let account = 0;
+    let (wallet, db) = factories::wallet(None);
+
+    assert_eq!(
+        0,
+        db.get_or_default::<_, u32>(&keys::transaction_next_id(account))
+            .unwrap()
+    );
+
+    let value = 1u64;
+    let address = wallet.gen_external_address(None).unwrap();
+    let block = factories::BlockInfo::default().create();
+    let inputs = vec![factories::Input::default().create()];
+    let outputs = vec![factories::VttOutput::default()
+        .with_pkh(address.pkh)
+        .with_value(value)
+        .create()];
+    let txn = types::VTTransactionBody::new(inputs, outputs);
+
+    wallet.index_transactions(&block, &[txn.clone()]).unwrap();
+    wallet.index_transactions(&block, &[txn]).unwrap();
+
+    assert_eq!(
+        1,
+        db.get::<_, u32>(&keys::transaction_next_id(account))
+            .unwrap()
+    );
+}
+
+#[test]
+fn test_index_transaction_errors_if_balance_overflow() {
+    let (wallet, _db) = factories::wallet(None);
+
+    let address = wallet.gen_external_address(None).unwrap();
+    let block = factories::BlockInfo::default().create();
+    let inputs = vec![factories::Input::default().create()];
+    let outputs = vec![
+        factories::VttOutput::default()
+            .with_pkh(address.pkh)
+            .with_value(1u64)
+            .create(),
+        factories::VttOutput::default()
+            .with_pkh(address.pkh)
+            .with_value(std::u64::MAX)
+            .create(),
+    ];
+    let txn = types::VTTransactionBody::new(inputs, outputs);
+
+    let err = wallet.index_transactions(&block, &[txn]).unwrap_err();
+
+    assert_eq!(
+        mem::discriminant(&repository::Error::BalanceOverflow),
+        mem::discriminant(&err)
+    );
+}
+
+#[test]
+fn test_index_transaction_vtt_created_by_wallet() {
+    let (wallet, db) = factories::wallet(None);
+
+    let a_block = factories::BlockInfo::default().create();
+    let our_address = wallet.gen_external_address(None).unwrap();
+    let their_address = wallet.gen_external_address(None).unwrap();
+
+    // index transaction to receive funds
+    wallet
+        .index_transactions(
+            &a_block,
+            &[types::VTTransactionBody::new(
+                vec![factories::Input::default().create()],
+                vec![factories::VttOutput::default()
+                    .with_pkh(our_address.pkh)
+                    .with_value(2)
+                    .create()],
+            )],
         )
         .unwrap();
 
-    let wallet = Wallet::unlock(db.clone(), params, engine).unwrap();
+    // spend those funds to create a new transaction which is pending (it has no block)
+    let vtt = wallet
+        .create_vtt(types::VttParams {
+            pkh: their_address.pkh,
+            value: 1,
+            fee: 0,
+            label: None,
+            time_lock: 0,
+        })
+        .unwrap();
 
-    (wallet, db)
-}
+    // check that indeed, the previously created vtt has no block associated with it
+    assert_eq!(
+        None,
+        db.get_opt::<_, model::BlockInfo>(&keys::transaction_block(0, 1))
+            .unwrap()
+    );
 
-fn pkh_factory() -> types::PublicKeyHash {
-    types::PublicKeyHash::from_bytes(&[0; 20]).expect("PKH of 20 bytes failed")
+    // index another block confirming the previously created vtt
+    wallet.index_transactions(&a_block, &[vtt.body]).unwrap();
+
+    // check that indeed, the previously created vtt now has a block associated with it
+    assert_eq!(
+        Some(a_block),
+        db.get_opt::<_, model::BlockInfo>(&keys::transaction_block(0, 1))
+            .unwrap()
+    );
 }

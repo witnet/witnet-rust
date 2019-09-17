@@ -132,6 +132,12 @@ pub fn vtt(transaction_hash: &str) -> String {
     format!("vtt-{}", transaction_hash)
 }
 
+/// An index of transaction hashes.
+#[inline]
+pub fn transactions_index(transaction_hash: &[u8]) -> Vec<u8> {
+    [b"transactions-index-{}", transaction_hash].concat()
+}
+
 /// Next transaction id.
 #[inline]
 pub fn transaction_next_id(account_index: u32) -> String {

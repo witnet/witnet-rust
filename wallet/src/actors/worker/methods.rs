@@ -244,7 +244,7 @@ impl Worker {
     ) -> Result<types::Transaction> {
         let txn = wallet.create_vtt(params)?;
 
-        Ok(txn)
+        Ok(types::Transaction::ValueTransfer(txn))
     }
 
     pub fn get_vtt(

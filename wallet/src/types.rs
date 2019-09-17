@@ -16,7 +16,7 @@ pub use witnet_data_structures::{
     chain::{
         Block as ChainBlock, Hash as TransactionId, Hashable, Input as TransactionInput,
         KeyedSignature, OutputPointer, PublicKeyHash, PublicKeyHashParseError, RADRequest,
-        ValueTransferOutput,
+        ValueTransferOutput as VttOutput,
     },
     proto::ProtobufConvert,
     transaction::{Transaction, VTTransaction, VTTransactionBody},
@@ -123,7 +123,7 @@ pub struct VttComponents {
     pub value: u64,
     pub change: u64,
     pub inputs: Vec<TransactionInput>,
-    pub outputs: Vec<ValueTransferOutput>,
+    pub outputs: Vec<VttOutput>,
     pub sign_keys: Vec<SK>,
     pub used: Vec<model::OutPtr>,
 }

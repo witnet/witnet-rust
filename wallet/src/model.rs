@@ -68,7 +68,7 @@ where
 
 #[derive(Debug, Serialize)]
 pub struct Transaction {
-    pub hash: String,
+    pub hex_hash: String,
     pub value: u64,
     pub kind: TransactionKind,
     pub label: Option<String>,
@@ -131,7 +131,7 @@ pub struct KeyBalance {
     pub amount: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BlockInfo {
     pub hash: Vec<u8>,
     pub epoch: u32,

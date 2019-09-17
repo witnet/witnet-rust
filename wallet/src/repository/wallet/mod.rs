@@ -240,7 +240,7 @@ where
         let value = self.db.get(&keys::transaction_value(account, index))?;
         let kind = self.db.get(&keys::transaction_type(account, index))?;
         let timestamp = self.db.get(&keys::transaction_timestamp(account, index))?;
-        let hash = self.db.get(&keys::transaction_hash(account, index))?;
+        let hash: Vec<u8> = self.db.get(&keys::transaction_hash(account, index))?;
         let label = self.db.get_opt(&keys::transaction_label(account, index))?;
         let fee = self.db.get_opt(&keys::transaction_fee(account, index))?;
         let block = self.db.get_opt(&keys::transaction_block(account, index))?;
@@ -248,7 +248,7 @@ where
         Ok(model::Transaction {
             value,
             kind,
-            hash,
+            hex_hash: hex::encode(hash),
             label,
             fee,
             block,
@@ -280,21 +280,31 @@ where
         block: &model::BlockInfo,
         txns: &[types::VTTransactionBody],
     ) -> Result<()> {
+        // FIXME: Handle multiple accounts when indexing transactions
+        let account = 0;
         let mut state = self.state.write()?;
 
         for txn in txns {
             let hash = txn.hash().as_ref().to_vec();
 
-            for input in &txn.inputs {
-                self._index_transaction_input(&mut state, &input, &block)?;
-            }
+            match self.db.get_opt(&keys::transactions_index(&hash))? {
+                Some(txn_id) => {
+                    self.db
+                        .put(&keys::transaction_block(account, txn_id), block)?;
+                }
+                None => {
+                    for input in &txn.inputs {
+                        self._index_transaction_input(&mut state, &hash, &input, block)?;
+                    }
 
-            for (index, output) in txn.outputs.iter().enumerate() {
-                let out_ptr = model::OutPtr {
-                    txn_hash: hash.clone(),
-                    output_index: index as u32,
-                };
-                self._index_transaction_output(&mut state, out_ptr, &output, &block)?;
+                    for (index, output) in txn.outputs.iter().enumerate() {
+                        let out_ptr = model::OutPtr {
+                            txn_hash: hash.clone(),
+                            output_index: index as u32,
+                        };
+                        self._index_transaction_output(&mut state, &hash, out_ptr, &output, block)?;
+                    }
+                }
             }
         }
 
@@ -325,7 +335,7 @@ where
             label,
             time_lock,
         }: types::VttParams,
-    ) -> Result<types::Transaction> {
+    ) -> Result<types::VTTransaction> {
         // Gather all the required components for creating the VTT
         let vtt = self.create_vtt_components(pkh, value, fee, time_lock)?;
 
@@ -344,9 +354,10 @@ where
                 }
             })
             .collect();
-        let transaction =
-            types::Transaction::ValueTransfer(types::VTTransaction { body, signatures });
-        let transaction_hash = hex::encode(transaction.hash().as_ref());
+
+        let transaction = types::VTTransaction { body, signatures };
+        let transaction_hash = transaction.hash().as_ref().to_vec();
+        let transaction_hex_hash = hex::encode(&transaction_hash);
 
         // Persist the transaction
         let mut state = self.state.write()?;
@@ -369,12 +380,7 @@ where
 
         batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
 
-        batch.put(keys::vtt(&transaction_hash), &transaction)?;
-
-        batch.put(
-            keys::transaction_hash(account, transaction_id),
-            transaction_hash,
-        )?;
+        batch.put(keys::vtt(&transaction_hex_hash), &transaction)?;
         batch.put(
             keys::transaction_timestamp(account, transaction_id),
             chrono::Local::now().timestamp(),
@@ -388,6 +394,11 @@ where
         if let Some(label) = label {
             batch.put(keys::transaction_label(account, transaction_id), &label)?;
         }
+        batch.put(keys::transactions_index(&transaction_hash), transaction_id)?;
+        batch.put(
+            keys::transaction_hash(account, transaction_id),
+            transaction_hash,
+        )?;
 
         self.db.write(batch)?;
 
@@ -414,7 +425,7 @@ where
         let mut sign_keys = Vec::with_capacity(5);
         let mut used = Vec::with_capacity(5);
 
-        outputs.push(types::ValueTransferOutput {
+        outputs.push(types::VttOutput {
             pkh,
             value,
             time_lock,
@@ -453,7 +464,7 @@ where
             if change > 0 {
                 let change_address = self._gen_internal_address(&mut state, None)?;
 
-                outputs.push(types::ValueTransferOutput {
+                outputs.push(types::VttOutput {
                     pkh: change_address.pkh,
                     value: change,
                     time_lock: 0,
@@ -492,6 +503,7 @@ where
     fn _index_transaction_input(
         &self,
         state: &mut State,
+        txn_hash: &[u8],
         input: &types::TransactionInput,
         block: &model::BlockInfo,
     ) -> Result<()> {
@@ -521,6 +533,7 @@ where
             batch.put(keys::account_balance(account), new_balance)?;
             batch.put(keys::account_utxo_set(account), db_utxo_set)?;
             batch.put(keys::transaction_next_id(account), txn_next_id)?;
+            batch.put(keys::transactions_index(txn_hash), txn_id)?;
 
             self.db.write(batch)?;
 
@@ -535,8 +548,9 @@ where
     fn _index_transaction_output(
         &self,
         state: &mut State,
+        txn_hash: &[u8],
         out_ptr: model::OutPtr,
-        output: &types::ValueTransferOutput,
+        output: &types::VttOutput,
         block: &model::BlockInfo,
     ) -> Result<()> {
         let pkh = output.pkh;
@@ -591,6 +605,7 @@ where
             batch.put(keys::account_balance(account), new_balance)?;
             batch.put(keys::account_utxo_set(account), db_utxo_set)?;
             batch.put(keys::transaction_next_id(account), txn_next_id)?;
+            batch.put(keys::transactions_index(txn_hash), txn_id)?;
 
             self.db.write(batch)?;
 
@@ -621,8 +636,8 @@ where
     }
 
     /// Get previously created Value Transfer Transaction by its hash.
-    pub fn get_vtt(&self, transaction_hash: &str) -> Result<types::Transaction> {
-        let vtt = self.db.get(&keys::vtt(transaction_hash))?;
+    pub fn get_vtt(&self, hex_hash: &str) -> Result<types::Transaction> {
+        let vtt = self.db.get(&keys::vtt(hex_hash))?;
 
         Ok(vtt)
     }
