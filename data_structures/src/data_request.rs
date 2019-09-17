@@ -283,7 +283,7 @@ impl DataRequestPool {
         // This is not the epoch which contains the timestamp, but the next one
         let time_lock_epoch = epoch_constants
             .epoch_at(
-                (dr_transaction.body.dr_output.time_lock as i64)
+                (dr_transaction.body.dr_output.data_request.time_lock as i64)
                     .saturating_add(i64::from(epoch_constants.checkpoints_period - 1)),
             )
             // Any data request with time lock set to before checkpoint zero

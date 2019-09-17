@@ -113,19 +113,14 @@ message DataRequestOutput {
         message RADAggregate {
             bytes script = 1;
         }
-        message RADConsensus {
+        message RADTally {
             bytes script = 1;
         }
-        message RADDeliver {
-            RADType kind = 1;
-            string url = 2;
-        }
 
-        uint64 not_before = 1;
+        uint64 time_lock = 1;
         repeated RADRetrieve retrieve = 2;
         RADAggregate aggregate = 3;
-        RADConsensus consensus = 4;
-        repeated RADDeliver deliver = 5;
+        RADTally tally = 4;
     }
 
     RADRequest data_request = 1;
@@ -135,7 +130,6 @@ message DataRequestOutput {
     uint64 commit_fee = 5;
     uint64 reveal_fee = 6;
     uint64 tally_fee = 7;
-    uint64 time_lock = 8;
 }
 
 message Input {

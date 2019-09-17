@@ -7,7 +7,7 @@ use reqwest;
 use crate::error::RadError;
 use crate::script::{execute_radon_script, unpack_radon_script};
 use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
-use witnet_data_structures::chain::{RADAggregate, RADConsensus, RADRetrieve, RADType};
+use witnet_data_structures::chain::{RADAggregate, RADRetrieve, RADTally, RADType};
 
 pub mod error;
 pub mod hash_functions;
@@ -61,10 +61,7 @@ pub fn run_aggregation(
 }
 
 /// Run consensus stage of a data request.
-pub fn run_consensus(
-    radon_types_vec: Vec<RadonTypes>,
-    consensus: &RADConsensus,
-) -> Result<Vec<u8>> {
+pub fn run_consensus(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<Vec<u8>> {
     let radon_script = unpack_radon_script(consensus.script.as_slice())?;
 
     let radon_array = RadonArray::from(radon_types_vec);
@@ -74,9 +71,6 @@ pub fn run_consensus(
 
     rad_consensus.try_into().map_err(Into::into)
 }
-
-/// Run deliver clauses of a data request.
-pub fn run_delivery() {}
 
 #[test]
 fn test_run_retrieval() {
@@ -121,7 +115,7 @@ fn test_run_consensus_and_aggregation() {
     );
     let output_consensus = run_consensus(
         radon_types_vec,
-        &RADConsensus {
+        &RADTally {
             script: packed_script,
         },
     );
@@ -164,7 +158,7 @@ fn test_run_all_risk_premium() {
     let aggregate = RADAggregate {
         script: vec![129, 130, 24, 87, 3],
     };
-    let tally = RADConsensus {
+    let tally = RADTally {
         script: vec![130, 130, 24, 87, 3, 130, 24, 52, 24, 80],
     };
 
@@ -197,7 +191,7 @@ fn test_run_all_murders() {
     let aggregate = RADAggregate {
         script: vec![129, 130, 24, 87, 3],
     };
-    let tally = RADConsensus {
+    let tally = RADTally {
         script: vec![130, 130, 24, 87, 3, 130, 24, 52, 24, 200],
     };
 
@@ -234,7 +228,7 @@ fn test_run_all_air_quality() {
     let aggregate = RADAggregate {
         script: vec![129, 130, 24, 87, 3],
     };
-    let tally = RADConsensus {
+    let tally = RADTally {
         script: vec![130, 130, 24, 87, 3, 130, 24, 52, 10],
     };
 
@@ -268,7 +262,7 @@ fn test_run_all_elections() {
     let aggregate = RADAggregate {
         script: vec![129, 130, 24, 87, 3],
     };
-    let tally = RADConsensus {
+    let tally = RADTally {
         script: vec![129, 130, 24, 87, 3],
     };
 

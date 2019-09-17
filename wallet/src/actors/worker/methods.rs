@@ -33,13 +33,10 @@ impl Worker {
                     .and_then(|aggregated| {
                         types::RadonTypes::try_from(aggregated.as_slice())
                             .and_then(|aggregation_result| {
-                                witnet_rad::run_consensus(
-                                    vec![aggregation_result],
-                                    &request.consensus,
-                                )
-                                .and_then(|consensus_result| {
-                                    types::RadonTypes::try_from(consensus_result.as_slice())
-                                })
+                                witnet_rad::run_consensus(vec![aggregation_result], &request.tally)
+                                    .and_then(|consensus_result| {
+                                        types::RadonTypes::try_from(consensus_result.as_slice())
+                                    })
                             })
                             .map_err(Into::into)
                     })

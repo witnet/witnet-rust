@@ -367,7 +367,7 @@ impl ChainManager {
                     let rad_manager_addr = System::current().registry().get::<RadManager>();
                     rad_manager_addr
                         .send(RunConsensus {
-                            script: dr_state.data_request.data_request.consensus.clone(),
+                            script: dr_state.data_request.data_request.tally.clone(),
                             reveals: results.clone(),
                         })
                         .then(|result| match result {

@@ -957,24 +957,13 @@ mod tests {
             script: vec![0],
         };
 
-        let rad_consensus = RADConsensus { script: vec![0] };
-
-        let rad_deliver_1 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-        };
-
-        let rad_deliver_2 = RADDeliver {
-            kind: RADType::HttpGet,
-            url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-        };
+        let rad_consensus = RADTally { script: vec![0] };
 
         let rad_request = RADRequest {
             aggregate: rad_aggregate,
-            not_before: 0,
+            time_lock: 0,
             retrieve: vec![rad_retrieve_1, rad_retrieve_2],
-            consensus: rad_consensus,
-            deliver: vec![rad_deliver_1, rad_deliver_2],
+            tally: rad_consensus,
         };
         // Check that the serialization of `Transaction` doesn't change
         let transaction = build_hardcoded_transaction(rad_request);

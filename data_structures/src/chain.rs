@@ -649,7 +649,6 @@ pub struct DataRequestOutput {
     pub commit_fee: u64,
     pub reveal_fee: u64,
     pub tally_fee: u64,
-    pub time_lock: u64,
 }
 
 impl DataRequestOutput {
@@ -761,11 +760,10 @@ impl Default for RADType {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest", crate = "crate")]
 pub struct RADRequest {
-    pub not_before: u64,
+    pub time_lock: u64,
     pub retrieve: Vec<RADRetrieve>,
     pub aggregate: RADAggregate,
-    pub consensus: RADConsensus,
-    pub deliver: Vec<RADDeliver>,
+    pub tally: RADTally,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
@@ -789,22 +787,9 @@ pub struct RADAggregate {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(
-    pb = "witnet::DataRequestOutput_RADRequest_RADConsensus",
-    crate = "crate"
-)]
-pub struct RADConsensus {
+#[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADTally", crate = "crate")]
+pub struct RADTally {
     pub script: Vec<u8>,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(
-    pb = "witnet::DataRequestOutput_RADRequest_RADDeliver",
-    crate = "crate"
-)]
-pub struct RADDeliver {
-    pub kind: RADType,
-    pub url: String,
 }
 
 type WeightedHash = (u64, Hash);
@@ -1784,19 +1769,8 @@ pub fn transaction_example() -> Transaction {
         ..RADRetrieve::default()
     };
 
-    let rad_deliver_1 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l2awcd/".to_string(),
-    };
-
-    let rad_deliver_2 = RADDeliver {
-        kind: RADType::HttpGet,
-        url: "https://hooks.zapier.com/hooks/catch/3860543/l1awcw/".to_string(),
-    };
-
     let rad_request = RADRequest {
         retrieve: vec![rad_retrieve.clone(), rad_retrieve],
-        deliver: vec![rad_deliver_1, rad_deliver_2],
         ..RADRequest::default()
     };
     let data_request_output = DataRequestOutput {

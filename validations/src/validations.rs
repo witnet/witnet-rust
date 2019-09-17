@@ -14,7 +14,7 @@ use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
         DataRequestState, Epoch, Hash, Hashable, Input, KeyedSignature, OutputPointer,
-        PublicKeyHash, RADConsensus, RADRequest, Reputation, ReputationEngine, UnspentOutputsPool,
+        PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine, UnspentOutputsPool,
         ValueTransferOutput,
     },
     data_request::{calculate_dr_vt_reward, true_revealer, DataRequestPool},
@@ -132,7 +132,7 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
     let aggregate = &rad_request.aggregate;
     unpack_radon_script(aggregate.script.as_slice())?;
 
-    let consensus = &rad_request.consensus;
+    let consensus = &rad_request.tally;
     unpack_radon_script(consensus.script.as_slice())?;
 
     Ok(())
@@ -142,7 +142,7 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
 pub fn validate_consensus(
     reveals: &[&[u8]],
     miner_tally: &[u8],
-    consensus: &RADConsensus,
+    consensus: &RADTally,
 ) -> Result<(), failure::Error> {
     let radon_types_vec: Vec<RadonTypes> = reveals
         .iter()
@@ -296,7 +296,7 @@ pub fn validate_commit_transaction(
 
     // Verify that commits are only accepted after the time lock expired
     let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
-    let dr_time_lock = dr_output.time_lock as i64;
+    let dr_time_lock = dr_output.data_request.time_lock as i64;
     if dr_time_lock > epoch_timestamp {
         Err(TransactionError::TimeLock {
             expected: dr_time_lock,
@@ -415,7 +415,7 @@ pub fn validate_tally_transaction<'a>(
 
     // Validate tally result
     let miner_tally = ta_tx.tally.clone();
-    let tally_stage = &dr_output.data_request.consensus;
+    let tally_stage = &dr_output.data_request.tally;
 
     validate_consensus(&reveals, &miner_tally, tally_stage)?;
     validate_tally_outputs(&dr_state, &ta_tx, reveals.len())?;

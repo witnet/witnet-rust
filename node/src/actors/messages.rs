@@ -14,7 +14,7 @@ use tokio::net::TcpStream;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, PublicKeyHash, RADConsensus, RADRequest, Reputation,
+        InventoryEntry, InventoryItem, PublicKeyHash, RADRequest, RADTally, Reputation,
         ValueTransferOutput,
     },
     transaction::Transaction,
@@ -451,7 +451,7 @@ pub struct ResolveRA {
 #[derive(Debug)]
 pub struct RunConsensus {
     /// RAD consensus to be executed
-    pub script: RADConsensus,
+    pub script: RADTally,
     /// Reveals vector for consensus
     pub reveals: Vec<Vec<u8>>,
 }

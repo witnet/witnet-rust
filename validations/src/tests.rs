@@ -835,29 +835,24 @@ fn test_rad_request(data_request: RADRequest) -> Result<(), failure::Error> {
 // should be updated accordingly.
 fn example_data_request() -> RADRequest {
     RADRequest {
-        not_before: 0,
+        time_lock: 0,
         retrieve: vec![RADRetrieve {
             kind: RADType::HttpGet,
             url: "".to_string(),
             script: vec![0x80],
         }],
         aggregate: RADAggregate { script: vec![0x80] },
-        consensus: RADConsensus { script: vec![0x80] },
-        deliver: vec![RADDeliver {
-            kind: RADType::HttpGet,
-            url: "".to_string(),
-        }],
+        tally: RADTally { script: vec![0x80] },
     }
 }
 
 #[test]
 fn data_request_no_scripts() {
     let x = test_rad_request(RADRequest {
-        not_before: 0,
+        time_lock: 0,
         retrieve: vec![],
         aggregate: RADAggregate { script: vec![] },
-        consensus: RADConsensus { script: vec![] },
-        deliver: vec![],
+        tally: RADTally { script: vec![] },
     });
     assert_eq!(
         x.unwrap_err().downcast::<RadError>().unwrap(),
@@ -1770,11 +1765,13 @@ fn commitment_timelock() {
             bytes: Protected::from(vec![0xcd; 32]),
         };
 
+        let mut rad_request = example_data_request();
+        rad_request.time_lock = time_lock;
+
         let dro = DataRequestOutput {
             value: 1000,
             witnesses: 1,
-            time_lock,
-            data_request: example_data_request(),
+            data_request: rad_request,
             ..DataRequestOutput::default()
         };
         let dr_body = DRTransactionBody::new(vec![], vec![], dro);

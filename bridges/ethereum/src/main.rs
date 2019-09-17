@@ -50,7 +50,7 @@ fn data_request_example() -> DataRequestOutput {
     let build_dr: serde_json::Value = serde_json::from_str(build_dr_str).unwrap();
     let mut data_request_output: DataRequestOutput =
         serde_json::from_value(build_dr["params"]["dro"].clone()).unwrap();
-    data_request_output.data_request.not_before = since_the_epoch.as_secs();
+    data_request_output.data_request.time_lock = since_the_epoch.as_secs();
 
     data_request_output
 }
