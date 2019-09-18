@@ -14,12 +14,12 @@ pub use witnet_crypto::{
 };
 pub use witnet_data_structures::{
     chain::{
-        Block as ChainBlock, Hash as TransactionId, Hashable, Input as TransactionInput,
-        KeyedSignature, OutputPointer, PublicKeyHash, PublicKeyHashParseError, RADRequest,
-        ValueTransferOutput as VttOutput,
+        Block as ChainBlock, DataRequestOutput, Hash as TransactionId, Hashable,
+        Input as TransactionInput, KeyedSignature, OutputPointer, PublicKeyHash,
+        PublicKeyHashParseError, RADRequest, ValueTransferOutput as VttOutput,
     },
     proto::ProtobufConvert,
-    transaction::{Transaction, VTTransaction, VTTransactionBody},
+    transaction::{DRTransaction, Transaction, VTTransaction, VTTransactionBody},
 };
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
@@ -113,17 +113,22 @@ pub struct VttParams {
     pub time_lock: u64,
 }
 
+pub struct DataReqParams {
+    pub label: Option<String>,
+    pub request: DataRequestOutput,
+}
+
 pub struct Balance {
     pub account: u32,
     pub amount: u64,
 }
 
 #[derive(Debug)]
-pub struct VttComponents {
+pub struct TransactionComponents {
     pub value: u64,
     pub change: u64,
     pub inputs: Vec<TransactionInput>,
     pub outputs: Vec<VttOutput>,
     pub sign_keys: Vec<SK>,
-    pub used: Vec<model::OutPtr>,
+    pub used_utxos: Vec<model::OutPtr>,
 }

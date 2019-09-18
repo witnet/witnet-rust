@@ -302,14 +302,14 @@ fn test_balance() {
 }
 
 #[test]
-fn test_create_vtt_components_when_wallet_have_no_utxos() {
+fn test_create_transaction_components_when_wallet_have_no_utxos() {
     let (wallet, _db) = factories::wallet(None);
     let value = 1;
     let fee = 0;
     let pkh = factories::pkh();
     let time_lock = 0;
     let err = wallet
-        .create_vtt_components(pkh, value, fee, time_lock)
+        .create_transaction_components(value, fee, Some((pkh, time_lock)))
         .unwrap_err();
 
     assert_eq!(
@@ -319,7 +319,7 @@ fn test_create_vtt_components_when_wallet_have_no_utxos() {
 }
 
 #[test]
-fn test_create_vtt_components_without_a_change_address() {
+fn test_create_transaction_components_without_a_change_address() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -348,19 +348,19 @@ fn test_create_vtt_components_without_a_change_address() {
     let fee = 0;
     let time_lock = 0;
     let vtt = wallet
-        .create_vtt_components(pkh, value, fee, time_lock)
+        .create_transaction_components(value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert_eq!(1, vtt.value);
     assert_eq!(0, vtt.change);
-    assert_eq!(vec![out_pointer], vtt.used);
+    assert_eq!(vec![out_pointer], vtt.used_utxos);
     assert_eq!(1, vtt.sign_keys.len());
     assert_eq!(1, vtt.inputs.len());
     assert_eq!(1, vtt.outputs.len());
 }
 
 #[test]
-fn test_create_vtt_components_whith_a_change_address() {
+fn test_create_transaction_components_whith_a_change_address() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -393,19 +393,19 @@ fn test_create_vtt_components_whith_a_change_address() {
     };
     let time_lock = 0;
     let vtt = wallet
-        .create_vtt_components(pkh, value, fee, time_lock)
+        .create_transaction_components(value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert_eq!(1, vtt.value);
     assert_eq!(1, vtt.change);
-    assert_eq!(vec![out_pointer], vtt.used);
+    assert_eq!(vec![out_pointer], vtt.used_utxos);
     assert_eq!(1, vtt.sign_keys.len());
     assert_eq!(1, vtt.inputs.len());
     assert_eq!(2, vtt.outputs.len());
 }
 
 #[test]
-fn test_create_vtt_components_which_value_overflows() {
+fn test_create_transaction_components_which_value_overflows() {
     let pkh = factories::pkh();
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![
         (
@@ -445,7 +445,7 @@ fn test_create_vtt_components_which_value_overflows() {
     let fee = 0;
     let time_lock = 0;
     let err = wallet
-        .create_vtt_components(pkh, value, fee, time_lock)
+        .create_transaction_components(value, fee, Some((pkh, time_lock)))
         .unwrap_err();
 
     assert_eq!(

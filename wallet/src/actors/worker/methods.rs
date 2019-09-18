@@ -256,4 +256,14 @@ impl Worker {
 
         Ok(vtt)
     }
+
+    pub fn create_data_req(
+        &self,
+        wallet: &types::Wallet,
+        params: types::DataReqParams,
+    ) -> Result<types::Transaction> {
+        let txn = wallet.create_data_req(params)?;
+
+        Ok(types::Transaction::DataRequest(txn))
+    }
 }

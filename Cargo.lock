@@ -3545,6 +3545,7 @@ dependencies = [
  "witnet_protected 0.3.2",
  "witnet_rad 0.3.2",
  "witnet_storage 0.3.2",
+ "witnet_validations 0.3.2",
 ]
 
 [[package]]

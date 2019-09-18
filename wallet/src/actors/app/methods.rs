@@ -285,6 +285,34 @@ impl App {
         Box::new(f)
     }
 
+    pub fn create_data_req(
+        &self,
+        session_id: &types::SessionId,
+        wallet_id: &str,
+        params: types::DataReqParams,
+    ) -> ResponseActFuture<types::Transaction> {
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
+            move |wallet, slf: &mut Self, _| {
+                slf.params
+                    .worker
+                    .send(worker::CreateDataReq(wallet, params))
+                    .flatten()
+                    .map_err(|err| match err {
+                        worker::Error::Repository(repository::Error::InsufficientBalance) => {
+                            validation_error(field_error(
+                                "balance",
+                                "Wallet account has not enough balance",
+                            ))
+                        }
+                        err => From::from(err),
+                    })
+                    .into_actor(slf)
+            },
+        );
+
+        Box::new(f)
+    }
+
     /// Perform all the tasks needed to properly stop the application.
     pub fn stop(&self) -> ResponseFuture<()> {
         let fut = self

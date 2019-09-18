@@ -32,3 +32,4 @@ witnet_rad = { path = "../rad" }
 witnet_crypto = { path = "../crypto", features = ["with-serde"] }
 witnet_protected = { path = "../protected", features = ["with-serde"] }
 witnet_data_structures = { path = "../data_structures" }
+witnet_validations = { path = "../validations" }

@@ -1,3 +1,4 @@
+pub mod create_data_req;
 pub mod create_vtt;
 pub mod create_wallet;
 pub mod flush_db;
@@ -15,6 +16,7 @@ pub mod set;
 pub mod unlock_wallet;
 pub mod wallet_infos;
 
+pub use create_data_req::*;
 pub use create_vtt::*;
 pub use create_wallet::*;
 pub use flush_db::*;

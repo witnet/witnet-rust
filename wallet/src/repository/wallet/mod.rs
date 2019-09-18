@@ -337,11 +337,11 @@ where
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
         // Gather all the required components for creating the VTT
-        let vtt = self.create_vtt_components(pkh, value, fee, time_lock)?;
+        let components = self.create_transaction_components(value, fee, Some((pkh, time_lock)))?;
 
-        let body = types::VTTransactionBody::new(vtt.inputs, vtt.outputs);
+        let body = types::VTTransactionBody::new(components.inputs, components.outputs);
         let sign_data = body.hash();
-        let signatures = vtt
+        let signatures = components
             .sign_keys
             .into_iter()
             .map(|sign_key| {
@@ -370,7 +370,7 @@ where
         // FIXME: Remove this clone by using a better mechanism such
         // as STM or a persistent map
         let mut new_utxo_set = state.utxo_set.clone();
-        for out_ptr in vtt.used {
+        for out_ptr in components.used_utxos {
             new_utxo_set
                 .remove(&out_ptr)
                 .expect("invariant: remove vtt utxo, not found");
@@ -409,51 +409,65 @@ where
         Ok(transaction)
     }
 
-    /// Create all the necessary componets that conforms a VTT.
-    pub fn create_vtt_components(
+    /// Create a new data request transaction using available UTXOs.
+    pub fn create_data_req(
         &self,
-        pkh: types::PublicKeyHash,
+        types::DataReqParams { label, request }: types::DataReqParams,
+    ) -> Result<types::DRTransaction> {
+        let fee = 0; // In the case of Data Requests, the fee is already included in its value.
+        let _components = self.create_transaction_components(request.value, fee, None)?;
+
+        unimplemented!()
+    }
+
+    ///  Create all the necessary componets such as inputs/outputs
+    ///  that conforms a Transaction. This method is not pure and it
+    ///  will consume UTXOs from the current UTXO set.
+    pub fn create_transaction_components(
+        &self,
         value: u64,
         fee: u64,
-        time_lock: u64,
-    ) -> Result<types::VttComponents> {
+        recipient: Option<(types::PublicKeyHash, u64)>,
+    ) -> Result<types::TransactionComponents> {
         let mut state = self.state.write()?;
         let target = value.saturating_add(fee);
         let mut payment = 0u64;
         let mut inputs = Vec::with_capacity(5);
         let mut outputs = Vec::with_capacity(2);
         let mut sign_keys = Vec::with_capacity(5);
-        let mut used = Vec::with_capacity(5);
+        let mut used_utxos = Vec::with_capacity(5);
 
-        outputs.push(types::VttOutput {
-            pkh,
-            value,
-            time_lock,
-        });
+        if let Some((pkh, time_lock)) = recipient {
+            outputs.push(types::VttOutput {
+                pkh,
+                value,
+                time_lock,
+            });
+        }
 
         for (out_ptr, key_balance) in state.utxo_set.iter() {
             if payment >= target {
                 break;
-            } else {
-                let input = types::TransactionInput::new(types::OutputPointer {
-                    transaction_id: out_ptr.transaction_id(),
-                    output_index: out_ptr.output_index,
-                });
-                let model::Path {
-                    keychain, index, ..
-                } = self.db.get(&keys::pkh(&key_balance.pkh))?;
-                let parent_key = &state.keychains[keychain as usize];
-
-                let extended_sign_key =
-                    parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
-
-                payment = payment
-                    .checked_add(key_balance.amount)
-                    .ok_or_else(|| Error::TransactionValueOverflow)?;
-                inputs.push(input);
-                sign_keys.push(extended_sign_key.into());
-                used.push(out_ptr.clone());
             }
+
+            let input = types::TransactionInput::new(types::OutputPointer {
+                transaction_id: out_ptr.transaction_id(),
+                output_index: out_ptr.output_index,
+            });
+            let model::Path {
+                keychain, index, ..
+            } = self.db.get(&keys::pkh(&key_balance.pkh))?;
+            let parent_key = &state.keychains[keychain as usize];
+
+            let extended_sign_key =
+                parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
+
+            payment = payment
+                .checked_add(key_balance.amount)
+                .ok_or_else(|| Error::TransactionValueOverflow)?;
+            inputs.push(input);
+            sign_keys.push(extended_sign_key.into());
+            used_utxos.push(out_ptr.clone());
         }
 
         if payment < target {
@@ -471,13 +485,13 @@ where
                 });
             }
 
-            Ok(types::VttComponents {
+            Ok(types::TransactionComponents {
                 value,
                 change,
                 inputs,
                 outputs,
                 sign_keys,
-                used,
+                used_utxos,
             })
         }
     }
