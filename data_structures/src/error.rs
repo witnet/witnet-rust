@@ -60,10 +60,16 @@ pub enum TransactionError {
         change, expected_change
     )]
     InvalidTallyChange { change: u64, expected_change: u64 },
-    #[fail(display = "The fees of the data request is greater that its value")]
-    NoReward,
-    #[fail(display = "The reward is not the same for each witness")]
-    NonUniformReward,
+    #[fail(
+        display = "The value of a data request {} must be greater than its fees: {}",
+        value, fees
+    )]
+    NoReward { value: u64, fees: u64 },
+    #[fail(
+        display = "The reward is not the same for each witness. Reward: {}. Witnesses: {}",
+        reward, witnesses
+    )]
+    NonUniformReward { reward: u64, witnesses: u16 },
     #[fail(display = "Data Request witnesses number is not enough")]
     InsufficientWitnesses,
     #[fail(

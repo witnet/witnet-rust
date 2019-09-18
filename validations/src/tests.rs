@@ -923,7 +923,7 @@ fn data_request_no_value() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward,
+        TransactionError::NoReward { value: 0, fees: 0 },
     );
 }
 
@@ -940,7 +940,10 @@ fn data_request_odd_value() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NonUniformReward
+        TransactionError::NonUniformReward {
+            witnesses: 2,
+            reward: 999
+        }
     );
 }
 
@@ -958,7 +961,10 @@ fn data_request_odd_commit_value() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NonUniformReward
+        TransactionError::NonUniformReward {
+            witnesses: 2,
+            reward: 99
+        }
     );
 }
 
@@ -976,7 +982,10 @@ fn data_request_odd_reveal_value() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NonUniformReward
+        TransactionError::NonUniformReward {
+            witnesses: 2,
+            reward: 99
+        }
     );
 }
 
@@ -994,7 +1003,10 @@ fn data_request_odd_tally_value() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NonUniformReward
+        TransactionError::NonUniformReward {
+            witnesses: 2,
+            reward: 99
+        }
     );
 }
 
@@ -1013,7 +1025,10 @@ fn data_request_invalid_value_commit_fee() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward,
+        TransactionError::NoReward {
+            value: 1000,
+            fees: 1000
+        },
     );
 }
 
@@ -1032,7 +1047,10 @@ fn data_request_invalid_value_reveal_fee() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward,
+        TransactionError::NoReward {
+            value: 1000,
+            fees: 1000
+        },
     );
 }
 
@@ -1051,7 +1069,10 @@ fn data_request_invalid_value_tally_fee() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward,
+        TransactionError::NoReward {
+            value: 1000,
+            fees: 1000
+        },
     );
 }
 
@@ -1070,7 +1091,10 @@ fn data_request_invalid_all_fees() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward,
+        TransactionError::NoReward {
+            value: 1000,
+            fees: 1000
+        },
     );
 }
 
@@ -1089,7 +1113,10 @@ fn data_request_negative_value_commit_fee() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward,
+        TransactionError::NoReward {
+            value: 1000,
+            fees: 1001
+        },
     );
 }
 
@@ -1108,7 +1135,10 @@ fn data_request_negative_value_reveal_fee() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward,
+        TransactionError::NoReward {
+            value: 1000,
+            fees: 1001
+        },
     );
 }
 
@@ -1127,7 +1157,10 @@ fn data_request_negative_value_tally_fee() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward,
+        TransactionError::NoReward {
+            value: 1000,
+            fees: 1001
+        },
     );
 }
 
@@ -1146,7 +1179,10 @@ fn data_request_negative_all_fees() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward,
+        TransactionError::NoReward {
+            value: 1000,
+            fees: 1004
+        },
     );
 }
 

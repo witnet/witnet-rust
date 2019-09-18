@@ -255,12 +255,18 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
 
     // Calculate reward to be shared between all the witnesses, which must be greater than 0
     if request.value <= sum_fees {
-        Err(TransactionError::NoReward)?
+        Err(TransactionError::NoReward {
+            value: request.value,
+            fees: sum_fees,
+        })?
     }
     let total_witness_reward = request.value - sum_fees;
     // Must be divisible by the number of witnesses
     if (total_witness_reward % u64::from(request.witnesses)) != 0 {
-        Err(TransactionError::NonUniformReward)?
+        Err(TransactionError::NonUniformReward {
+            reward: total_witness_reward,
+            witnesses: request.witnesses,
+        })?
     }
 
     Ok(())
