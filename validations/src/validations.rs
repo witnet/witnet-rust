@@ -225,44 +225,45 @@ pub fn validate_dr_transaction<'a>(
 
     let fee = dr_transaction_fee(dr_tx, utxo_diff)?;
 
-    let DataRequestOutput {
-        witnesses,
-        value: dr_value,
-        commit_fee,
-        reveal_fee,
-        tally_fee,
-        ref data_request,
-        ..
-    } = dr_tx.body.dr_output;
+    validate_data_request_output(&dr_tx.body.dr_output)?;
 
-    if witnesses < 1 {
-        Err(TransactionError::InsufficientWitnesses)?
-    }
-
-    let sum_fees = commit_fee + reveal_fee + tally_fee;
-
-    // Calculate reward to be shared between all the witnesses, which must be greater than 0
-    if dr_value <= sum_fees {
-        Err(TransactionError::InvalidDataRequestReward {
-            reward: dr_value as i64 - sum_fees as i64,
-        })?
-    }
-    let total_witness_reward = dr_value - sum_fees;
-    // Must be divisible by the number of witnesses
-    if (total_witness_reward % u64::from(witnesses)) != 0 {
-        Err(TransactionError::InvalidDataRequestValue {
-            dr_value: total_witness_reward,
-            witnesses,
-        })?
-    }
-
-    validate_rad_request(&data_request)?;
+    validate_rad_request(&dr_tx.body.dr_output.data_request)?;
 
     Ok((
         dr_tx.body.inputs.iter().collect(),
         dr_tx.body.outputs.iter().collect(),
         fee,
     ))
+}
+
+/// Function to validate a data request output.
+///
+/// A data request output is valid under the following conditions:
+/// - The number of witnesses is at least 1
+/// - The sum of fees is strictly less than the data request value
+/// - All witnesses receive exactly the same reward (value - total fees % witnesses == 0)
+pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), TransactionError> {
+    if request.witnesses < 1 {
+        Err(TransactionError::InsufficientWitnesses)?
+    }
+
+    let sum_fees = request
+        .commit_fee
+        .checked_add(request.reveal_fee)
+        .and_then(|res| res.checked_add(request.tally_fee))
+        .ok_or_else(|| TransactionError::FeeOverflow)?;
+
+    // Calculate reward to be shared between all the witnesses, which must be greater than 0
+    if request.value <= sum_fees {
+        Err(TransactionError::NoReward)?
+    }
+    let total_witness_reward = request.value - sum_fees;
+    // Must be divisible by the number of witnesses
+    if (total_witness_reward % u64::from(request.witnesses)) != 0 {
+        Err(TransactionError::NonUniformReward)?
+    }
+
+    Ok(())
 }
 
 /// Function to validate a commit transaction
