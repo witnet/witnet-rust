@@ -396,7 +396,12 @@ impl Handler<AddTransaction> for ChainManager {
                     return Ok(());
                 }
 
-                validate_vt_transaction(tx, &utxo_diff).map(|_| ())
+                match (self.current_epoch, self.epoch_constants) {
+                    (Some(epoch), Some(epoch_constants)) => {
+                        validate_vt_transaction(tx, &utxo_diff, epoch, epoch_constants).map(|_| ())
+                    }
+                    _ => Err(ChainManagerError::ChainNotReady.into()),
+                }
             }
 
             Transaction::DataRequest(tx) => {
@@ -405,7 +410,12 @@ impl Handler<AddTransaction> for ChainManager {
                     return Ok(());
                 }
 
-                validate_dr_transaction(tx, &utxo_diff).map(|_| ())
+                match (self.current_epoch, self.epoch_constants) {
+                    (Some(epoch), Some(epoch_constants)) => {
+                        validate_dr_transaction(tx, &utxo_diff, epoch, epoch_constants).map(|_| ())
+                    }
+                    _ => Err(ChainManagerError::ChainNotReady.into()),
+                }
             }
             Transaction::Commit(tx) => {
                 let dr_pointer = tx.body.dr_pointer;

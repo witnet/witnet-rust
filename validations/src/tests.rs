@@ -145,7 +145,12 @@ fn vtt_no_inputs_no_outputs() {
 
     let vt_body = VTTransactionBody::new(vec![], vec![]);
     let vt_tx = VTTransaction::new(vt_body, vec![]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoInputs {
@@ -169,7 +174,12 @@ fn vtt_no_inputs_zero_output() {
 
     let vt_body = VTTransactionBody::new(vec![], vec![vto0]);
     let vt_tx = VTTransaction::new(vt_body, vec![]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoInputs {
@@ -193,7 +203,12 @@ fn vtt_no_inputs() {
 
     let vt_body = VTTransactionBody::new(vec![], vec![vto0]);
     let vt_tx = VTTransaction::new(vt_body, vec![]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoInputs {
@@ -218,7 +233,12 @@ fn vtt_no_inputs_but_one_signature() {
     let vt_body = VTTransactionBody::new(vec![], vec![vto0]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchingSignaturesNumber {
@@ -248,7 +268,12 @@ fn vtt_one_input_but_no_signature() {
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
     let vt_tx = VTTransaction::new(vt_body, vec![]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchingSignaturesNumber {
@@ -373,7 +398,13 @@ fn vtt_one_input_signatures() {
     test_signature_empty_wrong_bad(vt_body, |vt_body, vts| {
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
 
-        validate_vt_transaction(&vt_tx, &utxo_diff).map(|_| ())
+        validate_vt_transaction(
+            &vt_tx,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+        )
+        .map(|_| ())
     });
 }
 
@@ -397,7 +428,12 @@ fn vtt_input_not_in_utxo() {
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::OutputNotFound {
@@ -429,7 +465,12 @@ fn vtt_input_not_enough_value() {
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NegativeFee
@@ -456,7 +497,12 @@ fn vtt_one_input_zero_value_output() {
     let vt_body = VTTransactionBody::new(vec![vti], vec![zero_output]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::ZeroValueOutput {
@@ -491,7 +537,12 @@ fn vtt_one_input_two_outputs_negative_fee() {
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0, vto1]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NegativeFee,
@@ -523,7 +574,13 @@ fn vtt_one_input_two_outputs() {
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0, vto1]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff).map(|(_, _, fee)| fee);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    )
+    .map(|(_, _, fee)| fee);
     assert_eq!(x.unwrap(), 21 - 13 - 7,);
 }
 
@@ -553,7 +610,12 @@ fn vtt_two_inputs_one_signature() {
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchingSignaturesNumber {
@@ -590,7 +652,12 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
     let vts = sign_t(&vt_body);
     let vts2 = sign_t2(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts, vts2]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
@@ -631,7 +698,12 @@ fn vtt_two_inputs_three_signatures() {
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts.clone(), vts.clone(), vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchingSignaturesNumber {
@@ -672,7 +744,13 @@ fn vtt_two_inputs_two_outputs() {
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0, vto1]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts.clone(), vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff).map(|(_, _, fee)| fee);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    )
+    .map(|(_, _, fee)| fee);
     assert_eq!(x.unwrap(), 21 + 13 - 10 - 20,);
 }
 
@@ -697,7 +775,13 @@ fn vtt_valid() {
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
     let vts = sign_t(&vt_body);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-    let x = validate_vt_transaction(&vt_tx, &utxo_diff).map(|(_, _, fee)| fee);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    )
+    .map(|(_, _, fee)| fee);
     // The fee is 1000 - 1000 = 0
     assert_eq!(x.unwrap(), 0,);
 }
@@ -717,7 +801,12 @@ fn data_request_no_inputs() {
 
     let dr_tx_body = DRTransactionBody::new(vec![], vec![], dr_output);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![]);
-    let x = validate_dr_transaction(&dr_transaction, &utxo_diff);
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NegativeFee
@@ -740,7 +829,12 @@ fn data_request_no_inputs_but_one_signature() {
     let dr_tx_body = DRTransactionBody::new(vec![], vec![], dr_output);
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
-    let x = validate_dr_transaction(&dr_transaction, &utxo_diff);
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchingSignaturesNumber {
@@ -772,7 +866,12 @@ fn data_request_one_input_but_no_signature() {
 
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![]);
 
-    let x = validate_dr_transaction(&dr_transaction, &utxo_diff);
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchingSignaturesNumber {
@@ -805,7 +904,13 @@ fn data_request_one_input_signatures() {
     test_signature_empty_wrong_bad(dr_tx_body, |dr_tx_body, drs| {
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
-        validate_dr_transaction(&dr_transaction, &utxo_diff).map(|_| ())
+        validate_dr_transaction(
+            &dr_transaction,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+        )
+        .map(|_| ())
     });
 }
 
@@ -828,7 +933,12 @@ fn data_request_input_not_in_utxo() {
     let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
-    let x = validate_dr_transaction(&dr_transaction, &utxo_diff);
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::OutputNotFound {
@@ -859,7 +969,12 @@ fn data_request_input_not_enough_value() {
     let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
-    let x = validate_dr_transaction(&dr_transaction, &utxo_diff);
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NegativeFee
@@ -881,7 +996,13 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
-    validate_dr_transaction(&dr_transaction, &utxo_diff).map(|_| ())
+    validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    )
+    .map(|_| ())
 }
 
 fn test_rad_request(data_request: RADRequest) -> Result<(), failure::Error> {
@@ -1267,9 +1388,14 @@ fn data_request_miner_fee() {
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
-    let dr_miner_fee = validate_dr_transaction(&dr_transaction, &utxo_diff)
-        .map(|(_, _, fee)| fee)
-        .unwrap();
+    let dr_miner_fee = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    )
+    .map(|(_, _, fee)| fee)
+    .unwrap();
     assert_eq!(dr_miner_fee, 1000 - 750);
 }
 
@@ -1301,9 +1427,14 @@ fn data_request_miner_fee_with_change() {
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
-    let dr_miner_fee = validate_dr_transaction(&dr_transaction, &utxo_diff)
-        .map(|(_, _, fee)| fee)
-        .unwrap();
+    let dr_miner_fee = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    )
+    .map(|(_, _, fee)| fee)
+    .unwrap();
     assert_eq!(dr_miner_fee, 1000 - 750 - 200);
 }
 
@@ -1335,7 +1466,12 @@ fn data_request_miner_fee_with_too_much_change() {
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
-    let x = validate_dr_transaction(&dr_transaction, &utxo_diff);
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NegativeFee
@@ -1370,7 +1506,12 @@ fn data_request_zero_value_output() {
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
-    let x = validate_dr_transaction(&dr_transaction, &utxo_diff);
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::ZeroValueOutput {

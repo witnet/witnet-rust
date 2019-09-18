@@ -34,6 +34,8 @@ use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
 pub fn transaction_inputs_sum(
     inputs: &[Input],
     utxo_diff: &UtxoDiff,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
     let mut total_value = 0;
 
@@ -43,7 +45,18 @@ pub fn transaction_inputs_sum(
                 output: input.output_pointer().clone(),
             }
         })?;
-        total_value += vt_output.value;
+
+        // Verify that commits are only accepted after the time lock expired
+        let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+        let vt_time_lock = vt_output.time_lock as i64;
+        if vt_time_lock > epoch_timestamp {
+            Err(TransactionError::TimeLock {
+                expected: vt_time_lock,
+                current: epoch_timestamp,
+            })?
+        } else {
+            total_value += vt_output.value;
+        }
     }
 
     Ok(total_value)
@@ -63,8 +76,10 @@ pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> u64 {
 pub fn vt_transaction_fee(
     vt_tx: &VTTransaction,
     utxo_diff: &UtxoDiff,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
-    let in_value = transaction_inputs_sum(&vt_tx.body.inputs, utxo_diff)?;
+    let in_value = transaction_inputs_sum(&vt_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
     let out_value = transaction_outputs_sum(&vt_tx.body.outputs);
 
     if out_value > in_value {
@@ -83,8 +98,10 @@ pub fn vt_transaction_fee(
 pub fn dr_transaction_fee(
     dr_tx: &DRTransaction,
     utxo_diff: &UtxoDiff,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
-    let in_value = transaction_inputs_sum(&dr_tx.body.inputs, utxo_diff)?;
+    let in_value = transaction_inputs_sum(&dr_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
     let out_value = transaction_outputs_sum(&dr_tx.body.outputs) + dr_tx.body.dr_output.value;
 
     if out_value > in_value {
@@ -165,6 +182,8 @@ pub fn validate_consensus(
 pub fn validate_vt_transaction<'a>(
     vt_tx: &'a VTTransaction,
     utxo_diff: &UtxoDiff,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     validate_transaction_signature(
         &vt_tx.signatures,
@@ -190,7 +209,7 @@ pub fn validate_vt_transaction<'a>(
         }
     }
 
-    let fee = vt_transaction_fee(vt_tx, utxo_diff)?;
+    let fee = vt_transaction_fee(vt_tx, utxo_diff, epoch, epoch_constants)?;
 
     // FIXME(#514): Implement value transfer transaction validation
 
@@ -205,6 +224,8 @@ pub fn validate_vt_transaction<'a>(
 pub fn validate_dr_transaction<'a>(
     dr_tx: &'a DRTransaction,
     utxo_diff: &UtxoDiff,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     validate_transaction_signature(
         &dr_tx.signatures,
@@ -223,7 +244,7 @@ pub fn validate_dr_transaction<'a>(
         }
     }
 
-    let fee = dr_transaction_fee(dr_tx, utxo_diff)?;
+    let fee = dr_transaction_fee(dr_tx, utxo_diff, epoch, epoch_constants)?;
 
     validate_data_request_output(&dr_tx.body.dr_output)?;
 
@@ -664,7 +685,8 @@ pub fn validate_block_transactions(
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
     for transaction in &block.txns.value_transfer_txns {
-        let (inputs, outputs, fee) = validate_vt_transaction(transaction, &utxo_diff)?;
+        let (inputs, outputs, fee) =
+            validate_vt_transaction(transaction, &utxo_diff, epoch, epoch_constants)?;
         total_fee += fee;
 
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
@@ -679,7 +701,8 @@ pub fn validate_block_transactions(
     // Validate data request transactions in a block
     let mut dr_mt = ProgressiveMerkleTree::sha256();
     for transaction in &block.txns.data_request_txns {
-        let (inputs, outputs, fee) = validate_dr_transaction(transaction, &utxo_diff)?;
+        let (inputs, outputs, fee) =
+            validate_dr_transaction(transaction, &utxo_diff, epoch, epoch_constants)?;
         total_fee += fee;
 
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());

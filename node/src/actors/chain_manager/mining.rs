@@ -18,6 +18,7 @@ use crate::{
     signature_mngr,
 };
 
+use witnet_data_structures::chain::EpochConstants;
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, Hashable,
@@ -53,6 +54,12 @@ impl ChainManager {
 
             return;
         }
+        if self.epoch_constants.is_none() {
+            warn!("EpochConstants is not set");
+
+            return;
+        }
+        let epoch_constants = self.epoch_constants.unwrap();
         let total_identities = self
             .chain_state
             .reputation_engine
@@ -137,6 +144,7 @@ impl ChainManager {
                         eligibility_claim,
                         &tally_transactions,
                         act.own_pkh.unwrap_or_default(),
+                        epoch_constants,
                     );
 
                     // Sign the block hash
@@ -446,9 +454,12 @@ fn build_block(
     proof: BlockEligibilityClaim,
     tally_transactions: &[TallyTransaction],
     own_pkh: PublicKeyHash,
+    epoch_constants: EpochConstants,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool);
+
+    let epoch = beacon.checkpoint;
 
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
@@ -461,7 +472,7 @@ fn build_block(
     for vt_tx in transactions_pool.vt_iter() {
         // Currently, 1 weight unit is equivalent to 1 byte
         let transaction_weight = vt_tx.size();
-        let transaction_fee = match vt_transaction_fee(&vt_tx, &utxo_diff) {
+        let transaction_fee = match vt_transaction_fee(&vt_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
                 warn!(
@@ -493,7 +504,7 @@ fn build_block(
     }
 
     for dr_tx in transactions_pool.dr_iter() {
-        let transaction_fee = match dr_transaction_fee(&dr_tx, &utxo_diff) {
+        let transaction_fee = match dr_transaction_fee(&dr_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
                 warn!(
@@ -530,7 +541,6 @@ fn build_block(
     transaction_fees += reveals_fees;
 
     // Include Mint Transaction by miner
-    let epoch = beacon.checkpoint;
     let reward = block_reward(epoch) + transaction_fees;
 
     // Build Mint Transaction
@@ -617,6 +627,7 @@ mod tests {
             block_proof,
             &[],
             PublicKeyHash::default(),
+            EpochConstants::default(),
         );
         let block = Block {
             block_header,
@@ -667,6 +678,7 @@ mod tests {
             block_proof,
             &[],
             PublicKeyHash::default(),
+            EpochConstants::default(),
         );
 
         // Create a KeyedSignature
@@ -807,6 +819,7 @@ mod tests {
             block_proof,
             &[],
             PublicKeyHash::default(),
+            EpochConstants::default(),
         );
         let block = Block {
             block_header,
