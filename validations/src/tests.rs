@@ -12,7 +12,8 @@ use witnet_data_structures::{
 };
 use witnet_protected::Protected;
 use witnet_rad::error::RadError;
-use witnet_validations::validations::*;
+
+use crate::validations::*;
 
 static MY_PKH: &str = "3e13996ed18be842d9d4303b428dd30c85db8e9e";
 static MY_PKH_2: &str = "11f66b6ff5ed1ed21200c0a01f22540cd828ca1f";
