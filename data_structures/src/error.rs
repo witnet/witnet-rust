@@ -29,6 +29,8 @@ pub enum BuildersError {
 pub enum TransactionError {
     #[fail(display = "The transaction is invalid")]
     NotValidTransaction,
+    #[fail(display = "Sum of fees overflows")]
+    FeeOverflow,
     /// The transaction creates value
     #[fail(display = "Transaction creates value (its fee is negative)")]
     NegativeFee,
@@ -58,13 +60,10 @@ pub enum TransactionError {
         change, expected_change
     )]
     InvalidTallyChange { change: u64, expected_change: u64 },
-    #[fail(display = "Invalid Data Request reward: {}", reward)]
-    InvalidDataRequestReward { reward: i64 },
-    #[fail(
-        display = "Invalid Data Request reward ({}) for this number of witnesses ({})",
-        dr_value, witnesses
-    )]
-    InvalidDataRequestValue { dr_value: u64, witnesses: u16 },
+    #[fail(display = "The fees of the data request is greater that its value")]
+    NoReward,
+    #[fail(display = "The reward is not the same for each witness")]
+    NonUniformReward,
     #[fail(display = "Data Request witnesses number is not enough")]
     InsufficientWitnesses,
     #[fail(
