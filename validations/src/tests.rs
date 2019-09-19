@@ -755,6 +755,57 @@ fn vtt_two_inputs_two_outputs() {
 }
 
 #[test]
+fn vtt_timelock() {
+    // 1 epoch = 1000 seconds, for easy testing
+    let epoch_constants = EpochConstants {
+        checkpoint_zero_timestamp: 0,
+        checkpoints_period: 1_000,
+    };
+
+    let test_vtt_epoch = |epoch, time_lock| {
+        let vto = ValueTransferOutput {
+            pkh: MY_PKH.parse().unwrap(),
+            value: 1000,
+            time_lock,
+        };
+        let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+        let utxo_diff = UtxoDiff::new(&utxo_pool);
+        let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+
+        let pkh = PublicKeyHash::default();
+        let vto0 = ValueTransferOutput {
+            pkh,
+            value: 1000,
+            time_lock: 0,
+        };
+
+        let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
+        let vts = sign_t(&vt_body);
+        let vt_tx = VTTransaction::new(vt_body, vec![vts]);
+        validate_vt_transaction(&vt_tx, &utxo_diff, epoch, epoch_constants).map(|_| ())
+    };
+
+    // (epoch, time_lock, should_be_accepted_into_block)
+    let tests = vec![
+        (0, 0, true),
+        (0, 1, false),
+        (0, 1_000_000, false),
+        (999, 1_000_000, false),
+        (999, 999_999, false),
+        (1000, 999_999, true),
+        (1000, 1_000_000, true),
+        (1000, 1_000_001, false),
+        (1001, 1_000_000, true),
+        (1001, 1_000_001, true),
+    ];
+
+    for (epoch, time_lock, is_ok) in tests {
+        let x = test_vtt_epoch(epoch, time_lock);
+        assert_eq!(x.is_ok(), is_ok, "{:?}: {:?}", (epoch, time_lock, is_ok), x);
+    }
+}
+
+#[test]
 fn vtt_valid() {
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
