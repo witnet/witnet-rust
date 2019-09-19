@@ -63,10 +63,7 @@ impl Handler<CreateDataReqRequest> for app::App {
         let validated = validate(request).map_err(app::validation_error);
 
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
-            let params = types::DataReqParams {
-                request,
-                label: label,
-            };
+            let params = types::DataReqParams { request, label };
 
             slf.create_data_req(&session_id, &wallet_id, params)
                 .map(|transaction, _, _| {

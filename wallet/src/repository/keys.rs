@@ -126,16 +126,10 @@ pub fn custom(key: &str) -> String {
     format!("custom-{}", key,)
 }
 
-/// A pending VTT transaction.
+/// A created transaction pending to be sent or removed.
 #[inline]
-pub fn vtt(transaction_hash: &str) -> String {
-    format!("vtt-{}", transaction_hash)
-}
-
-/// A pending Data Request transaction.
-#[inline]
-pub fn data_req(transaction_hash: &str) -> String {
-    format!("dr-{}", transaction_hash)
+pub fn transaction(transaction_hash: &str) -> String {
+    format!("transaction-{}", transaction_hash)
 }
 
 /// An index of transaction hashes.

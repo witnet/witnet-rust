@@ -380,7 +380,10 @@ where
 
         batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
 
-        batch.put(keys::vtt(&transaction_hex_hash), &transaction)?;
+        batch.put(
+            keys::transaction(&transaction_hex_hash),
+            &types::Transaction::ValueTransfer(transaction.clone()),
+        )?;
         batch.put(
             keys::transaction_timestamp(account, transaction_id),
             chrono::Local::now().timestamp(),
@@ -461,7 +464,10 @@ where
 
         batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
 
-        batch.put(keys::data_req(&transaction_hex_hash), &transaction)?;
+        batch.put(
+            keys::transaction(&transaction_hex_hash),
+            &types::Transaction::DataRequest(transaction.clone()),
+        )?;
         batch.put(
             keys::transaction_timestamp(account, transaction_id),
             chrono::Local::now().timestamp(),
@@ -719,11 +725,11 @@ where
         Ok(address)
     }
 
-    /// Get previously created Value Transfer Transaction by its hash.
-    pub fn get_vtt(&self, hex_hash: &str) -> Result<types::Transaction> {
-        let vtt = self.db.get(&keys::vtt(hex_hash))?;
+    /// Get previously created Transaction by its hash.
+    pub fn get_node_transaction(&self, hex_hash: &str) -> Result<Option<types::Transaction>> {
+        let txn = self.db.get_opt(&keys::transaction(hex_hash))?;
 
-        Ok(vtt)
+        Ok(txn)
     }
 }
 

@@ -4,7 +4,6 @@ use futures::future;
 use super::*;
 use crate::actors::*;
 use crate::{model, repository, types::Hashable as _};
-use actix::fut::Either;
 use witnet_data_structures::chain::InventoryItem;
 
 impl App {
@@ -450,51 +449,94 @@ impl App {
         Ok(())
     }
 
+    /// Send a transaction to witnet network using the Inventory method
+    pub fn send_transaction(&self, txn: types::Transaction) -> ResponseActFuture<()> {
+        let method = "inventory".to_string();
+        let params = InventoryItem::Transaction(txn);
+
+        match &self.params.client {
+            Some(client) => {
+                let req = types::RpcRequest::method(method)
+                    .timeout(self.params.requests_timeout)
+                    .params(params)
+                    .expect("params failed serialization");
+                let f = client
+                    .send(req)
+                    .flatten()
+                    .map_err(From::from)
+                    .map(|res| {
+                        log::debug!("Inventory request result: {:?}", res);
+                    })
+                    .map_err(|err| {
+                        log::warn!("Inventory request failed: {}", &err);
+                        err
+                    })
+                    .into_actor(self);
+
+                Box::new(f)
+            }
+            None => {
+                let f = fut::err(Error::NodeNotConnected);
+
+                Box::new(f)
+            }
+        }
+    }
+
     pub fn send_vtt(
         &self,
         session_id: &types::SessionId,
         wallet_id: &str,
         transaction_hash: String,
-    ) -> ResponseActFuture<bool> {
+    ) -> ResponseActFuture<()> {
         let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
-                    .send(worker::GetVtt(wallet, transaction_hash))
+                    .send(worker::GetTransaction(wallet, transaction_hash))
                     .flatten()
-                    .map_err(|err| match err {
-                        err => From::from(err),
-                    })
+                    .map_err(From::from)
                     .into_actor(slf)
-                    .and_then(|vtt, act, _ctx| {
-                        // Send transaction to witnet using inventory method
-                        let method = "inventory".to_string();
-                        let params = InventoryItem::Transaction(vtt);
+                    .and_then(|opt_transaction, slf, _ctx| match opt_transaction {
+                        Some(txn) => slf.send_transaction(txn),
+                        None => {
+                            let f = fut::err(validation_error(field_error(
+                                "transactionId",
+                                "Transaction not found",
+                            )));
 
-                        match &act.params.client {
-                            Some(addr) => {
-                                let req = types::RpcRequest::method(method)
-                                    .timeout(act.params.requests_timeout)
-                                    .params(params)
-                                    .expect("params failed serialization");
-                                let f = addr
-                                    .send(req)
-                                    .flatten()
-                                    .map_err(From::from)
-                                    .map(|res| {
-                                        log::debug!("inventory: {:?}", res);
+                            Box::new(f)
+                        }
+                    })
+            },
+        );
 
-                                        serde_json::from_value(res).unwrap_or(false)
-                                    })
-                                    .into_actor(act);
+        Box::new(f)
+    }
 
-                                Box::new(Either::A(f))
-                            }
-                            None => {
-                                let f = future::err(Error::NodeNotConnected).into_actor(act);
+    pub fn send_data_req(
+        &self,
+        session_id: &types::SessionId,
+        wallet_id: &str,
+        transaction_hash: String,
+    ) -> ResponseActFuture<()> {
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
+            move |wallet, slf: &mut Self, _| {
+                slf.params
+                    .worker
+                    .send(worker::GetTransaction(wallet, transaction_hash))
+                    .flatten()
+                    .map_err(From::from)
+                    .into_actor(slf)
+                    .and_then(|opt_transaction, slf, _ctx| match opt_transaction {
+                        Some(txn) => slf.send_transaction(txn),
+                        None => {
+                            let f = fut::err(validation_error(field_error(
+                                "transactionId",
+                                "Transaction not found",
+                            )));
 
-                                Box::new(Either::B(f))
-                            }
+                            Box::new(f)
                         }
                     })
             },

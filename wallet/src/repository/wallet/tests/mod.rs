@@ -510,7 +510,7 @@ fn test_create_vtt_spends_utxos() {
 
     assert!(db.contains(&keys::transaction_timestamp(0, 0)).unwrap());
     assert!(db
-        .contains(&keys::vtt(&hex::encode(vtt.hash().as_ref())))
+        .contains(&keys::transaction(&hex::encode(vtt.hash().as_ref())))
         .unwrap());
     assert_eq!(
         value,
@@ -601,7 +601,7 @@ fn test_create_data_request_spends_utxos() {
 
     assert!(db.contains(&keys::transaction_timestamp(0, 0)).unwrap());
     assert!(db
-        .contains(&keys::data_req(&hex::encode(data_req.hash().as_ref())))
+        .contains(&keys::transaction(&hex::encode(data_req.hash().as_ref())))
         .unwrap());
     assert_eq!(1, db.get::<_, u64>(&keys::transaction_value(0, 0)).unwrap());
     assert_eq!(

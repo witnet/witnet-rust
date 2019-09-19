@@ -247,12 +247,12 @@ impl Worker {
         Ok(types::Transaction::ValueTransfer(txn))
     }
 
-    pub fn get_vtt(
+    pub fn get_transaction(
         &self,
         wallet: &types::Wallet,
         transaction_id: String,
-    ) -> Result<types::Transaction> {
-        let vtt = wallet.get_vtt(&transaction_id)?;
+    ) -> Result<Option<types::Transaction>> {
+        let vtt = wallet.get_node_transaction(&transaction_id)?;
 
         Ok(vtt)
     }
