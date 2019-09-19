@@ -238,6 +238,7 @@ where
     /// Get a transaction if exists.
     pub fn get_transaction(&self, account: u32, index: u32) -> Result<model::Transaction> {
         let value = self.db.get(&keys::transaction_value(account, index))?;
+        let entry = self.db.get(&keys::transaction_entry(account, index))?;
         let kind = self.db.get(&keys::transaction_type(account, index))?;
         let timestamp = self.db.get(&keys::transaction_timestamp(account, index))?;
         let hash: Vec<u8> = self.db.get(&keys::transaction_hash(account, index))?;
@@ -247,6 +248,7 @@ where
 
         Ok(model::Transaction {
             value,
+            entry,
             kind,
             hex_hash: hex::encode(hash),
             label,
@@ -391,8 +393,12 @@ where
         batch.put(keys::transaction_value(account, transaction_id), value)?;
         batch.put(keys::transaction_fee(account, transaction_id), fee)?;
         batch.put(
+            keys::transaction_entry(account, transaction_id),
+            model::TransactionEntry::Debit,
+        )?;
+        batch.put(
             keys::transaction_type(account, transaction_id),
-            model::TransactionKind::Debit,
+            model::TransactionType::ValueTransfer,
         )?;
         if let Some(label) = label {
             batch.put(keys::transaction_label(account, transaction_id), &label)?;
@@ -475,8 +481,12 @@ where
         batch.put(keys::transaction_value(account, transaction_id), value)?;
         batch.put(keys::transaction_fee(account, transaction_id), fee)?;
         batch.put(
+            keys::transaction_entry(account, transaction_id),
+            model::TransactionEntry::Debit,
+        )?;
+        batch.put(
             keys::transaction_type(account, transaction_id),
-            model::TransactionKind::Debit,
+            model::TransactionType::DataRequest,
         )?;
         if let Some(label) = label {
             batch.put(keys::transaction_label(account, transaction_id), &label)?;
@@ -617,7 +627,7 @@ where
             batch.put(&keys::transaction_value(account, txn_id), amount)?;
             batch.put(
                 keys::transaction_type(account, txn_id),
-                model::TransactionKind::Debit,
+                model::TransactionEntry::Debit,
             )?;
             batch.put(keys::transaction_block(account, txn_id), block)?;
             batch.put(keys::account_balance(account), new_balance)?;
@@ -689,7 +699,7 @@ where
             batch.put(&keys::transaction_value(account, txn_id), amount)?;
             batch.put(
                 keys::transaction_type(account, txn_id),
-                model::TransactionKind::Credit,
+                model::TransactionEntry::Credit,
             )?;
             batch.put(keys::transaction_block(account, txn_id), block)?;
             batch.put(keys::account_balance(account), new_balance)?;

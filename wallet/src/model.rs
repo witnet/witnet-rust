@@ -70,7 +70,8 @@ where
 pub struct Transaction {
     pub hex_hash: String,
     pub value: u64,
-    pub kind: TransactionKind,
+    pub entry: TransactionEntry,
+    pub kind: TransactionType,
     pub label: Option<String>,
     pub fee: Option<u64>,
     pub block: Option<BlockInfo>,
@@ -78,9 +79,15 @@ pub struct Transaction {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum TransactionKind {
+pub enum TransactionEntry {
     Debit,
     Credit,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum TransactionType {
+    ValueTransfer,
+    DataRequest,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

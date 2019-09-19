@@ -529,9 +529,16 @@ fn test_create_vtt_spends_utxos() {
             .unwrap()
     );
     assert_eq!(
-        mem::discriminant(&model::TransactionKind::Debit),
+        mem::discriminant(&model::TransactionType::ValueTransfer),
         mem::discriminant(
-            &db.get::<_, model::TransactionKind>(&keys::transaction_type(0, 0))
+            &db.get::<_, model::TransactionType>(&keys::transaction_type(0, 0))
+                .unwrap()
+        )
+    );
+    assert_eq!(
+        mem::discriminant(&model::TransactionEntry::Debit),
+        mem::discriminant(
+            &db.get::<_, model::TransactionEntry>(&keys::transaction_entry(0, 0))
                 .unwrap()
         )
     );
@@ -617,9 +624,16 @@ fn test_create_data_request_spends_utxos() {
             .unwrap()
     );
     assert_eq!(
-        mem::discriminant(&model::TransactionKind::Debit),
+        mem::discriminant(&model::TransactionType::DataRequest),
         mem::discriminant(
-            &db.get::<_, model::TransactionKind>(&keys::transaction_type(0, 0))
+            &db.get::<_, model::TransactionType>(&keys::transaction_type(0, 0))
+                .unwrap()
+        )
+    );
+    assert_eq!(
+        mem::discriminant(&model::TransactionEntry::Debit),
+        mem::discriminant(
+            &db.get::<_, model::TransactionEntry>(&keys::transaction_entry(0, 0))
                 .unwrap()
         )
     );
