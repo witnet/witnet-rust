@@ -39,7 +39,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             pkh.parse()?,
             value,
             fee,
-            time_lock,
+            time_lock.unwrap_or(0),
         ),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
@@ -165,8 +165,8 @@ pub enum Command {
         #[structopt(long = "fee")]
         fee: u64,
         /// Time lock
-        #[structopt(long = "time_lock")]
-        time_lock: u64,
+        #[structopt(long = "time-lock")]
+        time_lock: Option<u64>,
     },
     #[structopt(
         name = "show-config",
