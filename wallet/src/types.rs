@@ -135,3 +135,27 @@ pub struct TransactionComponents {
     pub sign_keys: Vec<SK>,
     pub used_utxos: Vec<model::OutPtr>,
 }
+
+#[derive(Debug)]
+pub struct Success;
+
+impl serde::Serialize for Success {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str("success")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ok_serialization() {
+        let success = serde_json::to_string(&Success).unwrap();
+
+        assert_eq!("\"success\"".to_string(), success);
+    }
+}
