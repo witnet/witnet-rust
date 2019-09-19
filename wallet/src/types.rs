@@ -16,7 +16,8 @@ pub use witnet_data_structures::{
     chain::{
         Block as ChainBlock, DataRequestOutput, Hash as TransactionId, Hashable,
         Input as TransactionInput, KeyedSignature, OutputPointer, PublicKeyHash,
-        PublicKeyHashParseError, RADRequest, ValueTransferOutput as VttOutput,
+        PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve, RADTally,
+        ValueTransferOutput as VttOutput,
     },
     proto::ProtobufConvert,
     transaction::{
