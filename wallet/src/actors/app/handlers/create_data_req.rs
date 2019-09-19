@@ -11,6 +11,7 @@ pub struct CreateDataReqRequest {
     session_id: types::SessionId,
     wallet_id: String,
     label: Option<String>,
+    #[serde(rename = "camelCase")]
     request: types::DataRequestOutput,
 }
 
@@ -32,7 +33,7 @@ impl Handler<CreateDataReqRequest> for app::App {
     fn handle(&mut self, msg: CreateDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
         let validated = validate(&msg.request).map_err(app::validation_error);
 
-        let f = fut::result(validated).and_then(|request, slf: &mut Self, _ctx| {
+        let f = fut::result(validated).and_then(|(), slf: &mut Self, _ctx| {
             let params = types::DataReqParams {
                 request: msg.request,
                 label: msg.label,

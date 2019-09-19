@@ -19,7 +19,9 @@ pub use witnet_data_structures::{
         PublicKeyHashParseError, RADRequest, ValueTransferOutput as VttOutput,
     },
     proto::ProtobufConvert,
-    transaction::{DRTransaction, Transaction, VTTransaction, VTTransactionBody},
+    transaction::{
+        DRTransaction, DRTransactionBody, Transaction, VTTransaction, VTTransactionBody,
+    },
 };
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};

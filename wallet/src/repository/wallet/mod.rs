@@ -355,7 +355,7 @@ where
             })
             .collect();
 
-        let transaction = types::VTTransaction { body, signatures };
+        let transaction = types::VTTransaction::new(body, signatures);
         let transaction_hash = transaction.hash().as_ref().to_vec();
         let transaction_hex_hash = hex::encode(&transaction_hash);
 
@@ -414,10 +414,80 @@ where
         &self,
         types::DataReqParams { label, request }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
-        let fee = 0; // In the case of Data Requests, the fee is already included in its value.
-        let _components = self.create_transaction_components(request.value, fee, None)?;
+        let fee = request.fee();
+        let value = request.total_witnesses_reward();
+        eprintln!("REQUEST: {:?}", request);
+        eprintln!("FEE: {}", fee);
+        let components = self.create_transaction_components(value, fee, None)?;
 
-        unimplemented!()
+        let body = types::DRTransactionBody::new(components.inputs, components.outputs, request);
+        let sign_data = body.hash();
+        let signatures = components
+            .sign_keys
+            .into_iter()
+            .map(|sign_key| {
+                let public_key = From::from(types::PK::from_secret_key(&self.engine, &sign_key));
+                let signature = From::from(types::signature::sign(sign_key, sign_data.as_ref()));
+
+                types::KeyedSignature {
+                    signature,
+                    public_key,
+                }
+            })
+            .collect();
+
+        let transaction = types::DRTransaction::new(body, signatures);
+        let transaction_hash = transaction.hash().as_ref().to_vec();
+        let transaction_hex_hash = hex::encode(&transaction_hash);
+
+        // Persist the transaction
+        let mut state = self.state.write()?;
+        let account = state.account;
+        let transaction_id = state.transaction_next_id;
+        let transaction_next_id = transaction_id
+            .checked_add(1)
+            .ok_or_else(|| Error::TransactionIdOverflow)?;
+
+        // FIXME: Remove this clone by using a better mechanism such
+        // as STM or a persistent map
+        let mut new_utxo_set = state.utxo_set.clone();
+        for out_ptr in components.used_utxos {
+            new_utxo_set
+                .remove(&out_ptr)
+                .expect("invariant: remove dr utxo, not found");
+        }
+
+        let mut batch = self.db.batch();
+
+        batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
+
+        batch.put(keys::data_req(&transaction_hex_hash), &transaction)?;
+        batch.put(
+            keys::transaction_timestamp(account, transaction_id),
+            chrono::Local::now().timestamp(),
+        )?;
+        batch.put(keys::transaction_value(account, transaction_id), value)?;
+        batch.put(keys::transaction_fee(account, transaction_id), fee)?;
+        batch.put(
+            keys::transaction_type(account, transaction_id),
+            model::TransactionKind::Debit,
+        )?;
+        if let Some(label) = label {
+            batch.put(keys::transaction_label(account, transaction_id), &label)?;
+        }
+        batch.put(keys::transactions_index(&transaction_hash), transaction_id)?;
+        batch.put(
+            keys::transaction_hash(account, transaction_id),
+            transaction_hash,
+        )?;
+
+        self.db.write(batch)?;
+
+        // update wallet state only after db has been updated
+        state.transaction_next_id = transaction_next_id;
+        state.utxo_set = new_utxo_set;
+
+        Ok(transaction)
     }
 
     ///  Create all the necessary componets such as inputs/outputs

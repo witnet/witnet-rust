@@ -132,6 +132,12 @@ pub fn vtt(transaction_hash: &str) -> String {
     format!("vtt-{}", transaction_hash)
 }
 
+/// A pending Data Request transaction.
+#[inline]
+pub fn data_req(transaction_hash: &str) -> String {
+    format!("dr-{}", transaction_hash)
+}
+
 /// An index of transaction hashes.
 #[inline]
 pub fn transactions_index(transaction_hash: &[u8]) -> Vec<u8> {

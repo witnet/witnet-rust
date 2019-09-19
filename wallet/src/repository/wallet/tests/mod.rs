@@ -543,6 +543,94 @@ fn test_create_vtt_spends_utxos() {
 }
 
 #[test]
+fn test_create_data_request_spends_utxos() {
+    let pkh = factories::pkh();
+    let out_pointer = model::OutPtr {
+        txn_hash: vec![0; 32],
+        output_index: 0,
+    };
+    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
+        out_pointer.clone(),
+        model::KeyBalance { pkh, amount: 1 },
+    )]);
+    let path = model::Path {
+        account: 0,
+        keychain: constants::EXTERNAL_KEYCHAIN,
+        index: 0,
+    };
+    let db = HashMap::from_iter(vec![
+        (
+            keys::account_utxo_set(0).as_bytes().to_vec(),
+            bincode::serialize(&utxo_set).unwrap(),
+        ),
+        (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
+    ]);
+
+    let (wallet, db) = factories::wallet(Some(db));
+
+    let state_utxo_set = wallet.utxo_set().unwrap();
+    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
+        db.get(&keys::account_utxo_set(0)).unwrap();
+
+    assert!(utxo_set.contains_key(&out_pointer));
+    assert!(state_utxo_set.contains_key(&out_pointer));
+
+    let request = types::DataRequestOutput {
+        data_request: Default::default(),
+        value: 1,
+        witnesses: 1,
+        backup_witnesses: 0,
+        commit_fee: 0,
+        reveal_fee: 0,
+        tally_fee: 0,
+    };
+
+    let data_req = wallet
+        .create_data_req(types::DataReqParams {
+            label: None,
+            request,
+        })
+        .unwrap();
+
+    let state_utxo_set = wallet.utxo_set().unwrap();
+    let new_utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
+        db.get(&keys::account_utxo_set(0)).unwrap();
+
+    assert!(!new_utxo_set.contains_key(&out_pointer));
+    assert!(!state_utxo_set.contains_key(&out_pointer));
+
+    assert!(db.contains(&keys::transaction_timestamp(0, 0)).unwrap());
+    assert!(db
+        .contains(&keys::data_req(&hex::encode(data_req.hash().as_ref())))
+        .unwrap());
+    assert_eq!(1, db.get::<_, u64>(&keys::transaction_value(0, 0)).unwrap());
+    assert_eq!(
+        data_req.hash().as_ref(),
+        db.get::<_, Vec<u8>>(&keys::transaction_hash(0, 0))
+            .unwrap()
+            .as_slice()
+    );
+    assert_eq!(0, db.get::<_, u64>(&keys::transaction_fee(0, 0)).unwrap());
+    assert_eq!(
+        None,
+        db.get_opt::<_, u64>(&keys::transaction_block(0, 0))
+            .unwrap()
+    );
+    assert_eq!(
+        mem::discriminant(&model::TransactionKind::Debit),
+        mem::discriminant(
+            &db.get::<_, model::TransactionKind>(&keys::transaction_type(0, 0))
+                .unwrap()
+        )
+    );
+    assert_eq!(
+        0,
+        db.get::<_, u32>(&keys::transactions_index(data_req.hash().as_ref()))
+            .unwrap()
+    );
+}
+
+#[test]
 fn test_index_transaction_output_affects_balance() {
     let (wallet, db) = factories::wallet(None);
 
