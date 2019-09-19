@@ -11,6 +11,7 @@ use log::{debug, error, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use super::SessionsManager;
+use crate::actors::messages::AddPeers;
 use crate::actors::{
     codec::P2PCodec,
     messages::{
@@ -136,11 +137,20 @@ impl Handler<Consolidate> for SessionsManager {
         // Get peers manager address
         let peers_manager_addr = System::current().registry().get::<PeersManager>();
 
-        // Send AddConsolidatedPeer message to the peers manager
-        // Try to add this potential peer in the tried addresses bucket
-        peers_manager_addr.do_send(AddConsolidatedPeer {
-            address: msg.potential_new_peer,
-        });
+        if msg.session_type == SessionType::Outbound {
+            // Send AddConsolidatedPeer message to the peers manager
+            // Try to add this potential peer in the tried addresses bucket
+            peers_manager_addr.do_send(AddConsolidatedPeer {
+                address: msg.potential_new_peer,
+            });
+        } else if msg.session_type == SessionType::Inbound {
+            // Send AddPeers message to the peers manager
+            // Try to add this potential peer in the new addresses bucket
+            peers_manager_addr.do_send(AddPeers {
+                addresses: vec![msg.potential_new_peer],
+                src_address: msg.address,
+            });
+        }
 
         match &result {
             Ok(_) => debug!(

@@ -298,7 +298,7 @@ impl Handler<CloseSession> for Session {
 /// Function to try to consolidate session if handshake conditions are met
 fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
     // Check if HandshakeFlags are all set to true
-    if session.handshake_flags.all_true() && session.remote_sender_addr.is_some() {
+    if session.handshake_flags.all_true() {
         // Update session to consolidate status
         update_consolidate(session, ctx);
     }
@@ -306,6 +306,20 @@ fn try_consolidate_session(session: &mut Session, ctx: &mut Context<Session>) {
 
 // Function to notify the SessionsManager that the session has been consolidated
 fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
+    // This address is a potential peer to be added to the tried bucket
+    let potential_new_peer = session
+        .remote_sender_addr
+        .filter(|address| {
+            // Replace with remote_addr in case of unspecified addresses
+            // if session is not Inbound
+            !(session.session_type != SessionType::Inbound && address.ip().is_unspecified())
+        })
+        .unwrap_or({
+            // If there is no valid remote_sender_addr, use remote_addr:
+            // the address we connected to
+            session.remote_addr
+        });
+
     // First evaluate Feeler case
     if session.session_type == SessionType::Feeler {
         // Get peer manager address
@@ -314,7 +328,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
         // Send AddConsolidatedPeer message to the peers manager
         // Try to add this potential peer in the tried addresses bucket
         peers_manager_addr.do_send(AddConsolidatedPeer {
-            address: session.remote_sender_addr.unwrap_or(session.remote_addr),
+            address: potential_new_peer,
         });
 
         // After add peer to tried bucket, this session is not longer useful
@@ -329,7 +343,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
         session_manager_addr
             .send(Consolidate {
                 address: session.remote_addr,
-                potential_new_peer: session.remote_sender_addr.unwrap(),
+                potential_new_peer,
                 session_type: session.session_type,
             })
             .into_actor(session)
