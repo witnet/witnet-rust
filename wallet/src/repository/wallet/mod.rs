@@ -380,6 +380,7 @@ where
 
         let mut batch = self.db.batch();
 
+        batch.put(keys::transaction_next_id(account), transaction_next_id)?;
         batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
 
         batch.put(
@@ -469,6 +470,7 @@ where
 
         let mut batch = self.db.batch();
 
+        batch.put(keys::transaction_next_id(account), transaction_next_id)?;
         batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
 
         batch.put(
