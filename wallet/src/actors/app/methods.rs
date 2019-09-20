@@ -450,7 +450,10 @@ impl App {
     }
 
     /// Send a transaction to witnet network using the Inventory method
-    pub fn send_transaction(&self, txn: types::Transaction) -> ResponseActFuture<()> {
+    pub fn send_transaction(
+        &self,
+        txn: types::Transaction,
+    ) -> ResponseActFuture<serde_json::Value> {
         let method = "inventory".to_string();
         let params = InventoryItem::Transaction(txn);
 
@@ -464,7 +467,7 @@ impl App {
                     .send(req)
                     .flatten()
                     .map_err(From::from)
-                    .map(|res| {
+                    .inspect(|res| {
                         log::debug!("Inventory request result: {:?}", res);
                     })
                     .map_err(|err| {
@@ -488,7 +491,7 @@ impl App {
         session_id: &types::SessionId,
         wallet_id: &str,
         transaction_hash: String,
-    ) -> ResponseActFuture<()> {
+    ) -> ResponseActFuture<serde_json::Value> {
         let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params
@@ -519,7 +522,7 @@ impl App {
         session_id: &types::SessionId,
         wallet_id: &str,
         transaction_hash: String,
-    ) -> ResponseActFuture<()> {
+    ) -> ResponseActFuture<serde_json::Value> {
         let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params

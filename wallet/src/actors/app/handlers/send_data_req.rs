@@ -13,17 +13,13 @@ pub struct SendDataReqRequest {
 }
 
 impl Message for SendDataReqRequest {
-    type Result = app::Result<types::Success>;
+    type Result = app::Result<serde_json::Value>;
 }
 
 impl Handler<SendDataReqRequest> for app::App {
-    type Result = app::ResponseActFuture<types::Success>;
+    type Result = app::ResponseActFuture<serde_json::Value>;
 
     fn handle(&mut self, msg: SendDataReqRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let f = self
-            .send_data_req(&msg.session_id, &msg.wallet_id, msg.transaction_id)
-            .map(|_, _, _| types::Success);
-
-        Box::new(f)
+        self.send_data_req(&msg.session_id, &msg.wallet_id, msg.transaction_id)
     }
 }
