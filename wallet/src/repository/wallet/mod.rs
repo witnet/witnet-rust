@@ -427,7 +427,7 @@ where
             request,
         }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
-        let value = request.total_witnesses_reward();
+        let value = request.value;
         let components = self.create_transaction_components(value, fee, None)?;
 
         let body = types::DRTransactionBody::new(components.inputs, components.outputs, request);
