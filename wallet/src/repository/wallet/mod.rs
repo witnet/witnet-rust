@@ -629,7 +629,7 @@ where
 
             batch.put(&keys::transaction_value(account, txn_id), amount)?;
             batch.put(
-                keys::transaction_type(account, txn_id),
+                keys::transaction_entry(account, txn_id),
                 model::TransactionEntry::Debit,
             )?;
             batch.put(keys::transaction_block(account, txn_id), block)?;
@@ -701,7 +701,7 @@ where
 
             batch.put(&keys::transaction_value(account, txn_id), amount)?;
             batch.put(
-                keys::transaction_type(account, txn_id),
+                keys::transaction_entry(account, txn_id),
                 model::TransactionEntry::Credit,
             )?;
             batch.put(keys::transaction_block(account, txn_id), block)?;
