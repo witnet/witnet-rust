@@ -661,12 +661,7 @@ pub struct DataRequestOutput {
 
 impl DataRequestOutput {
     pub fn total_witnesses_reward(&self) -> u64 {
-        self.value - self.fee()
-    }
-
-    /// Return the total fee this request has.
-    pub fn fee(&self) -> u64 {
-        self.commit_fee + self.reveal_fee + self.tally_fee
+        self.value - self.commit_fee - self.reveal_fee - self.tally_fee
     }
 }
 

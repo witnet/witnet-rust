@@ -595,6 +595,7 @@ fn test_create_data_request_spends_utxos() {
     let data_req = wallet
         .create_data_req(types::DataReqParams {
             label: None,
+            fee: 0,
             request,
         })
         .unwrap();

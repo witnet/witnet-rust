@@ -11,6 +11,7 @@ pub struct CreateDataReqRequest {
     session_id: types::SessionId,
     wallet_id: String,
     label: Option<String>,
+    fee: u64,
     request: DataRequestOutput,
 }
 
@@ -24,12 +25,12 @@ struct DataRequestOutput {
     commit_fee: u64,
     reveal_fee: u64,
     tally_fee: u64,
-    time_lock: u64,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RADRequest {
+    time_lock: u64,
     retrieve: Vec<types::RADRetrieve>,
     aggregate: types::RADAggregate,
     tally: types::RADTally,
@@ -55,6 +56,7 @@ impl Handler<CreateDataReqRequest> for app::App {
         CreateDataReqRequest {
             request,
             label,
+            fee,
             session_id,
             wallet_id,
         }: CreateDataReqRequest,
@@ -63,7 +65,11 @@ impl Handler<CreateDataReqRequest> for app::App {
         let validated = validate(request).map_err(app::validation_error);
 
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
-            let params = types::DataReqParams { request, label };
+            let params = types::DataReqParams {
+                request,
+                fee,
+                label,
+            };
 
             slf.create_data_req(&session_id, &wallet_id, params)
                 .map(|transaction, _, _| {
@@ -90,7 +96,7 @@ impl Handler<CreateDataReqRequest> for app::App {
 fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app::ValidationErrors> {
     let req = types::DataRequestOutput {
         data_request: types::RADRequest {
-            time_lock: request.time_lock,
+            time_lock: request.data_request.time_lock,
             retrieve: request.data_request.retrieve,
             aggregate: request.data_request.aggregate,
             tally: request.data_request.tally,

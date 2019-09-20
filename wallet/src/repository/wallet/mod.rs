@@ -421,12 +421,13 @@ where
     /// Create a new data request transaction using available UTXOs.
     pub fn create_data_req(
         &self,
-        types::DataReqParams { label, request }: types::DataReqParams,
+        types::DataReqParams {
+            label,
+            fee,
+            request,
+        }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
-        let fee = request.fee();
         let value = request.total_witnesses_reward();
-        eprintln!("REQUEST: {:?}", request);
-        eprintln!("FEE: {}", fee);
         let components = self.create_transaction_components(value, fee, None)?;
 
         let body = types::DRTransactionBody::new(components.inputs, components.outputs, request);
