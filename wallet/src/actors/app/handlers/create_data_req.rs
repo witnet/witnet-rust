@@ -109,7 +109,11 @@ fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app:
         tally_fee: request.tally_fee,
     };
 
-    witnet_validations::validations::validate_data_request_output(&req)
-        .map_err(|err| app::field_error("request", format!("{}", err)))
-        .map(|_| req)
+    let request = witnet_validations::validations::validate_data_request_output(&req)
+        .map_err(|err| app::field_error("request", format!("{}", err)));
+
+    let data_request = witnet_validations::validations::validate_rad_request(&req.data_request)
+        .map_err(|err| app::field_error("dataRequest", format!("{}", err)));
+
+    app::combine_field_errors(request, data_request, move |_, _| req)
 }
