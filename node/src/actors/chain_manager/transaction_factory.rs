@@ -212,7 +212,24 @@ mod tests {
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
     ) -> Result<Transaction, NoMoney> {
-        let vtt_tx = build_vtt(outputs, fee, own_utxos, own_pkh, all_utxos)?;
+        let timestamp = 1;
+        let vtt_tx = build_vtt(outputs, fee, own_utxos, own_pkh, all_utxos, timestamp)?;
+
+        Ok(Transaction::ValueTransfer(VTTransaction::new(
+            vtt_tx,
+            vec![],
+        )))
+    }
+
+    fn build_vtt_tx_with_timestamp<S: std::hash::BuildHasher>(
+        outputs: Vec<ValueTransferOutput>,
+        fee: u64,
+        own_utxos: &mut HashSet<OutputPointer, S>,
+        own_pkh: PublicKeyHash,
+        all_utxos: &UnspentOutputsPool,
+        timestamp: u64,
+    ) -> Result<Transaction, NoMoney> {
+        let vtt_tx = build_vtt(outputs, fee, own_utxos, own_pkh, all_utxos, timestamp)?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
             vtt_tx,
@@ -227,7 +244,8 @@ mod tests {
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
     ) -> Result<Transaction, NoMoney> {
-        let drt_tx = build_drt(dr_output, fee, own_utxos, own_pkh, all_utxos)?;
+        let timestamp = 1;
+        let drt_tx = build_drt(dr_output, fee, own_utxos, own_pkh, all_utxos, timestamp)?;
 
         Ok(Transaction::DataRequest(DRTransaction::new(drt_tx, vec![])))
     }
@@ -335,16 +353,16 @@ mod tests {
         }
     }
 
-    fn pay(pkh: PublicKeyHash, value: u64) -> ValueTransferOutput {
+    fn pay(pkh: PublicKeyHash, value: u64, time_lock: u64) -> ValueTransferOutput {
         ValueTransferOutput {
             pkh,
             value,
-            time_lock: 0,
+            time_lock,
         }
     }
 
     fn pay_me(value: u64) -> ValueTransferOutput {
-        pay(my_pkh(), value)
+        pay(my_pkh(), value, 0)
     }
 
     fn pay_alice(value: u64) -> ValueTransferOutput {
@@ -353,7 +371,7 @@ mod tests {
             bytes: [0x03; 32],
         });
 
-        pay(alice_pkh, value)
+        pay(alice_pkh, value, 0)
     }
 
     fn pay_bob(value: u64) -> ValueTransferOutput {
@@ -362,7 +380,11 @@ mod tests {
             bytes: [0x04; 32],
         });
 
-        pay(bob_pkh, value)
+        pay(bob_pkh, value, 0)
+    }
+
+    fn pay_me_later(value: u64, time_lock: u64) -> ValueTransferOutput {
+        pay(my_pkh(), value, time_lock)
     }
 
     #[test]
@@ -452,6 +474,41 @@ mod tests {
             build_vtt_tx(vec![pay_bob(500)], 600, &mut own_utxos, own_pkh, &all_utxos)
                 .map_err(|x| x.total_balance),
             Err(1000)
+        );
+    }
+
+    #[test]
+    fn time_locked_utxo() {
+        let own_pkh = my_pkh();
+        let outputs = vec![pay_me_later(1000, 1000)];
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
+        // There is one pay_me in outputs, so there should be one output in own_utxos
+        assert_eq!(own_utxos.len(), 1);
+
+        assert_eq!(
+            build_vtt_tx_with_timestamp(
+                vec![pay_bob(100)],
+                0,
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos,
+                1
+            )
+            .map_err(|x| x.total_balance),
+            Err(0)
+        );
+
+        assert_eq!(
+            build_vtt_tx_with_timestamp(
+                vec![pay_bob(100)],
+                0,
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos,
+                1001
+            )
+            .is_ok(),
+            true
         );
     }
 

@@ -18,11 +18,10 @@ use crate::{
     signature_mngr,
 };
 
-use witnet_data_structures::chain::EpochConstants;
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, Hashable,
-        PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, EpochConstants,
+        Hashable, PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{create_tally, DataRequestPool},
     transaction::{
