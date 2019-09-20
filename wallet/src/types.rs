@@ -131,6 +131,7 @@ pub struct Balance {
 pub struct TransactionComponents {
     pub value: u64,
     pub change: u64,
+    pub balance: u64,
     pub inputs: Vec<TransactionInput>,
     pub outputs: Vec<VttOutput>,
     pub sign_keys: Vec<SK>,

@@ -304,12 +304,13 @@ fn test_balance() {
 #[test]
 fn test_create_transaction_components_when_wallet_have_no_utxos() {
     let (wallet, _db) = factories::wallet(None);
+    let mut state = wallet.state.write().unwrap();
     let value = 1;
     let fee = 0;
     let pkh = factories::pkh();
     let time_lock = 0;
     let err = wallet
-        .create_transaction_components(value, fee, Some((pkh, time_lock)))
+        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap_err();
 
     assert_eq!(
@@ -343,12 +344,13 @@ fn test_create_transaction_components_without_a_change_address() {
     ]);
 
     let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
     let value = 1;
     let fee = 0;
     let time_lock = 0;
     let vtt = wallet
-        .create_transaction_components(value, fee, Some((pkh, time_lock)))
+        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert_eq!(1, vtt.value);
@@ -384,6 +386,7 @@ fn test_create_transaction_components_whith_a_change_address() {
     ]);
 
     let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
     let value = 1;
     let fee = 0;
@@ -393,7 +396,7 @@ fn test_create_transaction_components_whith_a_change_address() {
     };
     let time_lock = 0;
     let vtt = wallet
-        .create_transaction_components(value, fee, Some((pkh, time_lock)))
+        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap();
 
     assert_eq!(1, vtt.value);
@@ -436,16 +439,21 @@ fn test_create_transaction_components_which_value_overflows() {
             keys::account_utxo_set(0).as_bytes().to_vec(),
             bincode::serialize(&utxo_set).unwrap(),
         ),
+        (
+            keys::account_balance(0).as_bytes().to_vec(),
+            bincode::serialize(&std::u64::MAX).unwrap(),
+        ),
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
 
     let (wallet, _db) = factories::wallet(Some(db));
+    let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
     let value = std::u64::MAX;
     let fee = 0;
     let time_lock = 0;
     let err = wallet
-        .create_transaction_components(value, fee, Some((pkh, time_lock)))
+        ._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))
         .unwrap_err();
 
     assert_eq!(
@@ -475,6 +483,10 @@ fn test_create_vtt_spends_utxos() {
             keys::account_utxo_set(0).as_bytes().to_vec(),
             bincode::serialize(&utxo_set).unwrap(),
         ),
+        (
+            keys::account_balance(0).as_bytes().to_vec(),
+            bincode::serialize(&1u64).unwrap(),
+        ),
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
 
@@ -488,6 +500,7 @@ fn test_create_vtt_spends_utxos() {
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
         db.get(&keys::account_utxo_set(0)).unwrap();
 
+    assert_eq!(1, wallet.balance().unwrap().amount);
     assert!(utxo_set.contains_key(&out_pointer));
     assert!(state_utxo_set.contains_key(&out_pointer));
 
@@ -507,6 +520,9 @@ fn test_create_vtt_spends_utxos() {
 
     assert!(!new_utxo_set.contains_key(&out_pointer));
     assert!(!state_utxo_set.contains_key(&out_pointer));
+
+    assert_eq!(0, wallet.balance().unwrap().amount);
+    assert_eq!(0, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
 
     assert!(db.contains(&keys::transaction_timestamp(0, 0)).unwrap());
     assert!(db
@@ -570,6 +586,10 @@ fn test_create_data_request_spends_utxos() {
             keys::account_utxo_set(0).as_bytes().to_vec(),
             bincode::serialize(&utxo_set).unwrap(),
         ),
+        (
+            keys::account_balance(0).as_bytes().to_vec(),
+            bincode::serialize(&1u64).unwrap(),
+        ),
         (keys::pkh(&pkh), bincode::serialize(&path).unwrap()),
     ]);
 
@@ -579,6 +599,7 @@ fn test_create_data_request_spends_utxos() {
     let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
         db.get(&keys::account_utxo_set(0)).unwrap();
 
+    assert_eq!(1, wallet.balance().unwrap().amount);
     assert!(utxo_set.contains_key(&out_pointer));
     assert!(state_utxo_set.contains_key(&out_pointer));
 
@@ -606,6 +627,9 @@ fn test_create_data_request_spends_utxos() {
 
     assert!(!new_utxo_set.contains_key(&out_pointer));
     assert!(!state_utxo_set.contains_key(&out_pointer));
+
+    assert_eq!(0, wallet.balance().unwrap().amount);
+    assert_eq!(0, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
 
     assert!(db.contains(&keys::transaction_timestamp(0, 0)).unwrap());
     assert!(db

@@ -37,8 +37,20 @@ where
             .unwrap_or_else(|| vec![account]);
 
         let transaction_next_id = db.get_or_default(&keys::transaction_next_id(account))?;
-        let balance = db.get_or_default(&keys::account_balance(account))?;
-        let utxo_set = db.get_or_default(&keys::account_utxo_set(account))?;
+        let utxo_set: model::UtxoSet = db.get_or_default(&keys::account_utxo_set(account))?;
+        let balance = db
+            .get_opt(&keys::account_balance(account))?
+            .unwrap_or_else(|| {
+                // compute balance from utxo set if is not cached in the
+                // database, this is mostly used for testing where overflow
+                // checks are enabled
+                utxo_set
+                    .iter()
+                    .map(|(_, balance)| balance.amount)
+                    .fold(0u64, |acc, amount| {
+                        acc.checked_add(amount).expect("balance overflow")
+                    })
+            });
         let external_key = db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
         let next_external_index = db.get_or_default(&keys::account_next_index(
             account,
@@ -338,9 +350,11 @@ where
             time_lock,
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
-        // Gather all the required components for creating the VTT
-        let components = self.create_transaction_components(value, fee, Some((pkh, time_lock)))?;
+        let mut state = self.state.write()?;
+        let components =
+            self._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))?;
 
+        let new_balance = components.balance;
         let body = types::VTTransactionBody::new(components.inputs, components.outputs);
         let sign_data = body.hash();
         let signatures = components
@@ -362,7 +376,6 @@ where
         let transaction_hex_hash = hex::encode(&transaction_hash);
 
         // Persist the transaction
-        let mut state = self.state.write()?;
         let account = state.account;
         let transaction_id = state.transaction_next_id;
         let transaction_next_id = transaction_id
@@ -381,6 +394,7 @@ where
         let mut batch = self.db.batch();
 
         batch.put(keys::transaction_next_id(account), transaction_next_id)?;
+        batch.put(keys::account_balance(account), new_balance)?;
         batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
 
         batch.put(
@@ -415,6 +429,7 @@ where
         // update wallet state only after db has been updated
         state.transaction_next_id = transaction_next_id;
         state.utxo_set = new_utxo_set;
+        state.balance = new_balance;
 
         Ok(transaction)
     }
@@ -428,9 +443,11 @@ where
             request,
         }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
+        let mut state = self.state.write()?;
         let value = request.value;
-        let components = self.create_transaction_components(value, fee, None)?;
+        let components = self._create_transaction_components(&mut state, value, fee, None)?;
 
+        let new_balance = components.balance;
         let body = types::DRTransactionBody::new(components.inputs, components.outputs, request);
         let sign_data = body.hash();
         let signatures = components
@@ -452,7 +469,6 @@ where
         let transaction_hex_hash = hex::encode(&transaction_hash);
 
         // Persist the transaction
-        let mut state = self.state.write()?;
         let account = state.account;
         let transaction_id = state.transaction_next_id;
         let transaction_next_id = transaction_id
@@ -472,6 +488,7 @@ where
 
         batch.put(keys::transaction_next_id(account), transaction_next_id)?;
         batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
+        batch.put(keys::account_balance(account), new_balance)?;
 
         batch.put(
             keys::transaction(&transaction_hex_hash),
@@ -505,26 +522,25 @@ where
         // update wallet state only after db has been updated
         state.transaction_next_id = transaction_next_id;
         state.utxo_set = new_utxo_set;
+        state.balance = new_balance;
 
         Ok(transaction)
     }
 
-    ///  Create all the necessary componets such as inputs/outputs
-    ///  that conforms a Transaction. This method is not pure and it
-    ///  will consume UTXOs from the current UTXO set.
-    pub fn create_transaction_components(
+    fn _create_transaction_components(
         &self,
+        state: &mut State,
         value: u64,
         fee: u64,
         recipient: Option<(types::PublicKeyHash, u64)>,
     ) -> Result<types::TransactionComponents> {
-        let mut state = self.state.write()?;
         let target = value.saturating_add(fee);
         let mut payment = 0u64;
         let mut inputs = Vec::with_capacity(5);
         let mut outputs = Vec::with_capacity(2);
         let mut sign_keys = Vec::with_capacity(5);
         let mut used_utxos = Vec::with_capacity(5);
+        let mut balance = state.balance;
 
         if let Some((pkh, time_lock)) = recipient {
             outputs.push(types::VttOutput {
@@ -546,7 +562,10 @@ where
             let model::Path {
                 keychain, index, ..
             } = self.db.get(&keys::pkh(&key_balance.pkh))?;
-            let parent_key = &state.keychains[keychain as usize];
+            let parent_key = &state
+                .keychains
+                .get(keychain as usize)
+                .expect("could not get keychain");
 
             let extended_sign_key =
                 parent_key.derive(&self.engine, &types::KeyPath::default().index(index))?;
@@ -554,6 +573,9 @@ where
             payment = payment
                 .checked_add(key_balance.amount)
                 .ok_or_else(|| Error::TransactionValueOverflow)?;
+            balance = balance
+                .checked_sub(key_balance.amount)
+                .ok_or_else(|| Error::BalanceUnderflow)?;
             inputs.push(input);
             sign_keys.push(extended_sign_key.into());
             used_utxos.push(out_ptr.clone());
@@ -565,7 +587,7 @@ where
             let change = payment - target;
 
             if change > 0 {
-                let change_address = self._gen_internal_address(&mut state, None)?;
+                let change_address = self._gen_internal_address(state, None)?;
 
                 outputs.push(types::VttOutput {
                     pkh: change_address.pkh,
@@ -576,6 +598,7 @@ where
 
             Ok(types::TransactionComponents {
                 value,
+                balance,
                 change,
                 inputs,
                 outputs,
