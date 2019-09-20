@@ -30,6 +30,7 @@ pub fn take_enough_utxos<S: std::hash::BuildHasher>(
     own_utxos: &HashSet<OutputPointer, S>,
     all_utxos: &UnspentOutputsPool,
     amount: u64,
+    timestamp: u64,
 ) -> Result<(Vec<OutputPointer>, u64), u64> {
     // FIXME: this is a very naive utxo selection algorithm
     if amount == 0 {
@@ -40,6 +41,9 @@ pub fn take_enough_utxos<S: std::hash::BuildHasher>(
     let mut list = vec![];
 
     for op in own_utxos {
+        if all_utxos[op].time_lock > timestamp {
+            continue;
+        }
         acc += all_utxos[op].value;
         list.push(op.clone());
         if acc >= amount {
@@ -92,9 +96,10 @@ pub fn build_vtt<S: std::hash::BuildHasher>(
     own_utxos: &mut HashSet<OutputPointer, S>,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
+    timestamp: u64,
 ) -> Result<VTTransactionBody, NoMoney> {
     let (inputs, outputs) =
-        build_inputs_outputs_inner(outputs, None, fee, own_utxos, own_pkh, all_utxos)?;
+        build_inputs_outputs_inner(outputs, None, fee, own_utxos, own_pkh, all_utxos, timestamp)?;
 
     Ok(VTTransactionBody::new(inputs, outputs))
 }
@@ -106,9 +111,17 @@ pub fn build_drt<S: std::hash::BuildHasher>(
     own_utxos: &mut HashSet<OutputPointer, S>,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
+    timestamp: u64,
 ) -> Result<DRTransactionBody, NoMoney> {
-    let (inputs, outputs) =
-        build_inputs_outputs_inner(vec![], Some(&dr_output), fee, own_utxos, own_pkh, all_utxos)?;
+    let (inputs, outputs) = build_inputs_outputs_inner(
+        vec![],
+        Some(&dr_output),
+        fee,
+        own_utxos,
+        own_pkh,
+        all_utxos,
+        timestamp,
+    )?;
 
     Ok(DRTransactionBody::new(inputs, outputs, dr_output))
 }
@@ -122,10 +135,11 @@ fn build_inputs_outputs_inner<S: std::hash::BuildHasher>(
     own_utxos: &mut HashSet<OutputPointer, S>,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
+    timestamp: u64,
 ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), NoMoney> {
     let output_value: u64 = outputs.iter().map(|x| x.value).sum::<u64>()
         + dr_output.map(|o| o.value).unwrap_or_default();
-    match take_enough_utxos(own_utxos, all_utxos, output_value + fee) {
+    match take_enough_utxos(own_utxos, all_utxos, output_value + fee, timestamp) {
         Err(total_balance) => Err(NoMoney {
             transaction_outputs: output_value,
             transaction_fee: fee,

@@ -31,6 +31,7 @@ use crate::{
     storage_mngr,
     utils::mode_consensus,
 };
+use witnet_util::timestamp::get_timestamp;
 
 pub const SYNCED_BANNER: &str = r"
 ███████╗██╗   ██╗███╗   ██╗ ██████╗███████╗██████╗ ██╗
@@ -753,12 +754,14 @@ impl Handler<BuildVtt> for ChainManager {
         if self.sm_state != StateMachine::Synced {
             return Box::new(actix::fut::err(ChainManagerError::NotSynced.into()));
         }
+        let timestamp = get_timestamp() as u64;
         match transaction_factory::build_vtt(
             msg.vto,
             msg.fee,
             &mut self.chain_state.own_utxos,
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
+            timestamp,
         ) {
             Err(e) => {
                 log::error!("{}", e);
@@ -799,12 +802,14 @@ impl Handler<BuildDrt> for ChainManager {
         if let Err(e) = validate_rad_request(&msg.dro.data_request) {
             return Box::new(actix::fut::err(e));
         }
+        let timestamp = get_timestamp() as u64;
         match transaction_factory::build_drt(
             msg.dro,
             msg.fee,
             &mut self.chain_state.own_utxos,
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
+            timestamp,
         ) {
             Err(e) => {
                 log::error!("{}", e);
