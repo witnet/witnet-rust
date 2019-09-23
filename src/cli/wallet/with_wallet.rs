@@ -33,6 +33,10 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             );
             Ok(())
         }
+        Command::Doc => {
+            webbrowser::open("https://github.com/witnet/witnet-rust/wiki/Wallet")?;
+            Ok(())
+        }
     }
 }
 
@@ -49,6 +53,11 @@ pub enum Command {
         about = "Dump the loaded config in Toml format to stdout."
     )]
     ShowConfig,
+    #[structopt(
+        name = "doc",
+        about = "Opens Wallet Wiki page with the default browser."
+    )]
+    Doc,
 }
 
 #[derive(Debug, StructOpt)]

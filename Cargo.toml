@@ -35,6 +35,7 @@ structopt = "0.2.14"
 toml = "0.4.10"
 terminal_size = "0.1.8"
 lazy_static = "1.3.0"
+webbrowser = "0.5.2"
 
 witnet_wallet = { path = "./wallet", optional = true }
 witnet_node = { path = "./node", optional = true }
