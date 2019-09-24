@@ -16,7 +16,7 @@ use crate::{
 
 pub const RADON_INTEGER_TYPE_NAME: &str = "RadonInteger";
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq, Serialize, Deserialize, Default)]
 pub struct RadonInteger {
     value: i128,
 }

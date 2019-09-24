@@ -77,6 +77,15 @@ pub enum RadError {
         reducer, inner_type
     )]
     UnsupportedReducer { inner_type: String, reducer: String },
+    /// The sort operator is not implemented for non-string arrays
+    #[fail(
+        display = "Sort is not supported for Array with inner type `{}`",
+        inner_type
+    )]
+    UnsupportedSortOp { inner_type: String },
+    /// The operator is not implemented for non-homogeneous arrays
+    #[fail(display = "Operator is not supported for Array with non homogeneous types")]
+    UnsupportedOpNonHomogeneous,
     /// There was a tie after applying the mode reducer
     #[fail(
         display = "There was a tie after applying the mode reducer on values: `{:?}`",
