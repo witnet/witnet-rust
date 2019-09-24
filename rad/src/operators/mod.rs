@@ -87,7 +87,7 @@ pub enum RadonOpCodes {
     ArrayMap = 0x56,
     ArrayReduce = 0x57,
     //    ArraySome = 0x58,
-    //    ArraySort = 0x59,
+    ArraySort = 0x59,
     //    ArrayTake = 0x5A,
 
     // Map operator codes (start at 0x60)

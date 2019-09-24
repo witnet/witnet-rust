@@ -13,7 +13,7 @@ use crate::types::{RadonType, RadonTypes};
 
 pub const RADON_STRING_TYPE_NAME: &str = "RadonString";
 
-#[derive(Clone, Debug, PartialEq, Serialize, Default)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq, Serialize, Default)]
 pub struct RadonString {
     value: String,
 }

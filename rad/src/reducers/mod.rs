@@ -46,6 +46,8 @@ pub fn reduce(input: &RadonArray, reducer_code: RadonReducers) -> Result<RadonTy
             _ => error(),
         }
     } else {
-        error()
+        Err(RadError::UnsupportedOpNonHomogeneous {
+            operator: reducer_code.to_string(),
+        })
     }
 }
