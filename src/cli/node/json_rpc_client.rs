@@ -34,12 +34,9 @@ pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
     }
 }
 
-pub fn get_blockchain(addr: SocketAddr, epoch: u32, limit: u32) -> Result<(), failure::Error> {
+pub fn get_blockchain(addr: SocketAddr, epoch: i64, limit: u32) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
-    let params = GetBlockChainParams {
-        epoch: i64::from(epoch),
-        limit,
-    };
+    let params = GetBlockChainParams { epoch, limit };
     let response = send_request(
         &mut stream,
         &format!(

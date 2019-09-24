@@ -89,16 +89,16 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
     },
-    #[structopt(name = "blockchain", about = "Find blockchain hashes ")]
+    #[structopt(name = "blockchain", about = "List block hashes")]
     BlockChain {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// First epoch from which to show block hashes.
-        #[structopt(long = "epoch", default_value = "0")]
-        epoch: u32,
-        /// Max number of epochs for which to show block hashes.
-        #[structopt(long = "limit", default_value = "100")]
+        /// First epoch for which to show block hashes. If negative, show blocks from the last n epochs.
+        #[structopt(long = "epoch", default_value = "-50")]
+        epoch: i64,
+        /// Number of epochs for which to show block hashes. If zero, unlimited.
+        #[structopt(long = "limit", default_value = "0")]
         limit: u32,
     },
     #[structopt(name = "block", about = "Find a block by its hash ")]
@@ -109,7 +109,7 @@ pub enum Command {
         #[structopt(name = "hash", help = "SHA-256 block hash in hex format")]
         hash: String,
     },
-    #[structopt(name = "getBalance", about = "Get total balance of the given accout")]
+    #[structopt(name = "getBalance", about = "Get total balance of the given account")]
     GetBalance {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]

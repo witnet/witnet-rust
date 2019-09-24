@@ -1,5 +1,7 @@
 use std::{
     collections::HashMap,
+    convert::TryFrom,
+    ops::RangeInclusive,
     sync::atomic::{AtomicUsize, Ordering},
     sync::Arc,
 };
@@ -268,10 +270,10 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
 /// Params of getBlockChain method
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct GetBlockChainParams {
-    /// TODO
+    /// First epoch for which to return block hashes. If negative, return blocks from the last n epochs.
     #[serde(default)] // default to 0
     pub epoch: i64,
-    /// TODO
+    /// Number of epochs for which to return block hashes. If zero, unlimited.
     #[serde(default)] // default to 0
     pub limit: u32,
 }
@@ -318,17 +320,31 @@ pub fn get_block_chain(
         }
     }
 
+    // If limit is 0, unlimited. Otherwise, from epoch to epoch + limit
+    fn epoch_range(epoch: u32, limit: u32) -> RangeInclusive<u32> {
+        if limit == 0 {
+            epoch..=u32::max_value()
+        } else {
+            epoch..=epoch.saturating_add(limit - 1)
+        }
+    }
+
     let GetBlockChainParams { epoch, limit } = match params {
         Ok(x) => x.unwrap_or_default(),
         Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let limit = limit as usize;
     let chain_manager_addr = ChainManager::from_registry();
-    if epoch >= 0 {
-        let epoch = epoch as u32;
+    if epoch > i64::from(u32::max_value()) {
+        Box::new(futures::failed(internal_error_s(format!(
+            "Epoch too large: {} > {}",
+            epoch,
+            u32::max_value()
+        ))))
+    } else if epoch >= 0 {
+        let epoch = u32::try_from(epoch).unwrap();
         let fut = chain_manager_addr
-            .send(GetBlocksEpochRange::new_with_limit(epoch.., limit))
+            .send(GetBlocksEpochRange::new(epoch_range(epoch, limit)))
             .then(process_get_block_chain);
         Box::new(fut)
     } else {
@@ -338,9 +354,10 @@ pub fn get_block_chain(
             .send(GetEpoch)
             .then(move |res| match res {
                 Ok(Ok(current_epoch)) => {
-                    let epoch = (i64::from(current_epoch) + epoch) as u32;
+                    let epoch = u32::try_from(i64::from(current_epoch).saturating_add(epoch))
+                        .map_err(internal_error_s);
 
-                    futures::finished(epoch)
+                    futures::done(epoch)
                 }
                 Ok(Err(e)) => {
                     let err = internal_error(e);
@@ -353,7 +370,7 @@ pub fn get_block_chain(
             })
             .and_then(move |epoch| {
                 chain_manager_addr
-                    .send(GetBlocksEpochRange::new_with_limit(epoch.., limit))
+                    .send(GetBlocksEpochRange::new(epoch_range(epoch, limit)))
                     .then(process_get_block_chain)
             });
         Box::new(fut)
