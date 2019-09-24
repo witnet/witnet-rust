@@ -137,6 +137,7 @@ impl Operable for RadonArray {
     fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(self.into()),
+            (RadonOpCodes::ArrayCount, None) => Ok(array_operators::count(&self).into()),
             (RadonOpCodes::Get, Some(args)) => array_operators::get(&self, args.as_slice()),
             (RadonOpCodes::ArrayGet, Some(args)) => array_operators::get(&self, args.as_slice()),
             (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(&self, args.as_slice()),
@@ -163,6 +164,28 @@ fn test_operate_identity() {
     let output = input.operate(&call).unwrap();
 
     assert_eq!(output, expected);
+}
+
+#[test]
+fn test_operate_count() {
+    use crate::types::{integer::RadonInteger, string::RadonString};
+
+    let input1 = RadonArray::from(vec![
+        RadonString::from("Hello!").into(),
+        RadonString::from("world!").into(),
+    ]);
+    let expected1 = RadonInteger::from(2).into();
+
+    let input2 = RadonArray::from(vec![]);
+    let expected2 = RadonInteger::from(0).into();
+
+    let call = (RadonOpCodes::ArrayCount, None);
+
+    let output1 = input1.operate(&call).unwrap();
+    assert_eq!(output1, expected1);
+
+    let output2 = input2.operate(&call).unwrap();
+    assert_eq!(output2, expected2);
 }
 
 #[test]

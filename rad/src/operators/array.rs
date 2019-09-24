@@ -1,11 +1,15 @@
 use crate::error::RadError;
 use crate::reducers::{self, RadonReducers};
 use crate::script::{execute_radon_script, unpack_radon_call};
-use crate::types::{array::RadonArray, RadonType, RadonTypes};
+use crate::types::{array::RadonArray, integer::RadonInteger, RadonType, RadonTypes};
 
 use num_traits::FromPrimitive;
 use serde_cbor::value::{from_value, Value};
 use std::clone::Clone;
+
+pub fn count(input: &RadonArray) -> RadonInteger {
+    RadonInteger::from(input.value().len() as i128)
+}
 
 pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
@@ -52,6 +56,21 @@ pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     }
 
     Ok(RadonArray::from(result).into())
+}
+
+#[test]
+fn test_array_count() {
+    use crate::types::float::RadonFloat;
+
+    let input = &RadonArray::from(vec![
+        RadonFloat::from(1f64).into(),
+        RadonFloat::from(2f64).into(),
+    ]);
+
+    let empty = &RadonArray::from(vec![]);
+
+    assert_eq!(count(&input), RadonInteger::from(2));
+    assert_eq!(count(&empty), RadonInteger::from(0));
 }
 
 #[test]

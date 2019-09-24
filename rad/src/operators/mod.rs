@@ -79,7 +79,7 @@ pub enum RadonOpCodes {
 
     // Array operator codes (start at 0x50)
     //    ArrayAsBytes = 0x50,
-    //    ArrayCount = 0x51,
+    ArrayCount = 0x51,
     //    ArrayEvery = 0x52,
     //    ArrayFilter = 0x53,
     //    ArrayFlatten = 0x54,
