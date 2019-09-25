@@ -140,6 +140,9 @@ impl Operable for RadonArray {
             (RadonOpCodes::ArrayCount, None) => Ok(array_operators::count(&self).into()),
             (RadonOpCodes::Get, Some(args)) => array_operators::get(&self, args.as_slice()),
             (RadonOpCodes::ArrayGet, Some(args)) => array_operators::get(&self, args.as_slice()),
+            (RadonOpCodes::ArrayFilter, Some(args)) => {
+                array_operators::filter(&self, args.as_slice())
+            }
             (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(&self, args.as_slice()),
             (RadonOpCodes::ArrayReduce, Some(args)) => {
                 array_operators::reduce(&self, args.as_slice())

@@ -81,7 +81,7 @@ pub enum RadonOpCodes {
     //    ArrayAsBytes = 0x50,
     ArrayCount = 0x51,
     //    ArrayEvery = 0x52,
-    //    ArrayFilter = 0x53,
+    ArrayFilter = 0x53,
     //    ArrayFlatten = 0x54,
     ArrayGet = 0x55,
     ArrayMap = 0x56,

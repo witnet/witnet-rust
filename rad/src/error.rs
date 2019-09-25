@@ -28,6 +28,12 @@ pub enum RadError {
     /// The given key is not present in a RadonMap
     #[fail(display = "Failed to get key `{}` from RadonMap", key)]
     MapKeyNotFound { key: String },
+    /// The given subscript does not return RadonBoolean in an ArrayFilter
+    #[fail(
+        display = "ArrayFilter subscript output was not RadonBoolean (was `{}`)",
+        value
+    )]
+    ArrayFilterWrongSubscript { value: String },
     /// Failed to parse a Value from a buffer
     #[fail(
         display = "Failed to parse a Value from a buffer. Error message: {}",

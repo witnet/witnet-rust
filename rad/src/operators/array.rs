@@ -58,6 +58,29 @@ pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     Ok(RadonArray::from(result).into())
 }
 
+pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
+    let mut subscript = vec![];
+    for arg in args {
+        subscript.push(unpack_radon_call(arg)?)
+    }
+
+    let mut result = vec![];
+    for item in input.value() {
+        match execute_radon_script(item.clone(), subscript.as_slice())? {
+            RadonTypes::Boolean(boolean) => {
+                if boolean.value() {
+                    result.push(item);
+                }
+            }
+            value => Err(RadError::ArrayFilterWrongSubscript {
+                value: value.to_string(),
+            })?,
+        }
+    }
+
+    Ok(RadonArray::from(result).into())
+}
+
 #[test]
 fn test_array_count() {
     use crate::types::float::RadonFloat;
@@ -164,4 +187,45 @@ fn test_map_integer_greater_than() {
     ]));
 
     assert_eq!(output, expected)
+}
+
+#[test]
+fn test_filter_integer_greater_than() {
+    use crate::operators::RadonOpCodes::IntegerGreaterThan;
+    use crate::types::integer::RadonInteger;
+
+    let input = RadonArray::from(vec![
+        RadonInteger::from(2).into(),
+        RadonInteger::from(6).into(),
+    ]);
+    let script = vec![Value::Array(vec![
+        Value::Integer(IntegerGreaterThan as i128),
+        Value::Integer(4),
+    ])];
+    let output = filter(&input, &script).unwrap();
+
+    let expected = RadonTypes::Array(RadonArray::from(vec![RadonInteger::from(6).into()]));
+
+    assert_eq!(output, expected)
+}
+
+#[test]
+fn test_filter_negative() {
+    use crate::operators::RadonOpCodes::IntegerMultiply;
+    use crate::types::integer::RadonInteger;
+
+    let input = RadonArray::from(vec![
+        RadonInteger::from(2).into(),
+        RadonInteger::from(6).into(),
+    ]);
+    let script = vec![Value::Array(vec![
+        Value::Integer(IntegerMultiply as i128),
+        Value::Integer(4),
+    ])];
+    let result = filter(&input, &script);
+
+    assert_eq!(
+        &result.unwrap_err().to_string(),
+        "ArrayFilter subscript output was not RadonBoolean (was `RadonTypes::RadonInteger(8)`)"
+    );
 }
