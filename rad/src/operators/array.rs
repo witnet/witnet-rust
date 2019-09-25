@@ -47,12 +47,12 @@ pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
 pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let mut subscript = vec![];
     for arg in args {
-        subscript.push(unpack_radon_call(arg).unwrap())
+        subscript.push(unpack_radon_call(arg)?)
     }
 
     let mut result = vec![];
     for item in input.value() {
-        result.push(execute_radon_script(item, subscript.as_slice()).unwrap());
+        result.push(execute_radon_script(item, subscript.as_slice())?);
     }
 
     Ok(RadonArray::from(result).into())
@@ -141,4 +141,27 @@ fn test_reduce_average_mean_float() {
     let output = reduce(input, args).unwrap();
 
     assert_eq!(output, expected);
+}
+
+#[test]
+fn test_map_integer_greater_than() {
+    use crate::operators::RadonOpCodes::IntegerGreaterThan;
+    use crate::types::boolean::RadonBoolean;
+
+    let input = RadonArray::from(vec![
+        RadonInteger::from(2).into(),
+        RadonInteger::from(6).into(),
+    ]);
+    let script = vec![Value::Array(vec![
+        Value::Integer(IntegerGreaterThan as i128),
+        Value::Integer(4),
+    ])];
+    let output = map(&input, &script).unwrap();
+
+    let expected = RadonTypes::Array(RadonArray::from(vec![
+        RadonBoolean::from(false).into(),
+        RadonBoolean::from(true).into(),
+    ]));
+
+    assert_eq!(output, expected)
 }
