@@ -37,6 +37,14 @@ impl From<HashMap<String, RadonBytes>> for RadonMap {
     }
 }
 
+impl From<BTreeMap<String, RadonBytes>> for RadonMap {
+    fn from(value: BTreeMap<String, RadonBytes>) -> Self {
+        RadonMap {
+            value: value.into_iter().collect(),
+        }
+    }
+}
+
 impl TryFrom<Value> for RadonMap {
     type Error = RadError;
 

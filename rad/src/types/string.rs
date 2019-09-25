@@ -80,6 +80,9 @@ impl Operable for RadonString {
             (RadonOpCodes::StringAsBoolean, None) => string_operators::to_bool(&self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
+            (RadonOpCodes::StringMatch, Some(args)) => {
+                string_operators::string_match(&self, args.as_slice()).map(RadonTypes::from)
+            }
             (RadonOpCodes::StringLength, None) => {
                 Ok(RadonTypes::from(string_operators::length(&self)))
             }
