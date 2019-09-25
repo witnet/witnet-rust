@@ -69,7 +69,7 @@ pub enum RadonOpCodes {
     StringAsFloat = 0x41,
     StringAsInteger = 0x42,
     StringLength = 0x43,
-    //    StringMatch = 0x44,
+    StringMatch = 0x44,
     /// Parse Bytes from JSON string
     StringParseJSON = 0x45,
     //    StringParseXML = 0x46,
