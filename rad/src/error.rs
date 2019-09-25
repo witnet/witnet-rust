@@ -64,7 +64,7 @@ pub enum RadError {
     /// The given operator is not implemented for the input type
     #[fail(
         display = "Call to operator `{}` with args `{:?}` is not supported for input type `{}`",
-        input_type, args, operator
+        operator, args, input_type
     )]
     UnsupportedOperator {
         input_type: String,
@@ -135,6 +135,26 @@ pub enum RadError {
     /// Overflow error
     #[fail(display = "Overflow error")]
     Overflow,
+    /// Mismatching types
+    #[fail(
+        display = "Mismatching types in {}. Expected: {}, found: {}",
+        method, expected, found
+    )]
+    MismatchingTypes {
+        method: String,
+        expected: String,
+        found: String,
+    },
+    /// Arrays to be reduced have different sizes
+    #[fail(
+        display = "Arrays to be reduced in {} have different sizes. {}!={}",
+        method, first, second
+    )]
+    DifferentSizeArrays {
+        method: String,
+        first: usize,
+        second: usize,
+    },
 }
 
 impl From<reqwest::Error> for RadError {

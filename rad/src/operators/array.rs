@@ -123,7 +123,45 @@ pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> 
     };
 
     let result: Vec<_> = tuple_array.into_iter().map(|(a, _)| a.clone()).collect();
+
     Ok(RadonArray::from(result))
+}
+
+pub fn transpose(input: &RadonArray) -> Result<Vec<RadonArray>, RadError> {
+    let mut v = vec![];
+    let mut prev_len = None;
+    for item in input.value() {
+        match item {
+            RadonTypes::Array(rad_value) => {
+                let sub_value = rad_value.value();
+                let sub_value_len = sub_value.len();
+
+                if prev_len.is_none() {
+                    for sub_item in rad_value.value().into_iter() {
+                        v.push(vec![sub_item]);
+                    }
+                    prev_len = Some(sub_value_len);
+                } else if prev_len == Some(sub_value_len) {
+                    for (i, sub_item) in rad_value.value().into_iter().enumerate() {
+                        v[i].push(sub_item);
+                    }
+                } else {
+                    Err(RadError::DifferentSizeArrays {
+                        method: "RadonArray::transpose".to_string(),
+                        first: prev_len.unwrap(),
+                        second: sub_value_len,
+                    })?
+                }
+            }
+            _ => Err(RadError::MismatchingTypes {
+                method: "RadonArray::transpose".to_string(),
+                expected: RadonArray::radon_type_name(),
+                found: item.radon_type_name(),
+            })?,
+        }
+    }
+
+    Ok(v.into_iter().map(RadonArray::from).collect())
 }
 
 #[test]
@@ -196,17 +234,36 @@ fn test_reduce_unknown_reducer() {
 }
 
 #[test]
-fn test_reduce_average_mean_float() {
-    use crate::types::float::RadonFloat;
+fn test_transpose() {
+    use crate::types::{float::RadonFloat, RadonTypes};
 
-    let input = &RadonArray::from(vec![
+    let array_1 = RadonTypes::from(RadonArray::from(vec![
         RadonFloat::from(1f64).into(),
         RadonFloat::from(2f64).into(),
-    ]);
-    let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-    let expected = RadonTypes::from(RadonFloat::from(1.5f64));
+        RadonFloat::from(3f64).into(),
+    ]));
+    let array_2 = RadonTypes::from(RadonArray::from(vec![
+        RadonFloat::from(11f64).into(),
+        RadonFloat::from(12f64).into(),
+        RadonFloat::from(13f64).into(),
+    ]));
+    let input = RadonArray::from(vec![array_1, array_2]);
 
-    let output = reduce(input, args).unwrap();
+    let v1 = RadonArray::from(vec![
+        RadonFloat::from(1f64).into(),
+        RadonFloat::from(11f64).into(),
+    ]);
+    let v2 = RadonArray::from(vec![
+        RadonFloat::from(2f64).into(),
+        RadonFloat::from(12f64).into(),
+    ]);
+    let v3 = RadonArray::from(vec![
+        RadonFloat::from(3f64).into(),
+        RadonFloat::from(13f64).into(),
+    ]);
+    let expected = vec![v1, v2, v3];
+
+    let output = transpose(&input).unwrap();
 
     assert_eq!(output, expected);
 }
