@@ -4,7 +4,6 @@ email = "info@witnet.foundation"
 vcs = "none"
 
 [build]
-jobs = 1
 rustc = "rustc"
 rustdoc = "rustdoc"
 target-dir = "target"
