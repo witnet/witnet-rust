@@ -2,7 +2,7 @@ use crate::{
     error::RadError,
     operators::array::transpose,
     reducers::RadonReducers,
-    types::{array::RadonArray, float::RadonFloat, RadonType, RadonTypes},
+    types::{array::RadonArray, float::RadonFloat, integer::RadonInteger, RadonType, RadonTypes},
 };
 use std::ops::Div;
 
@@ -18,6 +18,22 @@ pub fn mean(input: &RadonArray) -> Result<RadonTypes, RadError> {
                 _ => Err(RadError::MismatchingTypes {
                     method: RadonReducers::AverageMean.to_string(),
                     expected: RadonFloat::radon_type_name(),
+                    found: item.clone().radon_type_name(),
+                }),
+            });
+            let sum = sum?;
+
+            // Divide sum by the count of numeric values that were summed
+            let mean_value: f64 = sum.div(value_len as f64);
+
+            Ok(RadonTypes::from(RadonFloat::from(mean_value)))
+        }
+        Some(RadonTypes::Integer(_)) => {
+            let sum = value.iter().try_fold(0f64, |sum, item| match item {
+                RadonTypes::Integer(i128_value) => Ok(sum + i128_value.value() as f64),
+                _ => Err(RadError::MismatchingTypes {
+                    method: RadonReducers::AverageMean.to_string(),
+                    expected: RadonInteger::radon_type_name(),
                     found: item.clone().radon_type_name(),
                 }),
             });
@@ -52,13 +68,14 @@ pub fn mean(input: &RadonArray) -> Result<RadonTypes, RadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::operators::array::reduce;
+    use crate::{
+        operators::array::reduce,
+        types::{float::RadonFloat, integer::RadonInteger, string::RadonString},
+    };
     use serde_cbor::Value;
 
     #[test]
     fn test_reduce_average_mean_float() {
-        use crate::types::float::RadonFloat;
-
         let input = &RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -73,8 +90,6 @@ mod tests {
 
     #[test]
     fn test_reduce_average_mean_float_arrays() {
-        use crate::types::float::RadonFloat;
-
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -98,8 +113,6 @@ mod tests {
 
     #[test]
     fn test_reduce_average_mean_float_arrays_different_size() {
-        use crate::types::float::RadonFloat;
-
         let array_1 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -125,8 +138,6 @@ mod tests {
 
     #[test]
     fn test_reduce_average_mean_float_array_of_arrays() {
-        use crate::types::float::RadonFloat;
-
         let array_11 = RadonTypes::from(RadonArray::from(vec![
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
@@ -184,21 +195,79 @@ mod tests {
     }
 
     #[test]
-    // TODO Remove this test after integer mean implementation
-    fn test_reduce_average_mean_integer_unsupported() {
-        use crate::types::integer::RadonInteger;
-
+    fn test_reduce_average_mean_integer() {
         let input = &RadonArray::from(vec![
             RadonInteger::from(1i128).into(),
             RadonInteger::from(2i128).into(),
         ]);
         let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
+        let expected = RadonTypes::from(RadonFloat::from(1.5f64));
+
+        let output = reduce(input, args).unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_reduce_average_mean_integer_arrays() {
+        let array_1 = RadonTypes::from(RadonArray::from(vec![
+            RadonInteger::from(1i128).into(),
+            RadonInteger::from(2i128).into(),
+        ]));
+        let array_2 = RadonTypes::from(RadonArray::from(vec![
+            RadonInteger::from(6i128).into(),
+            RadonInteger::from(10i128).into(),
+        ]));
+        let input = RadonArray::from(vec![array_1, array_2]);
+
+        let expected = RadonTypes::from(RadonArray::from(vec![
+            RadonFloat::from(3.5f64).into(),
+            RadonFloat::from(6f64).into(),
+        ]));
+
+        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
+        let output = reduce(&input, args).unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_reduce_average_mean_string_unsupported() {
+        let input = &RadonArray::from(vec![
+            RadonString::from("Hello").into(),
+            RadonString::from("world").into(),
+        ]);
+        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
         let output = reduce(input, args).unwrap_err();
 
         let expected = RadError::UnsupportedReducer {
-            inner_type: "RadonInteger".to_string(),
+            inner_type: "RadonString".to_string(),
             reducer: "RadonReducers::AverageMean".to_string(),
         };
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_reduce_average_mean_float_int_arrays() {
+        let array_1 = RadonTypes::from(RadonArray::from(vec![
+            RadonFloat::from(1f64).into(),
+            RadonFloat::from(2f64).into(),
+        ]));
+        let array_2 = RadonTypes::from(RadonArray::from(vec![
+            RadonInteger::from(6i128).into(),
+            RadonInteger::from(10i128).into(),
+        ]));
+        let input = RadonArray::from(vec![array_1, array_2]);
+
+        let expected = RadError::MismatchingTypes {
+            method: RadonReducers::AverageMean.to_string(),
+            expected: RadonFloat::radon_type_name(),
+            found: RadonInteger::radon_type_name(),
+        };
+
+        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
+        let output = reduce(&input, args).unwrap_err();
 
         assert_eq!(output, expected);
     }
