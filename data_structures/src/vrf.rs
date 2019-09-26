@@ -274,5 +274,4 @@ mod tests {
             .unwrap();
         assert!(proof.verify(vrf, beacon, dr_pointer2).is_err());
     }
-
 }
