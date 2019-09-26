@@ -1,15 +1,11 @@
 use crate::error::RadError;
 use crate::reducers::{self, RadonReducers};
 use crate::script::{execute_radon_script, unpack_radon_call};
-use crate::types::{
-    array::RadonArray, integer::RadonInteger, string::RadonString, RadonType, RadonTypes,
-};
-use itertools::Itertools;
+use crate::types::{array::RadonArray, integer::RadonInteger, RadonType, RadonTypes};
 
 use num_traits::FromPrimitive;
 use serde_cbor::value::{from_value, Value};
 use std::clone::Clone;
-use std::mem::discriminant;
 
 pub fn count(input: &RadonArray) -> RadonInteger {
     RadonInteger::from(input.value().len() as i128)
@@ -85,7 +81,17 @@ pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
     Ok(RadonArray::from(result).into())
 }
 
-pub fn sort(input: &RadonArray) -> Result<RadonArray, RadError> {
+pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> {
+    let input_value = input.value();
+    let mapped_array = map(input, args)?;
+    let mapped_array = match mapped_array {
+        RadonTypes::Array(x) => x,
+        _ => unreachable!(),
+    };
+
+    let mapped_array_value = mapped_array.value();
+    let mut tuple_array: Vec<(&RadonTypes, &RadonTypes)> =
+        input_value.iter().zip(mapped_array_value.iter()).collect();
     // if input is empty, return the array
     if input.value().is_empty() {
         return Ok(input.clone());
@@ -93,39 +99,30 @@ pub fn sort(input: &RadonArray) -> Result<RadonArray, RadError> {
     // Sort not applicable if not homogeneous
     if !input.is_homogeneous() {
         Err(RadError::UnsupportedOpNonHomogeneous {
-            operator: "Sort".to_string(),
+            operator: "ArraySort".to_string(),
         })?;
     }
-    // Get discriminant and values
-    let disc = input.inner_type();
-    let value = input.value();
 
-    let mut result = Vec::new();
-    // Distinguish each discriminant case
-    if disc == discriminant(&RadonTypes::from(RadonString::default())) {
-        result = value
-            .iter()
-            .cloned()
-            .sorted_by(|a, b| match (a, b) {
+    // Distinguish depending the type
+    match &mapped_array_value.first() {
+        Some(RadonTypes::String(_)) => {
+            tuple_array.sort_by(|a, b| match (a.1, b.1) {
                 (RadonTypes::String(a), RadonTypes::String(b)) => a.cmp(&b),
                 _ => unreachable!(),
-            })
-            .collect();
-    } else if disc == discriminant(&RadonTypes::from(RadonInteger::default())) {
-        result = value
-            .iter()
-            .cloned()
-            .sorted_by(|a, b| match (a, b) {
+            });
+        }
+        Some(RadonTypes::Integer(_)) => {
+            tuple_array.sort_by(|a, b| match (a.1, b.1) {
                 (RadonTypes::Integer(a), RadonTypes::Integer(b)) => a.cmp(&b),
                 _ => unreachable!(),
-            })
-            .collect();
-    } else {
-        Err(RadError::UnsupportedSortOp {
-            inner_type: value[0].clone().radon_type_name(),
-        })?;
-    }
+            });
+        }
+        _ => Err(RadError::UnsupportedSortOp {
+            inner_type: mapped_array_value[0].clone().radon_type_name(),
+        })?,
+    };
 
+    let result: Vec<_> = tuple_array.into_iter().map(|(a, _)| a.clone()).collect();
     Ok(RadonArray::from(result))
 }
 
@@ -277,8 +274,257 @@ fn test_filter_negative() {
         "ArrayFilter subscript output was not RadonBoolean (was `RadonTypes::RadonInteger(8)`)"
     );
 }
+
 #[test]
-fn test_operate_sort_string_2_arrays() {
+fn test_sort_map_string_values() {
+    use crate::operators::RadonOpCodes::{BytesAsString, MapGet};
+    use crate::types::{bytes::RadonBytes, map::RadonMap};
+    use std::collections::HashMap;
+    let mut map1 = HashMap::new();
+    map1.insert(
+        "key1".to_string(),
+        RadonBytes::from(Value::Text("value1".to_string())),
+    );
+    map1.insert(
+        "key2".to_string(),
+        RadonBytes::from(Value::Text("B".to_string())),
+    );
+
+    let mut map2 = HashMap::new();
+
+    map2.insert(
+        "key1".to_string(),
+        RadonBytes::from(Value::Text("value1".to_string())),
+    );
+    map2.insert(
+        "key2".to_string(),
+        RadonBytes::from(Value::Text("A".to_string())),
+    );
+
+    let mut map3 = HashMap::new();
+
+    map3.insert(
+        "key1".to_string(),
+        RadonBytes::from(Value::Text("value1".to_string())),
+    );
+    map3.insert(
+        "key2".to_string(),
+        RadonBytes::from(Value::Text("C".to_string())),
+    );
+
+    let input = RadonArray::from(vec![
+        RadonMap::from(map1.clone()).into(),
+        RadonMap::from(map2.clone()).into(),
+        RadonMap::from(map3.clone()).into(),
+    ]);
+    let script = vec![
+        Value::Array(vec![
+            Value::Integer(MapGet as i128),
+            Value::Text("key2".to_string()),
+        ]),
+        Value::Integer(BytesAsString as i128),
+    ];
+    let output = sort(&input, &script).unwrap();
+
+    let expected = RadonArray::from(vec![
+        RadonMap::from(map2.clone()).into(),
+        RadonMap::from(map1.clone()).into(),
+        RadonMap::from(map3.clone()).into(),
+    ]);
+
+    assert_eq!(output, expected)
+}
+
+#[test]
+fn test_sort_map_integer_values() {
+    use crate::operators::RadonOpCodes::{BytesAsInteger, MapGet};
+    use crate::types::{bytes::RadonBytes, map::RadonMap};
+    use std::collections::HashMap;
+    let mut map1 = HashMap::new();
+    map1.insert("key1".to_string(), RadonBytes::from(Value::Integer(0)));
+    map1.insert("key2".to_string(), RadonBytes::from(Value::Integer(1)));
+
+    let mut map2 = HashMap::new();
+
+    map2.insert("key1".to_string(), RadonBytes::from(Value::Integer(0)));
+    map2.insert("key2".to_string(), RadonBytes::from(Value::Integer(2)));
+
+    let mut map3 = HashMap::new();
+
+    map3.insert("key1".to_string(), RadonBytes::from(Value::Integer(0)));
+    map3.insert("key2".to_string(), RadonBytes::from(Value::Integer(-6)));
+
+    let input = RadonArray::from(vec![
+        RadonMap::from(map1.clone()).into(),
+        RadonMap::from(map2.clone()).into(),
+        RadonMap::from(map3.clone()).into(),
+    ]);
+    let script = vec![
+        Value::Array(vec![
+            Value::Integer(MapGet as i128),
+            Value::Text("key2".to_string()),
+        ]),
+        Value::Integer(BytesAsInteger as i128),
+    ];
+    let output = sort(&input, &script).unwrap();
+
+    let expected = RadonArray::from(vec![
+        RadonMap::from(map3.clone()).into(),
+        RadonMap::from(map1.clone()).into(),
+        RadonMap::from(map2.clone()).into(),
+    ]);
+
+    assert_eq!(output, expected)
+}
+
+#[test]
+fn test_sort_idecntial_maps_integer_values() {
+    use crate::operators::RadonOpCodes::{BytesAsInteger, MapGet};
+    use crate::types::{bytes::RadonBytes, map::RadonMap};
+    use std::collections::HashMap;
+    let mut map1 = HashMap::new();
+    map1.insert("key1".to_string(), RadonBytes::from(Value::Integer(1)));
+    map1.insert("key2".to_string(), RadonBytes::from(Value::Integer(1)));
+
+    let mut map2 = HashMap::new();
+
+    map2.insert("key1".to_string(), RadonBytes::from(Value::Integer(2)));
+    map2.insert("key2".to_string(), RadonBytes::from(Value::Integer(1)));
+
+    let mut map3 = HashMap::new();
+
+    map3.insert("key1".to_string(), RadonBytes::from(Value::Integer(3)));
+    map3.insert("key2".to_string(), RadonBytes::from(Value::Integer(1)));
+
+    let input = RadonArray::from(vec![
+        RadonMap::from(map1.clone()).into(),
+        RadonMap::from(map2.clone()).into(),
+        RadonMap::from(map3.clone()).into(),
+    ]);
+    let script = vec![
+        Value::Array(vec![
+            Value::Integer(MapGet as i128),
+            Value::Text("key2".to_string()),
+        ]),
+        Value::Integer(BytesAsInteger as i128),
+    ];
+    let output = sort(&input, &script).unwrap();
+
+    let expected = RadonArray::from(vec![
+        RadonMap::from(map1.clone()).into(),
+        RadonMap::from(map2.clone()).into(),
+        RadonMap::from(map3.clone()).into(),
+    ]);
+
+    assert_eq!(output, expected)
+}
+
+#[test]
+fn test_sort_empty_map() {
+    use crate::operators::RadonOpCodes::{BytesAsInteger, MapGet};
+    use crate::types::map::RadonMap;
+    use std::collections::HashMap;
+    let map1 = HashMap::new();
+    let map2 = HashMap::new();
+    let map3 = HashMap::new();
+
+    let input = RadonArray::from(vec![
+        RadonMap::from(map1.clone()).into(),
+        RadonMap::from(map2.clone()).into(),
+        RadonMap::from(map3.clone()).into(),
+    ]);
+    let script = vec![
+        Value::Array(vec![
+            Value::Integer(MapGet as i128),
+            Value::Text("key2".to_string()),
+        ]),
+        Value::Integer(BytesAsInteger as i128),
+    ];
+    let output = sort(&input, &script).unwrap_err();
+
+    assert_eq!(output.to_string(), "Failed to get key `key2` from RadonMap")
+}
+
+#[test]
+fn test_sort_maps_without_byte_decoder() {
+    use crate::operators::RadonOpCodes::MapGet;
+    use crate::types::{bytes::RadonBytes, map::RadonMap};
+    use std::collections::HashMap;
+    let mut map1 = HashMap::new();
+
+    map1.insert("key1".to_string(), RadonBytes::from(Value::Integer(0)));
+    map1.insert("key2".to_string(), RadonBytes::from(Value::Integer(1)));
+    let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
+    let script = vec![Value::Array(vec![
+        Value::Integer(MapGet as i128),
+        Value::Text("key2".to_string()),
+    ])];
+    let output = sort(&input, &script).unwrap_err();
+
+    assert_eq!(
+        output.to_string(),
+        "ArraySort is not supported for RadonArray with inner type `RadonBytes`"
+    )
+}
+
+#[test]
+fn test_sort_map_wrong_decode() {
+    use crate::operators::RadonOpCodes::{BytesAsString, MapGet};
+    use crate::types::{bytes::RadonBytes, map::RadonMap};
+    use std::collections::HashMap;
+    let mut map1 = HashMap::new();
+    map1.insert("key1".to_string(), RadonBytes::from(Value::Integer(0)));
+    map1.insert("key2".to_string(), RadonBytes::from(Value::Integer(1)));
+
+    let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
+    let script = vec![
+        Value::Array(vec![
+            Value::Integer(MapGet as i128),
+            Value::Text("key2".to_string()),
+        ]),
+        Value::Integer(BytesAsString as i128),
+    ];
+    let output = sort(&input, &script).unwrap_err();
+
+    assert_eq!(
+        output.to_string(),
+        "Failed to decode RadonString from serde_cbor::value::Value"
+    )
+}
+
+#[test]
+fn test_sort_map_floats_value() {
+    use crate::operators::RadonOpCodes::{BytesAsFloat, MapGet};
+    use crate::types::{bytes::RadonBytes, map::RadonMap};
+    use std::collections::HashMap;
+    let mut map1 = HashMap::new();
+    map1.insert(
+        "key1".to_string(),
+        RadonBytes::from(Value::Float(std::f64::consts::PI)),
+    );
+    map1.insert(
+        "key2".to_string(),
+        RadonBytes::from(Value::Float(std::f64::consts::PI)),
+    );
+
+    let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
+    let script = vec![
+        Value::Array(vec![
+            Value::Integer(MapGet as i128),
+            Value::Text("key2".to_string()),
+        ]),
+        Value::Integer(BytesAsFloat as i128),
+    ];
+    let output = sort(&input, &script).unwrap_err();
+
+    assert_eq!(
+        output.to_string(),
+        "ArraySort is not supported for RadonArray with inner type `RadonFloat`"
+    )
+}
+
+#[test]
+fn test_sort_string_2_arrays() {
     use crate::types::string::RadonString;
 
     let input = RadonArray::from(vec![
@@ -289,12 +535,12 @@ fn test_operate_sort_string_2_arrays() {
         RadonString::from("Bye world!").into(),
         RadonString::from("Hello world!").into(),
     ]);
-    let output = sort(&input).unwrap();
+    let output = sort(&input, &[]).unwrap();
     assert_eq!(output, expected);
 }
 
 #[test]
-fn test_operate_sort_string_5_arrays() {
+fn test_sort_string_5_arrays() {
     use crate::types::string::RadonString;
 
     let input = RadonArray::from(vec![
@@ -311,12 +557,12 @@ fn test_operate_sort_string_5_arrays() {
         RadonString::from("ab").into(),
         RadonString::from("ba").into(),
     ]);
-    let output = sort(&input).unwrap();
+    let output = sort(&input, &[]).unwrap();
     assert_eq!(output, expected);
 }
 
 #[test]
-fn test_operate_sort_string_4_arrays() {
+fn test_sort_string_4_arrays() {
     use crate::types::string::RadonString;
 
     let input = RadonArray::from(vec![
@@ -331,12 +577,12 @@ fn test_operate_sort_string_4_arrays() {
         RadonString::from("Á").into(),
         RadonString::from("á").into(),
     ]);
-    let output = sort(&input).unwrap();
+    let output = sort(&input, &[]).unwrap();
     assert_eq!(output, expected);
 }
 
 #[test]
-fn test_operate_sort_int_arrays() {
+fn test_sort_int_arrays() {
     use crate::types::integer::RadonInteger;
 
     let input = RadonArray::from(vec![
@@ -351,27 +597,27 @@ fn test_operate_sort_int_arrays() {
         RadonInteger::from(1i128).into(),
         RadonInteger::from(2i128).into(),
     ]);
-    let output = sort(&input).unwrap();
+    let output = sort(&input, &[]).unwrap();
     assert_eq!(output, expected);
 }
 
 #[test]
-fn test_operate_sort_float_arrays() {
+fn test_sort_float_arrays() {
     use crate::types::float::RadonFloat;
 
     let input = RadonArray::from(vec![
         RadonFloat::from(1f64).into(),
         RadonFloat::from(2f64).into(),
     ]);
-    let output = sort(&input).unwrap_err();
+    let output = sort(&input, &[]).unwrap_err();
     assert_eq!(
         output.to_string(),
-        "Sort is not supported for Array with inner type `RadonFloat`"
+        "ArraySort is not supported for RadonArray with inner type `RadonFloat`"
     );
 }
 
 #[test]
-fn test_operate_sort_non_homogeneous_array() {
+fn test_sort_non_homogeneous_array() {
     use crate::types::float::RadonFloat;
     use crate::types::integer::RadonInteger;
 
@@ -379,17 +625,17 @@ fn test_operate_sort_non_homogeneous_array() {
         RadonFloat::from(1f64).into(),
         RadonInteger::from(2i128).into(),
     ]);
-    let output = sort(&input).unwrap_err();
+    let output = sort(&input, &[]).unwrap_err();
     assert_eq!(
         output.to_string(),
-        "`Sort` is not supported for Array with non homogeneous types"
+        "`ArraySort` is not supported for RadonArray with non homogeneous types"
     );
 }
 
 #[test]
-fn test_operate_sort_empty_array() {
+fn test_sort_empty_array() {
     let input = RadonArray::from(vec![]);
     let expected = RadonArray::from(vec![]);
-    let output = sort(&input).unwrap();
+    let output = sort(&input, &[]).unwrap();
     assert_eq!(output, expected);
 }

@@ -147,7 +147,9 @@ impl Operable for RadonArray {
             (RadonOpCodes::ArrayReduce, Some(args)) => {
                 array_operators::reduce(&self, args.as_slice())
             }
-            (RadonOpCodes::ArraySort, None) => array_operators::sort(&self).map(RadonTypes::from),
+            (RadonOpCodes::ArraySort, Some(args)) => {
+                array_operators::sort(&self, args.as_slice()).map(RadonTypes::from)
+            }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_ARRAY_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
