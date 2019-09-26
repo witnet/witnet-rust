@@ -147,7 +147,7 @@ pub enum RadError {
     },
     /// Arrays to be reduced have different sizes
     #[fail(
-        display = "Arrays to be reduced in {} have different sizes. {}!={}",
+        display = "Arrays to be reduced in {} have different sizes. {} != {}",
         method, first, second
     )]
     DifferentSizeArrays {

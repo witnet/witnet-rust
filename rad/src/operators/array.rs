@@ -127,7 +127,7 @@ pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> 
     Ok(RadonArray::from(result))
 }
 
-pub fn transpose(input: &RadonArray) -> Result<Vec<RadonArray>, RadError> {
+pub fn transpose(input: &RadonArray) -> Result<RadonArray, RadError> {
     let mut v = vec![];
     let mut prev_len = None;
     for item in input.value() {
@@ -153,15 +153,24 @@ pub fn transpose(input: &RadonArray) -> Result<Vec<RadonArray>, RadError> {
                     })?
                 }
             }
-            _ => Err(RadError::MismatchingTypes {
-                method: "RadonArray::transpose".to_string(),
-                expected: RadonArray::radon_type_name(),
-                found: item.radon_type_name(),
-            })?,
+            _ => {
+                let radon_array_type_name = RadonArray::radon_type_name();
+                Err(RadError::MismatchingTypes {
+                    method: "RadonArray::transpose".to_string(),
+                    expected: format!("{}<{}>", radon_array_type_name, radon_array_type_name),
+                    found: format!("{}<{}>", radon_array_type_name, item.radon_type_name()),
+                })?
+            }
         }
     }
 
-    Ok(v.into_iter().map(RadonArray::from).collect())
+    let v: Vec<RadonTypes> = v
+        .into_iter()
+        .map(RadonArray::from)
+        .map(RadonTypes::from)
+        .collect();
+
+    Ok(RadonArray::from(v))
 }
 
 #[test]
@@ -249,23 +258,183 @@ fn test_transpose() {
     ]));
     let input = RadonArray::from(vec![array_1, array_2]);
 
-    let v1 = RadonArray::from(vec![
+    let v1 = RadonTypes::from(RadonArray::from(vec![
         RadonFloat::from(1f64).into(),
         RadonFloat::from(11f64).into(),
-    ]);
-    let v2 = RadonArray::from(vec![
+    ]));
+    let v2 = RadonTypes::from(RadonArray::from(vec![
         RadonFloat::from(2f64).into(),
         RadonFloat::from(12f64).into(),
-    ]);
-    let v3 = RadonArray::from(vec![
+    ]));
+    let v3 = RadonTypes::from(RadonArray::from(vec![
         RadonFloat::from(3f64).into(),
         RadonFloat::from(13f64).into(),
-    ]);
-    let expected = vec![v1, v2, v3];
+    ]));
+    let expected = RadonArray::from(vec![v1, v2, v3]);
 
     let output = transpose(&input).unwrap();
 
     assert_eq!(output, expected);
+
+    // Transposing again will return the original input
+    assert_eq!(transpose(&output).unwrap(), input);
+}
+
+#[test]
+fn test_transpose_array_of_floats() {
+    use crate::types::float::RadonFloat;
+
+    let input = RadonArray::from(vec![
+        RadonFloat::from(1f64).into(),
+        RadonFloat::from(2f64).into(),
+        RadonFloat::from(3f64).into(),
+    ]);
+
+    let result = transpose(&input);
+
+    assert_eq!(
+        &result.unwrap_err().to_string(),
+        "Mismatching types in RadonArray::transpose. Expected: RadonArray<RadonArray>, found: RadonArray<RadonFloat>",
+    );
+}
+
+#[test]
+fn test_transpose_array_of_arrays_or_floats() {
+    use crate::types::{float::RadonFloat, RadonTypes};
+
+    let array_1 = RadonTypes::from(RadonArray::from(vec![
+        RadonFloat::from(1f64).into(),
+        RadonFloat::from(2f64).into(),
+        RadonFloat::from(3f64).into(),
+    ]));
+    let array_2 = RadonTypes::from(RadonArray::from(vec![
+        RadonFloat::from(11f64).into(),
+        RadonFloat::from(12f64).into(),
+        RadonFloat::from(13f64).into(),
+    ]));
+
+    let float_1 = RadonTypes::from(RadonFloat::from(21f64));
+    let float_2 = RadonTypes::from(RadonFloat::from(22f64));
+
+    let input = RadonArray::from(vec![array_1, array_2, float_1, float_2]);
+
+    let result = transpose(&input);
+
+    assert_eq!(
+        &result.unwrap_err().to_string(),
+        "Mismatching types in RadonArray::transpose. Expected: RadonArray<RadonArray>, found: RadonArray<RadonFloat>",
+    );
+}
+
+#[test]
+fn test_transpose_array_of_arrays_different_size() {
+    use crate::types::{float::RadonFloat, RadonTypes};
+
+    let array_1 = RadonTypes::from(RadonArray::from(vec![
+        RadonFloat::from(1f64).into(),
+        RadonFloat::from(2f64).into(),
+        RadonFloat::from(3f64).into(),
+    ]));
+    let array_2 = RadonTypes::from(RadonArray::from(vec![
+        RadonFloat::from(11f64).into(),
+        RadonFloat::from(12f64).into(),
+    ]));
+    let input = RadonArray::from(vec![array_1, array_2]);
+
+    let result = transpose(&input);
+
+    assert_eq!(
+        &result.unwrap_err().to_string(),
+        "Arrays to be reduced in RadonArray::transpose have different sizes. 3 != 2",
+    );
+}
+
+#[test]
+fn test_transpose_array_of_empty_array() {
+    use crate::types::RadonTypes;
+
+    let array_1 = RadonTypes::from(RadonArray::from(vec![]));
+    let input = RadonArray::from(vec![array_1]);
+
+    let output = transpose(&input).unwrap();
+
+    assert_eq!(output, RadonArray::from(vec![]));
+
+    // Transposing again will return the original input
+    // This fails
+    //assert_eq!(transpose(&output).unwrap(), input);
+}
+
+#[test]
+fn test_transpose_array_of_two_empty_arrays() {
+    use crate::types::RadonTypes;
+
+    let array_1 = RadonTypes::from(RadonArray::from(vec![]));
+    let array_2 = array_1.clone();
+    let input = RadonArray::from(vec![array_1, array_2]);
+
+    let output = transpose(&input).unwrap();
+
+    assert_eq!(output, RadonArray::from(vec![]));
+
+    // Transposing again will return the original input
+    // This fails
+    //assert_eq!(transpose(&output).unwrap(), input);
+}
+
+#[test]
+fn test_transpose_array_of_one_empty_array_and_one_with_items() {
+    use crate::types::{float::RadonFloat, RadonTypes};
+
+    let array_1 = RadonTypes::from(RadonArray::from(vec![]));
+    let array_2 = RadonTypes::from(RadonArray::from(vec![
+        RadonFloat::from(11f64).into(),
+        RadonFloat::from(12f64).into(),
+    ]));
+    let input = RadonArray::from(vec![array_1, array_2]);
+
+    let result = transpose(&input);
+
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "Arrays to be reduced in RadonArray::transpose have different sizes. 0 != 2"
+    );
+}
+
+#[test]
+fn test_transpose_empty_array() {
+    let input = RadonArray::from(vec![]);
+
+    let output = transpose(&input).unwrap();
+
+    assert_eq!(output, RadonArray::from(vec![]));
+
+    // Transposing again will return the original input
+    assert_eq!(transpose(&output).unwrap(), input);
+}
+
+#[test]
+fn test_transpose_one_row() {
+    use crate::types::{float::RadonFloat, RadonTypes};
+
+    let array_1 = RadonTypes::from(RadonArray::from(vec![
+        RadonFloat::from(1f64).into(),
+        RadonFloat::from(2f64).into(),
+        RadonFloat::from(3f64).into(),
+    ]));
+    let input = RadonArray::from(vec![array_1]);
+
+    let v1 = RadonTypes::from(RadonArray::from(vec![RadonFloat::from(1f64).into()]));
+    let v2 = RadonTypes::from(RadonArray::from(vec![RadonFloat::from(2f64).into()]));
+    let v3 = RadonTypes::from(RadonArray::from(vec![RadonFloat::from(3f64).into()]));
+    let expected = RadonArray::from(vec![v1, v2, v3]);
+
+    let output = transpose(&input).unwrap();
+
+    assert_eq!(output, expected);
+
+    // Transposing again will return the original input
+    assert_eq!(transpose(&output).unwrap(), input);
 }
 
 #[test]

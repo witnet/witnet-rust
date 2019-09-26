@@ -32,8 +32,12 @@ pub fn mean(input: &RadonArray) -> Result<RadonTypes, RadError> {
             let v = transpose(input)?;
 
             let mut mean_v = vec![];
-            for v2mean in v {
-                mean_v.push(mean(&v2mean)?);
+            for v2mean in v.value() {
+                if let RadonTypes::Array(v2mean) = v2mean {
+                    mean_v.push(mean(&v2mean)?);
+                } else {
+                    unreachable!()
+                }
             }
 
             Ok(RadonTypes::from(RadonArray::from(mean_v)))
