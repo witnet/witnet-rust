@@ -49,7 +49,7 @@ impl VrfProof {
         let vrf_proof = VrfProof { proof, public_key };
 
         if proof_hash.len() != 32 {
-            Err(HashParseError::InvalidLength(proof_hash.len()))?
+            Err(HashParseError::InvalidLength(proof_hash.len()).into())
         } else {
             let mut x = [0; 32];
             x.copy_from_slice(&proof_hash);

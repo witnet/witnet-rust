@@ -1356,7 +1356,7 @@ impl TryFrom<DataRequestInfo> for DataRequestReport {
                 block_hash_tally_tx,
             })
         } else {
-            Err(DataRequestError::UnfinishedDataRequest)?
+            Err(DataRequestError::UnfinishedDataRequest.into())
         }
     }
 }
@@ -1437,11 +1437,11 @@ impl DataRequestState {
     ) -> Result<(), failure::Error> {
         if let DataRequestStage::COMMIT = self.stage {
             self.info.commits.insert(pkh, commit);
-        } else {
-            Err(DataRequestError::NotCommitStage)?
-        }
 
-        Ok(())
+            Ok(())
+        } else {
+            Err(DataRequestError::NotCommitStage.into())
+        }
     }
 
     /// Add reveal
@@ -1452,11 +1452,11 @@ impl DataRequestState {
     ) -> Result<(), failure::Error> {
         if let DataRequestStage::REVEAL = self.stage {
             self.info.reveals.insert(pkh, reveal);
-        } else {
-            Err(DataRequestError::NotRevealStage)?
-        }
 
-        Ok(())
+            Ok(())
+        } else {
+            Err(DataRequestError::NotRevealStage.into())
+        }
     }
 
     /// Add tally and return the data request report
@@ -1474,7 +1474,7 @@ impl DataRequestState {
 
             Ok(data_request_report)
         } else {
-            Err(DataRequestError::NotTallyStage)?
+            Err(DataRequestError::NotTallyStage.into())
         }
     }
 

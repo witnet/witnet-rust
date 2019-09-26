@@ -240,7 +240,8 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
             Ok(chain_info.highest_block_checkpoint)
         } else {
             log::error!("No ChainInfo loaded in ChainManager");
-            Err(ChainInfoError::ChainInfoNotFound)?
+
+            Err(ChainInfoError::ChainInfoNotFound.into())
         }
     }
 }
@@ -382,7 +383,7 @@ impl Handler<AddTransaction> for ChainManager {
         match self.sm_state {
             StateMachine::Synced => {}
             _ => {
-                Err(ChainManagerError::NotSynced)?;
+                return Err(ChainManagerError::NotSynced.into());
             }
         };
 
@@ -903,12 +904,12 @@ impl Handler<GetReputation> for ChainManager {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
-            Err(ChainManagerError::NotSynced)?;
+            return Err(ChainManagerError::NotSynced.into());
         }
 
         let rep_eng = match self.chain_state.reputation_engine.as_ref() {
             Some(x) => x,
-            None => Err(ChainManagerError::ChainNotReady)?,
+            None => return Err(ChainManagerError::ChainNotReady.into()),
         };
 
         Ok((rep_eng.trs.get(&pkh), rep_eng.ars.contains(&pkh)))
@@ -920,12 +921,12 @@ impl Handler<GetReputationAll> for ChainManager {
 
     fn handle(&mut self, _msg: GetReputationAll, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
-            Err(ChainManagerError::NotSynced)?;
+            return Err(ChainManagerError::NotSynced.into());
         }
 
         let rep_eng = match self.chain_state.reputation_engine.as_ref() {
             Some(x) => x,
-            None => Err(ChainManagerError::ChainNotReady)?,
+            None => return Err(ChainManagerError::ChainNotReady.into()),
         };
 
         Ok(rep_eng
@@ -940,12 +941,12 @@ impl Handler<GetReputationStatus> for ChainManager {
 
     fn handle(&mut self, _msg: GetReputationStatus, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
-            Err(ChainManagerError::NotSynced)?;
+            return Err(ChainManagerError::NotSynced.into());
         }
 
         let rep_eng = match self.chain_state.reputation_engine.as_ref() {
             Some(x) => x,
-            None => Err(ChainManagerError::ChainNotReady)?,
+            None => return Err(ChainManagerError::ChainNotReady.into()),
         };
 
         let num_active_identities = rep_eng.ars.active_identities_number() as u32;

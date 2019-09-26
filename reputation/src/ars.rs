@@ -156,7 +156,8 @@ where
             Err(ReputationError::InvalidUpdateTime {
                 new_time,
                 current_time: self.last_update,
-            })?
+            }
+            .into())
         }
     }
 
@@ -181,7 +182,8 @@ where
             Err(ReputationError::InvalidUpdateTime {
                 new_time,
                 current_time: self.last_update,
-            })?
+            }
+            .into())
         }
     }
 }

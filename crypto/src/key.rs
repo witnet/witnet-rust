@@ -67,7 +67,7 @@ where
         let seed_len = seed_bytes.len();
 
         if seed_len < 16 || seed_len > 64 {
-            Err(MasterKeyGenError::InvalidSeedLength)?
+            return Err(MasterKeyGenError::InvalidSeedLength);
         }
 
         let key_bytes = self.key;

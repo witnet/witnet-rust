@@ -274,7 +274,7 @@ impl ChainManager {
                 Err(e) => Err(e),
             }
         } else {
-            Err(ChainManagerError::ChainNotReady)?
+            Err(ChainManagerError::ChainNotReady.into())
         }
     }
 

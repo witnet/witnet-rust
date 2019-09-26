@@ -78,7 +78,7 @@ impl DataRequestPool {
     ) -> Result<(), failure::Error> {
         let dr_hash = data_request.hash();
         if data_request.signatures.is_empty() {
-            Err(TransactionError::SignatureNotFound)?
+            return Err(TransactionError::SignatureNotFound.into());
         }
 
         let pkh = data_request.signatures[0].public_key.pkh();
@@ -104,19 +104,19 @@ impl DataRequestPool {
         let tx_hash = commit.hash();
         // For a commit output, we need to get the corresponding data request input
         let dr_pointer = commit.body.dr_pointer;
+
         // The data request must be from a previous block, and must not be timelocked.
         // This is not checked here, as it should have made the block invalid.
         if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-            dr.add_commit(pkh, commit.clone())?
+            dr.add_commit(pkh, commit.clone())
         } else {
             Err(DataRequestError::AddCommitFail {
                 block_hash: *block_hash,
                 tx_hash,
                 dr_pointer,
-            })?
+            }
+            .into())
         }
-
-        Ok(())
     }
 
     /// Add a reveal transaction
@@ -132,16 +132,15 @@ impl DataRequestPool {
         // The data request must be from a previous block, and must not be timelocked.
         // This is not checked here, as it should have made the block invalid.
         if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-            dr.add_reveal(pkh, reveal)?
+            dr.add_reveal(pkh, reveal)
         } else {
             Err(DataRequestError::AddRevealFail {
                 block_hash: *block_hash,
                 tx_hash,
                 dr_pointer,
-            })?
+            }
+            .into())
         }
-
-        Ok(())
     }
 
     /// Add a tally transaction

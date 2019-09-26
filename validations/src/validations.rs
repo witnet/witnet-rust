@@ -50,10 +50,11 @@ pub fn transaction_inputs_sum(
         let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
         let vt_time_lock = vt_output.time_lock as i64;
         if vt_time_lock > epoch_timestamp {
-            Err(TransactionError::TimeLock {
+            return Err(TransactionError::TimeLock {
                 expected: vt_time_lock,
                 current: epoch_timestamp,
-            })?
+            }
+            .into());
         } else {
             total_value += vt_output.value;
         }
@@ -83,7 +84,7 @@ pub fn vt_transaction_fee(
     let out_value = transaction_outputs_sum(&vt_tx.body.outputs);
 
     if out_value > in_value {
-        Err(TransactionError::NegativeFee)?
+        Err(TransactionError::NegativeFee.into())
     } else {
         Ok(in_value - out_value)
     }
@@ -105,7 +106,7 @@ pub fn dr_transaction_fee(
     let out_value = transaction_outputs_sum(&dr_tx.body.outputs) + dr_tx.body.dr_output.value;
 
     if out_value > in_value {
-        Err(TransactionError::NegativeFee)?
+        Err(TransactionError::NegativeFee.into())
     } else {
         Ok(in_value - out_value)
     }
@@ -119,10 +120,11 @@ pub fn validate_mint_transaction(
 ) -> Result<(), failure::Error> {
     // Mint epoch must be equal to block epoch
     if mint_tx.epoch != block_epoch {
-        Err(BlockError::InvalidMintEpoch {
+        return Err(BlockError::InvalidMintEpoch {
             mint_epoch: mint_tx.epoch,
             block_epoch,
-        })?
+        }
+        .into());
     }
 
     let mint_value = mint_tx.output.value;
@@ -133,10 +135,11 @@ pub fn validate_mint_transaction(
             mint_value,
             fees_value: total_fees,
             reward_value: block_reward_value,
-        })?
+        }
+        .into())
+    } else {
+        Ok(())
     }
-
-    Ok(())
 }
 
 /// Function to validate a rad request
@@ -174,7 +177,8 @@ pub fn validate_consensus(
         Err(TransactionError::MismatchedConsensus {
             local_tally,
             miner_tally: miner_tally.to_vec(),
-        })?
+        }
+        .into())
     }
 }
 
@@ -194,18 +198,20 @@ pub fn validate_vt_transaction<'a>(
 
     // A value transfer transaction must have at least one input
     if vt_tx.body.inputs.is_empty() {
-        Err(TransactionError::NoInputs {
+        return Err(TransactionError::NoInputs {
             tx_hash: vt_tx.hash(),
-        })?
+        }
+        .into());
     }
 
     // A value transfer output cannot have zero value
     for (idx, output) in vt_tx.body.outputs.iter().enumerate() {
         if output.value == 0 {
-            Err(TransactionError::ZeroValueOutput {
+            return Err(TransactionError::ZeroValueOutput {
                 tx_hash: vt_tx.hash(),
                 output_id: idx,
-            })?
+            }
+            .into());
         }
     }
 
@@ -237,10 +243,11 @@ pub fn validate_dr_transaction<'a>(
     // A value transfer output cannot have zero value
     for (idx, output) in dr_tx.body.outputs.iter().enumerate() {
         if output.value == 0 {
-            Err(TransactionError::ZeroValueOutput {
+            return Err(TransactionError::ZeroValueOutput {
                 tx_hash: dr_tx.hash(),
                 output_id: idx,
-            })?
+            }
+            .into());
         }
     }
 
@@ -265,7 +272,7 @@ pub fn validate_dr_transaction<'a>(
 /// - All witnesses receive exactly the same reward (value - total fees % witnesses == 0)
 pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), TransactionError> {
     if request.witnesses < 1 {
-        Err(TransactionError::InsufficientWitnesses)?
+        return Err(TransactionError::InsufficientWitnesses);
     }
 
     let sum_fees = request
@@ -276,21 +283,22 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
 
     // Calculate reward to be shared between all the witnesses, which must be greater than 0
     if request.value <= sum_fees {
-        Err(TransactionError::NoReward {
+        return Err(TransactionError::NoReward {
             value: request.value,
             fees: sum_fees,
-        })?
+        });
     }
     let total_witness_reward = request.value - sum_fees;
+
     // Must be divisible by the number of witnesses
     if (total_witness_reward % u64::from(request.witnesses)) != 0 {
         Err(TransactionError::NonUniformReward {
             reward: total_witness_reward,
             witnesses: request.witnesses,
-        })?
+        })
+    } else {
+        Ok(())
     }
-
-    Ok(())
 }
 
 /// Function to validate a commit transaction
@@ -310,7 +318,7 @@ pub fn validate_commit_transaction(
         .get(&dr_pointer)
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
     if dr_state.stage != DataRequestStage::COMMIT {
-        Err(DataRequestError::NotCommitStage)?
+        return Err(DataRequestError::NotCommitStage.into());
     }
 
     let dr_output = &dr_state.data_request;
@@ -319,10 +327,11 @@ pub fn validate_commit_transaction(
     let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
     let dr_time_lock = dr_output.data_request.time_lock as i64;
     if dr_time_lock > epoch_timestamp {
-        Err(TransactionError::TimeLock {
+        return Err(TransactionError::TimeLock {
             expected: dr_time_lock,
             current: epoch_timestamp,
-        })?
+        }
+        .into());
     }
 
     let commit_signature = validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures)?;
@@ -330,10 +339,11 @@ pub fn validate_commit_transaction(
     let pkh = commit_signature.public_key.pkh();
     let pkh2 = co_tx.body.proof.proof.pkh();
     if pkh != pkh2 {
-        Err(TransactionError::PublicKeyHashMismatch {
+        return Err(TransactionError::PublicKeyHashMismatch {
             expected_pkh: pkh2,
             signature_pkh: pkh,
-        })?
+        }
+        .into());
     }
 
     let pkh = co_tx.body.proof.proof.pkh();
@@ -373,17 +383,18 @@ pub fn validate_reveal_transaction(
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
     if dr_state.stage != DataRequestStage::REVEAL {
-        Err(DataRequestError::NotRevealStage)?
+        return Err(DataRequestError::NotRevealStage.into());
     }
 
     let reveal_signature = validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures)?;
     let pkh = reveal_signature.public_key.pkh();
     let pkh2 = re_tx.body.pkh;
     if pkh != pkh2 {
-        Err(TransactionError::PublicKeyHashMismatch {
+        return Err(TransactionError::PublicKeyHashMismatch {
             expected_pkh: pkh2,
             signature_pkh: pkh,
-        })?
+        }
+        .into());
     }
 
     let commit = dr_state
@@ -393,7 +404,7 @@ pub fn validate_reveal_transaction(
         .ok_or_else(|| TransactionError::CommitNotFound)?;
 
     if commit.body.commitment != reveal_signature.signature.hash() {
-        Err(TransactionError::MismatchedCommitment)?
+        return Err(TransactionError::MismatchedCommitment.into());
     }
 
     // The reveal fee here is the total commit fee: the reward for the miner
@@ -419,7 +430,7 @@ pub fn validate_tally_transaction<'a>(
         .ok_or(TransactionError::DataRequestNotFound { hash: dr_pointer })?;
 
     if dr_state.stage != DataRequestStage::TALLY {
-        Err(DataRequestError::NotTallyStage)?
+        return Err(DataRequestError::NotTallyStage.into());
     }
 
     let dr_output = &dr_state.data_request;
@@ -453,15 +464,17 @@ pub fn validate_tally_outputs(
     let change_required = witnesses > n_reveals;
 
     if change_required && (ta_tx.outputs.len() != n_reveals + 1) {
-        Err(TransactionError::WrongNumberOutputs {
+        return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
             expected_outputs: n_reveals + 1,
-        })?
+        }
+        .into());
     } else if !change_required && (ta_tx.outputs.len() != n_reveals) {
-        Err(TransactionError::WrongNumberOutputs {
+        return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
             expected_outputs: n_reveals,
-        })?
+        }
+        .into());
     }
 
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::new();
@@ -474,25 +487,26 @@ pub fn validate_tally_outputs(
 
             let expected_tally_change = reveal_reward * (witnesses - honest_witnesses) as u64;
             if expected_tally_change != output.value {
-                Err(TransactionError::InvalidTallyChange {
+                return Err(TransactionError::InvalidTallyChange {
                     change: output.value,
                     expected_change: expected_tally_change,
-                })?
+                }
+                .into());
             }
         } else {
             if pkh_rewarded.contains(&output.pkh) {
-                Err(TransactionError::MultipleRewards { pkh: output.pkh })?
+                return Err(TransactionError::MultipleRewards { pkh: output.pkh }.into());
             }
             let reveal = dr_state.info.reveals.get(&output.pkh);
 
             match reveal {
                 Some(r) => {
                     if !true_revealer(&r, &ta_tx.tally) {
-                        Err(TransactionError::DishonestReward)?
+                        return Err(TransactionError::DishonestReward.into());
                     }
                 }
 
-                None => Err(TransactionError::RevealNotFound)?,
+                None => return Err(TransactionError::RevealNotFound.into()),
             }
             pkh_rewarded.insert(output.pkh);
         }
@@ -506,10 +520,11 @@ pub fn validate_block_signature(block: &Block) -> Result<(), failure::Error> {
     let proof_pkh = block.block_header.proof.proof.pkh();
     let signature_pkh = block.block_sig.public_key.pkh();
     if proof_pkh != signature_pkh {
-        Err(BlockError::PublicKeyHashMismatch {
+        return Err(BlockError::PublicKeyHashMismatch {
             proof_pkh,
             signature_pkh,
-        })?
+        }
+        .into());
     }
 
     let keyed_signature = &block.block_sig;
@@ -534,10 +549,11 @@ pub fn validate_pkh_signature(
         let signature_pkh = PublicKeyHash::from_public_key(&keyed_signature.public_key);
         let expected_pkh = x.pkh;
         if signature_pkh != expected_pkh {
-            Err(TransactionError::PublicKeyHashMismatch {
+            return Err(TransactionError::PublicKeyHashMismatch {
                 expected_pkh,
                 signature_pkh,
-            })?
+            }
+            .into());
         }
     }
     Ok(())
@@ -571,7 +587,7 @@ pub fn validate_commit_reveal_signature(
 
         Ok(tx_keyed_signature)
     } else {
-        Err(TransactionError::SignatureNotFound)?
+        Err(TransactionError::SignatureNotFound.into())
     }
 }
 
@@ -583,10 +599,11 @@ pub fn validate_transaction_signature(
     utxo_set: &UtxoDiff,
 ) -> Result<(), failure::Error> {
     if signatures.len() != inputs.len() {
-        Err(TransactionError::MismatchingSignaturesNumber {
+        return Err(TransactionError::MismatchingSignaturesNumber {
             signatures_n: signatures.len() as u8,
             inputs_n: inputs.len() as u8,
-        })?
+        }
+        .into());
     }
 
     let tx_hash_bytes = match tx_hash {
@@ -751,10 +768,11 @@ pub fn validate_block_transactions(
     } in commits_number.values()
     {
         if current != target {
-            Err(BlockError::MismatchingCommitsNumber {
+            return Err(BlockError::MismatchingCommitsNumber {
                 commits: *current,
                 rf: *target,
-            })?
+            }
+            .into());
         } else {
             total_fee += fee;
         }
@@ -822,10 +840,10 @@ pub fn validate_block_transactions(
     };
 
     if merkle_roots != block.block_header.merkle_roots {
-        Err(BlockError::NotValidMerkleTree)?
+        Err(BlockError::NotValidMerkleTree.into())
+    } else {
+        Ok(utxo_diff.take_diff())
     }
-
-    Ok(utxo_diff.take_diff())
 }
 
 /// Function to validate a block
@@ -847,17 +865,20 @@ pub fn validate_block(
         Err(BlockError::BlockFromFuture {
             block_epoch,
             current_epoch,
-        })?
+        }
+        .into())
     } else if chain_beacon.checkpoint > block_epoch {
         Err(BlockError::BlockOlderThanTip {
             chain_epoch: chain_beacon.checkpoint,
             block_epoch,
-        })?
+        }
+        .into())
     } else if chain_beacon.hash_prev_block != hash_prev_block {
         Err(BlockError::PreviousHashMismatch {
             block_hash: hash_prev_block,
             our_hash: chain_beacon.hash_prev_block,
-        })?
+        }
+        .into())
     } else {
         let total_identities = rep_eng.ars.active_identities_number() as u32;
         let target_hash = calculate_randpoe_threshold(total_identities);
@@ -890,10 +911,10 @@ pub fn validate_candidate(
 ) -> Result<(), BlockError> {
     let block_epoch = block.block_header.beacon.checkpoint;
     if block_epoch != current_epoch {
-        Err(BlockError::CandidateFromDifferentEpoch {
+        return Err(BlockError::CandidateFromDifferentEpoch {
             block_epoch,
             current_epoch,
-        })?;
+        });
     }
 
     let target_hash = calculate_randpoe_threshold(total_identities);

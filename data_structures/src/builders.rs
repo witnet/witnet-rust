@@ -91,7 +91,7 @@ impl Message {
     ) -> Result<Message, failure::Error> {
         // Check there are some inventory vectors to be added to the message
         if inv_entries.is_empty() {
-            Err(BuildersError::NoInvVectorsAnnouncement)?
+            return Err(BuildersError::NoInvVectorsAnnouncement.into());
         }
 
         // Build the message
@@ -110,7 +110,7 @@ impl Message {
     ) -> Result<Message, failure::Error> {
         // Check there are some inventory vectors to be added to the message
         if inv_entries.is_empty() {
-            Err(BuildersError::NoInvVectorsRequest)?
+            return Err(BuildersError::NoInvVectorsRequest.into());
         }
 
         // Build the message

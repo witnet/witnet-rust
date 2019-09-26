@@ -72,9 +72,11 @@ pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
                     result.push(item);
                 }
             }
-            value => Err(RadError::ArrayFilterWrongSubscript {
-                value: value.to_string(),
-            })?,
+            value => {
+                return Err(RadError::ArrayFilterWrongSubscript {
+                    value: value.to_string(),
+                })
+            }
         }
     }
 
@@ -98,9 +100,9 @@ pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> 
     }
     // Sort not applicable if not homogeneous
     if !input.is_homogeneous() {
-        Err(RadError::UnsupportedOpNonHomogeneous {
+        return Err(RadError::UnsupportedOpNonHomogeneous {
             operator: "ArraySort".to_string(),
-        })?;
+        });
     }
 
     // Distinguish depending the type
@@ -117,9 +119,11 @@ pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> 
                 _ => unreachable!(),
             });
         }
-        _ => Err(RadError::UnsupportedSortOp {
-            inner_type: mapped_array_value[0].clone().radon_type_name(),
-        })?,
+        _ => {
+            return Err(RadError::UnsupportedSortOp {
+                inner_type: mapped_array_value[0].clone().radon_type_name(),
+            })
+        }
     };
 
     let result: Vec<_> = tuple_array.into_iter().map(|(a, _)| a.clone()).collect();

@@ -101,7 +101,7 @@ where
                 SessionStatus::Unconsolidated => Ok(&mut self.outbound_unconsolidated),
                 SessionStatus::Consolidated => Ok(&mut self.outbound_consolidated),
             },
-            _ => Err(SessionsError::NotExpectedFeelerPeer)?,
+            _ => Err(SessionsError::NotExpectedFeelerPeer.into()),
         }
     }
     /// Method to set the server address
@@ -273,7 +273,7 @@ where
             // Register session into consolidated collection
             cons_sessions.register_session(address, session_info)
         } else {
-            Err(SessionsError::NotOutboundConsolidatedPeer)?
+            Err(SessionsError::NotOutboundConsolidatedPeer.into())
         }
     }
     /// Method to mark a session as consensus unsafe

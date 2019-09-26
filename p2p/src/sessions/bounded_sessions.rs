@@ -46,11 +46,11 @@ impl<T> BoundedSessions<T> {
             .map(|limit| self.collection.len() >= limit as usize)
             .unwrap_or(false)
         {
-            Err(SessionsError::MaxPeersReached)?
+            return Err(SessionsError::MaxPeersReached.into());
         }
         // Check if address is already in sessions collection
         if self.collection.contains_key(&address) {
-            Err(SessionsError::AddressAlreadyRegistered)?
+            return Err(SessionsError::AddressAlreadyRegistered.into());
         }
         // Insert session into the right collection
         self.collection.insert(address, SessionInfo { reference });
@@ -66,7 +66,7 @@ impl<T> BoundedSessions<T> {
         // Insert session into the right map (if not present)
         match self.collection.remove(&address) {
             Some(info) => Ok(info),
-            None => Err(SessionsError::AddressNotFound)?,
+            None => Err(SessionsError::AddressNotFound.into()),
         }
     }
 }
