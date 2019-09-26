@@ -305,10 +305,8 @@ impl Subscribe {
     #[allow(clippy::wrong_self_convention)]
     pub fn to_epoch<T, U>(checkpoint: Epoch, addr: Addr<U>, payload: T) -> SubscribeEpoch
     where
-        T: 'static,
-        T: Send,
-        U: Actor,
-        U: Handler<EpochNotification<T>>,
+        T: 'static + Send,
+        U: Actor + Handler<EpochNotification<T>>,
         U::Context: ToEnvelope<U, EpochNotification<T>>,
     {
         SubscribeEpoch {
@@ -323,10 +321,8 @@ impl Subscribe {
     #[allow(clippy::wrong_self_convention)]
     pub fn to_all<T, U>(addr: Addr<U>, payload: T) -> SubscribeAll
     where
-        T: 'static,
-        T: Send + Clone,
-        U: Actor,
-        U: Handler<EpochNotification<T>>,
+        T: 'static + Send + Clone,
+        U: Actor + Handler<EpochNotification<T>>,
         U::Context: ToEnvelope<U, EpochNotification<T>>,
     {
         SubscribeAll {
