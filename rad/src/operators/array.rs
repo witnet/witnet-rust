@@ -140,30 +140,35 @@ pub fn transpose(input: &RadonArray) -> Result<RadonArray, RadError> {
                 let sub_value = rad_value.value();
                 let sub_value_len = sub_value.len();
 
-                if prev_len.is_none() {
-                    for sub_item in rad_value.value().into_iter() {
-                        v.push(vec![sub_item]);
+                match prev_len {
+                    None => {
+                        for sub_item in rad_value.value().into_iter() {
+                            v.push(vec![sub_item]);
+                        }
+                        prev_len = Some(sub_value_len);
                     }
-                    prev_len = Some(sub_value_len);
-                } else if prev_len == Some(sub_value_len) {
-                    for (i, sub_item) in rad_value.value().into_iter().enumerate() {
-                        v[i].push(sub_item);
+                    Some(prev_len) => {
+                        if prev_len == sub_value_len {
+                            for (i, sub_item) in rad_value.value().into_iter().enumerate() {
+                                v[i].push(sub_item);
+                            }
+                        } else {
+                            return Err(RadError::DifferentSizeArrays {
+                                method: "RadonArray::transpose".to_string(),
+                                first: prev_len,
+                                second: sub_value_len,
+                            });
+                        }
                     }
-                } else {
-                    Err(RadError::DifferentSizeArrays {
-                        method: "RadonArray::transpose".to_string(),
-                        first: prev_len.unwrap(),
-                        second: sub_value_len,
-                    })?
                 }
             }
             _ => {
                 let radon_array_type_name = RadonArray::radon_type_name();
-                Err(RadError::MismatchingTypes {
+                return Err(RadError::MismatchingTypes {
                     method: "RadonArray::transpose".to_string(),
                     expected: format!("{}<{}>", radon_array_type_name, radon_array_type_name),
                     found: format!("{}<{}>", radon_array_type_name, item.radon_type_name()),
-                })?
+                });
             }
         }
     }
