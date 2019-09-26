@@ -27,8 +27,22 @@ where
 {
     // A cache of <identity: activity>
     // All the identities with activity are in the cache
+    #[cfg_attr(
+        feature = "serde",
+        serde(bound(
+            serialize = "HashMap<K, u16>: Serialize",
+            deserialize = "HashMap<K, u16>: Deserialize<'de>"
+        ))
+    )]
     map: HashMap<K, u16>,
     // The list of active identities ordered by time
+    #[cfg_attr(
+        feature = "serde",
+        serde(bound(
+            serialize = "VecDeque<HashSet<K>>: Serialize",
+            deserialize = "VecDeque<HashSet<K>>: Deserialize<'de>"
+        ))
+    )]
     queue: VecDeque<HashSet<K>>,
     // Capacity
     capacity: usize,
