@@ -22,3 +22,6 @@ pub mod signature;
 
 /// Re-export secp256k1 crate
 pub use secp256k1;
+
+#[cfg(test)]
+pub mod test_vectors;
