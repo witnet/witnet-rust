@@ -11,6 +11,8 @@ default = []
 with-serde = ["serde", "secp256k1/serde"]
 
 [dependencies]
+bech32 = "0.7.1"
+byteorder = "1.3.2"
 failure = "0.1.5"
 hmac = "0.7.0"
 rust-crypto = "0.2.36"

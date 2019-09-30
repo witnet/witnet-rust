@@ -8,8 +8,14 @@
 //! let seed = mnemonic::MnemonicGen::new().generate().seed(&passphrase);
 //! let ext_key = key::MasterKeyGen::new(seed).generate();
 //! ```
-use std::{fmt, slice};
+use std::{
+    fmt,
+    io::{self, Read as _, Write as _},
+    slice,
+};
 
+use bech32::{FromBase32, ToBase32 as _};
+use byteorder::{BigEndian, ReadBytesExt as _};
 use failure::Fail;
 use hmac::{Hmac, Mac};
 pub use secp256k1::key::ONE_KEY;
@@ -30,6 +36,54 @@ pub enum MasterKeyGenError {
     /// Invalid seed length
     #[fail(display = "The length of the seed is invalid, must be between 128/256 bits")]
     InvalidSeedLength,
+}
+
+/// Error type for errors ocurring when serializing an extended secret
+/// key.
+#[derive(Debug, Fail)]
+pub enum KeyError {
+    /// Error that might happen when serializing the key.
+    #[fail(display = "Serialization error: {}", _0)]
+    Serialization(#[cause] failure::Error),
+    /// Error that might happen when decoding the key.
+    #[fail(display = "Decoding error: {}", _0)]
+    Deserialization(#[cause] failure::Error),
+}
+
+impl KeyError {
+    /// Turn an std::error::Error into a serialization error.
+    pub fn serialization_err<E>(err: E) -> Self
+    where
+        E: std::error::Error + Sync + Send + 'static,
+    {
+        Self::Serialization(failure::Error::from_boxed_compat(Box::new(err)))
+    }
+
+    /// Turn an std::error::Error into a deserialization error.
+    pub fn deserialization_err<E>(err: E) -> Self
+    where
+        E: std::error::Error + Sync + Send + 'static,
+    {
+        Self::Deserialization(failure::Error::from_boxed_compat(Box::new(err)))
+    }
+}
+
+impl From<io::Error> for KeyError {
+    fn from(err: io::Error) -> Self {
+        Self::serialization_err(err)
+    }
+}
+
+impl From<hex::FromHexError> for KeyError {
+    fn from(err: hex::FromHexError) -> Self {
+        Self::deserialization_err(err)
+    }
+}
+
+impl From<secp256k1::Error> for KeyError {
+    fn from(err: secp256k1::Error) -> Self {
+        Self::deserialization_err(err)
+    }
 }
 
 /// BIP32 Master Secret Key generator
@@ -139,6 +193,85 @@ impl ExtendedSK {
         }
     }
 
+    /// Create a new extended secret key from the given slip32-encoded string.
+    pub fn from_slip32(slip32: &str) -> Result<(Self, KeyPath), KeyError> {
+        let (hrp, data) = bech32::decode(slip32).map_err(KeyError::deserialization_err)?;
+
+        if hrp.as_str() != "xprv" {
+            Err(KeyError::Deserialization(failure::format_err!(
+                "does not start with xprv"
+            )))?
+        }
+
+        let bytes: Vec<u8> =
+            FromBase32::from_base32(&data).map_err(KeyError::deserialization_err)?;
+        let actual_len = bytes.len();
+        let mut cursor = io::Cursor::new(bytes);
+        let depth = cursor.read_u8()? as usize;
+        let len = depth * 4;
+        let expected_len = len + 66; // 66 = 1 (depth) 32 (chain code) + 33 (private key)
+
+        if expected_len != actual_len {
+            Err(KeyError::Deserialization(failure::format_err!(
+                "invalid data length, expected: {}, got: {}",
+                expected_len,
+                actual_len
+            )))?
+        }
+
+        let mut path = vec![0; depth];
+        cursor.read_u32_into::<BigEndian>(path.as_mut())?;
+
+        let mut chain_code = Protected::new(vec![0; 32]);
+        cursor.read_exact(chain_code.as_mut())?;
+
+        let secret_prefix = cursor.read_u8()?;
+        debug_assert!(secret_prefix == 0);
+
+        let mut secret = Protected::new(vec![0; 32]);
+        cursor.read_exact(secret.as_mut())?;
+
+        let sk = SK::from_slice(secret.as_ref())?;
+        let extended_sk = Self::new(sk, chain_code);
+
+        Ok((extended_sk, path.into()))
+    }
+
+    /// Serialize the key following the SLIP32 spec.
+    ///
+    /// See https://github.com/satoshilabs/slips/blob/master/slip-0032.md#serialization-format
+    pub fn to_slip32(&self, path: &KeyPath) -> Result<String, KeyError> {
+        let depth = path.len();
+
+        if depth > 255 {
+            Err(KeyError::Serialization(failure::format_err!(
+                "path depth '{}' is greater than 255",
+                depth
+            )))?
+        }
+
+        let capacity = 1     // 1 byte for depth
+            + 4 * depth      // 4 * depth bytes for path
+            + 32             // 32 bytes for chain code
+            + 33             // 33 bytes for 0x00 || private key
+            ;
+        let mut bytes = Protected::new(vec![0; capacity]);
+        let mut slice = bytes.as_mut();
+
+        slice.write(&[depth as u8])?;
+        for index in path.iter() {
+            slice.write(&index.as_ref().to_be_bytes())?;
+        }
+        slice.write(self.chain_code.as_ref())?;
+        slice.write(&[0])?;
+        slice.write(self.secret().as_ref())?;
+
+        let encoded = bech32::encode("xprv", bytes.as_ref().to_base32())
+            .map_err(KeyError::serialization_err)?;
+
+        Ok(encoded)
+    }
+
     /// Get the secret and chain code concatenated
     pub fn concat(&self) -> Protected {
         let mut bytes = Vec::from(&self.secret_key[..]);
@@ -242,7 +375,7 @@ impl Into<PK> for ExtendedPK {
 
 /// Represents an index inside a key derivation path.
 /// See BIP-32 spec for more information.
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyPathIndex(u32);
 
@@ -272,7 +405,7 @@ impl fmt::Display for KeyPathIndex {
 
 /// Represents a key derivation path that can be used to derive extended private keys.
 /// See BIP-32 spec for more information.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyPath {
     path: Vec<KeyPathIndex>,
@@ -315,6 +448,11 @@ impl KeyPath {
     pub fn iter(&self) -> slice::Iter<'_, KeyPathIndex> {
         self.path.iter()
     }
+
+    /// Return the number of levels this path has.
+    pub fn len(&self) -> usize {
+        self.path.len()
+    }
 }
 
 impl fmt::Display for KeyPath {
@@ -325,6 +463,14 @@ impl fmt::Display for KeyPath {
         });
 
         write!(f, "{}", path)
+    }
+}
+
+impl From<Vec<u32>> for KeyPath {
+    fn from(path: Vec<u32>) -> Self {
+        Self {
+            path: path.into_iter().map(KeyPathIndex).collect(),
+        }
     }
 }
 
@@ -346,6 +492,7 @@ fn get_chain_code_and_secret(
 mod tests {
     use super::*;
     use crate::mnemonic as bip39;
+    use crate::test_vectors::slip32_vectors;
 
     #[test]
     fn test_generate_master_invalid_seed() {
@@ -437,5 +584,27 @@ mod tests {
             account.secret().as_ref(),
             "Secret key is invalid"
         );
+    }
+
+    #[test]
+    fn test_slip32() {
+        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let mnemonic = bip39::Mnemonic::from_phrase(phrase.into()).unwrap();
+        let seed = mnemonic.seed(&"".into());
+        let master_key = MasterKeyGen::new(&seed).generate().unwrap();
+        let engine = Secp256k1::signing_only();
+
+        for (expected, keypath) in slip32_vectors() {
+            let key = master_key.derive(&engine, &keypath).unwrap();
+            let xprv = key.to_slip32(&keypath).unwrap();
+
+            assert_eq!(expected, xprv);
+
+            eprintln!(">>>>>>>>>>>>>>> {}", xprv);
+            let (recovered_key, path) = ExtendedSK::from_slip32(&xprv).unwrap();
+
+            assert_eq!(keypath, path);
+            assert_eq!(key, recovered_key);
+        }
     }
 }
