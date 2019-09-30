@@ -67,6 +67,19 @@ fn unpack_compound_call(array: &[Value]) -> Result<RadonCall, RadError> {
         .unwrap_or_else(Err)
 }
 
+pub fn unpack_subscript(value: &Value) -> Result<Vec<RadonCall>, RadError> {
+    let mut subscript = vec![];
+    let subscript_arg = match value {
+        Value::Array(x) => x,
+        x => return Err(RadError::BadSubscriptFormat { value: x.clone() }),
+    };
+    for arg in subscript_arg {
+        subscript.push(unpack_radon_call(arg)?)
+    }
+
+    Ok(subscript)
+}
+
 fn errorify(kind: RadError) -> RadError {
     error!("Error unpacking a RADON script: {:?}", kind);
 

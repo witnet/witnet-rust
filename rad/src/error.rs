@@ -155,6 +155,19 @@ pub enum RadError {
         first: usize,
         second: usize,
     },
+    /// Subscripts should be an array
+    #[fail(display = "Subscript should be an array but is: {:?}", value)]
+    BadSubscriptFormat { value: Value },
+    /// Error while executing subscript
+    #[fail(
+        display = "`{}::{}()`: Error in subscript: {}",
+        input_type, operator, inner
+    )]
+    Subscript {
+        input_type: String,
+        operator: String,
+        inner: Box<RadError>,
+    },
 }
 
 impl From<reqwest::Error> for RadError {

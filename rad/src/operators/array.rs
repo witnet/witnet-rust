@@ -1,6 +1,6 @@
 use crate::error::RadError;
 use crate::reducers::{self, RadonReducers};
-use crate::script::{execute_radon_script, unpack_radon_call};
+use crate::script::{execute_radon_script, unpack_subscript};
 use crate::types::{array::RadonArray, integer::RadonInteger, RadonType, RadonTypes};
 
 use num_traits::FromPrimitive;
@@ -18,7 +18,11 @@ pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
         args: args.to_vec(),
     };
 
-    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+    if args.len() != 1 {
+        return Err(wrong_args());
+    }
+
+    let arg = args[0].to_owned();
     let reducer_integer = from_value::<i64>(arg).map_err(|_| wrong_args())?;
     let reducer_code = RadonReducers::from_i64(reducer_integer).ok_or_else(wrong_args)?;
 
@@ -32,9 +36,13 @@ pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
         args: args.to_vec(),
     };
 
+    if args.len() != 1 {
+        return Err(wrong_args());
+    }
+
     let not_found = |index: i32| RadError::ArrayIndexNotFound { index };
 
-    let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+    let arg = args[0].to_owned();
     let index = from_value::<i32>(arg).map_err(|_| wrong_args())?;
 
     input
@@ -45,10 +53,22 @@ pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
 }
 
 pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
-    let mut subscript = vec![];
-    for arg in args {
-        subscript.push(unpack_radon_call(arg)?)
+    let wrong_args = || RadError::WrongArguments {
+        input_type: "RadonArray".to_string(),
+        operator: "Map".to_string(),
+        args: args.to_vec(),
+    };
+
+    if args.len() != 1 {
+        return Err(wrong_args());
     }
+
+    let subscript_err = |e| RadError::Subscript {
+        input_type: "RadonArray".to_string(),
+        operator: "Map".to_string(),
+        inner: Box::new(e),
+    };
+    let subscript = unpack_subscript(&args[0]).map_err(subscript_err)?;
 
     let mut result = vec![];
     for item in input.value() {
@@ -59,10 +79,22 @@ pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
 }
 
 pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
-    let mut subscript = vec![];
-    for arg in args {
-        subscript.push(unpack_radon_call(arg)?)
+    let wrong_args = || RadError::WrongArguments {
+        input_type: "RadonArray".to_string(),
+        operator: "Filter".to_string(),
+        args: args.to_vec(),
+    };
+
+    if args.len() != 1 {
+        return Err(wrong_args());
     }
+
+    let subscript_err = |e| RadError::Subscript {
+        input_type: "RadonArray".to_string(),
+        operator: "Filter".to_string(),
+        inner: Box::new(e),
+    };
+    let subscript = unpack_subscript(&args[0]).map_err(subscript_err)?;
 
     let mut result = vec![];
     for item in input.value() {
@@ -84,8 +116,22 @@ pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
 }
 
 pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> {
+    let wrong_args = || RadError::WrongArguments {
+        input_type: "RadonArray".to_string(),
+        operator: "Sort".to_string(),
+        args: args.to_vec(),
+    };
+
+    if args.len() > 1 {
+        return Err(wrong_args());
+    }
+
     let input_value = input.value();
-    let mapped_array = map(input, args)?;
+    let empty_array = [Value::Array(vec![])];
+    // Sort can be called with an optional argument.
+    // If that argument is missing, default to []
+    let map_args = if args.is_empty() { &empty_array } else { args };
+    let mapped_array = map(input, map_args)?;
     let mapped_array = match mapped_array {
         RadonTypes::Array(x) => x,
         _ => unreachable!(),
@@ -455,10 +501,10 @@ fn test_map_integer_greater_than() {
         RadonInteger::from(2).into(),
         RadonInteger::from(6).into(),
     ]);
-    let script = vec![Value::Array(vec![
+    let script = vec![Value::Array(vec![Value::Array(vec![
         Value::Integer(IntegerGreaterThan as i128),
         Value::Integer(4),
-    ])];
+    ])])];
     let output = map(&input, &script).unwrap();
 
     let expected = RadonTypes::Array(RadonArray::from(vec![
@@ -470,6 +516,90 @@ fn test_map_integer_greater_than() {
 }
 
 #[test]
+fn test_map_not_integer_in_subscript() {
+    let input = RadonArray::from(vec![
+        RadonInteger::from(2).into(),
+        RadonInteger::from(6).into(),
+    ]);
+    let script = vec![Value::Array(vec![Value::Array(vec![Value::Text(
+        "Hello".to_string(),
+    )])])];
+    let result = map(&input, &script);
+
+    let expected_err = RadError::Subscript {
+        input_type: "RadonArray".to_string(),
+        operator: "Map".to_string(),
+        inner: Box::new(RadError::NotIntegerOperator),
+    };
+
+    assert_eq!(result.unwrap_err(), expected_err);
+}
+
+#[test]
+fn test_map_wrong_subscript_format() {
+    use crate::operators::RadonOpCodes::IntegerGreaterThan;
+
+    let input = RadonArray::from(vec![
+        RadonInteger::from(2).into(),
+        RadonInteger::from(6).into(),
+    ]);
+    let script = vec![Value::Integer(IntegerGreaterThan as i128)];
+    let result = map(&input, &script);
+
+    let expected_err = RadError::Subscript {
+        input_type: "RadonArray".to_string(),
+        operator: "Map".to_string(),
+        inner: Box::new(RadError::BadSubscriptFormat {
+            value: Value::Integer(IntegerGreaterThan as i128),
+        }),
+    };
+
+    assert_eq!(result.unwrap_err(), expected_err);
+}
+
+#[test]
+fn test_map_wrong_no_subscript() {
+    let input = RadonArray::from(vec![
+        RadonInteger::from(2).into(),
+        RadonInteger::from(6).into(),
+    ]);
+    let script = vec![];
+    let result = map(&input, &script);
+
+    let expected_err = RadError::WrongArguments {
+        input_type: "RadonArray".to_string(),
+        operator: "Map".to_string(),
+        args: vec![],
+    };
+
+    assert_eq!(result.unwrap_err(), expected_err);
+}
+
+#[test]
+fn test_map_wrong_number_of_args() {
+    use crate::operators::RadonOpCodes::IntegerGreaterThan;
+
+    let input = RadonArray::from(vec![
+        RadonInteger::from(2).into(),
+        RadonInteger::from(6).into(),
+    ]);
+    let script = Value::Array(vec![Value::Array(vec![
+        Value::Integer(IntegerGreaterThan as i128),
+        Value::Integer(4),
+    ])]);
+    let args = vec![script, Value::Text("foo".to_string())];
+    let result = map(&input, &args);
+
+    let expected_err = RadError::WrongArguments {
+        input_type: "RadonArray".to_string(),
+        operator: "Map".to_string(),
+        args,
+    };
+
+    assert_eq!(result.unwrap_err(), expected_err);
+}
+
+#[test]
 fn test_filter_integer_greater_than() {
     use crate::operators::RadonOpCodes::IntegerGreaterThan;
     use crate::types::integer::RadonInteger;
@@ -478,10 +608,10 @@ fn test_filter_integer_greater_than() {
         RadonInteger::from(2).into(),
         RadonInteger::from(6).into(),
     ]);
-    let script = vec![Value::Array(vec![
+    let script = vec![Value::Array(vec![Value::Array(vec![
         Value::Integer(IntegerGreaterThan as i128),
         Value::Integer(4),
-    ])];
+    ])])];
     let output = filter(&input, &script).unwrap();
 
     let expected = RadonTypes::Array(RadonArray::from(vec![RadonInteger::from(6).into()]));
@@ -498,10 +628,10 @@ fn test_filter_negative() {
         RadonInteger::from(2).into(),
         RadonInteger::from(6).into(),
     ]);
-    let script = vec![Value::Array(vec![
+    let script = vec![Value::Array(vec![Value::Array(vec![
         Value::Integer(IntegerMultiply as i128),
         Value::Integer(4),
-    ])];
+    ])])];
     let result = filter(&input, &script);
 
     assert_eq!(
@@ -552,13 +682,13 @@ fn test_sort_map_string_values() {
         RadonMap::from(map2.clone()).into(),
         RadonMap::from(map3.clone()).into(),
     ]);
-    let script = vec![
+    let script = vec![Value::Array(vec![
         Value::Array(vec![
             Value::Integer(MapGet as i128),
             Value::Text("key2".to_string()),
         ]),
         Value::Integer(BytesAsString as i128),
-    ];
+    ])];
     let output = sort(&input, &script).unwrap();
 
     let expected = RadonArray::from(vec![
@@ -594,13 +724,13 @@ fn test_sort_map_integer_values() {
         RadonMap::from(map2.clone()).into(),
         RadonMap::from(map3.clone()).into(),
     ]);
-    let script = vec![
+    let script = vec![Value::Array(vec![
         Value::Array(vec![
             Value::Integer(MapGet as i128),
             Value::Text("key2".to_string()),
         ]),
         Value::Integer(BytesAsInteger as i128),
-    ];
+    ])];
     let output = sort(&input, &script).unwrap();
 
     let expected = RadonArray::from(vec![
@@ -636,13 +766,13 @@ fn test_sort_idecntial_maps_integer_values() {
         RadonMap::from(map2.clone()).into(),
         RadonMap::from(map3.clone()).into(),
     ]);
-    let script = vec![
+    let script = vec![Value::Array(vec![
         Value::Array(vec![
             Value::Integer(MapGet as i128),
             Value::Text("key2".to_string()),
         ]),
         Value::Integer(BytesAsInteger as i128),
-    ];
+    ])];
     let output = sort(&input, &script).unwrap();
 
     let expected = RadonArray::from(vec![
@@ -668,13 +798,13 @@ fn test_sort_empty_map() {
         RadonMap::from(map2.clone()).into(),
         RadonMap::from(map3.clone()).into(),
     ]);
-    let script = vec![
+    let script = vec![Value::Array(vec![
         Value::Array(vec![
             Value::Integer(MapGet as i128),
             Value::Text("key2".to_string()),
         ]),
         Value::Integer(BytesAsInteger as i128),
-    ];
+    ])];
     let output = sort(&input, &script).unwrap_err();
 
     assert_eq!(output.to_string(), "Failed to get key `key2` from RadonMap")
@@ -690,10 +820,10 @@ fn test_sort_maps_without_byte_decoder() {
     map1.insert("key1".to_string(), RadonBytes::from(Value::Integer(0)));
     map1.insert("key2".to_string(), RadonBytes::from(Value::Integer(1)));
     let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
-    let script = vec![Value::Array(vec![
+    let script = vec![Value::Array(vec![Value::Array(vec![
         Value::Integer(MapGet as i128),
         Value::Text("key2".to_string()),
-    ])];
+    ])])];
     let output = sort(&input, &script).unwrap_err();
 
     assert_eq!(
@@ -712,13 +842,13 @@ fn test_sort_map_wrong_decode() {
     map1.insert("key2".to_string(), RadonBytes::from(Value::Integer(1)));
 
     let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
-    let script = vec![
+    let script = vec![Value::Array(vec![
         Value::Array(vec![
             Value::Integer(MapGet as i128),
             Value::Text("key2".to_string()),
         ]),
         Value::Integer(BytesAsString as i128),
-    ];
+    ])];
     let output = sort(&input, &script).unwrap_err();
 
     assert_eq!(
@@ -743,13 +873,13 @@ fn test_sort_map_floats_value() {
     );
 
     let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
-    let script = vec![
+    let script = vec![Value::Array(vec![
         Value::Array(vec![
             Value::Integer(MapGet as i128),
             Value::Text("key2".to_string()),
         ]),
         Value::Integer(BytesAsFloat as i128),
-    ];
+    ])];
     let output = sort(&input, &script).unwrap_err();
 
     assert_eq!(
