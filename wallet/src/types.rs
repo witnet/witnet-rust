@@ -71,7 +71,7 @@ impl From<String> for SessionId {
 
 pub enum SeedSource {
     Mnemonics(Mnemonic),
-    Xprv,
+    Xprv(ProtectedString),
 }
 
 pub struct UnlockedSessionWallet {

@@ -64,7 +64,7 @@ fn validate(req: CreateWalletRequest) -> Result<Validated, app::ValidationErrors
     let caption = req.caption;
     let seed_data = req.seed_data;
     let source = match req.seed_source.as_ref() {
-        "xprv" => Ok(types::SeedSource::Xprv),
+        "xprv" => Ok(types::SeedSource::Xprv(seed_data)),
         "mnemonics" => Mnemonic::from_phrase(seed_data)
             .map_err(|err| app::field_error("seed_data", format!("{}", err)))
             .map(types::SeedSource::Mnemonics),
