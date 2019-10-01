@@ -1,8 +1,6 @@
 use failure::Fail;
 
-use witnet_crypto as crypto;
-
-use crate::{db, repository};
+use crate::{crypto, db, repository};
 
 #[derive(Debug, Fail)]
 #[fail(display = "error")]
@@ -12,7 +10,7 @@ pub enum Error {
     #[fail(display = "{}", _0)]
     Mailbox(#[cause] actix::MailboxError),
     #[fail(display = "master key generation failed: {}", _0)]
-    MasterKeyGen(#[cause] crypto::key::MasterKeyGenError),
+    KeyGen(#[cause] crypto::Error),
     #[fail(display = "repository failed: {}", _0)]
     Repository(#[cause] repository::Error),
     #[fail(display = "{}", _0)]
@@ -27,9 +25,9 @@ pub enum Error {
     Send(#[cause] futures::sync::mpsc::SendError<std::string::String>),
 }
 
-impl From<crypto::key::MasterKeyGenError> for Error {
-    fn from(err: crypto::key::MasterKeyGenError) -> Self {
-        Error::MasterKeyGen(err)
+impl From<crypto::Error> for Error {
+    fn from(err: crypto::Error) -> Self {
+        Self::KeyGen(err)
     }
 }
 

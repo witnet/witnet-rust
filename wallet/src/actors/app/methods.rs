@@ -3,7 +3,7 @@ use futures::future;
 
 use super::*;
 use crate::actors::*;
-use crate::{model, repository, types::Hashable as _};
+use crate::{crypto, model, repository, types::Hashable as _};
 use witnet_data_structures::chain::InventoryItem;
 
 impl App {
@@ -205,7 +205,12 @@ impl App {
             .worker
             .send(worker::CreateWallet(name, caption, password, seed_source))
             .flatten()
-            .map_err(From::from);
+            .map_err(|err| match err {
+                worker::Error::KeyGen(e @ crypto::Error::InvalidKeyPath(_)) => {
+                    validation_error(field_error("seedData", format!("{}", e)))
+                }
+                err => From::from(err),
+            });
 
         Box::new(f)
     }
