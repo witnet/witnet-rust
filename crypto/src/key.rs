@@ -453,6 +453,11 @@ impl KeyPath {
     pub fn len(&self) -> usize {
         self.path.len()
     }
+
+    /// Returns true if this key path corresponds to a master key.
+    pub fn is_master(&self) -> bool {
+        self.path.len() == 0
+    }
 }
 
 impl fmt::Display for KeyPath {
