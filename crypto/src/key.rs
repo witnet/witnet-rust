@@ -198,9 +198,9 @@ impl ExtendedSK {
         let (hrp, data) = bech32::decode(slip32).map_err(KeyError::deserialization_err)?;
 
         if hrp.as_str() != "xprv" {
-            Err(KeyError::Deserialization(failure::format_err!(
+            return Err(KeyError::Deserialization(failure::format_err!(
                 "does not start with xprv"
-            )))?
+            )));
         }
 
         let bytes: Vec<u8> =
@@ -212,11 +212,11 @@ impl ExtendedSK {
         let expected_len = len + 66; // 66 = 1 (depth) 32 (chain code) + 33 (private key)
 
         if expected_len != actual_len {
-            Err(KeyError::Deserialization(failure::format_err!(
+            return Err(KeyError::Deserialization(failure::format_err!(
                 "invalid data length, expected: {}, got: {}",
                 expected_len,
                 actual_len
-            )))?
+            )));
         }
 
         let mut path = vec![0; depth];
@@ -241,13 +241,13 @@ impl ExtendedSK {
     ///
     /// See https://github.com/satoshilabs/slips/blob/master/slip-0032.md#serialization-format
     pub fn to_slip32(&self, path: &KeyPath) -> Result<String, KeyError> {
-        let depth = path.len();
+        let depth = path.depth();
 
         if depth > 255 {
-            Err(KeyError::Serialization(failure::format_err!(
+            return Err(KeyError::Serialization(failure::format_err!(
                 "path depth '{}' is greater than 255",
                 depth
-            )))?
+            )));
         }
 
         let capacity = 1     // 1 byte for depth
@@ -258,13 +258,13 @@ impl ExtendedSK {
         let mut bytes = Protected::new(vec![0; capacity]);
         let mut slice = bytes.as_mut();
 
-        slice.write(&[depth as u8])?;
+        slice.write_all(&[depth as u8])?;
         for index in path.iter() {
-            slice.write(&index.as_ref().to_be_bytes())?;
+            slice.write_all(&index.as_ref().to_be_bytes())?;
         }
-        slice.write(self.chain_code.as_ref())?;
-        slice.write(&[0])?;
-        slice.write(self.secret().as_ref())?;
+        slice.write_all(self.chain_code.as_ref())?;
+        slice.write_all(&[0])?;
+        slice.write_all(self.secret().as_ref())?;
 
         let encoded = bech32::encode("xprv", bytes.as_ref().to_base32())
             .map_err(KeyError::serialization_err)?;
@@ -449,14 +449,14 @@ impl KeyPath {
         self.path.iter()
     }
 
-    /// Return the number of levels this path has.
-    pub fn len(&self) -> usize {
+    /// Return the number of levels (depth) this path has.
+    pub fn depth(&self) -> usize {
         self.path.len()
     }
 
     /// Returns true if this key path corresponds to a master key.
     pub fn is_master(&self) -> bool {
-        self.path.len() == 0
+        self.depth() == 0
     }
 }
 
