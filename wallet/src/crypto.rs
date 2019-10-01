@@ -1,10 +1,33 @@
+use failure::Fail;
+
 pub use witnet_crypto::hash::calculate_sha256;
-use witnet_crypto::{hash::HashFunction, key::MasterKeyGen, pbkdf2::pbkdf2_sha256};
+use witnet_crypto::{
+    hash::HashFunction,
+    key::{ExtendedSK, KeyError, MasterKeyGen, MasterKeyGenError},
+    pbkdf2::pbkdf2_sha256,
+};
 
 use crate::types;
 
+/// Generation of master key errors
+#[derive(Debug, Fail)]
+pub enum Error {
+    /// The generation of the master key failed.
+    #[fail(display = "Generation of key failed: {}", _0)]
+    Generation(#[cause] MasterKeyGenError),
+    /// The deserialization of the master key failed.
+    #[fail(display = "Deserialization of key failed: {}", _0)]
+    Deserialization(#[cause] KeyError),
+    /// The key path of the slip32-serialized key is not of a master key.
+    #[fail(
+        display = "Imported key is not a master key according to its path: {}",
+        _0
+    )]
+    InvalidKeyPath(String),
+}
+
 /// Result type for cryptographic operations that can fail.
-pub type Result<T> = std::result::Result<T, failure::Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Generate an HD-Wallet master extended key from a seed.
 ///
@@ -18,11 +41,19 @@ pub fn gen_master_key(
         types::SeedSource::Mnemonics(mnemonic) => {
             let seed = mnemonic.seed_ref(seed);
 
-            MasterKeyGen::new(seed).with_key(salt).generate()?
+            MasterKeyGen::new(seed)
+                .with_key(salt)
+                .generate()
+                .map_err(Error::Generation)?
         }
-        types::SeedSource::Xprv => {
-            // TODO: Implement key generation from xprv
-            unimplemented!("xprv not implemented yet")
+        types::SeedSource::Xprv(slip32) => {
+            let (key, path) =
+                ExtendedSK::from_slip32(slip32.as_ref()).map_err(Error::Deserialization)?;
+            if !path.is_master() {
+                Err(Error::InvalidKeyPath(format!("{}", path)))?;
+            }
+
+            key
         }
     };
 
