@@ -14,6 +14,8 @@ pub mod notify_balance;
 pub mod run_rad_request;
 pub mod set;
 pub mod unlock_wallet;
+pub mod update_wallet;
+pub mod update_wallet_info;
 pub mod wallet_infos;
 
 pub use create_data_req::*;
@@ -32,4 +34,6 @@ pub use notify_balance::*;
 pub use run_rad_request::*;
 pub use set::*;
 pub use unlock_wallet::*;
+pub use update_wallet::*;
+pub use update_wallet_info::*;
 pub use wallet_infos::*;

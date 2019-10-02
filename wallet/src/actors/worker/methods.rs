@@ -114,6 +114,30 @@ impl Worker {
         Ok(id)
     }
 
+    /// Update a wallet details.
+    pub fn update_wallet(
+        &self,
+        wallet: &types::Wallet,
+        name: Option<String>,
+        caption: Option<String>,
+    ) -> Result<()> {
+        wallet.update(name, caption)?;
+
+        Ok(())
+    }
+
+    /// Update the wallet information in the infos database.
+    pub fn update_wallet_info(
+        &self,
+        wallet_id: &str,
+        name: Option<String>,
+        caption: Option<String>,
+    ) -> Result<()> {
+        self.wallets.update_info(wallet_id, name, caption)?;
+
+        Ok(())
+    }
+
     pub fn unlock_wallet(
         &mut self,
         wallet_id: &str,

@@ -288,6 +288,26 @@ where
         Ok(())
     }
 
+    /// Update a wallet's name and/or caption
+    pub fn update(&self, name: Option<String>, caption: Option<String>) -> Result<()> {
+        let mut batch = self.db.batch();
+        let mut state = self.state.write()?;
+
+        state.name = name;
+        if let Some(ref name) = state.name {
+            batch.put(keys::wallet_name(), name)?;
+        }
+
+        state.caption = caption;
+        if let Some(ref caption) = state.caption {
+            batch.put(keys::wallet_caption(), caption)?;
+        }
+
+        self.db.write(batch)?;
+
+        Ok(())
+    }
+
     /// Index transactions in a block received from a node.
     pub fn index_transactions(
         &self,

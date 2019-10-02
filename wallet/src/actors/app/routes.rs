@@ -155,6 +155,7 @@ pub fn connect_routes<T, S>(
         ),
         ("Import-Seed", "importSeed", ImportSeedRequest),
         ("Create-Wallet", "createWallet", CreateWalletRequest),
+        ("Update-Wallet", "updateWallet", UpdateWalletRequest),
         ("Lock-Wallet", "lockWallet", LockWalletRequest),
         ("Unlock-Wallet", "unlockWallet", UnlockWalletRequest),
         ("Lock-Wallet", "lockWallet", LockWalletRequest),

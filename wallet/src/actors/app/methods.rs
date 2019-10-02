@@ -215,6 +215,37 @@ impl App {
         Box::new(f)
     }
 
+    /// Update a wallet details
+    pub fn update_wallet(
+        &self,
+        session_id: types::SessionId,
+        wallet_id: String,
+        name: Option<String>,
+        caption: Option<String>,
+    ) -> ResponseActFuture<()> {
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
+            move |wallet, slf: &mut Self, _| {
+                let wallet_update = slf
+                    .params
+                    .worker
+                    .send(worker::UpdateWallet(wallet, name.clone(), caption.clone()))
+                    .flatten()
+                    .map_err(From::from);
+
+                let info_update = slf
+                    .params
+                    .worker
+                    .send(worker::UpdateWalletInfo(wallet_id, name, caption))
+                    .flatten()
+                    .map_err(From::from);
+
+                wallet_update.join(info_update).map(|_| ()).into_actor(slf)
+            },
+        );
+
+        Box::new(f)
+    }
+
     /// Lock a wallet, that is, remove its encryption/decryption key from the list of known keys and
     /// close the session.
     ///

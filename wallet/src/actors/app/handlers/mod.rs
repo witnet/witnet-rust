@@ -23,6 +23,7 @@ mod stop;
 mod subscribe;
 mod unlock_wallet;
 mod unsubscribe;
+mod update_wallet;
 
 pub use close_session::*;
 pub use create_data_req::*;
@@ -49,3 +50,4 @@ pub use stop::*;
 pub use subscribe::*;
 pub use unlock_wallet::*;
 pub use unsubscribe::*;
+pub use update_wallet::*;
