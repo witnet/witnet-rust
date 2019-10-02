@@ -843,3 +843,49 @@ fn test_index_transaction_vtt_created_by_wallet() {
             .unwrap()
     );
 }
+
+#[test]
+fn test_update_wallet_with_empty_values() {
+    let (wallet, db) = factories::wallet(None);
+    let wallet_data = wallet.public_data().unwrap();
+
+    assert!(wallet_data.name.is_none());
+    assert!(wallet_data.caption.is_none());
+    assert!(!db.contains(&keys::wallet_name()).unwrap());
+    assert!(!db.contains(&keys::wallet_caption()).unwrap());
+
+    wallet.update(None, None).unwrap();
+
+    let wallet_data = wallet.public_data().unwrap();
+
+    assert!(wallet_data.name.is_none());
+    assert!(wallet_data.caption.is_none());
+    assert!(!db.contains(&keys::wallet_name()).unwrap());
+    assert!(!db.contains(&keys::wallet_caption()).unwrap());
+}
+
+#[test]
+fn test_update_wallet_with_values() {
+    let (wallet, db) = factories::wallet(None);
+    let wallet_data = wallet.public_data().unwrap();
+
+    assert!(wallet_data.name.is_none());
+    assert!(wallet_data.caption.is_none());
+    assert!(!db.contains(&keys::wallet_name()).unwrap());
+    assert!(!db.contains(&keys::wallet_caption()).unwrap());
+
+    let name = Some("wallet name".to_string());
+    let caption = Some("wallet caption".to_string());
+
+    wallet.update(name.clone(), caption.clone()).unwrap();
+
+    let wallet_data = wallet.public_data().unwrap();
+
+    assert_eq!(name, wallet_data.name);
+    assert_eq!(caption, wallet_data.caption);
+    assert_eq!(name, db.get_opt::<_, String>(&keys::wallet_name()).unwrap());
+    assert_eq!(
+        caption,
+        db.get_opt::<_, String>(&keys::wallet_caption()).unwrap()
+    );
+}

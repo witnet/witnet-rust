@@ -7,6 +7,9 @@ use crate::{
     model, types,
 };
 
+#[cfg(test)]
+mod tests;
+
 pub struct Wallets<T> {
     db: T,
     wallets_mutex: Mutex<()>,
@@ -38,6 +41,28 @@ impl<T: Database> Wallets<T> {
         }
 
         Ok(wallets)
+    }
+
+    /// Update a wallet's public info.
+    pub fn update_info(
+        &self,
+        id: &str,
+        name: Option<String>,
+        caption: Option<String>,
+    ) -> Result<()> {
+        let mut batch = self.db.batch();
+
+        if let Some(name) = name {
+            batch.put(keys::wallet_id_name(id), name)?;
+        }
+
+        if let Some(caption) = caption {
+            batch.put(keys::wallet_id_caption(id), caption)?;
+        }
+
+        self.db.write(batch)?;
+
+        Ok(())
     }
 
     pub fn create<'a, D: Database>(

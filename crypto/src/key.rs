@@ -199,7 +199,7 @@ impl ExtendedSK {
 
         if hrp.as_str() != "xprv" {
             return Err(KeyError::Deserialization(failure::format_err!(
-                "does not start with xprv"
+                "prefix is not \"xprv\""
             )));
         }
 
@@ -605,7 +605,6 @@ mod tests {
 
             assert_eq!(expected, xprv);
 
-            eprintln!(">>>>>>>>>>>>>>> {}", xprv);
             let (recovered_key, path) = ExtendedSK::from_slip32(&xprv).unwrap();
 
             assert_eq!(keypath, path);
