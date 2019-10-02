@@ -10,6 +10,7 @@ use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
 use witnet_data_structures::chain::{RADAggregate, RADRetrieve, RADTally, RADType};
 
 pub mod error;
+pub mod filters;
 pub mod hash_functions;
 pub mod operators;
 pub mod reducers;

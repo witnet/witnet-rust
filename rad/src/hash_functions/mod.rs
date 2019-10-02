@@ -1,6 +1,3 @@
-// FIXME: https://github.com/rust-num/num-derive/issues/20
-#![allow(clippy::useless_attribute)]
-
 mod sha2;
 
 use crate::error::RadError;

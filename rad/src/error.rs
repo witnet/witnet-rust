@@ -77,6 +77,12 @@ pub enum RadError {
         reducer, inner_type
     )]
     UnsupportedReducer { inner_type: String, reducer: String },
+    /// The given filter is not implemented for the type of the input Array
+    #[fail(
+        display = "Filter `{}` is not implemented for Array with inner type `{}`",
+        filter, inner_type
+    )]
+    UnsupportedFilter { inner_type: String, filter: String },
     /// The sort operator is not implemented for non-string arrays
     #[fail(
         display = "ArraySort is not supported for RadonArray with inner type `{}`",

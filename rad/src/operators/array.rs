@@ -1,7 +1,10 @@
-use crate::error::RadError;
-use crate::reducers::{self, RadonReducers};
-use crate::script::{execute_radon_script, unpack_subscript};
-use crate::types::{array::RadonArray, integer::RadonInteger, RadonType, RadonTypes};
+use crate::{
+    error::RadError,
+    filters::{self, RadonFilters},
+    reducers::{self, RadonReducers},
+    script::{execute_radon_script, unpack_subscript},
+    types::{array::RadonArray, integer::RadonInteger, RadonType, RadonTypes},
+};
 
 use num_traits::FromPrimitive;
 use serde_cbor::value::{from_value, Value};
@@ -85,34 +88,42 @@ pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
         args: args.to_vec(),
     };
 
-    if args.len() != 1 {
-        return Err(wrong_args());
-    }
+    let first_arg = args.get(0).ok_or_else(wrong_args)?;
+    match first_arg {
+        Value::Integer(arg) => {
+            let filter_code = RadonFilters::from_i128(*arg).ok_or_else(wrong_args)?;
+            let (_args, extra_args) = args.split_at(1);
 
-    let subscript_err = |e| RadError::Subscript {
-        input_type: "RadonArray".to_string(),
-        operator: "Filter".to_string(),
-        inner: Box::new(e),
-    };
-    let subscript = unpack_subscript(&args[0]).map_err(subscript_err)?;
+            filters::filter(input, filter_code, extra_args)
+        }
+        Value::Array(_arg) => {
+            let subscript_err = |e| RadError::Subscript {
+                input_type: "RadonArray".to_string(),
+                operator: "Filter".to_string(),
+                inner: Box::new(e),
+            };
+            let subscript = unpack_subscript(first_arg).map_err(subscript_err)?;
 
-    let mut result = vec![];
-    for item in input.value() {
-        match execute_radon_script(item.clone(), subscript.as_slice())? {
-            RadonTypes::Boolean(boolean) => {
-                if boolean.value() {
-                    result.push(item);
+            let mut result = vec![];
+            for item in input.value() {
+                match execute_radon_script(item.clone(), subscript.as_slice())? {
+                    RadonTypes::Boolean(boolean) => {
+                        if boolean.value() {
+                            result.push(item);
+                        }
+                    }
+                    value => {
+                        return Err(RadError::ArrayFilterWrongSubscript {
+                            value: value.to_string(),
+                        })
+                    }
                 }
             }
-            value => {
-                return Err(RadError::ArrayFilterWrongSubscript {
-                    value: value.to_string(),
-                })
-            }
-        }
-    }
 
-    Ok(RadonArray::from(result).into())
+            Ok(RadonArray::from(result).into())
+        }
+        _ => Err(wrong_args()),
+    }
 }
 
 pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> {
@@ -602,7 +613,6 @@ fn test_map_wrong_number_of_args() {
 #[test]
 fn test_filter_integer_greater_than() {
     use crate::operators::RadonOpCodes::IntegerGreaterThan;
-    use crate::types::integer::RadonInteger;
 
     let input = RadonArray::from(vec![
         RadonInteger::from(2).into(),
@@ -622,7 +632,6 @@ fn test_filter_integer_greater_than() {
 #[test]
 fn test_filter_negative() {
     use crate::operators::RadonOpCodes::IntegerMultiply;
-    use crate::types::integer::RadonInteger;
 
     let input = RadonArray::from(vec![
         RadonInteger::from(2).into(),
@@ -638,6 +647,30 @@ fn test_filter_negative() {
         &result.unwrap_err().to_string(),
         "ArrayFilter subscript output was not RadonBoolean (was `RadonTypes::RadonInteger(8)`)"
     );
+}
+
+#[test]
+fn test_filter_operator() {
+    use crate::filters::RadonFilters;
+    use crate::types::float::RadonFloat;
+
+    let input = RadonArray::from(vec![
+        RadonFloat::from(2.0).into(),
+        RadonFloat::from(2.0).into(),
+        RadonFloat::from(9.0).into(),
+    ]);
+    let filter_op = vec![
+        Value::Integer(RadonFilters::DeviationStandard as i128),
+        Value::Float(1.3),
+    ];
+    let output = filter(&input, &filter_op).unwrap();
+
+    let expected = RadonTypes::Array(RadonArray::from(vec![
+        RadonFloat::from(2.0).into(),
+        RadonFloat::from(2.0).into(),
+    ]));
+
+    assert_eq!(output, expected)
 }
 
 #[test]

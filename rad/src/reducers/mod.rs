@@ -1,11 +1,9 @@
-// FIXME: https://github.com/rust-num/num-derive/issues/20
-#![allow(clippy::useless_attribute)]
-
 use crate::error::RadError;
-use crate::types::{array::RadonArray, RadonTypes};
+use crate::types::{array::RadonArray, RadonType, RadonTypes};
 
-mod average;
-mod mode;
+pub mod average;
+pub mod deviation;
+pub mod mode;
 
 use num_derive::FromPrimitive;
 use std::fmt;
@@ -39,10 +37,11 @@ pub fn reduce(input: &RadonArray, reducer_code: RadonReducers) -> Result<RadonTy
         })
     };
 
-    if input.is_homogeneous() {
+    if input.is_homogeneous() || input.value().is_empty() {
         match reducer_code {
             RadonReducers::AverageMean => average::mean(input),
             RadonReducers::Mode => mode::mode(input),
+            RadonReducers::DeviationStandard => deviation::standard(input),
             _ => error(),
         }
     } else {

@@ -1,6 +1,3 @@
-// FIXME: https://github.com/rust-num/num-derive/issues/20
-#![allow(clippy::useless_attribute)]
-
 use crate::error::RadError;
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
