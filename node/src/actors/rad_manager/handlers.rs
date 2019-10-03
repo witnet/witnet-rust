@@ -5,7 +5,7 @@ use witnet_rad as rad;
 use witnet_rad::types::RadonTypes;
 
 use super::RadManager;
-use crate::actors::messages::{ResolveRA, RunConsensus};
+use crate::actors::messages::{ResolveRA, RunTally};
 
 impl Handler<ResolveRA> for RadManager {
     type Result = <ResolveRA as Message>::Result;
@@ -29,10 +29,10 @@ impl Handler<ResolveRA> for RadManager {
     }
 }
 
-impl Handler<RunConsensus> for RadManager {
-    type Result = <RunConsensus as Message>::Result;
+impl Handler<RunTally> for RadManager {
+    type Result = <RunTally as Message>::Result;
 
-    fn handle(&mut self, msg: RunConsensus, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: RunTally, _ctx: &mut Self::Context) -> Self::Result {
         let packed_script = msg.script;
         let reveals = msg.reveals;
 
@@ -41,6 +41,6 @@ impl Handler<RunConsensus> for RadManager {
             .filter_map(|input| RadonTypes::try_from(input.as_slice()).ok())
             .collect();
 
-        rad::run_consensus(radon_types_vec, &packed_script)
+        rad::run_tally(radon_types_vec, &packed_script)
     }
 }

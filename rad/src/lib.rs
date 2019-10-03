@@ -67,16 +67,15 @@ pub fn run_aggregation(
     rad_aggregation.try_into().map_err(Into::into)
 }
 
-/// Run consensus stage of a data request.
-pub fn run_consensus(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<Vec<u8>> {
+/// Run tally stage of a data request.
+pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<Vec<u8>> {
     let radon_script = unpack_radon_script(consensus.script.as_slice())?;
 
     let radon_array = RadonArray::from(radon_types_vec);
 
-    let rad_consensus: RadonTypes =
-        execute_radon_script(RadonTypes::from(radon_array), &radon_script)?;
+    let rad_tally: RadonTypes = execute_radon_script(RadonTypes::from(radon_array), &radon_script)?;
 
-    rad_consensus.try_into().map_err(Into::into)
+    rad_tally.try_into().map_err(Into::into)
 }
 
 #[test]
@@ -120,7 +119,7 @@ fn test_run_consensus_and_aggregation() {
             script: packed_script.clone(),
         },
     );
-    let output_consensus = run_consensus(
+    let output_tally = run_tally(
         radon_types_vec,
         &RADTally {
             script: packed_script,
@@ -128,7 +127,7 @@ fn test_run_consensus_and_aggregation() {
     );
 
     assert_eq!(output_aggregate, expected);
-    assert_eq!(output_consensus, expected);
+    assert_eq!(output_tally, expected);
 }
 
 #[test]
@@ -177,7 +176,7 @@ fn test_run_all_risk_premium() {
     )
     .unwrap();
     let tallied =
-        RadonTypes::try_from(run_consensus(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
+        RadonTypes::try_from(run_tally(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
 
     match tallied {
         RadonTypes::Boolean(_) => {}
@@ -210,7 +209,7 @@ fn test_run_all_murders() {
     )
     .unwrap();
     let tallied =
-        RadonTypes::try_from(run_consensus(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
+        RadonTypes::try_from(run_tally(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
 
     match tallied {
         RadonTypes::Boolean(_) => {}
@@ -247,7 +246,7 @@ fn test_run_all_air_quality() {
     )
     .unwrap();
     let tallied =
-        RadonTypes::try_from(run_consensus(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
+        RadonTypes::try_from(run_tally(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
 
     match tallied {
         RadonTypes::Boolean(_) => {}
@@ -281,7 +280,7 @@ fn test_run_all_elections() {
     )
     .unwrap();
     let tallied =
-        RadonTypes::try_from(run_consensus(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
+        RadonTypes::try_from(run_tally(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
 
     match tallied {
         RadonTypes::Float(radon_float) => {

@@ -11,7 +11,7 @@ use crate::{
     actors::{
         chain_manager::{transaction_factory::sign_transaction, ChainManager},
         messages::{
-            AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunConsensus,
+            AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunTally,
         },
         rad_manager::RadManager,
     },
@@ -373,33 +373,33 @@ impl ChainManager {
 
                     let rad_manager_addr = System::current().registry().get::<RadManager>();
                     rad_manager_addr
-                        .send(RunConsensus {
+                        .send(RunTally {
                             script: dr_state.data_request.data_request.tally.clone(),
                             reveals: results.clone(),
                         })
                         .then(|result| match result {
-                            // If the result of `RunConsensus` is `Ok`, it will be published as tally
+                            // If the result of `RunTally` is `Ok`, it will be published as tally
                             Ok(Ok(value)) => futures::future::ok(value),
-                            // If the result of `RunConsensus` is `Err`, we ignore this data request.
-                            // If a data request has an invalid consensus script, it will never resolve.
+                            // If the result of `RunTally` is `Err`, we ignore this data request.
+                            // If a data request has an invalid tally script, it will never resolve.
                             // The Radon engine should return `Ok(RadonError)` for errors which should
                             // be published as the result of the data request, or we could use a
                             // special radon value to indicate "generic error"
                             Ok(Err(e)) => {
-                                log::warn!("Couldn't run consensus: {}", e);
+                                log::warn!("Couldn't run tally: {}", e);
                                 futures::future::err(())
                             }
                             Err(e) => {
-                                log::error!("Couldn't run consensus: {}", e);
+                                log::error!("Couldn't run tally: {}", e);
                                 futures::future::err(())
                             }
                         })
-                        .and_then(move |consensus| {
+                        .and_then(move |tally_result| {
                             let tally = create_tally(
                                 dr_pointer,
                                 &dr_state.data_request,
                                 dr_state.pkh,
-                                consensus.clone(),
+                                tally_result.clone(),
                                 reveals,
                             );
 
@@ -412,7 +412,7 @@ impl ChainManager {
                                 Yellow.bold().paint("[Data Request]"),
                                 Yellow.bold().paint(&dr_pointer.to_string()),
                                 Yellow.bold().paint(
-                                    RadonTypes::try_from(consensus.as_slice())
+                                    RadonTypes::try_from(tally_result.as_slice())
                                         .map(|x| x.to_string())
                                         .unwrap_or_else(|_| "RADError".to_string())
                                 ),

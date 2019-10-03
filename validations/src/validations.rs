@@ -25,7 +25,7 @@ use witnet_data_structures::{
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
-use witnet_rad::{run_consensus, script::unpack_radon_script, types::RadonTypes};
+use witnet_rad::{run_tally, script::unpack_radon_script, types::RadonTypes};
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -169,7 +169,7 @@ pub fn validate_consensus(
         .filter_map(|&input| RadonTypes::try_from(input).ok())
         .collect();
 
-    let local_tally = run_consensus(radon_types_vec, consensus)?;
+    let local_tally = run_tally(radon_types_vec, consensus)?;
 
     if local_tally == miner_tally {
         Ok(())

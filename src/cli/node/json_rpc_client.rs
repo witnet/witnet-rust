@@ -231,7 +231,7 @@ fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Error> 
         .map(|x| RadonTypes::try_from(x.as_slice()).unwrap())
         .collect();
     log::info!("Running tally with values {:?}", reported_values);
-    let tally_result = witnet_rad::run_consensus(reported_values, &dr.data_request.tally)?;
+    let tally_result = witnet_rad::run_tally(reported_values, &dr.data_request.tally)?;
     log::info!("Tally result: {:?}", tally_result);
 
     Ok(RadonTypes::try_from(tally_result.as_slice())?)

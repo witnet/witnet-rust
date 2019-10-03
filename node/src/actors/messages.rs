@@ -448,12 +448,12 @@ pub struct ResolveRA {
     pub rad_request: RADRequest,
 }
 
-/// Message for running the consensus step of a data request.
+/// Message for running the tally step of a data request.
 #[derive(Debug)]
-pub struct RunConsensus {
-    /// RAD consensus to be executed
+pub struct RunTally {
+    /// RAD tally to be executed
     pub script: RADTally,
-    /// Reveals vector for consensus
+    /// Reveals vector for tally
     pub reveals: Vec<Vec<u8>>,
 }
 
@@ -461,7 +461,7 @@ impl Message for ResolveRA {
     type Result = Result<Vec<u8>, RadError>;
 }
 
-impl Message for RunConsensus {
+impl Message for RunTally {
     type Result = Result<Vec<u8>, RadError>;
 }
 
