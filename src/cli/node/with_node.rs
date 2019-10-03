@@ -41,6 +41,12 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             fee,
             time_lock.unwrap_or(0),
         ),
+        Command::SendRequest {
+            node,
+            hex,
+            fee,
+            run,
+        } => rpc::send_dr(node.unwrap_or(config.jsonrpc.server_address), hex, fee, run),
         Command::Raw { node } => rpc::raw(node.unwrap_or(config.jsonrpc.server_address)),
         Command::ShowConfig => {
             // TODO: Implementation requires to make Config serializable
@@ -167,6 +173,19 @@ pub enum Command {
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
+    },
+    #[structopt(name = "send-request", about = "Send a serialized data request")]
+    SendRequest {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        #[structopt(long = "hex")]
+        hex: String,
+        #[structopt(long = "fee", default_value = "0")]
+        fee: u64,
+        /// Run the data request locally before sending, to ensure correctness of RADON scripts
+        #[structopt(long = "run")]
+        run: bool,
     },
     #[structopt(
         name = "show-config",

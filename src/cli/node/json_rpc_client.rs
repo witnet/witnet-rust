@@ -6,15 +6,21 @@ use std::{
     net::TcpStream,
 };
 
-use failure::Fail;
+use failure::{bail, Fail};
 use serde::Deserialize;
+use serde_json::json;
 
 use itertools::Itertools;
+use log::*;
 use std::collections::HashMap;
+use std::convert::{TryFrom, TryInto};
 use witnet_data_structures::chain::{
-    Environment, OutputPointer, PublicKeyHash, Reputation, ValueTransferOutput,
+    DataRequestOutput, Environment, OutputPointer, PublicKeyHash, Reputation, ValueTransferOutput,
 };
+use witnet_data_structures::proto::ProtobufConvert;
 use witnet_node::actors::{json_rpc::json_rpc_methods::GetBlockChainParams, messages::BuildVtt};
+use witnet_rad::types::RadonTypes;
+use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
 
 pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
@@ -200,6 +206,83 @@ pub fn send_vtt(
         r#"{{"jsonrpc": "2.0","method": "sendValue", "params": {}, "id": "1"}}"#,
         serde_json::to_string(&params)?
     );
+    let response = send_request(&mut stream, &request)?;
+
+    println!("{}", response);
+
+    Ok(())
+}
+
+fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Error> {
+    let mut retrieval_results = vec![];
+    for r in &dr.data_request.retrieve {
+        log::info!("Running retrieval for {}", r.url);
+        retrieval_results.push(witnet_rad::run_retrieval(r)?);
+    }
+
+    log::info!("Running aggregation with values {:?}", retrieval_results);
+    let aggregation_result =
+        witnet_rad::run_aggregation(retrieval_results, &dr.data_request.aggregate)?;
+    log::info!("Aggregation result: {:?}", aggregation_result);
+
+    // Assume that all the required witnesses will report the same value
+    let reported_values = vec![aggregation_result; dr.witnesses.try_into().unwrap()]
+        .into_iter()
+        .map(|x| RadonTypes::try_from(x.as_slice()).unwrap())
+        .collect();
+    log::info!("Running tally with values {:?}", reported_values);
+    let tally_result = witnet_rad::run_consensus(reported_values, &dr.data_request.tally)?;
+    log::info!("Tally result: {:?}", tally_result);
+
+    Ok(RadonTypes::try_from(tally_result.as_slice())?)
+}
+
+fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutput, failure::Error> {
+    let dr_bytes = hex::decode(hex_bytes)?;
+
+    let dr: DataRequestOutput = ProtobufConvert::from_pb_bytes(&dr_bytes)?;
+
+    debug!("{}", serde_json::to_string(&dr)?);
+
+    validate_data_request_output(&dr)?;
+    validate_rad_request(&dr.data_request)?;
+
+    // Is the data request serialized correctly?
+    // Check that serializing the deserialized struct results in exactly the same bytes
+    let witnet_dr_bytes = dr.to_pb_bytes()?;
+
+    if dr_bytes != witnet_dr_bytes {
+        warn!("Data request uses an invalid serialization, will be ignored.\nINPUT BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
+              dr_bytes, witnet_dr_bytes
+        );
+        warn!(
+            "This usually happens when some fields are set to 0. \
+             The Rust implementation of ProtocolBuffer skips those fields, \
+             as missing fields are deserialized with the default value."
+        );
+        bail!("Invalid serialization");
+    }
+
+    Ok(dr)
+}
+
+pub fn send_dr(
+    addr: SocketAddr,
+    hex_bytes: String,
+    fee: u64,
+    run: bool,
+) -> Result<(), failure::Error> {
+    let dr_output = deserialize_and_validate_hex_dr(hex_bytes)?;
+    if run {
+        run_dr_locally(&dr_output)?;
+    }
+
+    let bdr_params = json!({"dro": dr_output, "fee": fee});
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "sendRequest", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&bdr_params)?
+    );
+    let mut stream = start_client(addr)?;
     let response = send_request(&mut stream, &request)?;
 
     println!("{}", response);

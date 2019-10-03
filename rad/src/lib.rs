@@ -40,7 +40,11 @@ pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
                 .text()
                 .map_err(RadError::from)?;
 
-            run_retrieval_with_data(retrieve, response)
+            let result = run_retrieval_with_data(retrieve, response);
+
+            log::debug!("Result for URL {}: {:?}", retrieve.url, result);
+
+            result
         }
     }
 }
@@ -57,6 +61,8 @@ pub fn run_aggregation(
 
     let rad_aggregation: RadonTypes =
         execute_radon_script(RadonTypes::from(radon_array), &radon_script)?;
+
+    log::debug!("aggregation result: {:?}", rad_aggregation);
 
     rad_aggregation.try_into().map_err(Into::into)
 }
