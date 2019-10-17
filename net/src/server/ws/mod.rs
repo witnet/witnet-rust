@@ -9,7 +9,8 @@ mod error;
 
 pub use error::Error;
 
-type PubSubHandler = pubsub::PubSubHandler<Arc<pubsub::Session>>;
+/// PubSubHandler with Arc Session.
+pub type PubSubHandler = pubsub::PubSubHandler<Arc<pubsub::Session>>;
 
 /// TODO: doc
 pub struct Server(server::Server);

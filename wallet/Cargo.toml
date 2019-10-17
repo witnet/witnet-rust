@@ -8,6 +8,7 @@ workspace = ".."
 [dependencies]
 async-jsonrpc-client = { git = "https://github.com/witnet/async-jsonrpc-client", features = ["tcp"] }
 bincode = "1.1.3"
+diesel = { version = "1.4.3", features = ["default", "r2d2", "sqlite"] }
 log = "0.4.6"
 jsonrpc-core = "11.0.0"
 futures = "0.1.26"

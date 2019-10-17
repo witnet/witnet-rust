@@ -22,7 +22,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             }
             config.wallet.testnet = config.wallet.testnet || params.testnet;
 
-            wallet::run(config)?;
+            wallet::run_server(config)?;
 
             Ok(())
         }
