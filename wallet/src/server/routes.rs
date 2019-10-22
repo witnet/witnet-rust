@@ -22,6 +22,10 @@ pub fn handler(api: api::Api) -> PubSubHandler {
         "runRadRequest",
         dispatch!(api, requests::RunRadRequest => responses::RadRequestResult),
     );
+    handler.add_method(
+        "createWallet",
+        dispatch!(api, requests::CreateWallet => responses::WalletId),
+    );
 
     handler
 }

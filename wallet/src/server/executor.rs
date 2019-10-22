@@ -1,3 +1,5 @@
+use std::path;
+
 use actix::prelude::*;
 
 use super::*;
@@ -13,9 +15,7 @@ impl Actor for Executor {
 impl Supervised for Executor {}
 
 impl Executor {
-    pub fn new(db: db::Database) -> Self {
-        let state = state::State { db };
-
+    pub fn new(state: state::State) -> Self {
         Self { state }
     }
 

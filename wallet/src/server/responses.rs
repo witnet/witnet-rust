@@ -18,3 +18,9 @@ pub enum RadRequestResult {
     Value(types::RadonTypes),
     Error(String),
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WalletId {
+    pub wallet_id: i32,
+}

@@ -9,7 +9,11 @@
 
 #[macro_use]
 extern crate diesel;
+#[macro_use]
+extern crate diesel_migrations;
 
+mod account;
+mod constants;
 mod crypto;
 mod db;
 mod error;
@@ -19,6 +23,7 @@ mod result;
 mod schema;
 mod server;
 mod types;
+mod wallet;
 mod wallets;
 
 pub use server::run as run_server;

@@ -22,3 +22,11 @@ impl Database {
         self.pool.get()
     }
 }
+
+#[cfg(test)]
+impl Database {
+    pub fn in_memory() -> diesel::SqliteConnection {
+        diesel::Connection::establish(":memory:")
+            .expect("Error stablishing connection to in-memory database")
+    }
+}

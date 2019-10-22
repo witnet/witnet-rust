@@ -15,3 +15,15 @@ impl From<diesel::result::Error> for Error {
         internal(err)
     }
 }
+
+impl From<diesel::r2d2::PoolError> for Error {
+    fn from(err: diesel::r2d2::PoolError) -> Self {
+        internal(err)
+    }
+}
+
+impl From<diesel_migrations::RunMigrationsError> for Error {
+    fn from(err: diesel_migrations::RunMigrationsError) -> Self {
+        internal(err)
+    }
+}

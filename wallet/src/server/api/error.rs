@@ -60,3 +60,15 @@ impl From<validation::ValidationErrors> for ApiError {
         ApiError::Validation(err)
     }
 }
+
+impl From<crypto::Error> for ApiError {
+    fn from(err: crypto::Error) -> Self {
+        internal(err)
+    }
+}
+
+impl From<failure::Error> for ApiError {
+    fn from(err: failure::Error) -> Self {
+        ApiError::Internal(err)
+    }
+}
