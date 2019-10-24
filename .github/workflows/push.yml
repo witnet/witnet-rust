@@ -38,12 +38,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
 
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features
-
       - name: Test
         uses: actions-rs/cargo@v1
         with:
