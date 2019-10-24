@@ -1,8 +1,6 @@
 name: Check every midnight
 
-on:
-  schedule:
-    - cron: '0 0 * * *'
+on: [push]
 
 jobs:
   deps_audit:
@@ -25,7 +23,9 @@ jobs:
       - uses: actions/checkout@v1
 
       - name: Run stable E2E test
-        run: just e2e-stable
+        run: |
+          just || curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git casey/just --target x86_64-unknown-linux-musl --to ~/.cargo/bin
+          just e2e-stable
 
   e2e_debug:
 
@@ -43,3 +43,19 @@ jobs:
 
       - name: Run debug E2E test
         run: just e2e-debug
+
+  nightly_release:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+      - name: Release
+        uses: actions/create-release@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Nightly ${{ github.ref }}
+          draft: false
+          prerelease: true
