@@ -330,7 +330,7 @@ impl TryInto<Secp256k1_Signature> for Signature {
 
 impl From<Secp256k1_Signature> for Secp256k1Signature {
     fn from(secp256k1_signature: Secp256k1_Signature) -> Self {
-        let der = secp256k1_signature.serialize_der();
+        let der = secp256k1_signature.serialize_der().to_vec();
 
         Secp256k1Signature { der }
     }

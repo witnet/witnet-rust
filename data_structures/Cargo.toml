@@ -8,16 +8,16 @@ workspace = ".."
 
 [dependencies]
 bech32 = "0.7.1"
-byteorder = "1.3.1"
-failure = "0.1.5"
+byteorder = "1.3.2"
+failure = "0.1.6"
 lazy_static = "1.4.0"
-protobuf = { version = "2.3.0", features = ["with-serde"] }
+protobuf = { version = "2.8.1", features = ["with-serde"] }
 protobuf-convert = "0.1.1"
-rand = "0.6.5"
-toml = "0.4.10"
-log = "0.4.6"
-secp256k1 = "0.12.2"
-vrf = "0.2.0"
+rand = "0.7.2"
+toml = "0.5.3"
+log = "0.4.8"
+secp256k1 = "0.15.5"
+vrf = "0.2.2"
 witnet_reputation = { path = "../reputation", features = ["serde"] }
 witnet_protected = { path = "../protected" }
 
@@ -31,8 +31,8 @@ path = "../crypto"
 path = "../util"
 
 [build-dependencies]
-exonum-build = "0.10.0"
+exonum-build = "0.12.0"
 
 [dependencies.serde]
 features = ["derive"]
-version = "1.0.88"
+version = "1.0.101"

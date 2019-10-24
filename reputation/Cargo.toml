@@ -7,12 +7,12 @@ version = "0.3.2"
 workspace = ".."
 
 [dependencies]
-failure = "0.1.5"
-log = "0.4.6"
+failure = "0.1.6"
+log = "0.4.8"
 
 [dependencies.serde]
 features = ["derive"]
-version = "1.0.88"
+version = "1.0.101"
 optional = true
 
 [dev-dependencies]

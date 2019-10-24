@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 use structopt::StructOpt;
 use terminal_size as term;
 
+use env_logger::TimestampPrecision;
 use witnet_config as config;
 
 mod node;
@@ -68,8 +69,12 @@ fn init_logger(opts: LogOptions) {
         opts.level, opts.source
     );
     env_logger::Builder::from_env(env_logger::Env::default())
-        .default_format_timestamp(opts.timestamp)
-        .default_format_module_path(opts.module_path)
+        .format_timestamp(if opts.timestamp {
+            Some(TimestampPrecision::Seconds)
+        } else {
+            None
+        })
+        .format_module_path(opts.module_path)
         .filter_level(log::LevelFilter::Info)
         .filter_module("witnet", opts.level)
         .init();

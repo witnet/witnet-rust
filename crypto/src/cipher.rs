@@ -82,7 +82,7 @@ pub fn decrypt_aes_cbc(secret: &[u8], data: &[u8], iv: &[u8]) -> Result<Vec<u8>,
 /// Generate a random initialization vector of the given size in bytes
 pub fn generate_random(size: usize) -> Result<Vec<u8>, Error> {
     let mut iv = vec![0u8; size];
-    OsRng::new().map_err(Error::Rng)?.fill_bytes(&mut iv);
+    OsRng.fill_bytes(&mut iv);
 
     Ok(iv)
 }
