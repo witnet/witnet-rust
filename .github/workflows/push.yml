@@ -14,46 +14,37 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
-      - id: component
-        uses: actions-rs/components-nightly@v1
-        with:
-          component: clippy
       - uses: actions-rs/toolchain@v1
         with:
-            toolchain: ${{ steps.component.outputs.toolchain }}
-            override: true
+          toolchain: stable
+          default: true
+          components: rustfmt, clippy
 
-      - name: Install environment dependencies
-        run: |
-          sudo add-apt-repository -y ppa:maarten-fonville/protobuf
-          sudo apt-get update -y -qq
-          sudo apt-get install -y g++-5 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
-          just || curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git casey/just --target x86_64-unknown-linux-musl --to ~/.cargo/bin
-
-      - name: Install formatter
-        run: rustup component add rustfmt
-
-      - name: Run formatter
+      - name: Formatter
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
 
-      - name: Install clippy
-        run: rustup component add clippy
-
-      - name: Run clippy
+      - name: Clippy
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
 
-      - uses: actions-rs/cargo@v1
+      - name: Install compilation system dependencies
+        run: |
+          sudo add-apt-repository -y ppa:maarten-fonville/protobuf
+          sudo apt-get update -y -qq
+          sudo apt-get install -y g++-5 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
+
+      - name: Build
+        uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release --all-features
 
-      - name: Tests
+      - name: Test
         uses: actions-rs/cargo@v1
         with:
           command: test
