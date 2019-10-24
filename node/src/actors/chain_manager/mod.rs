@@ -31,7 +31,7 @@ use std::{
 };
 
 use actix::{
-    prelude::*, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised, System,
+    prelude::*, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Supervised,
     SystemService, WrapFuture,
 };
 use ansi_term::Color::{Purple, White, Yellow};
@@ -181,7 +181,7 @@ impl ChainManager {
     /// Method to Send an Item to Inventory Manager
     fn persist_item(&self, ctx: &mut Context<Self>, item: InventoryItem) {
         // Get InventoryManager address
-        let inventory_manager_addr = System::current().registry().get::<InventoryManager>();
+        let inventory_manager_addr = InventoryManager::from_registry();
 
         // Persist block into storage through InventoryManager. `AsyncContext::wait` registers
         // future within context, but context waits until this future resolves
@@ -227,7 +227,7 @@ impl ChainManager {
 
     fn broadcast_item(&self, item: InventoryItem) {
         // Get SessionsManager address
-        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+        let sessions_manager_addr = SessionsManager::from_registry();
 
         sessions_manager_addr.do_send(Broadcast {
             command: SendInventoryItem { item },

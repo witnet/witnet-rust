@@ -5,7 +5,7 @@ use std::{
 
 use actix::{
     io::FramedWrite, Actor, ActorFuture, Context, ContextFutureSpawner, Handler, Message,
-    StreamHandler, System, WrapFuture,
+    StreamHandler, SystemService, WrapFuture,
 };
 use ansi_term::Color::Cyan;
 use log::{debug, error, info, trace, warn};
@@ -136,7 +136,7 @@ impl Handler<Consolidate> for SessionsManager {
             .consolidate_session(msg.session_type, msg.address);
 
         // Get peers manager address
-        let peers_manager_addr = System::current().registry().get::<PeersManager>();
+        let peers_manager_addr = PeersManager::from_registry();
 
         if msg.session_type == SessionType::Outbound {
             // Send AddConsolidatedPeer message to the peers manager

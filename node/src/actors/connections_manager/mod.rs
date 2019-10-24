@@ -58,7 +58,7 @@ impl ConnectionsManager {
     /// Method to request the creation of a session actor from a TCP stream
     fn request_session_creation(stream: TcpStream, session_type: SessionType) {
         // Get sessions manager address
-        let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+        let sessions_manager_addr = SessionsManager::from_registry();
 
         // Send a message to SessionsManager to request the creation of a session
         sessions_manager_addr.do_send(Create {

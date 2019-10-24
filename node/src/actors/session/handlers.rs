@@ -2,7 +2,7 @@ use std::io::Error;
 
 use actix::io::WriteHandler;
 use actix::{
-    ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler, StreamHandler, System,
+    ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler, StreamHandler,
     SystemService, WrapFuture,
 };
 use ansi_term::Color::Green;
@@ -70,7 +70,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for Session {
         let now = get_timestamp();
         if self.blocks_timestamp != 0 && now - self.blocks_timestamp > self.blocks_timeout {
             // Get ChainManager address
-            let chain_manager_addr = System::current().registry().get::<ChainManager>();
+            let chain_manager_addr = ChainManager::from_registry();
 
             chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
             warn!("Timeout for waiting blocks achieved");
@@ -148,7 +148,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                         SessionStatus::Consolidated,
                         Command::InventoryRequest(InventoryRequest { inventory }),
                     ) => {
-                        let inventory_mngr = System::current().registry().get::<InventoryManager>();
+                        let inventory_mngr = InventoryManager::from_registry();
                         let item_requests: Vec<_> = inventory
                             .iter()
                             .map(|item| match item {
@@ -323,7 +323,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
     // First evaluate Feeler case
     if session.session_type == SessionType::Feeler {
         // Get peer manager address
-        let peers_manager_addr = System::current().registry().get::<PeersManager>();
+        let peers_manager_addr = PeersManager::from_registry();
 
         // Send AddConsolidatedPeer message to the peers manager
         // Try to add this potential peer in the tried addresses bucket
@@ -335,7 +335,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
         ctx.stop();
     } else {
         // Get session manager address
-        let session_manager_addr = System::current().registry().get::<SessionsManager>();
+        let session_manager_addr = SessionsManager::from_registry();
 
         // Register self in session manager. `AsyncContext::wait` register
         // future within context, but context waits until this future resolves
@@ -379,7 +379,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
 /// Function called when GetPeers message is received
 fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
     // Get the address of PeersManager actor
-    let peers_manager_addr = System::current().registry().get::<PeersManager>();
+    let peers_manager_addr = PeersManager::from_registry();
 
     // Start chain of actions
     peers_manager_addr
@@ -415,7 +415,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
 /// Function called when Peers message is received
 fn peer_discovery_peers(peers: &[Address], src_address: SocketAddr) {
     // Get peers manager address
-    let peers_manager_addr = System::current().registry().get::<PeersManager>();
+    let peers_manager_addr = PeersManager::from_registry();
 
     // Convert array of address to vector of socket addresses
     let addresses = peers.iter().map(from_address).collect();
@@ -430,7 +430,7 @@ fn peer_discovery_peers(peers: &[Address], src_address: SocketAddr) {
 /// Function called when Block message is received
 fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, block: Block) {
     // Get ChainManager address
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    let chain_manager_addr = ChainManager::from_registry();
 
     let block_epoch = block.block_header.beacon.checkpoint;
     let block_hash = block.hash();
@@ -486,7 +486,7 @@ fn inventory_process_transaction(
     transaction: Transaction,
 ) {
     // Get ChainManager address
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    let chain_manager_addr = ChainManager::from_registry();
 
     // Send a message to the ChainManager to try to add a new transaction
     chain_manager_addr.do_send(AddTransaction { transaction });
@@ -594,7 +594,7 @@ fn session_last_beacon_inbound(
 ) {
     // TODO: LastBeacon on inbound peers?
     // Get ChainManager address from registry
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    let chain_manager_addr = ChainManager::from_registry();
     // Send GetHighestCheckpointBeacon message to ChainManager
     chain_manager_addr
         .send(GetHighestCheckpointBeacon)

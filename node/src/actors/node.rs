@@ -1,6 +1,6 @@
 use std::{process::exit, result::Result};
 
-use actix::{Actor, System};
+use actix::{Actor, System, SystemRegistry};
 use failure;
 use futures::future::Future;
 use log::info;
@@ -32,38 +32,38 @@ pub fn run(config: Config, callback: fn()) -> Result<(), failure::Error> {
 
     // Start PeersManager actor
     let peers_manager_addr = PeersManager::default().start();
-    System::current().registry().set(peers_manager_addr);
+    SystemRegistry::set(peers_manager_addr);
 
     // Start ConnectionsManager actor
     let connections_manager_addr = ConnectionsManager::default().start();
-    System::current().registry().set(connections_manager_addr);
+    SystemRegistry::set(connections_manager_addr);
 
     // Start SessionManager actor
     let sessions_manager_addr = SessionsManager::default().start();
-    System::current().registry().set(sessions_manager_addr);
+    SystemRegistry::set(sessions_manager_addr);
 
     // Start EpochManager actor
     let epoch_manager_addr = EpochManager::default().start();
-    System::current().registry().set(epoch_manager_addr);
+    SystemRegistry::set(epoch_manager_addr);
 
     // Start ChainManager actor
     let chain_manager_addr = ChainManager::default().start();
-    System::current().registry().set(chain_manager_addr);
+    SystemRegistry::set(chain_manager_addr);
 
     // Start InventoryManager actor
     let inventory_manager_addr = InventoryManager::default().start();
-    System::current().registry().set(inventory_manager_addr);
+    SystemRegistry::set(inventory_manager_addr);
 
     // Start RadManager actor
     let rad_manager_addr = RadManager::default().start();
-    System::current().registry().set(rad_manager_addr);
+    SystemRegistry::set(rad_manager_addr);
 
     // Start JSON RPC server
     let json_rpc_server_addr = JsonRpcServer::default().start();
-    System::current().registry().set(json_rpc_server_addr);
+    SystemRegistry::set(json_rpc_server_addr);
 
     // Run system
-    system.run();
+    system.run()?;
 
     Ok(())
 }

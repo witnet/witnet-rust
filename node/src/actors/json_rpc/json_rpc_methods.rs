@@ -6,9 +6,9 @@ use std::{
     sync::Arc,
 };
 
+use actix::MailboxError;
 #[cfg(not(test))]
-use actix::System;
-use actix::{MailboxError, SystemService};
+use actix::SystemService;
 use jsonrpc_core::{futures, futures::Future, BoxFuture, MetaIoHandler, Params, Value};
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use log::{debug, error};
@@ -24,7 +24,7 @@ use witnet_data_structures::{
 use super::Subscriptions;
 
 #[cfg(test)]
-use self::mock_actix::System;
+use self::mock_actix::SystemService;
 use crate::{
     actors::{
         chain_manager::{ChainManager, ChainManagerError, StateMachine},
@@ -227,7 +227,7 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
         InventoryItem::Block(block) => {
             debug!("Got block from JSON-RPC. Sending AnnounceItems message.");
 
-            let chain_manager_addr = System::current().registry().get::<ChainManager>();
+            let chain_manager_addr = ChainManager::from_registry();
             let fut = chain_manager_addr
                 .send(AddCandidates {
                     blocks: vec![block],
@@ -241,7 +241,7 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
         InventoryItem::Transaction(transaction) => {
             debug!("Got transaction from JSON-RPC. Sending AnnounceItems message.");
 
-            let chain_manager_addr = System::current().registry().get::<ChainManager>();
+            let chain_manager_addr = ChainManager::from_registry();
             let fut = chain_manager_addr
                 .send(AddTransaction { transaction })
                 .map_err(internal_error)
@@ -665,7 +665,7 @@ pub fn data_request_report(params: Result<(Hash,), jsonrpc_core::Error>) -> Json
         Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    let chain_manager_addr = ChainManager::from_registry();
 
     let fut = chain_manager_addr
         .send(GetDataRequestReport { dr_pointer })
@@ -691,7 +691,7 @@ pub fn get_balance(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> Jso
         Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    let chain_manager_addr = ChainManager::from_registry();
 
     let fut = chain_manager_addr
         .send(GetBalance { pkh })
@@ -717,7 +717,7 @@ pub fn get_reputation(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> 
         Err(e) => return Box::new(futures::failed(e)),
     };
 
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    let chain_manager_addr = ChainManager::from_registry();
 
     let fut = chain_manager_addr
         .send(GetReputation { pkh })
@@ -738,7 +738,7 @@ pub fn get_reputation(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> 
 
 /// Get all reputation from all identities
 pub fn get_reputation_all() -> JsonRpcResultAsync {
-    let chain_manager_addr = System::current().registry().get::<ChainManager>();
+    let chain_manager_addr = ChainManager::from_registry();
 
     let fut = chain_manager_addr
         .send(GetReputationAll)
@@ -762,26 +762,7 @@ mod mock_actix {
     use actix::{MailboxError, Message};
     use futures::Future;
 
-    pub struct System;
-
-    pub struct SystemRegistry;
-
     pub struct Addr;
-
-    impl System {
-        pub fn current() -> Self {
-            System
-        }
-        pub fn registry(&self) -> &SystemRegistry {
-            &SystemRegistry
-        }
-    }
-
-    impl SystemRegistry {
-        pub fn get<T>(&self) -> Addr {
-            Addr
-        }
-    }
 
     impl Addr {
         pub fn send<T: Message>(
@@ -792,6 +773,14 @@ mod mock_actix {
             futures::failed(MailboxError::Closed)
         }
     }
+
+    pub trait SystemService {
+        fn from_registry() -> Addr {
+            Addr
+        }
+    }
+
+    impl<T> SystemService for T {}
 }
 
 #[cfg(test)]

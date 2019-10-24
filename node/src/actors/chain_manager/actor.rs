@@ -167,7 +167,7 @@ impl ChainManager {
     /// Get epoch constants and current epoch from EpochManager, and subscribe to future epochs
     fn subscribe_to_epoch_manager(&mut self, ctx: &mut Context<ChainManager>) {
         // Get EpochManager address from registry
-        let epoch_manager_addr = System::current().registry().get::<EpochManager>();
+        let epoch_manager_addr = EpochManager::from_registry();
         let epoch_manager_addr2 = epoch_manager_addr.clone();
 
         // Get epoch constants

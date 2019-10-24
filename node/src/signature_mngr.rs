@@ -28,14 +28,12 @@ use witnet_protected::ProtectedString;
 /// Start the signature manager
 pub fn start() {
     let addr = SignatureManager::start_default();
-    actix::System::current().registry().set(addr);
+    actix::SystemRegistry::set(addr);
 }
 
 /// Set the key used to sign
 pub fn set_key(key: SK) -> impl Future<Item = (), Error = failure::Error> {
-    let addr = actix::System::current()
-        .registry()
-        .get::<SignatureManager>();
+    let addr = SignatureManager::from_registry();
     addr.send(SetKey(key)).flatten()
 }
 
@@ -55,9 +53,7 @@ where
 ///
 /// This might fail if the manager has not been initialized with a key
 pub fn sign_data(data: [u8; 32]) -> impl Future<Item = KeyedSignature, Error = failure::Error> {
-    let addr = actix::System::current()
-        .registry()
-        .get::<SignatureManager>();
+    let addr = SignatureManager::from_registry();
     addr.send(Sign(data.to_vec())).flatten()
 }
 
@@ -65,9 +61,7 @@ pub fn sign_data(data: [u8; 32]) -> impl Future<Item = KeyedSignature, Error = f
 ///
 /// This might fail if the manager has not been initialized with a key
 pub fn pkh() -> impl Future<Item = PublicKeyHash, Error = failure::Error> {
-    let addr = actix::System::current()
-        .registry()
-        .get::<SignatureManager>();
+    let addr = SignatureManager::from_registry();
     addr.send(GetPkh).flatten()
 }
 
@@ -75,9 +69,7 @@ pub fn pkh() -> impl Future<Item = PublicKeyHash, Error = failure::Error> {
 ///
 /// This might fail if the manager has not been initialized with a key
 pub fn public_key() -> impl Future<Item = PublicKey, Error = failure::Error> {
-    let addr = actix::System::current()
-        .registry()
-        .get::<SignatureManager>();
+    let addr = SignatureManager::from_registry();
     addr.send(GetPublicKey).flatten()
 }
 
@@ -85,9 +77,7 @@ pub fn public_key() -> impl Future<Item = PublicKey, Error = failure::Error> {
 pub fn vrf_prove(
     message: VrfMessage,
 ) -> impl Future<Item = (VrfProof, Hash), Error = failure::Error> {
-    let addr = actix::System::current()
-        .registry()
-        .get::<SignatureManager>();
+    let addr = SignatureManager::from_registry();
     addr.send(VrfProve(message)).flatten()
 }
 

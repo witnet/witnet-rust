@@ -79,7 +79,7 @@ impl PeersManager {
 
     /// Method to try a peer before to insert in the tried addresses bucket
     pub fn try_peer(&mut self, _ctx: &mut Context<Self>, address: SocketAddr) {
-        let connections_manager_addr = System::current().registry().get::<ConnectionsManager>();
+        let connections_manager_addr = ConnectionsManager::from_registry();
         let current_ts = get_timestamp();
 
         let index = self.peers.tried_bucket_index(&address);

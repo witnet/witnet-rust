@@ -1,5 +1,5 @@
 use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, System, WrapFuture,
+    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture,
 };
 use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
@@ -281,7 +281,7 @@ impl ChainManager {
                     let rad_request = data_request_output.data_request.clone();
 
                     // Send ResolveRA message to RADManager
-                    let rad_manager_addr = System::current().registry().get::<RadManager>();
+                    let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
                         .send(ResolveRA { rad_request })
                         .map(|result| match result {
@@ -371,7 +371,7 @@ impl ChainManager {
                     let results: Vec<Vec<u8>> =
                         reveals.iter().map(|r| r.body.reveal.clone()).collect();
 
-                    let rad_manager_addr = System::current().registry().get::<RadManager>();
+                    let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
                         .send(RunTally {
                             script: dr_state.data_request.data_request.tally.clone(),

@@ -3,7 +3,7 @@ use std::{net::SocketAddr, time::Duration};
 
 use actix::{
     fut::FutureResult, ActorFuture, Addr, AsyncContext, Context, ContextFutureSpawner, Handler,
-    MailboxError, Message, System, SystemService, WrapFuture,
+    MailboxError, Message, SystemService, WrapFuture,
 };
 
 use ansi_term::Color::Cyan;
@@ -54,7 +54,7 @@ impl SessionsManager {
                 trace!("{:#?}", act.sessions.show_ips());
 
                 // Get peers manager address
-                let peers_manager_addr = System::current().registry().get::<PeersManager>();
+                let peers_manager_addr = PeersManager::from_registry();
 
                 // Start chain of actions
                 peers_manager_addr
@@ -81,8 +81,7 @@ impl SessionsManager {
 
                         for address in addresses {
                             // Get ConnectionsManager from registry and send an OutboundTcpConnect message to it
-                            let connections_manager_addr =
-                                System::current().registry().get::<ConnectionsManager>();
+                            let connections_manager_addr = ConnectionsManager::from_registry();
                             connections_manager_addr.do_send(OutboundTcpConnect {
                                 address,
                                 session_type: SessionType::Outbound,
@@ -154,7 +153,7 @@ impl SessionsManager {
     /// Subscribe to all future epochs
     fn subscribe_to_epoch_manager(&mut self, ctx: &mut Context<Self>) {
         // Get EpochManager address from registry
-        let epoch_manager_addr = System::current().registry().get::<EpochManager>();
+        let epoch_manager_addr = EpochManager::from_registry();
 
         // Subscribe to all epochs with an empty payload
         epoch_manager_addr.do_send(Subscribe::to_all(ctx.address(), ()));

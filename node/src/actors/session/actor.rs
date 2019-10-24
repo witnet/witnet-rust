@@ -1,6 +1,6 @@
 use actix::{
-    Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Running, System,
-    WrapFuture,
+    Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Running,
+    SystemService, WrapFuture,
 };
 use log::{debug, error, info, warn};
 
@@ -51,7 +51,7 @@ impl Actor for Session {
             self.subscribe_to_epoch_manager(ctx);
 
             // Get SessionsManager address
-            let sessions_manager_addr = System::current().registry().get::<SessionsManager>();
+            let sessions_manager_addr = SessionsManager::from_registry();
 
             // Register self in SessionsManager. `AsyncContext::wait` register
             // future within context, but context waits until this future resolves
@@ -107,7 +107,7 @@ impl Actor for Session {
     /// Method to be executed when the actor is stopping
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         // Get session manager address
-        let session_manager_addr = System::current().registry().get::<SessionsManager>();
+        let session_manager_addr = SessionsManager::from_registry();
 
         // Unregister session from SessionsManager
         session_manager_addr.do_send(Unregister {
@@ -119,7 +119,7 @@ impl Actor for Session {
         // When session unregisters, notify ChainManager to stop waiting for new blocks
         if self.blocks_timestamp != 0 {
             // Get ChainManager address
-            let chain_manager_addr = System::current().registry().get::<ChainManager>();
+            let chain_manager_addr = ChainManager::from_registry();
 
             chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
             warn!("Session disconnected during block exchange");
@@ -133,7 +133,7 @@ impl Session {
     /// Get epoch from EpochManager and subscribe to future epochs
     fn subscribe_to_epoch_manager(&mut self, ctx: &mut Context<Session>) {
         // Get EpochManager address from registry
-        let epoch_manager_addr = System::current().registry().get::<EpochManager>();
+        let epoch_manager_addr = EpochManager::from_registry();
 
         // Start chain of actions
         epoch_manager_addr

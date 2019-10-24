@@ -22,7 +22,8 @@ fn test_get_config() {
             });
 
         actix::Arbiter::spawn(fut.map_err(ignore));
-    });
+    })
+    .unwrap();
 }
 
 #[test]
@@ -43,5 +44,6 @@ fn test_load_config_from_file() {
             });
 
         actix::Arbiter::spawn(fut.map_err(ignore));
-    });
+    })
+    .unwrap();
 }

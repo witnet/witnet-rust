@@ -1,4 +1,4 @@
-use actix::Actor;
+use actix::{Actor, SystemService};
 use futures::future::Future;
 use log;
 use std::default::Default;
@@ -9,25 +9,25 @@ use witnet_config::{config::Config, loaders::toml};
 /// Start the configuration manager
 pub fn start() {
     let addr = ConfigManager::start_default();
-    actix::System::current().registry().set(addr);
+    actix::SystemRegistry::set(addr);
 }
 
 /// Get a reference to the current configuration stored in the manager
 pub fn get() -> impl Future<Item = Arc<Config>, Error = failure::Error> {
-    let addr = actix::System::current().registry().get::<ConfigManager>();
+    let addr = ConfigManager::from_registry();
     addr.send(Get).flatten()
 }
 
 /// Set the value for the configuration
 pub fn set(config: Config) -> impl Future<Item = (), Error = failure::Error> {
-    let addr = actix::System::current().registry().get::<ConfigManager>();
+    let addr = ConfigManager::from_registry();
     addr.send(Set(config)).flatten()
 }
 
 /// Substitute configuration in the manager with the one loaded from the
 /// given filename.
 pub fn load_from_file(filename: PathBuf) -> impl Future<Item = (), Error = failure::Error> {
-    let addr = actix::System::current().registry().get::<ConfigManager>();
+    let addr = ConfigManager::from_registry();
     addr.send(Load(Source::File(filename))).flatten()
 }
 

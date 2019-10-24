@@ -22,7 +22,7 @@ macro_rules! as_failure {
 /// Start the signature manager
 pub fn start() {
     let addr = StorageManagerAdapter::start_default();
-    actix::System::current().registry().set(addr);
+    actix::SystemRegistry::set(addr);
 }
 
 /// Get value associated to key
@@ -31,9 +31,7 @@ where
     K: serde::Serialize,
     T: serde::de::DeserializeOwned,
 {
-    let addr = actix::System::current()
-        .registry()
-        .get::<StorageManagerAdapter>();
+    let addr = StorageManagerAdapter::from_registry();
 
     futures::future::result(serialize(key))
         .map_err(|e| as_failure!(e))
@@ -53,9 +51,7 @@ where
     K: serde::Serialize,
     V: serde::Serialize,
 {
-    let addr = actix::System::current()
-        .registry()
-        .get::<StorageManagerAdapter>();
+    let addr = StorageManagerAdapter::from_registry();
 
     futures::future::result(serialize(key))
         .join(futures::future::result(serialize(value)))
@@ -68,9 +64,7 @@ pub fn delete<K>(key: &K) -> impl Future<Item = (), Error = failure::Error>
 where
     K: serde::Serialize,
 {
-    let addr = actix::System::current()
-        .registry()
-        .get::<StorageManagerAdapter>();
+    let addr = StorageManagerAdapter::from_registry();
 
     futures::future::result(serialize(key))
         .map_err(|e| as_failure!(e))
