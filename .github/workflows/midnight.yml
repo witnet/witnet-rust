@@ -1,6 +1,8 @@
-name: Push checks
+name: Check every midnight
 
-on: [push]
+on:
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
   build_ubuntu:
@@ -8,21 +10,25 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ROCKSDB_LIB_DIR: /usr/lib/
       RUST_BACKTRACE: 1
 
     steps:
       - uses: actions/checkout@v1
 
-      - name: Install dependencies
+      - name: Install environment dependencies
         run: |
           sudo add-apt-repository -y ppa:maarten-fonville/protobuf
           sudo apt-get update -y -qq
           sudo apt-get install -y g++-5 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
           just || curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git casey/just --target x86_64-unknown-linux-musl --to ~/.cargo/bin
 
-      - name: Build
-        run: cargo build --verbose
+      - name: Cargo dependencies security audit
+        uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run tests
-        run: just ci
+      - name: Run stable E2E test
+        run: just e2e-debug
+
+      - name: Run nightly E2E test
+        run: just e2e-debug
