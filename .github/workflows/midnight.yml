@@ -5,12 +5,9 @@ on:
     - cron: '0 0 * * *'
 
 jobs:
-  build_ubuntu:
+  deps_audit:
 
     runs-on: ubuntu-latest
-
-    env:
-      RUST_BACKTRACE: 1
 
     steps:
       - uses: actions/checkout@v1
@@ -20,6 +17,23 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  e2e_stable:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Run stable E2E test
+        run: just e2e-stable
+
+  e2e_debug:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v1
+
       - name: Install environment dependencies
         run: |
           sudo add-apt-repository -y ppa:maarten-fonville/protobuf
@@ -27,8 +41,5 @@ jobs:
           sudo apt-get install -y g++-5 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
           just || curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git casey/just --target x86_64-unknown-linux-musl --to ~/.cargo/bin
 
-      - name: Run stable E2E test
-        run: just e2e-debug
-
-      - name: Run nightly E2E test
+      - name: Run debug E2E test
         run: just e2e-debug
