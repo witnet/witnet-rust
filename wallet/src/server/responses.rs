@@ -24,3 +24,14 @@ pub enum RadRequestResult {
 pub struct WalletId {
     pub wallet_id: i32,
 }
+
+pub type Empty = ();
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlockedWallet {
+    pub session_id: types::SessionId,
+    pub accounts: Vec<models::AccountInfo>,
+    pub default_account: u32,
+    pub session_expiration_secs: u64,
+}

@@ -1,4 +1,5 @@
 use std::fs;
+use std::time::Duration;
 
 use actix::prelude::*;
 
@@ -14,7 +15,6 @@ mod handlers;
 mod requests;
 mod responses;
 mod routes;
-mod state;
 mod validation;
 
 /// Run the Witnet Wallet application server.
@@ -25,16 +25,15 @@ pub fn run(conf: WitnetConfig) -> Result<(), failure::Error> {
     let wallets_config = types::WalletsConfig {
         seed_password: conf.wallet.seed_password,
         master_key_salt: conf.wallet.master_key_salt,
+        testnet: conf.wallet.testnet,
+        session_expires_in: Duration::from_secs(conf.wallet.session_expires_in),
+        requests_timeout: Duration::from_millis(conf.wallet.requests_timeout),
     };
 
     // create database directory if it doesn't exist
     fs::create_dir_all(&db_path)?;
 
-    let db_url = db_path
-        .join("wallets.sqlite3")
-        .to_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| failure::format_err!("db path contains unsupported characters"))?;
+    let db_url = db::url(&db_path, "wallets");
     let db = db::Database::open(&db_url)?;
     wallets::migrate_db(&db.get()?)?;
 

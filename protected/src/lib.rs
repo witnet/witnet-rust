@@ -29,6 +29,12 @@ impl Protected {
     }
 }
 
+impl Default for Protected {
+    fn default() -> Self {
+        Self::new(Vec::new())
+    }
+}
+
 impl<T: Into<Vec<u8>>> From<T> for Protected {
     fn from(x: T) -> Self {
         Self::new(x.into())
@@ -77,6 +83,12 @@ impl ProtectedString {
     /// Create new protected string.
     pub fn new<T: Into<String>>(m: T) -> Self {
         ProtectedString(Protected::new(m.into().into_bytes()))
+    }
+}
+
+impl Default for ProtectedString {
+    fn default() -> Self {
+        Self::new("")
     }
 }
 

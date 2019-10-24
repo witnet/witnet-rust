@@ -22,7 +22,7 @@ impl requests::CreateWallet {
     pub fn validate(self, db_path: &path::Path) -> Result<types::CreateWallet> {
         let name = self.name;
         let caption = self.caption;
-        let db_filename = db_path.join(&format!("{}.sqlite3", &name));
+        let db_filename = db::path(db_path, &name);
         let db_url = match db_filename.exists() {
             true => Err(error(
                 "name",
@@ -35,7 +35,7 @@ impl requests::CreateWallet {
                 error(
                     "name",
                     format!(
-                        "Wallet database name and/or path '{}' contains unsupported characters.",
+                        "Database path to url failed: '{}'.",
                         db_filename.to_string_lossy()
                     ),
                 )

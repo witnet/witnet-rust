@@ -64,6 +64,11 @@ pub fn gen_master_key(
     Ok(key)
 }
 
+/// Generate an encryption key using pbkdf2.
+pub fn key_from_password(password: &[u8], salt: &[u8], iterations: u32) -> types::Protected {
+    pbkdf2_sha256(password, salt, iterations)
+}
+
 /// Generate a cryptographic session id.
 pub fn gen_session_id<Rng>(
     rng: &mut Rng,

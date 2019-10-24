@@ -26,6 +26,10 @@ pub fn handler(api: api::Api) -> PubSubHandler {
         "createWallet",
         dispatch!(api, requests::CreateWallet => responses::WalletId),
     );
+    handler.add_method(
+        "unlockWallet",
+        dispatch!(api, requests::UnlockWallet => responses::UnlockedWallet),
+    );
 
     handler
 }

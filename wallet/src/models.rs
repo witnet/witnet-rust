@@ -10,10 +10,16 @@ pub struct WalletInfo {
     pub caption: Option<String>,
 }
 
+#[derive(Debug, Clone, Queryable, Serialize, PartialEq, Eq)]
+pub struct AccountInfo {
+    pub index: i32,
+    pub balance: i64,
+}
+
 #[derive(Insertable)]
 #[table_name = "accounts"]
 pub struct NewAccount<'a> {
-    pub idx: i32,
+    pub index: i32,
     pub internal_key: &'a [u8],
     pub internal_chain_code: &'a [u8],
     pub external_key: &'a [u8],

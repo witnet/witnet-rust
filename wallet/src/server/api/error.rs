@@ -31,9 +31,7 @@ impl From<diesel::r2d2::PoolError> for ApiError {
 
 impl From<error::Error> for ApiError {
     fn from(err: error::Error) -> Self {
-        match err {
-            error::Error::Internal(e) => ApiError::Internal(e),
-        }
+        internal(err)
     }
 }
 
@@ -70,5 +68,13 @@ impl From<crypto::Error> for ApiError {
 impl From<failure::Error> for ApiError {
     fn from(err: failure::Error) -> Self {
         ApiError::Internal(err)
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for ApiError {
+    fn from(_err: std::sync::PoisonError<T>) -> Self {
+        ApiError::Internal(failure::format_err!(
+            "Mutex poison error! Restart the application."
+        ))
     }
 }

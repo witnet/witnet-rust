@@ -24,3 +24,10 @@ pub struct CreateWallet {
     pub seed_source: String,
     pub seed_data: types::ProtectedString,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnlockWallet {
+    pub wallet_id: i32,
+    pub password: types::ProtectedString,
+}

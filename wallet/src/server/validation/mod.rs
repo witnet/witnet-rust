@@ -8,7 +8,7 @@ pub use error::ValidationErrors;
 type Result<T> = std::result::Result<T, ValidationErrors>;
 
 #[inline]
-fn error(field: impl Into<String>, msg: impl Into<String>) -> ValidationErrors {
+pub fn error(field: impl Into<String>, msg: impl Into<String>) -> ValidationErrors {
     vec![(field.into(), msg.into())].into()
 }
 

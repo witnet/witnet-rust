@@ -4,6 +4,8 @@ use failure::Fail;
 pub enum Error {
     #[fail(display = "{}", _0)]
     Internal(#[cause] failure::Error),
+    #[fail(display = "incorrect database password")]
+    DbPassword,
 }
 
 pub fn internal<E: Fail>(err: E) -> Error {

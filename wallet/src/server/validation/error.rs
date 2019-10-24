@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct ValidationErrors(Vec<(String, String)>);
 
 impl ValidationErrors {

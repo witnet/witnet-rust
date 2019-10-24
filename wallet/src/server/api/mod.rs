@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::path;
+use std::sync::{Arc, Mutex};
 
 use actix::prelude::*;
 use futures::{Future, IntoFuture};
@@ -25,11 +26,14 @@ impl Api {
         wallets_config: types::WalletsConfig,
     ) -> Self {
         let sign_engine = types::SignEngine::signing_only();
-        let state = state::State {
+        let rng = Arc::new(Mutex::new(rand::rngs::OsRng));
+        let state = types::State {
             db,
             db_path,
             wallets_config,
             sign_engine,
+            rng,
+            sessions: Default::default(),
         };
         let executor =
             SyncArbiter::start(concurrency, move || executor::Executor::new(state.clone()));

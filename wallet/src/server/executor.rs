@@ -5,7 +5,7 @@ use actix::prelude::*;
 use super::*;
 
 pub struct Executor {
-    state: state::State,
+    state: types::State,
 }
 
 impl Actor for Executor {
@@ -15,11 +15,11 @@ impl Actor for Executor {
 impl Supervised for Executor {}
 
 impl Executor {
-    pub fn new(state: state::State) -> Self {
+    pub fn new(state: types::State) -> Self {
         Self { state }
     }
 
-    pub fn state(&self) -> &state::State {
+    pub fn state(&self) -> &types::State {
         &self.state
     }
 }

@@ -2,6 +2,7 @@
 //!
 //! KeyPath constant values are taken from the WIP definition:
 //! https://github.com/aesedepece/WIPs/blob/wip-adansdpc-hdwallets/wip-adansdpc-hdwallets.md#path-levels
+use super::types;
 
 /// Default offset used when returning paginated results.
 pub static DEFAULT_PAGINATION_OFFSET: u32 = 0;
@@ -11,6 +12,16 @@ pub static DEFAULT_PAGINATION_LIMIT: u32 = 25;
 
 /// Default account index used for the first account of newly-created wallet.
 pub static DEFAULT_ACCOUNT_INDEX: u32 = 0;
+
+/// Length of the random salt used when generating a session id.
+pub static ID_SALT_LENGTH: usize = 32;
+
+/// Hash iterations to use when deriving the key used for the session
+/// id and the session id.
+pub static ID_HASH_ITERATIONS: u32 = 4096;
+
+/// Hash used when generating the session id.
+pub static ID_HASH_FUNC: &types::HashFunction = &types::HashFunction::Sha256;
 
 /// Maximum limit/page-size that can be used when returning paginated
 /// results.
