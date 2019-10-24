@@ -1,4 +1,4 @@
-name: Check every push
+name: Check on every push
 
 on: [push]
 
@@ -30,14 +30,14 @@ jobs:
           sudo apt-get install -y g++-5 cmake libcurl4-openssl-dev libelf-dev libdw-dev cmake gcc binutils-dev protobuf-compiler librocksdb-dev
           just || curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git casey/just --target x86_64-unknown-linux-musl --to ~/.cargo/bin
 
-      - name: Build
-        run: cargo build --verbose
+      - name: Install formatter
+        run: rustup component add rustfmt
 
-      - name: Formatter
-        run: cargo fmt --all -- --check
-
-      - name: Tests
-        run: cargo test --all --verbose
+      - name: Run formatter
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
 
       - name: Install clippy
         run: rustup component add clippy
@@ -47,3 +47,14 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --all-features
+
+      - name: Tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all -- --check
