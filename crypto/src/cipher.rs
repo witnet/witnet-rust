@@ -1,11 +1,9 @@
 //! Cipher
 use aes::Aes256;
-//use aes_soft as aes;
 use block_modes::{block_padding::Pkcs7, BlockMode, Cbc};
 use failure::Fail;
 use rand::{rngs::OsRng, RngCore};
 
-// create an alias for convenience
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 /// Error that can be raised when encrypting/decrypting

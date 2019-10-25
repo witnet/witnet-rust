@@ -1,9 +1,9 @@
 //! Various hash functions
 
-use crypto::digest::Digest;
-use crypto::sha2;
+use digest::Digest;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use sha2;
 
 /// Enumeration of hash-function names
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -34,6 +34,6 @@ pub fn calculate_sha256(bytes: &[u8]) -> Sha256 {
     let mut hasher = sha2::Sha256::new();
     hasher.input(&bytes);
     let mut hash = [0; 32];
-    hasher.result(&mut hash);
+    hash.copy_from_slice(&hasher.result());
     Sha256(hash)
 }

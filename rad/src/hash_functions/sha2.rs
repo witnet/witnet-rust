@@ -1,14 +1,9 @@
 use crate::error::RadError;
 
-use crypto::{digest::Digest, sha2};
+use witnet_crypto::hash::calculate_sha256;
 
 pub fn sha2_256(input: &[u8]) -> Result<Vec<u8>, RadError> {
-    let mut hash_function = sha2::Sha256::new();
-    hash_function.input(input);
-    let mut digest = [0; 32];
-    hash_function.result(&mut digest);
-
-    Ok(digest.to_vec())
+    Ok(calculate_sha256(input).as_ref().to_vec())
 }
 
 #[test]
