@@ -1,11 +1,5 @@
 use super::*;
 
-pub trait Handler {
-    type Result;
-
-    fn handle(self, state: &types::State) -> Self::Result;
-}
-
 impl Handler for requests::GetWalletInfos {
     type Result = api::Result<responses::WalletInfos>;
 
@@ -52,7 +46,13 @@ impl Handler for requests::CreateWallet {
         let seed_password = state.wallets_config.seed_password.as_ref();
         let key_salt = state.wallets_config.master_key_salt.as_ref();
         let key_source = &params.seed_source;
-        let master_key = crypto::gen_master_key(seed_password, key_salt, key_source)?;
+        let master_key =
+            crypto::gen_master_key(seed_password, key_salt, key_source).map_err(|err| {
+                log::warn!("Failed to generate master key: {}", err);
+
+                let err = validation::error("seed_data", format!("Invalid seed data: {}", err));
+                api::ApiError::Validation(err)
+            })?;
 
         // Wallet default account keys.
         let account_index = constants::DEFAULT_ACCOUNT_INDEX;
@@ -121,95 +121,5 @@ impl Handler for requests::UnlockWallet {
         sessions.insert(session_id, session);
 
         Ok(response)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use types::factories::Factory as _;
-
-    #[test]
-    fn test_unlock_wallet_that_not_exists() {
-        let state = types::State::factory();
-
-        {
-            let conn = state.db.get().unwrap();
-            wallets::migrate_db(&conn).unwrap();
-        }
-
-        let request = requests::UnlockWallet {
-            wallet_id: 1,
-            password: Default::default(),
-        };
-
-        match request.handle(&state).unwrap_err() {
-            api::ApiError::Validation(err) => {
-                assert_eq!(validation::error("wallet_id", "Wallet not found"), err)
-            }
-            err => assert!(false, format!("Expected wallet not found error: {}", err)),
-        }
-    }
-
-    #[test]
-    fn test_unlock_wallet_with_wrong_password() {
-        let state = types::State::factory();
-
-        {
-            let conn = state.db.get().unwrap();
-            wallets::migrate_db(&conn).unwrap();
-            wallets::create(&conn, "wallet", None).unwrap();
-
-            let wallet_db_url = db::url(&state.db_path, "wallet");
-            let password = "123";
-            wallet::create(&wallet_db_url, password, &types::Account::factory()).unwrap();
-        }
-
-        let request = requests::UnlockWallet {
-            wallet_id: 1,
-            password: From::from("wrong password"),
-        };
-
-        match request.handle(&state).unwrap_err() {
-            api::ApiError::Validation(err) => {
-                assert_eq!(validation::error("password", "Invalid password"), err)
-            }
-            err => assert!(false, format!("Expected wallet not found error: {}", err)),
-        }
-    }
-
-    #[test]
-    fn test_unlock_wallet() {
-        let state = types::State::factory();
-        let account = types::Account::factory();
-
-        {
-            let conn = state.db.get().unwrap();
-            wallets::migrate_db(&conn).unwrap();
-            wallets::create(&conn, "wallet", None).unwrap();
-
-            let wallet_db_url = db::url(&state.db_path, "wallet");
-            let password = "123";
-            wallet::create(&wallet_db_url, password, &account).unwrap();
-        }
-
-        let request = requests::UnlockWallet {
-            wallet_id: 1,
-            password: "123".into(),
-        };
-
-        let unlocked_wallet = request.handle(&state).unwrap();
-
-        assert_eq!(
-            vec![models::AccountInfo {
-                index: account.index as i32,
-                balance: 0
-            }],
-            unlocked_wallet.accounts
-        );
-        assert_eq!(
-            constants::DEFAULT_ACCOUNT_INDEX,
-            unlocked_wallet.default_account
-        );
     }
 }

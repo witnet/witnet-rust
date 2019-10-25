@@ -45,7 +45,7 @@ impl requests::CreateWallet {
         let seed_source = match self.seed_source.as_ref() {
             "xprv" => Ok(types::SeedSource::Xprv(self.seed_data)),
             "mnemonics" => types::Mnemonic::from_phrase_ref(self.seed_data.as_ref())
-                .map_err(|err| error("seed_source", format!("{}", err)))
+                .map_err(|err| error("seed_data", format!("{}", err)))
                 .map(types::SeedSource::Mnemonic),
             _ => Err(error(
                 "seed_source",

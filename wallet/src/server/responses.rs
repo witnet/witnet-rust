@@ -19,7 +19,7 @@ pub enum RadRequestResult {
     Error(String),
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WalletId {
     pub wallet_id: i32,
