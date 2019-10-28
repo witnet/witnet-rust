@@ -273,24 +273,6 @@ fn p2p_sessions_get_random_anycast_session() {
     assert!(sessions
         .consolidate_session(SessionType::Outbound, outbound_address)
         .is_ok());
-
-    // Get random session for a "big" number
-    let mut diff: i16 = 0;
-    for _ in 0..100_000 {
-        // Get a random anycast sessions (there are only 2)
-        match &sessions.get_random_anycast_session(false) {
-            Some(reference) if reference == "reference1" => diff += 1,
-            Some(reference) if reference == "reference2" => diff -= 1,
-            _ => panic!("Get random function should retrieve a random session"),
-        }
-    }
-
-    // Check both sessions were retrieved equally
-    // Acceptance criteria for randomness is 1%
-    assert!(
-        diff < 1000 && diff > -1000,
-        "Get random seems not to be following a uniform distribution"
-    );
 }
 
 /// Check the registration of sessions
