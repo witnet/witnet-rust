@@ -181,6 +181,9 @@ impl StreamHandler<BytesMut, Error> for Session {
                                                     );
                                                 }
                                             }
+
+                                            // Stop block sending if an error occurs
+                                            break;
                                         }
                                     }
                                 }
