@@ -1,6 +1,8 @@
 name: Check every midnight
 
-on: [push]
+on:
+  schedule:
+    - cron:  '0 0 * * *'
 
 jobs:
   deps_audit:
@@ -14,18 +16,6 @@ jobs:
         uses: actions-rs/audit-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
-  e2e_stable:
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v1
-
-      - name: Run stable E2E test
-        run: |
-          just || curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git casey/just --target x86_64-unknown-linux-musl --to ~/.cargo/bin
-          just e2e-stable
 
   e2e_debug:
 
