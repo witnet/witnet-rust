@@ -28,7 +28,7 @@ impl Handler<AddItem> for InventoryManager {
             .into_actor(self)
             .map_err(|e, _, _| {
                 log::error!("Couldn't persist item in storage: {}", e);
-                InventoryManagerError::MailBoxError
+                InventoryManagerError::MailBoxError(e)
             })
             .and_then(|_, _, _| {
                 log::debug!("Successfully persisted item in storage");
@@ -52,10 +52,10 @@ impl Handler<GetItem> for InventoryManager {
             .into_actor(self)
             .map_err(|e, _, _| {
                 log::error!("Couldn't get item from storage: {}", e);
-                InventoryManagerError::MailBoxError
+                InventoryManagerError::MailBoxError(e)
             })
             .and_then(|opt, _, _| match opt {
-                None => fut::err(InventoryManagerError::ItemDoesNotExist),
+                None => fut::err(InventoryManagerError::ItemNotFound),
                 Some(item) => fut::ok(item),
             });
 

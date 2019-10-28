@@ -161,11 +161,27 @@ impl StreamHandler<BytesMut, Error> for Session {
                         future::join_all(item_requests)
                             .into_actor(self)
                             .map_err(|e, _, _| error!("Inventory request error: {}", e))
-                            .and_then(|item_responses, session, _| {
-                                for item_response in item_responses {
+                            .and_then(move |item_responses, session, _| {
+                                for (i, item_response) in item_responses.into_iter().enumerate() {
                                     match item_response {
                                         Ok(item) => send_inventory_item_msg(session, item),
-                                        Err(e) => warn!("Inventory result is error: {}", e),
+                                        Err(e) => {
+                                            // Failed to retrieve item from inventory manager
+                                            match inventory[i] {
+                                                InventoryEntry::Block(hash) => {
+                                                    warn!(
+                                                        "Inventory request: {}: block {}",
+                                                        e, hash
+                                                    );
+                                                }
+                                                InventoryEntry::Tx(hash) => {
+                                                    warn!(
+                                                        "Inventory request: {}: transaction {}",
+                                                        e, hash
+                                                    );
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
