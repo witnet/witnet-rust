@@ -16,7 +16,7 @@ toml = "0.5.3"
 partial_struct = { path = "../partial_struct" }
 serde = { version = "1.0.101", features = ["derive"] }
 directories = "2.0.2"
-rocksdb = { version = "0.12.4", optional = true }
+rocksdb = { version = "=0.12.2", optional = true }
 
 witnet_data_structures = { path = "../data_structures" }
 witnet_protected = { path = "../protected" }
