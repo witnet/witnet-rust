@@ -333,6 +333,7 @@ pub fn create_tally(
     reveals: Vec<RevealTransaction>,
 ) -> TallyTransaction {
     let reveal_reward = calculate_dr_vt_reward(dr_output);
+    let n_reveals = reveals.len() as u16;
 
     let mut outputs: Vec<ValueTransferOutput> = reveals
         .into_iter()
@@ -346,6 +347,7 @@ pub fn create_tally(
                 };
                 Some(vt_output)
             } else {
+                // TODO: Penalize dishonest nodes
                 None
             }
         })
@@ -355,7 +357,8 @@ pub fn create_tally(
     // Create tally change for the data request creator
     if dr_output.witnesses > n_honest {
         debug!("Created tally change for the data request creator");
-        let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_honest);
+        let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_honest)
+            + dr_output.reveal_fee * u64::from(dr_output.witnesses - n_reveals);
         let vt_output_change = ValueTransferOutput {
             pkh,
             value: tally_change,

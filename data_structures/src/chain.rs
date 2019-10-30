@@ -661,7 +661,10 @@ pub struct DataRequestOutput {
 
 impl DataRequestOutput {
     pub fn total_witnesses_reward(&self) -> u64 {
-        self.value - self.commit_fee - self.reveal_fee - self.tally_fee
+        self.value
+            - (self.commit_fee * u64::from(self.witnesses))
+            - (self.reveal_fee * u64::from(self.witnesses))
+            - self.tally_fee
     }
 }
 
@@ -1060,7 +1063,7 @@ impl TransactionsPool {
                         if commits.len() >= n_commits {
                             commits_vec.extend(commits.drain().map(|(_h, c)| c).take(n_commits));
 
-                            total_fee += dr_output.commit_fee;
+                            total_fee += dr_output.commit_fee * n_commits as u64;
                         } else {
                             commits.clear();
                         }
@@ -1084,9 +1087,10 @@ impl TransactionsPool {
                 Vec::with_capacity(20),
                 |mut reveals_vec, (dr_pointer, reveals)| {
                     if let Some(dr_output) = dr_pool.get_dr_output(&dr_pointer) {
+                        let n_reveals = reveals.len();
                         reveals_vec.extend(reveals.drain().map(|(_h, r)| r));
 
-                        total_fee += dr_output.reveal_fee;
+                        total_fee += dr_output.reveal_fee * n_reveals as u64;
                     }
 
                     reveals_vec

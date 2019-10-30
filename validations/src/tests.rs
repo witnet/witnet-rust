@@ -1178,48 +1178,6 @@ fn data_request_odd_value() {
 }
 
 #[test]
-fn data_request_odd_commit_value() {
-    // A data request with 2 witnesses must have an even value,
-    // because it will be divided between the 2 witnesses.
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        value: 1000,
-        commit_fee: 901,
-        witnesses: 2,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NonUniformReward {
-            witnesses: 2,
-            reward: 99
-        }
-    );
-}
-
-#[test]
-fn data_request_odd_reveal_value() {
-    // A data request with 2 witnesses must have an even value,
-    // because it will be divided between the 2 witnesses.
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        value: 1000,
-        reveal_fee: 901,
-        witnesses: 2,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NonUniformReward {
-            witnesses: 2,
-            reward: 99
-        }
-    );
-}
-
-#[test]
 fn data_request_odd_tally_value() {
     // A data request with 2 witnesses must have an even value,
     // because it will be divided between the 2 witnesses.
@@ -1242,11 +1200,11 @@ fn data_request_odd_tally_value() {
 
 #[test]
 fn data_request_invalid_value_commit_fee() {
-    // 1000 - 1000 = 0, so the witnesses get 0 reward
+    // 1000 - (500*2) = 0, so the witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
         value: 1000,
-        commit_fee: 1000,
+        commit_fee: 500,
         reveal_fee: 0,
         tally_fee: 0,
         witnesses: 2,
@@ -1264,12 +1222,12 @@ fn data_request_invalid_value_commit_fee() {
 
 #[test]
 fn data_request_invalid_value_reveal_fee() {
-    // 1000 - 1000 = 0, so the witnesses get 0 reward
+    // 1000 - (500*2) = 0, so the witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
         value: 1000,
         commit_fee: 0,
-        reveal_fee: 1000,
+        reveal_fee: 500,
         tally_fee: 0,
         witnesses: 2,
         data_request,
@@ -1308,12 +1266,12 @@ fn data_request_invalid_value_tally_fee() {
 
 #[test]
 fn data_request_invalid_all_fees() {
-    // 1000 - 250 - 250 - 500 = 0, so the witnesses get 0 reward
+    // 1000 - (125*2) - (125*2) - 500 = 0, so the witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
         value: 1000,
-        commit_fee: 250,
-        reveal_fee: 250,
+        commit_fee: 125,
+        reveal_fee: 125,
         tally_fee: 500,
         witnesses: 2,
         data_request,
@@ -1330,11 +1288,11 @@ fn data_request_invalid_all_fees() {
 
 #[test]
 fn data_request_negative_value_commit_fee() {
-    // 1000 - 1000 = 0, so the witnesses get 0 reward
+    // 1000 - (501*2) = -2, so the witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
         value: 1000,
-        commit_fee: 1001,
+        commit_fee: 501,
         reveal_fee: 0,
         tally_fee: 0,
         witnesses: 2,
@@ -1345,19 +1303,19 @@ fn data_request_negative_value_commit_fee() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoReward {
             value: 1000,
-            fees: 1001
+            fees: 1002
         },
     );
 }
 
 #[test]
 fn data_request_negative_value_reveal_fee() {
-    // 1000 - 1000 = 0, so the witnesses get 0 reward
+    // 1000 - (501*2) = -2, so the witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
         value: 1000,
         commit_fee: 0,
-        reveal_fee: 1001,
+        reveal_fee: 501,
         tally_fee: 0,
         witnesses: 2,
         data_request,
@@ -1367,14 +1325,14 @@ fn data_request_negative_value_reveal_fee() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoReward {
             value: 1000,
-            fees: 1001
+            fees: 1002
         },
     );
 }
 
 #[test]
 fn data_request_negative_value_tally_fee() {
-    // 1000 - 1001 = 0, so the witnesses get 0 reward
+    // 1000 - 1001 = -1, so the witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
         value: 1000,
@@ -1396,12 +1354,12 @@ fn data_request_negative_value_tally_fee() {
 
 #[test]
 fn data_request_negative_all_fees() {
-    // 1000 - 251 - 251 - 502 = -4, so the witnesses get 0 reward
+    // 1000 - (126*2) - (126*2) - 502 = -6, so the witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
         value: 1000,
-        commit_fee: 251,
-        reveal_fee: 251,
+        commit_fee: 126,
+        reveal_fee: 126,
         tally_fee: 502,
         witnesses: 2,
         data_request,
@@ -1411,7 +1369,7 @@ fn data_request_negative_all_fees() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoReward {
             value: 1000,
-            fees: 1004
+            fees: 1006
         },
     );
 }
@@ -2344,7 +2302,7 @@ fn reveal_valid_commitment() {
     let epoch = 0;
     let dr_output = DataRequestOutput {
         witnesses: 5,
-        reveal_fee: 100,
+        reveal_fee: 20,
         ..DataRequestOutput::default()
     };
     let dr_transaction = DRTransaction {
@@ -2391,10 +2349,8 @@ fn reveal_valid_commitment() {
         .unwrap();
     dr_pool.update_data_request_stages();
 
-    let (h, n, fee) = validate_reveal_transaction(&reveal_transaction, &dr_pool).unwrap();
-    assert_eq!(h, dr_pointer);
-    assert_eq!(n, 5);
-    assert_eq!(fee, 100);
+    let fee = validate_reveal_transaction(&reveal_transaction, &dr_pool).unwrap();
+    assert_eq!(fee, 20);
 
     // Create other reveal
     let reveal_body2 = RevealTransactionBody::new(
@@ -2423,7 +2379,7 @@ fn dr_pool_with_dr_in_tally_stage(
     let epoch = 0;
     let dr_output = DataRequestOutput {
         witnesses: 5,
-        reveal_fee: 100,
+        reveal_fee: 20,
         value: 1100,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
@@ -2492,7 +2448,7 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
     let epoch = 0;
     let dr_output = DataRequestOutput {
         witnesses: 2,
-        reveal_fee: 100,
+        reveal_fee: 50,
         value: 1100,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
@@ -2586,7 +2542,7 @@ fn tally_dr_not_tally_stage() {
     let epoch = 0;
     let dr_output = DataRequestOutput {
         witnesses: 5,
-        reveal_fee: 100,
+        reveal_fee: 20,
         value: 1100,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
@@ -2629,7 +2585,7 @@ fn tally_dr_not_tally_stage() {
     let vt_change = ValueTransferOutput {
         time_lock: 0,
         pkh: dr_pkh,
-        value: 800,
+        value: 880,
     };
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt_change]);
@@ -2723,7 +2679,7 @@ fn tally_valid() {
     let vt_change = ValueTransferOutput {
         time_lock: 0,
         pkh: dr_pkh,
-        value: 800,
+        value: 880,
     };
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt_change]);
@@ -2829,7 +2785,7 @@ fn tally_invalid_change() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidTallyChange {
             change: 1000,
-            expected_change: 800
+            expected_change: 880
         },
     );
 }

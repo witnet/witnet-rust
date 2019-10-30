@@ -278,6 +278,7 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
     let sum_fees = request
         .commit_fee
         .checked_add(request.reveal_fee)
+        .and_then(|res| res.checked_mul(request.witnesses.into()))
         .and_then(|res| res.checked_add(request.tally_fee))
         .ok_or_else(|| TransactionError::FeeOverflow)?;
 
@@ -365,8 +366,7 @@ pub fn validate_commit_transaction(
         target_hash,
     )?;
 
-    // The commit fee here is the total commit fee: the reward for the miner
-    // for including all the required commitments for this data request
+    // The commit fee here is the fee to include one commit
     Ok((dr_pointer, dr_output.witnesses, dr_output.commit_fee))
 }
 
@@ -374,7 +374,7 @@ pub fn validate_commit_transaction(
 pub fn validate_reveal_transaction(
     re_tx: &RevealTransaction,
     dr_pool: &DataRequestPool,
-) -> Result<(Hash, u16, u64), failure::Error> {
+) -> Result<u64, failure::Error> {
     // Get DataRequest information
     let dr_pointer = re_tx.body.dr_pointer;
     let dr_state = dr_pool
@@ -407,13 +407,8 @@ pub fn validate_reveal_transaction(
         return Err(TransactionError::MismatchedCommitment.into());
     }
 
-    // The reveal fee here is the total commit fee: the reward for the miner
-    // for including all the required reveals for this data request
-    Ok((
-        dr_pointer,
-        dr_state.data_request.witnesses,
-        dr_state.data_request.reveal_fee,
-    ))
+    // The reveal fee here is the fee to include one reveal
+    Ok(dr_state.data_request.reveal_fee)
 }
 
 /// Function to validate a tally transaction
@@ -485,7 +480,8 @@ pub fn validate_tally_outputs(
             // the value transfer output related to the tally change.
             let honest_witnesses = ta_tx.outputs.len() - 1;
 
-            let expected_tally_change = reveal_reward * (witnesses - honest_witnesses) as u64;
+            let expected_tally_change = reveal_reward * (witnesses - honest_witnesses) as u64
+                + dr_state.data_request.reveal_fee * (witnesses - n_reveals) as u64;
             if expected_tally_change != output.value {
                 return Err(TransactionError::InvalidTallyChange {
                     change: output.value,
@@ -639,7 +635,6 @@ pub fn validate_transaction_signature(
 struct WitnessesCount {
     current: u32,
     target: u32,
-    fee: u64,
 }
 type WitnessesCounter<S> = HashMap<Hash, WitnessesCount, S>;
 
@@ -648,13 +643,11 @@ fn increment_witnesses_counter<S: ::std::hash::BuildHasher>(
     hm: &mut WitnessesCounter<S>,
     k: &Hash,
     rf: u32,
-    fee: u64,
 ) {
     hm.entry(k.clone())
         .or_insert(WitnessesCount {
             current: 0,
             target: rf,
-            fee,
         })
         .current += 1;
 }
@@ -745,13 +738,9 @@ pub fn validate_block_transactions(
             epoch,
             epoch_constants,
         )?;
+        total_fee += fee;
 
-        increment_witnesses_counter(
-            &mut commits_number,
-            &dr_pointer,
-            u32::from(dr_witnesses),
-            fee,
-        );
+        increment_witnesses_counter(&mut commits_number, &dr_pointer, u32::from(dr_witnesses));
 
         // Add new hash to merkle tree
         let txn_hash = transaction.hash();
@@ -761,35 +750,21 @@ pub fn validate_block_transactions(
     let co_hash_merkle_root = co_mt.root();
 
     // Validate commits number and add commit fees
-    for WitnessesCount {
-        current,
-        target,
-        fee,
-    } in commits_number.values()
-    {
+    for WitnessesCount { current, target } in commits_number.values() {
         if current != target {
             return Err(BlockError::MismatchingCommitsNumber {
                 commits: *current,
                 rf: *target,
             }
             .into());
-        } else {
-            total_fee += fee;
         }
     }
 
     // Validate reveal transactions in a block
     let mut re_mt = ProgressiveMerkleTree::sha256();
-    let mut reveals_number = HashMap::new();
     for transaction in &block.txns.reveal_txns {
-        let (dr_pointer, dr_witnesses, fee) = validate_reveal_transaction(&transaction, dr_pool)?;
-
-        increment_witnesses_counter(
-            &mut reveals_number,
-            &dr_pointer,
-            u32::from(dr_witnesses),
-            fee,
-        );
+        let fee = validate_reveal_transaction(&transaction, dr_pool)?;
+        total_fee += fee;
 
         // Add new hash to merkle tree
         let txn_hash = transaction.hash();
@@ -797,11 +772,6 @@ pub fn validate_block_transactions(
         re_mt.push(Sha256(sha));
     }
     let re_hash_merkle_root = re_mt.root();
-
-    // Add reveal fees
-    for WitnessesCount { fee, .. } in reveals_number.values() {
-        total_fee += fee;
-    }
 
     // Validate tally transactions in a block
     let mut ta_mt = ProgressiveMerkleTree::sha256();
