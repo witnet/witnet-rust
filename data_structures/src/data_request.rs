@@ -378,10 +378,53 @@ mod tests {
     fn add_data_requests() -> (u32, Hash, DataRequestPool, Hash) {
         let fake_block_hash = Hash::SHA256([1; 32]);
         let epoch = 0;
-        let mut empty_info = DataRequestInfo::default();
-        empty_info.block_hash_dr_tx = Some(fake_block_hash);
+        let empty_info = DataRequestInfo {
+            block_hash_dr_tx: Some(fake_block_hash),
+            ..DataRequestInfo::default()
+        };
         let dr_transaction = DRTransaction::new(
             DRTransactionBody::new(vec![Input::default()], vec![], DataRequestOutput::default()),
+            vec![KeyedSignature::default()],
+        );
+        let dr_pointer = dr_transaction.hash();
+
+        let mut p = DataRequestPool::default();
+        p.process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &fake_block_hash,
+        )
+        .unwrap();
+
+        assert!(p.waiting_for_reveal.is_empty());
+        assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
+        assert_eq!(p.data_request_pool[&dr_pointer].info, empty_info);
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::COMMIT
+        );
+        assert!(p.to_be_stored.is_empty());
+
+        assert!(p.update_data_request_stages().is_empty());
+
+        (epoch, fake_block_hash, p, dr_transaction.hash())
+    }
+
+    fn add_data_requests_with_3_reveal_stages() -> (u32, Hash, DataRequestPool, Hash) {
+        let fake_block_hash = Hash::SHA256([1; 32]);
+        let epoch = 0;
+        let empty_info = DataRequestInfo {
+            block_hash_dr_tx: Some(fake_block_hash),
+            ..DataRequestInfo::default()
+        };
+        let dr_output = DataRequestOutput {
+            witnesses: 2,
+            extra_reveal_rounds: 2,
+            ..DataRequestOutput::default()
+        };
+        let dr_transaction = DRTransaction::new(
+            DRTransactionBody::new(vec![Input::default()], vec![], dr_output),
             vec![KeyedSignature::default()],
         );
         let dr_pointer = dr_transaction.hash();
@@ -530,6 +573,11 @@ mod tests {
     }
 
     #[test]
+    fn test_add_data_requests_with_3_reveal_stages() {
+        add_data_requests_with_3_reveal_stages();
+    }
+
+    #[test]
     fn test_from_commit_to_reveal() {
         let (epoch, fake_block_hash, p, dr_pointer) = add_data_requests();
 
@@ -543,6 +591,180 @@ mod tests {
             from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
 
         from_reveal_to_tally(fake_block_hash, p, dr_pointer);
+    }
+
+    #[test]
+    fn test_from_reveal_to_tally_3_stages_uncompleted() {
+        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
+
+        let commit_transaction = CommitTransaction::new(
+            CommitTransactionBody::new(
+                dr_pointer,
+                Hash::default(),
+                DataRequestEligibilityClaim::default(),
+            ),
+            vec![KeyedSignature::default()],
+        );
+
+        let pk2 = PublicKey {
+            compressed: 0,
+            bytes: [1; 32],
+        };
+        let commit_transaction2 = CommitTransaction::new(
+            CommitTransactionBody::new(
+                dr_pointer,
+                Hash::default(),
+                DataRequestEligibilityClaim::default(),
+            ),
+            vec![KeyedSignature {
+                signature: Signature::default(),
+                public_key: pk2,
+            }],
+        );
+
+        p.process_commit(&commit_transaction, &fake_block_hash)
+            .unwrap();
+        p.process_commit(&commit_transaction2, &fake_block_hash)
+            .unwrap();
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+
+        // Now in reveal stage 0
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            0
+        );
+
+        let reveal_transaction = RevealTransaction::new(
+            RevealTransactionBody::new(dr_pointer, vec![], PublicKeyHash::default()),
+            vec![KeyedSignature::default()],
+        );
+
+        p.process_reveal(&reveal_transaction, &fake_block_hash)
+            .unwrap();
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in reveal stage 1
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            1
+        );
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in reveal stage 2
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            2
+        );
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in tally stage
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::TALLY
+        );
+    }
+
+    #[test]
+    fn test_from_reveal_to_tally_3_stages_completed() {
+        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
+
+        let commit_transaction = CommitTransaction::new(
+            CommitTransactionBody::new(
+                dr_pointer,
+                Hash::default(),
+                DataRequestEligibilityClaim::default(),
+            ),
+            vec![KeyedSignature::default()],
+        );
+
+        let pk2 = PublicKey {
+            compressed: 0,
+            bytes: [1; 32],
+        };
+        let commit_transaction2 = CommitTransaction::new(
+            CommitTransactionBody::new(
+                dr_pointer,
+                Hash::default(),
+                DataRequestEligibilityClaim::default(),
+            ),
+            vec![KeyedSignature {
+                signature: Signature::default(),
+                public_key: pk2.clone(),
+            }],
+        );
+
+        p.process_commit(&commit_transaction, &fake_block_hash)
+            .unwrap();
+        p.process_commit(&commit_transaction2, &fake_block_hash)
+            .unwrap();
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+
+        // Now in reveal stage 0
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            0
+        );
+
+        let reveal_transaction = RevealTransaction::new(
+            RevealTransactionBody::new(dr_pointer, vec![], PublicKeyHash::default()),
+            vec![KeyedSignature::default()],
+        );
+
+        p.process_reveal(&reveal_transaction, &fake_block_hash)
+            .unwrap();
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in reveal stage 1
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            1
+        );
+
+        let reveal_transaction2 = RevealTransaction::new(
+            RevealTransactionBody::new(dr_pointer, vec![], pk2.pkh()),
+            vec![KeyedSignature {
+                signature: Signature::default(),
+                public_key: pk2.clone(),
+            }],
+        );
+        p.process_reveal(&reveal_transaction2, &fake_block_hash)
+            .unwrap();
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in tally stage
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::TALLY
+        );
     }
 
     #[test]

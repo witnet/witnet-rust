@@ -131,6 +131,7 @@ message DataRequestOutput {
     uint64 commit_fee = 5;
     uint64 reveal_fee = 6;
     uint64 tally_fee = 7;
+    uint32 extra_reveal_rounds = 8;
 }
 
 message Input {

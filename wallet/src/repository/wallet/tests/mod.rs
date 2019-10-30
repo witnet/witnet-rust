@@ -604,13 +604,9 @@ fn test_create_data_request_spends_utxos() {
     assert!(state_utxo_set.contains_key(&out_pointer));
 
     let request = types::DataRequestOutput {
-        data_request: Default::default(),
         value: 1,
         witnesses: 1,
-        backup_witnesses: 0,
-        commit_fee: 0,
-        reveal_fee: 0,
-        tally_fee: 0,
+        ..types::DataRequestOutput::default()
     };
 
     let data_req = wallet

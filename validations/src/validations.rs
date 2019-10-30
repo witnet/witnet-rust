@@ -445,7 +445,10 @@ pub fn validate_tally_transaction<'a>(
     let tally_stage = &dr_output.data_request.tally;
 
     validate_consensus(&reveals, &miner_tally, tally_stage)?;
-    validate_tally_outputs(&dr_state, &ta_tx, reveals.len())?;
+
+    //TODO: Check dishonest reveals
+    let n_dishonest_reveals = 0;
+    validate_tally_outputs(&dr_state, &ta_tx, reveals.len(), n_dishonest_reveals)?;
 
     Ok((ta_tx.outputs.iter().collect(), dr_output.tally_fee))
 }
@@ -454,9 +457,10 @@ pub fn validate_tally_outputs(
     dr_state: &DataRequestState,
     ta_tx: &TallyTransaction,
     n_reveals: usize,
+    n_dishonest_reveals: usize,
 ) -> Result<(), failure::Error> {
     let witnesses = dr_state.data_request.witnesses as usize;
-    let change_required = witnesses > n_reveals;
+    let change_required = witnesses > n_reveals || n_dishonest_reveals > 0;
 
     if change_required && (ta_tx.outputs.len() != n_reveals + 1) {
         return Err(TransactionError::WrongNumberOutputs {

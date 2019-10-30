@@ -190,9 +190,7 @@ where
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
-    use witnet_data_structures::chain::{
-        generate_unspent_outputs_pool, Hashable, PublicKey, RADRequest,
-    };
+    use witnet_data_structures::chain::{generate_unspent_outputs_pool, Hashable, PublicKey};
     use witnet_data_structures::transaction::*;
 
     // Counter used to prevent creating two transactions with the same hash
@@ -721,13 +719,9 @@ mod tests {
 
         let t1 = build_drt_tx(
             DataRequestOutput {
-                data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,
-                backup_witnesses: 0,
-                commit_fee: 0,
-                reveal_fee: 0,
-                tally_fee: 0,
+                ..DataRequestOutput::default()
             },
             0,
             &mut own_utxos,
@@ -740,13 +734,12 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         let t2 = build_drt_tx(
             DataRequestOutput {
-                data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,
-                backup_witnesses: 0,
                 commit_fee: 300,
                 reveal_fee: 400,
                 tally_fee: 100,
+                ..DataRequestOutput::default()
             },
             0,
             &mut own_utxos,
@@ -770,13 +763,9 @@ mod tests {
 
         let t1 = build_drt_tx(
             DataRequestOutput {
-                data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,
-                backup_witnesses: 0,
-                commit_fee: 0,
-                reveal_fee: 0,
-                tally_fee: 0,
+                ..DataRequestOutput::default()
             },
             0,
             &mut own_utxos,
@@ -789,13 +778,12 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         let t2 = build_drt_tx(
             DataRequestOutput {
-                data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,
-                backup_witnesses: 0,
                 commit_fee: 300,
                 reveal_fee: 400,
                 tally_fee: 100,
+                ..DataRequestOutput::default()
             },
             0,
             &mut own_utxos,
@@ -835,13 +823,9 @@ mod tests {
 
         let t1 = build_drt_tx(
             DataRequestOutput {
-                data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,
-                backup_witnesses: 0,
-                commit_fee: 0,
-                reveal_fee: 0,
-                tally_fee: 0,
+                ..DataRequestOutput::default()
             },
             0,
             &mut own_utxos,
@@ -855,13 +839,12 @@ mod tests {
         // and this account only has 1 UTXO
         let t2 = build_drt_tx(
             DataRequestOutput {
-                data_request: RADRequest::default(),
                 value: 1000,
                 witnesses: 4,
-                backup_witnesses: 0,
                 commit_fee: 300,
                 reveal_fee: 400,
                 tally_fee: 100,
+                ..DataRequestOutput::default()
             },
             0,
             &mut own_utxos,
