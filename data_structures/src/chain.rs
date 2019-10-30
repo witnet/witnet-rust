@@ -1782,6 +1782,20 @@ impl EpochConstants {
             .and_then(|x| x.checked_add(zero))
             .ok_or(EpochCalculationError::Overflow)
     }
+
+    /// Calculate the timestamp for when block mining should happen.
+    pub fn block_mining_timestamp(&self, epoch: Epoch) -> Result<i64, EpochCalculationError> {
+        let start = self.epoch_timestamp(epoch)?;
+        // TODO: analyze when should nodes start mining a block
+        // Start mining at the midpoint of the epoch
+        let seconds_before_next_epoch = self.checkpoints_period / 2;
+
+        start
+            .checked_add(i64::from(
+                self.checkpoints_period - seconds_before_next_epoch,
+            ))
+            .ok_or(EpochCalculationError::Overflow)
+    }
 }
 
 // Auxiliar functions for test
