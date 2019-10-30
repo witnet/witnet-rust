@@ -11,7 +11,7 @@ use witnet_data_structures::{
     chain::{Epoch, EpochConstants},
     error::EpochCalculationError,
 };
-use witnet_util::timestamp::{get_timestamp, get_timestamp_nanos};
+use witnet_util::timestamp::{duration_between_timestamps, get_timestamp, get_timestamp_nanos};
 
 use crate::actors::messages::{EpochNotification, EpochResult};
 use crate::config_mngr;
@@ -146,16 +146,8 @@ impl EpochManager {
                 .ok_or(EpochManagerError::Overflow)?,
         )?;
 
-        // Get number of nanoseconds remaining to the next checkpoint
-        let secs = next_checkpoint - now_secs;
-
-        // Check if number of seconds to next checkpoint is valid
-        // This number should never be negative with current implementation
-        if secs < 0 {
-            Err(EpochManagerError::Overflow)
-        } else {
-            Ok(Duration::new(secs as u64, 1_000_000_000 - now_nanos))
-        }
+        duration_between_timestamps((now_secs, now_nanos), (next_checkpoint, 0))
+            .ok_or(EpochManagerError::Overflow)
     }
     /// Method to monitor checkpoints and execute some actions on each
     fn checkpoint_monitor(&self, ctx: &mut Context<Self>) {
