@@ -3,7 +3,7 @@ use actix::prelude::*;
 
 use ansi_term::Color::Purple;
 
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 
 use std::{collections::BTreeMap, time::Duration};
 
@@ -206,7 +206,6 @@ impl EpochManager {
                 // Update last checked epoch
                 act.last_checked_epoch = Some(current_epoch);
 
-                debug!("Updated epoch in ChainManager state to #{}", current_epoch);
                 info!(
                     "{} We are now in epoch #{}",
                     Purple.bold().paint("[Checkpoints]"),
