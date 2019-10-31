@@ -15,14 +15,14 @@ use crate::actors::{
     connections_manager::ConnectionsManager,
     epoch_manager::EpochManager,
     messages::{
-        Anycast, CloseSession, GetRandomPeers, OutboundTcpConnect, PeersBeacons,
+        Anycast, CloseSession, GetEpochConstants, GetRandomPeers, OutboundTcpConnect, PeersBeacons,
         PeersSocketAddrsResult, SendGetPeers, Subscribe,
     },
     peers_manager::PeersManager,
     session::Session,
 };
 use std::collections::{HashMap, HashSet};
-use witnet_data_structures::chain::CheckpointBeacon;
+use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants};
 
 mod actor;
 mod handlers;
@@ -34,6 +34,8 @@ pub struct SessionsManager {
     sessions: Sessions<Addr<Session>>,
     // List of beacons of outbound sessions
     beacons: HashMap<SocketAddr, Option<CheckpointBeacon>>,
+    // Constants used to calculate instants in time
+    epoch_constants: Option<EpochConstants>,
 }
 
 impl SessionsManager {
@@ -157,6 +159,19 @@ impl SessionsManager {
 
         // Subscribe to all epochs with an empty payload
         epoch_manager_addr.do_send(Subscribe::to_all(ctx.address(), ()));
+
+        // Get epoch constants
+        epoch_manager_addr
+            .send(GetEpochConstants)
+            .into_actor(self)
+            .map_err(|err, _, _| {
+                error!("Failed to get epoch constants: {:?}", err);
+            })
+            .map(move |res, act, _ctx| match res {
+                Some(f) => act.epoch_constants = Some(f),
+                None => error!("Failed to get epoch constants"),
+            })
+            .wait(ctx);
     }
 
     fn send_peers_beacons(&mut self, ctx: &mut Context<Self>) {

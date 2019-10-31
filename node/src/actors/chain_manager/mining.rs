@@ -1,15 +1,13 @@
-use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture,
-};
+use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture};
 use ansi_term::Color::{White, Yellow};
 use log::{debug, error, info, warn};
 
 use futures::future::{join_all, Future};
-use std::{convert::TryFrom, time::Duration};
+use std::convert::TryFrom;
 
 use crate::{
     actors::{
-        chain_manager::{transaction_factory::sign_transaction, ChainManager},
+        chain_manager::{transaction_factory::sign_transaction, ChainManager, StateMachine},
         messages::{
             AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunTally,
         },
@@ -39,6 +37,17 @@ use witnet_validations::validations::{
 impl ChainManager {
     /// Try to mine a block
     pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) {
+        if !self.mining_enabled {
+            debug!("Mining not enabled");
+            return;
+        }
+
+        // We only want to mine in Synced state
+        if self.sm_state != StateMachine::Synced {
+            debug!("Not mining because node is not synced");
+            return;
+        }
+
         if self.current_epoch.is_none() {
             warn!("Cannot mine a block because current epoch is unknown");
 
@@ -69,8 +78,6 @@ impl ChainManager {
 
         let current_epoch = self.current_epoch.unwrap();
 
-        debug!("Periodic epoch notification received {:?}", current_epoch);
-
         // Check eligibility
         // S(H(beacon))
         let mut beacon = match self.handle(GetHighestCheckpointBeacon, ctx) {
@@ -93,105 +100,98 @@ impl ChainManager {
         // The highest checkpoint beacon should contain the current epoch
         beacon.checkpoint = current_epoch;
 
-        // FIXME (tmpolaczyk): block creation must happen after data request mining
-        // (we must wait for all the potential nodes to send their transactions)
-        // The best way would be to start mining a few seconds _before_ the epoch
-        // checkpoint, but for simplicity we just wait for 5 seconds after the checkpoint
-        ctx.run_later(Duration::from_secs(5), move |act, ctx| {
-            // Send proof of eligibility to chain manager,
-            // which will construct and broadcast the block
-            signature_mngr::vrf_prove(VrfMessage::block_mining(beacon))
-                .map_err(|e| error!("Failed to create block eligibility proof: {}", e))
-                .map(move |(vrf_proof, vrf_proof_hash)| {
-                    // invalid: vrf_hash > target_hash
-                    let target_hash = calculate_randpoe_threshold(total_identities);
-                    let proof_invalid = vrf_proof_hash > target_hash;
+        // Create a VRF proof and if eligible build block
+        signature_mngr::vrf_prove(VrfMessage::block_mining(beacon))
+            .map_err(|e| error!("Failed to create block eligibility proof: {}", e))
+            .map(move |(vrf_proof, vrf_proof_hash)| {
+                // invalid: vrf_hash > target_hash
+                let target_hash = calculate_randpoe_threshold(total_identities);
+                let proof_invalid = vrf_proof_hash > target_hash;
 
-                    debug!("Target hash: {}", target_hash);
-                    debug!("Our proof:   {}", vrf_proof_hash);
-                    if proof_invalid {
-                        debug!("No eligibility for mining");
-                        Err(())
-                    } else {
-                        info!(
-                            "{} Discovered eligibility for mining a block for epoch #{}",
-                            Yellow.bold().paint("[Mining]"),
-                            Yellow.bold().paint(beacon.checkpoint.to_string())
-                        );
-                        Ok(vrf_proof)
-                    }
-                })
-                .flatten()
-                .into_actor(act)
-                .and_then(|vrf_proof, act, _ctx| {
-                    act.create_tally_transactions()
-                        .map(|tally_transactions| (vrf_proof, tally_transactions))
-                        .into_actor(act)
-                })
-                .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
-                    let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
-
-                    // Build the block using the supplied beacon and eligibility proof
-                    let (block_header, txns) = build_block(
-                        (
-                            &mut act.transactions_pool,
-                            &act.chain_state.unspent_outputs_pool,
-                            &act.chain_state.data_request_pool,
-                        ),
-                        act.max_block_weight,
-                        beacon,
-                        eligibility_claim,
-                        &tally_transactions,
-                        act.own_pkh.unwrap_or_default(),
-                        epoch_constants,
+                debug!("Target hash: {}", target_hash);
+                debug!("Our proof:   {}", vrf_proof_hash);
+                if proof_invalid {
+                    debug!("No eligibility for mining");
+                    Err(())
+                } else {
+                    info!(
+                        "{} Discovered eligibility for mining a block for epoch #{}",
+                        Yellow.bold().paint("[Mining]"),
+                        Yellow.bold().paint(beacon.checkpoint.to_string())
                     );
+                    Ok(vrf_proof)
+                }
+            })
+            .flatten()
+            .into_actor(self)
+            .and_then(|vrf_proof, act, _ctx| {
+                act.create_tally_transactions()
+                    .map(|tally_transactions| (vrf_proof, tally_transactions))
+                    .into_actor(act)
+            })
+            .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
+                let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
 
-                    // Sign the block hash
-                    signature_mngr::sign(&block_header)
-                        .map_err(|e| error!("Couldn't sign beacon: {}", e))
-                        .map(|block_sig| Block {
-                            block_header,
-                            block_sig,
-                            txns,
-                        })
-                        .into_actor(act)
-                })
-                .and_then(move |block, act, ctx| {
-                    match validate_block(
-                        &block,
-                        current_epoch,
-                        beacon,
+                // Build the block using the supplied beacon and eligibility proof
+                let (block_header, txns) = build_block(
+                    (
+                        &mut act.transactions_pool,
                         &act.chain_state.unspent_outputs_pool,
                         &act.chain_state.data_request_pool,
-                        // The unwrap is safe because if there is no VRF context,
-                        // the actor should have stopped execution
-                        act.vrf_ctx.as_mut().unwrap(),
-                        act.chain_state.reputation_engine.as_ref().unwrap(),
-                        act.epoch_constants.unwrap(),
-                    ) {
-                        Ok(_) => {
-                            // Send AddCandidates message to self
-                            // This will run all the validations again
+                    ),
+                    act.max_block_weight,
+                    beacon,
+                    eligibility_claim,
+                    &tally_transactions,
+                    act.own_pkh.unwrap_or_default(),
+                    epoch_constants,
+                );
 
-                            let block_hash = block.hash();
-                            log::info!(
-                                "Proposed block candidate {}",
-                                Yellow.bold().paint(block_hash.to_string())
-                            );
-                            act.handle(
-                                AddCandidates {
-                                    blocks: vec![block],
-                                },
-                                ctx,
-                            );
-                        }
+                // Sign the block hash
+                signature_mngr::sign(&block_header)
+                    .map_err(|e| error!("Couldn't sign beacon: {}", e))
+                    .map(|block_sig| Block {
+                        block_header,
+                        block_sig,
+                        txns,
+                    })
+                    .into_actor(act)
+            })
+            .and_then(move |block, act, ctx| {
+                match validate_block(
+                    &block,
+                    current_epoch,
+                    beacon,
+                    &act.chain_state.unspent_outputs_pool,
+                    &act.chain_state.data_request_pool,
+                    // The unwrap is safe because if there is no VRF context,
+                    // the actor should have stopped execution
+                    act.vrf_ctx.as_mut().unwrap(),
+                    act.chain_state.reputation_engine.as_ref().unwrap(),
+                    act.epoch_constants.unwrap(),
+                ) {
+                    Ok(_) => {
+                        // Send AddCandidates message to self
+                        // This will run all the validations again
 
-                        Err(e) => error!("Error trying to mine a block: {}", e),
+                        let block_hash = block.hash();
+                        log::info!(
+                            "Proposed block candidate {}",
+                            Yellow.bold().paint(block_hash.to_string())
+                        );
+                        act.handle(
+                            AddCandidates {
+                                blocks: vec![block],
+                            },
+                            ctx,
+                        );
                     }
-                    actix::fut::ok(())
-                })
-                .wait(ctx);
-        });
+
+                    Err(e) => error!("Error trying to mine a block: {}", e),
+                }
+                actix::fut::ok(())
+            })
+            .wait(ctx);
     }
 
     /// Try to mine a data_request

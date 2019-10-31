@@ -234,6 +234,14 @@ impl Message for GetReputationStatus {
     type Result = Result<GetReputationStatusResult, failure::Error>;
 }
 
+/// Try to mine a block: signal the ChainManager to check if it can produce a new block
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TryMineBlock;
+
+impl Message for TryMineBlock {
+    type Result = ();
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////

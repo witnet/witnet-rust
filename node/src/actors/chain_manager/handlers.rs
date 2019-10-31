@@ -25,6 +25,7 @@ use crate::{
             EpochNotification, GetBalance, GetBlocksEpochRange, GetDataRequestReport,
             GetHighestCheckpointBeacon, GetReputation, GetReputationAll, GetReputationStatus,
             GetReputationStatusResult, GetState, PeersBeacons, SendLastBeacon, SessionUnitResult,
+            TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -203,12 +204,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                     // Mining
                     if self.mining_enabled {
-                        // Data race: the data requests should be sent after mining the block, otherwise
-                        // it takes 2 epochs to move from one stage to the next one
-                        self.try_mine_block(ctx);
-
+                        // Block mining is now triggered by SessionsManager on peers beacon timeout
                         // Data request mining MUST finish BEFORE the block has been mined!!!!
-                        // (The transactions must be included into this block, both the transactions from
+                        // The transactions must be included into this block, both the transactions from
                         // our node and the transactions from other nodes
                         self.try_mine_data_request(ctx);
                     }
@@ -956,5 +954,13 @@ impl Handler<GetReputationStatus> for ChainManager {
             num_active_identities,
             total_active_reputation,
         })
+    }
+}
+
+impl Handler<TryMineBlock> for ChainManager {
+    type Result = ();
+
+    fn handle(&mut self, _msg: TryMineBlock, ctx: &mut Self::Context) -> Self::Result {
+        self.try_mine_block(ctx);
     }
 }

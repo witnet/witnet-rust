@@ -1,28 +1,31 @@
 use std::{
     fmt::{Debug, Display},
     marker::Send,
+    time::Duration,
 };
 
 use actix::{
-    io::FramedWrite, Actor, ActorFuture, Context, ContextFutureSpawner, Handler, Message,
-    StreamHandler, SystemService, WrapFuture,
+    io::FramedWrite, Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler,
+    Message, StreamHandler, SystemService, WrapFuture,
 };
 use ansi_term::Color::Cyan;
 use log::{debug, error, info, trace, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use super::SessionsManager;
-use crate::actors::messages::AddPeers;
 use crate::actors::{
+    chain_manager::ChainManager,
     codec::P2PCodec,
     messages::{
-        AddConsolidatedPeer, Anycast, Broadcast, Consolidate, Create, EpochNotification,
-        NumSessions, NumSessionsResult, PeerBeacon, Register, SessionsUnitResult, Unregister,
+        AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, EpochNotification,
+        NumSessions, NumSessionsResult, PeerBeacon, Register, SessionsUnitResult, TryMineBlock,
+        Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
 };
 use witnet_p2p::sessions::SessionType;
+use witnet_util::timestamp::{duration_until_timestamp, get_timestamp};
 
 /// Handler for Create message.
 impl Handler<Create> for SessionsManager {
@@ -244,7 +247,7 @@ where
 impl Handler<EpochNotification<()>> for SessionsManager {
     type Result = ();
 
-    fn handle(&mut self, _msg: EpochNotification<()>, ctx: &mut Context<Self>) {
+    fn handle(&mut self, msg: EpochNotification<()>, ctx: &mut Context<Self>) {
         let all_ready_before = self.beacons.iter().all(|(_k, v)| v.is_some());
         if !all_ready_before {
             // Some peers sent us beacons, but not all of them
@@ -265,6 +268,37 @@ impl Handler<EpochNotification<()>> for SessionsManager {
                 .paint(self.sessions.get_num_outbound_sessions().to_string())
         );
         trace!("{:#?}", self.sessions.show_ips());
+
+        // Set timeout for receiving beacons
+        // This timeout is also used to trigger block mining
+        let timestamp_mining = self
+            .epoch_constants
+            .unwrap()
+            .block_mining_timestamp(msg.checkpoint)
+            .unwrap();
+        let duration_until_mining = if let Some(d) = duration_until_timestamp(timestamp_mining, 0) {
+            d
+        } else {
+            let timestamp_now = get_timestamp();
+            let delay = timestamp_now - timestamp_mining;
+            if delay < 0 {
+                error!("Time went backwards");
+            } else {
+                warn!(
+                    "Block mining was supposed to happen {} {} ago, but it will happen now",
+                    delay,
+                    if delay == 1 { "second" } else { "seconds" }
+                );
+            }
+
+            // Schedule mining as soon as possible, assuming that there is still
+            // enough time before the next epoch checkpoint
+            Duration::from_secs(0)
+        };
+
+        ctx.run_later(duration_until_mining, move |_act, _ctx| {
+            ChainManager::from_registry().do_send(TryMineBlock);
+        });
     }
 }
 
