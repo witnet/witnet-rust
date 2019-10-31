@@ -10,6 +10,7 @@ use ansi_term::Color::Cyan;
 
 use witnet_p2p::sessions::{SessionType, Sessions};
 
+use self::beacons::Beacons;
 use crate::actors::{
     chain_manager::ChainManager,
     connections_manager::ConnectionsManager,
@@ -21,10 +22,12 @@ use crate::actors::{
     peers_manager::PeersManager,
     session::Session,
 };
-use std::collections::{HashMap, HashSet};
-use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants};
+use failure::Fail;
+use std::collections::HashSet;
+use witnet_data_structures::chain::EpochConstants;
 
 mod actor;
+mod beacons;
 mod handlers;
 
 /// SessionsManager actor
@@ -33,9 +36,25 @@ pub struct SessionsManager {
     // Registered Sessions
     sessions: Sessions<Addr<Session>>,
     // List of beacons of outbound sessions
-    beacons: HashMap<SocketAddr, Option<CheckpointBeacon>>,
+    beacons: Beacons,
     // Constants used to calculate instants in time
     epoch_constants: Option<EpochConstants>,
+}
+
+#[derive(Debug, Fail)]
+enum NotSendingPeersBeaconsBecause {
+    #[fail(
+        display = "Not sending PeersBeacons message because it was already sent during this epoch"
+    )]
+    AlreadySent,
+    #[fail(
+        display = "Not sending PeersBeacons message because of lack of peers (still bootstrapping)"
+    )]
+    BootstrapNeeded,
+    #[fail(
+        display = "Not sending PeersBeacons message because not enough peers sent their beacons"
+    )]
+    NotEnoughBeacons,
 }
 
 impl SessionsManager {
@@ -174,34 +193,55 @@ impl SessionsManager {
             .wait(ctx);
     }
 
-    fn send_peers_beacons(&mut self, ctx: &mut Context<Self>) {
+    /// Check if we can send a PeersBeacons message, and if we can, send it
+    fn try_send_peers_beacons(
+        &mut self,
+        ctx: &mut Context<Self>,
+    ) -> Result<(), NotSendingPeersBeaconsBecause> {
+        if self.beacons.already_sent() {
+            return Err(NotSendingPeersBeaconsBecause::AlreadySent);
+        }
+
         if self.sessions.is_outbound_bootstrap_needed() {
             // Do not send PeersBeacons until we get to the outbound limit
-            debug!("PeersBeacons message delayed because of lack of peers");
-            return;
+            return Err(NotSendingPeersBeaconsBecause::BootstrapNeeded);
         }
+
+        if !self.beacons.all() {
+            return Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons);
+        }
+
+        self.send_peers_beacons(ctx);
+
+        Ok(())
+    }
+
+    /// Send PeersBeacons message to peers manager
+    fn send_peers_beacons(&mut self, ctx: &mut Context<Self>) {
+        let (pb, pnb) = match self.beacons.send() {
+            Some(x) => x,
+            None => {
+                debug!("{}", NotSendingPeersBeaconsBecause::AlreadySent);
+                return;
+            }
+        };
 
         debug!("Sending PeersBeacons message");
-        // Send message to peers manager
-        // Peers which did not send a beacon will be ignored: neither unregistered nor promoted to safu
-        let pb: Vec<_> = self
-            .beacons
-            .iter()
-            .filter_map(|(k, v)| v.map(|v| (*k, v)))
-            .collect();
+        let pb: Vec<_> = pb.iter().map(|(k, v)| (*k, *v)).collect();
+        let mut peers_to_keep: HashSet<_> = pb.iter().map(|(k, _v)| *k).collect();
 
-        if self
-            .sessions
-            .outbound_consolidated
-            .limit
-            .map(|limit| pb.len() < limit as usize)
-            .unwrap_or(true)
-        {
-            debug!("PeersBeacons message delayed because not enough peers sent their beacons");
-            return;
+        // Unregister peers that have not sent a beacon
+        for peer in pnb {
+            debug!(
+                "Unregistering peer {} because it has not sent a CheckpointBeacon",
+                peer
+            );
+            if let Some(a) = self.sessions.outbound_consolidated.collection.get(&peer) {
+                a.reference.do_send(CloseSession);
+            }
+            peers_to_keep.remove(&peer);
         }
 
-        let mut peers_to_keep: HashSet<_> = pb.iter().map(|(p, _b)| *p).collect();
         ChainManager::from_registry()
             .send(PeersBeacons { pb })
             .into_actor(self)
@@ -237,11 +277,16 @@ impl SessionsManager {
             .wait(ctx);
     }
 
+    /// Clear the received beacons, and in the next epoch wait for beacons
+    /// from all our outbound consolidated peers
     fn clear_beacons(&mut self) {
-        self.beacons.clear();
-        for socket_addr in self.sessions.outbound_consolidated.collection.keys() {
-            self.beacons.insert(*socket_addr, None);
-        }
+        self.beacons.clear(
+            self.sessions
+                .outbound_consolidated
+                .collection
+                .keys()
+                .cloned(),
+        );
     }
 }
 

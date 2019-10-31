@@ -689,6 +689,9 @@ impl Handler<PeersBeacons> for ChainManager {
                     self.sm_state = StateMachine::WaitingConsensus;
                 }
 
+                // TODO: check if we have a minimum of outbound peers here
+                // and if not, go to WainingConsensus state
+
                 let our_beacon = self.get_chain_beacon();
 
                 // We also take into account our beacon to calculate the consensus

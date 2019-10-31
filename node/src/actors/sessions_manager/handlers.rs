@@ -12,7 +12,7 @@ use ansi_term::Color::Cyan;
 use log::{debug, error, info, trace, warn};
 use tokio::{codec::FramedRead, io::AsyncRead};
 
-use super::SessionsManager;
+use super::{NotSendingPeersBeaconsBecause, SessionsManager};
 use crate::actors::{
     chain_manager::ChainManager,
     codec::P2PCodec,
@@ -248,17 +248,6 @@ impl Handler<EpochNotification<()>> for SessionsManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<()>, ctx: &mut Context<Self>) {
-        let all_ready_before = self.beacons.iter().all(|(_k, v)| v.is_some());
-        if !all_ready_before {
-            // Some peers sent us beacons, but not all of them
-            self.send_peers_beacons(ctx);
-        }
-        // New epoch, new beacons
-        // There is a race condition here: we must receive the beacons after this handler has
-        // been executed. We could avoid this by only clearing beacons from past epochs, and
-        // accepting beacons for future epochs, but that would add complexity.
-        self.clear_beacons();
-
         info!(
             "{} Inbound: {} | Outbound: {}",
             Cyan.bold().paint("[Sessions]"),
@@ -268,6 +257,14 @@ impl Handler<EpochNotification<()>> for SessionsManager {
                 .paint(self.sessions.get_num_outbound_sessions().to_string())
         );
         trace!("{:#?}", self.sessions.show_ips());
+
+        self.beacons.new_epoch();
+        // If for some reason we already have all the beacons, send message to ChainManager
+        match self.try_send_peers_beacons(ctx) {
+            Ok(()) => {}
+            Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) => {}
+            Err(e) => debug!("{}", e),
+        }
 
         // Set timeout for receiving beacons
         // This timeout is also used to trigger block mining
@@ -296,7 +293,19 @@ impl Handler<EpochNotification<()>> for SessionsManager {
             Duration::from_secs(0)
         };
 
-        ctx.run_later(duration_until_mining, move |_act, _ctx| {
+        ctx.run_later(duration_until_mining, move |act, ctx| {
+            // If some peers sent us beacons, but not all of them, the peers beacons message will be sent now
+            if let Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) =
+                act.try_send_peers_beacons(ctx)
+            {
+                // Send it even if it is incomplete, and unregister the peers which have not sent a beacon
+                act.send_peers_beacons(ctx);
+            }
+
+            // From this moment, all the received beacons are assumed to be for the next epoch
+            // This fixes a race condition where sometimes we receive a beacon just before the epoch checkpoint
+            act.clear_beacons();
+
             ChainManager::from_registry().do_send(TryMineBlock);
         });
     }
@@ -306,20 +315,15 @@ impl Handler<PeerBeacon> for SessionsManager {
     type Result = ();
 
     fn handle(&mut self, msg: PeerBeacon, ctx: &mut Context<Self>) {
-        let all_ready_before = self.beacons.iter().all(|(_k, v)| v.is_some());
-        if all_ready_before {
-            // We already got all the beacons for this epoch, do nothing
-            return;
+        if !self.beacons.insert(msg.address, msg.beacon) {
+            debug!("Unexpected beacon from {}", msg.address);
         }
 
-        if let Some(x) = self.beacons.get_mut(&msg.address) {
-            *x = Some(msg.beacon);
-        }
-
-        let all_ready_after = self.beacons.iter().all(|(_k, v)| v.is_some());
-
-        if !all_ready_before && all_ready_after {
-            self.send_peers_beacons(ctx);
+        // Check if we have all the beacons, and sent PeersBeacons message to ChainManager
+        match self.try_send_peers_beacons(ctx) {
+            Ok(()) => {}
+            Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) => {}
+            Err(e) => debug!("{}", e),
         }
     }
 }
