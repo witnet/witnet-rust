@@ -65,12 +65,19 @@ jobs:
           draft: false
           prerelease: true
 
+      - name: Create a compressed bundle
+        run: |
+          mkdir witnet-x86_64-unknown-linux-gnu
+          cp ./witnet.toml ./witnet-x86_64-unknown-linux-gnu/
+          cp ./target/release/witnet ./witnet-x86_64-unknown-linux-gnu/
+          tar -zcvf witnet-x86_64-unknown-linux-gnu.tar.gz witnet-x86_64-unknown-linux-gnu
+
       - name: Upload release assets
         uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./target/release/witnet
-          asset_name: witnet-x86_64-unknown-linux-gnu
-          asset_content_type: application/x-pie-executable
+          asset_path: witnet-x86_64-unknown-linux-gnu.tar.gz
+          asset_name: witnet-x86_64-unknown-linux-gnu.tar.gz
+          asset_content_type: application/tar+gzip
