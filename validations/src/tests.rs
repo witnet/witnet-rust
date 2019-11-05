@@ -2303,6 +2303,7 @@ fn reveal_valid_commitment() {
     let dr_output = DataRequestOutput {
         witnesses: 5,
         reveal_fee: 20,
+        extra_reveal_rounds: 2,
         ..DataRequestOutput::default()
     };
     let dr_transaction = DRTransaction {
@@ -2365,6 +2366,21 @@ fn reveal_valid_commitment() {
     assert_eq!(
         error.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedCommitment
+    );
+
+    // Include RevealTransaction in DataRequestPool
+    dr_pool
+        .process_reveal(&reveal_transaction, &fake_block_hash)
+        .unwrap();
+    dr_pool.update_data_request_stages();
+
+    // Validate trying to include a reveal previously included
+    let error = validate_reveal_transaction(&reveal_transaction, &dr_pool);
+    assert_eq!(
+        error.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::DuplicatedReveal {
+            pkh: public_key.pkh(),
+        }
     );
 }
 

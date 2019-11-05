@@ -397,6 +397,10 @@ pub fn validate_reveal_transaction(
         .into());
     }
 
+    if dr_state.info.reveals.contains_key(&pkh) {
+        return Err(TransactionError::DuplicatedReveal { pkh }.into());
+    }
+
     let commit = dr_state
         .info
         .commits

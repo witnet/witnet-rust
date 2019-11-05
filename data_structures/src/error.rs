@@ -147,6 +147,9 @@ pub enum TransactionError {
         expected, current
     )]
     TimeLock { current: i64, expected: i64 },
+    /// This reveal was already included
+    #[fail(display = "This reveal with pkh {} was already included", pkh)]
+    DuplicatedReveal { pkh: PublicKeyHash },
 }
 
 /// The error type for operations on a [`Block`](Block)
