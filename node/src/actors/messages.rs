@@ -135,7 +135,7 @@ impl Message for GetBlocksEpochRange {
 /// A list of peers and their respective last beacon, used to establish consensus
 pub struct PeersBeacons {
     /// A list of peers and their respective last beacon
-    pub pb: Vec<(SocketAddr, CheckpointBeacon)>,
+    pub pb: Vec<(SocketAddr, Option<CheckpointBeacon>)>,
 }
 
 impl Message for PeersBeacons {

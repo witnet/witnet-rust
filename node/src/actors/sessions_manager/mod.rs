@@ -227,20 +227,12 @@ impl SessionsManager {
         };
 
         debug!("Sending PeersBeacons message");
-        let pb: Vec<_> = pb.iter().map(|(k, v)| (*k, *v)).collect();
+        let pb: Vec<_> = pb
+            .iter()
+            .map(|(k, v)| (*k, Some(*v)))
+            .chain(pnb.iter().map(|k| (*k, None)))
+            .collect();
         let mut peers_to_keep: HashSet<_> = pb.iter().map(|(k, _v)| *k).collect();
-
-        // Unregister peers that have not sent a beacon
-        for peer in pnb {
-            debug!(
-                "Unregistering peer {} because it has not sent a CheckpointBeacon",
-                peer
-            );
-            if let Some(a) = self.sessions.outbound_consolidated.collection.get(&peer) {
-                a.reference.do_send(CloseSession);
-            }
-            peers_to_keep.remove(&peer);
-        }
 
         ChainManager::from_registry()
             .send(PeersBeacons { pb })

@@ -32,6 +32,7 @@ use crate::{
     storage_mngr,
     utils::mode_consensus,
 };
+use std::collections::BTreeMap;
 use witnet_util::timestamp::get_timestamp;
 
 pub const SYNCED_BANNER: &str = r"
@@ -548,25 +549,49 @@ impl Handler<PeersBeacons> for ChainManager {
             "PeersBeacons received while StateMachine is in state {:?}",
             self.sm_state
         );
+
+        // Pretty-print a map {beacon: [peers]}
+        let mut beacon_peers_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for (k, v) in pb.iter() {
+            let v = v
+                .map(|x| format!("#{} {}", x.checkpoint, x.hash_prev_block))
+                .unwrap_or_else(|| "NO BEACON".to_string());
+            beacon_peers_map.entry(v).or_default().push(k.to_string());
+        }
+        log::debug!("Received beacons: {:?}", beacon_peers_map);
+
         // Activate peers beacons index to continue synced
         self.peers_beacons_received = true;
 
         let consensus_threshold = self.consensus_c as usize;
 
+        // Run the consensus on the beacons, will return the most common beacon.
+        // We do not take into account our beacon to calculate the consensus.
+        // The beacons are Option<CheckpointBeacon>, so peers that have not
+        // sent us a beacon are counted as None. Keeping that in mind, we
+        // reach consensus as long as consensus_threshold % of peers agree.
+        // In case of tie returns None
+        let consensus = mode_consensus(pb.iter().map(|(_p, b)| b), consensus_threshold)
+            // Flatten result:
+            // None (no consensus) should be treated the same way as
+            // Some(None) (the consensus is that there is no consensus)
+            .and_then(|x| *x);
+
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // As soon as there is consensus, we set the target beacon to the consensus
                 // and set the state to Synchronizing
-
-                // Run the consensus on the beacons, will return the most common beacon
-                // In case of tie returns None
-                if let Some(consensus_beacon) =
-                    mode_consensus(pb.iter().map(|(_p, b)| b), consensus_threshold).cloned()
-                {
+                if let Some(consensus_beacon) = consensus {
                     // Consensus: unregister peers which have a different beacon
                     let peers_out_of_consensus = pb
                         .into_iter()
-                        .filter_map(|(p, b)| if b != consensus_beacon { Some(p) } else { None })
+                        .filter_map(|(p, b)| {
+                            if b != Some(consensus_beacon) {
+                                Some(p)
+                            } else {
+                                None
+                            }
+                        })
                         .collect();
                     self.target_beacon = Some(consensus_beacon);
 
@@ -632,20 +657,23 @@ impl Handler<PeersBeacons> for ChainManager {
                     Ok(peers_out_of_consensus)
                 } else {
                     // No consensus: unregister all peers
+                    log::warn!("No consensus: unregister all peers");
                     let all_peers = pb.into_iter().map(|(p, _b)| p).collect();
                     Ok(all_peers)
                 }
             }
             StateMachine::Synchronizing => {
-                // Run the consensus on the beacons, will return the most common beacon
-                // In case of tie returns None
-                if let Some(consensus_beacon) =
-                    mode_consensus(pb.iter().map(|(_p, b)| b), consensus_threshold).cloned()
-                {
+                if let Some(consensus_beacon) = consensus {
                     // List peers that announced a beacon out of consensus
                     let peers_out_of_consensus = pb
                         .into_iter()
-                        .filter_map(|(p, b)| if b != consensus_beacon { Some(p) } else { None })
+                        .filter_map(|(p, b)| {
+                            if b != Some(consensus_beacon) {
+                                Some(p)
+                            } else {
+                                None
+                            }
+                        })
                         .collect();
                     self.target_beacon = Some(consensus_beacon);
 
@@ -676,6 +704,7 @@ impl Handler<PeersBeacons> for ChainManager {
                     Ok(peers_out_of_consensus)
                 } else {
                     // No consensus: unregister all peers
+                    log::warn!("No consensus: unregister all peers");
                     let all_peers = pb.into_iter().map(|(p, _b)| p).collect();
                     Ok(all_peers)
                 }
@@ -683,27 +712,18 @@ impl Handler<PeersBeacons> for ChainManager {
             StateMachine::Synced => {
                 // If we are synced and the consensus beacon is not the same as our beacon, then
                 // we need to rewind one epoch
-
                 if pb.is_empty() {
-                    log::warn!("[CONSENSUS]: We have zero outbound peers");
+                    log::warn!("[CONSENSUS]: We have not received any beacons for this epoch");
                     self.sm_state = StateMachine::WaitingConsensus;
                 }
 
-                // TODO: check if we have a minimum of outbound peers here
-                // and if not, go to WainingConsensus state
-
                 let our_beacon = self.get_chain_beacon();
-
-                // We also take into account our beacon to calculate the consensus
-                let consensus_beacon =
-                    mode_consensus(pb.iter().map(|(_p, b)| b), consensus_threshold).cloned();
-
-                match consensus_beacon {
+                match consensus {
                     Some(a) if a == our_beacon => {
                         // Consensus: unregister peers which have a different beacon
                         let peers_out_of_consensus = pb
                             .into_iter()
-                            .filter_map(|(p, b)| if b != our_beacon { Some(p) } else { None })
+                            .filter_map(|(p, b)| if b != Some(our_beacon) { Some(p) } else { None })
                             .collect();
 
                         Ok(peers_out_of_consensus)
@@ -713,13 +733,13 @@ impl Handler<PeersBeacons> for ChainManager {
                         // Unregister peers that announced a beacon out of consensus
                         let peers_out_of_consensus = pb
                             .into_iter()
-                            .filter_map(|(p, b)| if b != a { Some(p) } else { None })
+                            .filter_map(|(p, b)| if b != Some(a) { Some(p) } else { None })
                             .collect();
 
                         log::warn!(
                             "[CONSENSUS]: We are on {:?} but the network is on {:?}",
                             our_beacon,
-                            consensus_beacon
+                            consensus
                         );
 
                         self.initialize_from_storage(ctx);
