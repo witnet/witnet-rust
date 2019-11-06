@@ -37,7 +37,7 @@ env:
     - RUST_BACKTRACE="1"
 
 before_script:
-  - just || curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git casey/just --target x86_64-unknown-linux-musl --to ~/.cargo/bin
+  - which just || curl -LSfs https://japaric.github.io/trust/install.sh | sh -s -- --git casey/just --target x86_64-unknown-linux-musl --to ~/.cargo/bin
 
 script:
   - just ci
