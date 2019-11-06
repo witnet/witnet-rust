@@ -207,6 +207,17 @@ impl SessionsManager {
             return Err(NotSendingPeersBeaconsBecause::BootstrapNeeded);
         }
 
+        // We may have 0 beacons out of 0
+        // We actually want to check it against the outbound limit
+        let expected_peers = self
+            .sessions
+            .outbound_consolidated
+            .limit
+            .map(|x| x as usize);
+        if Some(self.beacons.total_count()) != expected_peers {
+            return Err(NotSendingPeersBeaconsBecause::BootstrapNeeded);
+        }
+
         if !self.beacons.all() {
             return Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons);
         }

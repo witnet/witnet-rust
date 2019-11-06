@@ -29,6 +29,12 @@ impl Beacons {
         self.peers_not_beacon.is_empty()
     }
 
+    /// Return number of peers which have sent us a beacon, or are expected to
+    /// send it to us
+    pub fn total_count(&self) -> usize {
+        self.peers_with_beacon.len() + self.peers_not_beacon.len()
+    }
+
     /// Clear the existing lists of peers and start waiting for the new ones
     pub fn clear<I: IntoIterator<Item = SocketAddr>>(&mut self, peers: I) {
         self.peers_not_beacon.clear();
