@@ -398,7 +398,7 @@ pub fn validate_reveal_transaction(
     }
 
     if dr_state.info.reveals.contains_key(&pkh) {
-        return Err(TransactionError::DuplicatedReveal { pkh }.into());
+        return Err(TransactionError::DuplicatedReveal { pkh, dr_pointer }.into());
     }
 
     let commit = dr_state
@@ -736,6 +736,7 @@ pub fn validate_block_transactions(
     let mut co_mt = ProgressiveMerkleTree::sha256();
     let mut commits_number = HashMap::new();
     let block_beacon = block.block_header.beacon;
+    let mut commit_hs = HashSet::with_capacity(block.txns.commit_txns.len());
     for transaction in &block.txns.commit_txns {
         let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(
             &transaction,
@@ -746,6 +747,13 @@ pub fn validate_block_transactions(
             epoch,
             epoch_constants,
         )?;
+
+        // Validation for only one commit for pkh/data request in a block
+        let pkh = transaction.body.proof.proof.pkh();
+        if !commit_hs.insert((dr_pointer, pkh)) {
+            return Err(TransactionError::DuplicatedCommit { pkh, dr_pointer }.into());
+        }
+
         total_fee += fee;
 
         increment_witnesses_counter(&mut commits_number, &dr_pointer, u32::from(dr_witnesses));
@@ -770,8 +778,17 @@ pub fn validate_block_transactions(
 
     // Validate reveal transactions in a block
     let mut re_mt = ProgressiveMerkleTree::sha256();
+    let mut reveal_hs = HashSet::with_capacity(block.txns.reveal_txns.len());
     for transaction in &block.txns.reveal_txns {
         let fee = validate_reveal_transaction(&transaction, dr_pool)?;
+
+        // Validation for only one reveal for pkh/data request in a block
+        let pkh = transaction.body.pkh;
+        let dr_pointer = transaction.body.dr_pointer;
+        if !reveal_hs.insert((dr_pointer, pkh)) {
+            return Err(TransactionError::DuplicatedReveal { pkh, dr_pointer }.into());
+        }
+
         total_fee += fee;
 
         // Add new hash to merkle tree
@@ -783,8 +800,16 @@ pub fn validate_block_transactions(
 
     // Validate tally transactions in a block
     let mut ta_mt = ProgressiveMerkleTree::sha256();
+    let mut tally_hs = HashSet::with_capacity(block.txns.tally_txns.len());
     for transaction in &block.txns.tally_txns {
         let (outputs, fee) = validate_tally_transaction(transaction, dr_pool)?;
+
+        // Validation for only one tally for data request in a block
+        let dr_pointer = transaction.dr_pointer;
+        if !tally_hs.insert(dr_pointer) {
+            return Err(TransactionError::DuplicatedTally { dr_pointer }.into());
+        }
+
         total_fee += fee;
 
         update_utxo_diff(&mut utxo_diff, vec![], outputs, transaction.hash());

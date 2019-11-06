@@ -147,9 +147,30 @@ pub enum TransactionError {
         expected, current
     )]
     TimeLock { current: i64, expected: i64 },
+    /// This commit was already included
+    #[fail(
+        display = "Commit with pkh {} was already included for the data request {}",
+        pkh, dr_pointer
+    )]
+    DuplicatedCommit {
+        pkh: PublicKeyHash,
+        dr_pointer: Hash,
+    },
     /// This reveal was already included
-    #[fail(display = "This reveal with pkh {} was already included", pkh)]
-    DuplicatedReveal { pkh: PublicKeyHash },
+    #[fail(
+        display = "Reveal with pkh {} was already included for the data request {}",
+        pkh, dr_pointer
+    )]
+    DuplicatedReveal {
+        pkh: PublicKeyHash,
+        dr_pointer: Hash,
+    },
+    /// This tally was already included
+    #[fail(
+        display = "Tally was already included for the data request {}",
+        dr_pointer
+    )]
+    DuplicatedTally { dr_pointer: Hash },
 }
 
 /// The error type for operations on a [`Block`](Block)

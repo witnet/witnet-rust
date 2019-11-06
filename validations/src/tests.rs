@@ -2380,6 +2380,7 @@ fn reveal_valid_commitment() {
         error.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DuplicatedReveal {
             pkh: public_key.pkh(),
+            dr_pointer,
         }
     );
 }
@@ -2465,7 +2466,9 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
     let dr_output = DataRequestOutput {
         witnesses: 2,
         reveal_fee: 50,
-        value: 1100,
+        commit_fee: 50,
+        tally_fee: 100,
+        value: 1300,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -2974,8 +2977,14 @@ static MILLION_TX_OUTPUT: &str =
 
 static LAST_BLOCK_HASH: &str = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41";
 
-fn test_block<F: FnMut(&mut Block) -> bool>(mut mut_block: F) -> Result<(), failure::Error> {
-    let dr_pool = DataRequestPool::default();
+fn test_block<F: FnMut(&mut Block) -> bool>(mut_block: F) -> Result<(), failure::Error> {
+    test_block_with_drpool(mut_block, DataRequestPool::default())
+}
+
+fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
+    mut mut_block: F,
+    dr_pool: DataRequestPool,
+) -> Result<(), failure::Error> {
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
     let mut utxo_set = UnspentOutputsPool::default();
@@ -3358,6 +3367,259 @@ fn block_add_vtt_but_dont_update_merkle_tree() {
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
         BlockError::NotValidMerkleTree,
+    );
+}
+
+#[test]
+fn block_duplicated_commits() {
+    let mut dr_pool = DataRequestPool::default();
+    let vrf = &mut VrfCtx::secp256k1().unwrap();
+
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
+    let current_epoch = 1000;
+    let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
+    let block_beacon = CheckpointBeacon {
+        checkpoint: current_epoch,
+        hash_prev_block: last_block_hash,
+    };
+    // Add commits
+    let commit_beacon = block_beacon;
+
+    let dro = DataRequestOutput {
+        value: 1000,
+        commit_fee: 50,
+        witnesses: 2,
+        data_request: example_data_request(),
+        ..DataRequestOutput::default()
+    };
+    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let drs = sign_t(&dr_body);
+    let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
+    let dr_hash = dr_transaction.hash();
+    let dr_epoch = 0;
+    dr_pool
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
+        .unwrap();
+
+    // Insert valid proof
+    let mut cb = CommitTransactionBody::default();
+    cb.dr_pointer = dr_hash;
+    cb.proof =
+        DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+    // Sign commitment
+    let cs = sign_t(&cb);
+    let c_tx = CommitTransaction::new(cb.clone(), vec![cs]);
+
+    let mut cb2 = CommitTransactionBody::default();
+    cb2.dr_pointer = cb.dr_pointer;
+    cb2.proof = cb.proof;
+    cb2.commitment = Hash::SHA256([1; 32]);
+    let cs2 = sign_t(&cb2);
+    let c2_tx = CommitTransaction::new(cb2, vec![cs2]);
+
+    assert_ne!(c_tx.hash(), c2_tx.hash());
+
+    let x = test_block_with_drpool(
+        |b| {
+            // We include two commits with same pkh and dr_pointer
+            b.txns.commit_txns.push(c_tx.clone());
+            b.txns.commit_txns.push(c2_tx.clone());
+
+            b.txns.mint = MintTransaction::new(
+                b.txns.mint.epoch,
+                ValueTransferOutput {
+                    time_lock: 0,
+                    value: b.txns.mint.output.value + 100, // reveal_fee is 50*2
+                    ..b.txns.mint.output
+                },
+            );
+
+            build_merkle_tree(&mut b.block_header, &b.txns);
+
+            true
+        },
+        dr_pool,
+    );
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::DuplicatedCommit {
+            pkh: c_tx.body.proof.proof.pkh(),
+            dr_pointer: dr_hash,
+        },
+    );
+}
+
+#[test]
+fn block_duplicated_reveals() {
+    let mut dr_pool = DataRequestPool::default();
+    let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
+
+    // Add commits
+    let dro = DataRequestOutput {
+        value: 1100,
+        witnesses: 2,
+        reveal_fee: 50,
+        data_request: example_data_request(),
+        ..DataRequestOutput::default()
+    };
+    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let drs = sign_t(&dr_body);
+    let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
+    let dr_hash = dr_transaction.hash();
+    let dr_epoch = 0;
+    dr_pool
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
+        .unwrap();
+
+    // Hack: get public key by signing an empty transaction
+    let public_key = sign_t(&RevealTransactionBody::default()).public_key.clone();
+    let public_key2 = sign_t2(&RevealTransactionBody::default())
+        .public_key
+        .clone();
+
+    let dr_pointer = dr_hash;
+
+    // Create Reveal and Commit
+    // Reveal = empty array
+    let reveal_value = vec![0x00];
+    let reveal_body =
+        RevealTransactionBody::new(dr_pointer, reveal_value.clone(), public_key.pkh());
+    let reveal_signature = sign_t(&reveal_body);
+    let commitment = reveal_signature.signature.hash();
+
+    let commit_transaction = CommitTransaction::new(
+        CommitTransactionBody::new(
+            dr_pointer,
+            commitment,
+            DataRequestEligibilityClaim::default(),
+        ),
+        vec![KeyedSignature {
+            signature: Signature::default(),
+            public_key: public_key.clone(),
+        }],
+    );
+    let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
+
+    let reveal_body2 = RevealTransactionBody::new(dr_pointer, reveal_value, public_key2.pkh());
+    let reveal_signature2 = sign_t2(&reveal_body2);
+    let commitment2 = reveal_signature2.signature.hash();
+
+    let commit_transaction2 = CommitTransaction::new(
+        CommitTransactionBody::new(
+            dr_pointer,
+            commitment2,
+            DataRequestEligibilityClaim::default(),
+        ),
+        vec![KeyedSignature {
+            signature: Signature::default(),
+            public_key: public_key2.clone(),
+        }],
+    );
+
+    // Include CommitTransaction in DataRequestPool
+    dr_pool
+        .process_commit(&commit_transaction, &last_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction2, &last_block_hash)
+        .unwrap();
+    dr_pool.update_data_request_stages();
+
+    let x = test_block_with_drpool(
+        |b| {
+            // We include two reveals with same pkh and dr_pointer
+            b.txns.reveal_txns.push(reveal_transaction.clone());
+            b.txns.reveal_txns.push(reveal_transaction.clone());
+
+            b.txns.mint = MintTransaction::new(
+                b.txns.mint.epoch,
+                ValueTransferOutput {
+                    time_lock: 0,
+                    value: b.txns.mint.output.value + 100, // reveal_fee is 50*2
+                    ..b.txns.mint.output
+                },
+            );
+
+            build_merkle_tree(&mut b.block_header, &b.txns);
+
+            true
+        },
+        dr_pool,
+    );
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::DuplicatedReveal {
+            pkh: reveal_transaction.body.pkh,
+            dr_pointer,
+        },
+    );
+}
+
+#[test]
+fn block_duplicated_tallies() {
+    let reveal_value = vec![0x00];
+    let (dr_pool, dr_pointer, pkh, pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
+
+    // Tally value: [integer(0), integer(0)]
+    let tally_value = vec![0x82, 0x00, 0x00];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh,
+        value: 500,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: pkh2,
+        value: 500,
+    };
+    let tally_transaction = TallyTransaction::new(
+        dr_pointer,
+        tally_value.clone(),
+        vec![vt0.clone(), vt1.clone()],
+    );
+    let tally_transaction2 = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt1, vt0]);
+
+    assert_ne!(tally_transaction.hash(), tally_transaction2.hash());
+
+    let x = test_block_with_drpool(
+        |b| {
+            // We include two tallies with same dr_pointer
+            b.txns.tally_txns.push(tally_transaction.clone());
+            b.txns.tally_txns.push(tally_transaction2.clone());
+
+            b.txns.mint = MintTransaction::new(
+                b.txns.mint.epoch,
+                ValueTransferOutput {
+                    time_lock: 0,
+                    value: b.txns.mint.output.value + 100, // tally_fee is 100
+                    ..b.txns.mint.output
+                },
+            );
+
+            build_merkle_tree(&mut b.block_header, &b.txns);
+
+            true
+        },
+        dr_pool,
+    );
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::DuplicatedTally { dr_pointer },
     );
 }
 
