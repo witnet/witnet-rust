@@ -10,7 +10,7 @@ services:
     ports:
       - "21337-22336:21337"
     volumes:
-      - "$PWD:/witnet:ro"
+      - "$PWD:/witnet"
   tester:
     image: witnet/python-tester
     command: ["${TEST_NAME:-example}.py"]

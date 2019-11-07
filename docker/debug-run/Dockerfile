@@ -19,5 +19,8 @@ EXPOSE 11212
 # Set entry point (always gets executed)
 ENTRYPOINT ["/witnet/target/debug/witnet"]
 
+# Set working directory
+WORKDIR /witnet
+
 # Set default command (can be overriden)
 CMD ["-c", "/witnet/witnet.toml", "node", "server"]
