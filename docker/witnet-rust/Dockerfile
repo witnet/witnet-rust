@@ -25,4 +25,4 @@ RUN ["chmod", "+x", "./runner.sh"]
 ENTRYPOINT ["./runner.sh"]
 
 # Set default command (can be overriden)
-CMD ["latest", "node"]
+CMD ["latest", "node", "server"]

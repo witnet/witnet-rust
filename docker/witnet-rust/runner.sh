@@ -5,8 +5,8 @@ COMPONENT=$2
 shift
 shift
 
-if [ "$VERSION" == "latest" ]; then
-    VERSION=`curl https://github.com/witnet/witnet-rust/releases/latest --cacert /etc/ssl/certs/ca-certificates.crt 2>/dev/null | egrep -o "[0-9|\.]{5}"`
+if [[ "$VERSION" == "latest" ]]; then
+    VERSION=`curl https://github.com/witnet/witnet-rust/releases/latest --cacert /etc/ssl/certs/ca-certificates.crt 2>/dev/null | egrep -o "[0-9|\.]{5}(-rc[0-9]+)?"`
 fi
 
 TRIPLET=`bash --version | head -1 | sed -En 's/^.*\ \((.+)-(.+)-(.+)\)$/\1-\2-\3/p'`
@@ -21,8 +21,8 @@ FILENAME="$VERSION.tar.gz"
 FOLDERNAME="."
 
 echo "Downloading 'witnet-$VERSION-$TRIPLET.tar.gz'. It may take a few seconds..."
-curl -L $URL -o /tmp/$FILENAME --cacert /etc/ssl/certs/ca-certificates.crt >/dev/null 2>&1 &&
-tar -zxf /tmp/$FILENAME --directory $FOLDERNAME >/dev/null 2>&1 &&
+curl -L $URL -o /tmp/${FILENAME} --cacert /etc/ssl/certs/ca-certificates.crt >/dev/null 2>&1 &&
+tar -zxf /tmp/${FILENAME} --directory ${FOLDERNAME} >/dev/null 2>&1 &&
 chmod +x $FOLDERNAME/witnet &&
-$FOLDERNAME/witnet $COMPONENT $@ ||
+${FOLDERNAME}/witnet ${COMPONENT} $@ ||
 echo "Error downloading and running a witnet-rust $COMPONENT on version $VERSION for $TRIPLET"
