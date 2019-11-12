@@ -706,6 +706,9 @@ impl Handler<PeersBeacons> for ChainManager {
                     // No consensus: unregister all peers
                     log::warn!("No consensus: unregister all peers");
                     let all_peers = pb.into_iter().map(|(p, _b)| p).collect();
+                    // Move to waiting consensus stage
+                    self.sm_state = StateMachine::WaitingConsensus;
+
                     Ok(all_peers)
                 }
             }
