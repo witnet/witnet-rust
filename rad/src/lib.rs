@@ -1,7 +1,5 @@
 //! # RAD Engine
 
-use std::convert::TryInto;
-
 use reqwest;
 
 use crate::error::RadError;
@@ -53,29 +51,19 @@ pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
 pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
-) -> Result<Vec<u8>> {
-    log::debug!("run_aggregation: {:?}", radon_types_vec);
+) -> Result<RadonTypes> {
     let radon_script = unpack_radon_script(aggregate.script.as_slice())?;
+    let items_to_aggregate = RadonTypes::from(RadonArray::from(radon_types_vec));
 
-    let radon_array = RadonArray::from(radon_types_vec);
-
-    let rad_aggregation: RadonTypes =
-        execute_radon_script(RadonTypes::from(radon_array), &radon_script)?;
-
-    log::debug!("aggregation result: {:?}", rad_aggregation);
-
-    rad_aggregation.try_into().map_err(Into::into)
+    execute_radon_script(items_to_aggregate, &radon_script)
 }
 
 /// Run tally stage of a data request.
-pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<Vec<u8>> {
+pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
     let radon_script = unpack_radon_script(consensus.script.as_slice())?;
+    let items_to_tally = RadonTypes::from(RadonArray::from(radon_types_vec));
 
-    let radon_array = RadonArray::from(radon_types_vec);
-
-    let rad_tally: RadonTypes = execute_radon_script(RadonTypes::from(radon_array), &radon_script)?;
-
-    rad_tally.try_into().map_err(Into::into)
+    execute_radon_script(items_to_tally, &radon_script)
 }
 
 #[test]
@@ -111,20 +99,22 @@ fn test_run_consensus_and_aggregation() {
 
     let packed_script = vec![129, 130, 24, 87, 3];
 
-    let expected = RadonTypes::Float(RadonFloat::from(2f64)).try_into();
+    let expected = RadonTypes::Float(RadonFloat::from(2f64));
 
     let output_aggregate = run_aggregation(
         radon_types_vec.clone(),
         &RADAggregate {
             script: packed_script.clone(),
         },
-    );
+    )
+    .unwrap();
     let output_tally = run_tally(
         radon_types_vec,
         &RADTally {
             script: packed_script,
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output_aggregate, expected);
     assert_eq!(output_tally, expected);
@@ -153,8 +143,6 @@ fn test_run_retrieval_random_api() {
 
 #[test]
 fn test_run_all_risk_premium() {
-    use std::convert::TryFrom;
-
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
         url: "https://wrapapi.com/use/aesedepece/ffzz/prima/0.0.3?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
@@ -169,14 +157,8 @@ fn test_run_all_risk_premium() {
     };
 
     let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
-    let aggregated = RadonTypes::try_from(
-        run_aggregation(vec![retrieved], &aggregate)
-            .unwrap()
-            .as_slice(),
-    )
-    .unwrap();
-    let tallied =
-        RadonTypes::try_from(run_tally(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
+    let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
+    let tallied = run_tally(vec![aggregated], &tally).unwrap();
 
     match tallied {
         RadonTypes::Boolean(_) => {}
@@ -186,8 +168,6 @@ fn test_run_all_risk_premium() {
 
 #[test]
 fn test_run_all_murders() {
-    use std::convert::TryFrom;
-
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
         url: "https://wrapapi.com/use/aesedepece/ffzz/murders/0.0.2?wrapAPIKey=ql4DVWylABdXCpt1NUTLNEDwPH57aHGm".to_string(),
@@ -202,14 +182,8 @@ fn test_run_all_murders() {
     };
 
     let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
-    let aggregated = RadonTypes::try_from(
-        run_aggregation(vec![retrieved], &aggregate)
-            .unwrap()
-            .as_slice(),
-    )
-    .unwrap();
-    let tallied =
-        RadonTypes::try_from(run_tally(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
+    let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
+    let tallied = run_tally(vec![aggregated], &tally).unwrap();
 
     match tallied {
         RadonTypes::Boolean(_) => {}
@@ -219,8 +193,6 @@ fn test_run_all_murders() {
 
 #[test]
 fn test_run_all_air_quality() {
-    use std::convert::TryFrom;
-
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
         url: "http://airemadrid.herokuapp.com/api/estacion".to_string(),
@@ -239,14 +211,8 @@ fn test_run_all_air_quality() {
     };
 
     let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
-    let aggregated = RadonTypes::try_from(
-        run_aggregation(vec![retrieved], &aggregate)
-            .unwrap()
-            .as_slice(),
-    )
-    .unwrap();
-    let tallied =
-        RadonTypes::try_from(run_tally(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
+    let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
+    let tallied = run_tally(vec![aggregated], &tally).unwrap();
 
     match tallied {
         RadonTypes::Boolean(_) => {}
@@ -257,7 +223,6 @@ fn test_run_all_air_quality() {
 #[test]
 fn test_run_all_elections() {
     use crate::types::RadonType;
-    use std::convert::TryFrom;
 
     let retrieve = RADRetrieve {
         kind: RADType::HttpGet,
@@ -273,14 +238,8 @@ fn test_run_all_elections() {
     };
 
     let retrieved = run_retrieval_with_data(&retrieve, response.to_string()).unwrap();
-    let aggregated = RadonTypes::try_from(
-        run_aggregation(vec![retrieved], &aggregate)
-            .unwrap()
-            .as_slice(),
-    )
-    .unwrap();
-    let tallied =
-        RadonTypes::try_from(run_tally(vec![aggregated], &tally).unwrap().as_slice()).unwrap();
+    let aggregated = run_aggregation(vec![retrieved], &aggregate).unwrap();
+    let tallied = run_tally(vec![aggregated], &tally).unwrap();
 
     match tallied {
         RadonTypes::Float(radon_float) => {
