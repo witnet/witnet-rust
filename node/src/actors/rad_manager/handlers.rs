@@ -1,6 +1,6 @@
 //! Message handlers for `RadManager`
 use actix::{Handler, Message};
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use witnet_rad as rad;
 use witnet_rad::types::RadonTypes;
 
@@ -25,7 +25,7 @@ impl Handler<ResolveRA> for RadManager {
             })
             .collect();
 
-        rad::run_aggregation(retrieve_responses, &aggregate_script)
+        rad::run_aggregation(retrieve_responses, &aggregate_script).and_then(TryInto::try_into)
     }
 }
 
@@ -41,6 +41,6 @@ impl Handler<RunTally> for RadManager {
             .filter_map(|input| RadonTypes::try_from(input.as_slice()).ok())
             .collect();
 
-        rad::run_tally(radon_types_vec, &packed_script)
+        rad::run_tally(radon_types_vec, &packed_script).and_then(TryInto::try_into)
     }
 }
