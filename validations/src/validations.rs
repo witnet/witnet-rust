@@ -9,19 +9,18 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
-use witnet_data_structures::chain::EpochConstants;
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
-        DataRequestState, Epoch, Hash, Hashable, Input, KeyedSignature, OutputPointer,
-        PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine, UnspentOutputsPool,
-        ValueTransferOutput,
+        DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature,
+        OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine,
+        UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{calculate_dr_vt_reward, true_revealer, DataRequestPool},
     error::{BlockError, DataRequestError, TransactionError},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
-        VTTransaction,
+        Transaction, VTTransaction,
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
@@ -927,6 +926,52 @@ pub fn validate_candidate(
         block.block_header.beacon,
         target_hash,
     )
+}
+
+/// Validate a standalone transaction received from the network
+pub fn validate_new_transaction(
+    transaction: Transaction,
+    (reputation_engine, unspent_outputs_pool, data_request_pool): (
+        &ReputationEngine,
+        &UnspentOutputsPool,
+        &DataRequestPool,
+    ),
+    current_block_hash: Hash,
+    current_epoch: Epoch,
+    epoch_constants: EpochConstants,
+    vrf_ctx: &mut VrfCtx,
+) -> Result<(), failure::Error> {
+    let utxo_diff = UtxoDiff::new(&unspent_outputs_pool);
+
+    match transaction {
+        Transaction::ValueTransfer(tx) => {
+            validate_vt_transaction(&tx, &utxo_diff, current_epoch, epoch_constants).map(|_| ())
+        }
+
+        Transaction::DataRequest(tx) => {
+            validate_dr_transaction(&tx, &utxo_diff, current_epoch, epoch_constants).map(|_| ())
+        }
+        Transaction::Commit(tx) => {
+            // We need a checkpoint beacon with the current epoch and the hash of the previous block
+            let dr_beacon = CheckpointBeacon {
+                hash_prev_block: current_block_hash,
+                checkpoint: current_epoch,
+            };
+
+            validate_commit_transaction(
+                &tx,
+                &data_request_pool,
+                dr_beacon,
+                vrf_ctx,
+                &reputation_engine,
+                current_epoch,
+                epoch_constants,
+            )
+            .map(|_| ())
+        }
+        Transaction::Reveal(tx) => validate_reveal_transaction(&tx, &data_request_pool).map(|_| ()),
+        _ => Err(TransactionError::NotValidTransaction.into()),
+    }
 }
 
 pub fn calculate_randpoe_threshold(total_identities: u32) -> Hash {

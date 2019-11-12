@@ -8,13 +8,10 @@ use witnet_data_structures::{
         ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch, Hash, Hashable,
         InventoryItem, PublicKeyHash, Reputation,
     },
-    error::{ChainInfoError, TransactionError, TransactionError::DataRequestNotFound},
+    error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
-use witnet_validations::validations::{
-    compare_blocks, validate_block, validate_commit_transaction, validate_dr_transaction,
-    validate_rad_request, validate_reveal_transaction, validate_vt_transaction, UtxoDiff,
-};
+use witnet_validations::validations::{compare_blocks, validate_block, validate_rad_request};
 
 use super::{ChainManager, ChainManagerError, StateMachine};
 use crate::{
@@ -374,147 +371,7 @@ impl Handler<AddTransaction> for ChainManager {
     type Result = Result<(), failure::Error>;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) -> Self::Result {
-        log::debug!(
-            "AddTransaction received while StateMachine is in state {:?}",
-            self.sm_state
-        );
-        // Ignore AddTransaction when not in Synced state
-        match self.sm_state {
-            StateMachine::Synced => {}
-            _ => {
-                return Err(ChainManagerError::NotSynced.into());
-            }
-        };
-
-        let transaction = &msg.transaction;
-        let tx_hash = transaction.hash();
-        let utxo_diff = UtxoDiff::new(&self.chain_state.unspent_outputs_pool);
-
-        let validation_result: Result<(), failure::Error> = match transaction {
-            Transaction::ValueTransfer(tx) => {
-                if self.transactions_pool.vt_contains(&tx_hash) {
-                    log::debug!("Transaction is already in the pool: {}", tx_hash);
-                    return Ok(());
-                }
-
-                match (self.current_epoch, self.epoch_constants) {
-                    (Some(epoch), Some(epoch_constants)) => {
-                        validate_vt_transaction(tx, &utxo_diff, epoch, epoch_constants).map(|_| ())
-                    }
-                    _ => Err(ChainManagerError::ChainNotReady.into()),
-                }
-            }
-
-            Transaction::DataRequest(tx) => {
-                if self.transactions_pool.dr_contains(&tx_hash) {
-                    log::debug!("Transaction is already in the pool: {}", tx_hash);
-                    return Ok(());
-                }
-
-                match (self.current_epoch, self.epoch_constants) {
-                    (Some(epoch), Some(epoch_constants)) => {
-                        validate_dr_transaction(tx, &utxo_diff, epoch, epoch_constants).map(|_| ())
-                    }
-                    _ => Err(ChainManagerError::ChainNotReady.into()),
-                }
-            }
-            Transaction::Commit(tx) => {
-                let dr_pointer = tx.body.dr_pointer;
-                let pkh = PublicKeyHash::from_public_key(&tx.signatures[0].public_key);
-
-                match self
-                    .transactions_pool
-                    .commit_contains(&dr_pointer, &pkh, &tx_hash)
-                {
-                    Ok(true) => {
-                        log::debug!("Transaction is already in the pool: {}", tx_hash);
-                        return Ok(());
-                    }
-                    Ok(false) => {}
-                    Err(e) => {
-                        log::debug!("Cannot add transaction: {}", e);
-                        return Ok(());
-                    }
-                }
-
-                match (
-                    self.chain_state
-                        .chain_info
-                        .as_ref()
-                        .map(|x| x.highest_block_checkpoint),
-                    self.current_epoch,
-                    self.epoch_constants,
-                    self.chain_state.reputation_engine.as_ref(),
-                    self.vrf_ctx.as_mut(),
-                ) {
-                    (
-                        Some(mut dr_beacon),
-                        Some(current_epoch),
-                        Some(epoch_constants),
-                        Some(rep_eng),
-                        Some(vrf_ctx),
-                    ) => {
-                        // We need a checkpoint beacon with the current epoch,
-                        // but `chain_info.highest_block_checkpoint` returns
-                        // the epoch of the last block.
-                        dr_beacon.checkpoint = current_epoch;
-
-                        validate_commit_transaction(
-                            tx,
-                            &self.chain_state.data_request_pool,
-                            dr_beacon,
-                            vrf_ctx,
-                            rep_eng,
-                            current_epoch,
-                            epoch_constants,
-                        )
-                        .map(|_| ())
-                    }
-                    _ => Err(ChainManagerError::ChainNotReady.into()),
-                }
-            }
-            Transaction::Reveal(tx) => {
-                let dr_pointer = tx.body.dr_pointer;
-                let pkh = PublicKeyHash::from_public_key(&tx.signatures[0].public_key);
-
-                match self
-                    .transactions_pool
-                    .reveal_contains(&dr_pointer, &pkh, &tx_hash)
-                {
-                    Ok(true) => {
-                        log::debug!("Transaction is already in the pool: {}", tx_hash);
-                        return Ok(());
-                    }
-                    Ok(false) => {}
-                    Err(e) => {
-                        log::debug!("Cannot add transaction: {}", e);
-                        return Ok(());
-                    }
-                }
-
-                validate_reveal_transaction(tx, &self.chain_state.data_request_pool).map(|_| ())
-            }
-            _ => Err(TransactionError::NotValidTransaction.into()),
-        };
-
-        match validation_result {
-            Ok(_) => {
-                log::debug!("Transaction added successfully");
-                // Broadcast valid transaction
-                self.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
-
-                // Add valid transaction to transactions_pool
-                self.transactions_pool.insert(msg.transaction);
-
-                Ok(())
-            }
-
-            Err(e) => {
-                log::warn!("{}", e);
-
-                Err(e)
-            }
-        }
+        self.add_transaction(msg)
     }
 }
 

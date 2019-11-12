@@ -61,7 +61,9 @@ use witnet_data_structures::{
     vrf::VrfCtx,
 };
 use witnet_rad::types::RadonTypes;
-use witnet_validations::validations::{validate_block, validate_candidate, Diff};
+use witnet_validations::validations::{
+    validate_block, validate_candidate, validate_new_transaction, Diff,
+};
 
 mod actor;
 mod handlers;
@@ -438,6 +440,80 @@ impl ChainManager {
             .unwrap()
             .highest_block_checkpoint
     }
+
+    fn add_transaction(&mut self, msg: AddTransaction) -> Result<(), failure::Error> {
+        log::debug!(
+            "AddTransaction received while StateMachine is in state {:?}",
+            self.sm_state
+        );
+        // Ignore AddTransaction when not in Synced state
+        match self.sm_state {
+            StateMachine::Synced => {}
+            _ => {
+                return Err(ChainManagerError::NotSynced.into());
+            }
+        };
+
+        match self.transactions_pool.contains(&msg.transaction) {
+            Ok(false) => {}
+            Ok(true) => {
+                log::debug!(
+                    "Transaction is already in the pool: {}",
+                    msg.transaction.hash()
+                );
+                return Ok(());
+            }
+            Err(e) => {
+                log::warn!("Cannot add transaction: {}", e);
+                return Err(e.into());
+            }
+        }
+
+        if let (
+            Some(chain_info),
+            Some(reputation_engine),
+            Some(current_epoch),
+            Some(epoch_constants),
+            Some(vrf_ctx),
+        ) = (
+            self.chain_state.chain_info.as_ref(),
+            self.chain_state.reputation_engine.as_ref(),
+            self.current_epoch,
+            self.epoch_constants,
+            self.vrf_ctx.as_mut(),
+        ) {
+            match validate_new_transaction(
+                msg.transaction.clone(),
+                (
+                    reputation_engine,
+                    &self.chain_state.unspent_outputs_pool,
+                    &self.chain_state.data_request_pool,
+                ),
+                chain_info.highest_block_checkpoint.hash_prev_block,
+                current_epoch,
+                epoch_constants,
+                vrf_ctx,
+            ) {
+                Ok(()) => {
+                    // Broadcast valid transaction
+                    self.broadcast_item(InventoryItem::Transaction(msg.transaction.clone()));
+
+                    // Add valid transaction to transactions_pool
+                    self.transactions_pool.insert(msg.transaction);
+                    log::debug!("Transaction added successfully");
+
+                    Ok(())
+                }
+                Err(e) => {
+                    log::warn!("{}", e);
+
+                    Err(e)
+                }
+            }
+        } else {
+            Err(ChainManagerError::ChainNotReady.into())
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -766,6 +842,122 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
             Purple.bold().paint(block_epoch.to_string()),
             White.bold().paint("Data Requests: "),
             White.bold().paint(info),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    pub use super::*;
+    use witnet_data_structures::{
+        chain::{ChainInfo, ConsensusConstants, Environment, EpochConstants, ReputationEngine},
+        error::TransactionError,
+        transaction::{CommitTransaction, MintTransaction, RevealTransaction},
+        vrf::VrfCtx,
+    };
+
+    fn empty_chain_manager() -> ChainManager {
+        let mut cm = ChainManager::default();
+        cm.sm_state = StateMachine::Synced;
+        cm.current_epoch = Some(0);
+        cm.epoch_constants = Some(EpochConstants {
+            checkpoint_zero_timestamp: 0,
+            checkpoints_period: 1,
+        });
+        cm.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
+        cm.chain_state.chain_info = Some(ChainInfo {
+            environment: Environment::Testnet1,
+            consensus_constants: ConsensusConstants {
+                checkpoint_zero_timestamp: 0,
+                checkpoints_period: 0,
+                genesis_hash: Hash::default(),
+                max_block_weight: 0,
+                activity_period: 0,
+                reputation_expire_alpha_diff: 0,
+                reputation_issuance: 0,
+                reputation_issuance_stop: 0,
+                reputation_penalization_factor: 0.0,
+            },
+            highest_block_checkpoint: Default::default(),
+        });
+        cm.chain_state.reputation_engine = Some(ReputationEngine::new(100));
+
+        cm
+    }
+
+    #[test]
+    fn add_commit_no_signatures() {
+        let mut cm = empty_chain_manager();
+        let commit = CommitTransaction::default();
+        assert!(commit.signatures.is_empty());
+
+        let msg = AddTransaction {
+            transaction: Transaction::Commit(commit),
+        };
+
+        assert_eq!(
+            cm.add_transaction(msg)
+                .unwrap_err()
+                .downcast::<TransactionError>()
+                .unwrap(),
+            TransactionError::DataRequestNotFound {
+                hash: Default::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn add_reveal_no_signatures() {
+        let mut cm = empty_chain_manager();
+        let reveal = RevealTransaction::default();
+        assert!(reveal.signatures.is_empty());
+
+        let msg = AddTransaction {
+            transaction: Transaction::Reveal(reveal),
+        };
+
+        assert_eq!(
+            cm.add_transaction(msg)
+                .unwrap_err()
+                .downcast::<TransactionError>()
+                .unwrap(),
+            TransactionError::DataRequestNotFound {
+                hash: Default::default(),
+            }
+        );
+    }
+
+    #[test]
+    fn add_mint_transaction() {
+        // Mint transactions when received outside of a block are ignored
+        let mut cm = empty_chain_manager();
+        let msg = AddTransaction {
+            transaction: Transaction::Mint(MintTransaction::default()),
+        };
+
+        assert_eq!(
+            cm.add_transaction(msg)
+                .unwrap_err()
+                .downcast::<TransactionError>()
+                .unwrap(),
+            TransactionError::NotValidTransaction
+        );
+    }
+
+    #[test]
+    fn add_tally_transaction() {
+        // Tally transactions when received outside of a block are ignored
+        let mut cm = empty_chain_manager();
+        let msg = AddTransaction {
+            transaction: Transaction::Tally(TallyTransaction::default()),
+        };
+
+        assert_eq!(
+            cm.add_transaction(msg)
+                .unwrap_err()
+                .downcast::<TransactionError>()
+                .unwrap(),
+            TransactionError::NotValidTransaction
         );
     }
 }
