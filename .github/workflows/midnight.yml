@@ -1,9 +1,6 @@
 name: Check every midnight
 
 on:
-  push:
-    branches:
-      - "*"
   schedule:
     - cron:  '0 0 * * *'
 
