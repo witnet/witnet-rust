@@ -168,9 +168,9 @@ pub fn validate_consensus(
         .filter_map(|&input| RadonTypes::try_from(input).ok())
         .collect();
 
-    let local_tally = run_tally(radon_types_vec, consensus)?;
+    let local_tally: Vec<u8> = RadonTypes::try_into(run_tally(radon_types_vec, consensus)?)?;
 
-    if local_tally == miner_tally {
+    if local_tally.as_slice() == miner_tally {
         Ok(())
     } else {
         Err(TransactionError::MismatchedConsensus {
