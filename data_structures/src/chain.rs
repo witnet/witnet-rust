@@ -21,6 +21,7 @@ use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 use witnet_util::parser::parse_hex;
 
 use crate::chain::Signature::Secp256k1;
+use crate::error::TransactionError;
 use crate::{
     data_request::DataRequestPool,
     error::{
@@ -923,6 +924,38 @@ impl TransactionsPool {
         self.re_transactions.clear();
     }
 
+    /// Returns `Ok(true)` if the pool already contains this transaction.
+    /// Returns an error if:
+    /// * The transaction is of an invalid type (mint or tally)
+    /// * The commit transaction has the same data request pointer and pkh as
+    /// an existing transaction, but different hash.
+    /// * The reveal transaction has the same data request pointer and pkh as
+    /// an existing transaction, but different hash.
+    pub fn contains(&self, transaction: &Transaction) -> Result<bool, TransactionError> {
+        let tx_hash = transaction.hash();
+
+        match transaction {
+            Transaction::ValueTransfer(_vt) => Ok(self.vt_contains(&tx_hash)),
+            Transaction::DataRequest(_drt) => Ok(self.dr_contains(&tx_hash)),
+            Transaction::Commit(ct) => {
+                let dr_pointer = ct.body.dr_pointer;
+                let pkh = ct.body.proof.proof.pkh();
+
+                self.commit_contains(&dr_pointer, &pkh, &tx_hash)
+            }
+            Transaction::Reveal(rt) => {
+                let dr_pointer = rt.body.dr_pointer;
+                let pkh = rt.body.pkh;
+
+                self.reveal_contains(&dr_pointer, &pkh, &tx_hash)
+            }
+            // Tally and mint transaction only exist inside blocks, it should
+            // be impossible for nodes to broadcast these kinds of transactions.
+            Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),
+            Transaction::Mint(_mt) => Err(TransactionError::NotValidTransaction),
+        }
+    }
+
     /// Returns `true` if the pool contains a value transfer
     /// transaction for the specified hash.
     ///
@@ -956,40 +989,60 @@ impl TransactionsPool {
         self.dr_transactions.contains_key(key)
     }
 
-    /// Returns `true` if the pool contains a commit transaction for the specified hash
-    /// and the specified data request pointer.
+    /// Returns `Ok(true)` if the pool contains a commit transaction for the specified hash,
+    /// data request pointer, and pkh. Return an error if the pool contains a commit transaction
+    /// with the same data request pointer and pkh, but different hash.
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
     /// `Eq` on the borrowed form must match those for the key type.
-    pub fn commit_contains(&self, dr_pointer: &Hash, key: &PublicKeyHash, tx_hash: &Hash) -> bool {
+    pub fn commit_contains(
+        &self,
+        dr_pointer: &Hash,
+        pkh: &PublicKeyHash,
+        tx_hash: &Hash,
+    ) -> Result<bool, TransactionError> {
         self.co_transactions
             .get(dr_pointer)
-            .map(|hm| {
-                if hm.contains_key(key) {
-                    hm.get(key).unwrap().hash() == *tx_hash
+            .and_then(|hm| hm.get(pkh))
+            .map(|h| {
+                if h.hash() == *tx_hash {
+                    Ok(true)
                 } else {
-                    false
+                    Err(TransactionError::DuplicatedCommit {
+                        pkh: *pkh,
+                        dr_pointer: *dr_pointer,
+                    })
                 }
             })
-            .unwrap_or(false)
+            .unwrap_or(Ok(false))
     }
 
-    /// Returns `true` if the pool contains a reveal transaction for the specified hash
-    /// and the specified data request pointer.
+    /// Returns `Ok(true)` if the pool contains a reveal transaction for the specified hash,
+    /// data request pointer, and pkh. Return an error if the pool contains a reveal transaction
+    /// with the same data request pointer and pkh, but different hash.
     ///
     /// The `key` may be any borrowed form of the hash, but `Hash` and
     /// `Eq` on the borrowed form must match those for the key type.
-    pub fn reveal_contains(&self, dr_pointer: &Hash, key: &PublicKeyHash, tx_hash: &Hash) -> bool {
+    pub fn reveal_contains(
+        &self,
+        dr_pointer: &Hash,
+        pkh: &PublicKeyHash,
+        tx_hash: &Hash,
+    ) -> Result<bool, TransactionError> {
         self.re_transactions
             .get(dr_pointer)
-            .map(|hm| {
-                if hm.contains_key(key) {
-                    hm.get(key).unwrap().hash() == *tx_hash
+            .and_then(|hm| hm.get(pkh))
+            .map(|h| {
+                if h.hash() == *tx_hash {
+                    Ok(true)
                 } else {
-                    false
+                    Err(TransactionError::DuplicatedReveal {
+                        pkh: *pkh,
+                        dr_pointer: *dr_pointer,
+                    })
                 }
             })
-            .unwrap_or(false)
+            .unwrap_or(Ok(false))
     }
 
     /// Returns an `Option` with the value transfer transaction for the specified hash or `None` if not exist.
@@ -1140,7 +1193,7 @@ impl TransactionsPool {
             }
             Transaction::Reveal(re_tx) => {
                 let dr_pointer = re_tx.body.dr_pointer;
-                let pkh = PublicKeyHash::from_public_key(&re_tx.signatures[0].public_key);
+                let pkh = re_tx.body.pkh;
 
                 if let Some(hm) = self.re_transactions.get_mut(&dr_pointer) {
                     hm.insert(pkh, re_tx);
@@ -1851,6 +1904,7 @@ pub fn block_example() -> Block {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transaction::{CommitTransactionBody, RevealTransactionBody};
 
     #[test]
     fn test_block_hashable_trait() {
@@ -2033,5 +2087,126 @@ mod tests {
         );
         // Although if we try to deserialize this as a mainnet address, it will fail
         assert!(PublicKeyHash::from_bech32(Environment::Mainnet, addr_testnet).is_err());
+    }
+
+    #[test]
+    fn transactions_pool_contains_commit_no_signatures() {
+        let transactions_pool = TransactionsPool::default();
+        let transaction = Transaction::Commit(CommitTransaction {
+            body: Default::default(),
+            signatures: vec![],
+        });
+
+        assert_eq!(transactions_pool.contains(&transaction), Ok(false));
+    }
+
+    #[test]
+    fn transactions_pool_contains_reveal_no_signatures() {
+        let transactions_pool = TransactionsPool::default();
+        let transaction = Transaction::Reveal(RevealTransaction {
+            body: Default::default(),
+            signatures: vec![],
+        });
+
+        assert_eq!(transactions_pool.contains(&transaction), Ok(false));
+    }
+
+    #[test]
+    fn transactions_pool_contains_commit_same_pkh() {
+        let c1 = Hash::SHA256([1; 32]);
+        let c2 = Hash::SHA256([2; 32]);
+        let t1 = Transaction::Commit(CommitTransaction {
+            body: CommitTransactionBody::new(Default::default(), c1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let t2 = Transaction::Commit(CommitTransaction {
+            body: CommitTransactionBody::new(Default::default(), c2, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let mut transactions_pool = TransactionsPool::default();
+        assert_eq!(transactions_pool.contains(&t1), Ok(false));
+        transactions_pool.insert(t1.clone());
+        assert_eq!(transactions_pool.contains(&t1), Ok(true));
+        assert_eq!(
+            transactions_pool.contains(&t2),
+            Err(TransactionError::DuplicatedCommit {
+                pkh: PublicKey::default().pkh(),
+                dr_pointer: Hash::default(),
+            })
+        );
+        transactions_pool.insert(t2.clone());
+        assert_eq!(transactions_pool.contains(&t2), Ok(true));
+        // Check that insert overwrites
+        let mut expected = TransactionsPool::default();
+        expected.insert(t2);
+        assert_eq!(transactions_pool.co_transactions, expected.co_transactions);
+    }
+
+    #[test]
+    fn transactions_pool_contains_reveal_same_pkh() {
+        let r1 = vec![1];
+        let r2 = vec![2];
+        let t1 = Transaction::Reveal(RevealTransaction {
+            body: RevealTransactionBody::new(Default::default(), r1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let t2 = Transaction::Reveal(RevealTransaction {
+            body: RevealTransactionBody::new(Default::default(), r2, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let mut transactions_pool = TransactionsPool::default();
+        assert_eq!(transactions_pool.contains(&t1), Ok(false));
+        transactions_pool.insert(t1.clone());
+        assert_eq!(transactions_pool.contains(&t1), Ok(true));
+        assert_eq!(
+            transactions_pool.contains(&t2),
+            Err(TransactionError::DuplicatedReveal {
+                pkh: Default::default(),
+                dr_pointer: Hash::default(),
+            })
+        );
+        transactions_pool.insert(t2.clone());
+        assert_eq!(transactions_pool.contains(&t2), Ok(true));
+    }
+
+    #[test]
+    fn transactions_pool_insert_commit_overwrites() {
+        let c1 = Hash::SHA256([1; 32]);
+        let c2 = Hash::SHA256([2; 32]);
+        let t1 = Transaction::Commit(CommitTransaction {
+            body: CommitTransactionBody::new(Default::default(), c1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let t2 = Transaction::Commit(CommitTransaction {
+            body: CommitTransactionBody::new(Default::default(), c2, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1);
+        transactions_pool.insert(t2.clone());
+        let mut expected = TransactionsPool::default();
+        expected.insert(t2);
+        assert_eq!(transactions_pool.co_transactions, expected.co_transactions);
+    }
+
+    #[test]
+    fn transactions_pool_insert_reveal_overwrites() {
+        let r1 = vec![1];
+        let r2 = vec![2];
+        let t1 = Transaction::Reveal(RevealTransaction {
+            body: RevealTransactionBody::new(Default::default(), r1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let t2 = Transaction::Reveal(RevealTransaction {
+            body: RevealTransactionBody::new(Default::default(), r2, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1);
+        transactions_pool.insert(t2.clone());
+        let mut expected = TransactionsPool::default();
+        expected.insert(t2);
+        assert_eq!(transactions_pool.re_transactions, expected.re_transactions);
     }
 }

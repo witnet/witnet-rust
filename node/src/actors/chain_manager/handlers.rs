@@ -422,12 +422,19 @@ impl Handler<AddTransaction> for ChainManager {
                 let dr_pointer = tx.body.dr_pointer;
                 let pkh = PublicKeyHash::from_public_key(&tx.signatures[0].public_key);
 
-                if self
+                match self
                     .transactions_pool
                     .commit_contains(&dr_pointer, &pkh, &tx_hash)
                 {
-                    log::debug!("Transaction is already in the pool: {}", tx_hash);
-                    return Ok(());
+                    Ok(true) => {
+                        log::debug!("Transaction is already in the pool: {}", tx_hash);
+                        return Ok(());
+                    }
+                    Ok(false) => {}
+                    Err(e) => {
+                        log::debug!("Cannot add transaction: {}", e);
+                        return Ok(());
+                    }
                 }
 
                 match (
@@ -470,12 +477,19 @@ impl Handler<AddTransaction> for ChainManager {
                 let dr_pointer = tx.body.dr_pointer;
                 let pkh = PublicKeyHash::from_public_key(&tx.signatures[0].public_key);
 
-                if self
+                match self
                     .transactions_pool
                     .reveal_contains(&dr_pointer, &pkh, &tx_hash)
                 {
-                    log::debug!("Transaction is already in the pool: {}", tx_hash);
-                    return Ok(());
+                    Ok(true) => {
+                        log::debug!("Transaction is already in the pool: {}", tx_hash);
+                        return Ok(());
+                    }
+                    Ok(false) => {}
+                    Err(e) => {
+                        log::debug!("Cannot add transaction: {}", e);
+                        return Ok(());
+                    }
                 }
 
                 validate_reveal_transaction(tx, &self.chain_state.data_request_pool).map(|_| ())
