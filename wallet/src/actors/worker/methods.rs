@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use jsonrpc_core as rpc;
 use rayon::prelude::*;
 use serde_json::json;
@@ -30,16 +28,7 @@ impl Worker {
             .and_then(|retrievals| {
                 witnet_rad::run_aggregation(retrievals, &request.aggregate)
                     .map_err(Into::into)
-                    .and_then(|aggregated| {
-                        types::RadonTypes::try_from(aggregated.as_slice())
-                            .and_then(|aggregation_result| {
-                                witnet_rad::run_tally(vec![aggregation_result], &request.tally)
-                                    .and_then(|tally_result| {
-                                        types::RadonTypes::try_from(tally_result.as_slice())
-                                    })
-                            })
-                            .map_err(Into::into)
-                    })
+                    .and_then(|aggregated| witnet_rad::run_tally(vec![aggregated], &request.tally))
             })?;
 
         Ok(value)
