@@ -226,15 +226,16 @@ fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Error> 
     log::info!("Aggregation result: {:?}", aggregation_result);
 
     // Assume that all the required witnesses will report the same value
-    let reported_values = vec![aggregation_result; dr.witnesses.try_into().unwrap()]
-        .into_iter()
-        .map(|x| RadonTypes::try_from(x.as_slice()).unwrap())
-        .collect();
+    let reported_values: Result<Vec<RadonTypes>, _> =
+        vec![aggregation_result; dr.witnesses.try_into()?]
+            .into_iter()
+            .map(RadonTypes::try_from)
+            .collect();
     log::info!("Running tally with values {:?}", reported_values);
-    let tally_result = witnet_rad::run_tally(reported_values, &dr.data_request.tally)?;
+    let tally_result = witnet_rad::run_tally(reported_values?, &dr.data_request.tally)?;
     log::info!("Tally result: {:?}", tally_result);
 
-    Ok(RadonTypes::try_from(tally_result.as_slice())?)
+    Ok(RadonTypes::try_from(tally_result)?)
 }
 
 fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutput, failure::Error> {
