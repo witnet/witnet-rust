@@ -542,18 +542,25 @@ impl ReputationInfo {
         let dr_pointer = tally_transaction.dr_pointer;
         let dr_state = &data_request_pool.data_request_pool[&dr_pointer];
         let reveals = &dr_state.info.reveals;
+        let commits = &dr_state.info.commits;
         let replication_factor = dr_state.data_request.witnesses;
         self.alpha_diff += Alpha(u32::from(replication_factor));
 
         let tally = &tally_transaction.tally;
 
-        for (pkh, reveal_tx) in reveals {
-            let liar = if true_revealer(reveal_tx, tally) {
-                0
-            } else {
-                1
-            };
-            // Insert all the revealers, and increment their lie count by 1 if they lied.
+        for pkh in commits.keys() {
+            let liar = reveals
+                .get(&pkh)
+                .map(|reveal_tx| {
+                    if true_revealer(reveal_tx, tally) {
+                        0
+                    } else {
+                        1
+                    }
+                })
+                .unwrap_or(1);
+            // Insert all the committers, and increment their lie count by 1 if they fail to reveal or
+            // if they lied (withholding a reveal is treated the same as lying)
             // lie_count can contain identities which never lied, with lie_count = 0
             *self.lie_count.entry(*pkh).or_insert(0) += liar;
         }
