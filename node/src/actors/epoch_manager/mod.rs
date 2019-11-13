@@ -11,7 +11,9 @@ use witnet_data_structures::{
     chain::{Epoch, EpochConstants},
     error::EpochCalculationError,
 };
-use witnet_util::timestamp::{duration_between_timestamps, get_timestamp, get_timestamp_nanos};
+use witnet_util::timestamp::{
+    duration_between_timestamps, get_timestamp, get_timestamp_nanos, update_global_timestamp,
+};
 
 use crate::actors::messages::{EpochNotification, EpochResult};
 use crate::config_mngr;
@@ -126,6 +128,13 @@ impl EpochManager {
                 // Start checkpoint monitoring process
                 actor.checkpoint_monitor(ctx);
 
+                // Start ntp update process
+                if config.ntp.enabled {
+                    let ntp_addr = config.ntp.servers[0].clone();
+                    update_global_timestamp(ntp_addr.as_str());
+                    actor.update_ntp_timestamp(ctx, config.ntp.update_period, ntp_addr);
+                }
+
                 fut::ok(())
             })
             .map_err(|err, _, _| {
@@ -165,9 +174,14 @@ impl EpochManager {
                     Err(_) => return,
                 };
 
+                let last_checked_epoch = act.last_checked_epoch.unwrap_or(0);
+
                 // Send message to actors which subscribed to all epochs
-                for subscription in &mut act.subscriptions_all {
-                    subscription.send_notification(current_epoch);
+                if current_epoch > last_checked_epoch {
+                    for subscription in &mut act.subscriptions_all {
+                        // Only send new epoch notification
+                        subscription.send_notification(current_epoch);
+                    }
                 }
 
                 // Get all the checkpoints that had some subscription but were skipped for some
@@ -175,7 +189,7 @@ impl EpochManager {
                 // resources to execute in time...)
                 let epoch_checkpoints: Vec<_> = act
                     .subscriptions_epoch
-                    .range(act.last_checked_epoch.unwrap_or(0)..=current_epoch)
+                    .range(last_checked_epoch..=current_epoch)
                     .map(|(k, _v)| *k)
                     .collect();
 
@@ -208,6 +222,17 @@ impl EpochManager {
                 act.checkpoint_monitor(ctx);
             },
         );
+    }
+
+    /// Method to monitor checkpoints and execute some actions on each
+    fn update_ntp_timestamp(&self, ctx: &mut Context<Self>, period: Duration, addr: String) {
+        // Wait until next checkpoint to execute the periodic function
+        ctx.run_later(period, move |act, ctx| {
+            update_global_timestamp(addr.as_str());
+
+            // Reschedule update ntp process
+            act.update_ntp_timestamp(ctx, period, addr);
+        });
     }
 }
 

@@ -1,22 +1,106 @@
-use chrono::prelude::*;
+use chrono::{prelude::*, TimeZone};
+use lazy_static::lazy_static;
+use ntp;
+use serde::{Deserialize, Serialize};
+use std::sync::RwLock;
 use std::time::Duration;
 
-/// Function to get timestamp from system as UTC Unix timestamp, seconds since Unix epoch
-pub fn get_timestamp() -> i64 {
-    // Get UTC current datetime
-    let utc: DateTime<Utc> = Utc::now();
-
-    // Return number of non-leap seconds since Unix epoch
-    utc.timestamp()
+/// NTP Timestamp difference
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
+pub struct NTPDiff {
+    /// Difference between NTP and system timestamp
+    pub ntp_diff: Duration,
+    /// Flag to indicate if NTP is bigger or smaller
+    /// than system timestamp
+    pub bigger: bool,
 }
 
-/// Function to get timestamp from system as UTC Unix timestamp, seconds and nanoseconds since Unix epoch
-pub fn get_timestamp_nanos() -> (i64, u32) {
+lazy_static! {
+    static ref NTP_TS: RwLock<NTPDiff> = RwLock::new(NTPDiff::default());
+}
+
+/// Get NTP timestamp
+fn get_ntp_diff() -> NTPDiff {
+    NTP_TS.read().expect("Timestamp with poisoned lock").clone()
+}
+
+/// Set NTP timestamp
+fn get_mut_ntp_diff() -> std::sync::RwLockWriteGuard<'static, NTPDiff> {
+    NTP_TS.write().expect("Timestamp with poisoned lock")
+}
+
+/// Get Local timestamp
+pub fn get_local_timestamp() -> (i64, u32) {
     // Get UTC current datetime
     let utc: DateTime<Utc> = Utc::now();
 
-    // Return number of non-leap seconds since Unix epoch and the number of nanoseconds since the last second boundary
-    (utc.timestamp(), utc.timestamp_subsec_nanos())
+    let utc_secs = utc.timestamp();
+    let utc_subsec_nanos = utc.timestamp_subsec_nanos();
+
+    (utc_secs, utc_subsec_nanos)
+}
+
+/// Update NTP timestamp
+pub fn update_global_timestamp(addr: &str) {
+    match get_timestamp_ntp(addr) {
+        Ok(ntp) => {
+            let utc = get_local_timestamp();
+            let mut ntp_diff = get_mut_ntp_diff();
+
+            if let Some(diff) = duration_between_timestamps(utc, ntp) {
+                ntp_diff.ntp_diff = diff;
+                ntp_diff.bigger = true;
+            } else {
+                let diff = duration_between_timestamps(ntp, utc).unwrap();
+                ntp_diff.ntp_diff = diff;
+                ntp_diff.bigger = false;
+            }
+        }
+        Err(e) => {
+            log::warn!("NTP request failed: {}", e);
+        }
+    }
+}
+
+fn local_time(timestamp: ntp::protocol::TimestampFormat) -> chrono::DateTime<chrono::Local> {
+    let unix_time = ntp::unix_time::Instant::from(timestamp);
+    chrono::Local.timestamp(unix_time.secs(), unix_time.subsec_nanos() as u32)
+}
+/// Get NTP timestamp from an addr specified
+pub fn get_timestamp_ntp(addr: &str) -> Result<(i64, u32), std::io::Error> {
+    ntp::request(addr).map(|p| {
+        let ts = local_time(p.receive_timestamp);
+
+        (ts.timestamp(), ts.timestamp_subsec_nanos())
+    })
+}
+/// Function to get timestamp from system/ntp server as UTC Unix timestamp, seconds since Unix epoch
+pub fn get_timestamp() -> i64 {
+    get_timestamp_nanos().0
+}
+
+/// Function to get timestamp from system/ntp server as UTC Unix timestamp, seconds and nanoseconds since Unix epoch
+pub fn get_timestamp_nanos() -> (i64, u32) {
+    let utc_ts = get_local_timestamp();
+    let ntp_diff = get_ntp_diff();
+
+    // Apply difference respect to NTP timestamp
+    let utc_dur = Duration::new(utc_ts.0 as u64, utc_ts.1);
+    let result = if ntp_diff.bigger {
+        utc_dur.checked_add(ntp_diff.ntp_diff)
+    } else {
+        utc_dur.checked_sub(ntp_diff.ntp_diff)
+    };
+
+    match result {
+        Some(x) => (x.as_secs() as i64, x.subsec_nanos()),
+        None => panic!(
+            "Error: Overflow in timestamp\n\
+             UTC timestamp: {} secs, {} nanosecs\n\
+             NTP diff: {:?}",
+            utc_ts.0, utc_ts.1, ntp_diff
+        ),
+    }
 }
 
 /// Duration needed to wait from now until the target timestamp

@@ -103,6 +103,11 @@ pub struct Config {
     #[partial_struct(ty = "PartialLog")]
     #[partial_struct(serde(default))]
     pub log: Log,
+
+    /// Ntp-related configuration
+    #[partial_struct(ty = "PartialNtp")]
+    #[partial_struct(serde(default))]
+    pub ntp: Ntp,
 }
 
 /// Log-specific configuration.
@@ -276,6 +281,20 @@ pub struct Mining {
     pub enabled: bool,
 }
 
+/// NTP-related configuration
+#[derive(PartialStruct, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+pub struct Ntp {
+    /// Period that indicate the validity of a ntp timestamp
+    pub update_period: Duration,
+
+    /// Server to query ntp information
+    pub servers: Vec<String>,
+
+    /// Enable NTP for clock synchronization
+    pub enabled: bool,
+}
+
 impl Config {
     pub fn from_partial(config: &PartialConfig) -> Self {
         let defaults: &dyn Defaults = match config.environment {
@@ -317,6 +336,7 @@ impl Config {
             mining: Mining::from_partial(&config.mining, defaults),
             wallet: Wallet::from_partial(&config.wallet, defaults),
             rocksdb: Rocksdb::from_partial(&config.rocksdb, defaults),
+            ntp: Ntp::from_partial(&config.ntp, defaults),
         }
     }
 }
@@ -472,6 +492,25 @@ impl Mining {
                 .enabled
                 .to_owned()
                 .unwrap_or_else(|| defaults.mining_enabled()),
+        }
+    }
+}
+
+impl Ntp {
+    pub fn from_partial(config: &PartialNtp, defaults: &dyn Defaults) -> Self {
+        Ntp {
+            update_period: config
+                .update_period
+                .to_owned()
+                .unwrap_or_else(|| defaults.ntp_update_period()),
+            servers: config
+                .servers
+                .clone()
+                .unwrap_or_else(|| defaults.ntp_server()),
+            enabled: config
+                .enabled
+                .to_owned()
+                .unwrap_or_else(|| defaults.ntp_enabled()),
         }
     }
 }

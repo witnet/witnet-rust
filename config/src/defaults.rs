@@ -204,6 +204,23 @@ pub trait Defaults {
     fn rocksdb_enable_statistics(&self) -> bool {
         false
     }
+
+    fn ntp_update_period(&self) -> Duration {
+        Duration::from_secs(600)
+    }
+
+    fn ntp_server(&self) -> Vec<String> {
+        vec![
+            "0.pool.ntp.org:123".to_string(),
+            "1.pool.ntp.org:123".to_string(),
+            "2.pool.ntp.org:123".to_string(),
+            "3.pool.ntp.org:123".to_string(),
+        ]
+    }
+
+    fn ntp_enabled(&self) -> bool {
+        true
+    }
 }
 
 /// Struct that will implement all the mainnet defaults
