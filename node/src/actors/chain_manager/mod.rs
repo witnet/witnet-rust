@@ -968,3 +968,69 @@ mod tests {
         );
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use witnet_data_structures::{
+        chain::{KeyedSignature, PublicKey},
+        transaction::{CommitTransaction, DRTransaction, RevealTransaction},
+    };
+
+    #[test]
+    // TODO: Update test when true_revealer function would be implemented
+    fn test_rep_info_update() {
+        let mut rep_info = ReputationInfo::default();
+        let mut dr_pool = DataRequestPool::default();
+
+        let pk1 = PublicKey {
+            compressed: 0,
+            bytes: [1; 32],
+        };
+        let pk2 = PublicKey {
+            compressed: 0,
+            bytes: [2; 32],
+        };
+
+        let mut dr_tx = DRTransaction::default();
+        dr_tx.signatures.push(KeyedSignature {
+            public_key: pk1.clone(),
+            ..KeyedSignature::default()
+        });
+        let dr_pointer = dr_tx.hash();
+
+        let mut co_tx = CommitTransaction::default();
+        co_tx.body.dr_pointer = dr_pointer;
+        co_tx.signatures.push(KeyedSignature {
+            public_key: pk1.clone(),
+            ..KeyedSignature::default()
+        });
+        let mut co_tx2 = CommitTransaction::default();
+        co_tx2.body.dr_pointer = dr_pointer;
+        co_tx2.signatures.push(KeyedSignature {
+            public_key: pk2.clone(),
+            ..KeyedSignature::default()
+        });
+        let mut re_tx = RevealTransaction::default();
+        re_tx.body.dr_pointer = dr_pointer;
+        re_tx.signatures.push(KeyedSignature {
+            public_key: pk1.clone(),
+            ..KeyedSignature::default()
+        });
+
+        let mut ta_tx = TallyTransaction::default();
+        ta_tx.dr_pointer = dr_pointer;
+
+        dr_pool
+            .add_data_request(1, dr_tx, &Hash::default())
+            .unwrap();
+        dr_pool.process_commit(&co_tx, &Hash::default()).unwrap();
+        dr_pool.process_commit(&co_tx2, &Hash::default()).unwrap();
+        dr_pool.update_data_request_stages();
+        dr_pool.process_reveal(&re_tx, &Hash::default()).unwrap();
+
+        rep_info.update(&ta_tx, &dr_pool);
+
+        assert_eq!(rep_info.lie_count[&pk1.pkh()], 0);
+        assert_eq!(rep_info.lie_count[&pk2.pkh()], 1);
+    }
+}
