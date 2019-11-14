@@ -15,7 +15,7 @@ mod state;
 mod tests;
 
 use state::State;
-use witnet_data_structures::chain::Environment;
+use witnet_data_structures::chain::{Environment, Epoch};
 
 pub struct Wallet<T> {
     db: T,
@@ -675,11 +675,20 @@ where
                 keys::transaction_entry(account, txn_id),
                 model::TransactionEntry::Debit,
             )?;
+            batch.put(
+                keys::transaction_type(account, txn_id),
+                model::TransactionType::ValueTransfer,
+            )?;
+            batch.put(
+                keys::transaction_timestamp(account, txn_id),
+                convert_block_epoch_to_timestamp(block.epoch),
+            )?;
             batch.put(keys::transaction_block(account, txn_id), block)?;
             batch.put(keys::account_balance(account), new_balance)?;
             batch.put(keys::account_utxo_set(account), db_utxo_set)?;
             batch.put(keys::transaction_next_id(account), txn_next_id)?;
             batch.put(keys::transactions_index(txn_hash), txn_id)?;
+            batch.put(keys::transaction_hash(account, txn_id), txn_hash)?;
 
             self.db.write(batch)?;
 
@@ -747,11 +756,20 @@ where
                 keys::transaction_entry(account, txn_id),
                 model::TransactionEntry::Credit,
             )?;
+            batch.put(
+                keys::transaction_type(account, txn_id),
+                model::TransactionType::ValueTransfer,
+            )?;
+            batch.put(
+                keys::transaction_timestamp(account, txn_id),
+                convert_block_epoch_to_timestamp(block.epoch),
+            )?;
             batch.put(keys::transaction_block(account, txn_id), block)?;
             batch.put(keys::account_balance(account), new_balance)?;
             batch.put(keys::account_utxo_set(account), db_utxo_set)?;
             batch.put(keys::transaction_next_id(account), txn_next_id)?;
             batch.put(keys::transactions_index(txn_hash), txn_id)?;
+            batch.put(keys::transaction_hash(account, txn_id), txn_hash)?;
 
             self.db.write(batch)?;
 
@@ -787,6 +805,13 @@ where
 
         Ok(txn)
     }
+}
+
+fn convert_block_epoch_to_timestamp(epoch: Epoch) -> i64 {
+    // FIXME: we need EpochConstants to convert between epochs and timestamps
+    // In the meanwhile, just return the epoch as the timestamp
+
+    epoch as i64
 }
 
 #[cfg(test)]

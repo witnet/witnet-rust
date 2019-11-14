@@ -885,3 +885,46 @@ fn test_update_wallet_with_values() {
         db.get_opt::<_, String>(&keys::wallet_caption()).unwrap()
     );
 }
+
+#[test]
+fn test_get_transaction() {
+    let (wallet, _db) = factories::wallet(None);
+
+    let a_block = factories::BlockInfo::default().create();
+    let our_address = wallet.gen_external_address(None).unwrap();
+    let their_address = wallet.gen_external_address(None).unwrap();
+
+    assert!(wallet.get_transaction(0, 0).is_err());
+    // index transaction to receive funds
+    wallet
+        .index_transactions(
+            &a_block,
+            &[types::VTTransactionBody::new(
+                vec![factories::Input::default().create()],
+                vec![factories::VttOutput::default()
+                    .with_pkh(our_address.pkh)
+                    .with_value(2)
+                    .create()],
+            )],
+        )
+        .unwrap();
+
+    assert!(wallet.get_transaction(0, 0).is_ok());
+    assert!(wallet.get_transaction(0, 1).is_err());
+
+    // spend those funds to create a new transaction which is pending (it has no block)
+    let vtt = wallet
+        .create_vtt(types::VttParams {
+            pkh: their_address.pkh,
+            value: 1,
+            fee: 0,
+            label: None,
+            time_lock: 0,
+        })
+        .unwrap();
+    assert!(wallet.get_transaction(0, 1).is_ok());
+
+    // index another block confirming the previously created vtt
+    wallet.index_transactions(&a_block, &[vtt.body]).unwrap();
+    assert!(wallet.get_transaction(0, 1).is_ok());
+}
