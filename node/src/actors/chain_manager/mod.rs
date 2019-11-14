@@ -857,9 +857,12 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
 mod tests {
     pub use super::*;
     use witnet_data_structures::{
-        chain::{ChainInfo, ConsensusConstants, Environment, EpochConstants, ReputationEngine},
+        chain::{
+            ChainInfo, ConsensusConstants, Environment, EpochConstants, KeyedSignature, PublicKey,
+            ReputationEngine,
+        },
         error::TransactionError,
-        transaction::{CommitTransaction, MintTransaction, RevealTransaction},
+        transaction::{CommitTransaction, DRTransaction, MintTransaction, RevealTransaction},
         vrf::VrfCtx,
     };
 
@@ -967,14 +970,6 @@ mod tests {
             TransactionError::NotValidTransaction
         );
     }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use witnet_data_structures::{
-        chain::{KeyedSignature, PublicKey},
-        transaction::{CommitTransaction, DRTransaction, RevealTransaction},
-    };
 
     #[test]
     // TODO: Update test when true_revealer function would be implemented
