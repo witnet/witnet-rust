@@ -20,7 +20,7 @@ use witnet_data_structures::{
     transaction::Transaction,
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
-use witnet_rad::error::RadError;
+use witnet_rad::rad_error::RadError;
 
 use super::{
     chain_manager::{ChainManagerError, StateMachine, MAX_BLOCKS_SYNC},

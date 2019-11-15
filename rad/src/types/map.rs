@@ -7,8 +7,8 @@ use std::{
 use serde::Serialize;
 use serde_cbor::value::{from_value, to_value, Value};
 
-use crate::error::RadError;
 use crate::operators::{identity, map as map_operators, Operable, RadonOpCodes};
+use crate::rad_error::RadError;
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
 use crate::types::{bytes::RadonBytes, RadonType};

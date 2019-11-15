@@ -2,7 +2,7 @@ use serde_cbor::Value;
 use std::convert::TryFrom;
 
 use crate::{
-    error::RadError,
+    rad_error::RadError,
     types::{boolean::RadonBoolean, string::RadonString, RadonType},
 };
 

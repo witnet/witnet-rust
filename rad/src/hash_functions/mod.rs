@@ -1,14 +1,16 @@
-mod sha2;
-
-use crate::error::RadError;
-use crate::hash_functions::sha2::sha2_256;
-
-use num_derive::FromPrimitive;
 use std::fmt;
 
-#[derive(Debug, FromPrimitive, PartialEq)]
+use num_enum::TryFromPrimitive;
+
+use crate::hash_functions::sha2::sha2_256;
+use crate::rad_error::RadError;
+
+mod sha2;
+
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u8)]
 pub enum RadonHashFunctions {
-    Fail = -1,
+    Fail = 0xFF,
     Blake256 = 0x00,
     Blake512 = 0x01,
     Blake2s256 = 0x02,

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use serde_cbor::value::Value;
 
 use crate::{
-    error::RadError,
     operators::{identity, integer as integer_operators, Operable, RadonOpCodes},
+    rad_error::RadError,
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };

@@ -2,16 +2,19 @@
 
 use reqwest;
 
-use crate::error::RadError;
-use crate::script::{execute_radon_script, unpack_radon_script};
-use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
 use witnet_data_structures::chain::{RADAggregate, RADRetrieve, RADTally, RADType};
 
-pub mod error;
+use crate::rad_error::RadError;
+use crate::script::{execute_radon_script, unpack_radon_script};
+use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
+
 pub mod filters;
 pub mod hash_functions;
 pub mod operators;
+pub mod rad_error;
+pub mod radon_error;
 pub mod reducers;
+pub mod report;
 pub mod script;
 pub mod types;
 

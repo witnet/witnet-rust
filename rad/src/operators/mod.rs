@@ -1,7 +1,7 @@
-use crate::error::RadError;
+use crate::rad_error::RadError;
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
-use num_derive::FromPrimitive;
+use num_enum::TryFromPrimitive;
 use std::fmt;
 
 pub mod array;
@@ -12,10 +12,11 @@ pub mod integer;
 pub mod map;
 pub mod string;
 
-#[derive(Debug, FromPrimitive, PartialEq)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u8)]
 pub enum RadonOpCodes {
     /// Only for the sake of allowing catch-alls when matching
-    Fail = -1,
+    Fail = 0xFF,
     // Multi-type operator codes start at 0x00
     /// Identity operator code
     Identity = 0x00,

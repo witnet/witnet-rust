@@ -1,14 +1,15 @@
+use std::clone::Clone;
+use std::convert::TryFrom;
+
+use serde_cbor::value::{from_value, Value};
+
 use crate::{
-    error::RadError,
     filters::{self, RadonFilters},
+    rad_error::RadError,
     reducers::{self, RadonReducers},
     script::{execute_radon_script, unpack_subscript},
     types::{array::RadonArray, integer::RadonInteger, RadonType, RadonTypes},
 };
-
-use num_traits::FromPrimitive;
-use serde_cbor::value::{from_value, Value};
-use std::clone::Clone;
 
 pub fn count(input: &RadonArray) -> RadonInteger {
     RadonInteger::from(input.value().len() as i128)
@@ -26,8 +27,8 @@ pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
     }
 
     let arg = args[0].to_owned();
-    let reducer_integer = from_value::<i64>(arg).map_err(|_| wrong_args())?;
-    let reducer_code = RadonReducers::from_i64(reducer_integer).ok_or_else(wrong_args)?;
+    let reducer_integer = from_value::<u8>(arg).map_err(|_| wrong_args())?;
+    let reducer_code = RadonReducers::try_from(reducer_integer).map_err(|_| wrong_args())?;
 
     reducers::reduce(input, reducer_code)
 }
@@ -91,7 +92,7 @@ pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
     let first_arg = args.get(0).ok_or_else(wrong_args)?;
     match first_arg {
         Value::Integer(arg) => {
-            let filter_code = RadonFilters::from_i128(*arg).ok_or_else(wrong_args)?;
+            let filter_code = RadonFilters::try_from(*arg as u8).map_err(|_| wrong_args())?;
             let (_args, extra_args) = args.split_at(1);
 
             filters::filter(input, filter_code, extra_args)

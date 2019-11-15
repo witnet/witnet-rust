@@ -10,7 +10,7 @@ use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::Hash;
 
 use crate::{
-    error::RadError,
+    rad_error::RadError,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString,

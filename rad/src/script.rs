@@ -1,12 +1,13 @@
+use std::convert::TryFrom;
+
 use log::error;
-use num_traits::FromPrimitive;
 use serde_cbor::{
     self as cbor,
     value::{from_value, Value},
 };
 
-use crate::error::RadError;
 use crate::operators::{operate, RadonOpCodes};
+use crate::rad_error::RadError;
 use crate::types::RadonTypes;
 
 pub type RadonCall = (RadonOpCodes, Option<Vec<Value>>);
@@ -41,10 +42,9 @@ pub fn unpack_radon_call(packed_call: &Value) -> Result<RadonCall, RadError> {
         Value::Array(array) => unpack_compound_call(array),
         Value::Integer(integer) => {
             if *integer >= 0i128 {
-                RadonOpCodes::from_i8(*integer as i8).map_or_else(
-                    || Err(errorify(RadError::UnknownOperator { code: *integer })),
-                    |op_code| Ok((op_code, None)),
-                )
+                RadonOpCodes::try_from(*integer as u8)
+                    .map(|op_code| (op_code, None))
+                    .map_err(|_| errorify(RadError::UnknownOperator { code: *integer }))
             } else {
                 Err(errorify(RadError::NotNaturalOperator { code: *integer }))
             }
@@ -54,17 +54,16 @@ pub fn unpack_radon_call(packed_call: &Value) -> Result<RadonCall, RadError> {
 }
 
 fn unpack_compound_call(array: &[Value]) -> Result<RadonCall, RadError> {
-    array
+    let (head, tail) = array
         .split_first()
-        .ok_or_else(|| errorify(RadError::NoOperatorInCompoundCall))
-        .map(|(head, tail)| {
-            from_value::<i8>(head.to_owned())
-                .map(RadonOpCodes::from_i8)
-                .unwrap_or(None)
-                .map(|op_code| (op_code, Some(tail.to_vec())))
-                .ok_or_else(|| errorify(RadError::NotIntegerOperator))
-        })
-        .unwrap_or_else(Err)
+        .ok_or_else(|| errorify(RadError::NoOperatorInCompoundCall))?;
+
+    let op_code =
+        from_value::<i8>(head.to_owned()).map_err(|_| errorify(RadError::NotIntegerOperator))?;
+    let op_code = RadonOpCodes::try_from(op_code as u8)
+        .map_err(|_| errorify(RadError::NotIntegerOperator))?;
+
+    Ok((op_code, Some(tail.to_vec())))
 }
 
 pub fn unpack_subscript(value: &Value) -> Result<Vec<RadonCall>, RadError> {
