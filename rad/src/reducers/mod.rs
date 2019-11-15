@@ -1,14 +1,16 @@
-use crate::error::RadError;
+use std::fmt;
+
+use num_enum::TryFromPrimitive;
+
+use crate::rad_error::RadError;
 use crate::types::{array::RadonArray, RadonType, RadonTypes};
 
 pub mod average;
 pub mod deviation;
 pub mod mode;
 
-use num_derive::FromPrimitive;
-use std::fmt;
-
-#[derive(Debug, FromPrimitive, PartialEq)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u8)]
 pub enum RadonReducers {
     Min = 0x00,
     Max = 0x01,

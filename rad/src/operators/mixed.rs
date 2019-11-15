@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::error::RadError;
+use crate::rad_error::RadError;
 use crate::types::{
     array::RadonArray, mixed::RadonBytes, float::RadonFloat, map::RadonMap, RadonType,
 };

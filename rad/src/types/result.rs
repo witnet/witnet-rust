@@ -4,8 +4,8 @@ use std::fmt;
 use serde::Serialize;
 use serde_cbor::value::Value;
 
-use crate::error::RadError;
 use crate::operators::Operable;
+use crate::rad_error::RadError;
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 

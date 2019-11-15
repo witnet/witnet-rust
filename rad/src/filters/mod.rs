@@ -1,13 +1,15 @@
-use crate::error::RadError;
-use crate::types::{array::RadonArray, RadonType, RadonTypes};
-
-use num_derive::FromPrimitive;
-use serde_cbor::Value;
 use std::fmt;
+
+use num_enum::TryFromPrimitive;
+use serde_cbor::Value;
+
+use crate::rad_error::RadError;
+use crate::types::{array::RadonArray, RadonType, RadonTypes};
 
 pub mod deviation;
 
-#[derive(Debug, FromPrimitive, PartialEq)]
+#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[repr(u8)]
 pub enum RadonFilters {
     GreaterThan = 0x00,
     LessThan = 0x01,

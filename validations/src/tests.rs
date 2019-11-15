@@ -11,7 +11,7 @@ use witnet_data_structures::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
 use witnet_protected::Protected;
-use witnet_rad::error::RadError;
+use witnet_rad::rad_error::RadError;
 
 use crate::validations::*;
 

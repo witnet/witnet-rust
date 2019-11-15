@@ -3,7 +3,7 @@ use std::i128;
 use std::{borrow::ToOwned, convert::TryFrom};
 
 use crate::{
-    error::RadError,
+    rad_error::RadError,
     types::{
         boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
         string::RadonString, RadonType,

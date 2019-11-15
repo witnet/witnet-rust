@@ -177,7 +177,7 @@ pub enum RadError {
 }
 
 impl From<reqwest::Error> for RadError {
-    fn from(err: reqwest::Error) -> RadError {
+    fn from(err: reqwest::Error) -> Self {
         RadError::Http {
             message: err.to_string(),
         }
@@ -185,7 +185,7 @@ impl From<reqwest::Error> for RadError {
 }
 
 impl From<std::num::ParseFloatError> for RadError {
-    fn from(err: std::num::ParseFloatError) -> RadError {
+    fn from(err: std::num::ParseFloatError) -> Self {
         RadError::ParseFloat {
             message: err.to_string(),
         }
@@ -193,7 +193,7 @@ impl From<std::num::ParseFloatError> for RadError {
 }
 
 impl From<std::num::ParseIntError> for RadError {
-    fn from(err: std::num::ParseIntError) -> RadError {
+    fn from(err: std::num::ParseIntError) -> Self {
         RadError::ParseInt {
             message: err.to_string(),
         }
@@ -201,9 +201,18 @@ impl From<std::num::ParseIntError> for RadError {
 }
 
 impl From<std::str::ParseBoolError> for RadError {
-    fn from(err: std::str::ParseBoolError) -> RadError {
+    fn from(err: std::str::ParseBoolError) -> Self {
         RadError::ParseBool {
             message: err.to_string(),
+        }
+    }
+}
+
+impl From<cbor::encoder::EncodeError> for RadError {
+    fn from(_err: cbor::encoder::EncodeError) -> Self {
+        RadError::Encode {
+            from: String::from("RadonError"),
+            to: String::from("CBOR"),
         }
     }
 }

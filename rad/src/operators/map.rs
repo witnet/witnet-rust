@@ -1,5 +1,5 @@
 use crate::{
-    error::RadError,
+    rad_error::RadError,
     types::{
         array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString, RadonType,
         RadonTypes,

@@ -1,7 +1,7 @@
 use crate::{
-    error::RadError,
     filters::RadonFilters,
     operators::array::transpose,
+    rad_error::RadError,
     reducers,
     types::{array::RadonArray, boolean::RadonBoolean, RadonType, RadonTypes},
 };

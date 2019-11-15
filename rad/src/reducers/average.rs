@@ -1,6 +1,6 @@
 use crate::{
-    error::RadError,
     operators::array::transpose,
+    rad_error::RadError,
     reducers::RadonReducers,
     types::{array::RadonArray, float::RadonFloat, integer::RadonInteger, RadonType, RadonTypes},
 };

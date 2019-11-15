@@ -1,13 +1,12 @@
+use std::convert::TryFrom;
 use std::{error::Error, str::FromStr};
 
 use json;
-use num_traits::FromPrimitive;
 use serde_cbor::value::{from_value, Value};
-use std::convert::TryFrom;
 
 use crate::{
-    error::RadError,
     hash_functions::{self, RadonHashFunctions},
+    rad_error::RadError,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
@@ -70,9 +69,9 @@ pub fn hash(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError
     let input_bytes = input_string.as_bytes();
 
     let arg = args.first().ok_or_else(wrong_args)?.to_owned();
-    let hash_function_integer = from_value::<i64>(arg).map_err(|_| wrong_args())?;
+    let hash_function_integer = from_value::<u8>(arg).map_err(|_| wrong_args())?;
     let hash_function_code =
-        RadonHashFunctions::from_i64(hash_function_integer).ok_or_else(wrong_args)?;
+        RadonHashFunctions::try_from(hash_function_integer).map_err(|_| wrong_args())?;
 
     let digest = hash_functions::hash(input_bytes, hash_function_code)?;
     let hex_string = hex::encode(digest);
@@ -127,8 +126,9 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::BTreeMap;
+
+    use super::*;
 
     #[test]
     fn test_parse_json() {
@@ -159,8 +159,8 @@ mod tests {
     fn test_hash() {
         let input = RadonString::from("Hello, World!");
         let valid_args = [Value::from(0x0A)]; // 0x0A is RadonHashFunctions::SHA_256
-        let wrong_args = [Value::from(0xFF)]; // 0xFF is not a member of RadonHashFunctions
-        let unsupported_args = [Value::from(-1)]; // -1 is RadonHashFunctions::Fail (unsupported)
+        let wrong_args = [Value::from(0xFE)]; // 0xFF is not a member of RadonHashFunctions
+        let unsupported_args = [Value::from(0xFF)]; // -1 is RadonHashFunctions::Fail (unsupported)
 
         let valid_output = hash(&input, &valid_args).unwrap();
         let wrong_output = hash(&input, &wrong_args);
@@ -172,7 +172,7 @@ mod tests {
         assert_eq!(valid_output, valid_expected);
         assert_eq!(
             &wrong_output.unwrap_err().to_string(),
-            "Wrong `RadonString::Hash()` arguments: `[Integer(255)]`"
+            "Wrong `RadonString::Hash()` arguments: `[Integer(254)]`"
         );
         assert_eq!(
             &unsupported_output.unwrap_err().to_string(),

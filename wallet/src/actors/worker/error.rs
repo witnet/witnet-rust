@@ -6,7 +6,7 @@ use crate::{crypto, db, repository};
 #[fail(display = "error")]
 pub enum Error {
     #[fail(display = "rad request failed: {}", _0)]
-    Rad(#[cause] witnet_rad::error::RadError),
+    Rad(#[cause] witnet_rad::rad_error::RadError),
     #[fail(display = "{}", _0)]
     Mailbox(#[cause] actix::MailboxError),
     #[fail(display = "master key generation failed: {}", _0)]
@@ -37,8 +37,8 @@ impl From<actix::MailboxError> for Error {
     }
 }
 
-impl From<witnet_rad::error::RadError> for Error {
-    fn from(err: witnet_rad::error::RadError) -> Self {
+impl From<witnet_rad::rad_error::RadError> for Error {
+    fn from(err: witnet_rad::rad_error::RadError) -> Self {
         Error::Rad(err)
     }
 }
