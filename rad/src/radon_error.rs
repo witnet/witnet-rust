@@ -6,12 +6,14 @@ use num_enum::IntoPrimitive;
 use crate::rad_error::RadError;
 use std::io::Cursor;
 
-#[derive(Clone, Copy, IntoPrimitive)]
+#[derive(Clone, Copy, Debug, IntoPrimitive)]
 #[repr(u8)]
 /// List of RADON-level errors.
 /// **WARNING: these codes are consensus-critical.** They can be renamed but they cannot be
 /// re-assigned without causing a non-backwards-compatible protocol upgrade.
 pub enum RadonErrors {
+    /// Unknown error. Something went really bad!
+    Unknown = 0x00,
     // Script format errors
     /// At least one of the source scripts is not a valid CBOR-encoded value.
     SourceScriptNotCBOR = 0x01,
@@ -40,20 +42,35 @@ pub enum RadonErrors {
 }
 
 /// This structure is aimed to be the error type for the `result` field of `crate::report::Report`.
+#[derive(Clone, Debug)]
 pub struct RadonError {
     /// One of the cases in `RadonErrors`.
-    kind: RadonErrors,
+    pub kind: RadonErrors,
     /// A vector of arguments as `cbor::value::Value`.
-    arguments: Vec<Value>,
+    pub arguments: Vec<Value>,
+    /// The original `RadError` that originated this `RadonError` (if any)
+    pub inner: Option<RadError>,
 }
 
-/// Allow CBOR encoding of `RadonError` structures.
+/// Implementation of encoding and convenience methods for `RadonError`.
 impl RadonError {
+    /// Allow CBOR encoding of `RadonError` structures.
     pub fn encode(&self) -> Result<Vec<u8>, RadError> {
         let mut encoder = GenericEncoder::new(Cursor::new(Vec::new()));
         encoder.value(&Value::from(self))?;
 
         Ok(encoder.into_inner().into_writer().into_inner())
+    }
+}
+
+/// Allow constructing a `RadonError` with no arguments by just choosing the `kind` field.
+impl From<RadonErrors> for RadonError {
+    fn from(kind: RadonErrors) -> Self {
+        RadonError {
+            kind,
+            arguments: Vec::new(),
+            inner: None,
+        }
     }
 }
 
@@ -66,5 +83,12 @@ impl From<&RadonError> for Value {
             .iter()
             .for_each(|argument| values.push(argument.clone()));
         Value::Tagged(Tag::of(37), Box::new(Value::Array(values)))
+    }
+}
+
+/// Allow recovering the originating `RadError` of a `RadonError` (if any).
+impl From<RadonError> for RadError {
+    fn from(error: RadonError) -> Self {
+        error.inner.unwrap_or(RadError::Unknown)
     }
 }

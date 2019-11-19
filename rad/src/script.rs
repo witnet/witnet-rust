@@ -6,16 +6,34 @@ use serde_cbor::{
     value::{from_value, Value},
 };
 
-use crate::operators::{operate, RadonOpCodes};
+use crate::operators::{operate, operate_with_context, RadonOpCodes};
 use crate::rad_error::RadError;
+use crate::report::{Report, ReportContext};
 use crate::types::RadonTypes;
 
 pub type RadonCall = (RadonOpCodes, Option<Vec<Value>>);
 
 pub type RadonScript = Vec<RadonCall>;
 
-/// Run any RADON script on given input data.
+/// Run any RADON script on given input data, and return `Report`.
 pub fn execute_radon_script(
+    input: RadonTypes,
+    script: &[RadonCall],
+    context: &mut ReportContext,
+) -> Result<Report, RadError> {
+    let result = script
+        .iter()
+        .enumerate()
+        .try_fold(input, |input, (i, call)| {
+            context.call_index = Some(i as u8);
+            operate_with_context(input, call, context)
+        });
+
+    Report::from_result(result, context)
+}
+
+/// Run any RADON script on given input data, and return `RadonTypes`.
+pub fn execute_contextless_radon_script(
     input: RadonTypes,
     script: &[RadonCall],
 ) -> Result<RadonTypes, RadError> {
@@ -104,7 +122,7 @@ fn test_execute_radon_script() {
         ),
         (RadonOpCodes::BytesAsFloat, None),
     ];
-    let output = execute_radon_script(input, &script).unwrap();
+    let output = execute_contextless_radon_script(input, &script).unwrap();
 
     let expected = RadonTypes::Float(RadonFloat::from(-4f64));
 

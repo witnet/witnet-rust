@@ -1,8 +1,11 @@
+use std::fmt;
+
+use num_enum::TryFromPrimitive;
+
 use crate::rad_error::RadError;
+use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
-use num_enum::TryFromPrimitive;
-use std::fmt;
 
 pub mod array;
 pub mod boolean;
@@ -12,6 +15,9 @@ pub mod integer;
 pub mod map;
 pub mod string;
 
+/// List of RADON operators.
+/// **WARNING: these codes are consensus-critical.** They can be renamed but they cannot be
+/// re-assigned without causing a non-backwards-compatible protocol upgrade.
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
 pub enum RadonOpCodes {
@@ -130,6 +136,17 @@ pub fn operate(input: RadonTypes, call: &RadonCall) -> Result<RadonTypes, RadErr
         RadonTypes::Bytes(radon_bytes) => radon_bytes.operate(call),
         RadonTypes::Integer(radon_integer) => radon_integer.operate(call),
     }
+}
+
+/// This is bound to be a replacement for the original `operate` method.
+/// The main difference with the former is that it passes mutable references of the context down to
+/// operators for them to put there whatever metadata they need to.
+pub fn operate_with_context(
+    input: RadonTypes,
+    call: &RadonCall,
+    _context: &mut ReportContext,
+) -> Result<RadonTypes, RadError> {
+    operate(input, call)
 }
 
 pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
