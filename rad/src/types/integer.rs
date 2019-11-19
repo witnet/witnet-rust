@@ -7,6 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_cbor::value::Value;
 
+use crate::report::ReportContext;
 use crate::{
     operators::{identity, integer as integer_operators, Operable, RadonOpCodes},
     rad_error::RadError,
@@ -71,39 +72,39 @@ impl TryFrom<&str> for RadonInteger {
 }
 
 impl<'a> Operable for RadonInteger {
-    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+    fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             // Identity
-            (RadonOpCodes::Identity, None) => identity(RadonTypes::Integer(self)),
-            (RadonOpCodes::IntegerAbsolute, None) => integer_operators::absolute(&self)
+            (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
+            (RadonOpCodes::IntegerAbsolute, None) => integer_operators::absolute(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::IntegerAsBytes, None) => {
-                Ok(RadonTypes::from(integer_operators::to_bytes(self)))
+                Ok(RadonTypes::from(integer_operators::to_bytes(self.clone())))
             }
-            (RadonOpCodes::IntegerAsFloat, None) => integer_operators::to_float(self)
+            (RadonOpCodes::IntegerAsFloat, None) => integer_operators::to_float(self.clone())
                 .map(RadonTypes::from)
                 .map_err(Into::into),
-            (RadonOpCodes::IntegerAsString, None) => integer_operators::to_string(self)
+            (RadonOpCodes::IntegerAsString, None) => integer_operators::to_string(self.clone())
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::IntegerGreaterThan, Some(args)) => {
-                integer_operators::greater_than(&self, args).map(Into::into)
+                integer_operators::greater_than(self, args).map(Into::into)
             }
             (RadonOpCodes::IntegerLessThan, Some(args)) => {
-                integer_operators::less_than(&self, args).map(Into::into)
+                integer_operators::less_than(self, args).map(Into::into)
             }
             (RadonOpCodes::IntegerModulo, Some(args)) => {
-                integer_operators::modulo(&self, args.as_slice()).map(Into::into)
+                integer_operators::modulo(self, args.as_slice()).map(Into::into)
             }
             (RadonOpCodes::IntegerMultiply, Some(args)) => {
-                integer_operators::multiply(&self, args.as_slice()).map(Into::into)
+                integer_operators::multiply(self, args.as_slice()).map(Into::into)
             }
-            (RadonOpCodes::IntegerNegate, None) => integer_operators::negate(&self)
+            (RadonOpCodes::IntegerNegate, None) => integer_operators::negate(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::IntegerPower, Some(args)) => {
-                integer_operators::power(&self, args.as_slice()).map(Into::into)
+                integer_operators::power(self, args.as_slice()).map(Into::into)
             }
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
@@ -112,6 +113,14 @@ impl<'a> Operable for RadonInteger {
                 args: args.to_owned(),
             }),
         }
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        _context: &mut ReportContext,
+    ) -> Result<RadonTypes, RadError> {
+        self.operate(call)
     }
 }
 

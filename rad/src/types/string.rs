@@ -8,6 +8,7 @@ use serde_cbor::value::{from_value, Value};
 
 use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
 use crate::rad_error::RadError;
+use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
@@ -62,35 +63,35 @@ impl<'a> From<&'a str> for RadonString {
 }
 
 impl Operable for RadonString {
-    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+    fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
-            (RadonOpCodes::Identity, None) => identity(RadonTypes::String(self)),
+            (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             (RadonOpCodes::StringAsBytes, None) => {
-                Ok(RadonTypes::from(string_operators::to_bytes(self)))
+                Ok(RadonTypes::from(string_operators::to_bytes(self.clone())))
             }
             (RadonOpCodes::StringParseJSON, None) => {
-                string_operators::parse_json(&self).map(RadonTypes::Bytes)
+                string_operators::parse_json(self).map(RadonTypes::Bytes)
             }
-            (RadonOpCodes::StringAsFloat, None) => string_operators::to_float(&self)
+            (RadonOpCodes::StringAsFloat, None) => string_operators::to_float(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
-            (RadonOpCodes::StringAsInteger, None) => string_operators::to_int(&self)
+            (RadonOpCodes::StringAsInteger, None) => string_operators::to_int(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
-            (RadonOpCodes::StringAsBoolean, None) => string_operators::to_bool(&self)
+            (RadonOpCodes::StringAsBoolean, None) => string_operators::to_bool(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::StringMatch, Some(args)) => {
-                string_operators::string_match(&self, args.as_slice()).map(RadonTypes::from)
+                string_operators::string_match(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::StringLength, None) => {
-                Ok(RadonTypes::from(string_operators::length(&self)))
+                Ok(RadonTypes::from(string_operators::length(self)))
             }
             (RadonOpCodes::StringToLowerCase, None) => {
-                Ok(RadonTypes::from(string_operators::to_lowercase(&self)))
+                Ok(RadonTypes::from(string_operators::to_lowercase(self)))
             }
             (RadonOpCodes::StringToUpperCase, None) => {
-                Ok(RadonTypes::from(string_operators::to_uppercase(&self)))
+                Ok(RadonTypes::from(string_operators::to_uppercase(self)))
             }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_STRING_TYPE_NAME.to_string(),
@@ -98,6 +99,14 @@ impl Operable for RadonString {
                 args: args.to_owned(),
             }),
         }
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        _context: &mut ReportContext,
+    ) -> Result<RadonTypes, RadError> {
+        self.operate(call)
     }
 }
 

@@ -5,6 +5,7 @@ use serde_cbor::value::Value;
 
 use crate::operators::{bytes as bytes_operators, identity, Operable, RadonOpCodes};
 use crate::rad_error::RadError;
+use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
@@ -55,34 +56,34 @@ impl TryInto<Value> for RadonBytes {
 }
 
 impl Operable for RadonBytes {
-    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+    fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             // Identity
-            (RadonOpCodes::Identity, None) => identity(RadonTypes::Bytes(self)),
+            (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             // To Float
-            (RadonOpCodes::BytesAsFloat, None) => bytes_operators::to_float(self)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::BytesAsFloat, None) => {
+                bytes_operators::to_float(self.clone()).map(RadonTypes::from)
+            }
             // To Integer
-            (RadonOpCodes::BytesAsInteger, None) => bytes_operators::to_int(self)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::BytesAsInteger, None) => {
+                bytes_operators::to_int(self.clone()).map(RadonTypes::from)
+            }
             // To Array
-            (RadonOpCodes::BytesAsArray, None) => bytes_operators::to_array(self)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::BytesAsArray, None) => {
+                bytes_operators::to_array(self.clone()).map(RadonTypes::from)
+            }
             // To Map
-            (RadonOpCodes::BytesAsMap, None) => bytes_operators::to_map(self)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::BytesAsMap, None) => {
+                bytes_operators::to_map(self.clone()).map(RadonTypes::from)
+            }
             // To Boolean
-            (RadonOpCodes::BytesAsBoolean, None) => bytes_operators::to_bool(self)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::BytesAsBoolean, None) => {
+                bytes_operators::to_bool(self.clone()).map(RadonTypes::from)
+            }
             // To String
-            (RadonOpCodes::BytesAsString, None) => bytes_operators::to_string(self)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::BytesAsString, None) => {
+                bytes_operators::to_string(self.clone()).map(RadonTypes::from)
+            }
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_BYTES_TYPE_NAME.to_string(),
@@ -90,6 +91,14 @@ impl Operable for RadonBytes {
                 args: args.to_owned(),
             }),
         }
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        _context: &mut ReportContext,
+    ) -> Result<RadonTypes, RadError> {
+        self.operate(call)
     }
 }
 
