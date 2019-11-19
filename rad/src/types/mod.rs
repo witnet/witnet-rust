@@ -24,7 +24,6 @@ pub mod bytes;
 pub mod float;
 pub mod integer;
 pub mod map;
-pub mod result;
 pub mod string;
 
 pub trait RadonType<T>:
