@@ -1,10 +1,13 @@
 //! # RAD Engine
 
+use std::convert::TryFrom;
+
 use reqwest;
 
 use witnet_data_structures::chain::{RADAggregate, RADRetrieve, RADTally, RADType};
 
 use crate::rad_error::RadError;
+use crate::report::{Report, ReportContext, Stage, TallyMetaData};
 use crate::script::{execute_radon_script, unpack_radon_script};
 use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
 
@@ -20,20 +23,33 @@ pub mod types;
 
 pub type Result<T> = std::result::Result<T, RadError>;
 
-/// Run retrieval without performing any external network requests.
-pub fn run_retrieval_with_data(retrieve: &RADRetrieve, response: String) -> Result<RadonTypes> {
+/// Run retrieval without performing any external network requests, return `Report`.
+pub fn run_retrieval_with_data_report(
+    retrieve: &RADRetrieve,
+    response: String,
+    context: &mut ReportContext,
+) -> Result<Report> {
     match retrieve.kind {
         RADType::HttpGet => {
             let input = RadonTypes::from(RadonString::from(response));
             let radon_script = unpack_radon_script(&retrieve.script)?;
 
-            execute_radon_script(input, &radon_script)
+            execute_radon_script(input, &radon_script, context)
         }
     }
 }
 
-/// Run retrieval stage of a data request.
-pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
+/// Run retrieval without performing any external network requests, return `RadonTypes`.
+pub fn run_retrieval_with_data(retrieve: &RADRetrieve, response: String) -> Result<RadonTypes> {
+    let context = &mut ReportContext::default();
+    run_retrieval_with_data_report(retrieve, response, context).and_then(RadonTypes::try_from)
+}
+
+/// Run retrieval stage of a data request, return `Report`.
+pub fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<Report> {
+    let context = &mut ReportContext::default();
+    context.stage = Stage::Retrieval;
+
     match retrieve.kind {
         RADType::HttpGet => {
             let response = reqwest::get(&retrieve.url)
@@ -41,7 +57,7 @@ pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
                 .text()
                 .map_err(RadError::from)?;
 
-            let result = run_retrieval_with_data(retrieve, response);
+            let result = run_retrieval_with_data_report(retrieve, response, context);
 
             log::debug!("Result for URL {}: {:?}", retrieve.url, result);
 
@@ -50,23 +66,47 @@ pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
     }
 }
 
-/// Run aggregate stage of a data request.
+/// Run retrieval stage of a data request, return `RadonTypes`.
+pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
+    run_retrieval_report(retrieve).and_then(RadonTypes::try_from)
+}
+
+/// Run aggregate stage of a data request, return `Report`.
+pub fn run_aggregation_report(
+    radon_types_vec: Vec<RadonTypes>,
+    aggregate: &RADAggregate,
+) -> Result<Report> {
+    let context = &mut ReportContext::default();
+    context.stage = Stage::Aggregation;
+
+    let radon_script = unpack_radon_script(aggregate.script.as_slice())?;
+    let items_to_aggregate = RadonTypes::from(RadonArray::from(radon_types_vec));
+
+    execute_radon_script(items_to_aggregate, &radon_script, context)
+}
+
+/// Run aggregate stage of a data request, return `RadonTypes`.
 pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
 ) -> Result<RadonTypes> {
-    let radon_script = unpack_radon_script(aggregate.script.as_slice())?;
-    let items_to_aggregate = RadonTypes::from(RadonArray::from(radon_types_vec));
-
-    execute_radon_script(items_to_aggregate, &radon_script)
+    run_aggregation_report(radon_types_vec, aggregate).and_then(RadonTypes::try_from)
 }
 
-/// Run tally stage of a data request.
-pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
+/// Run tally stage of a data request, return `Report`.
+pub fn run_tally_report(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<Report> {
+    let context = &mut ReportContext::default();
+    context.stage = Stage::Tally(TallyMetaData::default());
+
     let radon_script = unpack_radon_script(consensus.script.as_slice())?;
     let items_to_tally = RadonTypes::from(RadonArray::from(radon_types_vec));
 
-    execute_radon_script(items_to_tally, &radon_script)
+    execute_radon_script(items_to_tally, &radon_script, context)
+}
+
+/// Run tally stage of a data request, return `RadonTypes`.
+pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
+    run_tally_report(radon_types_vec, consensus).and_then(RadonTypes::try_from)
 }
 
 #[test]

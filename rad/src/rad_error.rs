@@ -1,12 +1,16 @@
 //! Error type definitions for the RAD module.
 
-use crate::types::array::RadonArray;
 use failure::{self, Fail};
 use serde_cbor::value::Value;
 
+use crate::types::array::RadonArray;
+
 /// RAD errors.
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Clone, Debug, PartialEq, Fail)]
 pub enum RadError {
+    /// An unknown error. Something went really bad!
+    #[fail(display = "Unknown error")]
+    Unknown,
     /// Failed to decode a type from other
     #[fail(display = "Failed to decode {} from {}", to, from)]
     Decode { from: String, to: String },
@@ -114,12 +118,15 @@ pub enum RadError {
         operator: String,
         args: Vec<Value>,
     },
+    /// The HTTP response was an error code
+    #[fail(display = "HTTP GET response was an HTTP error code: {}", status_code)]
+    HttpStatus { status_code: u16 },
     /// Failed to execute HTTP request
     #[fail(
-        display = "Failed to execute HTTP request with error message: {}",
+        display = "Failed to execute HTTP GET request with error message: {}",
         message
     )]
-    Http { message: String },
+    HttpOther { message: String },
     /// Failed to convert string to float
     #[fail(
         display = "Failed to convert string to float with error message: {}",
@@ -178,8 +185,13 @@ pub enum RadError {
 
 impl From<reqwest::Error> for RadError {
     fn from(err: reqwest::Error) -> Self {
-        RadError::Http {
-            message: err.to_string(),
+        match err.status() {
+            Some(status_code) => RadError::HttpStatus {
+                status_code: status_code.as_u16(),
+            },
+            None => RadError::HttpOther {
+                message: err.to_string(),
+            },
         }
     }
 }
