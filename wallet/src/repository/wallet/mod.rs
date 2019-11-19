@@ -810,8 +810,7 @@ where
 fn convert_block_epoch_to_timestamp(epoch: Epoch) -> i64 {
     // FIXME: we need EpochConstants to convert between epochs and timestamps
     // In the meanwhile, just return the epoch as the timestamp
-
-    epoch as i64
+    i64::from(epoch)
 }
 
 #[cfg(test)]
