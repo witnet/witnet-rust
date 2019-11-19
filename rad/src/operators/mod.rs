@@ -123,30 +123,28 @@ impl fmt::Display for RadonOpCodes {
 }
 
 pub trait Operable {
-    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError>;
+    fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError>;
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        context: &mut ReportContext,
+    ) -> Result<RadonTypes, RadError>;
 }
 
 pub fn operate(input: RadonTypes, call: &RadonCall) -> Result<RadonTypes, RadError> {
-    match input {
-        RadonTypes::Array(radon_array) => radon_array.operate(call),
-        RadonTypes::Boolean(radon_boolean) => radon_boolean.operate(call),
-        RadonTypes::Float(radon_float) => radon_float.operate(call),
-        RadonTypes::Map(radon_map) => radon_map.operate(call),
-        RadonTypes::String(radon_string) => radon_string.operate(call),
-        RadonTypes::Bytes(radon_bytes) => radon_bytes.operate(call),
-        RadonTypes::Integer(radon_integer) => radon_integer.operate(call),
-    }
+    input.as_operable().operate(call)
 }
 
 /// This is bound to be a replacement for the original `operate` method.
 /// The main difference with the former is that it passes mutable references of the context down to
 /// operators for them to put there whatever metadata they need to.
-pub fn operate_with_context(
+pub fn operate_in_context(
     input: RadonTypes,
     call: &RadonCall,
-    _context: &mut ReportContext,
+    context: &mut ReportContext,
 ) -> Result<RadonTypes, RadError> {
-    operate(input, call)
+    input.as_operable().operate_in_context(call, context)
 }
 
 pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {

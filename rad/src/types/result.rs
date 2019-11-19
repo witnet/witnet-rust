@@ -6,6 +6,7 @@ use serde_cbor::value::Value;
 
 use crate::operators::Operable;
 use crate::rad_error::RadError;
+use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
@@ -66,7 +67,7 @@ impl fmt::Display for RadonResult {
 }
 
 impl Operable for RadonResult {
-    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+    fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_RESULT_TYPE_NAME.to_string(),
@@ -74,5 +75,13 @@ impl Operable for RadonResult {
                 args: args.to_owned(),
             }),
         }
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        _context: &mut ReportContext,
+    ) -> Result<RadonTypes, RadError> {
+        self.operate(call)
     }
 }

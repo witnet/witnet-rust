@@ -9,6 +9,7 @@ use serde_cbor::{from_slice, to_vec, Value};
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::Hash;
 
+use crate::operators::Operable;
 use crate::{
     rad_error::RadError,
     types::{
@@ -63,6 +64,18 @@ impl RadonTypes {
             RadonTypes::Bytes(_) => RadonBytes::radon_type_name(),
             RadonTypes::String(_) => RadonString::radon_type_name(),
             RadonTypes::Integer(_) => RadonInteger::radon_type_name(),
+        }
+    }
+
+    pub fn as_operable(&self) -> &dyn Operable {
+        match self {
+            RadonTypes::Array(inner) => inner,
+            RadonTypes::Boolean(inner) => inner,
+            RadonTypes::Float(inner) => inner,
+            RadonTypes::Map(inner) => inner,
+            RadonTypes::Bytes(inner) => inner,
+            RadonTypes::String(inner) => inner,
+            RadonTypes::Integer(inner) => inner,
         }
     }
 }

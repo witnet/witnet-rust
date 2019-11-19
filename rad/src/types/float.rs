@@ -7,6 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_cbor::value::Value;
 
+use crate::report::ReportContext;
 use crate::{
     operators::{float as float_operators, identity, Operable, RadonOpCodes},
     rad_error::RadError,
@@ -72,52 +73,45 @@ impl TryFrom<&str> for RadonFloat {
 }
 
 impl<'a> Operable for RadonFloat {
-    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+    fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             // Identity
-            (RadonOpCodes::Identity, None) => identity(RadonTypes::Float(self)),
+            (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             (RadonOpCodes::FloatAbsolute, None) => {
-                Ok(RadonTypes::from(float_operators::absolute(&self)))
+                Ok(RadonTypes::from(float_operators::absolute(self)))
             }
-
             (RadonOpCodes::FloatAsBytes, None) => {
-                Ok(RadonTypes::from(float_operators::to_bytes(self)))
+                Ok(RadonTypes::from(float_operators::to_bytes(self.clone())))
             }
-
-            (RadonOpCodes::FloatAsString, None) => float_operators::to_string(self)
+            (RadonOpCodes::FloatAsString, None) => float_operators::to_string(self.clone())
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::FloatCeiling, None) => {
-                Ok(RadonTypes::from(float_operators::ceiling(&self)))
+                Ok(RadonTypes::from(float_operators::ceiling(self)))
             }
-
             (RadonOpCodes::FloatGreaterThan, Some(args)) => {
-                float_operators::greater_than(&self, args).map(Into::into)
+                float_operators::greater_than(self, args).map(Into::into)
             }
-
             (RadonOpCodes::FloatLessThan, Some(args)) => {
-                float_operators::less_than(&self, args).map(Into::into)
+                float_operators::less_than(self, args).map(Into::into)
             }
-
             (RadonOpCodes::FloatMultiply, Some(args)) => {
-                float_operators::multiply(&self, args.as_slice()).map(Into::into)
+                float_operators::multiply(self, args.as_slice()).map(Into::into)
             }
-
             (RadonOpCodes::FloatModulo, Some(args)) => {
-                float_operators::modulo(&self, args.as_slice()).map(Into::into)
+                float_operators::modulo(self, args.as_slice()).map(Into::into)
             }
-
-            (RadonOpCodes::FloatFloor, None) => Ok(RadonTypes::from(float_operators::floor(&self))),
+            (RadonOpCodes::FloatFloor, None) => Ok(RadonTypes::from(float_operators::floor(self))),
 
             (RadonOpCodes::FloatNegate, None) => {
-                Ok(RadonTypes::from(float_operators::negate(&self)))
+                Ok(RadonTypes::from(float_operators::negate(self)))
             }
             (RadonOpCodes::FloatPower, Some(args)) => {
-                float_operators::power(&self, args.as_slice()).map(Into::into)
+                float_operators::power(self, args.as_slice()).map(Into::into)
             }
-            (RadonOpCodes::FloatRound, None) => Ok(RadonTypes::from(float_operators::round(&self))),
+            (RadonOpCodes::FloatRound, None) => Ok(RadonTypes::from(float_operators::round(self))),
             (RadonOpCodes::FloatTruncate, None) => {
-                Ok(RadonTypes::from(float_operators::truncate(&self)))
+                Ok(RadonTypes::from(float_operators::truncate(self)))
             }
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
@@ -126,6 +120,14 @@ impl<'a> Operable for RadonFloat {
                 args: args.to_owned(),
             }),
         }
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        _context: &mut ReportContext,
+    ) -> Result<RadonTypes, RadError> {
+        self.operate(call)
     }
 }
 

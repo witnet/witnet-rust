@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 
 use serde_cbor::value::{from_value, Value};
 
-use crate::script::execute_contextless_radon_script;
+use crate::script::execute_contextfree_radon_script;
 use crate::{
     filters::{self, RadonFilters},
     rad_error::RadError,
@@ -79,7 +79,7 @@ pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     for item in input.value() {
         // FIXME: add support for bubbling up errors thrown in subcontexts.
         // FIXME: use the new `execute_radon_script` instead.
-        result.push(execute_contextless_radon_script(
+        result.push(execute_contextfree_radon_script(
             item,
             subscript.as_slice(),
         )?);
@@ -113,7 +113,7 @@ pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
 
             let mut result = vec![];
             for item in input.value() {
-                match execute_contextless_radon_script(item.clone(), subscript.as_slice())? {
+                match execute_contextfree_radon_script(item.clone(), subscript.as_slice())? {
                     RadonTypes::Boolean(boolean) => {
                         if boolean.value() {
                             result.push(item);

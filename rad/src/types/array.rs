@@ -9,6 +9,7 @@ use serde_cbor::value::{from_value, Value};
 
 use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
 use crate::rad_error::RadError;
+use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::{
     bytes::RadonBytes, float::RadonFloat, map::RadonMap, string::RadonString, RadonType, RadonTypes,
@@ -134,27 +135,42 @@ impl fmt::Display for RadonArray {
 }
 
 impl Operable for RadonArray {
-    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+    fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
-            (RadonOpCodes::Identity, None) => identity(self.into()),
-            (RadonOpCodes::ArrayCount, None) => Ok(array_operators::count(&self).into()),
-            (RadonOpCodes::Get, Some(args)) => array_operators::get(&self, args.as_slice()),
-            (RadonOpCodes::ArrayGet, Some(args)) => array_operators::get(&self, args.as_slice()),
+            (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
+            (RadonOpCodes::ArrayCount, None) => Ok(array_operators::count(self).into()),
+            (RadonOpCodes::Get, Some(args)) => array_operators::get(self, args.as_slice()),
+            (RadonOpCodes::ArrayGet, Some(args)) => array_operators::get(self, args.as_slice()),
             (RadonOpCodes::ArrayFilter, Some(args)) => {
-                array_operators::filter(&self, args.as_slice())
+                array_operators::filter(self, args.as_slice())
             }
-            (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(&self, args.as_slice()),
+            (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(self, args.as_slice()),
             (RadonOpCodes::ArrayReduce, Some(args)) => {
-                array_operators::reduce(&self, args.as_slice())
+                array_operators::reduce(self, args.as_slice())
             }
             (RadonOpCodes::ArraySort, Some(args)) => {
-                array_operators::sort(&self, args.as_slice()).map(RadonTypes::from)
+                array_operators::sort(self, args.as_slice()).map(RadonTypes::from)
             }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_ARRAY_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),
+        }
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        _context: &mut ReportContext,
+    ) -> Result<RadonTypes, RadError> {
+        // Intercept filter operations for performing the filters in a context, otherwise use
+        // context-free execution.
+        match call {
+            (RadonOpCodes::ArrayFilter, Some(args)) => {
+                array_operators::filter(self, args.as_slice())
+            }
+            other => self.operate(other),
         }
     }
 }

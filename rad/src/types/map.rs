@@ -1,3 +1,4 @@
+use std::collections::btree_map::BTreeMap;
 use std::collections::HashMap;
 use std::{
     convert::{TryFrom, TryInto},
@@ -9,10 +10,10 @@ use serde_cbor::value::{from_value, to_value, Value};
 
 use crate::operators::{identity, map as map_operators, Operable, RadonOpCodes};
 use crate::rad_error::RadError;
+use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
 use crate::types::{bytes::RadonBytes, RadonType};
-use std::collections::btree_map::BTreeMap;
 
 pub const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
@@ -109,20 +110,28 @@ impl fmt::Display for RadonMap {
 }
 
 impl Operable for RadonMap {
-    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+    fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
-            (RadonOpCodes::Identity, None) => identity(self.into()),
+            (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             (RadonOpCodes::Get, Some(args)) | (RadonOpCodes::MapGet, Some(args)) => {
-                map_operators::get(&self, args.as_slice()).map(Into::into)
+                map_operators::get(self, args.as_slice()).map(Into::into)
             }
-            (RadonOpCodes::MapKeys, None) => Ok(RadonTypes::from(map_operators::keys(&self))),
-            (RadonOpCodes::MapValues, None) => Ok(RadonTypes::from(map_operators::values(&self))),
+            (RadonOpCodes::MapKeys, None) => Ok(RadonTypes::from(map_operators::keys(self))),
+            (RadonOpCodes::MapValues, None) => Ok(RadonTypes::from(map_operators::values(self))),
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_MAP_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
                 args: args.to_owned(),
             }),
         }
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        _context: &mut ReportContext,
+    ) -> Result<RadonTypes, RadError> {
+        self.operate(call)
     }
 }
 

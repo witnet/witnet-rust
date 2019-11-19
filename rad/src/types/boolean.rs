@@ -4,9 +4,10 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use serde_cbor::value::{from_value, Value};
 
-use crate::operators::boolean as boolean_operators;
+use crate::operators::{boolean as boolean_operators, identity};
 use crate::operators::{Operable, RadonOpCodes};
 use crate::rad_error::RadError;
+use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
 
@@ -61,10 +62,11 @@ impl fmt::Display for RadonBoolean {
 }
 
 impl Operable for RadonBoolean {
-    fn operate(self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+    fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
-            (RadonOpCodes::BooleanNegate, None) => Ok(boolean_operators::negate(&self).into()),
-            (RadonOpCodes::BooleanAsString, None) => boolean_operators::to_string(self)
+            (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
+            (RadonOpCodes::BooleanNegate, None) => Ok(boolean_operators::negate(self).into()),
+            (RadonOpCodes::BooleanAsString, None) => boolean_operators::to_string(self.clone())
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (op_code, args) => Err(RadError::UnsupportedOperator {
@@ -73,5 +75,13 @@ impl Operable for RadonBoolean {
                 args: args.to_owned(),
             }),
         }
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        _context: &mut ReportContext,
+    ) -> Result<RadonTypes, RadError> {
+        self.operate(call)
     }
 }
