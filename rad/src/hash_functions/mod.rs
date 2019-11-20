@@ -2,8 +2,8 @@ use std::fmt;
 
 use num_enum::TryFromPrimitive;
 
+use crate::error::RadError;
 use crate::hash_functions::sha2::sha2_256;
-use crate::rad_error::RadError;
 
 mod sha2;
 

@@ -7,13 +7,13 @@ use std::{
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde_cbor::value::{from_value, Value};
 
+use crate::error::RadError;
 use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
-use crate::rad_error::RadError;
-use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::{
     bytes::RadonBytes, float::RadonFloat, map::RadonMap, string::RadonString, RadonType, RadonTypes,
 };
+use witnet_data_structures::radon_report::ReportContext;
 
 fn bytes_discriminant() -> Discriminant<RadonTypes> {
     discriminant(&RadonTypes::from(RadonBytes::from(Value::Null)))

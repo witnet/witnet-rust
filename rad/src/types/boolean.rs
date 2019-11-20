@@ -4,12 +4,12 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use serde_cbor::value::{from_value, Value};
 
+use crate::error::RadError;
 use crate::operators::{boolean as boolean_operators, identity};
 use crate::operators::{Operable, RadonOpCodes};
-use crate::rad_error::RadError;
-use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
+use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_BOOLEAN_TYPE_NAME: &str = "RadonBoolean";
 

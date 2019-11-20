@@ -1,4 +1,4 @@
-use crate::rad_error::RadError;
+use crate::error::RadError;
 
 use witnet_crypto::hash::calculate_sha256;
 

@@ -1,63 +1,77 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::time::{Duration, Instant};
 
-use cbor::value::Value;
-use serde_cbor;
-
-use crate::rad_error::RadError;
-use crate::radon_error::{RadonError, RadonErrors};
-use crate::types::RadonTypes;
+use crate::radon_error::{ErrorLike, RadonError};
 
 /// A high level data structure aimed to be used as the return type of RAD executor methods:
 ///
-/// > fn run_xxxxx_stage(input: RadonTypes, script: &[Value]) -> Result<Report, RadError> {}
+/// > fn run_xxxxx_stage(input: RadonTypes, script: &[Value]) -> Result<RadonReport, RadError> {}
 ///
 /// It contains a RAD result paired with metadata specific to the stage of the script being executed.
+///
+/// `RT` is the generalization of `RadonTypes`, and `IE` is the generalization of `RadError`
 #[derive(Clone, Debug)]
-pub struct Report {
+pub struct RadonReport<RT>
+where
+    RT: TypeLike,
+{
     /// Stage-specific metadata.
     pub metadata: Stage,
     /// This is raw result: either a RadonTypes or a RadonError.
-    pub result: Result<RadonTypes, RadonError>,
+    pub result: Result<RT, RadonError<RT::Error>>,
     /// Keep track of how many milliseconds did the execution take to complete or fail.
     pub running_time: Duration,
 }
 
-/// Implementation of convenience methods for `Report`.
-impl Report {
-    /// Construct a `Report` structure from a `Result` and a `ReportContext`.
+/// Implementations, factories and convenience methods for `RadonReport`.
+impl<RT> RadonReport<RT>
+where
+    RT: TypeLike,
+{
+    /// Factory for constructing a `RadonReport` from the `Result` of something that could be
+    /// `ErrorLike` plus a `ReportContext`.
     pub fn from_result(
-        raw_result: Result<RadonTypes, RadError>,
-        context: &mut ReportContext,
-    ) -> Result<Self, RadError> {
-        let result = match raw_result {
-            Err(error) => Err(match error {
-                // TODO: support all cases of `RadError`
-                RadError::HttpStatus { status_code } => RadonError {
-                    kind: RadonErrors::HTTPError,
-                    arguments: vec![Value::U8(status_code as u8)],
-                    inner: Some(error.clone()),
-                },
-                _ => return Err(error),
-            }),
-            Ok(ok) => Ok(ok),
-        };
+        result: Result<RT, RT::Error>,
+        context: &ReportContext,
+    ) -> Result<Self, RT::Error> {
+        let result = RT::Error::intercept(result);
 
-        Ok(Report {
+        Ok(RadonReport {
             result,
             metadata: context.stage.clone(),
             running_time: context.duration(),
         })
     }
+
+    /// Recover a `Result` in the likes of `Result<RadonTypes, RadError>` from a `RadonReport`.
+    pub fn into_inner(self) -> Result<RT, RT::Error> {
+        self.result
+            .map_err(|radon_error| radon_error.inner.unwrap_or(RT::Error::default()))
+    }
 }
 
-/// Try to extract the result from a `Report`
-impl TryFrom<Report> for RadonTypes {
-    type Error = RadError;
+/// This is the main serializer for turning `RadonReport` into a CBOR-encoded byte stream that can be
+/// consumed by any Witnet library, e.g. the `UsingWitnet` solidity contract.
+impl<RT> TryFrom<&RadonReport<RT>> for Vec<u8>
+where
+    RT: TypeLike,
+{
+    type Error = RT::Error;
 
-    fn try_from(value: Report) -> Result<Self, Self::Error> {
-        value.result.clone().map_err(Self::Error::from)
+    fn try_from(report: &RadonReport<RT>) -> Result<Self, Self::Error> {
+        match report.clone().result {
+            Ok(ref radon_types) => radon_types.encode(),
+            Err(ref radon_error) => radon_error.encode(),
+        }
     }
+}
+
+/// This trait identifies a RADON-compatible type system, i.e. most likely an `enum` with different
+/// cases for different data types.
+pub trait TypeLike {
+    type Error: ErrorLike;
+
+    fn encode(&self) -> Result<Vec<u8>, Self::Error>;
 }
 
 /// A generic structure for bubbling up any kind of metadata that may be generated during the
@@ -133,19 +147,6 @@ pub struct TallyMetaData {
     /// Proportion between total reveals and "truthers" count:
     /// `reveals.len() / liars.iter().filter(std::not::Ops).count()`
     consensus: f32,
-}
-
-/// This is the main serializer for turning `Report` into a CBOR-encoded byte stream that can be
-/// consumed by any Witnet library, e.g. the `UsingWitnet` solidity contract.
-impl TryInto<Vec<u8>> for Report {
-    type Error = RadError;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        match self.result {
-            Ok(radon_types) => radon_types.try_into(),
-            Err(error_code) => error_code.encode(),
-        }
-    }
 }
 
 #[test]

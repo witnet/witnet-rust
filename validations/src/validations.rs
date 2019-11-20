@@ -9,6 +9,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
+use witnet_data_structures::radon_report::TypeLike;
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
@@ -16,7 +17,7 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine,
         UnspentOutputsPool, ValueTransferOutput,
     },
-    data_request::{calculate_dr_vt_reward, true_revealer, DataRequestPool},
+    data_request::{calculate_dr_vt_reward, DataRequestPool},
     error::{BlockError, DataRequestError, TransactionError},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
@@ -168,7 +169,8 @@ pub fn validate_consensus(
         .filter_map(|&input| RadonTypes::try_from(input).ok())
         .collect();
 
-    let local_tally: Vec<u8> = RadonTypes::try_into(run_tally(radon_types_vec, consensus)?)?;
+    let local_tally =
+        run_tally(radon_types_vec, consensus).and_then(|tally| RadonTypes::encode(&tally))?;
 
     if local_tally.as_slice() == miner_tally {
         Ok(())
@@ -503,10 +505,11 @@ pub fn validate_tally_outputs(
             let reveal = dr_state.info.reveals.get(&output.pkh);
 
             match reveal {
-                Some(r) => {
-                    if !true_revealer(&r, &ta_tx.tally) {
+                Some(_r) => {
+                    // FIXME: re-enable this clause once `true_revealer` is unmocked.
+                    /*if !true_revealer(&r, &ta_tx.tally) {
                         return Err(TransactionError::DishonestReward.into());
-                    }
+                    }*/
                 }
 
                 None => return Err(TransactionError::RevealNotFound.into()),

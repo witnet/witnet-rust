@@ -5,8 +5,8 @@ use json;
 use serde_cbor::value::{from_value, Value};
 
 use crate::{
+    error::RadError,
     hash_functions::{self, RadonHashFunctions},
-    rad_error::RadError,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,

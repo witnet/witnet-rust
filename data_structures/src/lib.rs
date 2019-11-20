@@ -34,6 +34,10 @@ pub mod transaction;
 /// Module containing VRF-related structures
 pub mod vrf;
 
+/// RADON-related modules
+pub mod radon_error;
+pub mod radon_report;
+
 /// Serialization boilerplate to allow serializing some data structures as
 /// strings or bytes depending on the serializer.
 mod serialization_helpers;

@@ -3,11 +3,11 @@ use std::{convert::TryInto, fmt};
 use serde::{Serialize, Serializer};
 use serde_cbor::value::Value;
 
+use crate::error::RadError;
 use crate::operators::{bytes as bytes_operators, identity, Operable, RadonOpCodes};
-use crate::rad_error::RadError;
-use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
+use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
 

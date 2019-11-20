@@ -5,8 +5,8 @@ use serde_cbor::value::{from_value, Value};
 
 use crate::script::execute_contextfree_radon_script;
 use crate::{
+    error::RadError,
     filters::{self, RadonFilters},
-    rad_error::RadError,
     reducers::{self, RadonReducers},
     script::unpack_subscript,
     types::{array::RadonArray, integer::RadonInteger, RadonType, RadonTypes},

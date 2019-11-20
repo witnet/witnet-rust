@@ -6,11 +6,11 @@ use std::{
 use serde::Serialize;
 use serde_cbor::value::{from_value, Value};
 
+use crate::error::RadError;
 use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
-use crate::rad_error::RadError;
-use crate::report::ReportContext;
 use crate::script::RadonCall;
 use crate::types::{RadonType, RadonTypes};
+use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_STRING_TYPE_NAME: &str = "RadonString";
 

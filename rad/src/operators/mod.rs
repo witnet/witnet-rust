@@ -2,8 +2,9 @@ use std::fmt;
 
 use num_enum::TryFromPrimitive;
 
-use crate::rad_error::RadError;
-use crate::report::ReportContext;
+use witnet_data_structures::radon_report::ReportContext;
+
+use crate::error::RadError;
 use crate::script::RadonCall;
 use crate::types::RadonTypes;
 

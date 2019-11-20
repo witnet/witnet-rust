@@ -1,20 +1,9 @@
-use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture};
-use ansi_term::Color::{White, Yellow};
-use log::{debug, error, info, warn};
-
-use futures::future::{join_all, Future};
 use std::convert::TryFrom;
 
-use crate::{
-    actors::{
-        chain_manager::{transaction_factory::sign_transaction, ChainManager, StateMachine},
-        messages::{
-            AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunTally,
-        },
-        rad_manager::RadManager,
-    },
-    signature_mngr,
-};
+use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture};
+use ansi_term::Color::{White, Yellow};
+use futures::future::{join_all, Future};
+use log::{debug, error, info, warn};
 
 use witnet_data_structures::{
     chain::{
@@ -32,6 +21,17 @@ use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
     merkle_tree_root, update_utxo_diff, validate_block, vt_transaction_fee, UtxoDiff,
+};
+
+use crate::{
+    actors::{
+        chain_manager::{transaction_factory::sign_transaction, ChainManager, StateMachine},
+        messages::{
+            AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunTally,
+        },
+        rad_manager::RadManager,
+    },
+    signature_mngr,
 };
 
 impl ChainManager {
@@ -297,7 +297,12 @@ impl ChainManager {
                 .and_then(move |(vrf_proof, reveal_value)| {
                     let vrf_proof_dr = DataRequestEligibilityClaim { proof: vrf_proof };
 
-                    let reveal_body = RevealTransactionBody::new(dr_pointer, reveal_value, own_pkh);
+                    Vec::<u8>::try_from(&reveal_value)
+                        .map(|reveal_bytes| (reveal_bytes, vrf_proof_dr))
+                        .map_err(|e| log::error!("Couldn't decode tally value from bytes: {}", e))
+                })
+                .and_then(move |(reveal_bytes, vrf_proof_dr)| {
+                    let reveal_body = RevealTransactionBody::new(dr_pointer, reveal_bytes, own_pkh);
 
                     sign_transaction(&reveal_body, 1)
                         .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
@@ -368,8 +373,14 @@ impl ChainManager {
                 .map(|(dr_pointer, reveals, dr_state)| {
                     debug!("Building tally for data request {}", dr_pointer);
 
-                    let results: Vec<Vec<u8>> =
-                        reveals.iter().map(|r| r.body.reveal.clone()).collect();
+                    // FIXME: parallelize decoding of reveals.
+                    // FIXME: do not ignore failed decoding of faulty reveals.
+                    let results: Vec<RadonTypes> = reveals
+                        .iter()
+                        .filter_map(|reveal_tx| {
+                            RadonTypes::try_from(reveal_tx.body.reveal.as_slice()).ok()
+                        })
+                        .collect();
 
                     let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
@@ -399,34 +410,21 @@ impl ChainManager {
                                 dr_pointer,
                                 &dr_state.data_request,
                                 dr_state.pkh,
-                                tally_result.clone(),
+                                &tally_result,
                                 reveals,
                             );
 
-                            let print_results: Vec<_> = results
-                                .into_iter()
-                                .map(|result| RadonTypes::try_from(result.as_slice()))
-                                .collect();
                             info!(
                                 "{} Created Tally for Data Request {} with result: {}\n{}",
                                 Yellow.bold().paint("[Data Request]"),
                                 Yellow.bold().paint(&dr_pointer.to_string()),
-                                Yellow.bold().paint(
-                                    RadonTypes::try_from(tally_result.as_slice())
-                                        .map(|x| x.to_string())
-                                        .unwrap_or_else(|_| "RADError".to_string())
-                                ),
-                                White.bold().paint(
-                                    print_results
-                                        .into_iter()
-                                        .map(|result| result
-                                            .map(|x| x.to_string())
-                                            .unwrap_or_else(|_| "RADError".to_string()))
-                                        .fold("Reveals:".to_string(), |acc, item| format!(
-                                            "{}\n\t* {}",
-                                            acc, item
-                                        ))
-                                ),
+                                Yellow.bold().paint(format!("{:?}", &tally_result.result)),
+                                White
+                                    .bold()
+                                    .paint(results.into_iter().map(|result| result).fold(
+                                        String::from("Reveals:"),
+                                        |acc, item| format!("{}\n\t* {}", acc, item)
+                                    )),
                             );
 
                             futures::future::ok(tally)
@@ -588,15 +586,18 @@ fn build_block(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::convert::TryInto;
+
     use secp256k1::{
         PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
     };
-    use std::convert::TryInto;
+
     use witnet_crypto::signature::{sign, verify};
     use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
     use witnet_protected::Protected;
     use witnet_validations::validations::validate_block_signature;
+
+    use super::*;
 
     #[test]
     fn build_empty_block() {

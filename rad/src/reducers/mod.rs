@@ -2,7 +2,7 @@ use std::fmt;
 
 use num_enum::TryFromPrimitive;
 
-use crate::rad_error::RadError;
+use crate::error::RadError;
 use crate::types::{array::RadonArray, RadonType, RadonTypes};
 
 pub mod average;

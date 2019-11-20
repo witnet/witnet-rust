@@ -6,21 +6,22 @@ use serde_cbor::{
     value::{from_value, Value},
 };
 
+use witnet_data_structures::radon_report::{RadonReport, ReportContext};
+
+use crate::error::RadError;
 use crate::operators::{operate, operate_in_context, RadonOpCodes};
-use crate::rad_error::RadError;
-use crate::report::{Report, ReportContext};
 use crate::types::RadonTypes;
 
 pub type RadonCall = (RadonOpCodes, Option<Vec<Value>>);
 
 pub type RadonScript = Vec<RadonCall>;
 
-/// Run any RADON script on given input data, and return `Report`.
+/// Run any RADON script on given input data, and return `RadonReport`.
 pub fn execute_radon_script(
     input: RadonTypes,
     script: &[RadonCall],
     context: &mut ReportContext,
-) -> Result<Report, RadError> {
+) -> Result<RadonReport<RadonTypes>, RadError> {
     // Set the execution timestamp
     context.start();
     // Run the execution
@@ -35,7 +36,7 @@ pub fn execute_radon_script(
     context.complete();
 
     // Return a report as constructed from the result and the context
-    Report::from_result(result, context)
+    RadonReport::from_result(result, context)
 }
 
 /// Run any RADON script on given input data, and return `RadonTypes`.
