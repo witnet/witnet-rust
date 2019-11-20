@@ -1,7 +1,10 @@
 //! Error type definitions for the RAD module.
 
+use cbor::value::Value as CborValue;
 use failure::{self, Fail};
-use serde_cbor::value::Value;
+use serde_cbor::value::Value as SerdeCborValue;
+
+use witnet_data_structures::radon_error::{ErrorLike, RadonError, RadonErrors};
 
 use crate::types::array::RadonArray;
 
@@ -73,7 +76,7 @@ pub enum RadError {
     UnsupportedOperator {
         input_type: String,
         operator: String,
-        args: Option<Vec<Value>>,
+        args: Option<Vec<SerdeCborValue>>,
     },
     /// The given reducer is not implemented for the type of the input Array
     #[fail(
@@ -116,7 +119,7 @@ pub enum RadError {
     WrongArguments {
         input_type: String,
         operator: String,
-        args: Vec<Value>,
+        args: Vec<SerdeCborValue>,
     },
     /// The HTTP response was an error code
     #[fail(display = "HTTP GET response was an HTTP error code: {}", status_code)]
@@ -170,7 +173,7 @@ pub enum RadError {
     },
     /// Subscripts should be an array
     #[fail(display = "Subscript should be an array but is: {:?}", value)]
-    BadSubscriptFormat { value: Value },
+    BadSubscriptFormat { value: SerdeCborValue },
     /// Error while executing subscript
     #[fail(
         display = "`{}::{}()`: Error in subscript: {}",
@@ -181,6 +184,35 @@ pub enum RadError {
         operator: String,
         inner: Box<RadError>,
     },
+}
+
+/// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and
+/// `witnet_data_structures`.
+impl ErrorLike for RadError {
+    /// Eases interception of RADON errors (errors that we want to commit, reveal and tally) so
+    /// they can be handled differently versus raw RAD errors (which trigger no action other than
+    /// logging).
+    fn intercept<RT>(input: Result<RT, Self>) -> Result<RT, RadonError<Self>> {
+        match input {
+            Err(error) => Err(match error {
+                // TODO: support all cases of `RadError`
+                RadError::HttpStatus { status_code } => RadonError::new(
+                    RadonErrors::HTTPError,
+                    Some(error),
+                    vec![CborValue::U8(status_code as u8)],
+                ),
+                other => RadonError::from(other),
+            }),
+            result => result.map_err(RadonError::from),
+        }
+    }
+}
+
+/// Use `RadError::Unknown` as the default error.
+impl std::default::Default for RadError {
+    fn default() -> Self {
+        RadError::Unknown
+    }
 }
 
 impl From<reqwest::Error> for RadError {

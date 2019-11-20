@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use crate::{
-    rad_error::RadError,
+    error::RadError,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType,

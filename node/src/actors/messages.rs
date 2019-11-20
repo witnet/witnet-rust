@@ -11,6 +11,7 @@ use actix::{actors::resolver::ResolverError, dev::ToEnvelope, Actor, Addr, Handl
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
+use witnet_data_structures::radon_report::RadonReport;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
@@ -20,7 +21,8 @@ use witnet_data_structures::{
     transaction::Transaction,
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
-use witnet_rad::rad_error::RadError;
+use witnet_rad::error::RadError;
+use witnet_rad::types::RadonTypes;
 
 use super::{
     chain_manager::{ChainManagerError, StateMachine, MAX_BLOCKS_SYNC},
@@ -462,15 +464,15 @@ pub struct RunTally {
     /// RAD tally to be executed
     pub script: RADTally,
     /// Reveals vector for tally
-    pub reveals: Vec<Vec<u8>>,
+    pub reveals: Vec<RadonTypes>,
 }
 
 impl Message for ResolveRA {
-    type Result = Result<Vec<u8>, RadError>;
+    type Result = Result<RadonReport<RadonTypes>, RadError>;
 }
 
 impl Message for RunTally {
-    type Result = Result<Vec<u8>, RadError>;
+    type Result = Result<RadonReport<RadonTypes>, RadError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

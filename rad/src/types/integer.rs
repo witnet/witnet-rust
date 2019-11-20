@@ -7,13 +7,13 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_cbor::value::Value;
 
-use crate::report::ReportContext;
 use crate::{
+    error::RadError,
     operators::{identity, integer as integer_operators, Operable, RadonOpCodes},
-    rad_error::RadError,
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };
+use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_INTEGER_TYPE_NAME: &str = "RadonInteger";
 

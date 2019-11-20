@@ -39,6 +39,22 @@ use failure::Fail;
 use itertools::Itertools;
 use log::{debug, error, info, warn};
 
+use witnet_data_structures::{
+    chain::{
+        penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
+        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash, Hashable,
+        InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
+        TransactionsPool, UnspentOutputsPool,
+    },
+    data_request::DataRequestPool,
+    transaction::{TallyTransaction, Transaction},
+    vrf::VrfCtx,
+};
+use witnet_rad::types::RadonTypes;
+use witnet_validations::validations::{
+    validate_block, validate_candidate, validate_new_transaction, Diff,
+};
+
 use crate::{
     actors::{
         inventory_manager::InventoryManager,
@@ -48,21 +64,6 @@ use crate::{
         storage_keys::CHAIN_STATE_KEY,
     },
     storage_mngr,
-};
-use witnet_data_structures::{
-    chain::{
-        penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
-        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash, Hashable,
-        InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
-        TransactionsPool, UnspentOutputsPool,
-    },
-    data_request::{true_revealer, DataRequestPool},
-    transaction::{TallyTransaction, Transaction},
-    vrf::VrfCtx,
-};
-use witnet_rad::types::RadonTypes;
-use witnet_validations::validations::{
-    validate_block, validate_candidate, validate_new_transaction, Diff,
 };
 
 mod actor;
@@ -546,17 +547,19 @@ impl ReputationInfo {
         let replication_factor = dr_state.data_request.witnesses;
         self.alpha_diff += Alpha(u32::from(replication_factor));
 
-        let tally = &tally_transaction.tally;
+        let _tally = &tally_transaction.tally;
 
         for pkh in commits.keys() {
             let liar = reveals
                 .get(&pkh)
-                .map(|reveal_tx| {
-                    if true_revealer(reveal_tx, tally) {
+                .map(|_reveal_tx| {
+                    // FIXME: restore this clause once `true_revealer` is unmocked.
+                    /*if true_revealer(reveal_tx, tally) {
                         0
                     } else {
                         1
-                    }
+                    }*/
+                    1
                 })
                 .unwrap_or(1);
             // Insert all the committers, and increment their lie count by 1 if they fail to reveal or
@@ -855,7 +858,6 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
 
 #[cfg(test)]
 mod tests {
-    pub use super::*;
     use witnet_data_structures::{
         chain::{
             ChainInfo, ConsensusConstants, Environment, EpochConstants, KeyedSignature, PublicKey,
@@ -865,6 +867,8 @@ mod tests {
         transaction::{CommitTransaction, DRTransaction, MintTransaction, RevealTransaction},
         vrf::VrfCtx,
     };
+
+    pub use super::*;
 
     fn empty_chain_manager() -> ChainManager {
         let mut cm = ChainManager::default();

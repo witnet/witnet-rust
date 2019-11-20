@@ -11,12 +11,13 @@ use witnet_data_structures::chain::Hash;
 
 use crate::operators::Operable;
 use crate::{
-    rad_error::RadError,
+    error::RadError,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
         integer::RadonInteger, map::RadonMap, string::RadonString,
     },
 };
+use witnet_data_structures::radon_report::TypeLike;
 
 pub mod array;
 pub mod boolean;
@@ -48,13 +49,13 @@ pub enum RadonTypes {
 
 impl RadonTypes {
     pub fn hash(self) -> Result<Hash, RadError> {
-        self.try_into()
+        self.encode()
             .map(|vector: Vec<u8>| calculate_sha256(&*vector))
             .map(Hash::from)
             .map_err(|_| RadError::Hash)
     }
 
-    pub fn radon_type_name(self) -> String {
+    pub fn radon_type_name(&self) -> String {
         match self {
             RadonTypes::Array(_) => RadonArray::radon_type_name(),
             RadonTypes::Boolean(_) => RadonBoolean::radon_type_name(),
@@ -79,6 +80,16 @@ impl RadonTypes {
     }
 }
 
+/// Satisfy the `TypeLike` trait that ensures generic compatibility of `witnet_rad` and
+/// `witnet_data_structures`.
+impl TypeLike for RadonTypes {
+    type Error = RadError;
+
+    fn encode(&self) -> Result<Vec<u8>, Self::Error> {
+        Vec::<u8>::try_from(self)
+    }
+}
+
 impl std::cmp::Eq for RadonTypes {}
 
 // Manually implement PartialEq to ensure
@@ -86,8 +97,8 @@ impl std::cmp::Eq for RadonTypes {}
 // https://rust-lang.github.io/rust-clippy/master/index.html#derive_hash_xor_eq
 impl PartialEq for RadonTypes {
     fn eq(&self, other: &RadonTypes) -> bool {
-        let vec1: Result<Vec<u8>, RadError> = self.clone().try_into();
-        let vec2: Result<Vec<u8>, RadError> = other.clone().try_into();
+        let vec1 = self.encode();
+        let vec2 = other.encode();
 
         vec1 == vec2
     }
@@ -95,9 +106,7 @@ impl PartialEq for RadonTypes {
 
 impl std::hash::Hash for RadonTypes {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let vec: Result<Vec<u8>, RadError> = self.clone().try_into();
-        let res = vec.unwrap();
-        res.hash(state);
+        self.encode().map(|vec| vec.hash(state)).unwrap();
     }
 }
 
@@ -189,6 +198,7 @@ impl TryInto<Value> for RadonTypes {
     }
 }
 
+/// Allow CBOR decoding of any variant of `RadonTypes`.
 impl TryFrom<&[u8]> for RadonTypes {
     type Error = RadError;
 
@@ -204,14 +214,16 @@ impl TryFrom<&[u8]> for RadonTypes {
     }
 }
 
-impl TryInto<Vec<u8>> for RadonTypes {
+/// Allow CBOR encoding of any variant of `RadonTypes`.
+impl TryFrom<&RadonTypes> for Vec<u8> {
     type Error = RadError;
 
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        let value: Value = self.clone().try_into()?;
+    fn try_from(radon_types: &RadonTypes) -> Result<Vec<u8>, Self::Error> {
+        let type_name = RadonTypes::radon_type_name(radon_types);
+        let value: Value = radon_types.clone().try_into()?;
 
         to_vec(&value).map_err(|_| RadError::Decode {
-            from: self.radon_type_name(),
+            from: type_name,
             to: "Vec<u8>".to_string(),
         })
     }

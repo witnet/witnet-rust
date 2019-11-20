@@ -1,4 +1,4 @@
-use crate::rad_error::RadError;
+use crate::error::RadError;
 use crate::types::{array::RadonArray, RadonType, RadonTypes};
 use std::collections::HashMap;
 

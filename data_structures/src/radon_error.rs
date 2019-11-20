@@ -1,10 +1,10 @@
+use std::convert::TryFrom;
+use std::io::Cursor;
+
 use cbor::types::Tag;
 use cbor::value::Value;
 use cbor::GenericEncoder;
 use num_enum::IntoPrimitive;
-
-use crate::rad_error::RadError;
-use std::io::Cursor;
 
 #[derive(Clone, Copy, Debug, IntoPrimitive)]
 #[repr(u8)]
@@ -41,21 +41,49 @@ pub enum RadonErrors {
     DivisionByZero = 0x42,
 }
 
-/// This structure is aimed to be the error type for the `result` field of `crate::report::Report`.
+/// Use `RadonErrors::Unknown` as the default value of `RadonErrors`.
+impl Default for RadonErrors {
+    fn default() -> Self {
+        RadonErrors::Unknown
+    }
+}
+
+/// This trait identifies a structure that can be used as an error type for `RadonError` and
+/// `RadonReport`.
+pub trait ErrorLike: Default + From<cbor::encoder::EncodeError> {
+    fn intercept<RT>(value: Result<RT, Self>) -> Result<RT, RadonError<Self>>;
+}
+
+/// This structure is aimed to be the error type for the `result` field of `witnet_data_structures::radon_report::Report`.
 #[derive(Clone, Debug)]
-pub struct RadonError {
-    /// One of the cases in `RadonErrors`.
-    pub kind: RadonErrors,
+pub struct RadonError<IE>
+where
+    IE: ErrorLike,
+{
     /// A vector of arguments as `cbor::value::Value`.
     pub arguments: Vec<Value>,
     /// The original `RadError` that originated this `RadonError` (if any)
-    pub inner: Option<RadError>,
+    pub inner: Option<IE>,
+    /// One of the cases in `RadonErrors`.
+    pub kind: RadonErrors,
 }
 
 /// Implementation of encoding and convenience methods for `RadonError`.
-impl RadonError {
+impl<IE> RadonError<IE>
+where
+    IE: ErrorLike,
+{
+    /// Simple factory for `RadonError`.
+    pub fn new(kind: RadonErrors, inner: Option<IE>, arguments: Vec<Value>) -> Self {
+        RadonError {
+            arguments,
+            inner,
+            kind,
+        }
+    }
+
     /// Allow CBOR encoding of `RadonError` structures.
-    pub fn encode(&self) -> Result<Vec<u8>, RadError> {
+    pub fn encode(&self) -> Result<Vec<u8>, IE> {
         let mut encoder = GenericEncoder::new(Cursor::new(Vec::new()));
         encoder.value(&Value::from(self))?;
 
@@ -63,8 +91,23 @@ impl RadonError {
     }
 }
 
+// FIXME: merge `RadonError::encode` into this.
+impl<IE> TryFrom<RadonError<IE>> for Vec<u8>
+where
+    IE: ErrorLike,
+{
+    type Error = IE;
+
+    fn try_from(value: RadonError<IE>) -> Result<Self, Self::Error> {
+        value.encode()
+    }
+}
+
 /// Allow constructing a `RadonError` with no arguments by just choosing the `kind` field.
-impl From<RadonErrors> for RadonError {
+impl<IE> From<RadonErrors> for RadonError<IE>
+where
+    IE: ErrorLike,
+{
     fn from(kind: RadonErrors) -> Self {
         RadonError {
             kind,
@@ -74,21 +117,31 @@ impl From<RadonErrors> for RadonError {
     }
 }
 
+/// Allow constructing a `RadonError` with no arguments by just passing the `inner` field.
+impl<IE> From<IE> for RadonError<IE>
+where
+    IE: ErrorLike,
+{
+    fn from(inner: IE) -> Self {
+        RadonError {
+            kind: RadonErrors::default(),
+            arguments: Vec::new(),
+            inner: Some(inner),
+        }
+    }
+}
+
 /// Convert `RadonError` structure into instances of `cbor::value::Value`.
-impl From<&RadonError> for Value {
-    fn from(error: &RadonError) -> Self {
+impl<IE> From<&RadonError<IE>> for Value
+where
+    IE: ErrorLike,
+{
+    fn from(error: &RadonError<IE>) -> Self {
         let mut values = vec![Value::U8(error.kind.into())];
         error
             .arguments
             .iter()
             .for_each(|argument| values.push(argument.clone()));
         Value::Tagged(Tag::of(37), Box::new(Value::Array(values)))
-    }
-}
-
-/// Allow recovering the originating `RadError` of a `RadonError` (if any).
-impl From<RadonError> for RadError {
-    fn from(error: RadonError) -> Self {
-        error.inner.unwrap_or(RadError::Unknown)
     }
 }

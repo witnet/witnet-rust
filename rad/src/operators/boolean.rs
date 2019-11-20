@@ -1,8 +1,9 @@
-use serde_cbor::Value;
 use std::convert::TryFrom;
 
+use serde_cbor::Value;
+
 use crate::{
-    rad_error::RadError,
+    error::RadError,
     types::{boolean::RadonBoolean, string::RadonString, RadonType},
 };
 

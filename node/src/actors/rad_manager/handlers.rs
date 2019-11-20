@@ -1,23 +1,34 @@
 //! Message handlers for `RadManager`
+
 use actix::{Handler, Message};
-use std::convert::{TryFrom, TryInto};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+
 use witnet_rad as rad;
-use witnet_rad::types::RadonTypes;
+
+use crate::actors::messages::{ResolveRA, RunTally};
 
 use super::RadManager;
-use crate::actors::messages::{ResolveRA, RunTally};
 
 impl Handler<ResolveRA> for RadManager {
     type Result = <ResolveRA as Message>::Result;
 
     fn handle(&mut self, msg: ResolveRA, _ctx: &mut Self::Context) -> Self::Result {
-        let retrieve_scripts = msg.rad_request.retrieve;
-        let aggregate_script = msg.rad_request.aggregate;
+        let sources = msg.rad_request.retrieve;
+        let aggregator = msg.rad_request.aggregate;
 
-        let retrieve_responses = retrieve_scripts
-            .iter()
-            .filter_map(|retrieve| {
-                rad::run_retrieval(retrieve)
+        // Perform retrievals in parallel for the sake of synchronization between sources
+        //  (increasing the likeliness of multiple sources returning results that are closer to each
+        //  other).
+        // FIXME: failed sources should not be ignored but rather passed along, as it is up to the
+        //  aggregator script to decide how to handle source errors. Aggregators may ignore/drop
+        //  errors by flattening the input array or just go ahead and try to apply a reducer that
+        //  will surely fail in runtime because of lack of homogeneity in the array. In such case,
+        //  we should make sure to throw the original source error, not the misleading "could not
+        //  apply reducer on an array that is not homogeneous".
+        let retrieve_responses = sources
+            .par_iter()
+            .filter_map(|source| {
+                rad::run_retrieval(source)
                     .map_err(|err| {
                         log::error!("{:?}", err);
                     })
@@ -25,7 +36,10 @@ impl Handler<ResolveRA> for RadManager {
             })
             .collect();
 
-        rad::run_aggregation(retrieve_responses, &aggregate_script).and_then(TryInto::try_into)
+        // Perform aggregation on the values that made it to the output vector after applying the
+        // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
+        // failures.
+        rad::run_aggregation_report(retrieve_responses, &aggregator)
     }
 }
 
@@ -36,11 +50,6 @@ impl Handler<RunTally> for RadManager {
         let packed_script = msg.script;
         let reveals = msg.reveals;
 
-        let radon_types_vec: Vec<RadonTypes> = reveals
-            .iter()
-            .filter_map(|input| RadonTypes::try_from(input.as_slice()).ok())
-            .collect();
-
-        rad::run_tally(radon_types_vec, &packed_script).and_then(TryInto::try_into)
+        rad::run_tally_report(reveals, &packed_script)
     }
 }

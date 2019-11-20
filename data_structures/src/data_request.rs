@@ -1,15 +1,19 @@
-use log::{debug, info};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::convert::TryFrom;
 
+use log::{debug, info};
+use serde::{Deserialize, Serialize};
+
+use crate::radon_report::TypeLike;
 use crate::{
     chain::{
         DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch,
         EpochConstants, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
+    radon_report::RadonReport,
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
-use serde::{Deserialize, Serialize};
 
 /// Pool of active data requests
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -321,17 +325,23 @@ pub fn calculate_dr_vt_reward(dr_output: &DataRequestOutput) -> u64 {
 
 // FIXME(#640): replace with real truthness check function from radon engine
 // (currently we assume that all nodes are honest)
-pub fn true_revealer(_reveal: &RevealTransaction, _tally: &[u8]) -> bool {
+pub fn true_revealer<RT>(_reveal: &RevealTransaction, _report: &RadonReport<RT>) -> bool
+where
+    RT: TypeLike,
+{
     true
 }
 
-pub fn create_tally(
+pub fn create_tally<RT>(
     dr_pointer: Hash,
     dr_output: &DataRequestOutput,
     pkh: PublicKeyHash,
-    consensus_tally: Vec<u8>,
+    report: &RadonReport<RT>,
     reveals: Vec<RevealTransaction>,
-) -> TallyTransaction {
+) -> TallyTransaction
+where
+    RT: TypeLike,
+{
     let reveal_reward = calculate_dr_vt_reward(dr_output);
     let n_reveals = reveals.len() as u16;
 
@@ -339,7 +349,7 @@ pub fn create_tally(
         .into_iter()
         .filter_map(|reveal| {
             // Only reward reveals in consensus
-            if true_revealer(&reveal, &consensus_tally) {
+            if true_revealer(&reveal, report) {
                 let vt_output = ValueTransferOutput {
                     pkh: reveal.body.pkh,
                     value: reveal_reward,
@@ -367,13 +377,18 @@ pub fn create_tally(
         outputs.push(vt_output_change);
     }
 
-    TallyTransaction::new(dr_pointer, consensus_tally, outputs)
+    // FIXME: make this factory return a Result, as this line could easily fail and right now we are
+    //  ignoring failures and putting empty vectors (which will fail when decoded)
+    let tally_bytes = Vec::try_from(report).unwrap_or(Vec::new());
+
+    TallyTransaction::new(dr_pointer, tally_bytes, outputs)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::{chain::*, transaction::*, vrf::*};
+
+    use super::*;
 
     fn add_data_requests() -> (u32, Hash, DataRequestPool, Hash) {
         let fake_block_hash = Hash::SHA256([1; 32]);

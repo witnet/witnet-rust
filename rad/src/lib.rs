@@ -1,34 +1,30 @@
 //! # RAD Engine
 
-use std::convert::TryFrom;
-
 use reqwest;
 
 use witnet_data_structures::chain::{RADAggregate, RADRetrieve, RADTally, RADType};
+use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage, TallyMetaData};
 
-use crate::rad_error::RadError;
-use crate::report::{Report, ReportContext, Stage, TallyMetaData};
+use crate::error::RadError;
 use crate::script::{execute_radon_script, unpack_radon_script};
 use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
 
+pub mod error;
 pub mod filters;
 pub mod hash_functions;
 pub mod operators;
-pub mod rad_error;
-pub mod radon_error;
 pub mod reducers;
-pub mod report;
 pub mod script;
 pub mod types;
 
 pub type Result<T> = std::result::Result<T, RadError>;
 
-/// Run retrieval without performing any external network requests, return `Report`.
+/// Run retrieval without performing any external network requests, return `RadonReport`.
 pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
     response: String,
     context: &mut ReportContext,
-) -> Result<Report> {
+) -> Result<RadonReport<RadonTypes>> {
     match retrieve.kind {
         RADType::HttpGet => {
             let input = RadonTypes::from(RadonString::from(response));
@@ -42,11 +38,11 @@ pub fn run_retrieval_with_data_report(
 /// Run retrieval without performing any external network requests, return `RadonTypes`.
 pub fn run_retrieval_with_data(retrieve: &RADRetrieve, response: String) -> Result<RadonTypes> {
     let context = &mut ReportContext::default();
-    run_retrieval_with_data_report(retrieve, response, context).and_then(RadonTypes::try_from)
+    run_retrieval_with_data_report(retrieve, response, context).and_then(RadonReport::into_inner)
 }
 
-/// Run retrieval stage of a data request, return `Report`.
-pub fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<Report> {
+/// Run retrieval stage of a data request, return `RadonReport`.
+pub fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
     context.stage = Stage::Retrieval;
 
@@ -68,14 +64,14 @@ pub fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<Report> {
 
 /// Run retrieval stage of a data request, return `RadonTypes`.
 pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
-    run_retrieval_report(retrieve).and_then(RadonTypes::try_from)
+    run_retrieval_report(retrieve).and_then(RadonReport::into_inner)
 }
 
-/// Run aggregate stage of a data request, return `Report`.
+/// Run aggregate stage of a data request, return `RadonReport`.
 pub fn run_aggregation_report(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
-) -> Result<Report> {
+) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
     context.stage = Stage::Aggregation;
 
@@ -90,11 +86,14 @@ pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
 ) -> Result<RadonTypes> {
-    run_aggregation_report(radon_types_vec, aggregate).and_then(RadonTypes::try_from)
+    run_aggregation_report(radon_types_vec, aggregate).and_then(RadonReport::into_inner)
 }
 
-/// Run tally stage of a data request, return `Report`.
-pub fn run_tally_report(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<Report> {
+/// Run tally stage of a data request, return `RadonReport`.
+pub fn run_tally_report(
+    radon_types_vec: Vec<RadonTypes>,
+    consensus: &RADTally,
+) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
     context.stage = Stage::Tally(TallyMetaData::default());
 
@@ -106,7 +105,7 @@ pub fn run_tally_report(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) 
 
 /// Run tally stage of a data request, return `RadonTypes`.
 pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
-    run_tally_report(radon_types_vec, consensus).and_then(RadonTypes::try_from)
+    run_tally_report(radon_types_vec, consensus).and_then(RadonReport::into_inner)
 }
 
 #[test]
