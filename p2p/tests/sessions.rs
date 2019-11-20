@@ -77,6 +77,7 @@ fn p2p_sessions_set_handshake_timeout() {
     // Set handshake timeout
     let handshake_timeout = Duration::from_secs(17);
     sessions.set_handshake_timeout(handshake_timeout);
+    sessions.set_handshake_max_ts_diff(0);
 
     // Check handshake timeout is now set
     assert_eq!(sessions.handshake_timeout, handshake_timeout);

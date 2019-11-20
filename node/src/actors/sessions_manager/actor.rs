@@ -3,7 +3,8 @@ use crate::config_mngr;
 use actix::prelude::*;
 use log;
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::proto::ProtobufConvert;
+use witnet_data_structures::{chain::EpochConstants, proto::ProtobufConvert};
+use witnet_util::timestamp::get_timestamp;
 
 /// Make actor from `SessionsManager`
 impl Actor for SessionsManager {
@@ -33,7 +34,25 @@ impl Actor for SessionsManager {
                 act.sessions
                     .set_handshake_timeout(config.connections.handshake_timeout);
                 act.sessions
+                    .set_handshake_max_ts_diff(config.connections.handshake_max_ts_diff);
+                act.sessions
                     .set_blocks_timeout(config.connections.blocks_timeout);
+
+                // Initialized epoch from config
+                let mut checkpoints_period = config.consensus_constants.checkpoints_period;
+                let checkpoint_zero_timestamp =
+                    config.consensus_constants.checkpoint_zero_timestamp;
+                if checkpoints_period == 0 {
+                    log::warn!("Setting the checkpoint period to the minimum value of 1 second");
+                    checkpoints_period = 1;
+                }
+                let epoch_constants = EpochConstants {
+                    checkpoint_zero_timestamp,
+                    checkpoints_period,
+                };
+                act.current_epoch = epoch_constants
+                    .epoch_at(get_timestamp())
+                    .unwrap_or_default();
 
                 let magic = calculate_sha256(&consensus_constants.to_pb_bytes().unwrap());
                 let magic = u16::from(magic.0[0]) << 8 | (u16::from(magic.0[1]));

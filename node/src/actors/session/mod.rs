@@ -73,7 +73,7 @@ pub struct Session {
     magic_number: u16,
 
     /// Current epoch
-    current_epoch: Option<Epoch>,
+    current_epoch: Epoch,
 
     /// Requested block hashes vector
     requested_block_hashes: Vec<Hash>,
@@ -86,11 +86,15 @@ pub struct Session {
 
     /// Timestamp for requested blocks
     blocks_timestamp: i64,
+
+    /// Handshake maximum timestamp difference
+    handshake_max_ts_diff: i64,
 }
 
 /// Session helper methods
 impl Session {
     /// Method to create a new session
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         server_addr: SocketAddr,
         remote_addr: SocketAddr,
@@ -99,6 +103,8 @@ impl Session {
         handshake_timeout: Duration,
         magic_number: u16,
         blocks_timeout: i64,
+        handshake_max_ts_diff: i64,
+        current_epoch: Epoch,
     ) -> Session {
         Session {
             server_addr,
@@ -110,11 +116,12 @@ impl Session {
             handshake_flags: HandshakeFlags::default(),
             remote_sender_addr: None,
             magic_number,
-            current_epoch: None,
+            current_epoch,
             requested_block_hashes: vec![],
             requested_blocks: HashMap::new(),
             blocks_timeout,
             blocks_timestamp: 0,
+            handshake_max_ts_diff,
         }
     }
     /// Method to send a Witnet message to the remote peer

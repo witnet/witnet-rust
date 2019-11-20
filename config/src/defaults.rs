@@ -119,6 +119,11 @@ pub trait Defaults {
         400
     }
 
+    /// Default value for the maximum difference between timestamps in node handshaking
+    fn connections_handshake_max_ts_diff(&self) -> i64 {
+        10
+    }
+
     /// An identity is considered active if it participated in the witnessing protocol at least once in the last `activity_period` epochs
     fn consensus_constants_activity_period(&self) -> u32 {
         // 1000 epochs at 90 seconds/epoch = 2 days

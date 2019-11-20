@@ -56,6 +56,8 @@ where
     pub outbound_unconsolidated: BoundedSessions<T>,
     /// Handshake timeout
     pub handshake_timeout: Duration,
+    /// Handshake maximum timestamp difference
+    pub handshake_max_ts_diff: i64,
     /// Magic number
     pub magic_number: u16,
     /// Timeout for requested blocks
@@ -76,6 +78,7 @@ where
             outbound_consolidated_consensus: BoundedSessions::default(),
             outbound_unconsolidated: BoundedSessions::default(),
             handshake_timeout: Duration::default(),
+            handshake_max_ts_diff: 0 as i64,
             magic_number: 0 as u16,
             blocks_timeout: 0 as i64,
         }
@@ -119,6 +122,10 @@ where
     /// Method to set the handshake timeout
     pub fn set_handshake_timeout(&mut self, handshake_timeout: Duration) {
         self.handshake_timeout = handshake_timeout;
+    }
+    /// Method to set the handshake maximum timestamp difference
+    pub fn set_handshake_max_ts_diff(&mut self, ts_diff: i64) {
+        self.handshake_max_ts_diff = ts_diff;
     }
     /// Method to set the magic number to build messages
     pub fn set_magic_number(&mut self, magic_number: u16) {

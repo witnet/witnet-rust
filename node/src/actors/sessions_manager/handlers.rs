@@ -44,6 +44,12 @@ impl Handler<Create> for SessionsManager {
         // Get blocks timeout
         let blocks_timeout = self.sessions.blocks_timeout;
 
+        // Get current epoch
+        let current_epoch = self.current_epoch;
+
+        // Get maximum timestamp difference for handshaking
+        let handshake_max_ts_diff = self.sessions.handshake_max_ts_diff;
+
         // Create a Session actor
         Session::create(move |ctx| {
             // Get server address (if not present, send local address instead)
@@ -67,6 +73,8 @@ impl Handler<Create> for SessionsManager {
                 handshake_timeout,
                 magic_number,
                 blocks_timeout,
+                handshake_max_ts_diff,
+                current_epoch,
             )
         });
     }
@@ -257,6 +265,8 @@ impl Handler<EpochNotification<()>> for SessionsManager {
                 .paint(self.sessions.get_num_outbound_sessions().to_string())
         );
         trace!("{:#?}", self.sessions.show_ips());
+
+        self.current_epoch = msg.checkpoint;
 
         self.beacons.new_epoch();
         // If for some reason we already have all the beacons, send message to ChainManager

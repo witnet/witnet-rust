@@ -24,7 +24,7 @@ use crate::actors::{
 };
 use failure::Fail;
 use std::collections::HashSet;
-use witnet_data_structures::chain::EpochConstants;
+use witnet_data_structures::chain::{Epoch, EpochConstants};
 
 mod actor;
 mod beacons;
@@ -39,6 +39,8 @@ pub struct SessionsManager {
     beacons: Beacons,
     // Constants used to calculate instants in time
     epoch_constants: Option<EpochConstants>,
+    // Current epoch
+    current_epoch: Epoch,
 }
 
 #[derive(Debug, Fail)]

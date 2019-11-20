@@ -200,6 +200,10 @@ pub struct Connections {
     ))]
     pub handshake_timeout: Duration,
 
+    /// Handshake maximum timestamp difference in seconds
+    /// Set to 0 to disable timestamp comparison in handshake
+    pub handshake_max_ts_diff: i64,
+
     /// Number of seconds before giving up waiting for requested blocks
     pub blocks_timeout: i64,
 
@@ -441,6 +445,10 @@ impl Connections {
             handshake_timeout: config
                 .handshake_timeout
                 .unwrap_or_else(|| defaults.connections_handshake_timeout()),
+            handshake_max_ts_diff: config
+                .handshake_max_ts_diff
+                .to_owned()
+                .unwrap_or_else(|| defaults.connections_handshake_max_ts_diff()),
             blocks_timeout: config
                 .blocks_timeout
                 .to_owned()
@@ -727,6 +735,7 @@ mod tests {
             discovery_peers_period: Some(Duration::from_secs(100)),
             feeler_peers_period: Some(Duration::from_secs(1)),
             handshake_timeout: Some(Duration::from_secs(3)),
+            handshake_max_ts_diff: Some(17),
             blocks_timeout: Some(5),
             consensus_c: Some(51),
             bucketing_update_period: Some(200),
@@ -743,6 +752,7 @@ mod tests {
         assert_eq!(config.feeler_peers_period, Duration::from_secs(1));
         assert_eq!(config.handshake_timeout, Duration::from_secs(3));
         assert_eq!(config.blocks_timeout, 5);
+        assert_eq!(config.handshake_max_ts_diff, 17);
         assert_eq!(config.consensus_c, 51);
         assert_eq!(config.bucketing_update_period, 200);
     }

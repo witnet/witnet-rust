@@ -37,12 +37,11 @@ impl Actor for Session {
 
         // Peer registered if it is not come from feeler
         if self.session_type == SessionType::Feeler {
-            // FIXME(#142): include the checkpoint of the current tip of the local blockchain
             let version_msg = WitnetMessage::build_version(
                 self.magic_number,
                 self.server_addr,
                 self.remote_addr,
-                0,
+                self.current_epoch,
             );
             self.send_message(version_msg);
             // Set HandshakeFlag of sent version message
@@ -86,12 +85,11 @@ impl Actor for Session {
                 .and_then(|_, act, _ctx| {
                     // Send version if outbound session
                     if let SessionType::Outbound = act.session_type {
-                        // FIXME(#142): include the checkpoint of the current tip of the local blockchain
                         let version_msg = WitnetMessage::build_version(
                             act.magic_number,
                             act.server_addr,
                             act.remote_addr,
-                            0,
+                            act.current_epoch,
                         );
                         act.send_message(version_msg);
                         // Set HandshakeFlag of sent version message
@@ -156,7 +154,7 @@ impl Session {
                             .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
 
                         // Set current_epoch
-                        act.current_epoch = Some(epoch);
+                        act.current_epoch = epoch;
                     }
                     Ok(Err(CheckpointZeroInTheFuture(zero))) => {
                         let date = pretty_print(zero, 0);

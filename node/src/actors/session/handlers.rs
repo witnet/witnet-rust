@@ -65,7 +65,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for Session {
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         debug!("Periodic epoch notification received {:?}", msg.checkpoint);
-        self.current_epoch = Some(msg.checkpoint);
+        self.current_epoch = msg.checkpoint;
 
         let now = get_timestamp();
         if self.blocks_timestamp != 0 && now - self.blocks_timestamp > self.blocks_timeout {
@@ -116,14 +116,35 @@ impl StreamHandler<BytesMut, Error> for Session {
                     (
                         _,
                         SessionStatus::Unconsolidated,
-                        Command::Version(Version { sender_address, .. }),
+                        Command::Version(Version {
+                            sender_address,
+                            timestamp,
+                            ..
+                        }),
                     ) => {
-                        let msgs = handshake_version(self, &sender_address);
-                        for msg in msgs {
-                            self.send_message(msg);
-                        }
+                        let received_ts = timestamp;
+                        let current_ts = get_timestamp();
 
-                        try_consolidate_session(self, ctx);
+                        if self.handshake_max_ts_diff != 0
+                            && (current_ts - received_ts).abs() > self.handshake_max_ts_diff
+                        {
+                            log::warn!(
+                                "Dropping peer because their timestamp is different from ours\
+                                 ({:+} seconds), current timestamp: {}",
+                                (received_ts - current_ts),
+                                current_ts,
+                            );
+
+                            // Stop this session
+                            ctx.stop();
+                        } else {
+                            let msgs = handshake_version(self, &sender_address);
+                            for msg in msgs {
+                                self.send_message(msg);
+                            }
+
+                            try_consolidate_session(self, ctx);
+                        }
                     }
                     (_, SessionStatus::Unconsolidated, Command::Verack(_)) => {
                         handshake_verack(self);
@@ -454,7 +475,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
     let block_epoch = block.block_header.beacon.checkpoint;
     let block_hash = block.hash();
 
-    if Some(block_epoch) == session.current_epoch {
+    if block_epoch == session.current_epoch {
         debug!("Send Candidate");
         // Send a message to the ChainManager to try to add a new candidate
         chain_manager_addr.do_send(AddCandidates {
@@ -465,7 +486,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
     // Add block to requested_blocks
     if session.requested_block_hashes.contains(&block_hash) {
         session.requested_blocks.insert(block_hash, block);
-    } else if Some(block_epoch) != session.current_epoch {
+    } else if block_epoch != session.current_epoch {
         error!("Unexpected not requested block: {}", block_hash);
     }
 
@@ -572,7 +593,7 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
             session.magic_number,
             session.server_addr,
             session.remote_addr,
-            0,
+            session.current_epoch,
         );
         responses.push(version);
     }
