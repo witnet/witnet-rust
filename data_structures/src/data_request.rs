@@ -379,7 +379,7 @@ where
 
     // FIXME: make this factory return a Result, as this line could easily fail and right now we are
     //  ignoring failures and putting empty vectors (which will fail when decoded)
-    let tally_bytes = Vec::try_from(report).unwrap_or(Vec::new());
+    let tally_bytes = Vec::try_from(report).unwrap_or_default();
 
     TallyTransaction::new(dr_pointer, tally_bytes, outputs)
 }

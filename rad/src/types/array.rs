@@ -7,13 +7,14 @@ use std::{
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde_cbor::value::{from_value, Value};
 
+use witnet_data_structures::radon_report::ReportContext;
+
 use crate::error::RadError;
 use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
 use crate::script::RadonCall;
 use crate::types::{
     bytes::RadonBytes, float::RadonFloat, map::RadonMap, string::RadonString, RadonType, RadonTypes,
 };
-use witnet_data_structures::radon_report::ReportContext;
 
 fn bytes_discriminant() -> Discriminant<RadonTypes> {
     discriminant(&RadonTypes::from(RadonBytes::from(Value::Null)))
@@ -268,6 +269,7 @@ fn test_operate_unimplemented() {
 #[test]
 fn test_serialize_radon_array() {
     use crate::types::string::RadonString;
+    use witnet_data_structures::radon_report::TypeLike;
 
     let input = RadonTypes::from(RadonArray::from(vec![
         RadonString::from("Hello").into(),
@@ -277,7 +279,7 @@ fn test_serialize_radon_array() {
         130, 101, 72, 101, 108, 108, 111, 102, 119, 111, 114, 108, 100, 33,
     ];
 
-    let output: Vec<u8> = input.try_into().unwrap();
+    let output = input.encode().unwrap();
 
     assert_eq!(output, expected);
 }

@@ -559,7 +559,7 @@ impl ReputationInfo {
                     } else {
                         1
                     }*/
-                    1
+                    0
                 })
                 .unwrap_or(1);
             // Insert all the committers, and increment their lie count by 1 if they fail to reveal or
