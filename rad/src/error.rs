@@ -255,8 +255,17 @@ impl From<std::str::ParseBoolError> for RadError {
 impl From<cbor::encoder::EncodeError> for RadError {
     fn from(_err: cbor::encoder::EncodeError) -> Self {
         RadError::Encode {
-            from: String::from("RadonError"),
+            from: String::from("RadonTypes"),
             to: String::from("CBOR"),
+        }
+    }
+}
+
+impl From<cbor::decoder::DecodeError> for RadError {
+    fn from(_err: cbor::decoder::DecodeError) -> Self {
+        RadError::Decode {
+            from: String::from("CBOR"),
+            to: String::from("RadonTypes"),
         }
     }
 }

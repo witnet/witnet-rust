@@ -4,6 +4,7 @@ use std::{error::Error, str::FromStr};
 use json;
 use serde_cbor::value::{from_value, Value};
 
+use crate::types::result::RadonResult;
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
@@ -96,13 +97,14 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
     map_value
         .get(&input.value())
         .map(|res| match default {
-            RadonTypes::Boolean(_) => Ok(RadonTypes::from(RadonBoolean::try_from(res.value())?)),
-            RadonTypes::Integer(_) => Ok(RadonTypes::from(RadonInteger::try_from(res.value())?)),
-            RadonTypes::String(_) => Ok(RadonTypes::from(RadonString::try_from(res.value())?)),
-            RadonTypes::Float(_) => Ok(RadonTypes::from(RadonFloat::try_from(res.value())?)),
             RadonTypes::Array(_) => Ok(RadonTypes::from(RadonArray::try_from(res.value())?)),
-            RadonTypes::Map(_) => Ok(RadonTypes::from(RadonMap::try_from(res.value())?)),
+            RadonTypes::Boolean(_) => Ok(RadonTypes::from(RadonBoolean::try_from(res.value())?)),
             RadonTypes::Bytes(_) => Ok(RadonTypes::from(res.clone())),
+            RadonTypes::Float(_) => Ok(RadonTypes::from(RadonFloat::try_from(res.value())?)),
+            RadonTypes::Integer(_) => Ok(RadonTypes::from(RadonInteger::try_from(res.value())?)),
+            RadonTypes::Map(_) => Ok(RadonTypes::from(RadonMap::try_from(res.value())?)),
+            RadonTypes::Result(_) => Ok(RadonTypes::from(RadonResult::try_from(res.value())?)),
+            RadonTypes::String(_) => Ok(RadonTypes::from(RadonString::try_from(res.value())?)),
         })
         .unwrap_or(Ok(temp_def))
 }

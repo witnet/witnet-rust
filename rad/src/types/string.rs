@@ -173,10 +173,12 @@ fn test_operate_unimplemented() {
 
 #[test]
 fn test_serialize_radon_string() {
+    use witnet_data_structures::radon_report::TypeLike;
+
     let input = RadonTypes::from(RadonString::from("Hello world!"));
     let expected: Vec<u8> = vec![108, 72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33];
 
-    let output: Vec<u8> = RadonTypes::try_into(input).unwrap();
+    let output = input.encode().unwrap();
 
     assert_eq!(output, expected);
 }

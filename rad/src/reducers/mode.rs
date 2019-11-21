@@ -62,7 +62,7 @@ fn test_operate_reduce_mode_float_invalid() {
 
     let output = mode(&input).unwrap_err();
 
-    assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [Float(RadonFloat { value: 1.0 }), Float(RadonFloat { value: 2.0 })], inner_type: Discriminant(2) }`".to_string());
+    assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [Float(RadonFloat { value: 1.0 }), Float(RadonFloat { value: 2.0 })], inner_type: Discriminant(3) }`".to_string());
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn test_operate_reduce_mode_int_invalid() {
         RadonInteger::from(2i128).into(),
     ]);
     let output = mode(&input).unwrap_err();
-    assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [Integer(RadonInteger { value: 1 }), Integer(RadonInteger { value: 2 })], inner_type: Discriminant(6) }`".to_string());
+    assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [Integer(RadonInteger { value: 1 }), Integer(RadonInteger { value: 2 })], inner_type: Discriminant(4) }`".to_string());
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn test_operate_reduce_mode_str_invalid() {
         RadonString::from("Bye world!").into(),
     ]);
     let output = mode(&input).unwrap_err();
-    assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [String(RadonString { value: \"Hello world!\" }), String(RadonString { value: \"Bye world!\" })], inner_type: Discriminant(5) }`");
+    assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [String(RadonString { value: \"Hello world!\" }), String(RadonString { value: \"Bye world!\" })], inner_type: Discriminant(7) }`");
 }
 
 #[test]

@@ -170,12 +170,14 @@ fn test_operate_unimplemented() {
 
 #[test]
 fn test_try_into() {
+    use witnet_data_structures::radon_report::TypeLike;
+
     let mut map = HashMap::new();
     let value = RadonBytes::from(Value::from(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
-    let result: Vec<u8> = RadonTypes::from(input).try_into().unwrap();
+    let result = RadonTypes::from(input).encode().unwrap();
 
     let expected_vec: Vec<u8> = vec![161, 100, 90, 101, 114, 111, 0];
 

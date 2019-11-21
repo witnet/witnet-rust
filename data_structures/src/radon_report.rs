@@ -46,7 +46,7 @@ where
     /// Recover a `Result` in the likes of `Result<RadonTypes, RadError>` from a `RadonReport`.
     pub fn into_inner(self) -> Result<RT, RT::Error> {
         self.result
-            .map_err(|radon_error| radon_error.inner.unwrap_or(RT::Error::default()))
+            .map_err(|radon_error| radon_error.inner.unwrap_or_default())
     }
 }
 
@@ -59,7 +59,7 @@ where
     type Error = RT::Error;
 
     fn try_from(report: &RadonReport<RT>) -> Result<Self, Self::Error> {
-        match report.clone().result {
+        match report.result {
             Ok(ref radon_types) => radon_types.encode(),
             Err(ref radon_error) => radon_error.encode(),
         }
@@ -151,12 +151,28 @@ pub struct TallyMetaData {
 
 #[test]
 fn test_encode_not_cbor() {
-    use crate::radon_error::RadonErrors;
-    use cbor::value::Value;
+    use crate::radon_error::{RadonError, RadonErrors};
 
-    let error = RadonError {
+    #[derive(Default, Debug)]
+    struct Dummy;
+
+    // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
+    impl ErrorLike for Dummy {
+        fn intercept<RT>(value: Result<RT, Self>) -> Result<RT, RadonError<Self>> {
+            value.map_err(RadonError::from)
+        }
+    }
+
+    // Satisfy the trait bound `(): std::convert::From<cbor::encoder::EncodeError>`
+    impl std::convert::From<cbor::encoder::EncodeError> for Dummy {
+        fn from(_: cbor::encoder::EncodeError) -> Self {
+            Dummy
+        }
+    }
+
+    let error = RadonError::<Dummy> {
         kind: RadonErrors::SourceScriptNotCBOR,
-        arguments: vec![Value::U8(2)],
+        arguments: vec![cbor::value::Value::U8(2)],
         inner: None,
     };
 
