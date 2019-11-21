@@ -18,7 +18,6 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - sourceline: 'ppa:maarten-fonville/protobuf'
     packages:
       - g++-5
       - cmake
