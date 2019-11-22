@@ -192,7 +192,7 @@ impl TryFrom<Value> for RadonTypes {
             Value::Integer(_) => RadonInteger::try_from(value).map(Into::into),
             Value::Bytes(_) => Ok(RadonTypes::from(RadonBytes::from(value))),
             Value::Null => Err(RadError::Decode {
-                from: String::from("serde_cbor::Value::Nulll"),
+                from: String::from("serde_cbor::Value::Null"),
                 to: String::from("RadonTypes"),
             }),
             Value::__Hidden => Err(RadError::Decode {
@@ -244,7 +244,7 @@ impl TryFrom<&RadonTypes> for Vec<u8> {
         let type_name = RadonTypes::radon_type_name(radon_types);
         let value: Value = radon_types.clone().try_into()?;
 
-        to_vec(&value).map_err(|_| RadError::Decode {
+        to_vec(&value).map_err(|_| RadError::Encode {
             from: type_name,
             to: "Vec<u8>".to_string(),
         })
