@@ -406,14 +406,17 @@ impl ChainManager {
                             }
                         })
                         .and_then(move |tally_result| {
-                            let tally = create_tally(
+                            create_tally(
                                 dr_pointer,
                                 &dr_state.data_request,
                                 dr_state.pkh,
                                 &tally_result,
                                 reveals,
-                            );
-
+                            )
+                            .map(|tally| (tally, tally_result))
+                            .map_err(|e| log::error!("Could not create tally transaction: {}", e))
+                        })
+                        .and_then(move |(tally, tally_result)| {
                             info!(
                                 "{} Created Tally for Data Request {} with result: {}\n{}",
                                 Yellow.bold().paint("[Data Request]"),

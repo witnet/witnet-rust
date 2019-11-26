@@ -338,7 +338,7 @@ pub fn create_tally<RT>(
     pkh: PublicKeyHash,
     report: &RadonReport<RT>,
     reveals: Vec<RevealTransaction>,
-) -> TallyTransaction
+) -> Result<TallyTransaction, RT::Error>
 where
     RT: TypeLike,
 {
@@ -377,11 +377,9 @@ where
         outputs.push(vt_output_change);
     }
 
-    // FIXME: make this factory return a Result, as this line could easily fail and right now we are
-    //  ignoring failures and putting empty vectors (which will fail when decoded)
-    let tally_bytes = Vec::try_from(report).unwrap_or_default();
+    let tally_bytes = Vec::try_from(report)?;
 
-    TallyTransaction::new(dr_pointer, tally_bytes, outputs)
+    Ok(TallyTransaction::new(dr_pointer, tally_bytes, outputs))
 }
 
 #[cfg(test)]
