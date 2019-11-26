@@ -18,9 +18,9 @@ pub enum RadonErrors {
     /// At least one of the source scripts is not a valid CBOR-encoded value.
     SourceScriptNotCBOR = 0x01,
     /// The CBOR value decoded from a source script is not an Array.
-    SourceScriptNotArray = 0x2,
+    SourceScriptNotArray = 0x02,
     /// The Array value decoded form a source script is not a valid RADON script.
-    SourceScriptNotRADON = 0x3,
+    SourceScriptNotRADON = 0x03,
     // Complexity errors
     /// The request contains too many sources.
     RequestTooManySources = 0x10,
