@@ -177,7 +177,7 @@ fn test_encode_not_cbor() {
     };
 
     let encoded = error.encode().unwrap();
-    let expected = vec![216, 37, 130, 1, 2];
+    let expected = vec![216, 39, 130, 1, 2];
 
     assert_eq!(encoded, expected);
 }
