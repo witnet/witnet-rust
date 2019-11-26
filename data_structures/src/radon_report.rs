@@ -149,35 +149,37 @@ pub struct TallyMetaData {
     consensus: f32,
 }
 
-#[test]
-fn test_encode_not_cbor() {
-    use crate::radon_error::{RadonError, RadonErrors};
+#[cfg(test)]
+mod tests {
+    use crate::radon_error::{ErrorLike, RadonError, RadonErrors};
 
-    #[derive(Default, Debug)]
-    struct Dummy;
+    fn test_encode_not_cbor() {
+        #[derive(Default, Debug)]
+        struct Dummy;
 
-    // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
-    impl ErrorLike for Dummy {
-        fn intercept<RT>(value: Result<RT, Self>) -> Result<RT, RadonError<Self>> {
-            value.map_err(RadonError::from)
+        // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
+        impl ErrorLike for Dummy {
+            fn intercept<RT>(value: Result<RT, Self>) -> Result<RT, RadonError<Self>> {
+                value.map_err(RadonError::from)
+            }
         }
-    }
 
-    // Satisfy the trait bound `(): std::convert::From<cbor::encoder::EncodeError>`
-    impl std::convert::From<cbor::encoder::EncodeError> for Dummy {
-        fn from(_: cbor::encoder::EncodeError) -> Self {
-            Dummy
+        // Satisfy the trait bound `(): std::convert::From<cbor::encoder::EncodeError>`
+        impl std::convert::From<cbor::encoder::EncodeError> for Dummy {
+            fn from(_: cbor::encoder::EncodeError) -> Self {
+                Dummy
+            }
         }
+
+        let error = RadonError::<Dummy> {
+            kind: RadonErrors::SourceScriptNotCBOR,
+            arguments: vec![cbor::value::Value::U8(2)],
+            inner: None,
+        };
+
+        let encoded = error.encode().unwrap();
+        let expected = vec![216, 39, 130, 1, 2];
+
+        assert_eq!(encoded, expected);
     }
-
-    let error = RadonError::<Dummy> {
-        kind: RadonErrors::SourceScriptNotCBOR,
-        arguments: vec![cbor::value::Value::U8(2)],
-        inner: None,
-    };
-
-    let encoded = error.encode().unwrap();
-    let expected = vec![216, 39, 130, 1, 2];
-
-    assert_eq!(encoded, expected);
 }
