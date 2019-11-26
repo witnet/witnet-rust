@@ -195,8 +195,8 @@ impl TryFrom<Value> for RadonTypes {
                 from: String::from("serde_cbor::Value::Null"),
                 to: String::from("RadonTypes"),
             }),
-            Value::__Hidden => Err(RadError::Decode {
-                from: String::from("serde_cbor::Value::__Hidden"),
+            _ => Err(RadError::Decode {
+                from: String::from("serde_cbor::Value"),
                 to: String::from("RadonTypes"),
             }),
         }
