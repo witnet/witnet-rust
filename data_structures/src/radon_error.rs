@@ -142,6 +142,6 @@ where
             .arguments
             .iter()
             .for_each(|argument| values.push(argument.clone()));
-        Value::Tagged(Tag::of(37), Box::new(Value::Array(values)))
+        Value::Tagged(Tag::of(39), Box::new(Value::Array(values)))
     }
 }
