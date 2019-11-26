@@ -145,7 +145,7 @@ pub struct TallyMetaData {
     /// This follows a reverse logic: `false` is truth and `true` is lie.
     liars: Vec<bool>,
     /// Proportion between total reveals and "truthers" count:
-    /// `reveals.len() / liars.iter().filter(std::not::Ops).count()`
+    /// `liars.iter().filter(std::ops::Not).count() / reveals.len()`
     consensus: f32,
 }
 
