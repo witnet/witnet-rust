@@ -1,7 +1,7 @@
 //! Message handlers for `RadManager`
 
 use actix::{Handler, Message};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::prelude::*;
 
 use witnet_rad as rad;
 
