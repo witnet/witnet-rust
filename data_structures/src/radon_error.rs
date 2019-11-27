@@ -1,9 +1,9 @@
 use std::convert::TryFrom;
 use std::io::Cursor;
 
+use cbor::GenericEncoder;
 use cbor::types::Tag;
 use cbor::value::Value;
-use cbor::GenericEncoder;
 use num_enum::IntoPrimitive;
 
 #[derive(Clone, Copy, Debug, IntoPrimitive)]
@@ -84,22 +84,7 @@ where
 
     /// Allow CBOR encoding of `RadonError` structures.
     pub fn encode(&self) -> Result<Vec<u8>, IE> {
-        let mut encoder = GenericEncoder::new(Cursor::new(Vec::new()));
-        encoder.value(&Value::from(self))?;
-
-        Ok(encoder.into_inner().into_writer().into_inner())
-    }
-}
-
-// FIXME: merge `RadonError::encode` into this.
-impl<IE> TryFrom<RadonError<IE>> for Vec<u8>
-where
-    IE: ErrorLike,
-{
-    type Error = IE;
-
-    fn try_from(value: RadonError<IE>) -> Result<Self, Self::Error> {
-        value.encode()
+        Vec::<u8>::try_from(self)
     }
 }
 
@@ -143,5 +128,20 @@ where
             .iter()
             .for_each(|argument| values.push(argument.clone()));
         Value::Tagged(Tag::of(39), Box::new(Value::Array(values)))
+    }
+}
+
+/// Allow CBOR encoding of `RadonError` structures.
+impl<IE> TryFrom<&RadonError<IE>> for Vec<u8>
+where
+    IE: ErrorLike,
+{
+    type Error = IE;
+
+    fn try_from(error: &RadonError<IE>) -> Result<Self, Self::Error> {
+        let mut encoder = GenericEncoder::new(Cursor::new(Vec::new()));
+        encoder.value(&Value::from(error))?;
+
+        Ok(encoder.into_inner().into_writer().into_inner())
     }
 }
