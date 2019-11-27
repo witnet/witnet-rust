@@ -65,6 +65,9 @@ pub enum RadError {
     /// The given operator code is unknown
     #[fail(display = "Operator code `{}` is unknown", code)]
     UnknownOperator { code: i128 },
+    /// The given filter code is unknown
+    #[fail(display = "Filter code `{}` is unknown", code)]
+    UnknownFilter { code: i128 },
     /// The given hash function is not implemented
     #[fail(display = "Hash function `{}` is not implemented", function)]
     UnsupportedHashFunction { function: String },

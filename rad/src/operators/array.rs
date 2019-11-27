@@ -95,10 +95,14 @@ pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
         args: args.to_vec(),
     };
 
+    let unknown_filter = |code| RadError::UnknownFilter { code };
+
     let first_arg = args.get(0).ok_or_else(wrong_args)?;
     match first_arg {
         Value::Integer(arg) => {
-            let filter_code = RadonFilters::try_from(*arg as u8).map_err(|_| wrong_args())?;
+            let filter_code =
+                RadonFilters::try_from(u8::try_from(*arg).map_err(|_| unknown_filter(*arg))?)
+                    .map_err(|_| unknown_filter(*arg))?;
             let (_args, extra_args) = args.split_at(1);
 
             filters::filter(input, filter_code, extra_args)
