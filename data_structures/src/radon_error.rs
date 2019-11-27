@@ -1,9 +1,9 @@
 use std::convert::TryFrom;
 use std::io::Cursor;
 
-use cbor::GenericEncoder;
 use cbor::types::Tag;
 use cbor::value::Value;
+use cbor::GenericEncoder;
 use num_enum::IntoPrimitive;
 
 #[derive(Clone, Copy, Debug, IntoPrimitive)]
