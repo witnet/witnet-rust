@@ -4,6 +4,7 @@ use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, SystemService, 
 use ansi_term::Color::{White, Yellow};
 use futures::future::{join_all, Future};
 use log::{debug, error, info, warn};
+use rayon::prelude::*;
 
 use witnet_data_structures::{
     chain::{
@@ -373,12 +374,20 @@ impl ChainManager {
                 .map(|(dr_pointer, reveals, dr_state)| {
                     debug!("Building tally for data request {}", dr_pointer);
 
-                    // FIXME: parallelize decoding of reveals.
-                    // FIXME: do not ignore failed decoding of faulty reveals.
-                    let results: Vec<RadonTypes> = reveals
-                        .iter()
+                    // Ignore reveals that could not be decoded.
+                    //  Those reveal that cannot be decoded are most likely malformed and therefore
+                    //  their authors are punished in the same way as non-revealers.
+                    let results: Vec<RadonTypes> = reveals.clone()
+                        .into_par_iter()
                         .filter_map(|reveal_tx| {
-                            RadonTypes::try_from(reveal_tx.body.reveal.as_slice()).ok()
+                            let slice = reveal_tx.body.reveal.as_slice();
+                            match RadonTypes::try_from(slice) {
+                                Ok(result) => Some(result),
+                                Err(e) =>  {
+                                    log::warn!("Could not decode reveal from {} (revealed bytes were `{:?}`): {:?}", reveal_tx.body.pkh, &slice, e);
+                                    None
+                                },
+                            }
                         })
                         .collect();
 
