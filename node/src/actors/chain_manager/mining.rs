@@ -1,6 +1,8 @@
 use std::convert::TryFrom;
 
-use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture};
+use actix::{
+    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture,
+};
 use ansi_term::Color::{White, Yellow};
 use futures::future::{join_all, Future};
 use log::{debug, error, info, warn};
@@ -13,7 +15,7 @@ use witnet_data_structures::{
     data_request::{create_tally, DataRequestPool},
     transaction::{
         CommitTransaction, CommitTransactionBody, MintTransaction, RevealTransaction,
-        RevealTransactionBody, TallyTransaction, Transaction,
+        RevealTransactionBody, TallyTransaction,
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
@@ -28,7 +30,7 @@ use crate::{
     actors::{
         chain_manager::{transaction_factory::sign_transaction, ChainManager, StateMachine},
         messages::{
-            AddCandidates, AddTransaction, GetHighestCheckpointBeacon, ResolveRA, RunTally,
+            AddCandidates, AddCommitReveal, GetHighestCheckpointBeacon, ResolveRA, RunTally,
         },
         rad_manager::RadManager,
     },
@@ -213,6 +215,7 @@ impl ChainManager {
         let beacon = beacon.unwrap();
         let own_pkh = self.own_pkh.unwrap();
         let current_epoch = self.current_epoch.unwrap();
+        let data_request_timeout = self.data_request_timeout;
 
         // Data Request mining
         let dr_pointers = self
@@ -284,15 +287,21 @@ impl ChainManager {
                     // Send ResolveRA message to RADManager
                     let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
-                        .send(ResolveRA { rad_request })
-                        .map(|result| match result {
+                        .send(ResolveRA {
+                            rad_request,
+                            dr_pointer,
+                            timeout: data_request_timeout,
+                        })
+                        .map(move |result| match result {
                             Ok(value) => Ok((vrf_proof, value)),
                             Err(e) => {
-                                log::error!("Couldn't resolve rad request: {}", e);
+                                log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e);
                                 Err(())
                             }
                         })
-                        .map_err(|e| log::error!("Couldn't resolve rad request: {}", e))
+                        .map_err(move |e| {
+                            log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e)
+                        })
                 })
                 .flatten()
                 .and_then(move |(vrf_proof, reveal_value)| {
@@ -316,9 +325,8 @@ impl ChainManager {
 
                             sign_transaction(&commit_body, 1)
                                 .map(|commit_signatures| {
-                                    let commit_transaction = Transaction::Commit(
-                                        CommitTransaction::new(commit_body, commit_signatures),
-                                    );
+                                    let commit_transaction =
+                                        CommitTransaction::new(commit_body, commit_signatures);
                                     let reveal_transaction =
                                         RevealTransaction::new(reveal_body, reveal_signatures);
                                     (commit_transaction, reveal_transaction)
@@ -327,26 +335,15 @@ impl ChainManager {
                         })
                 })
                 .into_actor(self)
-                .and_then(move |(commit_transaction, reveal_transaction), act, ctx| {
-                    // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
-                    act.chain_state
-                        .data_request_pool
-                        .insert_reveal(dr_pointer, reveal_transaction);
-
-                    // Send AddTransaction message to self
-                    // And broadcast it to all of peers
-                    if let Err(e) = act.handle(
-                        AddTransaction {
-                            transaction: commit_transaction,
-                        },
-                        ctx,
-                    ) {
-                        log::warn!("Failed to add commit transaction: {}", e);
-                    }
+                .and_then(move |(commit_transaction, reveal_transaction), _act, ctx| {
+                    ctx.notify(AddCommitReveal {
+                        commit_transaction,
+                        reveal_transaction,
+                    });
 
                     actix::fut::ok(())
                 })
-                .wait(ctx);
+                .spawn(ctx);
         }
     }
 

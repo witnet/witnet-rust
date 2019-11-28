@@ -28,6 +28,7 @@
 use std::{
     collections::{HashMap, HashSet},
     convert::TryFrom,
+    time::Duration,
 };
 
 use actix::{
@@ -145,6 +146,8 @@ pub struct ChainManager {
     consensus_c: u32,
     /// Constants used to convert between epoch and timestamp
     epoch_constants: Option<EpochConstants>,
+    /// Timeout for data request retrieval and aggregation execution
+    data_request_timeout: Option<Duration>,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry

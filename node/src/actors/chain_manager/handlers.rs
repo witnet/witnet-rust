@@ -18,11 +18,11 @@ use crate::{
     actors::{
         chain_manager::transaction_factory,
         messages::{
-            AddBlocks, AddCandidates, AddTransaction, Anycast, Broadcast, BuildDrt, BuildVtt,
-            EpochNotification, GetBalance, GetBlocksEpochRange, GetDataRequestReport,
-            GetHighestCheckpointBeacon, GetReputation, GetReputationAll, GetReputationStatus,
-            GetReputationStatusResult, GetState, PeersBeacons, SendLastBeacon, SessionUnitResult,
-            TryMineBlock,
+            AddBlocks, AddCandidates, AddCommitReveal, AddTransaction, Anycast, Broadcast,
+            BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
+            GetDataRequestReport, GetHighestCheckpointBeacon, GetReputation, GetReputationAll,
+            GetReputationStatus, GetReputationStatusResult, GetState, PeersBeacons, SendLastBeacon,
+            SessionUnitResult, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -859,5 +859,35 @@ impl Handler<TryMineBlock> for ChainManager {
 
     fn handle(&mut self, _msg: TryMineBlock, ctx: &mut Self::Context) -> Self::Result {
         self.try_mine_block(ctx);
+    }
+}
+
+impl Handler<AddCommitReveal> for ChainManager {
+    type Result = ();
+
+    fn handle(
+        &mut self,
+        AddCommitReveal {
+            commit_transaction,
+            reveal_transaction,
+        }: AddCommitReveal,
+        ctx: &mut Self::Context,
+    ) -> Self::Result {
+        let dr_pointer = commit_transaction.body.dr_pointer;
+        // Hold reveal transaction under "waiting_for_reveal" field of data requests pool
+        self.chain_state
+            .data_request_pool
+            .insert_reveal(dr_pointer, reveal_transaction);
+
+        // Send AddTransaction message to self
+        // And broadcast it to all of peers
+        if let Err(e) = self.handle(
+            AddTransaction {
+                transaction: Transaction::Commit(commit_transaction),
+            },
+            ctx,
+        ) {
+            log::warn!("Failed to add commit transaction: {}", e);
+        }
     }
 }

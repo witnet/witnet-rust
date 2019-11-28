@@ -187,6 +187,16 @@ pub enum RadError {
         operator: String,
         inner: Box<RadError>,
     },
+    /// Error while parsing retrieval URL
+    #[fail(display = "URL parse error: {}: url={:?}", inner, url)]
+    UrlParseError {
+        #[cause]
+        inner: url::ParseError,
+        url: String,
+    },
+    /// Timeout during retrieval phase
+    #[fail(display = "Timeout during retrieval phase")]
+    RetrieveTimeout,
 }
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and

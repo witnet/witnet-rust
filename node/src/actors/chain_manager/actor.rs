@@ -21,6 +21,7 @@ use witnet_data_structures::{
 use witnet_util::timestamp::pretty_print;
 
 use log::{debug, error, info, warn};
+use std::time::Duration;
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -58,6 +59,11 @@ impl ChainManager {
 
             let consensus_constants = (&config.consensus_constants).clone();
             act.max_block_weight = consensus_constants.max_block_weight;
+            if config.mining.data_request_timeout == Duration::new(0, 0) {
+                act.data_request_timeout = None;
+            } else {
+                act.data_request_timeout = Some(config.mining.data_request_timeout);
+            }
 
             storage_mngr::get::<_, ChainState>(&CHAIN_STATE_KEY)
                 .into_actor(act)

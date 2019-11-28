@@ -1,7 +1,5 @@
 //! # RAD Engine
 
-use reqwest;
-
 use witnet_data_structures::chain::{RADAggregate, RADRetrieve, RADTally, RADType};
 use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage, TallyMetaData};
 
@@ -42,18 +40,41 @@ pub fn run_retrieval_with_data(retrieve: &RADRetrieve, response: String) -> Resu
 }
 
 /// Run retrieval stage of a data request, return `RadonReport`.
-pub fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<RadonTypes>> {
+pub async fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
     context.stage = Stage::Retrieval;
 
     match retrieve.kind {
         RADType::HttpGet => {
-            let response = reqwest::get(&retrieve.url)
-                .map_err(RadError::from)?
-                .text()
-                .map_err(RadError::from)?;
+            // Validate URL because surf::get panics on invalid URL
+            // It could still panic if surf gets updated and changes their URL parsing library
+            let _valid_url =
+                url::Url::parse(&retrieve.url).map_err(|err| RadError::UrlParseError {
+                    inner: err,
+                    url: retrieve.url.clone(),
+                })?;
 
-            let result = run_retrieval_with_data_report(retrieve, response, context);
+            let mut response = surf::get(&retrieve.url)
+                .await
+                .map_err(|x| RadError::HttpOther {
+                    message: x.description().to_string(),
+                })?;
+
+            if !response.status().is_success() {
+                return Err(RadError::HttpStatus {
+                    status_code: response.status().into(),
+                });
+            }
+
+            let response_string = response
+                // TODO: replace with .body_bytes() and let RADON handle the encoding?
+                .body_string()
+                .await
+                .map_err(|x| RadError::HttpOther {
+                    message: x.description().to_string(),
+                })?;
+
+            let result = run_retrieval_with_data_report(retrieve, response_string, context);
 
             log::debug!("Result for URL {}: {:?}", retrieve.url, result);
 
@@ -63,8 +84,10 @@ pub fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<RadonT
 }
 
 /// Run retrieval stage of a data request, return `RadonTypes`.
-pub fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
-    run_retrieval_report(retrieve).and_then(RadonReport::into_inner)
+pub async fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
+    run_retrieval_report(retrieve)
+        .await
+        .and_then(RadonReport::into_inner)
 }
 
 /// Run aggregate stage of a data request, return `RadonReport`.

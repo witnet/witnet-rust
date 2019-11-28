@@ -15,8 +15,10 @@ log = "0.4.8"
 num_enum = "0.4.2"
 reqwest = "0.9.22"
 serde_cbor = "0.10.2"
+surf = { version = "1.0.3", default-features = false, features = ["native-client"] }
 witnet_crypto = { path = "../crypto" }
 witnet_data_structures = { path = "../data_structures" }
 witnet_util = { path = "../util" }
 serde = "1.0.101"
 itertools = "0.8.0"
+url = "2.1.0"

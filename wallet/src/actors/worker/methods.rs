@@ -20,10 +20,17 @@ impl Worker {
     }
 
     pub fn run_rad_request(&self, request: types::RADRequest) -> Result<types::RadonTypes> {
+        // Block on data request retrieval because the wallet was designed with a blocking
+        // run_retrieval in mind.
+        // This can be made non-blocking by returning a future here and updating
+        // the Handler<RunRadRequest> to return ResponseFuture<types::RadonTypes, Error>
+        let run_retrieval_blocking =
+            |retrieve| futures03::executor::block_on(witnet_rad::run_retrieval(retrieve));
+
         let value = request
             .retrieve
             .par_iter()
-            .map(witnet_rad::run_retrieval)
+            .map(run_retrieval_blocking)
             .collect::<result::Result<Vec<_>, _>>()
             .and_then(|retrievals| {
                 witnet_rad::run_aggregation(retrievals, &request.aggregate)

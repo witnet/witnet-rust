@@ -214,10 +214,14 @@ pub fn send_vtt(
 }
 
 fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Error> {
+    // Block on data request retrieval because the CLI application blocks everywhere anyway
+    let run_retrieval_blocking =
+        |retrieve| futures03::executor::block_on(witnet_rad::run_retrieval(retrieve));
+
     let mut retrieval_results = vec![];
     for r in &dr.data_request.retrieve {
         log::info!("Running retrieval for {}", r.url);
-        retrieval_results.push(witnet_rad::run_retrieval(r)?);
+        retrieval_results.push(run_retrieval_blocking(r)?);
     }
 
     log::info!("Running aggregation with values {:?}", retrieval_results);

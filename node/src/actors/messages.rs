@@ -18,7 +18,7 @@ use witnet_data_structures::{
         InventoryEntry, InventoryItem, PublicKeyHash, RADRequest, RADTally, Reputation,
         ValueTransferOutput,
     },
-    transaction::Transaction,
+    transaction::{CommitTransaction, RevealTransaction, Transaction},
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 use witnet_rad::error::RadError;
@@ -32,6 +32,7 @@ use super::{
     inventory_manager::InventoryManagerError,
     session::Session,
 };
+use std::time::Duration;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CHAIN MANAGER
@@ -241,6 +242,20 @@ impl Message for GetReputationStatus {
 pub struct TryMineBlock;
 
 impl Message for TryMineBlock {
+    type Result = ();
+}
+
+/// Add a commit-reveal pair to ChainManager.
+/// This will broadcast the commit and save the reveal for later
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AddCommitReveal {
+    /// Signed commit transaction
+    pub commit_transaction: CommitTransaction,
+    /// Signed reveal transaction for the commit transaction
+    pub reveal_transaction: RevealTransaction,
+}
+
+impl Message for AddCommitReveal {
     type Result = ();
 }
 
@@ -456,6 +471,10 @@ impl Message for RequestPeers {
 pub struct ResolveRA {
     /// RAD request to be executed
     pub rad_request: RADRequest,
+    /// Data request hash
+    pub dr_pointer: Hash,
+    /// Timeout: if the execution does not finish before the timeout, it is cancelled.
+    pub timeout: Option<Duration>,
 }
 
 /// Message for running the tally step of a data request.
