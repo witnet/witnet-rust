@@ -26,9 +26,13 @@ struct JsonRpcRequest<'a, T> {
 
 #[test]
 fn parse_examples() {
-    let mut existing_examples: HashSet<&str> = vec!["bitcoin_price.json", "random_source.json"]
-        .into_iter()
-        .collect();
+    let mut existing_examples: HashSet<&str> = vec![
+        "bitcoin_price.json",
+        "bitcoin_price_multiple_sources.json",
+        "random_source.json",
+    ]
+    .into_iter()
+    .collect();
     for path in glob::glob("../examples/*.json").unwrap() {
         let path = path.unwrap();
         let v = path.file_name().unwrap().to_string_lossy();
@@ -98,5 +102,17 @@ fn run_examples_random_source() {
         "examples/random_source.json",
         &[r#"{"data":[5]}"#],
         RadonTypes::Float(RadonFloat::from(5.0)),
+    );
+}
+
+#[test]
+fn run_examples_bitcoin_price_multiple_sources() {
+    test_dr(
+        "examples/bitcoin_price_multiple_sources.json",
+        &[
+            r#"{"last":89264.27}"#,
+            r#"{"bpi":{"USD":{"rate_float":89279.0567}}}"#,
+        ],
+        RadonTypes::Float(RadonFloat::from(89271.66335)),
     );
 }
