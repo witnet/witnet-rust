@@ -495,7 +495,7 @@ pub type SHA256 = [u8; 32];
 /// Public Key Hash: slice of the digest of a public key (20 bytes).
 ///
 /// It is the first 20 bytes of the SHA256 hash of the PublicKey.
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, ProtobufConvert)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, ProtobufConvert, Ord, PartialOrd)]
 #[protobuf_convert(pb = "witnet::PublicKeyHash")]
 pub struct PublicKeyHash {
     pub(crate) hash: [u8; 20],

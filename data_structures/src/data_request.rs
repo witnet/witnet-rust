@@ -4,14 +4,13 @@ use std::convert::TryFrom;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
-use crate::radon_report::TypeLike;
 use crate::{
     chain::{
         DataRequestOutput, DataRequestReport, DataRequestStage, DataRequestState, Epoch,
         EpochConstants, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
-    radon_report::RadonReport,
+    radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
 
@@ -48,9 +47,12 @@ impl DataRequestPool {
 
     /// Get all reveals related to a `DataRequestOuput`
     pub fn get_reveals(&self, dr_pointer: &Hash) -> Option<Vec<&RevealTransaction>> {
-        self.data_request_pool
-            .get(dr_pointer)
-            .map(|dr_state| dr_state.info.reveals.values().collect())
+        self.data_request_pool.get(dr_pointer).map(|dr_state| {
+            let mut reveals: Vec<&RevealTransaction> = dr_state.info.reveals.values().collect();
+            reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
+
+            reveals
+        })
     }
 
     /// Insert a reveal transaction into the pool
@@ -64,7 +66,10 @@ impl DataRequestPool {
             .iter()
             .filter_map(|(dr_pointer, dr_state)| {
                 if let DataRequestStage::TALLY = dr_state.stage {
-                    let reveals = dr_state.info.reveals.values().cloned().collect();
+                    let mut reveals: Vec<RevealTransaction> =
+                        dr_state.info.reveals.values().cloned().collect();
+                    reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
+
                     Some((*dr_pointer, reveals))
                 } else {
                     None
@@ -338,48 +343,62 @@ pub fn create_tally<RT>(
     pkh: PublicKeyHash,
     report: &RadonReport<RT>,
     reveals: Vec<RevealTransaction>,
-) -> Result<TallyTransaction, RT::Error>
+) -> Result<TallyTransaction, failure::Error>
 where
     RT: TypeLike,
 {
-    let reveal_reward = calculate_dr_vt_reward(dr_output);
-    let n_reveals = reveals.len() as u16;
+    if let Stage::Tally(tally_metadata) = &report.metadata {
+        let reveal_reward = calculate_dr_vt_reward(dr_output);
 
-    let mut outputs: Vec<ValueTransferOutput> = reveals
-        .into_iter()
-        .filter_map(|reveal| {
-            // Only reward reveals in consensus
-            if true_revealer(&reveal, report) {
-                let vt_output = ValueTransferOutput {
-                    pkh: reveal.body.pkh,
-                    value: reveal_reward,
-                    time_lock: 0,
-                };
-                Some(vt_output)
-            } else {
-                // TODO: Penalize dishonest nodes
-                None
+        let liars = &tally_metadata.liars;
+
+        if reveals.len() != liars.len() {
+            return Err(TransactionError::MismatchingLiarsNumber {
+                reveals_n: reveals.len(),
+                inputs_n: liars.len(),
             }
-        })
-        .collect();
+            .into());
+        }
 
-    let n_honest = outputs.len() as u16;
-    // Create tally change for the data request creator
-    if dr_output.witnesses > n_honest {
-        debug!("Created tally change for the data request creator");
-        let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_honest)
-            + dr_output.reveal_fee * u64::from(dr_output.witnesses - n_reveals);
-        let vt_output_change = ValueTransferOutput {
-            pkh,
-            value: tally_change,
-            time_lock: 0,
-        };
-        outputs.push(vt_output_change);
+        let mut outputs: Vec<ValueTransferOutput> = reveals
+            .iter()
+            .zip(liars.iter())
+            .filter_map(|(reveal, &liar)| {
+                // Only reward reveals in consensus
+                if !liar {
+                    let vt_output = ValueTransferOutput {
+                        pkh: reveal.body.pkh,
+                        value: reveal_reward,
+                        time_lock: 0,
+                    };
+                    Some(vt_output)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let n_honest = outputs.len() as u16;
+        let n_reveals = reveals.len() as u16;
+        // Create tally change for the data request creator
+        if dr_output.witnesses > n_honest {
+            debug!("Created tally change for the data request creator");
+            let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_honest)
+                + dr_output.reveal_fee * u64::from(dr_output.witnesses - n_reveals);
+            let vt_output_change = ValueTransferOutput {
+                pkh,
+                value: tally_change,
+                time_lock: 0,
+            };
+            outputs.push(vt_output_change);
+        }
+
+        let tally_bytes = Vec::try_from(report)?;
+
+        Ok(TallyTransaction::new(dr_pointer, tally_bytes, outputs))
+    } else {
+        Err(TransactionError::NoTallyStage.into())
     }
-
-    let tally_bytes = Vec::try_from(report)?;
-
-    Ok(TallyTransaction::new(dr_pointer, tally_bytes, outputs))
 }
 
 #[cfg(test)]

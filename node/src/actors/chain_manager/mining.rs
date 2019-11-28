@@ -415,31 +415,36 @@ impl ChainManager {
                             }
                         })
                         .and_then(move |tally_result| {
-                            create_tally(
+                            let tally = create_tally(
                                 dr_pointer,
                                 &dr_state.data_request,
                                 dr_state.pkh,
                                 &tally_result,
                                 reveals,
-                            )
-                            .map(|tally| (tally, tally_result))
-                            .map_err(|e| log::error!("Could not create tally transaction: {}", e))
-                        })
-                        .and_then(move |(tally, tally_result)| {
-                            info!(
-                                "{} Created Tally for Data Request {} with result: {}\n{}",
-                                Yellow.bold().paint("[Data Request]"),
-                                Yellow.bold().paint(&dr_pointer.to_string()),
-                                Yellow.bold().paint(format!("{:?}", &tally_result.result)),
-                                White
-                                    .bold()
-                                    .paint(results.into_iter().map(|result| result).fold(
-                                        String::from("Reveals:"),
-                                        |acc, item| format!("{}\n\t* {}", acc, item)
-                                    )),
                             );
 
-                            futures::future::ok(tally)
+                            match tally {
+                                Ok(t) => {
+                                    info!(
+                                        "{} Created Tally for Data Request {} with result: {}\n{}",
+                                        Yellow.bold().paint("[Data Request]"),
+                                        Yellow.bold().paint(&dr_pointer.to_string()),
+                                        Yellow.bold().paint(format!("{:?}", &tally_result.result)),
+                                        White.bold().paint(
+                                            results.into_iter().map(|result| result).fold(
+                                                String::from("Reveals:"),
+                                                |acc, item| format!("{}\n\t* {}", acc, item)
+                                            )
+                                        ),
+                                    );
+
+                                    futures::future::ok(t)
+                                }
+                                Err(e) => {
+                                    log::error!("Couldn't create tally: {}", e);
+                                    futures::future::err(())
+                                }
+                            }
                         })
                         // This future should always return Ok because join_all short-circuits on the
                         // first Err, and we want to keep creating tallies after the first error

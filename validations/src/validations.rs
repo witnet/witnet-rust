@@ -9,7 +9,6 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
-use witnet_data_structures::radon_report::TypeLike;
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
@@ -19,13 +18,14 @@ use witnet_data_structures::{
     },
     data_request::{calculate_dr_vt_reward, DataRequestPool},
     error::{BlockError, DataRequestError, TransactionError},
+    radon_report::{Stage, TypeLike},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
         Transaction, VTTransaction,
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
-use witnet_rad::{run_tally, script::unpack_radon_script, types::RadonTypes};
+use witnet_rad::{run_tally_report, script::unpack_radon_script, types::RadonTypes};
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -160,26 +160,49 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
 
 /// Function to validate a tally consensus
 pub fn validate_consensus(
-    reveals: &[&[u8]],
+    reveals: Vec<&RevealTransaction>,
     miner_tally: &[u8],
     consensus: &RADTally,
-) -> Result<(), failure::Error> {
+) -> Result<HashSet<PublicKeyHash>, failure::Error> {
     let radon_types_vec: Vec<RadonTypes> = reveals
         .iter()
-        .filter_map(|&input| RadonTypes::try_from(input).ok())
+        .filter_map(|reveal| RadonTypes::try_from(reveal.body.reveal.as_slice()).ok())
         .collect();
 
-    let local_tally =
-        run_tally(radon_types_vec, consensus).and_then(|tally| RadonTypes::encode(&tally))?;
+    let report = run_tally_report(radon_types_vec, consensus)?;
+    let metadata = report.metadata.clone();
+    let tally_consensus = report
+        .into_inner()
+        .and_then(|tally| RadonTypes::encode(&tally))?;
 
-    if local_tally.as_slice() == miner_tally {
-        Ok(())
-    } else {
-        Err(TransactionError::MismatchedConsensus {
-            local_tally,
-            miner_tally: miner_tally.to_vec(),
+    if let Stage::Tally(tally_metadata) = metadata {
+        if tally_consensus.as_slice() == miner_tally {
+            let liars = tally_metadata.liars;
+
+            let pkh_hs: HashSet<PublicKeyHash> = reveals
+                .iter()
+                .zip(liars.iter())
+                .filter_map(
+                    |(reveal, &liar)| {
+                        if liar {
+                            Some(reveal.body.pkh)
+                        } else {
+                            None
+                        }
+                    },
+                )
+                .collect();
+
+            Ok(pkh_hs)
+        } else {
+            Err(TransactionError::MismatchedConsensus {
+                local_tally: tally_consensus,
+                miner_tally: miner_tally.to_vec(),
+            }
+            .into())
         }
-        .into())
+    } else {
+        Err(TransactionError::NoTallyStage.into())
     }
 }
 
@@ -436,36 +459,29 @@ pub fn validate_tally_transaction<'a>(
     let dr_output = &dr_state.data_request;
 
     // The unwrap is safe because we know that the data request exists
-    let reveals: Vec<&[u8]> = dr_pool
-        .get_reveals(&dr_pointer)
-        .unwrap()
-        .into_iter()
-        .map(|reveal| reveal.body.reveal.as_slice())
-        .collect();
-
-    //TODO: Check Tally convergence
+    let reveal_txns = dr_pool.get_reveals(&dr_pointer).unwrap();
+    let reveal_length = reveal_txns.len();
 
     // Validate tally result
     let miner_tally = ta_tx.tally.clone();
     let tally_stage = &dr_output.data_request.tally;
 
-    validate_consensus(&reveals, &miner_tally, tally_stage)?;
+    let pkh_liars = validate_consensus(reveal_txns, &miner_tally, tally_stage)?;
 
-    //TODO: Check dishonest reveals
-    let n_dishonest_reveals = 0;
-    validate_tally_outputs(&dr_state, &ta_tx, reveals.len(), n_dishonest_reveals)?;
+    validate_tally_outputs(&dr_state, &ta_tx, reveal_length, pkh_liars)?;
 
     Ok((ta_tx.outputs.iter().collect(), dr_output.tally_fee))
 }
 
-pub fn validate_tally_outputs(
+pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     dr_state: &DataRequestState,
     ta_tx: &TallyTransaction,
     n_reveals: usize,
-    n_dishonest_reveals: usize,
+    pkh_liars: HashSet<PublicKeyHash, S>,
 ) -> Result<(), failure::Error> {
     let witnesses = dr_state.data_request.witnesses as usize;
-    let change_required = witnesses > n_reveals || n_dishonest_reveals > 0;
+    let liars_length = pkh_liars.len();
+    let change_required = witnesses > n_reveals || liars_length > 0;
 
     if change_required && (ta_tx.outputs.len() != n_reveals + 1) {
         return Err(TransactionError::WrongNumberOutputs {
@@ -481,7 +497,7 @@ pub fn validate_tally_outputs(
         .into());
     }
 
-    let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::new();
+    let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::default();
     let reveal_reward = calculate_dr_vt_reward(&dr_state.data_request);
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         if change_required && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
@@ -499,20 +515,14 @@ pub fn validate_tally_outputs(
                 .into());
             }
         } else {
+            if dr_state.info.reveals.get(&output.pkh).is_none() {
+                return Err(TransactionError::RevealNotFound.into());
+            }
+            if pkh_liars.contains(&output.pkh) {
+                return Err(TransactionError::DishonestReward.into());
+            }
             if pkh_rewarded.contains(&output.pkh) {
                 return Err(TransactionError::MultipleRewards { pkh: output.pkh }.into());
-            }
-            let reveal = dr_state.info.reveals.get(&output.pkh);
-
-            match reveal {
-                Some(_r) => {
-                    // FIXME: re-enable this clause once `true_revealer` is unmocked.
-                    /*if !true_revealer(&r, &ta_tx.tally) {
-                        return Err(TransactionError::DishonestReward.into());
-                    }*/
-                }
-
-                None => return Err(TransactionError::RevealNotFound.into()),
             }
             pkh_rewarded.insert(output.pkh);
         }

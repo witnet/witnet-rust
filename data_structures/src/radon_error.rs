@@ -4,6 +4,7 @@ use std::io::Cursor;
 use cbor::types::Tag;
 use cbor::value::Value;
 use cbor::GenericEncoder;
+use failure::Fail;
 use num_enum::IntoPrimitive;
 
 #[derive(Clone, Copy, Debug, IntoPrimitive)]
@@ -50,7 +51,7 @@ impl Default for RadonErrors {
 
 /// This trait identifies a structure that can be used as an error type for `RadonError` and
 /// `RadonReport`.
-pub trait ErrorLike: Default + From<cbor::encoder::EncodeError> {
+pub trait ErrorLike: Default + From<cbor::encoder::EncodeError> + Fail {
     fn intercept<RT>(value: Result<RT, Self>) -> Result<RT, RadonError<Self>>;
 }
 

@@ -171,6 +171,15 @@ pub enum TransactionError {
         dr_pointer
     )]
     DuplicatedTally { dr_pointer: Hash },
+    /// RadonReport not in Tally Stage
+    #[fail(display = "RadonReport not in Tally Stage")]
+    NoTallyStage,
+    /// Mismatching number of reveals and liars vector.
+    #[fail(
+        display = "Mismatching number of reveals ({}) and liars vector ({})",
+        reveals_n, inputs_n
+    )]
+    MismatchingLiarsNumber { reveals_n: usize, inputs_n: usize },
 }
 
 /// The error type for operations on a [`Block`](Block)
