@@ -143,18 +143,28 @@ pub struct TallyMetaData {
     /// A positional vector of "truthers" and "liars", i.e. reveals that passed all the filters vs.
     /// those which were filtered out.
     /// This follows a reverse logic: `false` is truth and `true` is lie.
-    liars: Vec<bool>,
+    pub liars: Vec<bool>,
     /// Proportion between total reveals and "truthers" count:
     /// `reveals.len() / liars.iter().filter(std::not::Ops).count()`
-    consensus: f32,
+    pub consensus: f32,
 }
 
 #[test]
 fn test_encode_not_cbor() {
     use crate::radon_error::{RadonError, RadonErrors};
+    use core::fmt::Write;
+    use failure::Fail;
+    use std::{error::Error, fmt};
 
-    #[derive(Default, Debug)]
+    #[derive(Default, Debug, Fail)]
     struct Dummy;
+
+    // Satisfy the trait bound `Dummy: fmt::Display` required by `failure::Fail`
+    impl fmt::Display for Dummy {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            writeln!(f, "Error")
+        }
+    }
 
     // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
     impl ErrorLike for Dummy {

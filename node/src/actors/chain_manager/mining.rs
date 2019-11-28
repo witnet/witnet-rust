@@ -414,20 +414,28 @@ impl ChainManager {
                                 reveals,
                             );
 
-                            info!(
-                                "{} Created Tally for Data Request {} with result: {}\n{}",
-                                Yellow.bold().paint("[Data Request]"),
-                                Yellow.bold().paint(&dr_pointer.to_string()),
-                                Yellow.bold().paint(format!("{:?}", &tally_result.result)),
-                                White
-                                    .bold()
-                                    .paint(results.into_iter().map(|result| result).fold(
-                                        String::from("Reveals:"),
-                                        |acc, item| format!("{}\n\t* {}", acc, item)
-                                    )),
-                            );
+                            match tally {
+                                Ok(t) => {
+                                    info!(
+                                        "{} Created Tally for Data Request {} with result: {}\n{}",
+                                        Yellow.bold().paint("[Data Request]"),
+                                        Yellow.bold().paint(&dr_pointer.to_string()),
+                                        Yellow.bold().paint(format!("{:?}", &tally_result.result)),
+                                        White.bold().paint(
+                                            results.into_iter().map(|result| result).fold(
+                                                String::from("Reveals:"),
+                                                |acc, item| format!("{}\n\t* {}", acc, item)
+                                            )
+                                        ),
+                                    );
 
-                            futures::future::ok(tally)
+                                    futures::future::ok(t)
+                                }
+                                Err(e) => {
+                                    log::error!("Couldn't create tally: {}", e);
+                                    futures::future::err(())
+                                }
+                            }
                         })
                         // This future should always return Ok because join_all short-circuits on the
                         // first Err, and we want to keep creating tallies after the first error

@@ -542,26 +542,17 @@ impl ReputationInfo {
     ) {
         let dr_pointer = tally_transaction.dr_pointer;
         let dr_state = &data_request_pool.data_request_pool[&dr_pointer];
-        let reveals = &dr_state.info.reveals;
         let commits = &dr_state.info.commits;
         let replication_factor = dr_state.data_request.witnesses;
         self.alpha_diff += Alpha(u32::from(replication_factor));
 
-        let _tally = &tally_transaction.tally;
-
+        let mut tally_vts = HashSet::new();
+        // TODO: Review case of data requester is also a witness
+        for vt in &tally_transaction.outputs {
+            tally_vts.insert(vt.pkh);
+        }
         for pkh in commits.keys() {
-            let liar = reveals
-                .get(&pkh)
-                .map(|_reveal_tx| {
-                    // FIXME: restore this clause once `true_revealer` is unmocked.
-                    /*if true_revealer(reveal_tx, tally) {
-                        0
-                    } else {
-                        1
-                    }*/
-                    0
-                })
-                .unwrap_or(1);
+            let liar = if tally_vts.contains(pkh) { 0 } else { 1 };
             // Insert all the committers, and increment their lie count by 1 if they fail to reveal or
             // if they lied (withholding a reveal is treated the same as lying)
             // lie_count can contain identities which never lied, with lie_count = 0
@@ -861,7 +852,7 @@ mod tests {
     use witnet_data_structures::{
         chain::{
             ChainInfo, ConsensusConstants, Environment, EpochConstants, KeyedSignature, PublicKey,
-            ReputationEngine,
+            ReputationEngine, ValueTransferOutput,
         },
         error::TransactionError,
         transaction::{CommitTransaction, DRTransaction, MintTransaction, RevealTransaction},
@@ -1018,6 +1009,10 @@ mod tests {
 
         let mut ta_tx = TallyTransaction::default();
         ta_tx.dr_pointer = dr_pointer;
+        ta_tx.outputs = vec![ValueTransferOutput {
+            pkh: pk1.pkh(),
+            ..Default::default()
+        }];
 
         dr_pool
             .add_data_request(1, dr_tx, &Hash::default())
