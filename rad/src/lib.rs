@@ -118,7 +118,9 @@ pub fn run_tally_report(
     consensus: &RADTally,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
-    context.stage = Stage::Tally(TallyMetaData::default());
+    let mut metadata = TallyMetaData::default();
+    metadata.liars = vec![false; radon_types_vec.len()];
+    context.stage = Stage::Tally(metadata);
 
     let radon_script = unpack_radon_script(consensus.script.as_slice())?;
     let items_to_tally = RadonTypes::from(RadonArray::from(radon_types_vec));

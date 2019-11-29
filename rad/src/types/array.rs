@@ -143,7 +143,7 @@ impl Operable for RadonArray {
             (RadonOpCodes::Get, Some(args)) => array_operators::get(self, args.as_slice()),
             (RadonOpCodes::ArrayGet, Some(args)) => array_operators::get(self, args.as_slice()),
             (RadonOpCodes::ArrayFilter, Some(args)) => {
-                array_operators::filter(self, args.as_slice())
+                array_operators::filter(self, args.as_slice(), &mut ReportContext::default())
             }
             (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(self, args.as_slice()),
             (RadonOpCodes::ArrayReduce, Some(args)) => {
@@ -163,13 +163,13 @@ impl Operable for RadonArray {
     fn operate_in_context(
         &self,
         call: &RadonCall,
-        _context: &mut ReportContext,
+        context: &mut ReportContext,
     ) -> Result<RadonTypes, RadError> {
         // Intercept filter operations for performing the filters in a context, otherwise use
         // context-free execution.
         match call {
             (RadonOpCodes::ArrayFilter, Some(args)) => {
-                array_operators::filter(self, args.as_slice())
+                array_operators::filter(self, args.as_slice(), context)
             }
             other => self.operate(other),
         }

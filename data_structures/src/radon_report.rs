@@ -143,14 +143,34 @@ pub struct TallyMetaData {
     /// A positional vector of "truthers" and "liars", i.e. reveals that passed all the filters vs.
     /// those which were filtered out.
     /// This follows a reverse logic: `false` is truth and `true` is lie.
+    /// A liar is an out-of-consensus value
     pub liars: Vec<bool>,
     /// Proportion between total reveals and "truthers" count:
     /// `liars.iter().filter(std::ops::Not).count() / reveals.len()`
     consensus: f32,
 }
 
+impl TallyMetaData {
+    /// Update liars vector
+    /// new_liars length has to be less than false elements in liars
+    pub fn update_liars(&mut self, new_liars: Vec<bool>) {
+        if self.liars.is_empty() {
+            self.liars = new_liars;
+        } else {
+            let mut new_iter = new_liars.iter();
+
+            for liar in &mut self.liars {
+                if !*liar {
+                    *liar = *new_iter.next().unwrap();
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::radon_error::{ErrorLike, RadonError, RadonErrors};
     use core::fmt::Write;
     use failure::Fail;
@@ -191,5 +211,26 @@ mod tests {
         let expected = vec![216, 39, 130, 1, 2];
 
         assert_eq!(encoded, expected);
+    }
+
+    #[test]
+    fn test_update_liars() {
+        let mut metadata = TallyMetaData::default();
+        // [1,1,0,1,0,0,0,1,0,0] => 6 false values
+        metadata.liars = vec![
+            true, true, false, true, false, false, false, true, false, false,
+        ];
+
+        // [0,1,1,0,0,1]
+        let v = vec![false, true, true, false, false, true];
+
+        metadata.update_liars(v);
+
+        // [1,1,0,1,1,1,0,1,0,1]
+        let expected = vec![
+            true, true, false, true, true, true, false, true, false, true,
+        ];
+
+        assert_eq!(metadata.liars, expected);
     }
 }

@@ -11,6 +11,7 @@ use crate::{
     script::unpack_subscript,
     types::{array::RadonArray, integer::RadonInteger, RadonType, RadonTypes},
 };
+use witnet_data_structures::radon_report::ReportContext;
 
 pub fn count(input: &RadonArray) -> RadonInteger {
     RadonInteger::from(input.value().len() as i128)
@@ -88,7 +89,11 @@ pub fn map(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     Ok(RadonArray::from(result).into())
 }
 
-pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
+pub fn filter(
+    input: &RadonArray,
+    args: &[Value],
+    context: &mut ReportContext,
+) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: "RadonArray".to_string(),
         operator: "Filter".to_string(),
@@ -105,7 +110,7 @@ pub fn filter(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError
                     .map_err(|_| unknown_filter(*arg))?;
             let (_args, extra_args) = args.split_at(1);
 
-            filters::filter(input, filter_code, extra_args)
+            filters::filter(input, filter_code, extra_args, context)
         }
         Value::Array(_arg) => {
             let subscript_err = |e| RadError::Subscript {
@@ -633,7 +638,7 @@ fn test_filter_integer_greater_than() {
         Value::Integer(IntegerGreaterThan as i128),
         Value::Integer(4),
     ])])];
-    let output = filter(&input, &script).unwrap();
+    let output = filter(&input, &script, &mut ReportContext::default()).unwrap();
 
     let expected = RadonTypes::Array(RadonArray::from(vec![RadonInteger::from(6).into()]));
 
@@ -652,7 +657,7 @@ fn test_filter_negative() {
         Value::Integer(IntegerMultiply as i128),
         Value::Integer(4),
     ])])];
-    let result = filter(&input, &script);
+    let result = filter(&input, &script, &mut ReportContext::default());
 
     assert_eq!(
         &result.unwrap_err().to_string(),
@@ -674,7 +679,7 @@ fn test_filter_operator() {
         Value::Integer(RadonFilters::DeviationStandard as i128),
         Value::Float(1.3),
     ];
-    let output = filter(&input, &filter_op).unwrap();
+    let output = filter(&input, &filter_op, &mut ReportContext::default()).unwrap();
 
     let expected = RadonTypes::Array(RadonArray::from(vec![
         RadonFloat::from(2.0).into(),

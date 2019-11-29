@@ -6,8 +6,13 @@ use crate::{
     types::{array::RadonArray, boolean::RadonBoolean, RadonType, RadonTypes},
 };
 use serde_cbor::Value;
+use witnet_data_structures::radon_report::{ReportContext, Stage};
 
-pub fn standard_filter(input: &RadonArray, extra_args: &[Value]) -> Result<RadonTypes, RadError> {
+pub fn standard_filter(
+    input: &RadonArray,
+    extra_args: &[Value],
+    context: &mut ReportContext,
+) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonArray::radon_type_name(),
         operator: RadonFilters::DeviationStandard.to_string(),
@@ -41,22 +46,30 @@ pub fn standard_filter(input: &RadonArray, extra_args: &[Value]) -> Result<Radon
             }
             let bool_matrix = boolean_standard_filter(&input, sigmas_float)?;
 
-            keep_rows(input, &bool_matrix)
+            keep_rows(input, &bool_matrix, context)
         }
         Some(_rad_types) => {
             // 1D array
             let bool_array = boolean_standard_filter(&input, sigmas_float)?;
 
+            let bool_vec: Vec<bool> = bool_array
+                .value()
+                .iter()
+                .map(|b| match b {
+                    RadonTypes::Boolean(rad_bool) => !rad_bool.value(),
+                    _ => panic!("Expected RadonArray of RadonBoolean"),
+                })
+                .collect();
+
             let mut result = vec![];
-            for (item, keep) in input.value().into_iter().zip(bool_array.value()) {
-                let keep = if let RadonTypes::Boolean(b) = keep {
-                    b.value()
-                } else {
-                    panic!("Expected RadonArray of RadonBoolean");
-                };
-                if keep {
+            for (item, &b) in input.value().into_iter().zip(bool_vec.iter()) {
+                if !b {
                     result.push(item);
                 }
+            }
+
+            if let Stage::Tally(ref mut metadata) = context.stage {
+                metadata.update_liars(bool_vec);
             }
 
             Ok(RadonArray::from(result).into())
@@ -66,8 +79,13 @@ pub fn standard_filter(input: &RadonArray, extra_args: &[Value]) -> Result<Radon
 
 // Only keep rows from input for which all values in keep are true.
 // input and keep are assumed to have the same dimension
-fn keep_rows(input: &RadonArray, keep: &RadonArray) -> Result<RadonTypes, RadError> {
+fn keep_rows(
+    input: &RadonArray,
+    keep: &RadonArray,
+    context: &mut ReportContext,
+) -> Result<RadonTypes, RadError> {
     let mut result = vec![];
+    let mut bool_vec = vec![];
     for (item, keep_array) in input.value().into_iter().zip(keep.value()) {
         let keep_array = if let RadonTypes::Array(a) = keep_array {
             a
@@ -86,6 +104,11 @@ fn keep_rows(input: &RadonArray, keep: &RadonArray) -> Result<RadonTypes, RadErr
         if row_true {
             result.push(item);
         }
+        bool_vec.push(!row_true);
+    }
+
+    if let Stage::Tally(ref mut metadata) = context.stage {
+        metadata.update_liars(bool_vec);
     }
 
     Ok(RadonTypes::from(RadonArray::from(result)))
@@ -199,6 +222,7 @@ mod tests {
     use super::*;
     use crate::types::{float::RadonFloat, integer::RadonInteger, string::RadonString};
     use std::f64;
+    use witnet_data_structures::radon_report::TallyMetaData;
 
     #[test]
     fn test_filter_deviation_standard_no_arg() {
@@ -216,7 +240,7 @@ mod tests {
             args: extra_args.clone(),
         };
 
-        let result = standard_filter(&input, &extra_args);
+        let result = standard_filter(&input, &extra_args, &mut ReportContext::default());
 
         assert_eq!(result.unwrap_err(), expected);
     }
@@ -237,7 +261,7 @@ mod tests {
             args: extra_args.clone(),
         };
 
-        let result = standard_filter(&input, &extra_args);
+        let result = standard_filter(&input, &extra_args, &mut ReportContext::default());
 
         assert_eq!(result.unwrap_err(), expected);
     }
@@ -256,7 +280,7 @@ mod tests {
             filter: RadonFilters::DeviationStandard.to_string(),
         };
 
-        let result = standard_filter(&input, &extra_args);
+        let result = standard_filter(&input, &extra_args, &mut ReportContext::default());
 
         assert_eq!(result.unwrap_err(), expected);
     }
@@ -290,9 +314,18 @@ mod tests {
             vec![RadonTypes::Array(expected1), RadonTypes::Array(expected2)];
         let expected = RadonTypes::Array(RadonArray::from(expected_vec));
 
-        let output = standard_filter(&input, &extra_args).unwrap();
+        let mut context = ReportContext::default();
+        context.stage = Stage::Tally(TallyMetaData::default());
+
+        let output = standard_filter(&input, &extra_args, &mut context).unwrap();
 
         assert_eq!(output, expected);
+
+        if let Stage::Tally(metadata) = context.stage {
+            assert_eq!(metadata.liars, vec![false, false, true]);
+        } else {
+            panic!("Not tally stage");
+        }
     }
 
     #[test]
@@ -315,9 +348,18 @@ mod tests {
             vec![RadonTypes::Array(expected1), RadonTypes::Array(expected2)];
         let expected = RadonTypes::Array(RadonArray::from(expected_vec));
 
-        let output = standard_filter(&input, &extra_args).unwrap();
+        let mut context = ReportContext::default();
+        context.stage = Stage::Tally(TallyMetaData::default());
+
+        let output = standard_filter(&input, &extra_args, &mut context).unwrap();
 
         assert_eq!(output, expected);
+
+        if let Stage::Tally(metadata) = context.stage {
+            assert_eq!(metadata.liars, vec![false, false, true]);
+        } else {
+            panic!("Not tally stage");
+        }
     }
 
     #[test]
@@ -338,9 +380,18 @@ mod tests {
         let expected_vec: Vec<RadonTypes> = vec![RadonTypes::Array(expected1)];
         let expected = RadonTypes::Array(RadonArray::from(expected_vec));
 
-        let output = standard_filter(&input, &extra_args).unwrap();
+        let mut context = ReportContext::default();
+        context.stage = Stage::Tally(TallyMetaData::default());
+
+        let output = standard_filter(&input, &extra_args, &mut context).unwrap();
 
         assert_eq!(output, expected);
+
+        if let Stage::Tally(metadata) = context.stage {
+            assert_eq!(metadata.liars, vec![false, true, true]);
+        } else {
+            panic!("Not tally stage");
+        }
     }
 
     #[test]
@@ -359,9 +410,18 @@ mod tests {
         let expected_vec: Vec<RadonTypes> = vec![];
         let expected = RadonTypes::Array(RadonArray::from(expected_vec));
 
-        let output = standard_filter(&input, &extra_args).unwrap();
+        let mut context = ReportContext::default();
+        context.stage = Stage::Tally(TallyMetaData::default());
+
+        let output = standard_filter(&input, &extra_args, &mut context).unwrap();
 
         assert_eq!(output, expected);
+
+        if let Stage::Tally(metadata) = context.stage {
+            assert_eq!(metadata.liars, vec![true, true, true]);
+        } else {
+            panic!("Not tally stage");
+        }
     }
 
     #[test]
@@ -384,7 +444,7 @@ mod tests {
             filter: RadonFilters::DeviationStandard.to_string(),
         };
 
-        let result = standard_filter(&input, &extra_args);
+        let result = standard_filter(&input, &extra_args, &mut ReportContext::default());
 
         assert_eq!(result.unwrap_err(), expected);
     }
@@ -398,7 +458,7 @@ mod tests {
         let input = RadonArray::from(input_vec);
         let extra_args = vec![Value::Float(sigmas)];
 
-        let output = standard_filter(&input, &extra_args)?;
+        let output = standard_filter(&input, &extra_args, &mut ReportContext::default())?;
 
         let output_vec = match output {
             RadonTypes::Array(x) => x.value(),
@@ -424,7 +484,7 @@ mod tests {
         let input = RadonArray::from(input_vec);
         let extra_args = vec![Value::Float(sigmas)];
 
-        let output = standard_filter(&input, &extra_args)?;
+        let output = standard_filter(&input, &extra_args, &mut ReportContext::default())?;
 
         let output_vec = match output {
             RadonTypes::Array(x) => x.value(),
