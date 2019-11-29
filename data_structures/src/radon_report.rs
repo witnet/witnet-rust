@@ -149,6 +149,35 @@ pub struct TallyMetaData {
     pub consensus: f32,
 }
 
+impl TallyMetaData {
+    /// Update liars vector
+    /// new_liars length has to be less than false elements in liars
+    pub fn update_liars(&mut self, new_liars: Vec<bool>) {
+        if self.liars.is_empty() {
+            self.liars = new_liars;
+        } else {
+            let mut vec = vec![];
+            let mut new_iter = new_liars.iter();
+
+            // TODO: Improve code
+            for &liar in &self.liars {
+                if liar {
+                    vec.push(true);
+                } else {
+                    match new_iter.next() {
+                        Some(&boolean) => {
+                            vec.push(boolean);
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+            }
+
+            self.liars = vec;
+        }
+    }
+}
+
 #[test]
 fn test_encode_not_cbor() {
     use crate::radon_error::{RadonError, RadonErrors};
@@ -190,4 +219,25 @@ fn test_encode_not_cbor() {
     let expected = vec![216, 39, 130, 1, 2];
 
     assert_eq!(encoded, expected);
+}
+
+#[test]
+fn test_update_liars() {
+    let mut metadata = TallyMetaData::default();
+    // [1,1,0,1,0,0,0,1,0,0] => 6 false values
+    metadata.liars = vec![
+        true, true, false, true, false, false, false, true, false, false,
+    ];
+
+    // [0,1,1,0,0,1]
+    let v = vec![false, true, true, false, false, true];
+
+    metadata.update_liars(v);
+
+    // [1,1,0,1,1,1,0,1,0,1]
+    let expected = vec![
+        true, true, false, true, true, true, false, true, false, true,
+    ];
+
+    assert_eq!(metadata.liars, expected);
 }

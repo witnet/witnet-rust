@@ -5,6 +5,7 @@ use serde_cbor::Value;
 
 use crate::error::RadError;
 use crate::types::{array::RadonArray, RadonType, RadonTypes};
+use witnet_data_structures::radon_report::ReportContext;
 
 pub mod deviation;
 
@@ -39,6 +40,7 @@ pub fn filter(
     input: &RadonArray,
     filter_code: RadonFilters,
     extra_args: &[Value],
+    context: &mut ReportContext,
 ) -> Result<RadonTypes, RadError> {
     let error = || {
         Err(RadError::UnsupportedFilter {
@@ -49,7 +51,9 @@ pub fn filter(
 
     if input.is_homogeneous() || input.value().is_empty() {
         match filter_code {
-            RadonFilters::DeviationStandard => deviation::standard_filter(input, extra_args),
+            RadonFilters::DeviationStandard => {
+                deviation::standard_filter(input, extra_args, context)
+            }
             _ => error(),
         }
     } else {
