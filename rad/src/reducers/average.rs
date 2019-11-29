@@ -73,6 +73,7 @@ mod tests {
         types::{float::RadonFloat, integer::RadonInteger, string::RadonString},
     };
     use serde_cbor::Value;
+    use witnet_data_structures::radon_report::ReportContext;
 
     #[test]
     fn test_reduce_average_mean_float() {
@@ -83,7 +84,7 @@ mod tests {
         let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
         let expected = RadonTypes::from(RadonFloat::from(1.5f64));
 
-        let output = reduce(input, args).unwrap();
+        let output = reduce(input, args, &mut ReportContext::default()).unwrap();
 
         assert_eq!(output, expected);
     }
@@ -106,7 +107,7 @@ mod tests {
         ]));
 
         let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(&input, args).unwrap();
+        let output = reduce(&input, args, &mut ReportContext::default()).unwrap();
 
         assert_eq!(output, expected);
     }
@@ -131,7 +132,7 @@ mod tests {
         };
 
         let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(&input, args).unwrap_err();
+        let output = reduce(&input, args, &mut ReportContext::default()).unwrap_err();
 
         assert_eq!(output, expected);
     }
@@ -182,7 +183,7 @@ mod tests {
         let expected = RadonTypes::from(RadonArray::from(vec![array_e1, array_e2, array_e3]));
 
         let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(&input, args).unwrap();
+        let output = reduce(&input, args, &mut ReportContext::default()).unwrap();
 
         assert_eq!(output, expected);
     }
@@ -203,7 +204,7 @@ mod tests {
         let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
         let expected = RadonTypes::from(RadonFloat::from(1.5f64));
 
-        let output = reduce(input, args).unwrap();
+        let output = reduce(input, args, &mut ReportContext::default()).unwrap();
 
         assert_eq!(output, expected);
     }
@@ -226,7 +227,7 @@ mod tests {
         ]));
 
         let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(&input, args).unwrap();
+        let output = reduce(&input, args, &mut ReportContext::default()).unwrap();
 
         assert_eq!(output, expected);
     }
@@ -238,7 +239,7 @@ mod tests {
             RadonString::from("world").into(),
         ]);
         let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(input, args).unwrap_err();
+        let output = reduce(input, args, &mut ReportContext::default()).unwrap_err();
 
         let expected = RadError::UnsupportedReducer {
             inner_type: "RadonString".to_string(),
@@ -267,7 +268,7 @@ mod tests {
         };
 
         let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let output = reduce(&input, args).unwrap_err();
+        let output = reduce(&input, args, &mut ReportContext::default()).unwrap_err();
 
         assert_eq!(output, expected);
     }

@@ -147,7 +147,7 @@ impl Operable for RadonArray {
             }
             (RadonOpCodes::ArrayMap, Some(args)) => array_operators::map(self, args.as_slice()),
             (RadonOpCodes::ArrayReduce, Some(args)) => {
-                array_operators::reduce(self, args.as_slice())
+                array_operators::reduce(self, args.as_slice(), &mut ReportContext::default())
             }
             (RadonOpCodes::ArraySort, Some(args)) => {
                 array_operators::sort(self, args.as_slice()).map(RadonTypes::from)
@@ -170,6 +170,9 @@ impl Operable for RadonArray {
         match call {
             (RadonOpCodes::ArrayFilter, Some(args)) => {
                 array_operators::filter(self, args.as_slice(), context)
+            }
+            (RadonOpCodes::ArrayReduce, Some(args)) => {
+                array_operators::reduce(self, args.as_slice(), context)
             }
             other => self.operate(other),
         }
