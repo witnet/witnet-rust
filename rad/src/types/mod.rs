@@ -325,3 +325,18 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
         }
     }
 }
+
+/// Decode a vector of instances of RadonTypes from any iterator that yields `(&[u8], &T)`.
+/// The `err_action` argument allows the caller of this function to decide whether
+/// it should act in a lossy way, i.e. ignoring items that cannot be decoded or replacing them with
+/// default values.
+pub fn serial_iter_decode<T>(
+    iter: &mut dyn Iterator<Item = (&[u8], &T)>,
+    err_action: fn(RadError, &[u8], &T) -> Option<RadonTypes>,
+) -> Vec<RadonTypes> {
+    iter.filter_map(|(slice, inner)| match RadonTypes::try_from(slice) {
+        Ok(result) => Some(result),
+        Err(e) => err_action(e, slice, inner),
+    })
+    .collect()
+}

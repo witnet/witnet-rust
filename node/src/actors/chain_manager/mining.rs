@@ -4,7 +4,6 @@ use actix::{ActorFuture, Context, ContextFutureSpawner, Handler, SystemService, 
 use ansi_term::Color::{White, Yellow};
 use futures::future::{join_all, Future};
 use log::{debug, error, info, warn};
-use rayon::prelude::*;
 
 use witnet_data_structures::{
     chain::{
@@ -18,7 +17,8 @@ use witnet_data_structures::{
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
-use witnet_rad::types::RadonTypes;
+use witnet_rad::error::RadError;
+use witnet_rad::types::serial_iter_decode;
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
     merkle_tree_root, update_utxo_diff, validate_block, vt_transaction_fee, UtxoDiff,
@@ -374,22 +374,25 @@ impl ChainManager {
                 .map(|(dr_pointer, reveals, dr_state)| {
                     debug!("Building tally for data request {}", dr_pointer);
 
-                    // Ignore reveals that could not be decoded.
-                    //  Those reveal that cannot be decoded are most likely malformed and therefore
-                    //  their authors are punished in the same way as non-revealers.
-                    let results: Vec<RadonTypes> = reveals.clone()
-                        .into_par_iter()
-                        .filter_map(|reveal_tx| {
-                            let slice = reveal_tx.body.reveal.as_slice();
-                            match RadonTypes::try_from(slice) {
-                                Ok(result) => Some(result),
-                                Err(e) =>  {
-                                    log::warn!("Could not decode reveal from {} (revealed bytes were `{:?}`): {:?}", reveal_tx.body.pkh, &slice, e);
-                                    None
-                                },
-                            }
-                        })
-                        .collect();
+                    // Use the serial decoder to decode all the reveals in a lossy way, i.e. will
+                    // ignore reveals that cannot be decoded. At this point, reveals that cannot be
+                    // decoded are most likely malformed and therefore their authors shall be
+                    // punished in the same way as non-revealers.
+                    // TODO: leverage `rayon` so as to make this a parallel iterator.
+                    let results = serial_iter_decode(
+                        &mut reveals
+                            .iter()
+                            .map(|reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
+                        |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
+                            log::warn!(
+                            "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
+                            reveal_tx,
+                            &slice,
+                            e
+                        );
+                            None
+                        },
+                    );
 
                     let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
