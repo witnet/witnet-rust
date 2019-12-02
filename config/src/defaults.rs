@@ -108,6 +108,12 @@ pub trait Defaults {
         true
     }
 
+    /// Timeout for data request retrieval and aggregation execution
+    fn mining_data_request_timeout(&self) -> Duration {
+        // Default to half the checkpoints period
+        Duration::from_secs(u64::from(self.consensus_constants_checkpoints_period() / 2))
+    }
+
     fn consensus_constants_max_block_weight(&self) -> u32 {
         // TODO: Replace  with real max_block_weight value used in mainnet
         10_000

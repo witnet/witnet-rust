@@ -283,6 +283,15 @@ pub struct JsonRPC {
 pub struct Mining {
     /// Binary flag telling whether to enable the MiningManager or not
     pub enabled: bool,
+    /// Timeout for data request retrieval and aggregation execution.
+    /// This should usually be slightly below half the checkpoints period.
+    /// Set to 0 to disable timeouts.
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "data_request_timeout_seconds"
+    ))]
+    pub data_request_timeout: Duration,
 }
 
 /// NTP-related configuration
@@ -500,6 +509,10 @@ impl Mining {
                 .enabled
                 .to_owned()
                 .unwrap_or_else(|| defaults.mining_enabled()),
+            data_request_timeout: config
+                .data_request_timeout
+                .to_owned()
+                .unwrap_or_else(|| defaults.mining_data_request_timeout()),
         }
     }
 }
