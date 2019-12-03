@@ -10,14 +10,15 @@ workspace = ".."
 with-rocksdb = ["rocksdb"]
 
 [dependencies]
+directories = "2.0.2"
 failure = "0.1.6"
 log = "0.4.8"
-toml = "0.5.3"
 partial_struct = { path = "../partial_struct" }
-serde = { version = "1.0.101", features = ["derive"] }
-directories = "2.0.2"
 rocksdb = { version = "0.13.0", optional = true }
+serde = { version = "1.0.101", features = ["derive"] }
+toml = "0.5.3"
 
+witnet_crypto = { path = "../crypto", features = ["with-serde"] }
 witnet_data_structures = { path = "../data_structures" }
 witnet_protected = { path = "../protected" }
-witnet_crypto = { path = "../crypto", features = ["with-serde"] }
+

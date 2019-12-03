@@ -10,33 +10,24 @@ workspace = ".."
 bech32 = "0.7.1"
 byteorder = "1.3.2"
 cbor-codec = "0.7.1"
+chrono = "0.4.9"
 failure = "0.1.6"
 lazy_static = "1.4.0"
+log = "0.4.8"
 num_enum = "0.4.1"
+partial_struct = { path = "../partial_struct" }
 protobuf = { version = "2.8.1", features = ["with-serde"] }
 protobuf-convert = "0.1.1"
 rand = "0.7.2"
+serde = { version = "1.0.101", features = ["derive"] }
 serde_cbor = "0.10.2"
-toml = "0.5.3"
-log = "0.4.8"
 secp256k1 = "0.15.5"
 vrf = "0.2.2"
+
+witnet_crypto = { path = "../crypto" }
 witnet_reputation = { path = "../reputation", features = ["serde"] }
 witnet_protected = { path = "../protected" }
-chrono = "0.4.9"
-
-[dependencies.partial_struct]
-path = "../partial_struct"
-
-[dependencies.witnet_crypto]
-path = "../crypto"
-
-[dependencies.witnet_util]
-path = "../util"
+witnet_util = { path = "../util" }
 
 [build-dependencies]
 exonum-build = "0.12.0"
-
-[dependencies.serde]
-features = ["derive"]
-version = "1.0.101"

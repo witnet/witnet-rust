@@ -11,8 +11,8 @@ quote = "0.6.11"
 syn = "0.15.26"
 
 [dev-dependencies]
-syn = { version = "0.15.26", features = ["extra-traits"] }
 serde = { version = "1.0.88", features = ["derive"] }
+syn = { version = "0.15.26", features = ["extra-traits"] }
 
 [lib]
 proc-macro = true

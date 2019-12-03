@@ -23,12 +23,10 @@ tokio-signal = "0.2.7"
 failure = "0.1.6"
 hex = "0.4.0"
 rand = "0.7.2"
-hamt-rs = "0.3.0"
 chrono = "0.4.9"
 
 witnet_net = { path = "../net" }
 witnet_config = { path = "../config", features = ["with-rocksdb"] }
-witnet_storage = { path = "../storage" }
 witnet_rad = { path = "../rad" }
 witnet_crypto = { path = "../crypto", features = ["with-serde"] }
 witnet_protected = { path = "../protected", features = ["with-serde"] }

@@ -8,12 +8,7 @@ workspace = ".."
 
 [dependencies]
 failure = "0.1.6"
-log = "0.4.8"
-
-[dependencies.serde]
-features = ["derive"]
-version = "1.0.101"
-optional = true
+serde = { version = "1.0.101", features = ["derive"], optional = true }
 
 [dev-dependencies]
 bencher = "0.1.5"
