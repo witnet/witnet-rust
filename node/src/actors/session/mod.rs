@@ -4,7 +4,7 @@ use actix::io::FramedWrite;
 
 use ansi_term::Color::Green;
 
-use log::{debug, error};
+use log::{debug, error, trace};
 
 use tokio::{io::WriteHalf, net::TcpStream};
 
@@ -126,20 +126,38 @@ impl Session {
     }
     /// Method to send a Witnet message to the remote peer
     fn send_message(&mut self, msg: WitnetMessage) {
-        debug!(
-            "{} Sending {} message to session {:?}",
-            Green.bold().paint("[>]"),
-            Green.bold().paint(msg.kind.to_string()),
-            self.remote_addr,
-        );
-        debug!("\t{:?}", msg);
         // Convert WitnetMessage into a vector of bytes
         match ProtobufConvert::to_pb_bytes(&msg) {
-            Ok(bytes) => self.framed.write(bytes.into()),
+            Ok(bytes) => {
+                let msg_size = bytes.len();
+                debug!(
+                    "{} Sending  {} message to session {:?} ({} bytes)",
+                    Green.bold().paint("[>]"),
+                    Green.bold().paint(msg.kind.to_string()),
+                    self.remote_addr,
+                    msg_size,
+                );
+                trace!("\t{:?}", msg);
+                self.framed.write(bytes.into());
+            }
             Err(e) => {
-                error!("Error encoding message: {}", e);
+                error!(
+                    "Error sending {} message to session {:?}: {}",
+                    msg.kind, self.remote_addr, e,
+                );
+                trace!("\t{:?}", msg);
             }
         }
-        // Convert bytes into BytestMut and send them
+    }
+    // This method is useful to align the logs from receive_message with logs from send_message
+    fn log_received_message(&self, msg: &WitnetMessage, bytes: &[u8]) {
+        debug!(
+            "{} Received {} message from session {:?} ({} bytes)",
+            Green.bold().paint("[<]"),
+            Green.bold().paint(msg.kind.to_string()),
+            self.remote_addr,
+            bytes.len(),
+        );
+        debug!("\t{:?}", msg);
     }
 }

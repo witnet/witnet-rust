@@ -5,9 +5,8 @@ use actix::{
     ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler, StreamHandler,
     SystemService, WrapFuture,
 };
-use ansi_term::Color::Green;
 use futures::future;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, warn};
 
 use witnet_data_structures::{
     builders::from_address,
@@ -87,13 +86,7 @@ impl StreamHandler<BytesMut, Error> for Session {
         match result {
             Err(err) => error!("Error decoding message: {:?}", err),
             Ok(msg) => {
-                debug!(
-                    "{} Received {} message from session {:?}",
-                    Green.bold().paint("[<]"),
-                    Green.bold().paint(msg.kind.to_string()),
-                    self.remote_addr,
-                );
-                trace!("\t{:?}", msg);
+                self.log_received_message(&msg, &bytes);
 
                 // Consensus constants validation between nodes
                 if msg.magic != self.magic_number {
@@ -262,7 +255,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                     /////////////////////
                     (session_type, session_status, msg_type) => {
                         warn!(
-                            "Message of type \"{:?}\" for session (type: {:?}, status: {:?}) is \
+                            "Message of type {} for session (type: {:?}, status: {:?}) is \
                              not supported",
                             msg_type, session_type, session_status
                         );
