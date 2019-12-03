@@ -43,20 +43,27 @@ impl fmt::Display for Command {
             Command::Peers(_) => f.write_str(&"PEERS".to_string()),
             Command::Verack(_) => f.write_str(&"VERACK".to_string()),
             Command::Version(_) => f.write_str(&"VERSION".to_string()),
-            Command::Block(block) => f.write_str(&format!("BLOCK: {}", block.hash())),
+            Command::Block(block) => write!(f, "BLOCK: {}", block.hash()),
             Command::InventoryAnnouncement(_) => f.write_str(&"INVENTORY_ANNOUNCEMENT".to_string()),
             Command::InventoryRequest(_) => f.write_str(&"INVENTORY_REQUEST".to_string()),
-            Command::LastBeacon(_) => f.write_str(&"LAST_BEACON".to_string()),
-            Command::Transaction(tx) => match tx {
-                Transaction::Commit(_) => f.write_str(&"COMMIT_TRANSACTION".to_string()),
-                Transaction::ValueTransfer(_) => {
-                    f.write_str(&"VALUE_TRANSFER_TRANSACTION".to_string())
+            Command::LastBeacon(LastBeacon {
+                highest_block_checkpoint: h,
+            }) => write!(f, "LAST_BEACON: #{}: {}", h.checkpoint, h.hash_prev_block),
+            Command::Transaction(tx) => {
+                match tx {
+                    Transaction::Commit(_) => f.write_str(&"COMMIT_TRANSACTION".to_string())?,
+                    Transaction::ValueTransfer(_) => {
+                        f.write_str(&"VALUE_TRANSFER_TRANSACTION".to_string())?
+                    }
+                    Transaction::DataRequest(_) => {
+                        f.write_str(&"DATA_REQUEST_TRANSACTION".to_string())?
+                    }
+                    Transaction::Reveal(_) => f.write_str(&"REVEAL_TRANSACTION".to_string())?,
+                    Transaction::Tally(_) => f.write_str(&"TALLY_TRANSACTION".to_string())?,
+                    Transaction::Mint(_) => f.write_str(&"MINT_TRANSACTION".to_string())?,
                 }
-                Transaction::DataRequest(_) => f.write_str(&"DATA_REQUEST_TRANSACTION".to_string()),
-                Transaction::Reveal(_) => f.write_str(&"REVEAL_TRANSACTION".to_string()),
-                Transaction::Tally(_) => f.write_str(&"TALLY_TRANSACTION".to_string()),
-                Transaction::Mint(_) => f.write_str(&"MINT_TRANSACTION".to_string()),
-            },
+                write!(f, ": {}", tx.hash())
+            }
         }
     }
 }
