@@ -401,9 +401,6 @@ impl ChainManager {
                             self.persist_data_request(ctx, &dr_report);
                         });
 
-                        log::trace!("{:?}", block);
-                        debug!("Mint transaction hash: {:?}", block.txns.mint.hash());
-
                         let reveals = self
                             .chain_state
                             .data_request_pool

@@ -129,13 +129,12 @@ impl Session {
         // Convert WitnetMessage into a vector of bytes
         match ProtobufConvert::to_pb_bytes(&msg) {
             Ok(bytes) => {
-                let msg_size = bytes.len();
                 debug!(
                     "{} Sending  {} message to session {:?} ({} bytes)",
                     Green.bold().paint("[>]"),
                     Green.bold().paint(msg.kind.to_string()),
                     self.remote_addr,
-                    msg_size,
+                    bytes.len(),
                 );
                 trace!("\t{:?}", msg);
                 self.framed.write(bytes.into());
@@ -158,6 +157,6 @@ impl Session {
             self.remote_addr,
             bytes.len(),
         );
-        debug!("\t{:?}", msg);
+        trace!("\t{:?}", msg);
     }
 }
