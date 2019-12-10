@@ -80,8 +80,8 @@ impl<'a> Operable for RadonFloat {
             (RadonOpCodes::FloatAbsolute, None) => {
                 Ok(RadonTypes::from(float_operators::absolute(self)))
             }
-            (RadonOpCodes::FloatAsBytes, None) => {
-                Ok(RadonTypes::from(float_operators::to_bytes(self.clone())))
+            (RadonOpCodes::FloatAsMixed, None) => {
+                Ok(RadonTypes::from(float_operators::to_mixed(self.clone())))
             }
             (RadonOpCodes::FloatAsString, None) => float_operators::to_string(self.clone())
                 .map(RadonTypes::from)

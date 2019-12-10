@@ -1,12 +1,11 @@
-use std::i128;
-use std::{borrow::ToOwned, convert::TryFrom};
+use std::{borrow::ToOwned, convert::TryFrom, i128};
 
 use serde_cbor::value::{from_value, Value};
 
 use crate::{
     error::RadError,
     types::{
-        boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
+        boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, mixed::RadonMixed,
         string::RadonString, RadonType,
     },
 };
@@ -25,8 +24,8 @@ pub fn to_float(input: RadonInteger) -> Result<RadonFloat, RadError> {
     RadonFloat::try_from(Value::Integer(input.value()))
 }
 
-pub fn to_bytes(input: RadonInteger) -> RadonBytes {
-    RadonBytes::from(Value::Integer(input.value()))
+pub fn to_mixed(input: RadonInteger) -> RadonMixed {
+    RadonMixed::from(Value::Integer(input.value()))
 }
 
 pub fn to_string(input: RadonInteger) -> Result<RadonString, RadError> {

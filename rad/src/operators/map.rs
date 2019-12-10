@@ -3,12 +3,12 @@ use serde_cbor::value::{from_value, Value};
 use crate::{
     error::RadError,
     types::{
-        array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString, RadonType,
+        array::RadonArray, map::RadonMap, mixed::RadonMixed, string::RadonString, RadonType,
         RadonTypes,
     },
 };
 
-pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonBytes, RadError> {
+pub fn get(input: &RadonMap, args: &[Value]) -> Result<RadonMixed, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonMap::radon_type_name(),
         operator: "Get".to_string(),
@@ -50,7 +50,7 @@ fn test_map_get() {
     use std::convert::TryFrom;
 
     let key = "Zero";
-    let value = RadonBytes::from(Value::try_from(0).unwrap());
+    let value = RadonMixed::from(Value::try_from(0).unwrap());
     let args = vec![Value::try_from(String::from(key)).unwrap()];
 
     let mut map = HashMap::new();
@@ -69,7 +69,7 @@ fn test_map_get_error() {
     use std::convert::TryFrom;
 
     let key = "Zero";
-    let value = RadonBytes::from(Value::try_from(0).unwrap());
+    let value = RadonMixed::from(Value::try_from(0).unwrap());
     let args = vec![Value::Text(String::from("NotFound"))];
 
     let mut map = HashMap::new();
@@ -87,11 +87,11 @@ fn test_map_keys() {
     use std::convert::TryFrom;
 
     let key0 = "Zero";
-    let value0 = RadonBytes::from(Value::try_from(0).unwrap());
+    let value0 = RadonMixed::from(Value::try_from(0).unwrap());
     let key1 = "One";
-    let value1 = RadonBytes::from(Value::try_from(1).unwrap());
+    let value1 = RadonMixed::from(Value::try_from(1).unwrap());
     let key2 = "Two";
-    let value2 = RadonBytes::from(Value::try_from(2).unwrap());
+    let value2 = RadonMixed::from(Value::try_from(2).unwrap());
 
     let mut map = HashMap::new();
     map.insert(key0.to_string(), value0.clone());
@@ -116,11 +116,11 @@ fn test_map_values() {
     use std::convert::TryFrom;
 
     let key0 = "Zero";
-    let value0 = RadonBytes::from(Value::try_from(0).unwrap());
+    let value0 = RadonMixed::from(Value::try_from(0).unwrap());
     let key1 = "One";
-    let value1 = RadonBytes::from(Value::try_from(1).unwrap());
+    let value1 = RadonMixed::from(Value::try_from(1).unwrap());
     let key2 = "Two";
-    let value2 = RadonBytes::from(Value::try_from(2).unwrap());
+    let value2 = RadonMixed::from(Value::try_from(2).unwrap());
 
     let mut map = HashMap::new();
     map.insert(key0.to_string(), value0.clone());
@@ -131,11 +131,11 @@ fn test_map_values() {
     let values = values(&input);
 
     let mut vec1 = [value0, value1, value2].to_vec();
-    let mut vec2: Vec<RadonBytes> = values
+    let mut vec2: Vec<RadonMixed> = values
         .value()
         .into_iter()
         .map(|x| match x {
-            RadonTypes::Bytes(y) => y,
+            RadonTypes::Mixed(y) => y,
             _ => panic!("No RadonBytes as a value"),
         })
         .collect();

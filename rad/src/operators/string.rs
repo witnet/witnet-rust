@@ -4,25 +4,25 @@ use std::{error::Error, str::FromStr};
 use json;
 use serde_cbor::value::{from_value, Value};
 
-use crate::types::result::RadonResult;
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
     types::{
-        array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
+        array::RadonArray, boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger,
+        map::RadonMap, mixed::RadonMixed, result::RadonResult, string::RadonString, RadonType,
+        RadonTypes,
     },
 };
 
-pub fn to_bytes(input: RadonString) -> RadonBytes {
-    RadonBytes::from(Value::Text(input.value()))
+pub fn to_mixed(input: RadonString) -> RadonMixed {
+    RadonMixed::from(Value::Text(input.value()))
 }
 
-pub fn parse_json(input: &RadonString) -> Result<RadonBytes, RadError> {
+pub fn parse_json(input: &RadonString) -> Result<RadonMixed, RadError> {
     match json::parse(&input.value()) {
         Ok(json_value) => {
             let value = json_to_cbor(&json_value);
-            Ok(RadonBytes::from(value))
+            Ok(RadonMixed::from(value))
         }
         Err(json_error) => Err(RadError::JsonParse {
             description: json_error.description().to_owned(),
@@ -99,7 +99,7 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
         .map(|res| match default {
             RadonTypes::Array(_) => Ok(RadonTypes::from(RadonArray::try_from(res.value())?)),
             RadonTypes::Boolean(_) => Ok(RadonTypes::from(RadonBoolean::try_from(res.value())?)),
-            RadonTypes::Bytes(_) => Ok(RadonTypes::from(res.clone())),
+            RadonTypes::Mixed(_) => Ok(RadonTypes::from(res.clone())),
             RadonTypes::Float(_) => Ok(RadonTypes::from(RadonFloat::try_from(res.value())?)),
             RadonTypes::Integer(_) => Ok(RadonTypes::from(RadonInteger::try_from(res.value())?)),
             RadonTypes::Map(_) => Ok(RadonTypes::from(RadonMap::try_from(res.value())?)),
@@ -351,7 +351,7 @@ mod tests {
         let result = string_match(&input_key, &args);
         assert_eq!(
             result.unwrap(),
-            RadonTypes::from(RadonBytes::from(Value::Bytes(vec![1])))
+            RadonTypes::from(RadonMixed::from(Value::Bytes(vec![1])))
         );
 
         input_key = RadonString::from("key2");
@@ -359,7 +359,7 @@ mod tests {
         let result = string_match(&input_key, &args);
         assert_eq!(
             result.unwrap(),
-            RadonTypes::from(RadonBytes::from(Value::Bytes(vec![2])))
+            RadonTypes::from(RadonMixed::from(Value::Bytes(vec![2])))
         );
 
         input_key = RadonString::from("key3");
@@ -367,7 +367,7 @@ mod tests {
         let result = string_match(&input_key, &args);
         assert_eq!(
             result.unwrap(),
-            RadonTypes::from(RadonBytes::from(Value::Bytes(vec![0])))
+            RadonTypes::from(RadonMixed::from(Value::Bytes(vec![0])))
         );
     }
 
@@ -417,19 +417,19 @@ mod tests {
         use std::convert::TryInto;
         let mut map: BTreeMap<Value, Value> = BTreeMap::new();
 
-        let mut value_map_1: BTreeMap<String, RadonBytes> = BTreeMap::new();
+        let mut value_map_1: BTreeMap<String, RadonMixed> = BTreeMap::new();
         value_map_1.insert(
             "subkey1".to_string(),
-            RadonBytes::from(Value::Text("value1".to_string())),
+            RadonMixed::from(Value::Text("value1".to_string())),
         );
 
-        let mut value_map_2: BTreeMap<String, RadonBytes> = BTreeMap::new();
+        let mut value_map_2: BTreeMap<String, RadonMixed> = BTreeMap::new();
         value_map_2.insert(
             "subkey2".to_string(),
-            RadonBytes::from(Value::Text("value2".to_string())),
+            RadonMixed::from(Value::Text("value2".to_string())),
         );
 
-        let default_map: BTreeMap<String, RadonBytes> = BTreeMap::new();
+        let default_map: BTreeMap<String, RadonMixed> = BTreeMap::new();
 
         map.insert(
             Value::Text("key1".to_string()),

@@ -1,11 +1,15 @@
 //! # RAD Engine
 
-use witnet_data_structures::chain::{RADAggregate, RADRetrieve, RADTally, RADType};
-use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage, TallyMetaData};
+use witnet_data_structures::{
+    chain::{RADAggregate, RADRetrieve, RADTally, RADType},
+    radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
+};
 
-use crate::error::RadError;
-use crate::script::{execute_radon_script, unpack_radon_script};
-use crate::types::{array::RadonArray, string::RadonString, RadonTypes};
+use crate::{
+    error::RadError,
+    script::{execute_radon_script, unpack_radon_script},
+    types::{array::RadonArray, string::RadonString, RadonTypes},
+};
 
 pub mod error;
 pub mod filters;

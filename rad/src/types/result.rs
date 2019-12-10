@@ -1,15 +1,19 @@
-use std::convert::{TryFrom, TryInto};
-use std::fmt;
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt,
+};
 
 use serde::Serialize;
 use serde_cbor::value::Value;
 
 use witnet_data_structures::radon_report::ReportContext;
 
-use crate::error::RadError;
-use crate::operators::Operable;
-use crate::script::RadonCall;
-use crate::types::{RadonType, RadonTypes};
+use crate::{
+    error::RadError,
+    operators::Operable,
+    script::RadonCall,
+    types::{RadonType, RadonTypes},
+};
 
 pub const RADON_RESULT_TYPE_NAME: &str = "RadonResult";
 

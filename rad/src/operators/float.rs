@@ -2,20 +2,20 @@ use std::{borrow::ToOwned, convert::TryFrom};
 
 use serde_cbor::value::{from_value, Value};
 
-use crate::error::RadError;
-use crate::types::boolean::RadonBoolean;
-use crate::types::bytes::RadonBytes;
-use crate::types::float::RadonFloat;
-use crate::types::integer::RadonInteger;
-use crate::types::string::RadonString;
-use crate::types::RadonType;
+use crate::{
+    error::RadError,
+    types::{
+        boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, mixed::RadonMixed,
+        string::RadonString, RadonType,
+    },
+};
 
 pub fn absolute(input: &RadonFloat) -> RadonFloat {
     RadonFloat::from(input.value().abs())
 }
 
-pub fn to_bytes(input: RadonFloat) -> RadonBytes {
-    RadonBytes::from(Value::Float(input.value()))
+pub fn to_mixed(input: RadonFloat) -> RadonMixed {
+    RadonMixed::from(Value::Float(input.value()))
 }
 
 pub fn to_string(input: RadonFloat) -> Result<RadonString, RadError> {

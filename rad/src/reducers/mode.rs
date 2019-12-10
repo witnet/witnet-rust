@@ -1,5 +1,7 @@
-use crate::error::RadError;
-use crate::types::{array::RadonArray, RadonType, RadonTypes};
+use crate::{
+    error::RadError,
+    types::{array::RadonArray, RadonType, RadonTypes},
+};
 use std::collections::HashMap;
 use witnet_data_structures::radon_report::{ReportContext, Stage};
 

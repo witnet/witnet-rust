@@ -4,16 +4,14 @@ use num_enum::TryFromPrimitive;
 
 use witnet_data_structures::radon_report::ReportContext;
 
-use crate::error::RadError;
-use crate::script::RadonCall;
-use crate::types::RadonTypes;
+use crate::{error::RadError, script::RadonCall, types::RadonTypes};
 
 pub mod array;
 pub mod boolean;
-pub mod bytes;
 pub mod float;
 pub mod integer;
 pub mod map;
+pub mod mixed;
 pub mod string;
 
 /// List of RADON operators.
@@ -39,7 +37,7 @@ pub enum RadonOpCodes {
 
     // Integer operator codes (start at 0x20)
     IntegerAbsolute = 0x20,
-    IntegerAsBytes = 0x21,
+    IntegerAsMixed = 0x21,
     IntegerAsFloat = 0x22,
     IntegerAsString = 0x23,
     IntegerGreaterThan = 0x24,
@@ -54,7 +52,7 @@ pub enum RadonOpCodes {
 
     // Float operator codes (start at 0x30)
     FloatAbsolute = 0x30,
-    FloatAsBytes = 0x31,
+    FloatAsMixed = 0x31,
     FloatAsString = 0x32,
     FloatCeiling = 0x33,
     FloatGreaterThan = 0x34,
@@ -70,7 +68,7 @@ pub enum RadonOpCodes {
     FloatTruncate = 0x3E,
 
     // String operator codes (start at 0x40)
-    StringAsBytes = 0x40,
+    StringAsMixed = 0x40,
     StringAsFloat = 0x41,
     StringAsInteger = 0x42,
     StringLength = 0x43,
@@ -83,7 +81,7 @@ pub enum RadonOpCodes {
     StringToUpperCase = 0x49,
 
     // Array operator codes (start at 0x50)
-    //    ArrayAsBytes = 0x50,
+    //    ArrayAsMixed = 0x50,
     ArrayCount = 0x51,
     //    ArrayEvery = 0x52,
     ArrayFilter = 0x53,
@@ -101,15 +99,14 @@ pub enum RadonOpCodes {
     MapKeys = 0x62,
     /// Flatten a map into an Array containing only the values but not the keys
     MapValues = 0x63,
-    // Bytes operator codes (start at 0x70)
-    // TODO: Remove unspecified Bytes struct
-    BytesAsArray = 0x70,
-    BytesAsBoolean = 0x71,
-    BytesAsFloat = 0x72,
-    BytesAsInteger = 0x73,
-    BytesAsMap = 0x74,
-    BytesAsString = 0x75,
-    //    BytesHash = 0x76,
+    // Mixed operator codes (start at 0x70)
+    MixedAsArray = 0x70,
+    MixedAsBoolean = 0x71,
+    MixedAsFloat = 0x72,
+    MixedAsInteger = 0x73,
+    MixedAsMap = 0x74,
+    MixedAsString = 0x75,
+    //    MixedHash = 0x76,
 
     // Result operator codes (start at 0x80)
     //    ResultGet = 0x80,

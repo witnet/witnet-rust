@@ -8,12 +8,13 @@ use serde_cbor::{
 
 use witnet_data_structures::radon_report::{RadonReport, ReportContext};
 
-use crate::error::RadError;
-use crate::operators::{operate, operate_in_context, RadonOpCodes};
-use crate::types::RadonTypes;
+use crate::{
+    error::RadError,
+    operators::{operate, operate_in_context, RadonOpCodes},
+    types::RadonTypes,
+};
 
 pub type RadonCall = (RadonOpCodes, Option<Vec<Value>>);
-
 pub type RadonScript = Vec<RadonCall>;
 
 /// Run any RADON script on given input data, and return `RadonReport`.
@@ -117,17 +118,17 @@ fn test_execute_radon_script() {
     let input = RadonString::from(r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#).into();
     let script = vec![
         (RadonOpCodes::StringParseJSON, None),
-        (RadonOpCodes::BytesAsMap, None),
+        (RadonOpCodes::MixedAsMap, None),
         (
             RadonOpCodes::Get,
             Some(vec![Value::Text(String::from("main"))]),
         ),
-        (RadonOpCodes::BytesAsMap, None),
+        (RadonOpCodes::MixedAsMap, None),
         (
             RadonOpCodes::Get,
             Some(vec![Value::Text(String::from("temp"))]),
         ),
-        (RadonOpCodes::BytesAsFloat, None),
+        (RadonOpCodes::MixedAsFloat, None),
     ];
     let output = execute_contextfree_radon_script(input, &script).unwrap();
 
@@ -144,17 +145,17 @@ fn test_unpack_radon_script() {
     ];
     let expected = vec![
         (RadonOpCodes::StringParseJSON, None),
-        (RadonOpCodes::BytesAsMap, None),
+        (RadonOpCodes::MixedAsMap, None),
         (
             RadonOpCodes::Get,
             Some(vec![Value::Text(String::from("main"))]),
         ),
-        (RadonOpCodes::BytesAsMap, None),
+        (RadonOpCodes::MixedAsMap, None),
         (
             RadonOpCodes::Get,
             Some(vec![Value::Text(String::from("temp"))]),
         ),
-        (RadonOpCodes::BytesAsFloat, None),
+        (RadonOpCodes::MixedAsFloat, None),
     ];
     println!("{:?}", expected);
 

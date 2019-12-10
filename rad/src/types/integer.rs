@@ -79,8 +79,8 @@ impl<'a> Operable for RadonInteger {
             (RadonOpCodes::IntegerAbsolute, None) => integer_operators::absolute(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
-            (RadonOpCodes::IntegerAsBytes, None) => {
-                Ok(RadonTypes::from(integer_operators::to_bytes(self.clone())))
+            (RadonOpCodes::IntegerAsMixed, None) => {
+                Ok(RadonTypes::from(integer_operators::to_mixed(self.clone())))
             }
             (RadonOpCodes::IntegerAsFloat, None) => integer_operators::to_float(self.clone())
                 .map(RadonTypes::from)

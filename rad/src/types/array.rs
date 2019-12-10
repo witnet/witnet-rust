@@ -9,15 +9,18 @@ use serde_cbor::value::{from_value, Value};
 
 use witnet_data_structures::radon_report::ReportContext;
 
-use crate::error::RadError;
-use crate::operators::{array as array_operators, identity, Operable, RadonOpCodes};
-use crate::script::RadonCall;
-use crate::types::{
-    bytes::RadonBytes, float::RadonFloat, map::RadonMap, string::RadonString, RadonType, RadonTypes,
+use crate::{
+    error::RadError,
+    operators::{array as array_operators, identity, Operable, RadonOpCodes},
+    script::RadonCall,
+    types::{
+        float::RadonFloat, map::RadonMap, mixed::RadonMixed, string::RadonString, RadonType,
+        RadonTypes,
+    },
 };
 
 fn bytes_discriminant() -> Discriminant<RadonTypes> {
-    discriminant(&RadonTypes::from(RadonBytes::from(Value::Null)))
+    discriminant(&RadonTypes::from(RadonMixed::from(Value::Null)))
 }
 
 pub const RADON_ARRAY_TYPE_NAME: &str = "RadonArray";
@@ -51,7 +54,7 @@ impl Serialize for RadonArray {
             state.serialize_field("inner_type", "RadonFloat")?;
         } else if self.inner_type() == discriminant(&RadonTypes::Map(RadonMap::default())) {
             state.serialize_field("inner_type", "RadonMap")?;
-        } else if self.inner_type() == discriminant(&RadonTypes::Bytes(RadonBytes::default()))
+        } else if self.inner_type() == discriminant(&RadonTypes::Mixed(RadonMixed::default()))
             || self.inner_type() == discriminant(&RadonTypes::String(RadonString::default()))
         {
             state.serialize_field("inner_type", "RadonBytes")?;

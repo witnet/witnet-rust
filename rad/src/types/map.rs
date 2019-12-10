@@ -1,6 +1,5 @@
-use std::collections::btree_map::BTreeMap;
-use std::collections::HashMap;
 use std::{
+    collections::{btree_map::BTreeMap, HashMap},
     convert::{TryFrom, TryInto},
     fmt,
 };
@@ -8,22 +7,23 @@ use std::{
 use serde::Serialize;
 use serde_cbor::value::{from_value, to_value, Value};
 
-use crate::error::RadError;
-use crate::operators::{identity, map as map_operators, Operable, RadonOpCodes};
-use crate::script::RadonCall;
-use crate::types::RadonTypes;
-use crate::types::{bytes::RadonBytes, RadonType};
+use crate::{
+    error::RadError,
+    operators::{identity, map as map_operators, Operable, RadonOpCodes},
+    script::RadonCall,
+    types::{mixed::RadonMixed, RadonType, RadonTypes},
+};
 use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Default)]
 pub struct RadonMap {
-    value: HashMap<String, RadonBytes>,
+    value: HashMap<String, RadonMixed>,
 }
 
-impl RadonType<HashMap<String, RadonBytes>> for RadonMap {
-    fn value(&self) -> HashMap<String, RadonBytes> {
+impl RadonType<HashMap<String, RadonMixed>> for RadonMap {
+    fn value(&self) -> HashMap<String, RadonMixed> {
         self.value.clone()
     }
 
@@ -32,14 +32,14 @@ impl RadonType<HashMap<String, RadonBytes>> for RadonMap {
     }
 }
 
-impl From<HashMap<String, RadonBytes>> for RadonMap {
-    fn from(value: HashMap<String, RadonBytes>) -> Self {
+impl From<HashMap<String, RadonMixed>> for RadonMap {
+    fn from(value: HashMap<String, RadonMixed>) -> Self {
         RadonMap { value }
     }
 }
 
-impl From<BTreeMap<String, RadonBytes>> for RadonMap {
-    fn from(value: BTreeMap<String, RadonBytes>) -> Self {
+impl From<BTreeMap<String, RadonMixed>> for RadonMap {
+    fn from(value: BTreeMap<String, RadonMixed>) -> Self {
         RadonMap {
             value: value.into_iter().collect(),
         }
@@ -59,9 +59,9 @@ impl TryFrom<Value> for RadonMap {
             .map_err(|_| error())?
             .iter()
             .try_fold(
-                HashMap::<String, RadonBytes>::new(),
+                HashMap::<String, RadonMixed>::new(),
                 |mut map, (key, cbor_value)| {
-                    if let Ok(value) = RadonBytes::try_from(cbor_value.to_owned()) {
+                    if let Ok(value) = RadonMixed::try_from(cbor_value.to_owned()) {
                         map.insert(key.to_string(), value);
                         Some(map)
                     } else {
@@ -138,7 +138,7 @@ impl Operable for RadonMap {
 #[test]
 fn test_operate_identity() {
     let mut map = HashMap::new();
-    let value = RadonBytes::from(Value::from(0));
+    let value = RadonMixed::from(Value::from(0));
     map.insert("Zero".to_string(), value);
 
     let input = RadonMap::from(map.clone());
@@ -153,7 +153,7 @@ fn test_operate_identity() {
 #[test]
 fn test_operate_unimplemented() {
     let mut map = HashMap::new();
-    let value = RadonBytes::from(Value::from(0));
+    let value = RadonMixed::from(Value::from(0));
     map.insert("Zero".to_string(), value);
 
     let input = RadonMap::from(map);
@@ -173,7 +173,7 @@ fn test_try_into() {
     use witnet_data_structures::radon_report::TypeLike;
 
     let mut map = HashMap::new();
-    let value = RadonBytes::from(Value::from(0));
+    let value = RadonMixed::from(Value::from(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
@@ -191,7 +191,7 @@ fn test_try_from() {
     let result = RadonTypes::try_from(slice).unwrap();
 
     let mut map = HashMap::new();
-    let value = RadonBytes::from(Value::Integer(0));
+    let value = RadonMixed::from(Value::Integer(0));
     map.insert("Zero".to_string(), value);
     let expected_input = RadonTypes::from(RadonMap::from(map));
 
@@ -201,7 +201,7 @@ fn test_try_from() {
 #[test]
 fn test_operate_map_get() {
     let mut map = HashMap::new();
-    let value = RadonBytes::from(Value::Integer(0));
+    let value = RadonMixed::from(Value::Integer(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 
@@ -211,7 +211,7 @@ fn test_operate_map_get() {
     );
     let result = input.operate(&call).unwrap();
 
-    let expected_value = RadonTypes::Bytes(RadonBytes::from(Value::from(0)));
+    let expected_value = RadonTypes::Mixed(RadonMixed::from(Value::from(0)));
 
     assert_eq!(result, expected_value);
 }
@@ -219,7 +219,7 @@ fn test_operate_map_get() {
 #[test]
 fn test_operate_map_get_error() {
     let mut map = HashMap::new();
-    let value = RadonBytes::from(Value::Integer(0));
+    let value = RadonMixed::from(Value::Integer(0));
     map.insert("Zero".to_string(), value);
     let input = RadonMap::from(map);
 

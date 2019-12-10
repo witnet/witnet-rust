@@ -6,10 +6,12 @@ use std::{
 use serde::Serialize;
 use serde_cbor::value::{from_value, Value};
 
-use crate::error::RadError;
-use crate::operators::{identity, string as string_operators, Operable, RadonOpCodes};
-use crate::script::RadonCall;
-use crate::types::{RadonType, RadonTypes};
+use crate::{
+    error::RadError,
+    operators::{identity, string as string_operators, Operable, RadonOpCodes},
+    script::RadonCall,
+    types::{RadonType, RadonTypes},
+};
 use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_STRING_TYPE_NAME: &str = "RadonString";
@@ -66,11 +68,11 @@ impl Operable for RadonString {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
-            (RadonOpCodes::StringAsBytes, None) => {
-                Ok(RadonTypes::from(string_operators::to_bytes(self.clone())))
+            (RadonOpCodes::StringAsMixed, None) => {
+                Ok(RadonTypes::from(string_operators::to_mixed(self.clone())))
             }
             (RadonOpCodes::StringParseJSON, None) => {
-                string_operators::parse_json(self).map(RadonTypes::Bytes)
+                string_operators::parse_json(self).map(RadonTypes::Mixed)
             }
             (RadonOpCodes::StringAsFloat, None) => string_operators::to_float(self)
                 .map(RadonTypes::from)
@@ -136,7 +138,7 @@ fn test_operate_parsejson() {
     let valid_object = valid_string.operate(&call).unwrap();
     let invalid_object = invalid_string.operate(&call);
 
-    assert!(if let RadonTypes::Bytes(bytes) = valid_object {
+    assert!(if let RadonTypes::Mixed(bytes) = valid_object {
         if let serde_cbor::value::Value::Map(vector) = bytes.value() {
             if let Some((Value::Text(key), Value::Text(val))) = vector.iter().next() {
                 key == "Hello" && val == "world"
