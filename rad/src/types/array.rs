@@ -7,11 +7,14 @@ use std::{
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde_cbor::value::{from_value, Value};
 
-use witnet_data_structures::radon_report::ReportContext;
+use witnet_data_structures::radon_report::{ReportContext, Stage};
 
 use crate::{
     error::RadError,
-    operators::{array as array_operators, identity, Operable, RadonOpCodes},
+    operators::{
+        array as array_operators, check_valid_operator_for_tally_stage, identity, Operable,
+        RadonOpCodes,
+    },
     script::RadonCall,
     types::{
         float::RadonFloat, map::RadonMap, mixed::RadonMixed, string::RadonString, RadonType,
@@ -168,6 +171,9 @@ impl Operable for RadonArray {
         call: &RadonCall,
         context: &mut ReportContext,
     ) -> Result<RadonTypes, RadError> {
+        if let Stage::Tally { .. } = context.stage {
+            check_valid_operator_for_tally_stage(call)?;
+        }
         // Intercept filter operations for performing the filters in a context, otherwise use
         // context-free execution.
         match call {

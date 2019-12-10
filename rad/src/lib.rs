@@ -140,10 +140,12 @@ pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::filters::RadonFilters;
-    use crate::operators::RadonOpCodes;
-    use crate::reducers::RadonReducers;
-    use crate::types::float::RadonFloat;
+    use crate::{
+        filters::RadonFilters,
+        operators::RadonOpCodes,
+        reducers::RadonReducers,
+        types::{float::RadonFloat, integer::RadonInteger},
+    };
     use serde_cbor::Value;
 
     #[test]
@@ -518,6 +520,218 @@ mod tests {
         assert_eq!(output_tally, expected);
 
         let expected_liars = vec![true, false, false, true];
+        let tally_metadata = if let Stage::Tally(tm) = report.metadata {
+            tm
+        } else {
+            panic!("No tally stage");
+        };
+        assert_eq!(tally_metadata.liars, expected_liars);
+    }
+
+    #[test]
+    fn test_error_sort_in_tally_stage() {
+        let f_1 = RadonTypes::Integer(RadonInteger::from(1));
+        let f_3 = RadonTypes::Integer(RadonInteger::from(3));
+        let f_out = RadonTypes::Integer(RadonInteger::from(10000));
+
+        let radon_types_vec = vec![f_1, f_3, f_out];
+
+        let script = Value::Array(vec![
+            Value::Array(vec![Value::Integer(RadonOpCodes::ArraySort as i128)]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayFilter as i128),
+                Value::Integer(RadonFilters::DeviationStandard as i128),
+                Value::Float(1.0),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayReduce as i128),
+                Value::Integer(RadonReducers::AverageMean as i128),
+            ]),
+        ]);
+
+        let packed_script = serde_cbor::to_vec(&script).unwrap();
+
+        let report = run_tally_report(
+            radon_types_vec,
+            &RADTally {
+                script: packed_script,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            report.result.unwrap_err().inner.unwrap(),
+            RadError::UnsupportedOperatorInTally {
+                operator: RadonOpCodes::ArraySort
+            }
+        );
+    }
+
+    // Check that running a mode reducer inside ArrayMap does not modify the
+    // vector of liars
+    #[test]
+    fn test_run_consensus_with_array_map_mode() {
+        let f_1 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let f_2 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let f_3 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let radon_types_vec = vec![f_1, f_2, f_3];
+
+        let script = Value::Array(vec![Value::Array(vec![
+            Value::Integer(RadonOpCodes::ArrayMap as i128),
+            Value::Array(vec![Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayReduce as i128),
+                Value::Integer(RadonReducers::Mode as i128),
+            ])]),
+        ])]);
+
+        let packed_script = serde_cbor::to_vec(&script).unwrap();
+
+        let expected = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+        ]));
+        let report = run_tally_report(
+            radon_types_vec,
+            &RADTally {
+                script: packed_script,
+            },
+        )
+        .unwrap();
+
+        let output_tally = report.clone().into_inner().unwrap();
+        assert_eq!(output_tally, expected);
+
+        let expected_liars = vec![false, false, false];
+        let tally_metadata = if let Stage::Tally(tm) = report.metadata {
+            tm
+        } else {
+            panic!("No tally stage");
+        };
+        assert_eq!(tally_metadata.liars, expected_liars);
+    }
+
+    // Check that running a mode reducer inside ArrayFilter does not modify the
+    // vector of liars
+    #[test]
+    fn test_run_consensus_with_array_filter_mode() {
+        let f_1 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let f_2 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let f_3 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let radon_types_vec = vec![f_1.clone(), f_2.clone(), f_3.clone()];
+
+        let script = Value::Array(vec![Value::Array(vec![
+            Value::Integer(RadonOpCodes::ArrayFilter as i128),
+            Value::Array(vec![
+                Value::Array(vec![
+                    Value::Integer(RadonOpCodes::ArrayReduce as i128),
+                    Value::Integer(RadonReducers::Mode as i128),
+                ]),
+                Value::Array(vec![
+                    Value::Integer(RadonOpCodes::FloatGreaterThan as i128),
+                    Value::Float(0.0),
+                ]),
+            ]),
+        ])]);
+
+        let packed_script = serde_cbor::to_vec(&script).unwrap();
+
+        let expected = RadonTypes::from(RadonArray::from(vec![f_1, f_2, f_3]));
+        let report = run_tally_report(
+            radon_types_vec,
+            &RADTally {
+                script: packed_script,
+            },
+        )
+        .unwrap();
+
+        let output_tally = report.clone().into_inner().unwrap();
+        assert_eq!(output_tally, expected);
+
+        let expected_liars = vec![false, false, false];
+        let tally_metadata = if let Stage::Tally(tm) = report.metadata {
+            tm
+        } else {
+            panic!("No tally stage");
+        };
+        assert_eq!(tally_metadata.liars, expected_liars);
+    }
+
+    // Check that it is possible to run sort inside ArrayFilter during the
+    // tally stage
+    #[test]
+    fn test_run_consensus_with_array_filter_sort() {
+        let f_1 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Integer(RadonInteger::from(3)),
+            RadonTypes::Integer(RadonInteger::from(3)),
+            RadonTypes::Integer(RadonInteger::from(2)),
+        ]));
+        let f_2 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Integer(RadonInteger::from(3)),
+            RadonTypes::Integer(RadonInteger::from(3)),
+            RadonTypes::Integer(RadonInteger::from(2)),
+        ]));
+        let f_3 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Integer(RadonInteger::from(3)),
+            RadonTypes::Integer(RadonInteger::from(3)),
+            RadonTypes::Integer(RadonInteger::from(2)),
+        ]));
+        let radon_types_vec = vec![f_1.clone(), f_2.clone(), f_3.clone()];
+
+        let script = Value::Array(vec![Value::Array(vec![
+            Value::Integer(RadonOpCodes::ArrayFilter as i128),
+            Value::Array(vec![
+                Value::Array(vec![Value::Integer(RadonOpCodes::ArraySort as i128)]),
+                Value::Array(vec![
+                    Value::Integer(RadonOpCodes::ArrayReduce as i128),
+                    Value::Integer(RadonReducers::Mode as i128),
+                ]),
+                Value::Array(vec![
+                    Value::Integer(RadonOpCodes::IntegerGreaterThan as i128),
+                    Value::Integer(0),
+                ]),
+            ]),
+        ])]);
+
+        let packed_script = serde_cbor::to_vec(&script).unwrap();
+
+        let expected = RadonTypes::from(RadonArray::from(vec![f_1, f_2, f_3]));
+        let report = run_tally_report(
+            radon_types_vec,
+            &RADTally {
+                script: packed_script,
+            },
+        )
+        .unwrap();
+
+        let output_tally = report.clone().into_inner().unwrap();
+        assert_eq!(output_tally, expected);
+
+        let expected_liars = vec![false, false, false];
         let tally_metadata = if let Stage::Tally(tm) = report.metadata {
             tm
         } else {

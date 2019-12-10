@@ -6,7 +6,7 @@ use serde_cbor::value::Value as SerdeCborValue;
 
 use witnet_data_structures::radon_error::{ErrorLike, RadonError, RadonErrors};
 
-use crate::types::array::RadonArray;
+use crate::{operators::RadonOpCodes, types::array::RadonArray};
 
 /// RAD errors.
 #[derive(Clone, Debug, PartialEq, Fail)]
@@ -105,6 +105,9 @@ pub enum RadError {
         operator
     )]
     UnsupportedOpNonHomogeneous { operator: String },
+    /// This operator cannot be used in tally stage
+    #[fail(display = "Operator {} cannot be used in tally stage", operator)]
+    UnsupportedOperatorInTally { operator: RadonOpCodes },
     /// There was a tie after applying the mode reducer
     #[fail(
         display = "There was a tie after applying the mode reducer on values: `{:?}`",

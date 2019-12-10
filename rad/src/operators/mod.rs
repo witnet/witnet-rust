@@ -18,7 +18,7 @@ pub mod string;
 /// List of RADON operators.
 /// **WARNING: these codes are consensus-critical.** They can be renamed but they cannot be
 /// re-assigned without causing a non-backwards-compatible protocol upgrade.
-#[derive(Debug, PartialEq, TryFromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
 pub enum RadonOpCodes {
     /// Only for the sake of allowing catch-alls when matching
@@ -152,6 +152,24 @@ pub fn operate_in_context(
 
 pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
     Ok(input)
+}
+
+/// Check if the operator can be used in a tally script.
+///
+/// Some operators cannot be used in the tally stage because they are considered to be
+/// "consensus unsafe".
+///
+/// For example, sorting the input is forbidden.
+pub fn check_valid_operator_for_tally_stage(call: &RadonCall) -> Result<(), RadError> {
+    // List of forbidden operators.
+    // When this list grows and performance starts to be a concern, use a bitset instead
+    const FORBIDDEN_IN_TALLY: [RadonOpCodes; 1] = [RadonOpCodes::ArraySort];
+
+    if FORBIDDEN_IN_TALLY.contains(&call.0) {
+        Err(RadError::UnsupportedOperatorInTally { operator: call.0 })
+    } else {
+        Ok(())
+    }
 }
 
 #[test]
