@@ -416,30 +416,6 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_liars4() {
-        use crate::types::integer::RadonInteger;
-
-        let reveals = vec![
-            RadonTypes::Integer(RadonInteger::from(1)),
-            RadonTypes::Integer(RadonInteger::from(0)),
-            RadonTypes::Integer(RadonInteger::from(0)),
-        ];
-        let mode_reducer = RADTally {
-            script: vec![129, 130, 24, 87, 2],
-        };
-        let consensus = run_tally_report(reveals, &mode_reducer).unwrap();
-        let expected_result = RadonTypes::Integer(RadonInteger::from(0));
-        let expected_liars = vec![true, false, false];
-        assert_eq!(consensus.result.unwrap(), expected_result);
-        let tally_metadata = if let Stage::Tally(tm) = consensus.metadata {
-            tm
-        } else {
-            panic!("No tally stage");
-        };
-        assert_eq!(tally_metadata.liars, expected_liars);
-    }
-
-    #[test]
     fn test_run_consensus_with_liar() {
         let f_1 = RadonTypes::Float(RadonFloat::from(1f64));
         let f_3 = RadonTypes::Float(RadonFloat::from(3f64));
@@ -499,8 +475,13 @@ mod tests {
                 Value::Float(1.0),
             ]),
             Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayFilter as i128),
+                Value::Integer(RadonFilters::DeviationStandard as i128),
+                Value::Float(1.0),
+            ]),
+            Value::Array(vec![
                 Value::Integer(RadonOpCodes::ArrayReduce as i128),
-                Value::Integer(RadonReducers::Mode as i128),
+                Value::Integer(RadonReducers::AverageMean as i128),
             ]),
         ]);
 
