@@ -180,6 +180,13 @@ impl Operable for RadonArray {
             (RadonOpCodes::ArrayFilter, Some(args)) => {
                 array_operators::filter(self, args.as_slice(), context)
             }
+            (RadonOpCodes::ArrayReduce, Some(args)) => {
+                if let Stage::Tally(tm) = &mut context.stage {
+                    // Stop updating the liars vector after the first reduce
+                    tm.freeze_liars();
+                }
+                array_operators::reduce(self, args.as_slice())
+            }
             other => self.operate(other),
         }
     }

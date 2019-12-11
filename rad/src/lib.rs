@@ -809,4 +809,64 @@ mod tests {
             }
         );
     }
+
+    // Check that running a mode reducer and then a filter does only modify the
+    // vector of liars on the filter
+    #[test]
+    fn test_run_consensus_with_array_reduce_then_filter() {
+        let f_1 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let f_2 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let f_3 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let radon_types_vec = vec![f_1.clone(), f_2.clone(), f_3.clone()];
+
+        let script = Value::Array(vec![
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayReduce as i128),
+                Value::Integer(RadonReducers::Mode as i128),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayFilter as i128),
+                Value::Integer(RadonFilters::DeviationStandard as i128),
+                Value::Float(1.0),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayReduce as i128),
+                Value::Integer(RadonReducers::AverageMean as i128),
+            ]),
+        ]);
+
+        let packed_script = serde_cbor::to_vec(&script).unwrap();
+
+        let expected = RadonTypes::Float(RadonFloat::from(3f64));
+        let report = run_tally_report(
+            radon_types_vec,
+            &RADTally {
+                script: packed_script,
+            },
+        )
+        .unwrap();
+
+        let output_tally = report.clone().into_inner().unwrap();
+        assert_eq!(output_tally, expected);
+
+        let expected_liars = vec![false, false, false];
+        let tally_metadata = if let Stage::Tally(tm) = report.metadata {
+            tm
+        } else {
+            panic!("No tally stage");
+        };
+        assert_eq!(tally_metadata.liars, expected_liars);
+    }
 }

@@ -145,6 +145,8 @@ pub struct TallyMetaData {
     /// This follows a reverse logic: `false` is truth and `true` is lie.
     /// A liar is an out-of-consensus value
     pub liars: Vec<bool>,
+    /// Stop updating the liars vector when this flag is set to true
+    pub freeze_liars: bool,
     /// Proportion between total reveals and "truthers" count:
     /// `liars.iter().filter(std::ops::Not).count() / reveals.len()`
     consensus: f32,
@@ -154,6 +156,11 @@ impl TallyMetaData {
     /// Update liars vector
     /// new_liars length has to be less than false elements in liars
     pub fn update_liars(&mut self, new_liars: Vec<bool>) {
+        if self.freeze_liars {
+            // Do nothing
+            return;
+        }
+
         if self.liars.is_empty() {
             self.liars = new_liars;
         } else {
@@ -164,7 +171,14 @@ impl TallyMetaData {
                     *liar = *new_iter.next().unwrap();
                 }
             }
+
+            assert!(new_iter.next().is_none());
         }
+    }
+
+    /// Stop updating the liars vector
+    pub fn freeze_liars(&mut self) {
+        self.freeze_liars = true;
     }
 }
 
@@ -226,11 +240,18 @@ mod tests {
 
         metadata.update_liars(v);
 
-        // [1,1,0,1,1,1,0,1,0,1]
+        // [1,1,0,1,1,1,0,1,0,1] => 3 false values
         let expected = vec![
             true, true, false, true, true, true, false, true, false, true,
         ];
 
         assert_eq!(metadata.liars, expected);
+
+        let prev = metadata.liars.clone();
+        metadata.freeze_liars();
+        // Try to set the remaining values to true
+        metadata.update_liars(vec![true, true, true]);
+        // They are not modified because the liars vector is frozen
+        assert_eq!(metadata.liars, prev);
     }
 }
