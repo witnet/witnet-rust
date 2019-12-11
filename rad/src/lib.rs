@@ -510,6 +510,44 @@ mod tests {
     }
 
     #[test]
+    fn test_mode_reducer_not_affecting_liars() {
+        let f_1 = RadonTypes::Float(RadonFloat::from(1f64));
+        let f_2 = RadonTypes::Float(RadonFloat::from(3f64));
+        let f_3 = RadonTypes::Float(RadonFloat::from(3f64));
+        let f_out = RadonTypes::Float(RadonFloat::from(10000f64));
+
+        let radon_types_vec = vec![f_1, f_2, f_3, f_out];
+
+        let script = Value::Array(vec![Value::Array(vec![
+            Value::Integer(RadonOpCodes::ArrayReduce as i128),
+            Value::Integer(RadonReducers::Mode as i128),
+        ])]);
+
+        let packed_script = serde_cbor::to_vec(&script).unwrap();
+
+        let expected = RadonTypes::Float(RadonFloat::from(3f64));
+
+        let report = run_tally_report(
+            radon_types_vec,
+            &RADTally {
+                script: packed_script,
+            },
+        )
+        .unwrap();
+
+        let output_tally = report.clone().into_inner().unwrap();
+        assert_eq!(output_tally, expected);
+
+        let expected_liars = vec![false, false, false, false];
+        let tally_metadata = if let Stage::Tally(tm) = report.metadata {
+            tm
+        } else {
+            panic!("No tally stage");
+        };
+        assert_eq!(tally_metadata.liars, expected_liars);
+    }
+
+    #[test]
     fn test_error_sort_in_tally_stage() {
         let f_1 = RadonTypes::Integer(RadonInteger::from(1));
         let f_3 = RadonTypes::Integer(RadonInteger::from(3));
