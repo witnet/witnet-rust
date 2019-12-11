@@ -6,7 +6,6 @@ use crate::{
     error::RadError,
     types::{array::RadonArray, RadonType, RadonTypes},
 };
-use witnet_data_structures::radon_report::ReportContext;
 
 pub mod average;
 pub mod deviation;
@@ -34,11 +33,7 @@ impl fmt::Display for RadonReducers {
     }
 }
 
-pub fn reduce(
-    input: &RadonArray,
-    reducer_code: RadonReducers,
-    context: &mut ReportContext,
-) -> Result<RadonTypes, RadError> {
+pub fn reduce(input: &RadonArray, reducer_code: RadonReducers) -> Result<RadonTypes, RadError> {
     let error = || {
         Err(RadError::UnsupportedReducer {
             inner_type: format!("{:?}", input.inner_type()),
@@ -49,7 +44,7 @@ pub fn reduce(
     if input.is_homogeneous() || input.value().is_empty() {
         match reducer_code {
             RadonReducers::AverageMean => average::mean(input),
-            RadonReducers::Mode => mode::mode(input, context),
+            RadonReducers::Mode => mode::mode(input),
             RadonReducers::DeviationStandard => deviation::standard(input),
             _ => error(),
         }

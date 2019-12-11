@@ -15,11 +15,7 @@ pub fn count(input: &RadonArray) -> RadonInteger {
     RadonInteger::from(input.value().len() as i128)
 }
 
-pub fn reduce(
-    input: &RadonArray,
-    args: &[Value],
-    context: &mut ReportContext,
-) -> Result<RadonTypes, RadError> {
+pub fn reduce(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: "RadonArray".to_string(),
         operator: "Reduce".to_string(),
@@ -34,7 +30,7 @@ pub fn reduce(
     let reducer_integer = from_value::<u8>(arg).map_err(|_| wrong_args())?;
     let reducer_code = RadonReducers::try_from(reducer_integer).map_err(|_| wrong_args())?;
 
-    reducers::reduce(input, reducer_code, context)
+    reducers::reduce(input, reducer_code)
 }
 
 pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
@@ -282,7 +278,7 @@ fn test_reduce_no_args() {
     ]);
     let args = &[];
 
-    let result = reduce(input, args, &mut ReportContext::default());
+    let result = reduce(input, args);
 
     assert_eq!(
         &result.unwrap_err().to_string(),
@@ -300,7 +296,7 @@ fn test_reduce_wrong_args() {
     ]);
     let args = &[Value::Text(String::from("wrong"))]; // This is RadonReducers::AverageMean
 
-    let result = reduce(input, args, &mut ReportContext::default());
+    let result = reduce(input, args);
 
     assert_eq!(
         &result.unwrap_err().to_string(),
@@ -318,7 +314,7 @@ fn test_reduce_unknown_reducer() {
     ]);
     let args = &[Value::Integer(-1)]; // This doesn't match any reducer code in RadonReducers
 
-    let result = reduce(input, args, &mut ReportContext::default());
+    let result = reduce(input, args);
 
     assert_eq!(
         &result.unwrap_err().to_string(),
