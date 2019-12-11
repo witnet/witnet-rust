@@ -739,4 +739,55 @@ mod tests {
         };
         assert_eq!(tally_metadata.liars, expected_liars);
     }
+
+    // Check that running a mode reducer after an ArrayGet does not modify the
+    // vector of liars
+    #[test]
+    fn test_run_consensus_with_array_get() {
+        let f_1 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let f_2 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let f_3 = RadonTypes::from(RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(3f64)),
+            RadonTypes::Float(RadonFloat::from(2f64)),
+        ]));
+        let radon_types_vec = vec![f_1, f_2, f_3];
+
+        let script = Value::Array(vec![
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayGet as i128),
+                Value::Integer(0 as i128),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayReduce as i128),
+                Value::Integer(RadonReducers::Mode as i128),
+            ]),
+        ]);
+
+        let packed_script = serde_cbor::to_vec(&script).unwrap();
+
+        let _expected = RadonTypes::Float(RadonFloat::from(3f64));
+        let report = run_tally_report(
+            radon_types_vec,
+            &RADTally {
+                script: packed_script,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            report.result.unwrap_err().inner.unwrap(),
+            RadError::UnsupportedOperatorInTally {
+                operator: RadonOpCodes::ArrayGet
+            }
+        );
+    }
 }
