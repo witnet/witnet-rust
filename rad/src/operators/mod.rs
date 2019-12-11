@@ -163,7 +163,12 @@ pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
 pub fn check_valid_operator_for_tally_stage(call: &RadonCall) -> Result<(), RadError> {
     // List of forbidden operators.
     // When this list grows and performance starts to be a concern, use a bitset instead
-    const FORBIDDEN_IN_TALLY: [RadonOpCodes; 2] = [RadonOpCodes::ArraySort, RadonOpCodes::ArrayGet];
+    const FORBIDDEN_IN_TALLY: [RadonOpCodes; 4] = [
+        RadonOpCodes::ArrayCount,
+        RadonOpCodes::ArrayGet,
+        RadonOpCodes::ArrayMap,
+        RadonOpCodes::ArraySort,
+    ];
 
     if FORBIDDEN_IN_TALLY.contains(&call.0) {
         Err(RadError::UnsupportedOperatorInTally { operator: call.0 })

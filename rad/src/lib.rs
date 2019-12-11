@@ -147,6 +147,7 @@ mod tests {
         types::{float::RadonFloat, integer::RadonInteger},
     };
     use serde_cbor::Value;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_run_retrieval() {
@@ -617,7 +618,7 @@ mod tests {
 
         let packed_script = serde_cbor::to_vec(&script).unwrap();
 
-        let expected = RadonTypes::from(RadonArray::from(vec![
+        let _expected = RadonTypes::from(RadonArray::from(vec![
             RadonTypes::Float(RadonFloat::from(3f64)),
             RadonTypes::Float(RadonFloat::from(3f64)),
             RadonTypes::Float(RadonFloat::from(3f64)),
@@ -630,16 +631,12 @@ mod tests {
         )
         .unwrap();
 
-        let output_tally = report.clone().into_inner().unwrap();
-        assert_eq!(output_tally, expected);
-
-        let expected_liars = vec![false, false, false];
-        let tally_metadata = if let Stage::Tally(tm) = report.metadata {
-            tm
-        } else {
-            panic!("No tally stage");
-        };
-        assert_eq!(tally_metadata.liars, expected_liars);
+        assert_eq!(
+            report.result.unwrap_err().inner.unwrap(),
+            RadError::UnsupportedOperatorInTally {
+                operator: RadonOpCodes::ArrayMap
+            }
+        );
     }
 
     // Check that running a mode reducer inside ArrayFilter does not modify the
@@ -868,5 +865,61 @@ mod tests {
             panic!("No tally stage");
         };
         assert_eq!(tally_metadata.liars, expected_liars);
+    }
+
+    #[test]
+    fn test_run_consensus_with_created_array() {
+        let f_1 = RadonTypes::from(RadonString::from("0"));
+        let f_2 = RadonTypes::from(RadonString::from("1"));
+        let f_3 = RadonTypes::from(RadonString::from("2"));
+
+        let radon_types_vec = vec![f_1.clone(), f_2.clone(), f_3.clone()];
+
+        let mut map: BTreeMap<Value, Value> = BTreeMap::new();
+        map.insert(
+            Value::Text("3".to_string()),
+            Value::Array(vec![
+                Value::Float(3f64),
+                Value::Float(3f64),
+                Value::Float(2f64),
+            ]),
+        );
+
+        let script = Value::Array(vec![
+            Value::Integer(RadonOpCodes::ArrayCount as i128),
+            Value::Integer(RadonOpCodes::IntegerAsString as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::StringMatch as i128),
+                Value::Map(map),
+                Value::Array(vec![]),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayFilter as i128),
+                Value::Integer(RadonFilters::DeviationStandard as i128),
+                Value::Float(1.0),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayReduce as i128),
+                Value::Integer(RadonReducers::AverageMean as i128),
+            ]),
+        ]);
+
+        let packed_script = serde_cbor::to_vec(&script).unwrap();
+
+        let _expected = RadonTypes::Float(RadonFloat::from(3f64));
+        let report = run_tally_report(
+            radon_types_vec,
+            &RADTally {
+                script: packed_script,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            report.result.unwrap_err().inner.unwrap(),
+            RadError::UnsupportedOperatorInTally {
+                operator: RadonOpCodes::ArrayCount
+            }
+        );
     }
 }
