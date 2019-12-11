@@ -8,6 +8,7 @@ use crate::{error::RadError, script::RadonCall, types::RadonTypes};
 
 pub mod array;
 pub mod boolean;
+pub mod bytes;
 pub mod float;
 pub mod integer;
 pub mod map;
@@ -112,6 +113,10 @@ pub enum RadonOpCodes {
     //    ResultGet = 0x80,
     //    ResultGetOr = 0x81,
     //    ResultIsOk = 0x82,
+
+    // Bytes operator codes (start at 0x90)
+    BytesAsString = 0x90,
+    BytesHash = 0x91,
 }
 
 impl fmt::Display for RadonOpCodes {

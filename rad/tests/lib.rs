@@ -19,7 +19,7 @@ fn test_radon_types_names() {
 
     let radon_bytes = RadonTypes::try_from(Value::Bytes(vec![1, 2, 3])).unwrap();
     let radon_bytes_type_name = radon_bytes.radon_type_name();
-    assert_eq!(radon_bytes_type_name, String::from("RadonMixed"));
+    assert_eq!(radon_bytes_type_name, String::from("RadonBytes"));
 
     let radon_string = RadonTypes::try_from(Value::Text(String::from("Hello, World!"))).unwrap();
     let radon_string_type_name = radon_string.radon_type_name();
@@ -52,7 +52,7 @@ fn test_radon_types_display() {
 
     let radon_bytes = RadonTypes::try_from(Value::Bytes(vec![1, 2, 3])).unwrap();
     let radon_bytes_type_display = radon_bytes.to_string();
-    let radon_bytes_expected = "RadonTypes::RadonMixed(Bytes([1, 2, 3]))".to_string();
+    let radon_bytes_expected = "RadonTypes::RadonBytes([1, 2, 3])".to_string();
     assert_eq!(radon_bytes_type_display, radon_bytes_expected);
 
     let radon_string = RadonTypes::try_from(Value::Text(String::from("Hello, World!"))).unwrap();

@@ -39,7 +39,7 @@ impl fmt::Display for RadonHashFunctions {
 
 pub fn hash(input: &[u8], hash_function_code: RadonHashFunctions) -> Result<Vec<u8>, RadError> {
     match hash_function_code {
-        RadonHashFunctions::SHA2_256 => sha2_256(input),
+        RadonHashFunctions::SHA2_256 => Ok(sha2_256(input)),
         _ => Err(RadError::UnsupportedHashFunction {
             function: hash_function_code.to_string(),
         }),

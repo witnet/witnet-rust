@@ -1,16 +1,14 @@
-use std::convert::TryFrom;
-use std::{error::Error, str::FromStr};
-
 use json;
 use serde_cbor::value::{from_value, Value};
+use std::{convert::TryFrom, error::Error, str::FromStr};
 
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
     types::{
-        array::RadonArray, boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger,
-        map::RadonMap, mixed::RadonMixed, result::RadonResult, string::RadonString, RadonType,
-        RadonTypes,
+        array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
+        integer::RadonInteger, map::RadonMap, mixed::RadonMixed, result::RadonResult,
+        string::RadonString, RadonType, RadonTypes,
     },
 };
 
@@ -99,10 +97,11 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
         .map(|res| match default {
             RadonTypes::Array(_) => Ok(RadonTypes::from(RadonArray::try_from(res.value())?)),
             RadonTypes::Boolean(_) => Ok(RadonTypes::from(RadonBoolean::try_from(res.value())?)),
-            RadonTypes::Mixed(_) => Ok(RadonTypes::from(res.clone())),
+            RadonTypes::Bytes(_) => Ok(RadonTypes::from(RadonBytes::try_from(res.value())?)),
             RadonTypes::Float(_) => Ok(RadonTypes::from(RadonFloat::try_from(res.value())?)),
             RadonTypes::Integer(_) => Ok(RadonTypes::from(RadonInteger::try_from(res.value())?)),
             RadonTypes::Map(_) => Ok(RadonTypes::from(RadonMap::try_from(res.value())?)),
+            RadonTypes::Mixed(_) => Ok(RadonTypes::from(res.clone())),
             RadonTypes::Result(_) => Ok(RadonTypes::from(RadonResult::try_from(res.value())?)),
             RadonTypes::String(_) => Ok(RadonTypes::from(RadonString::try_from(res.value())?)),
         })

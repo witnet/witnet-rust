@@ -163,7 +163,7 @@ mod tests {
             RadonString::from("Bye world!").into(),
         ]);
         let output = mode(&input, &mut ReportContext::default()).unwrap_err();
-        assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [String(RadonString { value: \"Hello world!\" }), String(RadonString { value: \"Bye world!\" })], inner_type: Discriminant(7) }`");
+        assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [String(RadonString { value: \"Hello world!\" }), String(RadonString { value: \"Bye world!\" })], inner_type: Discriminant(8) }`");
     }
 
     #[test]

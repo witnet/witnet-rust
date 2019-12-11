@@ -14,13 +14,15 @@ use crate::{
     error::RadError,
     operators::Operable,
     types::{
-        array::RadonArray, boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger,
-        map::RadonMap, mixed::RadonMixed, result::RadonResult, string::RadonString,
+        array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
+        integer::RadonInteger, map::RadonMap, mixed::RadonMixed, result::RadonResult,
+        string::RadonString,
     },
 };
 
 pub mod array;
 pub mod boolean;
+pub mod bytes;
 pub mod float;
 pub mod integer;
 pub mod map;
@@ -41,10 +43,11 @@ where
 pub enum RadonTypes {
     Array(RadonArray),
     Boolean(RadonBoolean),
-    Mixed(RadonMixed),
+    Bytes(RadonBytes),
     Float(RadonFloat),
     Integer(RadonInteger),
     Map(RadonMap),
+    Mixed(RadonMixed),
     Result(RadonResult),
     String(RadonString),
 }
@@ -61,10 +64,11 @@ impl RadonTypes {
         match self {
             RadonTypes::Array(_) => RadonArray::radon_type_name(),
             RadonTypes::Boolean(_) => RadonBoolean::radon_type_name(),
-            RadonTypes::Mixed(_) => RadonMixed::radon_type_name(),
+            RadonTypes::Bytes(_) => RadonBytes::radon_type_name(),
             RadonTypes::Float(_) => RadonFloat::radon_type_name(),
             RadonTypes::Integer(_) => RadonInteger::radon_type_name(),
             RadonTypes::Map(_) => RadonMap::radon_type_name(),
+            RadonTypes::Mixed(_) => RadonMixed::radon_type_name(),
             RadonTypes::Result(_) => RadonResult::radon_type_name(),
             RadonTypes::String(_) => RadonString::radon_type_name(),
         }
@@ -74,10 +78,11 @@ impl RadonTypes {
         match self {
             RadonTypes::Array(inner) => inner,
             RadonTypes::Boolean(inner) => inner,
-            RadonTypes::Mixed(inner) => inner,
+            RadonTypes::Bytes(inner) => inner,
             RadonTypes::Float(inner) => inner,
             RadonTypes::Integer(inner) => inner,
             RadonTypes::Map(inner) => inner,
+            RadonTypes::Mixed(inner) => inner,
             RadonTypes::Result(inner) => inner,
             RadonTypes::String(inner) => inner,
         }
@@ -119,10 +124,11 @@ impl fmt::Display for RadonTypes {
         match self {
             RadonTypes::Array(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Boolean(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::Mixed(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::Bytes(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Float(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Integer(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Map(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::Mixed(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Result(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::String(inner) => write!(f, "RadonTypes::{}", inner),
         }
@@ -141,9 +147,9 @@ impl From<RadonBoolean> for RadonTypes {
     }
 }
 
-impl From<RadonMixed> for RadonTypes {
-    fn from(bytes: RadonMixed) -> Self {
-        RadonTypes::Mixed(bytes)
+impl From<RadonBytes> for RadonTypes {
+    fn from(bytes: RadonBytes) -> Self {
+        RadonTypes::Bytes(bytes)
     }
 }
 
@@ -162,6 +168,12 @@ impl From<RadonInteger> for RadonTypes {
 impl From<RadonMap> for RadonTypes {
     fn from(map: RadonMap) -> Self {
         RadonTypes::Map(map)
+    }
+}
+
+impl From<RadonMixed> for RadonTypes {
+    fn from(mixed: RadonMixed) -> Self {
+        RadonTypes::Mixed(mixed)
     }
 }
 
@@ -188,7 +200,7 @@ impl TryFrom<Value> for RadonTypes {
             Value::Map(_) => RadonMap::try_from(value).map(Into::into),
             Value::Text(_) => RadonString::try_from(value).map(Into::into),
             Value::Integer(_) => RadonInteger::try_from(value).map(Into::into),
-            Value::Bytes(_) => Ok(RadonTypes::from(RadonMixed::from(value))),
+            Value::Bytes(_) => RadonBytes::try_from(value).map(Into::into),
             Value::Null => Err(RadError::Decode {
                 from: String::from("serde_cbor::Value::Null"),
                 to: String::from("RadonTypes"),
@@ -208,10 +220,11 @@ impl TryFrom<RadonTypes> for Value {
         match input {
             RadonTypes::Array(radon_array) => radon_array.try_into(),
             RadonTypes::Boolean(radon_boolean) => radon_boolean.try_into(),
-            RadonTypes::Mixed(radon_bytes) => radon_bytes.try_into(),
+            RadonTypes::Bytes(radon_bytes) => radon_bytes.try_into(),
             RadonTypes::Float(radon_float) => radon_float.try_into(),
             RadonTypes::Integer(radon_integer) => radon_integer.try_into(),
             RadonTypes::Map(radon_map) => radon_map.try_into(),
+            RadonTypes::Mixed(radon_mixed) => radon_mixed.try_into(),
             RadonTypes::Result(radon_result) => radon_result.try_into(),
             RadonTypes::String(radon_string) => radon_string.try_into(),
         }
