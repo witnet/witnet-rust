@@ -11,10 +11,7 @@ use witnet_data_structures::radon_report::{ReportContext, Stage};
 
 use crate::{
     error::RadError,
-    operators::{
-        array as array_operators, check_valid_operator_for_tally_stage, identity, Operable,
-        RadonOpCodes,
-    },
+    operators::{array as array_operators, identity, Operable, RadonOpCodes},
     script::RadonCall,
     types::{
         float::RadonFloat, map::RadonMap, mixed::RadonMixed, string::RadonString, RadonType,
@@ -189,6 +186,23 @@ impl Operable for RadonArray {
             }
             other => self.operate(other),
         }
+    }
+}
+
+/// Check if the operator can be used in a tally script.
+///
+/// The tally script should only consist of `ArrayFilter`s and one `ArrayReduce`.
+/// Values discarded by the filters will be considered dishonest, and will be penalized.
+pub fn check_valid_operator_for_tally_stage(call: &RadonCall) -> Result<(), RadError> {
+    // List of allowed array operators.
+    // If this list grows and performance starts to be a concern, use a bitset instead
+    const ALLOWED_IN_TALLY: [RadonOpCodes; 2] =
+        [RadonOpCodes::ArrayFilter, RadonOpCodes::ArrayReduce];
+
+    if ALLOWED_IN_TALLY.contains(&call.0) {
+        Ok(())
+    } else {
+        Err(RadError::UnsupportedOperatorInTally { operator: call.0 })
     }
 }
 
