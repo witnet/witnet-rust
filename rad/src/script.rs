@@ -83,11 +83,10 @@ fn unpack_compound_call(array: &[Value]) -> Result<RadonCall, RadError> {
     let (head, tail) = array
         .split_first()
         .ok_or_else(|| errorify(RadError::NoOperatorInCompoundCall))?;
-
     let op_code =
-        from_value::<i8>(head.to_owned()).map_err(|_| errorify(RadError::NotIntegerOperator))?;
-    let op_code = RadonOpCodes::try_from(op_code as u8)
-        .map_err(|_| errorify(RadError::NotIntegerOperator))?;
+        from_value::<u8>(head.to_owned()).map_err(|_| errorify(RadError::NotIntegerOperator))?;
+    let op_code =
+        RadonOpCodes::try_from(op_code).map_err(|_| errorify(RadError::NotIntegerOperator))?;
 
     Ok((op_code, Some(tail.to_vec())))
 }
@@ -139,10 +138,22 @@ fn test_execute_radon_script() {
 
 #[test]
 fn test_unpack_radon_script() {
-    let packed = [
-        134, 24, 69, 24, 116, 130, 1, 100, 109, 97, 105, 110, 24, 116, 130, 1, 100, 116, 101, 109,
-        112, 24, 114,
-    ];
+    let cbor_vec = Value::Array(vec![
+        Value::Integer(RadonOpCodes::StringParseJSON as i128),
+        Value::Integer(RadonOpCodes::MixedAsMap as i128),
+        Value::Array(vec![
+            Value::Integer(RadonOpCodes::Get as i128),
+            Value::Text(String::from("main")),
+        ]),
+        Value::Integer(RadonOpCodes::MixedAsMap as i128),
+        Value::Array(vec![
+            Value::Integer(RadonOpCodes::Get as i128),
+            Value::Text(String::from("temp")),
+        ]),
+        Value::Integer(RadonOpCodes::MixedAsFloat as i128),
+    ]);
+    let packed = serde_cbor::to_vec(&cbor_vec).unwrap();
+
     let expected = vec![
         (RadonOpCodes::StringParseJSON, None),
         (RadonOpCodes::MixedAsMap, None),

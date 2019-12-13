@@ -243,13 +243,17 @@ fn test_operate_count() {
 
 #[test]
 fn test_operate_reduce_average_mean_float() {
+    use crate::reducers::RadonReducers;
     use crate::types::float::RadonFloat;
 
     let input = RadonArray::from(vec![
         RadonFloat::from(1f64).into(),
         RadonFloat::from(2f64).into(),
     ]);
-    let call = (RadonOpCodes::ArrayReduce, Some(vec![Value::Integer(0x03)]));
+    let call = (
+        RadonOpCodes::ArrayReduce,
+        Some(vec![Value::Integer(RadonReducers::AverageMean as i128)]),
+    );
     let expected = RadonTypes::from(RadonFloat::from(1.5f64));
 
     let output = input.operate(&call).unwrap();
@@ -267,7 +271,7 @@ fn test_operate_map_float_multiply() {
         RadonOpCodes::ArrayMap,
         Some(vec![
             Value::Array(vec![Value::Array(vec![
-                Value::Integer(0x38),
+                Value::Integer(RadonOpCodes::FloatMultiply as i128),
                 Value::Integer(2i128),
             ])]), // [ OP_FLOAT_MULTIPLY, 2 ]
         ]),
