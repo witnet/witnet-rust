@@ -53,6 +53,9 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
         get_block_chain(params.parse())
     });
     io.add_method("getBlock", |params: Params| get_block(params.parse()));
+    io.add_method("getTransaction", |params: Params| {
+        get_transaction(params.parse())
+    });
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
     io.add_method("sendRequest", |params: Params| send_request(params.parse()));
     io.add_method("sendValue", |params: Params| send_value(params.parse()));
@@ -406,6 +409,45 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
                 Ok(Ok(chain::InventoryItem::Transaction(_))) => {
                     // Not a block
                     let err = internal_error(format!("Not a block, {} is a transaction", hash));
+                    futures::failed(err)
+                }
+                Ok(Err(e)) => {
+                    let err = internal_error(e);
+                    futures::failed(err)
+                }
+                Err(e) => {
+                    let err = internal_error(e);
+                    futures::failed(err)
+                }
+            }),
+    )
+}
+
+/// Get transaction by hash
+pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
+    let hash = match hash {
+        Ok(x) => x.0,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
+
+    let inventory_manager = InventoryManager::from_registry();
+    Box::new(
+        inventory_manager
+            .send(GetItem { hash })
+            .then(move |res| match res {
+                Ok(Ok(chain::InventoryItem::Transaction(output))) => {
+                    let value = match serde_json::to_value(output) {
+                        Ok(x) => x,
+                        Err(e) => {
+                            let err = internal_error(e);
+                            return futures::failed(err);
+                        }
+                    };
+                    futures::finished(value)
+                }
+                Ok(Ok(chain::InventoryItem::Block(_))) => {
+                    // Not a transaction
+                    let err = internal_error(format!("Not a transaction, {} is a block", hash));
                     futures::failed(err)
                 }
                 Ok(Err(e)) => {
