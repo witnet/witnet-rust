@@ -1440,7 +1440,7 @@ pub enum InventoryEntry {
     Block(Hash),
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum TransactionPointer {
     ValueTransfer(u32),
     DataRequest(u32),

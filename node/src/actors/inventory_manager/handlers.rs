@@ -161,10 +161,18 @@ impl Handler<GetItemTransaction> for InventoryManager {
                                         // Read transaction from block
                                         let tx = block.txns.get(pointer_to_block.transaction_index);
                                         match tx {
-                                            Some(tx) => fut::ok(tx),
-                                            // TODO: custom error: there exists a transaction pointer, and the block exists, but it has no transaction with that index
-                                            None => fut::err(InventoryManagerError::ItemNotFound),
+                                            Some(tx) if tx.hash() == msg.hash => fut::ok(tx),
+                                            Some(_tx) => {
+                                                // The transaction hash does not match
+                                                fut::err(InventoryManagerError::NoTransactionInPointedBlock(pointer_to_block))
+                                            }
+                                            None => fut::err(
+                                                InventoryManagerError::NoTransactionInPointedBlock(pointer_to_block),
+                                            ),
                                         }
+                                    }
+                                    Err(InventoryManagerError::ItemNotFound) => {
+                                        fut::err(InventoryManagerError::NoPointedBlock(pointer_to_block))
                                     }
                                     Err(e) => {
                                         log::error!("Couldn't get item from storage: {}", e);
