@@ -30,14 +30,14 @@ pub enum RadonOpCodes {
     // Array operator codes (start at 0x10)
     ArrayCount = 0x10,
     ArrayFilter = 0x11,
-    //    ArrayFlatten = 0x12,
-    //    ArrayGetArray = 0x13,
-    //    ArrayGetBoolean = 0x14,
-    //    ArrayGetBytes = 0x15,
-    //    ArrayGetFloat = 0x16,
-    //    ArrayGetInteger = 0x17,
-    //    ArrayGetMap = 0x18,
-    //    ArrayGetString = 0x19,
+    ArrayFlatten = 0x12,
+    ArrayGetArray = 0x13,
+    ArrayGetBoolean = 0x14,
+    ArrayGetBytes = 0x15,
+    ArrayGetFloat = 0x16,
+    ArrayGetInteger = 0x17,
+    ArrayGetMap = 0x18,
+    ArrayGetString = 0x19,
     ArrayMap = 0x1A,
     ArrayReduce = 0x1B,
     //    ArraySome = 0x1C,
@@ -174,25 +174,27 @@ pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
     Ok(input)
 }
 
-#[test]
-pub fn test_identity() {
+#[cfg(test)]
+mod tests {
+    use super::*;
     use crate::types::string::RadonString;
 
-    let input = RadonString::from("Hello world!").into();
-    let expected = RadonString::from("Hello world!").into();
-    let output = identity(input).unwrap();
+    #[test]
+    pub fn test_identity() {
+        let input = RadonString::from("Hello world!").into();
+        let expected = RadonString::from("Hello world!").into();
+        let output = identity(input).unwrap();
 
-    assert_eq!(output, expected);
-}
+        assert_eq!(output, expected);
+    }
 
-#[test]
-pub fn test_operate() {
-    use crate::types::string::RadonString;
+    #[test]
+    pub fn test_operate() {
+        let input = RadonString::from("Hello world!").into();
+        let expected = RadonString::from("Hello world!").into();
+        let call = (RadonOpCodes::Identity, None);
+        let output = operate(input, &call).unwrap();
 
-    let input = RadonString::from("Hello world!").into();
-    let expected = RadonString::from("Hello world!").into();
-    let call = (RadonOpCodes::Identity, None);
-    let output = operate(input, &call).unwrap();
-
-    assert_eq!(output, expected);
+        assert_eq!(output, expected);
+    }
 }

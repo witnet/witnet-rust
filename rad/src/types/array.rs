@@ -113,7 +113,7 @@ impl TryFrom<Value> for RadonArray {
                     .collect::<Vec<RadonTypes>>()
             })
             .map_err(|_| RadError::Decode {
-                from: "cbor::Value".to_string(),
+                from: "cbor::value::Value".to_string(),
                 to: RADON_ARRAY_TYPE_NAME.to_string(),
             })
             .map(Self::from)
@@ -145,6 +145,27 @@ impl Operable for RadonArray {
             (RadonOpCodes::ArrayCount, None) => Ok(array_operators::count(self).into()),
             (RadonOpCodes::Get, Some(args)) => array_operators::get(self, args.as_slice()),
             (RadonOpCodes::ArrayGet, Some(args)) => array_operators::get(self, args.as_slice()),
+            (RadonOpCodes::ArrayGetArray, Some(args)) => {
+                array_operators::get_array(self, args.as_slice()).map(RadonTypes::from)
+            }
+            (RadonOpCodes::ArrayGetBoolean, Some(args)) => {
+                array_operators::get_boolean(self, args.as_slice()).map(RadonTypes::from)
+            }
+            (RadonOpCodes::ArrayGetBytes, Some(args)) => {
+                array_operators::get_bytes(self, args.as_slice()).map(RadonTypes::from)
+            }
+            (RadonOpCodes::ArrayGetInteger, Some(args)) => {
+                array_operators::get_integer(self, args.as_slice()).map(RadonTypes::from)
+            }
+            (RadonOpCodes::ArrayGetFloat, Some(args)) => {
+                array_operators::get_float(self, args.as_slice()).map(RadonTypes::from)
+            }
+            (RadonOpCodes::ArrayGetMap, Some(args)) => {
+                array_operators::get_map(self, args.as_slice()).map(RadonTypes::from)
+            }
+            (RadonOpCodes::ArrayGetString, Some(args)) => {
+                array_operators::get_string(self, args.as_slice()).map(RadonTypes::from)
+            }
             (RadonOpCodes::ArrayFilter, Some(args)) => {
                 array_operators::filter(self, args.as_slice(), &mut ReportContext::default())
             }
