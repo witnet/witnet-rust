@@ -411,6 +411,26 @@ impl Message for GetItem {
     type Result = Result<InventoryItem, InventoryManagerError>;
 }
 
+/// Ask for an item identified by its hash
+pub struct GetItemBlock {
+    /// item hash
+    pub hash: Hash,
+}
+
+impl Message for GetItemBlock {
+    type Result = Result<Block, InventoryManagerError>;
+}
+
+/// Ask for an item identified by its hash
+pub struct GetItemTransaction {
+    /// item hash
+    pub hash: Hash,
+}
+
+impl Message for GetItemTransaction {
+    type Result = Result<Transaction, InventoryManagerError>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM PEERS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////

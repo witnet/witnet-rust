@@ -3,9 +3,12 @@ use actix::{ActorFuture, Context, Handler, ResponseActFuture, WrapFuture};
 use log;
 
 use super::{InventoryManager, InventoryManagerError};
-use crate::actors::messages::{AddItem, GetItem, StoreInventoryItem};
+use crate::actors::messages::{
+    AddItem, GetItem, GetItemBlock, GetItemTransaction, StoreInventoryItem,
+};
 use crate::storage_mngr;
 use witnet_data_structures::chain::{Block, Hash, Hashable, InventoryItem, PointerToBlock};
+use witnet_data_structures::transaction::Transaction;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -76,75 +79,113 @@ impl Handler<AddItem> for InventoryManager {
 impl Handler<GetItem> for InventoryManager {
     type Result = ResponseActFuture<Self, InventoryItem, InventoryManagerError>;
 
-    fn handle(&mut self, msg: GetItem, _ctx: &mut Context<Self>) -> Self::Result {
-        log::info!("Called GetItem {}", msg.hash);
+    fn handle(&mut self, msg: GetItem, ctx: &mut Context<Self>) -> Self::Result {
+        let fut = self
+            .handle(GetItemBlock { hash: msg.hash }, ctx)
+            .then(move |res, act, ctx| {
+                match res {
+                    Ok(block) => {
+                        let fut: Self::Result = Box::new(fut::ok(InventoryItem::Block(block)));
+                        fut
+                    }
+                    Err(_e) => {
+                        // If there is no block with that hash, assume it is a transaction
+                        let fut: Self::Result = Box::new(
+                            act.handle(GetItemTransaction { hash: msg.hash }, ctx)
+                                .map(|tx, _, _| InventoryItem::Transaction(tx)),
+                        );
+                        fut
+                    }
+                }
+            });
+
+        Box::new(fut)
+    }
+}
+
+/// Handler for GetItem message
+impl Handler<GetItemBlock> for InventoryManager {
+    type Result = ResponseActFuture<Self, Block, InventoryManagerError>;
+
+    fn handle(&mut self, msg: GetItemBlock, _ctx: &mut Context<Self>) -> Self::Result {
         let mut key_block = match msg.hash {
             Hash::SHA256(x) => x.to_vec(),
         };
-        // First try to read block
+        // Block prefix
         key_block.insert(0, b'B');
-        let mut key_transaction = key_block.clone();
-        key_transaction[0] = b'T';
 
         let fut = storage_mngr::get::<_, Block>(&key_block)
             .into_actor(self)
-            .then(move |res, act, _| match res {
+            .then(move |res, _, _| match res {
                 Ok(opt) => match opt {
-                    None => {
-                        // If there is no block with that hash, assume it is a transaction
-                        let fut = storage_mngr::get::<_, PointerToBlock>(&key_transaction)
-                            .into_actor(act)
-                            .then(|res, act, ctx| match res {
-                                Ok(opt) => match opt {
-                                    None => { let fut: Self::Result = Box::new(fut::err(InventoryManagerError::ItemNotFound)); fut},
-                                    Some(pointer_to_block) => {
-                                        // Recursion
-                                        let fut = act.handle(GetItem { hash: pointer_to_block.block_hash }, ctx ).then(move |res, _, _| {
-                                            match res {
-                                                Ok(item) => {
-                                                    match item {
-                                                        InventoryItem::Block(block) => {
-                                                            // Read transaction from block
-                                                            let tx = block.txns.get(pointer_to_block.transaction_index);
-                                                            match tx {
-                                                                Some(tx) => fut::ok(InventoryItem::Transaction(tx)),
-                                                                // TODO: custom error
-                                                                None => fut::err(InventoryManagerError::ItemNotFound),
-                                                            }
-                                                        },
-                                                        InventoryItem::Transaction(_) => {
-                                                            // TODO: custom error
-                                                            fut::err(InventoryManagerError::ItemNotFound)
-                                                        },
-                                                    }
-                                                }
-                                                Err(e) => {
-                                                    log::error!("Couldn't get item from storage: {}", e);
-                                                    fut::err(e)
-                                                }
-                                            }
-                                        });
-
-                                        Box::new(fut)
-                                    },
-                                },
-                                Err(e) => {
-                                    log::error!("Couldn't get item from storage: {}", e);
-                                    let fut: Self::Result = Box::new(
-                                        fut::err(InventoryManagerError::MailBoxError(e))
-                                    );
-                                    fut
-                                }
-                            });
-                        Box::new(fut)
-                    }
-                    Some(block) => { let fut: Self::Result = Box::new(fut::ok(InventoryItem::Block(block))); fut }
-                }
+                    None => fut::err(InventoryManagerError::ItemNotFound),
+                    Some(block) => fut::ok(block),
+                },
                 Err(e) => {
                     log::error!("Couldn't get item from storage: {}", e);
-                    let fut: Self::Result = Box::new(
-                        fut::err(InventoryManagerError::MailBoxError(e))
-                    );
+
+                    fut::err(InventoryManagerError::MailBoxError(e))
+                }
+            });
+
+        Box::new(fut)
+    }
+}
+
+/// Handler for GetItem message
+impl Handler<GetItemTransaction> for InventoryManager {
+    type Result = ResponseActFuture<Self, Transaction, InventoryManagerError>;
+
+    fn handle(&mut self, msg: GetItemTransaction, _ctx: &mut Context<Self>) -> Self::Result {
+        let mut key_transaction = match msg.hash {
+            Hash::SHA256(x) => x.to_vec(),
+        };
+        // First try to read block
+        key_transaction.insert(0, b'T');
+
+        let fut = storage_mngr::get::<_, PointerToBlock>(&key_transaction)
+            .into_actor(self)
+            .then(|res, act, ctx| match res {
+                Ok(opt) => match opt {
+                    None => {
+                        let fut: Self::Result =
+                            Box::new(fut::err(InventoryManagerError::ItemNotFound));
+                        fut
+                    }
+                    Some(pointer_to_block) => {
+                        // Recursion
+                        let fut = act
+                            .handle(
+                                GetItemBlock {
+                                    hash: pointer_to_block.block_hash,
+                                },
+                                ctx,
+                            )
+                            .then(move |res, _, _| {
+                                match res {
+                                    Ok(block) => {
+                                        // Read transaction from block
+                                        let tx = block.txns.get(pointer_to_block.transaction_index);
+                                        match tx {
+                                            Some(tx) => fut::ok(tx),
+                                            // TODO: custom error: there exists a transaction pointer, and the block exists, but it has no transaction with that index
+                                            None => fut::err(InventoryManagerError::ItemNotFound),
+                                        }
+                                    }
+                                    Err(e) => {
+                                        log::error!("Couldn't get item from storage: {}", e);
+                                        fut::err(e)
+                                    }
+                                }
+                            });
+
+                        Box::new(fut)
+                    }
+                },
+                Err(e) => {
+                    log::error!("Couldn't get item from storage: {}", e);
+                    let fut: Self::Result =
+                        Box::new(fut::err(InventoryManagerError::MailBoxError(e)));
                     fut
                 }
             });
