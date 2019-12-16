@@ -170,6 +170,19 @@ pub fn get_block(addr: SocketAddr, hash: String) -> Result<(), failure::Error> {
     Ok(())
 }
 
+pub fn get_transaction(addr: SocketAddr, hash: String) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{:?}], "id": "1"}}"#,
+        hash,
+    );
+    let response = send_request(&mut stream, &request)?;
+
+    println!("{}", response);
+
+    Ok(())
+}
+
 pub fn get_output(addr: SocketAddr, pointer: String) -> Result<(), failure::Error> {
     let mut _stream = start_client(addr)?;
     let output_pointer = OutputPointer::from_str(&pointer)?;

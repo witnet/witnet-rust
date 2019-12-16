@@ -13,6 +13,9 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
         Command::Block { node, hash } => {
             rpc::get_block(node.unwrap_or(config.jsonrpc.server_address), hash)
         }
+        Command::GetTransaction { node, hash } => {
+            rpc::get_transaction(node.unwrap_or(config.jsonrpc.server_address), hash)
+        }
         Command::BlockChain { node, epoch, limit } => {
             rpc::get_blockchain(node.unwrap_or(config.jsonrpc.server_address), epoch, limit)
         }
@@ -113,6 +116,14 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         #[structopt(name = "hash", help = "SHA-256 block hash in hex format")]
+        hash: String,
+    },
+    #[structopt(name = "getTransaction", about = "Find a transaction by its hash ")]
+    GetTransaction {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        #[structopt(name = "hash", help = "SHA-256 transaction hash in hex format")]
         hash: String,
     },
     #[structopt(name = "getBalance", about = "Get total balance of the given account")]
