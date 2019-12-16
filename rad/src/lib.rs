@@ -155,12 +155,12 @@ mod tests {
             Value::Integer(RadonOpCodes::StringParseJSON as i128),
             Value::Integer(RadonOpCodes::MixedAsMap as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::Get as i128),
+                Value::Integer(RadonOpCodes::MapGet as i128),
                 Value::Text("main".to_string()),
             ]),
             Value::Integer(RadonOpCodes::MixedAsMap as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::Get as i128),
+                Value::Integer(RadonOpCodes::MapGet as i128),
                 Value::Text("temp".to_string()),
             ]),
             Value::Integer(RadonOpCodes::MixedAsFloat as i128),
@@ -314,7 +314,7 @@ mod tests {
             Value::Integer(RadonOpCodes::StringParseJSON as i128),
             Value::Integer(RadonOpCodes::MixedAsArray as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::ArrayGet as i128),
+                Value::Integer(RadonOpCodes::ArrayGetMap as i128),
                 Value::Integer(0 as i128),
             ]),
             Value::Array(vec![
@@ -921,7 +921,7 @@ mod tests {
 
         let script = Value::Array(vec![
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::ArrayGet as i128),
+                Value::Integer(RadonOpCodes::ArrayGetArray as i128),
                 Value::Integer(0 as i128),
             ]),
             Value::Array(vec![
@@ -944,7 +944,7 @@ mod tests {
         assert_eq!(
             report.result.unwrap_err().inner.unwrap(),
             RadError::UnsupportedOperatorInTally {
-                operator: RadonOpCodes::ArrayGet
+                operator: RadonOpCodes::ArrayGetArray
             }
         );
     }

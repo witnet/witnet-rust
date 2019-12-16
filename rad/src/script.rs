@@ -119,12 +119,12 @@ fn test_execute_radon_script() {
         (RadonOpCodes::StringParseJSON, None),
         (RadonOpCodes::MixedAsMap, None),
         (
-            RadonOpCodes::Get,
+            RadonOpCodes::MapGet,
             Some(vec![Value::Text(String::from("main"))]),
         ),
         (RadonOpCodes::MixedAsMap, None),
         (
-            RadonOpCodes::Get,
+            RadonOpCodes::MapGet,
             Some(vec![Value::Text(String::from("temp"))]),
         ),
         (RadonOpCodes::MixedAsFloat, None),
@@ -142,12 +142,12 @@ fn test_unpack_radon_script() {
         Value::Integer(RadonOpCodes::StringParseJSON as i128),
         Value::Integer(RadonOpCodes::MixedAsMap as i128),
         Value::Array(vec![
-            Value::Integer(RadonOpCodes::Get as i128),
+            Value::Integer(RadonOpCodes::MapGet as i128),
             Value::Text(String::from("main")),
         ]),
         Value::Integer(RadonOpCodes::MixedAsMap as i128),
         Value::Array(vec![
-            Value::Integer(RadonOpCodes::Get as i128),
+            Value::Integer(RadonOpCodes::MapGet as i128),
             Value::Text(String::from("temp")),
         ]),
         Value::Integer(RadonOpCodes::MixedAsFloat as i128),
@@ -158,12 +158,12 @@ fn test_unpack_radon_script() {
         (RadonOpCodes::StringParseJSON, None),
         (RadonOpCodes::MixedAsMap, None),
         (
-            RadonOpCodes::Get,
+            RadonOpCodes::MapGet,
             Some(vec![Value::Text(String::from("main"))]),
         ),
         (RadonOpCodes::MixedAsMap, None),
         (
-            RadonOpCodes::Get,
+            RadonOpCodes::MapGet,
             Some(vec![Value::Text(String::from("temp"))]),
         ),
         (RadonOpCodes::MixedAsFloat, None),

@@ -113,7 +113,7 @@ impl Operable for RadonMap {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
-            (RadonOpCodes::Get, Some(args)) | (RadonOpCodes::MapGet, Some(args)) => {
+            (RadonOpCodes::MapGet, Some(args)) => {
                 map_operators::get(self, args.as_slice()).map(Into::into)
             }
             (RadonOpCodes::MapKeys, None) => Ok(RadonTypes::from(map_operators::keys(self))),
@@ -206,7 +206,7 @@ fn test_operate_map_get() {
     let input = RadonMap::from(map);
 
     let call = (
-        RadonOpCodes::Get,
+        RadonOpCodes::MapGet,
         Some(vec![Value::Text(String::from("Zero"))]),
     );
     let result = input.operate(&call).unwrap();
@@ -224,7 +224,7 @@ fn test_operate_map_get_error() {
     let input = RadonMap::from(map);
 
     let call = (
-        RadonOpCodes::Get,
+        RadonOpCodes::MapGet,
         Some(vec![Value::Text(String::from("NotFound"))]),
     );
     let result = input.operate(&call);

@@ -127,13 +127,11 @@ pub enum RadonOpCodes {
     //    MixedHash = 0x86,
 
     // Old operator codes (start at 0xA0)
-    Get = 0xA0,
     BooleanAsString = 0xA1,
     IntegerAsMixed = 0xA2,
     FloatAsMixed = 0xA3,
     StringAsMixed = 0xA4,
     StringParseJSON = 0xA5,
-    ArrayGet = 0xA6,
     MapGet = 0xA7,
     /// Flatten a map into an Array containing only the values but not the keys
     MapValues = 0xA8,

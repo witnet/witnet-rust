@@ -143,8 +143,6 @@ impl Operable for RadonArray {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             (RadonOpCodes::ArrayCount, None) => Ok(array_operators::count(self).into()),
-            (RadonOpCodes::Get, Some(args)) => array_operators::get(self, args.as_slice()),
-            (RadonOpCodes::ArrayGet, Some(args)) => array_operators::get(self, args.as_slice()),
             (RadonOpCodes::ArrayGetArray, Some(args)) => {
                 array_operators::get_array(self, args.as_slice()).map(RadonTypes::from)
             }
