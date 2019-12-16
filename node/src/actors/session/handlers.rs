@@ -165,11 +165,7 @@ impl StreamHandler<BytesMut, Error> for Session {
                         let inventory_mngr = InventoryManager::from_registry();
                         let item_requests: Vec<_> = inventory
                             .iter()
-                            .map(|item| match item {
-                                InventoryEntry::Block(hash) | InventoryEntry::Tx(hash) => {
-                                    inventory_mngr.send(GetItem { hash: *hash })
-                                }
-                            })
+                            .map(|item| inventory_mngr.send(GetItem { item: item.clone() }))
                             .collect();
 
                         future::join_all(item_requests)

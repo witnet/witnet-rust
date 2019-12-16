@@ -7,7 +7,9 @@ use crate::actors::messages::{
     AddItem, GetItem, GetItemBlock, GetItemTransaction, StoreInventoryItem,
 };
 use crate::storage_mngr;
-use witnet_data_structures::chain::{Block, Hash, Hashable, InventoryItem, PointerToBlock};
+use witnet_data_structures::chain::{
+    Block, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock,
+};
 use witnet_data_structures::transaction::Transaction;
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -80,26 +82,18 @@ impl Handler<GetItem> for InventoryManager {
     type Result = ResponseActFuture<Self, InventoryItem, InventoryManagerError>;
 
     fn handle(&mut self, msg: GetItem, ctx: &mut Context<Self>) -> Self::Result {
-        let fut = self
-            .handle(GetItemBlock { hash: msg.hash }, ctx)
-            .then(move |res, act, ctx| {
-                match res {
-                    Ok(block) => {
-                        let fut: Self::Result = Box::new(fut::ok(InventoryItem::Block(block)));
-                        fut
-                    }
-                    Err(_e) => {
-                        // If there is no block with that hash, assume it is a transaction
-                        let fut: Self::Result = Box::new(
-                            act.handle(GetItemTransaction { hash: msg.hash }, ctx)
-                                .map(|tx, _, _| InventoryItem::Transaction(tx)),
-                        );
-                        fut
-                    }
-                }
-            });
+        let fut: Self::Result = match msg.item {
+            InventoryEntry::Tx(hash) => Box::new(
+                self.handle(GetItemTransaction { hash }, ctx)
+                    .map(|tx, _, _| InventoryItem::Transaction(tx)),
+            ),
+            InventoryEntry::Block(hash) => Box::new(
+                self.handle(GetItemBlock { hash }, ctx)
+                    .map(|block, _, _| InventoryItem::Block(block)),
+            ),
+        };
 
-        Box::new(fut)
+        fut
     }
 }
 

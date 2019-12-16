@@ -15,7 +15,7 @@ use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
 use witnet_data_structures::{
-    chain::{self, Block, CheckpointBeacon, Hash, PublicKeyHash, Reputation},
+    chain::{Block, CheckpointBeacon, Hash, PublicKeyHash, Reputation},
     transaction::Transaction,
     vrf::VrfMessage,
 };
@@ -32,8 +32,9 @@ use crate::{
         inventory_manager::InventoryManager,
         messages::{
             AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
-            GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon, GetItem, GetReputation,
-            GetReputationAll, GetReputationStatus, GetState, NumSessions,
+            GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock,
+            GetItemTransaction, GetReputation, GetReputationAll, GetReputationStatus, GetState,
+            NumSessions,
         },
         sessions_manager::SessionsManager,
     },
@@ -394,9 +395,9 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
     let inventory_manager = InventoryManager::from_registry();
     Box::new(
         inventory_manager
-            .send(GetItem { hash })
+            .send(GetItemBlock { hash })
             .then(move |res| match res {
-                Ok(Ok(chain::InventoryItem::Block(output))) => {
+                Ok(Ok(output)) => {
                     let value = match serde_json::to_value(output) {
                         Ok(x) => x,
                         Err(e) => {
@@ -405,11 +406,6 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
                         }
                     };
                     futures::finished(value)
-                }
-                Ok(Ok(chain::InventoryItem::Transaction(_))) => {
-                    // Not a block
-                    let err = internal_error(format!("Not a block, {} is a transaction", hash));
-                    futures::failed(err)
                 }
                 Ok(Err(e)) => {
                     let err = internal_error(e);
@@ -433,9 +429,9 @@ pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcRes
     let inventory_manager = InventoryManager::from_registry();
     Box::new(
         inventory_manager
-            .send(GetItem { hash })
+            .send(GetItemTransaction { hash })
             .then(move |res| match res {
-                Ok(Ok(chain::InventoryItem::Transaction(output))) => {
+                Ok(Ok(output)) => {
                     let value = match serde_json::to_value(output) {
                         Ok(x) => x,
                         Err(e) => {
@@ -444,11 +440,6 @@ pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcRes
                         }
                     };
                     futures::finished(value)
-                }
-                Ok(Ok(chain::InventoryItem::Block(_))) => {
-                    // Not a transaction
-                    let err = internal_error(format!("Not a transaction, {} is a block", hash));
-                    futures::failed(err)
                 }
                 Ok(Err(e)) => {
                     let err = internal_error(e);

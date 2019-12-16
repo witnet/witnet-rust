@@ -403,8 +403,8 @@ impl Message for AddItem {
 
 /// Ask for an item identified by its hash
 pub struct GetItem {
-    /// item hash
-    pub hash: Hash,
+    /// item kind and hash
+    pub item: InventoryEntry,
 }
 
 impl Message for GetItem {
