@@ -60,7 +60,9 @@ use crate::{
     actors::{
         inventory_manager::InventoryManager,
         json_rpc::JsonRpcServer,
-        messages::{AddItem, AddTransaction, Broadcast, NewBlock, SendInventoryItem},
+        messages::{
+            AddItem, AddTransaction, Broadcast, NewBlock, SendInventoryItem, StoreInventoryItem,
+        },
         sessions_manager::SessionsManager,
         storage_keys::CHAIN_STATE_KEY,
     },
@@ -185,7 +187,7 @@ impl ChainManager {
     }
 
     /// Method to Send an Item to Inventory Manager
-    fn persist_item(&self, ctx: &mut Context<Self>, item: InventoryItem) {
+    fn persist_item(&self, ctx: &mut Context<Self>, item: StoreInventoryItem) {
         // Get InventoryManager address
         let inventory_manager_addr = InventoryManager::from_registry();
 
@@ -319,7 +321,7 @@ impl ChainManager {
     ) {
         for block in blocks {
             let block_hash = block.hash();
-            self.persist_item(ctx, InventoryItem::Block(block));
+            self.persist_item(ctx, StoreInventoryItem::Block(Box::new(block)));
 
             if block_hash == target_beacon.hash_prev_block {
                 break;
@@ -415,7 +417,7 @@ impl ChainManager {
                                 transaction: Transaction::Reveal(reveal),
                             })
                         }
-                        self.persist_item(ctx, InventoryItem::Block(block.clone()));
+                        self.persist_item(ctx, StoreInventoryItem::Block(Box::new(block.clone())));
 
                         // Persist chain_info into storage
                         self.persist_chain_state(ctx);

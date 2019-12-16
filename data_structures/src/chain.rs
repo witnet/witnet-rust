@@ -165,6 +165,7 @@ pub struct Block {
     /// A non-empty list of signed transactions
     pub txns: BlockTransactions,
 }
+
 /// Block transactions
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Block_BlockTransactions")]
@@ -200,6 +201,73 @@ impl BlockTransactions {
             && self.commit_txns.is_empty()
             && self.reveal_txns.is_empty()
             && self.tally_txns.is_empty()
+    }
+
+    pub fn get(&self, index: TransactionPointer) -> Option<Transaction> {
+        match index {
+            TransactionPointer::Mint => Some(&self.mint).cloned().map(Transaction::Mint),
+            TransactionPointer::ValueTransfer(i) => self
+                .value_transfer_txns
+                .get(i as usize)
+                .cloned()
+                .map(Transaction::ValueTransfer),
+            TransactionPointer::DataRequest(i) => self
+                .data_request_txns
+                .get(i as usize)
+                .cloned()
+                .map(Transaction::DataRequest),
+            TransactionPointer::Commit(i) => self
+                .commit_txns
+                .get(i as usize)
+                .cloned()
+                .map(Transaction::Commit),
+            TransactionPointer::Reveal(i) => self
+                .reveal_txns
+                .get(i as usize)
+                .cloned()
+                .map(Transaction::Reveal),
+            TransactionPointer::Tally(i) => self
+                .tally_txns
+                .get(i as usize)
+                .cloned()
+                .map(Transaction::Tally),
+        }
+    }
+
+    pub fn create_pointers_to_transactions(&self, block_hash: Hash) -> Vec<(Hash, PointerToBlock)> {
+        // Store all the transactions as well
+        let mut pointer_to_block = PointerToBlock {
+            block_hash,
+            transaction_index: TransactionPointer::Mint,
+        };
+        let mut items_to_add = Vec::with_capacity(self.len());
+        // Push mint transaction
+        {
+            let tx_hash = self.mint.hash();
+            items_to_add.push((tx_hash, pointer_to_block.clone()));
+        }
+        for (i, tx) in self.value_transfer_txns.iter().enumerate() {
+            pointer_to_block.transaction_index = TransactionPointer::ValueTransfer(i as u32);
+            items_to_add.push((tx.hash(), pointer_to_block.clone()));
+        }
+        for (i, tx) in self.data_request_txns.iter().enumerate() {
+            pointer_to_block.transaction_index = TransactionPointer::DataRequest(i as u32);
+            items_to_add.push((tx.hash(), pointer_to_block.clone()));
+        }
+        for (i, tx) in self.commit_txns.iter().enumerate() {
+            pointer_to_block.transaction_index = TransactionPointer::Commit(i as u32);
+            items_to_add.push((tx.hash(), pointer_to_block.clone()));
+        }
+        for (i, tx) in self.reveal_txns.iter().enumerate() {
+            pointer_to_block.transaction_index = TransactionPointer::Reveal(i as u32);
+            items_to_add.push((tx.hash(), pointer_to_block.clone()));
+        }
+        for (i, tx) in self.tally_txns.iter().enumerate() {
+            pointer_to_block.transaction_index = TransactionPointer::Tally(i as u32);
+            items_to_add.push((tx.hash(), pointer_to_block.clone()));
+        }
+
+        items_to_add
     }
 }
 
@@ -1370,6 +1438,23 @@ impl FromStr for OutputPointer {
 pub enum InventoryEntry {
     Tx(Hash),
     Block(Hash),
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub enum TransactionPointer {
+    ValueTransfer(u32),
+    DataRequest(u32),
+    Commit(u32),
+    Reveal(u32),
+    Tally(u32),
+    Mint,
+}
+
+/// This is how transactions are stored in the database: hash of the containing block, plus index
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct PointerToBlock {
+    pub block_hash: Hash,
+    pub transaction_index: TransactionPointer,
 }
 
 /// Inventory element: block, txns

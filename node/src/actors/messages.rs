@@ -15,8 +15,8 @@ use witnet_data_structures::radon_report::RadonReport;
 use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, PublicKeyHash, RADRequest, RADTally, Reputation,
-        ValueTransferOutput,
+        InventoryEntry, InventoryItem, PointerToBlock, PublicKeyHash, RADRequest, RADTally,
+        Reputation, ValueTransferOutput,
     },
     transaction::{CommitTransaction, RevealTransaction, Transaction},
 };
@@ -382,10 +382,19 @@ impl Message for GetEpochConstants {
 // MESSAGES FROM INVENTORY MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////
 
+/// Inventory element: block, txns
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum StoreInventoryItem {
+    /// Blocks are stored with all the transactions inside
+    Block(Box<Block>),
+    /// Transactions are stored as pointers to blocks
+    Transaction(Hash, PointerToBlock),
+}
+
 /// Add a new item
 pub struct AddItem {
     /// Item
-    pub item: InventoryItem,
+    pub item: StoreInventoryItem,
 }
 
 impl Message for AddItem {

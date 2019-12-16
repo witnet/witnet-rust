@@ -6,7 +6,7 @@ use std::{cmp::Ordering, collections::HashMap};
 use witnet_data_structures::{
     chain::{
         ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch, Hash, Hashable,
-        InventoryItem, PublicKeyHash, Reputation,
+        PublicKeyHash, Reputation,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -22,7 +22,7 @@ use crate::{
             BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
             GetDataRequestReport, GetHighestCheckpointBeacon, GetReputation, GetReputationAll,
             GetReputationStatus, GetReputationStatusResult, GetState, PeersBeacons, SendLastBeacon,
-            SessionUnitResult, TryMineBlock,
+            SessionUnitResult, StoreInventoryItem, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -498,7 +498,9 @@ impl Handler<PeersBeacons> for ChainManager {
                                     log::info!("{}", SYNCED_BANNER);
                                     self.persist_item(
                                         ctx,
-                                        InventoryItem::Block(consensus_block.clone()),
+                                        StoreInventoryItem::Block(Box::new(
+                                            consensus_block.clone(),
+                                        )),
                                     );
                                     StateMachine::Synced
                                 }
