@@ -116,7 +116,7 @@ fn test_operate_reduce_mode_str_invalid() {
         RadonString::from("Bye world!").into(),
     ]);
     let output = mode(&input).unwrap_err();
-    assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [String(RadonString { value: \"Hello world!\" }), String(RadonString { value: \"Bye world!\" })], inner_type: Discriminant(8) }`");
+    assert_eq!(output.to_string(), "There was a tie after applying the mode reducer on values: `RadonArray { value: [String(RadonString { value: \"Hello world!\" }), String(RadonString { value: \"Bye world!\" })], inner_type: Discriminant(7) }`");
 }
 
 #[test]

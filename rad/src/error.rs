@@ -200,6 +200,9 @@ pub enum RadError {
     /// Timeout during retrieval phase
     #[fail(display = "Timeout during retrieval phase")]
     RetrieveTimeout,
+    /// Tagged error code from CBOR value
+    #[fail(display = "Tagged error with code {}", code)]
+    TaggedError { code: u8 },
 }
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and

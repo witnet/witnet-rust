@@ -15,8 +15,7 @@ use crate::{
     operators::Operable,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        integer::RadonInteger, map::RadonMap, mixed::RadonMixed, result::RadonResult,
-        string::RadonString,
+        integer::RadonInteger, map::RadonMap, mixed::RadonMixed, string::RadonString,
     },
 };
 
@@ -27,7 +26,6 @@ pub mod float;
 pub mod integer;
 pub mod map;
 pub mod mixed;
-pub mod result;
 pub mod string;
 
 pub trait RadonType<T>:
@@ -48,7 +46,6 @@ pub enum RadonTypes {
     Integer(RadonInteger),
     Map(RadonMap),
     Mixed(RadonMixed),
-    Result(RadonResult),
     String(RadonString),
 }
 
@@ -69,7 +66,6 @@ impl RadonTypes {
             RadonTypes::Integer(_) => RadonInteger::radon_type_name(),
             RadonTypes::Map(_) => RadonMap::radon_type_name(),
             RadonTypes::Mixed(_) => RadonMixed::radon_type_name(),
-            RadonTypes::Result(_) => RadonResult::radon_type_name(),
             RadonTypes::String(_) => RadonString::radon_type_name(),
         }
     }
@@ -83,7 +79,6 @@ impl RadonTypes {
             RadonTypes::Integer(inner) => inner,
             RadonTypes::Map(inner) => inner,
             RadonTypes::Mixed(inner) => inner,
-            RadonTypes::Result(inner) => inner,
             RadonTypes::String(inner) => inner,
         }
     }
@@ -129,7 +124,6 @@ impl fmt::Display for RadonTypes {
             RadonTypes::Integer(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Map(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Mixed(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::Result(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::String(inner) => write!(f, "RadonTypes::{}", inner),
         }
     }
@@ -177,12 +171,6 @@ impl From<RadonMixed> for RadonTypes {
     }
 }
 
-impl From<RadonResult> for RadonTypes {
-    fn from(result: RadonResult) -> Self {
-        RadonTypes::Result(result)
-    }
-}
-
 impl From<RadonString> for RadonTypes {
     fn from(string: RadonString) -> Self {
         RadonTypes::String(string)
@@ -225,7 +213,6 @@ impl TryFrom<RadonTypes> for Value {
             RadonTypes::Integer(radon_integer) => radon_integer.try_into(),
             RadonTypes::Map(radon_map) => radon_map.try_into(),
             RadonTypes::Mixed(radon_mixed) => radon_mixed.try_into(),
-            RadonTypes::Result(radon_result) => radon_result.try_into(),
             RadonTypes::String(radon_string) => radon_string.try_into(),
         }
     }
@@ -274,11 +261,12 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
         use serde_cbor::Value as SerdeCborValue;
 
         match cbor_value {
-            // If the tag is 37, we treat the value as a `RadonResult`, otherwise we ignore the tag,
+            // If the tag is 37, we encode the error in a `RadError`, otherwise we ignore the tag,
             // unbox the tagged value and decode it through recurrently calling this same function.
             CborValue::Tagged(tag, boxed) => match (tag, std::boxed::Box::leak(boxed.clone())) {
                 (cbor::types::Tag::Unassigned(37), CborValue::U8(error_code)) => {
-                    Ok(RadonTypes::Result(RadonResult::from(Err(*error_code))))
+                    let code = *error_code;
+                    Err(RadError::TaggedError { code })
                 }
                 (_, other) => RadonTypes::try_from(&*other),
             },
