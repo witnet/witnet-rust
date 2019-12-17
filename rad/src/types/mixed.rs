@@ -9,6 +9,7 @@ use crate::{
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };
+use std::convert::TryFrom;
 use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_MIXED_TYPE_NAME: &str = "RadonMixed";
@@ -46,6 +47,19 @@ impl RadonType<Value> for RadonMixed {
 impl From<Value> for RadonMixed {
     fn from(value: Value) -> Self {
         RadonMixed { value }
+    }
+}
+
+impl TryFrom<RadonTypes> for RadonMixed {
+    type Error = RadError;
+
+    fn try_from(item: RadonTypes) -> Result<Self, Self::Error> {
+        if let RadonTypes::Mixed(rad_mixed) = item {
+            Ok(rad_mixed)
+        } else {
+            let value = Value::try_from(item)?;
+            Ok(RadonMixed { value })
+        }
     }
 }
 

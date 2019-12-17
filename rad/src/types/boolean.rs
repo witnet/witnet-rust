@@ -48,6 +48,19 @@ impl TryFrom<Value> for RadonBoolean {
     }
 }
 
+impl TryFrom<RadonTypes> for RadonBoolean {
+    type Error = RadError;
+
+    fn try_from(item: RadonTypes) -> Result<Self, Self::Error> {
+        if let RadonTypes::Boolean(rad_bool) = item {
+            Ok(rad_bool)
+        } else {
+            let value = Value::try_from(item)?;
+            value.try_into()
+        }
+    }
+}
+
 impl TryInto<Value> for RadonBoolean {
     type Error = RadError;
 

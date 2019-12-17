@@ -120,6 +120,19 @@ impl TryFrom<Value> for RadonArray {
     }
 }
 
+impl TryFrom<RadonTypes> for RadonArray {
+    type Error = RadError;
+
+    fn try_from(item: RadonTypes) -> Result<Self, Self::Error> {
+        if let RadonTypes::Array(rad_array) = item {
+            Ok(rad_array)
+        } else {
+            let value = Value::try_from(item)?;
+            value.try_into()
+        }
+    }
+}
+
 impl TryInto<Value> for RadonArray {
     type Error = RadError;
 

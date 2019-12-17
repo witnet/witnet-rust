@@ -74,6 +74,19 @@ impl TryFrom<Value> for RadonMap {
     }
 }
 
+impl TryFrom<RadonTypes> for RadonMap {
+    type Error = RadError;
+
+    fn try_from(item: RadonTypes) -> Result<Self, Self::Error> {
+        if let RadonTypes::Map(rad_map) = item {
+            Ok(rad_map)
+        } else {
+            let value = Value::try_from(item)?;
+            value.try_into()
+        }
+    }
+}
+
 impl TryInto<Value> for RadonMap {
     type Error = RadError;
 

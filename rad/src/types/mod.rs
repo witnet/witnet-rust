@@ -31,7 +31,7 @@ pub mod result;
 pub mod string;
 
 pub trait RadonType<T>:
-    fmt::Display + From<T> + PartialEq + TryFrom<Value> + TryInto<Value>
+    fmt::Display + From<T> + PartialEq + TryFrom<Value> + TryInto<Value> + TryFrom<RadonTypes>
 where
     T: fmt::Debug,
 {
