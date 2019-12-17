@@ -1380,6 +1380,19 @@ impl TransactionsPool {
             retain
         });
     }
+
+    /// Get transaction by hash
+    // FIXME(#918): only vtt and drt are supported, commits and reveals are not indexed by hash
+    pub fn get(&self, hash: &Hash) -> Option<Transaction> {
+        self.vt_transactions
+            .get(hash)
+            .map(|(_weight, vtt)| Transaction::ValueTransfer(vtt.clone()))
+            .or_else(|| {
+                self.dr_transactions
+                    .get(hash)
+                    .map(|drt| Transaction::DataRequest(drt.clone()))
+            })
+    }
 }
 
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)

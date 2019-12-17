@@ -25,6 +25,8 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
+use crate::actors::inventory_manager::InventoryManagerError;
+use crate::actors::messages::GetMemoryTransaction;
 use crate::{
     actors::{
         chain_manager::{ChainManager, ChainManagerError, StateMachine},
@@ -436,18 +438,45 @@ pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcRes
                         Ok(x) => x,
                         Err(e) => {
                             let err = internal_error(e);
-                            return futures::failed(err);
+                            let fut: JsonRpcResultAsync = Box::new(futures::failed(err));
+                            return fut;
                         }
                     };
-                    futures::finished(value)
+                    let fut: JsonRpcResultAsync = Box::new(futures::finished(value));
+                    fut
+                }
+                Ok(Err(InventoryManagerError::ItemNotFound)) => {
+                    let chain_manager = ChainManager::from_registry();
+                    Box::new(chain_manager.send(GetMemoryTransaction { hash }).then(
+                        |res| match res {
+                            Ok(Ok(output)) => {
+                                let value = match serde_json::to_value(output) {
+                                    Ok(x) => x,
+                                    Err(e) => {
+                                        let err = internal_error(e);
+                                        return futures::failed(err);
+                                    }
+                                };
+                                futures::finished(value)
+                            }
+                            Ok(Err(())) => {
+                                let err = internal_error(InventoryManagerError::ItemNotFound);
+                                futures::failed(err)
+                            }
+                            Err(e) => {
+                                let err = internal_error(e);
+                                futures::failed(err)
+                            }
+                        },
+                    ))
                 }
                 Ok(Err(e)) => {
                     let err = internal_error(e);
-                    futures::failed(err)
+                    Box::new(futures::failed(err))
                 }
                 Err(e) => {
                     let err = internal_error(e);
-                    futures::failed(err)
+                    Box::new(futures::failed(err))
                 }
             }),
     )

@@ -20,9 +20,9 @@ use crate::{
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddTransaction, Anycast, Broadcast,
             BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
-            GetDataRequestReport, GetHighestCheckpointBeacon, GetReputation, GetReputationAll,
-            GetReputationStatus, GetReputationStatusResult, GetState, PeersBeacons, SendLastBeacon,
-            SessionUnitResult, StoreInventoryItem, TryMineBlock,
+            GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetReputation,
+            GetReputationAll, GetReputationStatus, GetReputationStatusResult, GetState,
+            PeersBeacons, SendLastBeacon, SessionUnitResult, StoreInventoryItem, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -891,5 +891,13 @@ impl Handler<AddCommitReveal> for ChainManager {
         ) {
             log::warn!("Failed to add commit transaction: {}", e);
         }
+    }
+}
+
+impl Handler<GetMemoryTransaction> for ChainManager {
+    type Result = Result<Transaction, ()>;
+
+    fn handle(&mut self, msg: GetMemoryTransaction, _ctx: &mut Self::Context) -> Self::Result {
+        self.transactions_pool.get(&msg.hash).ok_or(())
     }
 }

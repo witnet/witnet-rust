@@ -259,6 +259,16 @@ impl Message for AddCommitReveal {
     type Result = ();
 }
 
+/// Get transaction from mempool by hash
+pub struct GetMemoryTransaction {
+    /// item hash
+    pub hash: Hash,
+}
+
+impl Message for GetMemoryTransaction {
+    type Result = Result<Transaction, ()>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////
