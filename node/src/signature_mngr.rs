@@ -107,7 +107,7 @@ fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = 
     let master_key = ExtendedSecretKey::from(master_key);
 
     storage_mngr::put(&MASTER_KEY, &master_key).inspect(|_| {
-        log::debug!("Successfully persisted the extended secret key into storage");
+        log::trace!("Successfully persisted the extended secret key into storage");
     })
 }
 

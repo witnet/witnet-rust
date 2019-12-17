@@ -38,7 +38,7 @@ use actix::{
 use ansi_term::Color::{Purple, White, Yellow};
 use failure::Fail;
 use itertools::Itertools;
-use log::{debug, error, info, warn};
+use log::{error, info, trace, warn};
 
 use witnet_data_structures::{
     chain::{
@@ -173,7 +173,7 @@ impl ChainManager {
         storage_mngr::put(&CHAIN_STATE_KEY, &self.last_chain_state)
             .into_actor(self)
             .and_then(|_, _, _| {
-                debug!("Successfully persisted chain_info into storage");
+                trace!("Successfully persisted chain_info into storage");
                 fut::ok(())
             })
             .map_err(|err, _, _| error!("Failed to persist chain_info into storage: {}", err))
@@ -217,7 +217,7 @@ impl ChainManager {
             .into_actor(self)
             .map_err(|e, _, _| error!("Failed to persist data request report into storage: {}", e))
             .and_then(move |_, _, _| {
-                debug!(
+                trace!(
                     "Successfully persisted report for data request {} into storage",
                     dr_pointer_string
                 );

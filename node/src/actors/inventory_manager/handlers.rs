@@ -36,7 +36,7 @@ impl Handler<AddItem> for InventoryManager {
                         InventoryManagerError::MailBoxError(e)
                     })
                     .and_then(move |_, _, ctx| {
-                        log::debug!("Successfully persisted block in storage");
+                        log::trace!("Successfully persisted block in storage");
                         // Store all the transactions as well
                         let items_to_add = block.txns.create_pointers_to_transactions(block_hash);
                         let items = items_to_add
@@ -65,7 +65,7 @@ impl Handler<AddItem> for InventoryManager {
                         InventoryManagerError::MailBoxError(e)
                     })
                     .and_then(|_, _, _| {
-                        log::debug!("Successfully persisted transaction in storage");
+                        log::trace!("Successfully persisted transaction in storage");
                         fut::ok(())
                     });
 

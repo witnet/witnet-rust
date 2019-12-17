@@ -51,7 +51,7 @@ impl PeersManager {
             storage_mngr::put(&PEERS_KEY, &act.peers)
                 .into_actor(act)
                 .and_then(|_, _, _| {
-                    log::debug!("PeersManager successfully persisted peers to storage");
+                    log::trace!("PeersManager successfully persisted peers to storage");
                     fut::ok(())
                 })
                 .map_err(|err, _, _| {
