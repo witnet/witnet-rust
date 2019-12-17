@@ -411,6 +411,16 @@ impl Message for AddItem {
     type Result = Result<(), InventoryManagerError>;
 }
 
+/// Add a new item
+pub struct AddItems {
+    /// Item
+    pub items: Vec<StoreInventoryItem>,
+}
+
+impl Message for AddItems {
+    type Result = ();
+}
+
 /// Ask for an item identified by its hash
 pub struct GetItem {
     /// item kind and hash

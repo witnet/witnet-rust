@@ -4,7 +4,7 @@ use log;
 
 use super::{InventoryManager, InventoryManagerError};
 use crate::actors::messages::{
-    AddItem, GetItem, GetItemBlock, GetItemTransaction, StoreInventoryItem,
+    AddItem, AddItems, GetItem, GetItemBlock, GetItemTransaction, StoreInventoryItem,
 };
 use crate::storage_mngr;
 use witnet_data_structures::chain::{
@@ -39,14 +39,13 @@ impl Handler<AddItem> for InventoryManager {
                         log::debug!("Successfully persisted block in storage");
                         // Store all the transactions as well
                         let items_to_add = block.txns.create_pointers_to_transactions(block_hash);
-
-                        for (tx_hash, pointer_to_block) in items_to_add {
-                            // TODO: is it a good idea to saturate the actor this way?
-                            // TODO: implement AddItems
-                            ctx.notify(AddItem {
-                                item: StoreInventoryItem::Transaction(tx_hash, pointer_to_block),
-                            });
-                        }
+                        let items = items_to_add
+                            .into_iter()
+                            .map(|(tx_hash, pointer_to_block)| {
+                                StoreInventoryItem::Transaction(tx_hash, pointer_to_block)
+                            })
+                            .collect();
+                        ctx.notify(AddItems { items });
 
                         fut::ok(())
                     });
@@ -54,7 +53,6 @@ impl Handler<AddItem> for InventoryManager {
                 Box::new(fut)
             }
             StoreInventoryItem::Transaction(hash, pointer_to_block) => {
-                log::info!("Saving transaction {}", hash);
                 let mut key = match hash {
                     Hash::SHA256(h) => h.to_vec(),
                 };
@@ -73,6 +71,22 @@ impl Handler<AddItem> for InventoryManager {
 
                 Box::new(fut)
             }
+        }
+    }
+}
+
+/// Handler for AddItems message
+impl Handler<AddItems> for InventoryManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: AddItems, ctx: &mut Context<Self>) -> Self::Result {
+        log::trace!("Persisting {} items in storage", msg.items.len());
+        // FIXME(919): instead of calling AddItem in a for loop, persist the items in batch:
+        // * Implement batch storage API
+        // * Move the logic from AddItem here, and make AddItem call AddItems with vec![item]
+        // * Return a better result than `()`
+        for item in msg.items {
+            ctx.notify(AddItem { item });
         }
     }
 }

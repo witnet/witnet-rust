@@ -496,11 +496,11 @@ impl Handler<PeersBeacons> for ChainManager {
                                 Ok(()) => {
                                     log::info!("Consolidate consensus candidate. Synced state");
                                     log::info!("{}", SYNCED_BANNER);
-                                    self.persist_item(
+                                    self.persist_items(
                                         ctx,
-                                        StoreInventoryItem::Block(Box::new(
+                                        vec![StoreInventoryItem::Block(Box::new(
                                             consensus_block.clone(),
-                                        )),
+                                        ))],
                                     );
                                     StateMachine::Synced
                                 }
