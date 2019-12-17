@@ -24,11 +24,9 @@ impl Handler<AddItem> for InventoryManager {
         match msg.item {
             StoreInventoryItem::Block(block) => {
                 let block_hash = block.hash();
-                let mut key = match block_hash {
+                let key = match block_hash {
                     Hash::SHA256(h) => h.to_vec(),
                 };
-                // Add prefix to key to avoid confusing blocks with transactions
-                key.insert(0, b'B');
                 let fut = storage_mngr::put(&key, &block)
                     .into_actor(self)
                     .map_err(|e, _, _| {
@@ -53,11 +51,9 @@ impl Handler<AddItem> for InventoryManager {
                 Box::new(fut)
             }
             StoreInventoryItem::Transaction(hash, pointer_to_block) => {
-                let mut key = match hash {
+                let key = match hash {
                     Hash::SHA256(h) => h.to_vec(),
                 };
-                // Add prefix to key to avoid confusing blocks with transactions
-                key.insert(0, b'T');
                 let fut = storage_mngr::put(&key, &pointer_to_block)
                     .into_actor(self)
                     .map_err(|e, _, _| {
@@ -116,13 +112,11 @@ impl Handler<GetItemBlock> for InventoryManager {
     type Result = ResponseActFuture<Self, Block, InventoryManagerError>;
 
     fn handle(&mut self, msg: GetItemBlock, _ctx: &mut Context<Self>) -> Self::Result {
-        let mut key_block = match msg.hash {
+        let key = match msg.hash {
             Hash::SHA256(x) => x.to_vec(),
         };
-        // Block prefix
-        key_block.insert(0, b'B');
 
-        let fut = storage_mngr::get::<_, Block>(&key_block)
+        let fut = storage_mngr::get::<_, Block>(&key)
             .into_actor(self)
             .then(move |res, _, _| match res {
                 Ok(opt) => match opt {
@@ -145,13 +139,11 @@ impl Handler<GetItemTransaction> for InventoryManager {
     type Result = ResponseActFuture<Self, (Transaction, PointerToBlock), InventoryManagerError>;
 
     fn handle(&mut self, msg: GetItemTransaction, _ctx: &mut Context<Self>) -> Self::Result {
-        let mut key_transaction = match msg.hash {
+        let key = match msg.hash {
             Hash::SHA256(x) => x.to_vec(),
         };
-        // First try to read block
-        key_transaction.insert(0, b'T');
 
-        let fut = storage_mngr::get::<_, PointerToBlock>(&key_transaction)
+        let fut = storage_mngr::get::<_, PointerToBlock>(&key)
             .into_actor(self)
             .then(|res, act, ctx| match res {
                 Ok(opt) => match opt {
