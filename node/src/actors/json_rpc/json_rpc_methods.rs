@@ -421,6 +421,17 @@ pub fn get_block(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsy
     )
 }
 
+/// Format of the output of getTransaction
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetTransactionOutput {
+    /// Transaction
+    pub transaction: Transaction,
+    /// Hash of the block that contains this transaction in hex format,
+    /// or "pending" if the transaction has not been included in any block yet
+    pub block_hash: String,
+}
+
 /// Get transaction by hash
 pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
     let hash = match hash {
@@ -433,7 +444,11 @@ pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcRes
         inventory_manager
             .send(GetItemTransaction { hash })
             .then(move |res| match res {
-                Ok(Ok(output)) => {
+                Ok(Ok((transaction, pointer_to_block))) => {
+                    let output = GetTransactionOutput {
+                        transaction,
+                        block_hash: pointer_to_block.block_hash.to_string(),
+                    };
                     let value = match serde_json::to_value(output) {
                         Ok(x) => x,
                         Err(e) => {
@@ -449,7 +464,11 @@ pub fn get_transaction(hash: Result<(Hash,), jsonrpc_core::Error>) -> JsonRpcRes
                     let chain_manager = ChainManager::from_registry();
                     Box::new(chain_manager.send(GetMemoryTransaction { hash }).then(
                         |res| match res {
-                            Ok(Ok(output)) => {
+                            Ok(Ok(transaction)) => {
+                                let output = GetTransactionOutput {
+                                    transaction,
+                                    block_hash: "pending".to_string(),
+                                };
                                 let value = match serde_json::to_value(output) {
                                     Ok(x) => x,
                                     Err(e) => {

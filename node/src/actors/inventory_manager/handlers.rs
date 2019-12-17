@@ -99,7 +99,7 @@ impl Handler<GetItem> for InventoryManager {
         let fut: Self::Result = match msg.item {
             InventoryEntry::Tx(hash) => Box::new(
                 self.handle(GetItemTransaction { hash }, ctx)
-                    .map(|tx, _, _| InventoryItem::Transaction(tx)),
+                    .map(|(tx, _pointer_to_block), _, _| InventoryItem::Transaction(tx)),
             ),
             InventoryEntry::Block(hash) => Box::new(
                 self.handle(GetItemBlock { hash }, ctx)
@@ -142,7 +142,7 @@ impl Handler<GetItemBlock> for InventoryManager {
 
 /// Handler for GetItem message
 impl Handler<GetItemTransaction> for InventoryManager {
-    type Result = ResponseActFuture<Self, Transaction, InventoryManagerError>;
+    type Result = ResponseActFuture<Self, (Transaction, PointerToBlock), InventoryManagerError>;
 
     fn handle(&mut self, msg: GetItemTransaction, _ctx: &mut Context<Self>) -> Self::Result {
         let mut key_transaction = match msg.hash {
@@ -175,7 +175,7 @@ impl Handler<GetItemTransaction> for InventoryManager {
                                         // Read transaction from block
                                         let tx = block.txns.get(pointer_to_block.transaction_index);
                                         match tx {
-                                            Some(tx) if tx.hash() == msg.hash => fut::ok(tx),
+                                            Some(tx) if tx.hash() == msg.hash => fut::ok((tx, pointer_to_block)),
                                             Some(_tx) => {
                                                 // The transaction hash does not match
                                                 fut::err(InventoryManagerError::NoTransactionInPointedBlock(pointer_to_block))

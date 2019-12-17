@@ -448,7 +448,7 @@ pub struct GetItemTransaction {
 }
 
 impl Message for GetItemTransaction {
-    type Result = Result<Transaction, InventoryManagerError>;
+    type Result = Result<(Transaction, PointerToBlock), InventoryManagerError>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
