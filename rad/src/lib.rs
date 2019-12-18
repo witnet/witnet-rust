@@ -11,6 +11,9 @@ use crate::{
     types::{array::RadonArray, string::RadonString, RadonTypes},
 };
 
+pub use serde_cbor::to_vec as cbor_to_vec;
+pub use serde_cbor::Value as CborValue;
+
 pub mod error;
 pub mod filters;
 pub mod hash_functions;
