@@ -88,6 +88,8 @@ fn test_dr(path: &str, data: &[&str], expected_result: RadonTypes) {
 }
 
 #[test]
+#[ignore]
+// TODO(#916): Remove those ignores after implement #916
 fn run_examples_bitcoin_price() {
     test_dr(
         "examples/bitcoin_price.json",
@@ -97,6 +99,8 @@ fn run_examples_bitcoin_price() {
 }
 
 #[test]
+#[ignore]
+// TODO(#916): Remove those ignores after implement #916
 fn run_examples_random_source() {
     test_dr(
         "examples/random_source.json",
@@ -106,6 +110,8 @@ fn run_examples_random_source() {
 }
 
 #[test]
+#[ignore]
+// TODO(#916): Remove those ignores after implement #916
 fn run_examples_bitcoin_price_multiple_sources() {
     test_dr(
         "examples/bitcoin_price_multiple_sources.json",
