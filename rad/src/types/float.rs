@@ -71,9 +71,17 @@ impl TryInto<Value> for RadonFloat {
     }
 }
 
-impl<'a> From<f64> for RadonFloat {
+impl From<f64> for RadonFloat {
     fn from(value: f64) -> Self {
         RadonFloat { value }
+    }
+}
+
+impl From<i32> for RadonFloat {
+    fn from(value: i32) -> Self {
+        RadonFloat {
+            value: value as f64,
+        }
     }
 }
 
@@ -85,7 +93,7 @@ impl TryFrom<&str> for RadonFloat {
     }
 }
 
-impl<'a> Operable for RadonFloat {
+impl Operable for RadonFloat {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             // Identity

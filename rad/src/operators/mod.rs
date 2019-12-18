@@ -102,8 +102,8 @@ pub enum RadonOpCodes {
     StringAsInteger = 0x73,
     StringLength = 0x74,
     StringMatch = 0x75,
-    //    StringParseJSONArray = 0x76,
-    //    StringParseJSONMap = 0x77,
+    StringParseJSONArray = 0x76,
+    StringParseJSONMap = 0x77,
     //    StringParseXML = 0x78,
     StringToLowerCase = 0x79,
     StringToUpperCase = 0x7A,
@@ -121,7 +121,6 @@ pub enum RadonOpCodes {
     IntegerAsMixed = 0xA2,
     FloatAsMixed = 0xA3,
     StringAsMixed = 0xA4,
-    StringParseJSON = 0xA5,
 }
 
 impl fmt::Display for RadonOpCodes {

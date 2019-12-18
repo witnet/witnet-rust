@@ -84,9 +84,6 @@ impl Operable for RadonString {
             (RadonOpCodes::StringAsMixed, None) => {
                 Ok(RadonTypes::from(string_operators::to_mixed(self.clone())))
             }
-            (RadonOpCodes::StringParseJSON, None) => {
-                string_operators::parse_json(self).map(RadonTypes::Mixed)
-            }
             (RadonOpCodes::StringAsFloat, None) => string_operators::to_float(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
@@ -94,6 +91,12 @@ impl Operable for RadonString {
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::StringAsBoolean, None) => string_operators::to_bool(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
+            (RadonOpCodes::StringParseJSONArray, None) => string_operators::parse_json_array(self)
+                .map(RadonTypes::from)
+                .map_err(Into::into),
+            (RadonOpCodes::StringParseJSONMap, None) => string_operators::parse_json_map(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),
             (RadonOpCodes::StringMatch, Some(args)) => {
@@ -140,36 +143,6 @@ fn test_operate_identity() {
     let output = input.operate(&call).unwrap();
 
     assert_eq!(output, expected);
-}
-
-#[test]
-fn test_operate_parsejson() {
-    let valid_string = RadonString::from(r#"{ "Hello": "world" }"#);
-    let invalid_string = RadonString::from(r#"{ "Not a JSON": }"#);
-
-    let call = (RadonOpCodes::StringParseJSON, None);
-    let valid_object = valid_string.operate(&call).unwrap();
-    let invalid_object = invalid_string.operate(&call);
-
-    assert!(if let RadonTypes::Mixed(bytes) = valid_object {
-        if let serde_cbor::value::Value::Map(vector) = bytes.value() {
-            if let Some((Value::Text(key), Value::Text(val))) = vector.iter().next() {
-                key == "Hello" && val == "world"
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    } else {
-        false
-    });
-
-    assert!(if let Err(_error) = invalid_object {
-        true
-    } else {
-        false
-    });
 }
 
 #[test]

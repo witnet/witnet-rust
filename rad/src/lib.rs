@@ -152,8 +152,7 @@ mod tests {
     #[test]
     fn test_run_retrieval() {
         let script_r = Value::Array(vec![
-            Value::Integer(RadonOpCodes::StringParseJSON as i128),
-            Value::Integer(RadonOpCodes::MixedAsMap as i128),
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
             Value::Array(vec![
                 Value::Integer(RadonOpCodes::MapGetMap as i128),
                 Value::Text("main".to_string()),
@@ -309,8 +308,7 @@ mod tests {
     #[test]
     fn test_run_all_air_quality() {
         let script_r = Value::Array(vec![
-            Value::Integer(RadonOpCodes::StringParseJSON as i128),
-            Value::Integer(RadonOpCodes::MixedAsArray as i128),
+            Value::Integer(RadonOpCodes::StringParseJSONArray as i128),
             Value::Array(vec![
                 Value::Integer(RadonOpCodes::ArrayGetMap as i128),
                 Value::Integer(0 as i128),
@@ -375,8 +373,7 @@ mod tests {
         use crate::types::RadonType;
 
         let script_r = Value::Array(vec![
-            Value::Integer(RadonOpCodes::StringParseJSON as i128),
-            Value::Integer(RadonOpCodes::MixedAsMap as i128),
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
             Value::Array(vec![
                 Value::Integer(RadonOpCodes::MapGetFloat as i128),
                 Value::Text("PSOE".to_string()),
@@ -420,8 +417,7 @@ mod tests {
         use crate::types::integer::RadonInteger;
 
         let script_r = Value::Array(vec![
-            Value::Integer(RadonOpCodes::StringParseJSON as i128),
-            Value::Integer(RadonOpCodes::MixedAsMap as i128),
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
             Value::Array(vec![
                 Value::Integer(RadonOpCodes::MapGetMap as i128),
                 Value::Text("event".to_string()),

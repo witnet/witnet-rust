@@ -1,6 +1,10 @@
 use json;
 use serde_cbor::value::{from_value, Value};
-use std::{convert::TryFrom, error::Error, str::FromStr};
+use std::{
+    convert::{TryFrom, TryInto},
+    error::Error,
+    str::FromStr,
+};
 
 use crate::{
     error::RadError,
@@ -16,17 +20,28 @@ pub fn to_mixed(input: RadonString) -> RadonMixed {
     RadonMixed::from(Value::Text(input.value()))
 }
 
-pub fn parse_json(input: &RadonString) -> Result<RadonMixed, RadError> {
+pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
     match json::parse(&input.value()) {
         Ok(json_value) => {
             let value = json_to_cbor(&json_value);
-            Ok(RadonMixed::from(value))
+            RadonTypes::try_from(value)
         }
         Err(json_error) => Err(RadError::JsonParse {
             description: json_error.description().to_owned(),
         }),
     }
 }
+
+pub fn parse_json_map(input: &RadonString) -> Result<RadonMap, RadError> {
+    let item = parse_json(input)?;
+    item.try_into()
+}
+
+pub fn parse_json_array(input: &RadonString) -> Result<RadonArray, RadError> {
+    let item = parse_json(input)?;
+    item.try_into()
+}
+
 pub fn to_float(input: &RadonString) -> Result<RadonFloat, RadError> {
     f64::from_str(&input.value())
         .map(RadonFloat::from)
@@ -127,31 +142,72 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
 mod tests {
     use super::*;
     use crate::types::{array::RadonArray, bytes::RadonBytes};
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashMap};
 
     #[test]
-    fn test_parse_json() {
-        let valid_string = RadonString::from(r#"{ "Hello": "world" }"#);
-        let invalid_string = RadonString::from(r#"{ "Hello": }"#);
+    fn test_parse_json_map() {
+        let json_map = RadonString::from(r#"{ "Hello": "world" }"#);
+        let output = parse_json_map(&json_map).unwrap();
 
-        let valid_object = parse_json(&valid_string).unwrap();
-        let invalid_object = parse_json(&invalid_string);
+        let key = "Hello";
+        let value = RadonTypes::String(RadonString::from("world"));
+        let mut map = HashMap::new();
+        map.insert(key.to_string(), value.clone());
+        let expected_output = RadonMap::from(map);
 
-        assert!(if let Value::Map(map) = valid_object.value() {
-            if let Some((Value::Text(key), Value::Text(val))) = map.iter().next() {
-                key == "Hello" && val == "world"
-            } else {
-                false
-            }
-        } else {
-            false
-        });
+        assert_eq!(output, expected_output);
+    }
 
-        assert!(if let Err(_error) = invalid_object {
-            true
-        } else {
-            false
-        });
+    #[test]
+    fn test_parse_json_map_fail() {
+        let invalid_json = RadonString::from(r#"{ "Hello":  }"#);
+        let output = parse_json_map(&invalid_json).unwrap_err();
+
+        let expected_err = RadError::JsonParse {
+            description: "Unexpected character".to_string(),
+        };
+        assert_eq!(output, expected_err);
+
+        let json_array = RadonString::from(r#"[1,2,3]"#);
+        let output = parse_json_map(&json_array).unwrap_err();
+        let expected_err = RadError::Decode {
+            from: "cbor::value::Value".to_string(),
+            to: RadonMap::radon_type_name(),
+        };
+        assert_eq!(output, expected_err);
+    }
+
+    #[test]
+    fn test_parse_json_array() {
+        let json_array = RadonString::from(r#"[1,2,3]"#);
+        let output = parse_json_array(&json_array).unwrap();
+
+        let expected_output = RadonArray::from(vec![
+            RadonTypes::Float(RadonFloat::from(1)),
+            RadonTypes::Float(RadonFloat::from(2)),
+            RadonTypes::Float(RadonFloat::from(3)),
+        ]);
+
+        assert_eq!(output, expected_output);
+    }
+
+    #[test]
+    fn test_parse_json_array_fail() {
+        let invalid_json = RadonString::from(r#"{ "Hello":  }"#);
+        let output = parse_json_array(&invalid_json).unwrap_err();
+
+        let expected_err = RadError::JsonParse {
+            description: "Unexpected character".to_string(),
+        };
+        assert_eq!(output, expected_err);
+
+        let json_map = RadonString::from(r#"{ "Hello": "world" }"#);
+        let output = parse_json_array(&json_map).unwrap_err();
+        let expected_err = RadError::Decode {
+            from: "cbor::value::Value".to_string(),
+            to: RadonArray::radon_type_name(),
+        };
+        assert_eq!(output, expected_err);
     }
 
     #[test]

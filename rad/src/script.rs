@@ -116,8 +116,7 @@ fn test_execute_radon_script() {
 
     let input = RadonString::from(r#"{"coord":{"lon":13.41,"lat":52.52},"weather":[{"id":600,"main":"Snow","description":"light snow","icon":"13n"}],"base":"stations","main":{"temp":-4,"pressure":1013,"humidity":73,"temp_min":-4,"temp_max":-4},"visibility":10000,"wind":{"speed":2.6,"deg":90},"clouds":{"all":75},"dt":1548346800,"sys":{"type":1,"id":1275,"message":0.0038,"country":"DE","sunrise":1548313160,"sunset":1548344298},"id":2950159,"name":"Berlin","cod":200}"#).into();
     let script = vec![
-        (RadonOpCodes::StringParseJSON, None),
-        (RadonOpCodes::MixedAsMap, None),
+        (RadonOpCodes::StringParseJSONMap, None),
         (
             RadonOpCodes::MapGetMap,
             Some(vec![Value::Text(String::from("main"))]),
@@ -137,8 +136,7 @@ fn test_execute_radon_script() {
 #[test]
 fn test_unpack_radon_script() {
     let cbor_vec = Value::Array(vec![
-        Value::Integer(RadonOpCodes::StringParseJSON as i128),
-        Value::Integer(RadonOpCodes::MixedAsMap as i128),
+        Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
         Value::Array(vec![
             Value::Integer(RadonOpCodes::MapGetMap as i128),
             Value::Text(String::from("main")),
@@ -151,8 +149,7 @@ fn test_unpack_radon_script() {
     let packed = serde_cbor::to_vec(&cbor_vec).unwrap();
 
     let expected = vec![
-        (RadonOpCodes::StringParseJSON, None),
-        (RadonOpCodes::MixedAsMap, None),
+        (RadonOpCodes::StringParseJSONMap, None),
         (
             RadonOpCodes::MapGetMap,
             Some(vec![Value::Text(String::from("main"))]),
