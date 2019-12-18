@@ -10,7 +10,7 @@ use super::json_rpc_client as rpc;
 
 pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Error> {
     match command {
-        Command::Block { node, hash } => {
+        Command::GetBlock { node, hash } => {
             rpc::get_block(node.unwrap_or(config.jsonrpc.server_address), hash)
         }
         Command::GetTransaction { node, hash } => {
@@ -110,15 +110,23 @@ pub enum Command {
         #[structopt(long = "limit", default_value = "0")]
         limit: u32,
     },
-    #[structopt(name = "block", about = "Find a block by its hash ")]
-    Block {
+    #[structopt(
+        name = "getBlock",
+        alias = "block",
+        about = "Find a block by its hash "
+    )]
+    GetBlock {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         #[structopt(name = "hash", help = "SHA-256 block hash in hex format")]
         hash: String,
     },
-    #[structopt(name = "getTransaction", about = "Find a transaction by its hash ")]
+    #[structopt(
+        name = "getTransaction",
+        alias = "transaction",
+        about = "Find a transaction by its hash "
+    )]
     GetTransaction {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
