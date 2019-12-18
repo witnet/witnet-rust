@@ -91,11 +91,17 @@ pub fn eth_event_stream(
                 // This poll interval was set to 0 in the example, which resulted in the
                 // bridge having 100% cpu usage...
                 .stream(time::Duration::from_millis(eth_event_polling_rate_ms))
-                .map_err(|e| error!("ethereum event error = {:?}", e))
-                .map(move |value| {
-                    debug!("Got ethereum event: {:?}", value);
+                .then(move |res| match res {
+                    Ok(value) => {
+                        debug!("Got ethereum event: {:?}", value);
 
-                    parse_as_wbi_event(&value)
+                        Ok(parse_as_wbi_event(&value))
+                    }
+                    Err(e) => {
+                        error!("ethereum event error = {:?}", e);
+                        // Without this line the stream will stop on the first failure
+                        Ok(Err(()))
+                    }
                 })
                 .for_each(move |value| {
                     let tx4 = tx.clone();
