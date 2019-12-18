@@ -1,5 +1,8 @@
 use serde_cbor::value::{from_value, Value};
-use std::{clone::Clone, convert::TryFrom};
+use std::{
+    clone::Clone,
+    convert::{TryFrom, TryInto},
+};
 
 use crate::{
     error::RadError,
@@ -11,7 +14,6 @@ use crate::{
         integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
     },
 };
-use std::convert::TryInto;
 use witnet_data_structures::radon_report::ReportContext;
 
 pub fn count(input: &RadonArray) -> RadonInteger {
@@ -290,12 +292,11 @@ mod tests {
     use super::*;
     use crate::{
         operators::RadonOpCodes::{
-            IntegerGreaterThan, IntegerMultiply, MapGet, MixedAsFloat, MixedAsInteger,
-            MixedAsString,
+            IntegerGreaterThan, IntegerMultiply, MapGetFloat, MapGetInteger, MapGetString,
         },
         types::{
             boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, map::RadonMap,
-            mixed::RadonMixed, RadonTypes,
+            RadonTypes,
         },
     };
     use std::collections::HashMap;
@@ -701,33 +702,33 @@ mod tests {
         let mut map1 = HashMap::new();
         map1.insert(
             "key1".to_string(),
-            RadonMixed::from(Value::Text("value1".to_string())),
+            RadonTypes::String(RadonString::from("value1")),
         );
         map1.insert(
             "key2".to_string(),
-            RadonMixed::from(Value::Text("B".to_string())),
+            RadonTypes::String(RadonString::from("B")),
         );
 
         let mut map2 = HashMap::new();
 
         map2.insert(
             "key1".to_string(),
-            RadonMixed::from(Value::Text("value1".to_string())),
+            RadonTypes::String(RadonString::from("value1")),
         );
         map2.insert(
             "key2".to_string(),
-            RadonMixed::from(Value::Text("A".to_string())),
+            RadonTypes::String(RadonString::from("A")),
         );
 
         let mut map3 = HashMap::new();
 
         map3.insert(
             "key1".to_string(),
-            RadonMixed::from(Value::Text("value1".to_string())),
+            RadonTypes::String(RadonString::from("value1")),
         );
         map3.insert(
             "key2".to_string(),
-            RadonMixed::from(Value::Text("C".to_string())),
+            RadonTypes::String(RadonString::from("C")),
         );
 
         let input = RadonArray::from(vec![
@@ -735,13 +736,10 @@ mod tests {
             RadonMap::from(map2.clone()).into(),
             RadonMap::from(map3.clone()).into(),
         ]);
-        let script = vec![Value::Array(vec![
-            Value::Array(vec![
-                Value::Integer(MapGet as i128),
-                Value::Text("key2".to_string()),
-            ]),
-            Value::Integer(MixedAsString as i128),
-        ])];
+        let script = vec![Value::Array(vec![Value::Array(vec![
+            Value::Integer(MapGetString as i128),
+            Value::Text("key2".to_string()),
+        ])])];
         let output = sort(&input, &script).unwrap();
 
         let expected = RadonArray::from(vec![
@@ -756,31 +754,46 @@ mod tests {
     #[test]
     fn test_sort_map_integer_values() {
         let mut map1 = HashMap::new();
-        map1.insert("key1".to_string(), RadonMixed::from(Value::Integer(0)));
-        map1.insert("key2".to_string(), RadonMixed::from(Value::Integer(1)));
+        map1.insert(
+            "key1".to_string(),
+            RadonTypes::Integer(RadonInteger::from(0)),
+        );
+        map1.insert(
+            "key2".to_string(),
+            RadonTypes::Integer(RadonInteger::from(1)),
+        );
 
         let mut map2 = HashMap::new();
 
-        map2.insert("key1".to_string(), RadonMixed::from(Value::Integer(0)));
-        map2.insert("key2".to_string(), RadonMixed::from(Value::Integer(2)));
+        map2.insert(
+            "key1".to_string(),
+            RadonTypes::Integer(RadonInteger::from(0)),
+        );
+        map2.insert(
+            "key2".to_string(),
+            RadonTypes::Integer(RadonInteger::from(2)),
+        );
 
         let mut map3 = HashMap::new();
 
-        map3.insert("key1".to_string(), RadonMixed::from(Value::Integer(0)));
-        map3.insert("key2".to_string(), RadonMixed::from(Value::Integer(-6)));
+        map3.insert(
+            "key1".to_string(),
+            RadonTypes::Integer(RadonInteger::from(0)),
+        );
+        map3.insert(
+            "key2".to_string(),
+            RadonTypes::Integer(RadonInteger::from(-6)),
+        );
 
         let input = RadonArray::from(vec![
             RadonMap::from(map1.clone()).into(),
             RadonMap::from(map2.clone()).into(),
             RadonMap::from(map3.clone()).into(),
         ]);
-        let script = vec![Value::Array(vec![
-            Value::Array(vec![
-                Value::Integer(MapGet as i128),
-                Value::Text("key2".to_string()),
-            ]),
-            Value::Integer(MixedAsInteger as i128),
-        ])];
+        let script = vec![Value::Array(vec![Value::Array(vec![
+            Value::Integer(MapGetInteger as i128),
+            Value::Text("key2".to_string()),
+        ])])];
         let output = sort(&input, &script).unwrap();
 
         let expected = RadonArray::from(vec![
@@ -795,31 +808,46 @@ mod tests {
     #[test]
     fn test_sort_idecntial_maps_integer_values() {
         let mut map1 = HashMap::new();
-        map1.insert("key1".to_string(), RadonMixed::from(Value::Integer(1)));
-        map1.insert("key2".to_string(), RadonMixed::from(Value::Integer(1)));
+        map1.insert(
+            "key1".to_string(),
+            RadonTypes::Integer(RadonInteger::from(1)),
+        );
+        map1.insert(
+            "key2".to_string(),
+            RadonTypes::Integer(RadonInteger::from(1)),
+        );
 
         let mut map2 = HashMap::new();
 
-        map2.insert("key1".to_string(), RadonMixed::from(Value::Integer(2)));
-        map2.insert("key2".to_string(), RadonMixed::from(Value::Integer(1)));
+        map2.insert(
+            "key1".to_string(),
+            RadonTypes::Integer(RadonInteger::from(2)),
+        );
+        map2.insert(
+            "key2".to_string(),
+            RadonTypes::Integer(RadonInteger::from(1)),
+        );
 
         let mut map3 = HashMap::new();
 
-        map3.insert("key1".to_string(), RadonMixed::from(Value::Integer(3)));
-        map3.insert("key2".to_string(), RadonMixed::from(Value::Integer(1)));
+        map3.insert(
+            "key1".to_string(),
+            RadonTypes::Integer(RadonInteger::from(3)),
+        );
+        map3.insert(
+            "key2".to_string(),
+            RadonTypes::Integer(RadonInteger::from(1)),
+        );
 
         let input = RadonArray::from(vec![
             RadonMap::from(map1.clone()).into(),
             RadonMap::from(map2.clone()).into(),
             RadonMap::from(map3.clone()).into(),
         ]);
-        let script = vec![Value::Array(vec![
-            Value::Array(vec![
-                Value::Integer(MapGet as i128),
-                Value::Text("key2".to_string()),
-            ]),
-            Value::Integer(MixedAsInteger as i128),
-        ])];
+        let script = vec![Value::Array(vec![Value::Array(vec![
+            Value::Integer(MapGetInteger as i128),
+            Value::Text("key2".to_string()),
+        ])])];
         let output = sort(&input, &script).unwrap();
 
         let expected = RadonArray::from(vec![
@@ -842,51 +870,28 @@ mod tests {
             RadonMap::from(map2.clone()).into(),
             RadonMap::from(map3.clone()).into(),
         ]);
-        let script = vec![Value::Array(vec![
-            Value::Array(vec![
-                Value::Integer(MapGet as i128),
-                Value::Text("key2".to_string()),
-            ]),
-            Value::Integer(MixedAsInteger as i128),
-        ])];
+        let script = vec![Value::Array(vec![Value::Array(vec![
+            Value::Integer(MapGetInteger as i128),
+            Value::Text("key2".to_string()),
+        ])])];
         let output = sort(&input, &script).unwrap_err();
 
         assert_eq!(output.to_string(), "Failed to get key `key2` from RadonMap")
     }
 
     #[test]
-    fn test_sort_maps_without_byte_decoder() {
+    fn test_sort_map_wrong_decode() {
+        let item0 = RadonTypes::Integer(RadonInteger::from(0));
+        let item1 = RadonTypes::Integer(RadonInteger::from(1));
         let mut map1 = HashMap::new();
+        map1.insert("key1".to_string(), item0);
+        map1.insert("key2".to_string(), item1.clone());
 
-        map1.insert("key1".to_string(), RadonMixed::from(Value::Integer(0)));
-        map1.insert("key2".to_string(), RadonMixed::from(Value::Integer(1)));
         let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
         let script = vec![Value::Array(vec![Value::Array(vec![
-            Value::Integer(MapGet as i128),
+            Value::Integer(MapGetString as i128),
             Value::Text("key2".to_string()),
         ])])];
-        let output = sort(&input, &script).unwrap_err();
-
-        assert_eq!(
-            output.to_string(),
-            "ArraySort is not supported for RadonArray with inner type `RadonMixed`"
-        )
-    }
-
-    #[test]
-    fn test_sort_map_wrong_decode() {
-        let mut map1 = HashMap::new();
-        map1.insert("key1".to_string(), RadonMixed::from(Value::Integer(0)));
-        map1.insert("key2".to_string(), RadonMixed::from(Value::Integer(1)));
-
-        let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
-        let script = vec![Value::Array(vec![
-            Value::Array(vec![
-                Value::Integer(MapGet as i128),
-                Value::Text("key2".to_string()),
-            ]),
-            Value::Integer(MixedAsString as i128),
-        ])];
         let output = sort(&input, &script).unwrap_err();
 
         assert_eq!(
@@ -900,21 +905,18 @@ mod tests {
         let mut map1 = HashMap::new();
         map1.insert(
             "key1".to_string(),
-            RadonMixed::from(Value::Float(std::f64::consts::PI)),
+            RadonTypes::Float(RadonFloat::from(std::f64::consts::PI)),
         );
         map1.insert(
             "key2".to_string(),
-            RadonMixed::from(Value::Float(std::f64::consts::PI)),
+            RadonTypes::Float(RadonFloat::from(std::f64::consts::PI)),
         );
 
         let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
-        let script = vec![Value::Array(vec![
-            Value::Array(vec![
-                Value::Integer(MapGet as i128),
-                Value::Text("key2".to_string()),
-            ]),
-            Value::Integer(MixedAsFloat as i128),
-        ])];
+        let script = vec![Value::Array(vec![Value::Array(vec![
+            Value::Integer(MapGetFloat as i128),
+            Value::Text("key2".to_string()),
+        ])])];
         let output = sort(&input, &script).unwrap_err();
 
         assert_eq!(
@@ -1109,18 +1111,36 @@ mod tests {
 
     fn radon_array_of_maps() -> (RadonArray, i128, RadonMap) {
         let mut map0 = HashMap::new();
-        map0.insert("key01".to_string(), RadonMixed::from(Value::Integer(1)));
-        map0.insert("key02".to_string(), RadonMixed::from(Value::Integer(2)));
+        map0.insert(
+            "key01".to_string(),
+            RadonTypes::Integer(RadonInteger::from(1)),
+        );
+        map0.insert(
+            "key02".to_string(),
+            RadonTypes::Integer(RadonInteger::from(2)),
+        );
         let item0 = RadonMap::from(map0);
 
         let mut map1 = HashMap::new();
-        map1.insert("key11".to_string(), RadonMixed::from(Value::Integer(11)));
-        map1.insert("key12".to_string(), RadonMixed::from(Value::Integer(12)));
+        map1.insert(
+            "key11".to_string(),
+            RadonTypes::Integer(RadonInteger::from(11)),
+        );
+        map1.insert(
+            "key12".to_string(),
+            RadonTypes::Integer(RadonInteger::from(12)),
+        );
         let item1 = RadonMap::from(map1);
 
         let mut map2 = HashMap::new();
-        map2.insert("key21".to_string(), RadonMixed::from(Value::Integer(21)));
-        map2.insert("key22".to_string(), RadonMixed::from(Value::Integer(22)));
+        map2.insert(
+            "key21".to_string(),
+            RadonTypes::Integer(RadonInteger::from(21)),
+        );
+        map2.insert(
+            "key22".to_string(),
+            RadonTypes::Integer(RadonInteger::from(22)),
+        );
         let item2 = RadonMap::from(map2);
 
         let output = RadonArray::from(vec![

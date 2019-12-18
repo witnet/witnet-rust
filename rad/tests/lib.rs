@@ -1,6 +1,5 @@
 use serde_cbor::value::Value;
-use std::collections::btree_map::BTreeMap;
-use std::convert::TryFrom;
+use std::{collections::btree_map::BTreeMap, convert::TryFrom};
 use witnet_rad::types::RadonTypes;
 
 #[test]
@@ -47,7 +46,7 @@ fn test_radon_types_display() {
     let radon_map = RadonTypes::try_from(Value::Map(map)).unwrap();
     let radon_map_type_display = radon_map.to_string();
     let radon_map_expected =
-        r#"RadonTypes::RadonMap({"Hello": RadonMixed { value: Text("World") }})"#.to_string();
+        r#"RadonTypes::RadonMap({"Hello": String(RadonString { value: "World" })})"#.to_string();
     assert_eq!(radon_map_type_display, radon_map_expected);
 
     let radon_bytes = RadonTypes::try_from(Value::Bytes(vec![1, 2, 3])).unwrap();

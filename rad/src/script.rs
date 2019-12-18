@@ -119,15 +119,13 @@ fn test_execute_radon_script() {
         (RadonOpCodes::StringParseJSON, None),
         (RadonOpCodes::MixedAsMap, None),
         (
-            RadonOpCodes::MapGet,
+            RadonOpCodes::MapGetMap,
             Some(vec![Value::Text(String::from("main"))]),
         ),
-        (RadonOpCodes::MixedAsMap, None),
         (
-            RadonOpCodes::MapGet,
+            RadonOpCodes::MapGetFloat,
             Some(vec![Value::Text(String::from("temp"))]),
         ),
-        (RadonOpCodes::MixedAsFloat, None),
     ];
     let output = execute_contextfree_radon_script(input, &script).unwrap();
 
@@ -142,15 +140,13 @@ fn test_unpack_radon_script() {
         Value::Integer(RadonOpCodes::StringParseJSON as i128),
         Value::Integer(RadonOpCodes::MixedAsMap as i128),
         Value::Array(vec![
-            Value::Integer(RadonOpCodes::MapGet as i128),
+            Value::Integer(RadonOpCodes::MapGetMap as i128),
             Value::Text(String::from("main")),
         ]),
-        Value::Integer(RadonOpCodes::MixedAsMap as i128),
         Value::Array(vec![
-            Value::Integer(RadonOpCodes::MapGet as i128),
+            Value::Integer(RadonOpCodes::MapGetFloat as i128),
             Value::Text(String::from("temp")),
         ]),
-        Value::Integer(RadonOpCodes::MixedAsFloat as i128),
     ]);
     let packed = serde_cbor::to_vec(&cbor_vec).unwrap();
 
@@ -158,15 +154,13 @@ fn test_unpack_radon_script() {
         (RadonOpCodes::StringParseJSON, None),
         (RadonOpCodes::MixedAsMap, None),
         (
-            RadonOpCodes::MapGet,
+            RadonOpCodes::MapGetMap,
             Some(vec![Value::Text(String::from("main"))]),
         ),
-        (RadonOpCodes::MixedAsMap, None),
         (
-            RadonOpCodes::MapGet,
+            RadonOpCodes::MapGetFloat,
             Some(vec![Value::Text(String::from("temp"))]),
         ),
-        (RadonOpCodes::MixedAsFloat, None),
     ];
     println!("{:?}", expected);
 

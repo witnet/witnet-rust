@@ -7,8 +7,8 @@ use crate::{
     hash_functions::{self, RadonHashFunctions},
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        integer::RadonInteger, map::RadonMap, mixed::RadonMixed, result::RadonResult,
-        string::RadonString, RadonType, RadonTypes,
+        integer::RadonInteger, map::RadonMap, mixed::RadonMixed, string::RadonString, RadonType,
+        RadonTypes,
     },
 };
 
@@ -95,15 +95,13 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
     map_value
         .get(&input.value())
         .map(|res| match default {
-            RadonTypes::Array(_) => Ok(RadonTypes::from(RadonArray::try_from(res.value())?)),
-            RadonTypes::Boolean(_) => Ok(RadonTypes::from(RadonBoolean::try_from(res.value())?)),
-            RadonTypes::Bytes(_) => Ok(RadonTypes::from(RadonBytes::try_from(res.value())?)),
-            RadonTypes::Float(_) => Ok(RadonTypes::from(RadonFloat::try_from(res.value())?)),
-            RadonTypes::Integer(_) => Ok(RadonTypes::from(RadonInteger::try_from(res.value())?)),
-            RadonTypes::Map(_) => Ok(RadonTypes::from(RadonMap::try_from(res.value())?)),
-            RadonTypes::Mixed(_) => Ok(RadonTypes::from(res.clone())),
-            RadonTypes::Result(_) => Ok(RadonTypes::from(RadonResult::try_from(res.value())?)),
-            RadonTypes::String(_) => Ok(RadonTypes::from(RadonString::try_from(res.value())?)),
+            RadonTypes::Array(_) => Ok(RadonTypes::from(RadonArray::try_from(res.clone())?)),
+            RadonTypes::Boolean(_) => Ok(RadonTypes::from(RadonBoolean::try_from(res.clone())?)),
+            RadonTypes::Bytes(_) => Ok(RadonTypes::from(RadonBytes::try_from(res.clone())?)),
+            RadonTypes::Float(_) => Ok(RadonTypes::from(RadonFloat::try_from(res.clone())?)),
+            RadonTypes::Integer(_) => Ok(RadonTypes::from(RadonInteger::try_from(res.clone())?)),
+            RadonTypes::Map(_) => Ok(RadonTypes::from(RadonMap::try_from(res.clone())?)),
+            RadonTypes::String(_) => Ok(RadonTypes::from(RadonString::try_from(res.clone())?)),
         })
         .unwrap_or(Ok(temp_def))
 }
@@ -127,9 +125,9 @@ fn json_to_cbor(value: &json::JsonValue) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use super::*;
+    use crate::types::{array::RadonArray, bytes::RadonBytes};
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_parse_json() {
@@ -350,7 +348,7 @@ mod tests {
         let result = string_match(&input_key, &args);
         assert_eq!(
             result.unwrap(),
-            RadonTypes::from(RadonMixed::from(Value::Bytes(vec![1])))
+            RadonTypes::Bytes(RadonBytes::from(vec![1]))
         );
 
         input_key = RadonString::from("key2");
@@ -358,7 +356,7 @@ mod tests {
         let result = string_match(&input_key, &args);
         assert_eq!(
             result.unwrap(),
-            RadonTypes::from(RadonMixed::from(Value::Bytes(vec![2])))
+            RadonTypes::Bytes(RadonBytes::from(vec![2]))
         );
 
         input_key = RadonString::from("key3");
@@ -366,7 +364,7 @@ mod tests {
         let result = string_match(&input_key, &args);
         assert_eq!(
             result.unwrap(),
-            RadonTypes::from(RadonMixed::from(Value::Bytes(vec![0])))
+            RadonTypes::Bytes(RadonBytes::from(vec![0]))
         );
     }
 
@@ -412,23 +410,40 @@ mod tests {
     }
 
     #[test]
+    fn test_string_match_mismatched_types() {
+        let mut map: BTreeMap<Value, Value> = BTreeMap::new();
+        map.insert(Value::Text("key1".to_string()), Value::Float(1.0));
+        map.insert(Value::Text("key2".to_string()), Value::Bool(true));
+
+        let input_key = RadonString::from("key1");
+
+        let args = vec![Value::Map(map), Value::Bool(false)];
+
+        let result = string_match(&input_key, &args);
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to decode RadonBoolean from cbor::value::Value"
+        );
+    }
+
+    #[test]
     fn test_string_match_map() {
         use std::convert::TryInto;
         let mut map: BTreeMap<Value, Value> = BTreeMap::new();
 
-        let mut value_map_1: BTreeMap<String, RadonMixed> = BTreeMap::new();
+        let mut value_map_1: BTreeMap<String, RadonTypes> = BTreeMap::new();
         value_map_1.insert(
             "subkey1".to_string(),
-            RadonMixed::from(Value::Text("value1".to_string())),
+            RadonTypes::String(RadonString::from("value1".to_string())),
         );
 
-        let mut value_map_2: BTreeMap<String, RadonMixed> = BTreeMap::new();
+        let mut value_map_2: BTreeMap<String, RadonTypes> = BTreeMap::new();
         value_map_2.insert(
             "subkey2".to_string(),
-            RadonMixed::from(Value::Text("value2".to_string())),
+            RadonTypes::String(RadonString::from("value2".to_string())),
         );
 
-        let default_map: BTreeMap<String, RadonMixed> = BTreeMap::new();
+        let default_map: BTreeMap<String, RadonTypes> = BTreeMap::new();
 
         map.insert(
             Value::Text("key1".to_string()),
@@ -478,23 +493,6 @@ mod tests {
         assert_eq!(
             result.unwrap_err().to_string(),
             "Failed to decode RadonMap from cbor::value::Value"
-        );
-    }
-
-    #[test]
-    fn test_string_match_mismatched_types() {
-        let mut map: BTreeMap<Value, Value> = BTreeMap::new();
-        map.insert(Value::Text("key1".to_string()), Value::Float(1.0));
-        map.insert(Value::Text("key2".to_string()), Value::Bool(true));
-
-        let input_key = RadonString::from("key1");
-
-        let args = vec![Value::Map(map), Value::Bool(false)];
-
-        let result = string_match(&input_key, &args);
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Failed to decode RadonBoolean from cbor::value::Value"
         );
     }
 

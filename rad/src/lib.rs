@@ -155,15 +155,13 @@ mod tests {
             Value::Integer(RadonOpCodes::StringParseJSON as i128),
             Value::Integer(RadonOpCodes::MixedAsMap as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGet as i128),
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
                 Value::Text("main".to_string()),
             ]),
-            Value::Integer(RadonOpCodes::MixedAsMap as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGet as i128),
+                Value::Integer(RadonOpCodes::MapGetFloat as i128),
                 Value::Text("temp".to_string()),
             ]),
-            Value::Integer(RadonOpCodes::MixedAsFloat as i128),
         ]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
 
@@ -318,15 +316,13 @@ mod tests {
                 Value::Integer(0 as i128),
             ]),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGet as i128),
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
                 Value::Text("hora0".to_string()),
             ]),
-            Value::Integer(RadonOpCodes::MixedAsMap as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGet as i128),
+                Value::Integer(RadonOpCodes::MapGetFloat as i128),
                 Value::Text("valor".to_string()),
             ]),
-            Value::Integer(RadonOpCodes::MixedAsFloat as i128),
         ]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
 
@@ -382,10 +378,9 @@ mod tests {
             Value::Integer(RadonOpCodes::StringParseJSON as i128),
             Value::Integer(RadonOpCodes::MixedAsMap as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGet as i128),
+                Value::Integer(RadonOpCodes::MapGetFloat as i128),
                 Value::Text("PSOE".to_string()),
             ]),
-            Value::Integer(RadonOpCodes::MixedAsFloat as i128),
         ]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
 
@@ -428,20 +423,17 @@ mod tests {
             Value::Integer(RadonOpCodes::StringParseJSON as i128),
             Value::Integer(RadonOpCodes::MixedAsMap as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGet as i128),
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
                 Value::Text("event".to_string()),
             ]),
-            Value::Integer(RadonOpCodes::MixedAsMap as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGet as i128),
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
                 Value::Text("awayScore".to_string()),
             ]),
-            Value::Integer(RadonOpCodes::MixedAsMap as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGet as i128),
+                Value::Integer(RadonOpCodes::MapGetFloat as i128),
                 Value::Text("current".to_string()),
             ]),
-            Value::Integer(RadonOpCodes::MixedAsFloat as i128),
             Value::Integer(RadonOpCodes::FloatRound as i128),
         ]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();

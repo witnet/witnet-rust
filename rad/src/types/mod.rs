@@ -258,7 +258,6 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
     fn try_from(cbor_value: &cbor::value::Value) -> Result<Self, Self::Error> {
         use cbor::value::Int;
         use cbor::value::Value as CborValue;
-        use serde_cbor::Value as SerdeCborValue;
 
         match cbor_value {
             // If the tag is 37, we encode the error in a `RadError`, otherwise we ignore the tag,
@@ -291,9 +290,9 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
             CborValue::Text(cbor::value::Text::Text(x)) => {
                 Ok(RadonTypes::String(RadonString::from(x.clone())))
             }
-            CborValue::Bytes(cbor::value::Bytes::Bytes(x)) => Ok(RadonTypes::Mixed(
-                RadonMixed::from(serde_cbor::Value::Bytes(x.clone())),
-            )),
+            CborValue::Bytes(cbor::value::Bytes::Bytes(x)) => {
+                Ok(RadonTypes::Bytes(RadonBytes::from(x.clone())))
+            }
             // Arrays need to be mapped.
             CborValue::Array(x) => x
                 .iter()
@@ -307,17 +306,11 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
                     //  rather than ignoring non-string keys and weird values?
                     .filter_map(|(key, val)| match (key, val) {
                         (cbor::value::Key::Text(cbor::value::Text::Text(key)), val) => {
-                            RadonTypes::try_from(val)
-                                .and_then(|val| {
-                                    SerdeCborValue::try_from(val).map(|serde_cbor_value| {
-                                        (key.clone(), RadonMixed::from(serde_cbor_value))
-                                    })
-                                })
-                                .ok()
+                            RadonTypes::try_from(val).map(|val| (key.clone(), val)).ok()
                         }
                         _ => None,
                     })
-                    .collect::<BTreeMap<String, RadonMixed>>(),
+                    .collect::<BTreeMap<String, RadonTypes>>(),
             ))),
             // Fail on `Break`, `Null`, `Simple` or `Undefined`
             _ => Err(RadError::default()),

@@ -30,7 +30,7 @@ pub enum RadonOpCodes {
     // Array operator codes (start at 0x10)
     ArrayCount = 0x10,
     ArrayFilter = 0x11,
-    ArrayFlatten = 0x12,
+    //    ArrayFlatten = 0x12,
     ArrayGetArray = 0x13,
     ArrayGetBoolean = 0x14,
     ArrayGetBytes = 0x15,
@@ -45,8 +45,9 @@ pub enum RadonOpCodes {
     //    ArrayTake = 0x1E,
     ///////////////////////////////////////////////////////////////////////
     // Boolean operator codes (start at 0x20)
-    //    BooleanMatch = 0x20,
-    BooleanNegate = 0x21,
+    BooleanAsString = 0x20,
+    //    BooleanMatch = 0x21,
+    BooleanNegate = 0x22,
     ///////////////////////////////////////////////////////////////////////
     // Bytes operator codes (start at 0x30)
     BytesAsString = 0x30,
@@ -84,21 +85,15 @@ pub enum RadonOpCodes {
     ///////////////////////////////////////////////////////////////////////
     // Map operator codes (start at 0x60)
     //    MapEntries = 0x60,
-    //    MapGetArray = 0x61,
-    //    MapGetBoolean = 0x62,
-    //    MapGetBytes = 0x63,
-    //    MapGetInteger = 0x64,
-    //    MapGetFloat = 0x65,
-    //    MapGetMap = 0x66,
-    //    MapGetString = 0x67,
+    MapGetArray = 0x61,
+    MapGetBoolean = 0x62,
+    MapGetBytes = 0x63,
+    MapGetFloat = 0x64,
+    MapGetInteger = 0x65,
+    MapGetMap = 0x66,
+    MapGetString = 0x67,
     MapKeys = 0x68,
-    //    MapValuesArray = 0x69,
-    //    MapValuesBoolean = 0x6A,
-    //    MapValuesBytes = 0x6B,
-    //    MapValuesInteger = 0x6C,
-    //    MapValuesFloat = 0x6D,
-    //    MapValuesMap = 0x6E,
-    //    MapValuesString = 0x6F,
+    MapValues = 0x69,
     ///////////////////////////////////////////////////////////////////////
     // String operator codes (start at 0x70)
     StringAsBoolean = 0x70,
@@ -108,14 +103,10 @@ pub enum RadonOpCodes {
     StringLength = 0x74,
     StringMatch = 0x75,
     //    StringParseJSONArray = 0x76,
-    //    StringParseJSONBoolean = 0x77,
-    //    StringParseJSONInteger = 0x78,
-    //    StringParseJSONFloat = 0x79,
-    //    StringParseJSONMap = 0x7A,
-    //    StringParseJSONString = 0x7B,
-    //    StringParseXML = 0x7C,
-    StringToLowerCase = 0x7D,
-    StringToUpperCase = 0x7E,
+    //    StringParseJSONMap = 0x77,
+    //    StringParseXML = 0x78,
+    StringToLowerCase = 0x79,
+    StringToUpperCase = 0x7A,
     ///////////////////////////////////////////////////////////////////////
     //  Mixed operator codes (start at 0x80)
     MixedAsArray = 0x80,
@@ -127,14 +118,10 @@ pub enum RadonOpCodes {
     //    MixedHash = 0x86,
 
     // Old operator codes (start at 0xA0)
-    BooleanAsString = 0xA1,
     IntegerAsMixed = 0xA2,
     FloatAsMixed = 0xA3,
     StringAsMixed = 0xA4,
     StringParseJSON = 0xA5,
-    MapGet = 0xA7,
-    /// Flatten a map into an Array containing only the values but not the keys
-    MapValues = 0xA8,
 }
 
 impl fmt::Display for RadonOpCodes {
