@@ -5,17 +5,13 @@ use serde_cbor::value::{from_value, Value};
 use crate::{
     error::RadError,
     types::{
-        boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, mixed::RadonMixed,
-        string::RadonString, RadonType,
+        boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, string::RadonString,
+        RadonType,
     },
 };
 
 pub fn absolute(input: &RadonFloat) -> RadonFloat {
     RadonFloat::from(input.value().abs())
-}
-
-pub fn to_mixed(input: RadonFloat) -> RadonMixed {
-    RadonMixed::from(Value::Float(input.value()))
 }
 
 pub fn to_string(input: RadonFloat) -> Result<RadonString, RadError> {

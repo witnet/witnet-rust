@@ -40,7 +40,7 @@ pub fn standard_filter(
             if let Some(RadonTypes::Array(_arr3)) = arr2.value().first() {
                 // 3D array
                 return Err(RadError::UnsupportedFilter {
-                    inner_type: "RadonArray<RadonArray<RadonArray>>>".to_string(),
+                    array: input.clone(),
                     filter: RadonFilters::DeviationStandard.to_string(),
                 });
             }
@@ -201,8 +201,8 @@ fn boolean_standard_filter(input: &RadonArray, sigmas_float: f64) -> Result<Rado
 
             Ok(ot)
         }
-        Some(rad_types) => Err(RadError::UnsupportedFilter {
-            inner_type: rad_types.clone().radon_type_name(),
+        Some(_rad_types) => Err(RadError::UnsupportedFilter {
+            array: input.clone(),
             filter: RadonFilters::DeviationStandard.to_string(),
         }),
     }
@@ -276,7 +276,7 @@ mod tests {
         let extra_args = vec![Value::Float(1.0)];
 
         let expected = RadError::UnsupportedFilter {
-            inner_type: RadonString::radon_type_name(),
+            array: input.clone(),
             filter: RadonFilters::DeviationStandard.to_string(),
         };
 
@@ -440,7 +440,7 @@ mod tests {
         let extra_args = vec![Value::Float(1.0)];
 
         let expected = RadError::UnsupportedFilter {
-            inner_type: "RadonArray<RadonArray<RadonArray>>>".to_string(),
+            array: input.clone(),
             filter: RadonFilters::DeviationStandard.to_string(),
         };
 

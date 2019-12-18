@@ -12,7 +12,6 @@ pub mod bytes;
 pub mod float;
 pub mod integer;
 pub mod map;
-pub mod mixed;
 pub mod string;
 
 /// List of RADON operators.
@@ -107,20 +106,6 @@ pub enum RadonOpCodes {
     //    StringParseXML = 0x78,
     StringToLowerCase = 0x79,
     StringToUpperCase = 0x7A,
-    ///////////////////////////////////////////////////////////////////////
-    //  Mixed operator codes (start at 0x80)
-    MixedAsArray = 0x80,
-    MixedAsBoolean = 0x81,
-    MixedAsFloat = 0x82,
-    MixedAsInteger = 0x83,
-    MixedAsMap = 0x84,
-    MixedAsString = 0x85,
-    //    MixedHash = 0x86,
-
-    // Old operator codes (start at 0xA0)
-    IntegerAsMixed = 0xA2,
-    FloatAsMixed = 0xA3,
-    StringAsMixed = 0xA4,
 }
 
 impl fmt::Display for RadonOpCodes {

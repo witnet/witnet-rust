@@ -36,7 +36,7 @@ impl fmt::Display for RadonReducers {
 pub fn reduce(input: &RadonArray, reducer_code: RadonReducers) -> Result<RadonTypes, RadError> {
     let error = || {
         Err(RadError::UnsupportedReducer {
-            inner_type: format!("{:?}", input.inner_type()),
+            array: input.clone(),
             reducer: reducer_code.to_string(),
         })
     };

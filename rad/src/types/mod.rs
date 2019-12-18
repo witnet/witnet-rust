@@ -15,7 +15,7 @@ use crate::{
     operators::Operable,
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        integer::RadonInteger, map::RadonMap, mixed::RadonMixed, string::RadonString,
+        integer::RadonInteger, map::RadonMap, string::RadonString,
     },
 };
 
@@ -25,7 +25,6 @@ pub mod bytes;
 pub mod float;
 pub mod integer;
 pub mod map;
-pub mod mixed;
 pub mod string;
 
 pub trait RadonType<T>:
@@ -45,7 +44,6 @@ pub enum RadonTypes {
     Float(RadonFloat),
     Integer(RadonInteger),
     Map(RadonMap),
-    Mixed(RadonMixed),
     String(RadonString),
 }
 
@@ -65,7 +63,6 @@ impl RadonTypes {
             RadonTypes::Float(_) => RadonFloat::radon_type_name(),
             RadonTypes::Integer(_) => RadonInteger::radon_type_name(),
             RadonTypes::Map(_) => RadonMap::radon_type_name(),
-            RadonTypes::Mixed(_) => RadonMixed::radon_type_name(),
             RadonTypes::String(_) => RadonString::radon_type_name(),
         }
     }
@@ -78,7 +75,6 @@ impl RadonTypes {
             RadonTypes::Float(inner) => inner,
             RadonTypes::Integer(inner) => inner,
             RadonTypes::Map(inner) => inner,
-            RadonTypes::Mixed(inner) => inner,
             RadonTypes::String(inner) => inner,
         }
     }
@@ -123,7 +119,6 @@ impl fmt::Display for RadonTypes {
             RadonTypes::Float(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Integer(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Map(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::Mixed(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::String(inner) => write!(f, "RadonTypes::{}", inner),
         }
     }
@@ -162,12 +157,6 @@ impl From<RadonInteger> for RadonTypes {
 impl From<RadonMap> for RadonTypes {
     fn from(map: RadonMap) -> Self {
         RadonTypes::Map(map)
-    }
-}
-
-impl From<RadonMixed> for RadonTypes {
-    fn from(mixed: RadonMixed) -> Self {
-        RadonTypes::Mixed(mixed)
     }
 }
 
@@ -212,7 +201,6 @@ impl TryFrom<RadonTypes> for Value {
             RadonTypes::Float(radon_float) => radon_float.try_into(),
             RadonTypes::Integer(radon_integer) => radon_integer.try_into(),
             RadonTypes::Map(radon_map) => radon_map.try_into(),
-            RadonTypes::Mixed(radon_mixed) => radon_mixed.try_into(),
             RadonTypes::String(radon_string) => radon_string.try_into(),
         }
     }

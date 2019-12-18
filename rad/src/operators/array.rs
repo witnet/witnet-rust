@@ -226,7 +226,7 @@ pub fn sort(input: &RadonArray, args: &[Value]) -> Result<RadonArray, RadError> 
         }
         _ => {
             return Err(RadError::UnsupportedSortOp {
-                inner_type: mapped_array_value[0].clone().radon_type_name(),
+                array: input.clone(),
             })
         }
     };
@@ -290,6 +290,7 @@ pub fn transpose(input: &RadonArray) -> Result<RadonArray, RadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::RadError;
     use crate::{
         operators::RadonOpCodes::{
             IntegerGreaterThan, IntegerMultiply, MapGetFloat, MapGetInteger, MapGetString,
@@ -918,11 +919,9 @@ mod tests {
             Value::Text("key2".to_string()),
         ])])];
         let output = sort(&input, &script).unwrap_err();
+        let expected_err = RadError::UnsupportedSortOp { array: input };
 
-        assert_eq!(
-            output.to_string(),
-            "ArraySort is not supported for RadonArray with inner type `RadonFloat`"
-        )
+        assert_eq!(output, expected_err);
     }
 
     #[test]
@@ -1002,10 +1001,9 @@ mod tests {
             RadonFloat::from(2f64).into(),
         ]);
         let output = sort(&input, &[]).unwrap_err();
-        assert_eq!(
-            output.to_string(),
-            "ArraySort is not supported for RadonArray with inner type `RadonFloat`"
-        );
+        let expected_err = RadError::UnsupportedSortOp { array: input };
+
+        assert_eq!(output, expected_err);
     }
 
     #[test]
@@ -1015,10 +1013,11 @@ mod tests {
             RadonInteger::from(2i128).into(),
         ]);
         let output = sort(&input, &[]).unwrap_err();
-        assert_eq!(
-            output.to_string(),
-            "`ArraySort` is not supported for RadonArray with non homogeneous types"
-        );
+        let expected_err = RadError::UnsupportedOpNonHomogeneous {
+            operator: "ArraySort".to_string(),
+        };
+
+        assert_eq!(output, expected_err);
     }
 
     #[test]

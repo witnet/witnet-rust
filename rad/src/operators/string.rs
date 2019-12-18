@@ -11,14 +11,9 @@ use crate::{
     hash_functions::{self, RadonHashFunctions},
     types::{
         array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        integer::RadonInteger, map::RadonMap, mixed::RadonMixed, string::RadonString, RadonType,
-        RadonTypes,
+        integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
     },
 };
-
-pub fn to_mixed(input: RadonString) -> RadonMixed {
-    RadonMixed::from(Value::Text(input.value()))
-}
 
 pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
     match json::parse(&input.value()) {

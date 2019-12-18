@@ -81,9 +81,6 @@ impl Operable for RadonString {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
-            (RadonOpCodes::StringAsMixed, None) => {
-                Ok(RadonTypes::from(string_operators::to_mixed(self.clone())))
-            }
             (RadonOpCodes::StringAsFloat, None) => string_operators::to_float(self)
                 .map(RadonTypes::from)
                 .map_err(Into::into),

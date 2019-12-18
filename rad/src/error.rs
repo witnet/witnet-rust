@@ -83,22 +83,19 @@ pub enum RadError {
     },
     /// The given reducer is not implemented for the type of the input Array
     #[fail(
-        display = "Reducer `{}` is not implemented for Array with inner type `{}`",
-        reducer, inner_type
+        display = "Reducer `{}` is not implemented for Array `{:?}`",
+        reducer, array
     )]
-    UnsupportedReducer { inner_type: String, reducer: String },
+    UnsupportedReducer { array: RadonArray, reducer: String },
     /// The given filter is not implemented for the type of the input Array
     #[fail(
-        display = "Filter `{}` is not implemented for Array with inner type `{}`",
-        filter, inner_type
+        display = "Filter `{}` is not implemented for Array `{:?}`",
+        filter, array
     )]
-    UnsupportedFilter { inner_type: String, filter: String },
+    UnsupportedFilter { array: RadonArray, filter: String },
     /// The sort operator is not implemented for non-string arrays
-    #[fail(
-        display = "ArraySort is not supported for RadonArray with inner type `{}`",
-        inner_type
-    )]
-    UnsupportedSortOp { inner_type: String },
+    #[fail(display = "ArraySort is not supported for RadonArray `{:?}`", array)]
+    UnsupportedSortOp { array: RadonArray },
     /// The operator is not implemented for non-homogeneous arrays
     #[fail(
         display = "`{}` is not supported for RadonArray with non homogeneous types",

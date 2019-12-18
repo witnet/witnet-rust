@@ -83,8 +83,8 @@ pub fn standard(input: &RadonArray) -> Result<RadonTypes, RadError> {
 
             Ok(RadonTypes::from(RadonArray::from(mean_v)))
         }
-        Some(rad_types) => Err(RadError::UnsupportedReducer {
-            inner_type: rad_types.clone().radon_type_name(),
+        Some(_rad_types) => Err(RadError::UnsupportedReducer {
+            array: input.clone(),
             reducer: RadonReducers::AverageMean.to_string(),
         }),
     }
@@ -263,7 +263,7 @@ mod tests {
         let result = standard(&input);
 
         let expected = RadError::UnsupportedReducer {
-            inner_type: "RadonString".to_string(),
+            array: input.clone(),
             reducer: "RadonReducers::AverageMean".to_string(),
         };
 

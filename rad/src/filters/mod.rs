@@ -44,7 +44,7 @@ pub fn filter(
 ) -> Result<RadonTypes, RadError> {
     let error = || {
         Err(RadError::UnsupportedFilter {
-            inner_type: format!("{:?}", input.inner_type()),
+            array: input.clone(),
             filter: filter_code.to_string(),
         })
     };
