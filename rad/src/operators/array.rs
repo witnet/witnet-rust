@@ -744,9 +744,9 @@ mod tests {
         let output = sort(&input, &script).unwrap();
 
         let expected = RadonArray::from(vec![
-            RadonMap::from(map2.clone()).into(),
-            RadonMap::from(map1.clone()).into(),
-            RadonMap::from(map3.clone()).into(),
+            RadonMap::from(map2).into(),
+            RadonMap::from(map1).into(),
+            RadonMap::from(map3).into(),
         ]);
 
         assert_eq!(output, expected)
@@ -798,9 +798,9 @@ mod tests {
         let output = sort(&input, &script).unwrap();
 
         let expected = RadonArray::from(vec![
-            RadonMap::from(map3.clone()).into(),
-            RadonMap::from(map1.clone()).into(),
-            RadonMap::from(map2.clone()).into(),
+            RadonMap::from(map3).into(),
+            RadonMap::from(map1).into(),
+            RadonMap::from(map2).into(),
         ]);
 
         assert_eq!(output, expected)
@@ -852,9 +852,9 @@ mod tests {
         let output = sort(&input, &script).unwrap();
 
         let expected = RadonArray::from(vec![
-            RadonMap::from(map1.clone()).into(),
-            RadonMap::from(map2.clone()).into(),
-            RadonMap::from(map3.clone()).into(),
+            RadonMap::from(map1).into(),
+            RadonMap::from(map2).into(),
+            RadonMap::from(map3).into(),
         ]);
 
         assert_eq!(output, expected)
@@ -867,9 +867,9 @@ mod tests {
         let map3 = HashMap::new();
 
         let input = RadonArray::from(vec![
-            RadonMap::from(map1.clone()).into(),
-            RadonMap::from(map2.clone()).into(),
-            RadonMap::from(map3.clone()).into(),
+            RadonMap::from(map1).into(),
+            RadonMap::from(map2).into(),
+            RadonMap::from(map3).into(),
         ]);
         let script = vec![Value::Array(vec![Value::Array(vec![
             Value::Integer(MapGetInteger as i128),
@@ -886,9 +886,9 @@ mod tests {
         let item1 = RadonTypes::Integer(RadonInteger::from(1));
         let mut map1 = HashMap::new();
         map1.insert("key1".to_string(), item0);
-        map1.insert("key2".to_string(), item1.clone());
+        map1.insert("key2".to_string(), item1);
 
-        let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
+        let input = RadonArray::from(vec![RadonMap::from(map1).into()]);
         let script = vec![Value::Array(vec![Value::Array(vec![
             Value::Integer(MapGetString as i128),
             Value::Text("key2".to_string()),
@@ -913,7 +913,7 @@ mod tests {
             RadonTypes::Float(RadonFloat::from(std::f64::consts::PI)),
         );
 
-        let input = RadonArray::from(vec![RadonMap::from(map1.clone()).into()]);
+        let input = RadonArray::from(vec![RadonMap::from(map1).into()]);
         let script = vec![Value::Array(vec![Value::Array(vec![
             Value::Integer(MapGetFloat as i128),
             Value::Text("key2".to_string()),

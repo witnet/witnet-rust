@@ -668,7 +668,7 @@ mod tests {
         // Initialize transaction_pool with 1 transaction
         let mut transaction_pool = TransactionsPool::default();
         let transaction = Transaction::ValueTransfer(VTTransaction::default());
-        transaction_pool.insert(transaction.clone());
+        transaction_pool.insert(transaction);
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
@@ -810,18 +810,18 @@ mod tests {
         let transaction_2 = Transaction::ValueTransfer(vt_tx2);
         let transaction_3 = Transaction::ValueTransfer(vt_tx3);
 
+        // Set `max_block_weight` to fit only `transaction_1` size
+        let max_block_weight = transaction_1.size();
+
         // Insert transactions into `transactions_pool`
         // TODO: Currently the insert function does not take into account the fees to compute the transaction's weight
         let mut transaction_pool = TransactionsPool::default();
-        transaction_pool.insert(transaction_1.clone());
-        transaction_pool.insert(transaction_2.clone());
-        transaction_pool.insert(transaction_3.clone());
+        transaction_pool.insert(transaction_1);
+        transaction_pool.insert(transaction_2);
+        transaction_pool.insert(transaction_3);
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
         let dr_pool = DataRequestPool::default();
-
-        // Set `max_block_weight` to fit only `transaction_1` size
-        let max_block_weight = transaction_1.size();
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();

@@ -106,9 +106,7 @@ mod tests {
             .collect()
     }
 
-    fn pnb_to_sorted_vec<'a, 'b, I: IntoIterator<Item = (&'a SocketAddr)>>(
-        pb: I,
-    ) -> Vec<(SocketAddr)> {
+    fn pnb_to_sorted_vec<'a, 'b, I: IntoIterator<Item = &'a SocketAddr>>(pb: I) -> Vec<SocketAddr> {
         pb.into_iter()
             .cloned()
             .sorted_by_key(|k| k.to_string())

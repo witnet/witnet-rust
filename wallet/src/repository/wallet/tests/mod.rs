@@ -176,7 +176,7 @@ fn test_gen_internal_address() {
 
     assert!(address.address.starts_with("wit"));
     assert_eq!("m/3'/4919'/0'/1/0", &address.path);
-    assert_eq!(Some(label.clone()), address.label);
+    assert_eq!(Some(label), address.label);
 
     let address_no_label = wallet.gen_internal_address(None).unwrap();
 
@@ -368,10 +368,8 @@ fn test_create_transaction_components_whith_a_change_address() {
         txn_hash: vec![0; 32],
         output_index: 0,
     };
-    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> = HashMap::from_iter(vec![(
-        out_pointer.clone(),
-        model::KeyBalance { pkh, amount: 2 },
-    )]);
+    let utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
+        HashMap::from_iter(vec![(out_pointer, model::KeyBalance { pkh, amount: 2 })]);
     let path = model::Path {
         account: 0,
         keychain: constants::EXTERNAL_KEYCHAIN,

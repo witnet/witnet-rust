@@ -103,7 +103,7 @@ mod tests {
         let args = vec![Value::Text(String::from("NotFound"))];
 
         let mut map = HashMap::new();
-        map.insert(key.to_string(), value.clone());
+        map.insert(key.to_string(), value);
 
         let input = RadonMap::from(map);
         let not_found_object = get(&input, &args);
@@ -121,9 +121,9 @@ mod tests {
         let value2 = RadonTypes::Integer(RadonInteger::from(2));
 
         let mut map = HashMap::new();
-        map.insert(key0.to_string(), value0.clone());
-        map.insert(key1.to_string(), value1.clone());
-        map.insert(key2.to_string(), value2.clone());
+        map.insert(key0.to_string(), value0);
+        map.insert(key1.to_string(), value1);
+        map.insert(key2.to_string(), value2);
 
         let input = RadonMap::from(map.clone());
         let keys = keys(&input);
@@ -151,7 +151,7 @@ mod tests {
         map.insert(key1.to_string(), value1.clone());
         map.insert(key2.to_string(), value2.clone());
 
-        let input = RadonMap::from(map.clone());
+        let input = RadonMap::from(map);
         let values = values(&input);
 
         let hs = [value0, value1, value2]
@@ -197,7 +197,7 @@ mod tests {
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
 
-        let output = RadonMap::from(map.clone());
+        let output = RadonMap::from(map);
 
         (output, key1, item1)
     }
@@ -220,7 +220,7 @@ mod tests {
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
 
-        let output = RadonMap::from(map.clone());
+        let output = RadonMap::from(map);
 
         (output, key1, item1)
     }
@@ -243,7 +243,7 @@ mod tests {
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
 
-        let output = RadonMap::from(map.clone());
+        let output = RadonMap::from(map);
 
         (output, key1, item1)
     }
@@ -266,7 +266,7 @@ mod tests {
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
 
-        let output = RadonMap::from(map.clone());
+        let output = RadonMap::from(map);
 
         (output, key1, item1)
     }
@@ -289,7 +289,7 @@ mod tests {
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
 
-        let output = RadonMap::from(map.clone());
+        let output = RadonMap::from(map);
 
         (output, key1, item1)
     }
@@ -312,7 +312,7 @@ mod tests {
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
 
-        let output = RadonMap::from(map.clone());
+        let output = RadonMap::from(map);
 
         (output, key1, item1)
     }
@@ -335,7 +335,7 @@ mod tests {
         map.insert(key1.clone(), value1);
         map.insert(key2, value2);
 
-        let output = RadonMap::from(map.clone());
+        let output = RadonMap::from(map);
 
         (output, key1, item1)
     }

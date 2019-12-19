@@ -36,10 +36,9 @@ fn try_to_claim_local_query(
     witnet_client: Arc<TcpSocket>,
     dr_id: U256,
 ) -> impl Future<Item = (DataRequestOutput, ClaimDataRequestsParams), Error = ()> {
-    let wbi_contract = eth_state.wbi_contract.clone();
     let eth_account = config.eth_account;
 
-    let wbi_contract = wbi_contract.clone();
+    let wbi_contract = eth_state.wbi_contract.clone();
     let wbi_contract2 = wbi_contract.clone();
     let wbi_contract3 = wbi_contract.clone();
     let wbi_contract5 = wbi_contract.clone();
@@ -330,12 +329,10 @@ fn claim_and_post_dr(
     witnet_client: Arc<TcpSocket>,
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
-    let wbi_contract = eth_state.wbi_contract.clone();
     let eth_account = config.eth_account;
     let post_to_witnet_more_than_once = config.post_to_witnet_more_than_once;
 
-    let wbi_contract = wbi_contract.clone();
-    let wbi_contract4 = wbi_contract.clone();
+    let wbi_contract = eth_state.wbi_contract.clone();
     let witnet_client = Arc::clone(&witnet_client);
 
     try_to_claim_local_query(config, Arc::clone(&eth_state), Arc::clone(&witnet_client), dr_id)
@@ -380,7 +377,7 @@ fn claim_and_post_dr(
                 .and_then(move |()| {
                     let eth_state2 = eth_state.clone();
 
-                    wbi_contract4
+                    wbi_contract
                         .call_with_confirmations(
                             "claimDataRequests",
                             claim_data_requests_params,

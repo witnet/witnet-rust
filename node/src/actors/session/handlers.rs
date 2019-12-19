@@ -35,6 +35,7 @@ use crate::actors::{
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
+use std::cmp::Ordering;
 use std::net::SocketAddr;
 use witnet_util::timestamp::get_timestamp;
 
@@ -631,41 +632,51 @@ fn session_last_beacon_inbound(
         .then(move |res, act, ctx| {
             match res {
                 Ok(Ok(chain_beacon)) => {
-                    if chain_beacon.checkpoint > received_checkpoint {
-                        let range = received_checkpoint..=chain_beacon.checkpoint;
+                    match received_checkpoint.cmp(&chain_beacon.checkpoint) {
+                        Ordering::Greater => {
+                            warn!(
+                                "Received a checkpoint beacon that is ahead of ours ({} > {})",
+                                received_checkpoint, chain_beacon.checkpoint
+                            );
+                        }
+                        Ordering::Equal => {
+                            info!("Our chain is on par with our peer's",);
+                        }
+                        Ordering::Less => {
+                            let range = received_checkpoint..=chain_beacon.checkpoint;
 
-                        chain_manager_addr
-                            .send(GetBlocksEpochRange::new_with_const_limit(range))
-                            .into_actor(act)
-                            .then(|res, act, _ctx| match res {
-                                Ok(Ok(blocks)) => {
-                                    // Try to create an Inv protocol message with the items to
-                                    // be announced
-                                    if let Ok(inv_msg) =
-                                        WitnetMessage::build_inventory_announcement(act.magic_number, blocks.into_iter().map(|(_epoch, hash)| {
-                                            InventoryEntry::Block(hash)
-                                        }).collect())
-                                    {
-                                        // Send Inv message through the session network connection
-                                        act.send_message(inv_msg);
-                                    };
+                            chain_manager_addr
+                                .send(GetBlocksEpochRange::new_with_const_limit(range))
+                                .into_actor(act)
+                                .then(|res, act, _ctx| match res {
+                                    Ok(Ok(blocks)) => {
+                                        // Try to create an Inv protocol message with the items to
+                                        // be announced
+                                        if let Ok(inv_msg) =
+                                            WitnetMessage::build_inventory_announcement(
+                                                act.magic_number,
+                                                blocks
+                                                    .into_iter()
+                                                    .map(|(_epoch, hash)| {
+                                                        InventoryEntry::Block(hash)
+                                                    })
+                                                    .collect(),
+                                            )
+                                        {
+                                            // Send Inv message through the session network connection
+                                            act.send_message(inv_msg);
+                                        };
 
-                                    actix::fut::ok(())
-                                }
-                                _ => {
-                                    error!("LastBeacon::EpochRange didn't succeeded");
+                                        actix::fut::ok(())
+                                    }
+                                    _ => {
+                                        error!("LastBeacon::EpochRange didn't succeeded");
 
-                                    actix::fut::err(())
-                                }
-                            })
-                            .wait(ctx);
-                    } else if chain_beacon.checkpoint == received_checkpoint {
-                        info!("Our chain is on par with our peer's",);
-                    } else {
-                        warn!(
-                            "Received a checkpoint beacon that is ahead of ours ({} > {})",
-                            received_checkpoint, chain_beacon.checkpoint
-                        );
+                                        actix::fut::err(())
+                                    }
+                                })
+                                .wait(ctx);
+                        }
                     }
 
                     actix::fut::ok(())

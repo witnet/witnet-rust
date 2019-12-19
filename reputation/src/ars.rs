@@ -411,7 +411,7 @@ mod tests {
         assert_eq!(ars.last_update, 10);
         assert_eq!(ars.active_identities_number(), 1);
 
-        let error2 = ars.update(vec![id2.clone()], 5).unwrap_err();
+        let error2 = ars.update(vec![id2], 5).unwrap_err();
         assert_eq!(
             error2.to_string(),
             ReputationError::InvalidUpdateTime {

@@ -435,7 +435,7 @@ mod tests {
             RadonTypes::Array(array3),
         ];
         let input = RadonArray::from(input_vec);
-        let tt = RadonTypes::Array(input.clone());
+        let tt = RadonTypes::Array(input);
         let input = RadonArray::from(vec![tt; 3]);
         let extra_args = vec![Value::Float(1.0)];
 

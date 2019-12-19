@@ -358,7 +358,7 @@ mod tests {
             RadonInteger::from(1),
         )]));
 
-        let array = RadonArray::from(vec![array0.clone(), array1]);
+        let array = RadonArray::from(vec![array0, array1]);
         assert!(array.is_homogeneous());
 
         let bytes0 = RadonTypes::Bytes(RadonBytes::from(vec![0x01, 0x02, 0x03]));

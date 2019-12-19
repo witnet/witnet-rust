@@ -65,7 +65,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let system = System::new("witnet-wallet");
 
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
-    let client = node_url.clone().map_or_else(
+    let client = node_url.map_or_else(
         || {
             log::warn!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
                         [wallet]\n\

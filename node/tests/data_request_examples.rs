@@ -42,7 +42,7 @@ fn run_dr_locally_with_data(
     let mut retrieval_results = vec![];
     for (r, d) in dr.data_request.retrieve.iter().zip(data.iter()) {
         log::info!("Running retrieval for {}", r.url);
-        retrieval_results.push(witnet_rad::run_retrieval_with_data(r, d.to_string())?);
+        retrieval_results.push(witnet_rad::run_retrieval_with_data(r, (*d).to_string())?);
     }
 
     log::info!("Running aggregation with values {:?}", retrieval_results);

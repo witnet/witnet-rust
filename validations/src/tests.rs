@@ -135,7 +135,7 @@ fn mint_valid() {
     };
     let mint_tx = MintTransaction::new(epoch, output);
     let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
-    assert_eq!(x.unwrap(), ());
+    x.unwrap();
 }
 
 #[test]
@@ -339,7 +339,7 @@ where
     );
 
     // Flip one bit in the public key of the signature
-    let mut ks_bad_pk = ks.clone();
+    let mut ks_bad_pk = ks;
     ks_bad_pk.public_key.bytes[13] ^= 0x01;
     let signature_pkh = ks_bad_pk.public_key.pkh();
     let x = f(hashable.clone(), ks_bad_pk);
@@ -360,7 +360,7 @@ where
     // Sign transaction with a different public key
     let ks_different_pk = sign_t2(&hashable);
     let signature_pkh = ks_different_pk.public_key.pkh();
-    let x = f(hashable.clone(), ks_different_pk);
+    let x = f(hashable, ks_different_pk);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
@@ -1109,7 +1109,7 @@ fn data_request_empty_scripts() {
     // This is currently accepted as a valid data request.
     // If this test fails in the future, modify it to check that
     // this is an invalid data request.
-    assert_eq!(x.unwrap(), ());
+    x.unwrap();
 }
 
 #[test]
@@ -1139,7 +1139,7 @@ fn data_request_witnesses_1() {
         data_request,
         ..DataRequestOutput::default()
     });
-    assert_eq!(x.unwrap(), ());
+    x.unwrap();
 }
 
 #[test]
@@ -1773,7 +1773,7 @@ fn commitment_signatures() {
     );
 
     // Flip one bit in the public key of the signature
-    let mut ks_bad_pk = ks.clone();
+    let mut ks_bad_pk = ks;
     ks_bad_pk.public_key.bytes[13] ^= 0x01;
     let x = f(hashable.clone(), ks_bad_pk);
     assert_eq!(
@@ -1788,7 +1788,7 @@ fn commitment_signatures() {
     // Sign transaction with a different public key
     let ks_different_pk = sign_t2(&hashable);
     let signature_pkh = ks_different_pk.public_key.pkh();
-    let x = f(hashable.clone(), ks_different_pk);
+    let x = f(hashable, ks_different_pk);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::PublicKeyHashMismatch {
@@ -1966,7 +1966,7 @@ fn commitment_dr_in_reveal_stage() {
 #[test]
 fn commitment_valid() {
     let x = test_commit();
-    assert_eq!(x.unwrap(), ());
+    x.unwrap();
 }
 
 #[test]
@@ -2148,7 +2148,7 @@ fn reveal_signatures() {
     );
 
     // Flip one bit in the public key of the signature
-    let mut ks_bad_pk = ks.clone();
+    let mut ks_bad_pk = ks;
     ks_bad_pk.public_key.bytes[13] ^= 0x01;
     let x = f(hashable.clone(), ks_bad_pk);
     assert_eq!(
@@ -2163,7 +2163,7 @@ fn reveal_signatures() {
     // Sign transaction with a different public key
     let ks_different_pk = sign_t2(&hashable);
     let signature_pkh = ks_different_pk.public_key.pkh();
-    let x = f(hashable.clone(), ks_different_pk);
+    let x = f(hashable, ks_different_pk);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::PublicKeyHashMismatch {
@@ -2324,7 +2324,7 @@ fn reveal_valid_commitment() {
     dr_pool.update_data_request_stages();
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_t(&RevealTransactionBody::default()).public_key.clone();
+    let public_key = sign_t(&RevealTransactionBody::default()).public_key;
 
     // Create Reveal and Commit
     let reveal_body = RevealTransactionBody::new(dr_pointer, vec![], public_key.pkh());
@@ -2419,7 +2419,7 @@ fn dr_pool_with_dr_in_tally_stage(
     dr_pool.update_data_request_stages();
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_t(&RevealTransactionBody::default()).public_key.clone();
+    let public_key = sign_t(&RevealTransactionBody::default()).public_key;
 
     // Create Reveal and Commit
     // Reveal = empty array
@@ -2490,10 +2490,8 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
     dr_pool.update_data_request_stages();
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_t(&RevealTransactionBody::default()).public_key.clone();
-    let public_key2 = sign_t2(&RevealTransactionBody::default())
-        .public_key
-        .clone();
+    let public_key = sign_t(&RevealTransactionBody::default()).public_key;
+    let public_key2 = sign_t2(&RevealTransactionBody::default()).public_key;
 
     // Create Reveal and Commit
     // Reveal = empty array
@@ -2573,7 +2571,7 @@ fn tally_dr_not_tally_stage() {
     let dr_pointer = dr_transaction.hash();
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_t(&RevealTransactionBody::default()).public_key.clone();
+    let public_key = sign_t(&RevealTransactionBody::default()).public_key;
 
     // Create Reveal and Commit
     // Reveal = integer(0)
@@ -2606,8 +2604,7 @@ fn tally_dr_not_tally_stage() {
         pkh: dr_pkh,
         value: 880,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt_change]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change]);
 
     let mut dr_pool = DataRequestPool::default();
     let x = validate_tally_transaction(&tally_transaction, &dr_pool);
@@ -2645,7 +2642,7 @@ fn tally_dr_not_tally_stage() {
         .unwrap();
     dr_pool.update_data_request_stages();
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
-    assert_eq!(x.unwrap(), (),);
+    x.unwrap();
 }
 
 #[test]
@@ -2700,10 +2697,9 @@ fn tally_valid() {
         pkh: dr_pkh,
         value: 880,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt_change]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
-    assert_eq!(x.unwrap(), ());
+    x.unwrap();
 }
 
 #[test]
@@ -2739,11 +2735,8 @@ fn tally_too_many_outputs() {
         pkh: dr_pkh,
         value: 800,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value.clone(),
-        vec![vt0, vt1, vt2, vt3, vt_change],
-    );
+    let tally_transaction =
+        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1, vt2, vt3, vt_change]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2768,7 +2761,7 @@ fn tally_too_less_outputs() {
         value: 500,
     };
 
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2797,8 +2790,7 @@ fn tally_invalid_change() {
         pkh: dr_pkh,
         value: 1000,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt_change]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2827,7 +2819,7 @@ fn tally_double_reward() {
         pkh,
         value: 500,
     };
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt1]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2855,7 +2847,7 @@ fn tally_reveal_not_found() {
         pkh: PublicKeyHash::default(),
         value: 500,
     };
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt1]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2881,9 +2873,9 @@ fn tally_valid_2_reveals() {
         pkh: pkh2,
         value: 500,
     };
-    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt0, vt1]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
-    assert_eq!(x.unwrap(), ());
+    x.unwrap();
 }
 
 #[test]
@@ -3802,7 +3794,7 @@ fn block_minimum_valid() {
         )
     };
     let x = test_blocks(vec![t0]);
-    assert_eq!(x.unwrap(), (),);
+    x.unwrap();
 }
 
 #[test]
@@ -3860,7 +3852,7 @@ fn block_add_vtt() {
         )
     };
     let x = test_blocks(vec![t0]);
-    assert_eq!(x.unwrap(), (),);
+    x.unwrap();
 }
 
 #[test]
@@ -3995,7 +3987,7 @@ fn block_add_drt() {
         )
     };
     let x = test_blocks(vec![t0]);
-    assert_eq!(x.unwrap(), (),);
+    x.unwrap();
 }
 
 #[test]

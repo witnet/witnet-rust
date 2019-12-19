@@ -114,7 +114,7 @@ impl IntoIterator for HashMapWriteBatch {
 #[test]
 fn test_hashmap_db() {
     let storage: Rc<RefCell<HashMap<Bytes, Bytes>>> = Default::default();
-    let db = HashMapDb::new(storage.clone());
+    let db = HashMapDb::new(storage);
 
     assert!(!db.contains(b"key").unwrap());
     assert!(db.get_opt::<_, Bytes>(b"key").unwrap().is_none());
@@ -128,7 +128,7 @@ fn test_hashmap_db() {
 #[test]
 fn test_hashmap_writebatch() {
     let storage: Rc<RefCell<HashMap<Bytes, Bytes>>> = Default::default();
-    let db = HashMapDb::new(storage.clone());
+    let db = HashMapDb::new(storage);
     let mut batch = db.batch();
 
     batch.put(b"key1", b"value1".to_vec()).unwrap();

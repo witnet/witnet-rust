@@ -528,7 +528,7 @@ mod tests {
         let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t3), 0);
 
-        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t4 = build_vtt_tx(
             vec![pay_bob(500), pay_me(500)],
             0,
@@ -566,7 +566,7 @@ mod tests {
         assert_eq!(outputs_sum(&t3), 999_000);
         assert_eq!(outputs_sum_not_mine(&t3), 0);
 
-        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t4 = build_vtt_tx(
             vec![pay_bob(500), pay_me(500)],
             0,
@@ -633,7 +633,7 @@ mod tests {
         assert_eq!(outputs_sum(&t3), 0);
         assert_eq!(inputs_len(&t3), 1000);
 
-        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t4 = build_vtt_tx(vec![pay_bob(500)], 20, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum(&t4), 500);
         assert_eq!(inputs_len(&t4), 520);
@@ -677,7 +677,7 @@ mod tests {
         let t3 = build_vtt_tx(vec![], 1000, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum_not_mine(&t3), 0);
 
-        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t4 = build_vtt_tx(vec![pay_bob(500)], 20, &mut own_utxos, own_pkh, &all_utxos).unwrap();
         assert_eq!(outputs_sum_not_mine(&t4), 500);
 
@@ -731,7 +731,7 @@ mod tests {
         .unwrap();
         assert_eq!(outputs_sum(&t1), 1000);
 
-        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t2 = build_drt_tx(
             DataRequestOutput {
                 value: 1000,
@@ -775,7 +775,7 @@ mod tests {
         .unwrap();
         assert_eq!(outputs_sum(&t1), 1_000_000);
 
-        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t2 = build_drt_tx(
             DataRequestOutput {
                 value: 1000,
@@ -818,7 +818,7 @@ mod tests {
     fn cannot_double_spend() {
         let own_pkh = my_pkh();
         let outputs = vec![pay_me(1_000_000)];
-        let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
+        let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         assert_eq!(own_utxos.len(), 1);
 
         let t1 = build_drt_tx(

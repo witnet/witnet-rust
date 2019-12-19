@@ -141,7 +141,7 @@ fn p2p_peers_get_all_from_new() {
         .map(|i| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, i)), 8080))
         .collect();
     let src_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(168, 0, 0, 12)), 8080);
-    peers.add_to_new(many_peers.clone(), src_address).unwrap();
+    peers.add_to_new(many_peers, src_address).unwrap();
 
     assert!(!peers.get_all_from_new().unwrap().is_empty());
     assert!(peers.get_all_from_tried().unwrap().is_empty());

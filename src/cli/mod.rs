@@ -161,8 +161,7 @@ lazy_static! {
     };
 }
 
-static CONFIG_HELP: &str =
-    r#"Load configuration from this file. If not specified will try to find a configuration
+static CONFIG_HELP: &str = r#"Load configuration from this file. If not specified will try to find a configuration
 in these paths:
 - current path
 - standard configuration path:

@@ -279,7 +279,7 @@ impl EthState {
         let block_relay_contract = Contract::new(
             web3.eth(),
             block_relay_contract_address,
-            block_relay_contract_abi.clone(),
+            block_relay_contract_abi,
         );
 
         debug!("WBI events: {:?}", wbi_contract_abi.events);

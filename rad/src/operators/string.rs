@@ -147,7 +147,7 @@ mod tests {
         let key = "Hello";
         let value = RadonTypes::String(RadonString::from("world"));
         let mut map = HashMap::new();
-        map.insert(key.to_string(), value.clone());
+        map.insert(key.to_string(), value);
         let expected_output = RadonMap::from(map);
 
         assert_eq!(output, expected_output);

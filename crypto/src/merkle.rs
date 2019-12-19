@@ -212,7 +212,7 @@ impl<T: Copy + PartialEq> FullMerkleTree<T> {
             v
         };
 
-        let mut nodes = vec![leaves.clone()];
+        let mut nodes = vec![leaves];
         while nodes.last().unwrap().len() > 1 {
             nodes.push(next_layer(nodes.last().unwrap()));
         }

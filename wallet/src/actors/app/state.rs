@@ -113,7 +113,7 @@ impl State {
         wallet_id: String,
         wallet: types::SessionWallet,
     ) {
-        let entry = self.sessions.entry(session_id.clone());
+        let entry = self.sessions.entry(session_id);
         let wallets = &mut entry.or_default().wallets;
 
         wallets.insert(wallet_id.clone(), wallet.clone());

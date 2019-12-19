@@ -213,10 +213,10 @@ mod tests {
     #[test]
     fn test_vectors() {
         for (phrase, expected_seed) in crate::test_vectors::TREZOR_MNEMONICS {
-            let mnemonic = Mnemonic::from_phrase(phrase.into()).unwrap();
+            let mnemonic = Mnemonic::from_phrase((*phrase).into()).unwrap();
             let seed = hex::encode(mnemonic.seed(&"TREZOR".into()));
 
-            assert_eq!(expected_seed.to_string(), seed);
+            assert_eq!((*expected_seed).to_string(), seed);
         }
     }
 }

@@ -139,7 +139,7 @@ fn run() -> Result<(), String> {
             let (block_relay_and_poi_tx, block_relay_and_poi_fut) = block_relay_and_poi(
                 Arc::clone(&config),
                 Arc::clone(&eth_state),
-                block_relay_check_tx.clone(),
+                block_relay_check_tx,
             );
             let (_handle, claim_and_post_tx, claim_and_post_fut) =
                 claim_and_post(Arc::clone(&config), Arc::clone(&eth_state));
@@ -147,12 +147,12 @@ fn run() -> Result<(), String> {
                 eth_event_stream(&config, Arc::clone(&eth_state), claim_and_post_tx.clone());
             let (_handle, witnet_block_fut) =
                 witnet_block_stream(Arc::clone(&config), block_relay_and_poi_tx.clone());
-            let claim_ticker_fut = claim_ticker(Arc::clone(&config), claim_and_post_tx.clone());
+            let claim_ticker_fut = claim_ticker(Arc::clone(&config), claim_and_post_tx);
 
             let (_handle, tally_finder_fut) = tally_finder(
                 Arc::clone(&config),
                 Arc::clone(&eth_state),
-                block_relay_and_poi_tx.clone(),
+                block_relay_and_poi_tx,
             );
 
             tokio::run(future::ok(()).map(move |_| {

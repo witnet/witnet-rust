@@ -539,7 +539,7 @@ mod tests {
         assert_eq!(a.get(&id1), Reputation::default());
         a.gain(Alpha(10), vec![(id1.clone(), diff)]).unwrap();
         assert_eq!(
-            a.gain(Alpha(9), vec![(id1.clone(), diff)]),
+            a.gain(Alpha(9), vec![(id1, diff)]),
             Err(NonSortedAlpha {
                 alpha: Alpha(9),
                 max_alpha: Alpha(10),

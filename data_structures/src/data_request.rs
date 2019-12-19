@@ -91,8 +91,7 @@ impl DataRequestPool {
         }
 
         let pkh = data_request.signatures[0].public_key.pkh();
-        let dr_state =
-            DataRequestState::new(data_request.body.dr_output.clone(), pkh, epoch, block_hash);
+        let dr_state = DataRequestState::new(data_request.body.dr_output, pkh, epoch, block_hash);
 
         self.data_requests_by_epoch
             .entry(epoch)
@@ -117,7 +116,7 @@ impl DataRequestPool {
         // The data request must be from a previous block, and must not be timelocked.
         // This is not checked here, as it should have made the block invalid.
         if let Some(dr) = self.data_request_pool.get_mut(&dr_pointer) {
-            dr.add_commit(pkh, commit.clone())
+            dr.add_commit(pkh, commit)
         } else {
             Err(DataRequestError::AddCommitFail {
                 block_hash: *block_hash,
@@ -163,7 +162,7 @@ impl DataRequestPool {
 
         // Since this method does not have access to the storage, we save the
         // "to be stored" inside a vector and provide another method to store them
-        self.to_be_stored.push(dr_report.clone());
+        self.to_be_stored.push(dr_report);
 
         Ok(())
     }
@@ -784,7 +783,7 @@ mod tests {
             RevealTransactionBody::new(dr_pointer, vec![], pk2.pkh()),
             vec![KeyedSignature {
                 signature: Signature::default(),
-                public_key: pk2.clone(),
+                public_key: pk2,
             }],
         );
         p.process_reveal(&reveal_transaction2, &fake_block_hash)

@@ -58,7 +58,7 @@ impl<T: Storage> Storage for Backend<T> {
         let salt = cipher::generate_random(SALT_LENGTH)?;
         let secret = get_secret(&self.password, &salt);
         let encrypted = cipher::encrypt_aes_cbc(&secret, value.as_ref(), iv.as_ref())?;
-        let mut final_value = iv.clone();
+        let mut final_value = iv;
         final_value.extend(encrypted);
         final_value.extend(salt);
 
@@ -85,7 +85,7 @@ mod tests {
         let mut backend = Backend::new(password, hashmap::Backend::new());
 
         assert_eq!(None, backend.get(b"name").unwrap());
-        assert_eq!((), backend.put("name".into(), "johnny".into()).unwrap());
+        backend.put("name".into(), "johnny".into()).unwrap();
         assert_eq!(Some("johnny".into()), backend.get(b"name").unwrap());
     }
 
@@ -96,7 +96,7 @@ mod tests {
 
         let mut backend1 = Backend::new(password1, hashmap::Backend::new());
 
-        assert_eq!((), backend1.put("name".into(), "johnny".into()).unwrap());
+        backend1.put("name".into(), "johnny".into()).unwrap();
 
         let backend2 = Backend::new(password2, backend1.inner().clone());
 

@@ -37,9 +37,9 @@ mod tests {
         let mut storage = backend();
 
         assert_eq!(None, storage.get(b"name").unwrap());
-        assert_eq!((), storage.put(b"name".to_vec(), b"john".to_vec()).unwrap());
+        storage.put(b"name".to_vec(), b"john".to_vec()).unwrap();
         assert_eq!(Some("john".into()), storage.get(b"name").unwrap());
-        assert_eq!((), storage.delete(b"name").unwrap());
+        storage.delete(b"name").unwrap();
         assert_eq!(None, storage.get(b"name").unwrap());
     }
 }

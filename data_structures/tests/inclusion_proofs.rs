@@ -392,7 +392,7 @@ fn check_dr_data_proof_inclusion(dr: DRTransaction, block: &Block) {
     let old_poi = dr.proof_of_inclusion(block).unwrap();
     let data_hash = dr.body.data_poi_hash();
     let new_index = old_poi.index << 1;
-    let mut new_lemma = old_poi.lemma.clone();
+    let mut new_lemma = old_poi.lemma;
     new_lemma.insert(0, dr.body.rest_poi_hash());
 
     let poi = dr.data_proof_of_inclusion(block);
@@ -495,7 +495,7 @@ fn check_ta_data_proof_inclusion(ta: TallyTransaction, block: &Block) {
     let old_poi = ta.proof_of_inclusion(block).unwrap();
     let data_hash = ta.data_poi_hash();
     let new_index = old_poi.index << 1;
-    let mut new_lemma = old_poi.lemma.clone();
+    let mut new_lemma = old_poi.lemma;
     new_lemma.insert(0, ta.rest_poi_hash());
 
     let poi = ta.data_proof_of_inclusion(block);

@@ -959,7 +959,7 @@ mod tests {
             RadonTypes::Float(RadonFloat::from(3f64)),
             RadonTypes::Float(RadonFloat::from(2f64)),
         ]));
-        let radon_types_vec = vec![f_1.clone(), f_2.clone(), f_3.clone()];
+        let radon_types_vec = vec![f_1, f_2, f_3];
 
         let script = Value::Array(vec![
             Value::Array(vec![
@@ -1006,7 +1006,7 @@ mod tests {
         let f_2 = RadonTypes::from(RadonString::from("1"));
         let f_3 = RadonTypes::from(RadonString::from("2"));
 
-        let radon_types_vec = vec![f_1.clone(), f_2.clone(), f_3.clone()];
+        let radon_types_vec = vec![f_1, f_2, f_3];
 
         let mut map: BTreeMap<Value, Value> = BTreeMap::new();
         map.insert(
