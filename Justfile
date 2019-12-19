@@ -32,7 +32,7 @@ clippy +flags="":
 
 # run formatter
 fmt +flags="":
-    cargo +nightly fmt -v --all {{flags}}
+    cargo fmt -v --all {{flags}}
 
 # run node
 node +args="":
