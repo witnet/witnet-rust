@@ -251,7 +251,7 @@ mod examples {
         BuildDrt {
             dro: DataRequestOutput {
                 data_request: RADRequest {
-                    time_lock: 1574703683,
+                    time_lock: 1_574_703_683,
                     retrieve: vec![
                         RADRetrieve {
                             kind: RADType::HttpGet,
