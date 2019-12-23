@@ -3,16 +3,16 @@
 [connections]
 server_addr = "0.0.0.0:21337"
 known_peers = ["52.166.178.145:22337", "52.166.178.145:23337", "52.166.178.145:25337"]
-outbound_limit = 2
+outbound_limit = 3
 bootstrap_peers_period_seconds = 1
 
 [storage]
-db_path = ".witnet-rust-testnet-5"
+db_path = ".witnet-rust-testnet-6"
 
 [consensus_constants]
 checkpoints_period = 30
-checkpoint_zero_timestamp = 1567036800
-genesis_hash = "00000000000000000000000000000000000000007769746e65742d302e352e30"
+checkpoint_zero_timestamp = 1577145600
+genesis_hash = "00000000000000000000000000000000000000007769746e65742d302e362e30"
 
 [log]
 level = "debug"

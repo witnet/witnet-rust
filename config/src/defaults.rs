@@ -140,8 +140,8 @@ pub trait Defaults {
 
     /// Reputation will expire after N witnessing acts
     fn consensus_constants_reputation_expire_alpha_diff(&self) -> u32 {
-        // 20_000 witnessing acts
-        20_000
+        // 500 witnessing acts
+        500
     }
 
     /// Reputation issuance
