@@ -12,14 +12,18 @@ pub mod deviation;
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
 pub enum RadonFilters {
+    // Implemented
+    DeviationStandard = 0x05,
+
+    // Not implemented
     GreaterThan = 0x00,
     LessThan = 0x01,
     Equals = 0x02,
     DeviationAbsolute = 0x03,
     DeviationRelative = 0x04,
-    DeviationStandard = 0x05,
     Top = 0x06,
     Bottom = 0x07,
+    Mode = 0x08,
     LessOrEqualThan = 0x80,
     GreaterOrEqualThan = 0x81,
     NotEquals = 0x82,
@@ -28,6 +32,7 @@ pub enum RadonFilters {
     NotDeviationStandard = 0x85,
     NotTop = 0x86,
     NotBottom = 0x87,
+    NotMode = 0x88,
 }
 
 impl fmt::Display for RadonFilters {
