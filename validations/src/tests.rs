@@ -2939,7 +2939,7 @@ fn block_signatures() {
     );
 
     // Flip one bit in the public key of the signature
-    let mut ks_bad_pk = ks.clone();
+    let mut ks_bad_pk = ks;
     ks_bad_pk.public_key.bytes[13] ^= 0x01;
     let signature_pkh = ks_bad_pk.public_key.pkh();
     let x = f(hashable.clone(), ks_bad_pk);
@@ -2954,7 +2954,7 @@ fn block_signatures() {
     // Sign transaction with a different public key
     let ks_different_pk = sign_t2(&hashable);
     let signature_pkh = ks_different_pk.public_key.pkh();
-    let x = f(hashable.clone(), ks_different_pk);
+    let x = f(hashable, ks_different_pk);
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
         BlockError::PublicKeyHashMismatch {
@@ -3477,10 +3477,8 @@ fn block_duplicated_reveals() {
         .unwrap();
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_t(&RevealTransactionBody::default()).public_key.clone();
-    let public_key2 = sign_t2(&RevealTransactionBody::default())
-        .public_key
-        .clone();
+    let public_key = sign_t(&RevealTransactionBody::default()).public_key;
+    let public_key2 = sign_t2(&RevealTransactionBody::default()).public_key;
 
     let dr_pointer = dr_hash;
 
@@ -3500,7 +3498,7 @@ fn block_duplicated_reveals() {
         ),
         vec![KeyedSignature {
             signature: Signature::default(),
-            public_key: public_key.clone(),
+            public_key,
         }],
     );
     let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
@@ -3517,7 +3515,7 @@ fn block_duplicated_reveals() {
         ),
         vec![KeyedSignature {
             signature: Signature::default(),
-            public_key: public_key2.clone(),
+            public_key: public_key2,
         }],
     );
 
@@ -3583,7 +3581,7 @@ fn block_duplicated_tallies() {
         tally_value.clone(),
         vec![vt0.clone(), vt1.clone()],
     );
-    let tally_transaction2 = TallyTransaction::new(dr_pointer, tally_value.clone(), vec![vt1, vt0]);
+    let tally_transaction2 = TallyTransaction::new(dr_pointer, tally_value, vec![vt1, vt0]);
 
     assert_ne!(tally_transaction.hash(), tally_transaction2.hash());
 
