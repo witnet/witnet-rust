@@ -3,9 +3,10 @@ use crate::{
     filters::RadonFilters,
     operators::array::transpose,
     reducers,
-    types::{array::RadonArray, boolean::RadonBoolean, RadonType, RadonTypes},
+    types::{array::RadonArray, boolean::RadonBoolean, float::RadonFloat, RadonType, RadonTypes},
 };
 use serde_cbor::Value;
+use std::convert::TryFrom;
 use witnet_data_structures::radon_report::{ReportContext, Stage};
 
 pub fn standard_filter(
@@ -117,14 +118,6 @@ fn keep_rows(
 // Return an array with the same dimensions as the input, with a boolean indicating
 // whether to keep a value or not
 fn boolean_standard_filter(input: &RadonArray, sigmas_float: f64) -> Result<RadonArray, RadError> {
-    let assume_float = |x| {
-        if let RadonTypes::Float(f) = x {
-            f
-        } else {
-            unreachable!()
-        }
-    };
-
     // if input is empty, return the array
     if input.value().is_empty() {
         return Ok(input.clone());
@@ -142,16 +135,16 @@ fn boolean_standard_filter(input: &RadonArray, sigmas_float: f64) -> Result<Rado
         None => Ok(input.clone()),
         Some(RadonTypes::Float(_)) => {
             let mean = reducers::average::mean(input)?;
-            let mean_float = assume_float(mean);
+            let mean_float = RadonFloat::try_from(mean)?;
             let std_dev = reducers::deviation::standard(input)?;
-            let std_dev_float = assume_float(std_dev);
+            let std_dev_float = RadonFloat::try_from(std_dev)?;
 
             let (keep_min, keep_max) =
                 standard_limits(mean_float.value(), std_dev_float.value(), sigmas_float);
 
             let mut result = vec![];
             for item in input.value() {
-                let x = assume_float(item.clone());
+                let x = RadonFloat::try_from(item.clone())?;
                 let xv = x.value();
                 let keep = xv >= keep_min && xv <= keep_max;
                 result.push(RadonTypes::Boolean(RadonBoolean::from(keep)));
@@ -161,9 +154,9 @@ fn boolean_standard_filter(input: &RadonArray, sigmas_float: f64) -> Result<Rado
         }
         Some(RadonTypes::Integer(_)) => {
             let mean = reducers::average::mean(input)?;
-            let mean_float = assume_float(mean);
+            let mean_float = RadonFloat::try_from(mean)?;
             let std_dev = reducers::deviation::standard(input)?;
-            let std_dev_float = assume_float(std_dev);
+            let std_dev_float = RadonFloat::try_from(std_dev)?;
 
             let (keep_min, keep_max) =
                 standard_limits(mean_float.value(), std_dev_float.value(), sigmas_float);
