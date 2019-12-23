@@ -93,8 +93,8 @@ pub fn standard(input: &RadonArray) -> Result<RadonTypes, RadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::integer::RadonInteger;
-    use crate::types::string::RadonString;
+    use crate::types::{float::RadonFloat, integer::RadonInteger, string::RadonString};
+    use std::convert::TryFrom;
 
     #[test]
     fn test_reduce_deviation_standard_float() {
@@ -107,6 +107,25 @@ mod tests {
         let output = standard(input).unwrap();
 
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_reduce_deviation_standard_float2() {
+        let input = &RadonArray::from(vec![
+            RadonFloat::from(100f64).into(),
+            RadonFloat::from(256f64).into(),
+            RadonFloat::from(1003f64).into(),
+            RadonFloat::from(134f64).into(),
+            RadonFloat::from(200f64).into(),
+            RadonFloat::from(87f64).into(),
+        ]);
+
+        let expected = 321u32;
+
+        let output = standard(input).unwrap();
+        let output = RadonFloat::try_from(output).unwrap();
+
+        assert_eq!(output.value().round() as u32, expected);
     }
 
     #[test]
