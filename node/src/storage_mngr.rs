@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use actix::prelude::*;
 use bincode::{deserialize, serialize};
-use futures::future::Future;
+use futures::future::{Either, Future};
 use log;
 use serde;
 
@@ -57,6 +57,26 @@ where
         .join(futures::future::result(serialize(value)))
         .map_err(|e| as_failure!(e))
         .and_then(move |(key_bytes, value_bytes)| addr.send(Put(key_bytes, value_bytes)).flatten())
+}
+
+/// Put a batch of values into the storage
+pub fn put_batch<K, V>(kv: &[(K, V)]) -> impl Future<Item = (), Error = failure::Error>
+where
+    K: serde::Serialize,
+    V: serde::Serialize,
+{
+    let addr = StorageManagerAdapter::from_registry();
+
+    let kv_bytes: Result<Vec<_>, failure::Error> = kv
+        .iter()
+        .map(|(k, v)| Ok((serialize(k)?, serialize(v)?)))
+        .collect();
+
+    match kv_bytes {
+        Ok(kv_bytes) if kv_bytes.is_empty() => Either::B(futures::future::finished(())),
+        Ok(kv_bytes) => Either::A(addr.send(PutBatch(kv_bytes)).flatten()),
+        Err(e) => Either::B(futures::future::failed(e)),
+    }
 }
 
 /// Delete value associated to key
@@ -124,6 +144,24 @@ impl Handler<Put> for StorageManager {
 
     fn handle(&mut self, Put(key, value): Put, _ctx: &mut Self::Context) -> Self::Result {
         self.backend.put(key, value)
+    }
+}
+
+struct PutBatch(Vec<(Vec<u8>, Vec<u8>)>);
+
+impl Message for PutBatch {
+    type Result = Result<(), failure::Error>;
+}
+
+impl Handler<PutBatch> for StorageManager {
+    type Result = <PutBatch as Message>::Result;
+
+    fn handle(&mut self, PutBatch(kvs): PutBatch, _ctx: &mut Self::Context) -> Self::Result {
+        for (key, value) in kvs {
+            self.backend.put(key, value)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -231,6 +269,14 @@ impl Handler<Put> for StorageManagerAdapter {
     type Result = ResponseFuture<(), failure::Error>;
 
     fn handle(&mut self, msg: Put, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.storage.send(msg).flatten())
+    }
+}
+
+impl Handler<PutBatch> for StorageManagerAdapter {
+    type Result = ResponseFuture<(), failure::Error>;
+
+    fn handle(&mut self, msg: PutBatch, _ctx: &mut Self::Context) -> Self::Result {
         Box::new(self.storage.send(msg).flatten())
     }
 }
