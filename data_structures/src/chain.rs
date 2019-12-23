@@ -889,10 +889,14 @@ pub struct TransactionsPool {
     sorted_index: BTreeSet<WeightedHash>,
     // Currently transactions related with data requests don't use weight
     dr_transactions: HashMap<Hash, DRTransaction>,
-    // A map of `data_request_hash` to a map of `commit_hash` to `CommitTransaction`
-    co_transactions: HashMap<Hash, HashMap<PublicKeyHash, CommitTransaction>>,
-    // A map of `data_request_hash` to a map of `reveal_hash` to `RevealTransaction`
-    re_transactions: HashMap<Hash, HashMap<PublicKeyHash, RevealTransaction>>,
+    // Index commits by transaction hash
+    co_hash_index: HashMap<Hash, CommitTransaction>,
+    // A map of `data_request_hash` to a map of `commit_pkh` to `commit_transaction_hash`
+    co_transactions: HashMap<Hash, HashMap<PublicKeyHash, Hash>>,
+    // Index reveals by transaction hash
+    re_hash_index: HashMap<Hash, RevealTransaction>,
+    // A map of `data_request_hash` to a map of `reveal_pkh` to `reveal_transaction_hash`
+    re_transactions: HashMap<Hash, HashMap<PublicKeyHash, Hash>>,
 }
 
 impl TransactionsPool {
@@ -920,7 +924,9 @@ impl TransactionsPool {
         TransactionsPool {
             vt_transactions: HashMap::with_capacity(capacity),
             dr_transactions: HashMap::with_capacity(capacity),
+            co_hash_index: HashMap::with_capacity(capacity),
             co_transactions: HashMap::with_capacity(capacity),
+            re_hash_index: HashMap::with_capacity(capacity),
             re_transactions: HashMap::with_capacity(capacity),
             sorted_index: BTreeSet::new(),
         }
@@ -985,11 +991,13 @@ impl TransactionsPool {
     /// Clear commit transactions in TransactionsPool
     pub fn clear_commits(&mut self) {
         self.co_transactions.clear();
+        self.co_hash_index.clear();
     }
 
-    /// Clear commit transactions in TransactionsPool
+    /// Clear reveal transactions in TransactionsPool
     pub fn clear_reveals(&mut self) {
         self.re_transactions.clear();
+        self.re_hash_index.clear();
     }
 
     /// Returns `Ok(true)` if the pool already contains this transaction.
@@ -1073,7 +1081,7 @@ impl TransactionsPool {
             .get(dr_pointer)
             .and_then(|hm| hm.get(pkh))
             .map(|h| {
-                if h.hash() == *tx_hash {
+                if h == tx_hash {
                     Ok(true)
                 } else {
                     Err(TransactionError::DuplicatedCommit {
@@ -1101,7 +1109,7 @@ impl TransactionsPool {
             .get(dr_pointer)
             .and_then(|hm| hm.get(pkh))
             .map(|h| {
-                if h.hash() == *tx_hash {
+                if h == tx_hash {
                     Ok(true)
                 } else {
                     Err(TransactionError::DuplicatedReveal {
@@ -1172,6 +1180,7 @@ impl TransactionsPool {
     /// by the data request, and the value of all the fees obtained with those commits
     pub fn remove_commits(&mut self, dr_pool: &DataRequestPool) -> (Vec<CommitTransaction>, u64) {
         let mut total_fee = 0;
+        let co_hash_index = &mut self.co_hash_index;
         let commits_vector = self
             .co_transactions
             .iter_mut()
@@ -1183,16 +1192,22 @@ impl TransactionsPool {
                         let n_commits = dr_output.witnesses as usize;
 
                         if commits.len() >= n_commits {
-                            commits_vec.extend(commits.drain().map(|(_h, c)| c).take(n_commits));
+                            commits_vec.extend(
+                                commits
+                                    .drain()
+                                    .map(|(_h, c)| co_hash_index.remove(&c).unwrap())
+                                    .take(n_commits),
+                            );
 
                             total_fee += dr_output.commit_fee * n_commits as u64;
-                        } else {
-                            commits.clear();
                         }
                     }
                     commits_vec
                 },
             );
+
+        // Clear commit hash index: commits are invalidated at the end of the epoch
+        self.clear_commits();
 
         (commits_vector, total_fee)
     }
@@ -1201,6 +1216,7 @@ impl TransactionsPool {
     /// of all the fees obtained with those reveals
     pub fn remove_reveals(&mut self, dr_pool: &DataRequestPool) -> (Vec<RevealTransaction>, u64) {
         let mut total_fee = 0;
+        let re_hash_index = &mut self.re_hash_index;
         let reveals_vector = self
             .re_transactions
             .iter_mut()
@@ -1210,7 +1226,11 @@ impl TransactionsPool {
                 |mut reveals_vec, (dr_pointer, reveals)| {
                     if let Some(dr_output) = dr_pool.get_dr_output(&dr_pointer) {
                         let n_reveals = reveals.len();
-                        reveals_vec.extend(reveals.drain().map(|(_h, r)| r));
+                        reveals_vec.extend(
+                            reveals
+                                .drain()
+                                .map(|(_h, r)| re_hash_index.remove(&r).unwrap()),
+                        );
 
                         total_fee += dr_output.reveal_fee * n_reveals as u64;
                     }
@@ -1218,6 +1238,9 @@ impl TransactionsPool {
                     reveals_vec
                 },
             );
+        // Clear reveal hash index: reveals can still be added to later blocks, but a miner will
+        // always use as many reveals as possible, and this method is used by the mining code
+        self.clear_reveals();
 
         (reveals_vector, total_fee)
     }
@@ -1250,26 +1273,24 @@ impl TransactionsPool {
             Transaction::Commit(co_tx) => {
                 let dr_pointer = co_tx.body.dr_pointer;
                 let pkh = PublicKeyHash::from_public_key(&co_tx.signatures[0].public_key);
+                let tx_hash = co_tx.hash();
 
-                if let Some(hm) = self.co_transactions.get_mut(&dr_pointer) {
-                    hm.insert(pkh, co_tx);
-                } else {
-                    let mut hm = HashMap::new();
-                    hm.insert(pkh, co_tx);
-                    self.co_transactions.insert(dr_pointer, hm);
-                }
+                self.co_hash_index.insert(tx_hash, co_tx);
+                self.co_transactions
+                    .entry(dr_pointer)
+                    .or_default()
+                    .insert(pkh, tx_hash);
             }
             Transaction::Reveal(re_tx) => {
                 let dr_pointer = re_tx.body.dr_pointer;
                 let pkh = re_tx.body.pkh;
+                let tx_hash = re_tx.hash();
 
-                if let Some(hm) = self.re_transactions.get_mut(&dr_pointer) {
-                    hm.insert(pkh, re_tx);
-                } else {
-                    let mut hm = HashMap::new();
-                    hm.insert(pkh, re_tx);
-                    self.re_transactions.insert(dr_pointer, hm);
-                }
+                self.re_hash_index.insert(tx_hash, re_tx);
+                self.re_transactions
+                    .entry(dr_pointer)
+                    .or_default()
+                    .insert(pkh, tx_hash);
             }
             _ => {}
         }
@@ -2306,5 +2327,157 @@ mod tests {
         let mut expected = TransactionsPool::default();
         expected.insert(t2);
         assert_eq!(transactions_pool.re_transactions, expected.re_transactions);
+    }
+
+    #[test]
+    fn transactions_pool_commits_are_cleared_on_remove() {
+        let public_key = PublicKey::default();
+
+        let dro = DataRequestOutput {
+            witnesses: 1,
+            ..Default::default()
+        };
+        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drt = DRTransaction::new(
+            drb,
+            vec![KeyedSignature {
+                signature: Default::default(),
+                public_key,
+            }],
+        );
+        let dr_pointer = drt.hash();
+        let mut dr_pool = DataRequestPool::default();
+        dr_pool
+            .add_data_request(0, drt, &Default::default())
+            .unwrap();
+
+        let c1 = Hash::SHA256([1; 32]);
+        let t1 = Transaction::Commit(CommitTransaction {
+            body: CommitTransactionBody::new(dr_pointer, c1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1);
+        assert_eq!(transactions_pool.co_transactions.len(), 1);
+        assert_eq!(transactions_pool.co_hash_index.len(), 1);
+        let (commits_vec, _commit_fees) = transactions_pool.remove_commits(&dr_pool);
+        assert_eq!(commits_vec.len(), 1);
+        assert_eq!(transactions_pool.co_transactions, HashMap::new());
+        assert_eq!(transactions_pool.co_hash_index, HashMap::new());
+    }
+
+    #[test]
+    fn transactions_pool_commits_are_cleared_on_remove_even_if_they_are_not_returned() {
+        let public_key = PublicKey::default();
+
+        let dro = DataRequestOutput {
+            witnesses: 2,
+            ..Default::default()
+        };
+        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drt = DRTransaction::new(
+            drb,
+            vec![KeyedSignature {
+                signature: Default::default(),
+                public_key,
+            }],
+        );
+        let dr_pointer = drt.hash();
+        let mut dr_pool = DataRequestPool::default();
+        dr_pool
+            .add_data_request(0, drt, &Default::default())
+            .unwrap();
+
+        let c1 = Hash::SHA256([1; 32]);
+        let t1 = Transaction::Commit(CommitTransaction {
+            body: CommitTransactionBody::new(dr_pointer, c1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1);
+        assert_eq!(transactions_pool.co_transactions.len(), 1);
+        assert_eq!(transactions_pool.co_hash_index.len(), 1);
+        let (commits_vec, _commit_fees) = transactions_pool.remove_commits(&dr_pool);
+        // Since the number of commits is below the minimum of 1 witness specified in the `dro`,
+        // remove_commits returns an empty vector
+        assert_eq!(commits_vec, vec![]);
+        // But the internal maps are cleared anyway, so the commit we inserted no longer exists
+        assert_eq!(transactions_pool.co_transactions, HashMap::new());
+        assert_eq!(transactions_pool.co_hash_index, HashMap::new());
+    }
+
+    #[test]
+    fn transactions_pool_reveals_are_cleared_on_remove() {
+        let public_key = PublicKey::default();
+
+        let dro = DataRequestOutput {
+            witnesses: 1,
+            ..Default::default()
+        };
+        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drt = DRTransaction::new(
+            drb,
+            vec![KeyedSignature {
+                signature: Default::default(),
+                public_key,
+            }],
+        );
+        let dr_pointer = drt.hash();
+        let mut dr_pool = DataRequestPool::default();
+        dr_pool
+            .add_data_request(0, drt, &Default::default())
+            .unwrap();
+
+        let r1 = vec![1];
+        let t1 = Transaction::Reveal(RevealTransaction {
+            body: RevealTransactionBody::new(dr_pointer, r1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1);
+        assert_eq!(transactions_pool.re_transactions.len(), 1);
+        assert_eq!(transactions_pool.re_hash_index.len(), 1);
+        let (reveals_vec, _reveal_fees) = transactions_pool.remove_reveals(&dr_pool);
+        assert_eq!(reveals_vec.len(), 1);
+        assert_eq!(transactions_pool.re_transactions, HashMap::new());
+        assert_eq!(transactions_pool.re_hash_index, HashMap::new());
+    }
+
+    #[test]
+    fn transactions_pool_reveals_are_cleared_on_remove_and_always_returned() {
+        let public_key = PublicKey::default();
+
+        let dro = DataRequestOutput {
+            witnesses: 2,
+            ..Default::default()
+        };
+        let drb = DRTransactionBody::new(vec![], vec![], dro);
+        let drt = DRTransaction::new(
+            drb,
+            vec![KeyedSignature {
+                signature: Default::default(),
+                public_key,
+            }],
+        );
+        let dr_pointer = drt.hash();
+        let mut dr_pool = DataRequestPool::default();
+        dr_pool
+            .add_data_request(0, drt, &Default::default())
+            .unwrap();
+
+        let r1 = vec![1];
+        let t1 = Transaction::Reveal(RevealTransaction {
+            body: RevealTransactionBody::new(dr_pointer, r1, Default::default()),
+            signatures: vec![KeyedSignature::default()],
+        });
+        let mut transactions_pool = TransactionsPool::default();
+        transactions_pool.insert(t1);
+        assert_eq!(transactions_pool.re_transactions.len(), 1);
+        assert_eq!(transactions_pool.re_hash_index.len(), 1);
+        let (reveals_vec, _reveal_fees) = transactions_pool.remove_reveals(&dr_pool);
+        // Even though the data request asks for 2 witnesses, it returns the 1 reveal that we have
+        assert_eq!(reveals_vec.len(), 1);
+        assert_eq!(transactions_pool.re_transactions, HashMap::new());
+        assert_eq!(transactions_pool.re_hash_index, HashMap::new());
     }
 }
