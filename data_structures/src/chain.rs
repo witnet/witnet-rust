@@ -1403,7 +1403,6 @@ impl TransactionsPool {
     }
 
     /// Get transaction by hash
-    // FIXME(#918): only vtt and drt are supported, commits and reveals are not indexed by hash
     pub fn get(&self, hash: &Hash) -> Option<Transaction> {
         self.vt_transactions
             .get(hash)
@@ -1412,6 +1411,16 @@ impl TransactionsPool {
                 self.dr_transactions
                     .get(hash)
                     .map(|drt| Transaction::DataRequest(drt.clone()))
+            })
+            .or_else(|| {
+                self.co_hash_index
+                    .get(hash)
+                    .map(|ct| Transaction::Commit(ct.clone()))
+            })
+            .or_else(|| {
+                self.re_hash_index
+                    .get(hash)
+                    .map(|rt| Transaction::Reveal(rt.clone()))
             })
     }
 }
