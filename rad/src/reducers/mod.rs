@@ -14,14 +14,17 @@ pub mod mode;
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
 pub enum RadonReducers {
-    Min = 0x00,
-    Max = 0x01,
+    // Implemented
     Mode = 0x02,
     AverageMean = 0x03,
+    DeviationStandard = 0x07,
+
+    // Not implemented
+    Min = 0x00,
+    Max = 0x01,
     AverageMeanWeighted = 0x04,
     AverageMedian = 0x05,
     AverageMedianWeighted = 0x06,
-    DeviationStandard = 0x07,
     DeviationAverageAbsolute = 0x08,
     DeviationMedianAbsolute = 0x09,
     DeviationMaximumAbsolute = 0x10,
