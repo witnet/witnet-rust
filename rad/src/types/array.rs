@@ -6,7 +6,7 @@ use std::{
     mem::discriminant,
 };
 
-use witnet_data_structures::radon_report::{ReportContext, Stage};
+use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
     error::RadError,
@@ -166,41 +166,12 @@ impl Operable for RadonArray {
         call: &RadonCall,
         context: &mut ReportContext,
     ) -> Result<RadonTypes, RadError> {
-        if let Stage::Tally { .. } = context.stage {
-            check_valid_operator_for_tally_stage(call)?;
-        }
-        // Intercept filter operations for performing the filters in a context, otherwise use
-        // context-free execution.
         match call {
             (RadonOpCodes::ArrayFilter, Some(args)) => {
                 array_operators::filter(self, args.as_slice(), context)
             }
-            (RadonOpCodes::ArrayReduce, Some(args)) => {
-                if let Stage::Tally(tm) = &mut context.stage {
-                    // Stop updating the liars vector after the first reduce
-                    tm.freeze_liars();
-                }
-                array_operators::reduce(self, args.as_slice())
-            }
             other => self.operate(other),
         }
-    }
-}
-
-/// Check if the operator can be used in a tally script.
-///
-/// The tally script should only consist of `ArrayFilter`s and one `ArrayReduce`.
-/// Values discarded by the filters will be considered dishonest, and will be penalized.
-pub fn check_valid_operator_for_tally_stage(call: &RadonCall) -> Result<(), RadError> {
-    // List of allowed array operators.
-    // If this list grows and performance starts to be a concern, use a bitset instead
-    const ALLOWED_IN_TALLY: [RadonOpCodes; 2] =
-        [RadonOpCodes::ArrayFilter, RadonOpCodes::ArrayReduce];
-
-    if ALLOWED_IN_TALLY.contains(&call.0) {
-        Ok(())
-    } else {
-        Err(RadError::UnsupportedOperatorInTally { operator: call.0 })
     }
 }
 
