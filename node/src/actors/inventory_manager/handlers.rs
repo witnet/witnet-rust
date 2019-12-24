@@ -20,70 +20,90 @@ use witnet_data_structures::transaction::Transaction;
 impl Handler<AddItem> for InventoryManager {
     type Result = ResponseActFuture<Self, (), InventoryManagerError>;
 
-    fn handle(&mut self, msg: AddItem, _ctx: &mut Context<Self>) -> Self::Result {
-        match msg.item {
-            StoreInventoryItem::Block(block) => {
-                let block_hash = block.hash();
-                let key = match block_hash {
-                    Hash::SHA256(h) => h.to_vec(),
-                };
-                let fut = storage_mngr::put(&key, &block)
-                    .into_actor(self)
-                    .map_err(|e, _, _| {
-                        log::error!("Couldn't persist block in storage: {}", e);
-                        InventoryManagerError::MailBoxError(e)
-                    })
-                    .and_then(move |_, _, ctx| {
-                        log::trace!("Successfully persisted block in storage");
-                        // Store all the transactions as well
-                        let items_to_add = block.txns.create_pointers_to_transactions(block_hash);
-                        let items = items_to_add
-                            .into_iter()
-                            .map(|(tx_hash, pointer_to_block)| {
-                                StoreInventoryItem::Transaction(tx_hash, pointer_to_block)
-                            })
-                            .collect();
-                        ctx.notify(AddItems { items });
-
-                        fut::ok(())
-                    });
-
-                Box::new(fut)
-            }
-            StoreInventoryItem::Transaction(hash, pointer_to_block) => {
-                let key = match hash {
-                    Hash::SHA256(h) => h.to_vec(),
-                };
-                let fut = storage_mngr::put(&key, &pointer_to_block)
-                    .into_actor(self)
-                    .map_err(|e, _, _| {
-                        log::error!("Couldn't persist transaction in storage: {}", e);
-                        InventoryManagerError::MailBoxError(e)
-                    })
-                    .and_then(|_, _, _| {
-                        log::trace!("Successfully persisted transaction in storage");
-                        fut::ok(())
-                    });
-
-                Box::new(fut)
-            }
-        }
+    fn handle(&mut self, msg: AddItem, ctx: &mut Context<Self>) -> Self::Result {
+        // Simply calls AddItems with 1 item
+        self.handle(
+            AddItems {
+                items: vec![msg.item],
+            },
+            ctx,
+        )
     }
 }
 
 /// Handler for AddItems message
 impl Handler<AddItems> for InventoryManager {
-    type Result = ();
+    type Result = ResponseActFuture<Self, (), InventoryManagerError>;
 
-    fn handle(&mut self, msg: AddItems, ctx: &mut Context<Self>) -> Self::Result {
-        log::trace!("Persisting {} items in storage", msg.items.len());
-        // FIXME(919): instead of calling AddItem in a for loop, persist the items in batch:
-        // * Implement batch storage API
-        // * Move the logic from AddItem here, and make AddItem call AddItems with vec![item]
-        // * Return a better result than `()`
+    fn handle(&mut self, msg: AddItems, _ctx: &mut Context<Self>) -> Self::Result {
+        let mut blocks_to_add = vec![];
+        let mut transactions_to_add = vec![];
+
         for item in msg.items {
-            ctx.notify(AddItem { item });
+            match item {
+                StoreInventoryItem::Block(block) => {
+                    let block_hash = block.hash();
+                    let key = match block_hash {
+                        Hash::SHA256(h) => h.to_vec(),
+                    };
+                    // Store the block and all the transactions
+                    let items_to_add = block.txns.create_pointers_to_transactions(block_hash);
+                    blocks_to_add.push((key, block));
+                    transactions_to_add.extend(items_to_add.into_iter().map(
+                        |(tx_hash, pointer_to_block)| {
+                            let key = match tx_hash {
+                                Hash::SHA256(h) => h.to_vec(),
+                            };
+
+                            (key, pointer_to_block)
+                        },
+                    ));
+                }
+                StoreInventoryItem::Transaction(hash, pointer_to_block) => {
+                    let key = match hash {
+                        Hash::SHA256(h) => h.to_vec(),
+                    };
+
+                    transactions_to_add.push((key, pointer_to_block));
+                }
+            }
         }
+
+        let block_len = blocks_to_add.len();
+        let tx_len = transactions_to_add.len();
+
+        log::trace!("Persisting {} blocks to storage", block_len);
+
+        // Store all the blocks, and then store all the transactions
+        Box::new(
+            storage_mngr::put_batch(&blocks_to_add)
+                .into_actor(self)
+                .map_err(|e, _, _| {
+                    log::error!("Error when writing blocks to storage: {}", e);
+
+                    InventoryManagerError::MailBoxError(e)
+                })
+                .and_then(move |(), act, _| {
+                    log::trace!("Successfully persisted {} blocks to storage", block_len);
+                    log::trace!("Persisting {} transactions to storage", tx_len);
+
+                    storage_mngr::put_batch(&transactions_to_add)
+                        .into_actor(act)
+                        .map_err(|e, _, _| {
+                            log::error!("Error when writing transactions to storage: {}", e);
+
+                            InventoryManagerError::MailBoxError(e)
+                        })
+                        .and_then(move |(), _, _| {
+                            log::trace!(
+                                "Successfully persisted {} transactions to storage",
+                                tx_len
+                            );
+
+                            actix::fut::ok(())
+                        })
+                }),
+        )
     }
 }
 

@@ -418,7 +418,7 @@ pub struct AddItems {
 }
 
 impl Message for AddItems {
-    type Result = ();
+    type Result = Result<(), InventoryManagerError>;
 }
 
 /// Ask for an item identified by its hash
