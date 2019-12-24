@@ -13,10 +13,11 @@ use witnet_data_structures::{
 };
 use witnet_validations::validations::{compare_blocks, validate_block, validate_rad_request};
 
-use super::{ChainManager, ChainManagerError, StateMachine};
+use super::{
+    show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine,
+};
 use crate::{
     actors::{
-        chain_manager::transaction_factory,
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddTransaction, Anycast, Broadcast,
             BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
@@ -302,7 +303,14 @@ impl Handler<AddBlocks> for ChainManager {
                                 break;
                             }
 
-                            if self.get_chain_beacon() == target_beacon {
+                            let beacon = self.get_chain_beacon();
+                            show_sync_progress(
+                                beacon,
+                                target_beacon,
+                                self.epoch_constants.unwrap(),
+                            );
+
+                            if beacon == target_beacon {
                                 break;
                             }
                         }

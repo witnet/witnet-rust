@@ -128,6 +128,23 @@ pub fn pretty_print(seconds: i64, nanoseconds: u32) -> String {
     Utc.timestamp(seconds, nanoseconds).to_string()
 }
 
+/// Convert seconds to a human readable format like "2h 46m 40s"
+pub fn seconds_to_human_string(x: u64) -> String {
+    let seconds_in_one_day = 60 * 60 * 24;
+    // 1 year = 365.25 days
+    let seconds_in_one_year = seconds_in_one_day * 365 + seconds_in_one_day / 4;
+
+    // If x > 1 year, do not show hours
+    let x = if x >= seconds_in_one_year {
+        // 1 year = 365.25 days, we must add 0.25 days to force hours to zero
+        x - (x % seconds_in_one_day) + (seconds_in_one_day / 4)
+    } else {
+        x
+    };
+
+    humantime::format_duration(Duration::from_secs(x)).to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,5 +179,36 @@ mod tests {
         assert_eq!(duration_between_timestamps(e, e), Some(Duration::new(0, 0)));
         assert_eq!(duration_between_timestamps(e, f), Some(Duration::new(0, 1)));
         assert_eq!(duration_between_timestamps(f, e), None);
+    }
+
+    #[test]
+    fn human_duration() {
+        let seconds_in_one_day = 60 * 60 * 24;
+        // 1 year = 365.25 days
+        let seconds_in_one_year = seconds_in_one_day * 365 + seconds_in_one_day / 4;
+
+        assert_eq!(seconds_to_human_string(0), "0s");
+        assert_eq!(seconds_to_human_string(10_000), "2h 46m 40s");
+        assert_eq!(seconds_to_human_string(1_000_000), "11days 13h 46m 40s");
+        assert_eq!(seconds_to_human_string(seconds_in_one_year), "1year");
+        assert_eq!(seconds_to_human_string(seconds_in_one_year + 1), "1year");
+        // This may look incorrect, but according to humantime, 1 month == 30.44 days, so...
+        assert_eq!(
+            seconds_to_human_string(seconds_in_one_year - 1),
+            "11months 30days 9h 50m 23s"
+        );
+        // If you convert everything to days it makes sense
+        assert_eq!(
+            seconds_to_human_string(seconds_in_one_day * 366 - 1),
+            "1year"
+        );
+        assert_eq!(
+            seconds_to_human_string(seconds_in_one_day * 366),
+            "1year 1day"
+        );
+        assert_eq!(
+            seconds_to_human_string(seconds_in_one_day * 366 + 1),
+            "1year 1day"
+        );
     }
 }
