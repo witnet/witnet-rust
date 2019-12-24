@@ -169,17 +169,6 @@ mod examples {
         ]))
         .unwrap();
 
-        let aggregate_script = cbor_to_vec(&Value::Array(vec![Value::Array(vec![
-            Value::Integer(RadonOpCodes::ArrayReduce as i128),
-            Value::Integer(RadonReducers::AverageMean as i128),
-        ])]))
-        .unwrap();
-        let tally_script = cbor_to_vec(&Value::Array(vec![Value::Array(vec![
-            Value::Integer(RadonOpCodes::ArrayReduce as i128),
-            Value::Integer(RadonReducers::AverageMean as i128),
-        ])]))
-        .unwrap();
-
         BuildDrt {
             dro: DataRequestOutput {
                 data_request: RADRequest {
@@ -190,10 +179,12 @@ mod examples {
                         script: r0_script,
                     }],
                     aggregate: RADAggregate {
-                        script: aggregate_script,
+                        filters: vec![],
+                        reducer: RadonReducers::AverageMean as u32,
                     },
                     tally: RADTally {
-                        script: tally_script,
+                        filters: vec![],
+                        reducer: RadonReducers::AverageMean as u32,
                     },
                 },
                 value: 1030,
@@ -237,17 +228,6 @@ mod examples {
         ]))
         .unwrap();
 
-        let aggregate_script = cbor_to_vec(&Value::Array(vec![Value::Array(vec![
-            Value::Integer(RadonOpCodes::ArrayReduce as i128),
-            Value::Integer(RadonReducers::AverageMean as i128),
-        ])]))
-        .unwrap();
-        let tally_script = cbor_to_vec(&Value::Array(vec![Value::Array(vec![
-            Value::Integer(RadonOpCodes::ArrayReduce as i128),
-            Value::Integer(RadonReducers::AverageMean as i128),
-        ])]))
-        .unwrap();
-
         BuildDrt {
             dro: DataRequestOutput {
                 data_request: RADRequest {
@@ -265,10 +245,12 @@ mod examples {
                         },
                     ],
                     aggregate: RADAggregate {
-                        script: aggregate_script,
+                        filters: vec![],
+                        reducer: RadonReducers::AverageMean as u32,
                     },
                     tally: RADTally {
-                        script: tally_script,
+                        filters: vec![],
+                        reducer: RadonReducers::AverageMean as u32,
                     },
                 },
                 value: 13,
@@ -298,17 +280,6 @@ mod examples {
         ]))
         .unwrap();
 
-        let aggregate_script = cbor_to_vec(&Value::Array(vec![Value::Array(vec![
-            Value::Integer(RadonOpCodes::ArrayReduce as i128),
-            Value::Integer(RadonReducers::AverageMean as i128),
-        ])]))
-        .unwrap();
-        let tally_script = cbor_to_vec(&Value::Array(vec![Value::Array(vec![
-            Value::Integer(RadonOpCodes::ArrayReduce as i128),
-            Value::Integer(RadonReducers::AverageMean as i128),
-        ])]))
-        .unwrap();
-
         BuildDrt {
             dro: DataRequestOutput {
                 data_request: RADRequest {
@@ -319,10 +290,12 @@ mod examples {
                         script: r0_script,
                     }],
                     aggregate: RADAggregate {
-                        script: aggregate_script,
+                        filters: vec![],
+                        reducer: RadonReducers::AverageMean as u32,
                     },
                     tally: RADTally {
-                        script: tally_script,
+                        filters: vec![],
+                        reducer: RadonReducers::AverageMean as u32,
                     },
                 },
                 value: 1030,
