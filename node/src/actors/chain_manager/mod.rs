@@ -52,6 +52,7 @@ use witnet_data_structures::{
     vrf::VrfCtx,
 };
 use witnet_rad::types::RadonTypes;
+use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
     validate_block, validate_candidate, validate_new_transaction, Diff,
 };
@@ -846,6 +847,35 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
             White.bold().paint(info),
         );
     }
+}
+
+fn show_sync_progress(
+    beacon: CheckpointBeacon,
+    target_beacon: CheckpointBeacon,
+    epoch_constants: EpochConstants,
+) {
+    // Show progress log
+    let mut percent_done_float = beacon.checkpoint as f64 / target_beacon.checkpoint as f64 * 100.0;
+
+    // Never show 100% unless it's actually done
+    if beacon.checkpoint != target_beacon.checkpoint && percent_done_float > 99.99 {
+        percent_done_float = 99.99;
+    }
+    let percent_done_string = format!("{:.2}%", percent_done_float);
+
+    // Block age is actually the difference in age: it assumes that the last
+    // block is 0 seconds old
+    let block_age = (target_beacon.checkpoint - beacon.checkpoint)
+        * u32::from(epoch_constants.checkpoints_period);
+
+    let human_age = seconds_to_human_string(u64::from(block_age));
+    log::info!(
+        "Synchronization progress: {} ({:>6}/{:>6}). Latest synced block is {} old.",
+        percent_done_string,
+        beacon.checkpoint,
+        target_beacon.checkpoint,
+        human_age
+    );
 }
 
 #[cfg(test)]
