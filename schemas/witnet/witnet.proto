@@ -112,10 +112,12 @@ message DataRequestOutput {
             bytes script = 3;
         }
         message RADAggregate {
-            bytes script = 1;
+            bytes filters = 1;
+            uint32 reducer = 2;
         }
         message RADTally {
-            bytes script = 1;
+            bytes filters = 1;
+            uint32 reducer = 2;
         }
 
         uint64 time_lock = 1;

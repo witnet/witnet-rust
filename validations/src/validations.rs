@@ -25,7 +25,11 @@ use witnet_data_structures::{
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
-use witnet_rad::{run_tally_report, script::unpack_radon_script, types::RadonTypes};
+use witnet_rad::{
+    run_tally_report,
+    script::{create_radon_script, unpack_radon_script},
+    types::RadonTypes,
+};
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -150,10 +154,14 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
     }
 
     let aggregate = &rad_request.aggregate;
-    unpack_radon_script(aggregate.script.as_slice())?;
+    let filters = aggregate.filters.as_slice();
+    let reducer = aggregate.reducer as u8;
+    create_radon_script(filters, reducer)?;
 
     let consensus = &rad_request.tally;
-    unpack_radon_script(consensus.script.as_slice())?;
+    let filters = consensus.filters.as_slice();
+    let reducer = consensus.reducer as u8;
+    create_radon_script(filters, reducer)?;
 
     Ok(())
 }

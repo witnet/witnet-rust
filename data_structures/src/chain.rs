@@ -867,13 +867,17 @@ pub struct RADRetrieve {
     crate = "crate"
 )]
 pub struct RADAggregate {
-    pub script: Vec<u8>,
+    // TODO(#934): Add arguments to the filters
+    pub filters: Vec<u8>,
+    pub reducer: u32,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADTally", crate = "crate")]
 pub struct RADTally {
-    pub script: Vec<u8>,
+    // TODO(#934): Add arguments to the filters
+    pub filters: Vec<u8>,
+    pub reducer: u32,
 }
 
 type WeightedHash = (u64, Hash);
