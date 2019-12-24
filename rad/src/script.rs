@@ -1,16 +1,17 @@
-use std::convert::TryFrom;
-
 use log::error;
 use serde_cbor::{
     self as cbor,
     value::{from_value, Value},
 };
+use std::convert::TryFrom;
 
 use witnet_data_structures::radon_report::{RadonReport, ReportContext};
 
 use crate::{
     error::RadError,
+    filters::RadonFilters,
     operators::{operate, operate_in_context, RadonOpCodes},
+    reducers::RadonReducers,
     types::RadonTypes,
 };
 
@@ -110,6 +111,50 @@ fn errorify(kind: RadError) -> RadError {
     kind
 }
 
+pub fn create_radon_script(filters: &[u8], reducer: u8) -> Result<Vec<RadonCall>, RadError> {
+    let unknown_filter = |code| RadError::UnknownFilter { code };
+    let unknown_reducer = |code| RadError::UnknownReducer { code };
+
+    let mut radoncall_vec = vec![];
+    for filter in filters {
+        let rad_filter =
+            RadonFilters::try_from(*filter).map_err(|_| unknown_filter(*filter as i128))?;
+
+        // TODO: Update with more filters
+        let args = match rad_filter {
+            RadonFilters::DeviationStandard => Some(vec![
+                Value::Integer(RadonFilters::DeviationStandard as i128),
+                Value::Float(1.0),
+            ]),
+            _ => {
+                return Err(RadError::UnsupportedFilterInAT {
+                    operator: rad_filter as u8,
+                })
+            }
+        };
+
+        radoncall_vec.push((RadonOpCodes::ArrayFilter, args));
+    }
+
+    let rad_reducer =
+        RadonReducers::try_from(reducer).map_err(|_| unknown_reducer(reducer as i128))?;
+    let args = match rad_reducer {
+        RadonReducers::AverageMean => {
+            Some(vec![Value::Integer(RadonReducers::AverageMean as i128)])
+        }
+        RadonReducers::Mode => Some(vec![Value::Integer(RadonReducers::Mode as i128)]),
+        _ => {
+            return Err(RadError::UnsupportedReducerInAT {
+                operator: rad_reducer as u8,
+            })
+        }
+    };
+
+    radoncall_vec.push((RadonOpCodes::ArrayReduce, args));
+
+    Ok(radoncall_vec)
+}
+
 #[test]
 fn test_execute_radon_script() {
     use crate::types::{float::RadonFloat, string::RadonString};
@@ -164,4 +209,61 @@ fn test_unpack_radon_script() {
     let output = unpack_radon_script(&packed).unwrap();
 
     assert_eq!(output, expected)
+}
+
+#[test]
+fn test_create_radon_script() {
+    let expected = vec![
+        (
+            RadonOpCodes::ArrayFilter,
+            Some(vec![
+                Value::Integer(RadonFilters::DeviationStandard as i128),
+                Value::Float(1.0),
+            ]),
+        ),
+        (
+            RadonOpCodes::ArrayReduce,
+            Some(vec![Value::Integer(RadonReducers::AverageMean as i128)]),
+        ),
+    ];
+
+    let filters = vec![RadonFilters::DeviationStandard as u8];
+    let reducer = RadonReducers::AverageMean as u8;
+    let output = create_radon_script(filters.as_slice(), reducer).unwrap();
+
+    assert_eq!(output, expected);
+}
+
+#[test]
+fn test_create_radon_script_invalid_filter() {
+    let filters = vec![RadonFilters::DeviationAbsolute as u8];
+    let reducer = RadonReducers::AverageMean as u8;
+    let output = create_radon_script(filters.as_slice(), reducer).unwrap_err();
+
+    let expected = RadError::UnsupportedFilterInAT {
+        operator: RadonFilters::DeviationAbsolute as u8,
+    };
+    assert_eq!(output, expected);
+
+    let output = create_radon_script(&[99], reducer).unwrap_err();
+
+    let expected = RadError::UnknownFilter { code: 99 };
+    assert_eq!(output, expected);
+}
+
+#[test]
+fn test_create_radon_script_invalid_reducer() {
+    let filters = vec![RadonFilters::DeviationStandard as u8];
+    let reducer = RadonReducers::Min as u8;
+    let output = create_radon_script(filters.as_slice(), reducer).unwrap_err();
+
+    let expected = RadError::UnsupportedReducerInAT {
+        operator: RadonReducers::Min as u8,
+    };
+    assert_eq!(output, expected);
+
+    let output = create_radon_script(filters.as_slice(), 99).unwrap_err();
+
+    let expected = RadError::UnknownReducer { code: 99 };
+    assert_eq!(output, expected);
 }

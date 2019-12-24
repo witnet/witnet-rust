@@ -68,6 +68,9 @@ pub enum RadError {
     /// The given filter code is unknown
     #[fail(display = "Filter code `{}` is unknown", code)]
     UnknownFilter { code: i128 },
+    /// The given filter code is unknown
+    #[fail(display = "Reducer code `{}` is unknown", code)]
+    UnknownReducer { code: i128 },
     /// The given hash function is not implemented
     #[fail(display = "Hash function `{}` is not implemented", function)]
     UnsupportedHashFunction { function: String },
@@ -105,6 +108,18 @@ pub enum RadError {
     /// This operator cannot be used in tally stage
     #[fail(display = "Operator {} cannot be used in tally stage", operator)]
     UnsupportedOperatorInTally { operator: RadonOpCodes },
+    /// This filter cannot be used in aggregation or tally stage
+    #[fail(
+        display = "Filter {} cannot be used in aggregation or tally stage",
+        operator
+    )]
+    UnsupportedFilterInAT { operator: u8 },
+    /// This filter cannot be used in aggregation or tally stage
+    #[fail(
+        display = "Reducer {} cannot be used in aggregation or tally stage",
+        operator
+    )]
+    UnsupportedReducerInAT { operator: u8 },
     /// There was a tie after applying the mode reducer
     #[fail(
         display = "There was a tie after applying the mode reducer on values: `{:?}`",
@@ -200,6 +215,9 @@ pub enum RadError {
     /// Tagged error code from CBOR value
     #[fail(display = "Tagged error with code {}", code)]
     TaggedError { code: u8 },
+    /// Invalid script
+    #[fail(display = "Value: {:?}, can not produce a properly script", value)]
+    InvalidScript { value: SerdeCborValue },
 }
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and
