@@ -320,9 +320,7 @@ impl Handler<AddBlocks> for ChainManager {
                         self.persist_blocks_batch(ctx, msg.blocks, target_beacon);
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
-                        to_be_stored.into_iter().for_each(|dr| {
-                            self.persist_data_request(ctx, &dr);
-                        });
+                        self.persist_data_requests(ctx, to_be_stored);
                         self.persist_chain_state(ctx);
 
                         let beacon = self.get_chain_beacon();

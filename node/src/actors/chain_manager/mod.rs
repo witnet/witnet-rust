@@ -211,16 +211,24 @@ impl ChainManager {
     }
 
     /// Method to persist a Data Request into the Storage
-    fn persist_data_request(&self, ctx: &mut Context<Self>, dr_report: &DataRequestReport) {
-        let dr_pointer = &dr_report.tally.dr_pointer;
-        let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
-        storage_mngr::put(&dr_pointer_string, dr_report)
+    fn persist_data_requests(&self, ctx: &mut Context<Self>, dr_reports: Vec<DataRequestReport>) {
+        let kvs: Vec<_> = dr_reports
+            .into_iter()
+            .map(|dr_report| {
+                let dr_pointer = &dr_report.tally.dr_pointer;
+                let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
+
+                (dr_pointer_string, dr_report)
+            })
+            .collect();
+        let kvs_len = kvs.len();
+        storage_mngr::put_batch(&kvs)
             .into_actor(self)
             .map_err(|e, _, _| error!("Failed to persist data request report into storage: {}", e))
             .and_then(move |_, _, _| {
                 trace!(
-                    "Successfully persisted report for data request {} into storage",
-                    dr_pointer_string
+                    "Successfully persisted reports for {} data requests into storage",
+                    kvs_len
                 );
                 fut::ok(())
             })
@@ -395,10 +403,10 @@ impl ChainManager {
                         // Persist finished data requests into storage
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
-                        to_be_stored.into_iter().for_each(|dr_report| {
+                        for dr_report in &to_be_stored {
                             show_info_tally(&dr_report.tally, block_epoch);
-                            self.persist_data_request(ctx, &dr_report);
-                        });
+                        }
+                        self.persist_data_requests(ctx, to_be_stored);
 
                         let reveals = self
                             .chain_state
