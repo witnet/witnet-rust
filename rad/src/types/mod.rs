@@ -67,6 +67,22 @@ impl RadonTypes {
         }
     }
 
+    pub fn discriminant(&self) -> usize {
+        match self {
+            RadonTypes::Array(_) => 0,
+            RadonTypes::Boolean(_) => 1,
+            RadonTypes::Bytes(_) => 2,
+            RadonTypes::Float(_) => 3,
+            RadonTypes::Integer(_) => 4,
+            RadonTypes::Map(_) => 5,
+            RadonTypes::String(_) => 6,
+        }
+    }
+
+    pub fn num_types() -> usize {
+        7
+    }
+
     pub fn as_operable(&self) -> &dyn Operable {
         match self {
             RadonTypes::Array(inner) => inner,

@@ -3,7 +3,6 @@ use serde_cbor::value::{from_value, Value};
 use std::{
     convert::{TryFrom, TryInto},
     fmt,
-    mem::discriminant,
 };
 
 use witnet_data_structures::radon_report::ReportContext;
@@ -42,12 +41,12 @@ impl RadonType<Vec<RadonTypes>> for RadonArray {
 impl From<Vec<RadonTypes>> for RadonArray {
     fn from(value: Vec<RadonTypes>) -> Self {
         let mut iter = value.iter();
-        let first_type = iter.nth(0).map(discriminant);
+        let first_type = iter.nth(0).map(|rad_types| rad_types.discriminant());
 
         let is_homogeneous = first_type
             .map_or(first_type, |first_type| {
                 iter.try_fold(first_type, |previous_type, current| {
-                    let current_type = discriminant(current);
+                    let current_type = current.discriminant();
 
                     if current_type == previous_type {
                         Some(current_type)

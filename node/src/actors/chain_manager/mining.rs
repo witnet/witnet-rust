@@ -13,14 +13,17 @@ use witnet_data_structures::{
         Hashable, PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{create_tally, DataRequestPool},
+    radon_report::RadonReport,
     transaction::{
         CommitTransaction, CommitTransactionBody, MintTransaction, RevealTransaction,
         RevealTransactionBody, TallyTransaction,
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
-use witnet_rad::error::RadError;
-use witnet_rad::types::serial_iter_decode;
+use witnet_rad::{
+    error::RadError,
+    types::{serial_iter_decode, RadonTypes},
+};
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
     merkle_tree_root, update_utxo_diff, validate_block, vt_transaction_fee, UtxoDiff,
