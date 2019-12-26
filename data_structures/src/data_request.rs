@@ -327,15 +327,6 @@ pub fn calculate_dr_vt_reward(dr_output: &DataRequestOutput) -> u64 {
     total_reward / u64::from(dr_output.witnesses)
 }
 
-// FIXME(#640): replace with real truthness check function from radon engine
-// (currently we assume that all nodes are honest)
-pub fn true_revealer<RT>(_reveal: &RevealTransaction, _report: &RadonReport<RT>) -> bool
-where
-    RT: TypeLike,
-{
-    true
-}
-
 pub fn create_tally<RT>(
     dr_pointer: Hash,
     dr_output: &DataRequestOutput,
