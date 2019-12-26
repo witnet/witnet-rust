@@ -25,6 +25,8 @@ use witnet_data_structures::{
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
+use witnet_rad::error::RadError;
+use witnet_rad::types::serial_iter_decode;
 use witnet_rad::{
     run_tally_report,
     script::{create_radon_script, unpack_radon_script},
@@ -164,6 +166,111 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
     create_radon_script(filters, reducer)?;
 
     Ok(())
+}
+
+// Auxiliar counter
+#[derive(Default)]
+struct Counter {
+    max_pos: usize,
+    max_val: i32,
+    values: [i32; 7],
+}
+
+impl Counter {
+    // If pos is bigger than values.len() it will panic
+    fn update(&mut self, pos: usize) {
+        self.values[pos] += 1;
+        if self.values[pos] > self.max_val {
+            self.max_pos = pos;
+            self.max_val = self.values[pos];
+        }
+    }
+}
+
+fn update_liars(liars: &mut Vec<bool>, item: RadonTypes, condition: bool) -> Option<RadonTypes> {
+    if condition {
+        liars.push(false);
+        Some(item)
+    } else {
+        liars.push(true);
+        None
+    }
+}
+
+pub fn tally_precondition_clause(
+    reveals: Vec<RadonReport<RadonTypes>>,
+    non_error_min: f64,
+) -> Result<(Vec<RadonTypes>, Vec<bool>), RadError> {
+    let reveals_len = reveals.len() as f64;
+
+    let mut counter = Counter::default();
+    for reveal in &reveals {
+        match &reveal.result {
+            Err(_e) => {}
+            Ok(rad_types) => match rad_types {
+                RadonTypes::Array(_) => counter.update(0),
+                RadonTypes::Boolean(_) => counter.update(1),
+                RadonTypes::Bytes(_) => counter.update(2),
+                RadonTypes::Float(_) => counter.update(3),
+                RadonTypes::Integer(_) => counter.update(4),
+                RadonTypes::Map(_) => counter.update(5),
+                RadonTypes::String(_) => counter.update(6),
+            },
+        }
+    }
+
+    let non_error_ratio = counter.max_val as f64 / reveals_len;
+
+    if non_error_ratio > non_error_min {
+        let mut liars = vec![];
+        let results = reveals
+            .into_iter()
+            .filter_map(|reveal| match reveal.into_inner() {
+                Err(_e) => {
+                    liars.push(true);
+                    None
+                }
+                Ok(rad_types) => match rad_types {
+                    RadonTypes::Array(_) => {
+                        update_liars(&mut liars, rad_types, counter.max_pos == 0)
+                    }
+                    RadonTypes::Boolean(_) => {
+                        update_liars(&mut liars, rad_types, counter.max_pos == 1)
+                    }
+                    RadonTypes::Bytes(_) => {
+                        update_liars(&mut liars, rad_types, counter.max_pos == 2)
+                    }
+                    RadonTypes::Float(_) => {
+                        update_liars(&mut liars, rad_types, counter.max_pos == 3)
+                    }
+                    RadonTypes::Integer(_) => {
+                        update_liars(&mut liars, rad_types, counter.max_pos == 4)
+                    }
+                    RadonTypes::Map(_) => update_liars(&mut liars, rad_types, counter.max_pos == 5),
+                    RadonTypes::String(_) => {
+                        update_liars(&mut liars, rad_types, counter.max_pos == 6)
+                    }
+                },
+            })
+            .collect();
+
+        Ok((results, liars))
+    } else {
+        let errors: Vec<RadError> = reveals
+            .into_iter()
+            .filter_map(|reveal| match reveal.into_inner() {
+                Err(e) => Some(e),
+                Ok(_) => None,
+            })
+            .collect();
+
+        // TODO: Currently we return the first error, but we should use the mode of errors
+        if !errors.is_empty() {
+            Err(errors[0].clone())
+        } else {
+            Err(RadError::default())
+        }
+    }
 }
 
 /// Function to validate a tally consensus
@@ -1266,6 +1373,7 @@ pub fn compare_blocks(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
 
     #[test]
     fn test_compare_block() {
@@ -1394,5 +1502,114 @@ mod tests {
         // 10 * 1 / (10000 + 100) = 0.099%
         let t07 = calculate_reppoe_threshold(Reputation(0), Reputation(10_000), 10, 100);
         assert_eq!(t07, Hash::with_first_u32(0x0040_E318));
+    }
+
+    #[test]
+    fn test_counter() {
+        let mut counter = Counter::default();
+        counter.update(6);
+        assert_eq!(counter.max_val, 1);
+        assert_eq!(counter.max_pos, 6);
+
+        counter.update(6);
+        assert_eq!(counter.max_val, 2);
+        assert_eq!(counter.max_pos, 6);
+
+        counter.update(0);
+        assert_eq!(counter.max_val, 2);
+        assert_eq!(counter.max_pos, 6);
+
+        counter.update(0);
+        counter.update(0);
+        assert_eq!(counter.max_val, 3);
+        assert_eq!(counter.max_pos, 0);
+    }
+
+    #[test]
+    fn test_tally_precondition_clause() {
+        let rad_int = RadonTypes::Integer(RadonInteger::from(1));
+        let rad_float = RadonTypes::Float(RadonFloat::from(1));
+
+        let rad_rep_int =
+            RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default()).unwrap();
+        let rad_rep_float =
+            RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
+
+        let v = vec![
+            rad_rep_int.clone(),
+            rad_rep_int.clone(),
+            rad_rep_int,
+            rad_rep_float,
+        ];
+
+        let (out, liars) = tally_precondition_clause(v, 0.51).unwrap();
+
+        assert_eq!(out, vec![rad_int.clone(), rad_int.clone(), rad_int]);
+        assert_eq!(liars, vec![false, false, false, true]);
+    }
+
+    #[test]
+    fn test_tally_precondition_clause2() {
+        let rad_int = RadonTypes::Integer(RadonInteger::from(1));
+        let rad_err = RadError::HttpStatus { status_code: 404 };
+
+        let rad_rep_int =
+            RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default()).unwrap();
+        let rad_rep_err =
+            RadonReport::from_result(Err(rad_err), &ReportContext::default()).unwrap();
+
+        let v = vec![
+            rad_rep_int.clone(),
+            rad_rep_err,
+            rad_rep_int.clone(),
+            rad_rep_int,
+        ];
+
+        let (out, liars) = tally_precondition_clause(v, 0.51).unwrap();
+
+        assert_eq!(out, vec![rad_int.clone(), rad_int.clone(), rad_int]);
+        assert_eq!(liars, vec![false, true, false, false]);
+    }
+
+    #[test]
+    fn test_tally_precondition_clause_error() {
+        let rad_int = RadonTypes::Integer(RadonInteger::from(1));
+        let rad_err = RadError::HttpStatus { status_code: 404 };
+
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
+        let rad_rep_err =
+            RadonReport::from_result(Err(rad_err.clone()), &ReportContext::default()).unwrap();
+
+        let v = vec![
+            rad_rep_err.clone(),
+            rad_rep_err.clone(),
+            rad_rep_err,
+            rad_rep_int,
+        ];
+
+        let out = tally_precondition_clause(v, 0.51).unwrap_err();
+
+        assert_eq!(out, rad_err);
+    }
+
+    #[test]
+    fn test_tally_precondition_clause_error2() {
+        let rad_int = RadonTypes::Integer(RadonInteger::from(1));
+        let rad_float = RadonTypes::Float(RadonFloat::from(1));
+
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
+        let rad_rep_float =
+            RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
+
+        let v = vec![
+            rad_rep_float.clone(),
+            rad_rep_int.clone(),
+            rad_rep_float,
+            rad_rep_int,
+        ];
+
+        let out = tally_precondition_clause(v, 0.51).unwrap_err();
+
+        assert_eq!(out, RadError::default());
     }
 }
