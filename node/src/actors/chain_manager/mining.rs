@@ -20,13 +20,11 @@ use witnet_data_structures::{
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
-use witnet_rad::{
-    error::RadError,
-    types::{serial_iter_decode, RadonTypes},
-};
+use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
-    merkle_tree_root, update_utxo_diff, validate_block, vt_transaction_fee, UtxoDiff,
+    merkle_tree_root, tally_precondition_clause, update_utxo_diff, validate_block,
+    vt_transaction_fee, UtxoDiff,
 };
 
 use crate::{
@@ -39,6 +37,7 @@ use crate::{
     },
     signature_mngr,
 };
+use witnet_data_structures::radon_report::ReportContext;
 
 impl ChainManager {
     /// Try to mine a block
@@ -390,15 +389,29 @@ impl ChainManager {
                             &slice,
                             e
                         );
-                            None
+                            Some(
+                                RadonReport::from_result(Err(e), &ReportContext::default())
+                                    .unwrap(),
+                            )
                         },
                     );
+
+                    let non_error_min =
+                        dr_state.data_request.min_consensus_percentage as f64 / 100.0;
+                    let len_results = results.len();
+                    let clause_result = tally_precondition_clause(results.clone(), non_error_min);
+
+                    let (reveals_vec, liars) = match clause_result {
+                        Ok((results, liars)) => (Ok(results), liars),
+                        Err(e) => (Err(e), vec![false; len_results]),
+                    };
 
                     let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
                         .send(RunTally {
                             script: dr_state.data_request.data_request.tally.clone(),
-                            reveals: results.clone(),
+                            reveals: reveals_vec,
+                            liars,
                         })
                         .then(|result| match result {
                             // If the result of `RunTally` is `Ok`, it will be published as tally
@@ -436,7 +449,11 @@ impl ChainManager {
                                         White.bold().paint(
                                             results.into_iter().map(|result| result).fold(
                                                 String::from("Reveals:"),
-                                                |acc, item| format!("{}\n\t* {}", acc, item)
+                                                |acc, item| format!(
+                                                    "{}\n\t* {:?}",
+                                                    acc,
+                                                    item.into_inner()
+                                                )
                                             )
                                         ),
                                     );

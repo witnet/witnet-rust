@@ -138,6 +138,7 @@ message DataRequestOutput {
     uint64 reveal_fee = 6;
     uint64 tally_fee = 7;
     uint32 extra_reveal_rounds = 8;
+    uint32 min_consensus_percentage = 9;
 }
 
 message Input {

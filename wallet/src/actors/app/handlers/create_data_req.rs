@@ -26,6 +26,7 @@ struct DataRequestOutput {
     reveal_fee: u64,
     tally_fee: u64,
     extra_reveal_rounds: u16,
+    min_consensus_percentage: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,6 +110,7 @@ fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app:
         reveal_fee: request.reveal_fee,
         tally_fee: request.tally_fee,
         extra_reveal_rounds: request.extra_reveal_rounds,
+        min_consensus_percentage: request.min_consensus_percentage,
     };
 
     let request = witnet_validations::validations::validate_data_request_output(&req)

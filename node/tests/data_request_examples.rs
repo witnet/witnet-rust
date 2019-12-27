@@ -146,7 +146,6 @@ mod examples {
         DataRequestOutput, RADAggregate, RADFilter, RADRequest, RADRetrieve, RADTally, RADType,
     };
     use witnet_node::actors::messages::BuildDrt;
-    use witnet_rad::filters::RadonFilters;
     use witnet_rad::{
         cbor_to_vec, filters::RadonFilters, operators::RadonOpCodes, reducers::RadonReducers,
         CborValue as Value,
@@ -199,6 +198,7 @@ mod examples {
                 reveal_fee: 5,
                 tally_fee: 20,
                 extra_reveal_rounds: 2,
+                min_consensus_percentage: 51,
             },
             fee: 10,
         }
@@ -265,6 +265,7 @@ mod examples {
                 reveal_fee: 1,
                 tally_fee: 1,
                 extra_reveal_rounds: 3,
+                min_consensus_percentage: 51,
             },
             fee: 10,
         }
@@ -299,17 +300,22 @@ mod examples {
                         reducer: RadonReducers::AverageMean as u32,
                     },
                     tally: RADTally {
-                        filters: vec![RadonFilters::DeviationStandard as u8],
+                        filters: vec![RADFilter{
+                            op: RadonFilters::DeviationStandard as u32,
+                            args: vec![249, 60, 0],
+                        }
+                     ],
                         reducer: RadonReducers::AverageMean as u32,
                     },
                 },
-                value: 1030,
+                value: 1120,
                 witnesses: 4,
                 backup_witnesses: 1,
-                commit_fee: 5,
-                reveal_fee: 5,
-                tally_fee: 10,
+                commit_fee: 10,
+                reveal_fee: 10,
+                tally_fee: 40,
                 extra_reveal_rounds: 1,
+                min_consensus_percentage: 51,
             },
             fee: 0,
         }

@@ -5,11 +5,10 @@ use actix::{Handler, Message, ResponseFuture};
 use crate::actors::messages::{ResolveRA, RunTally};
 use futures::Future;
 use tokio::util::FutureExt;
-use witnet_data_structures::radon_report::RadonReport;
-use witnet_rad::error::RadError;
+use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage, TallyMetaData};
+use witnet_rad::{error::RadError, types::RadonTypes};
 
 use super::RadManager;
-use witnet_rad::types::RadonTypes;
 
 impl Handler<ResolveRA> for RadManager {
     type Result = ResponseFuture<RadonReport<RadonTypes>, RadError>;
@@ -90,7 +89,18 @@ impl Handler<RunTally> for RadManager {
     fn handle(&mut self, msg: RunTally, _ctx: &mut Self::Context) -> Self::Result {
         let packed_script = msg.script;
         let reveals = msg.reveals;
+        let liars = msg.liars;
 
-        witnet_rad::run_tally_report(reveals, &packed_script)
+        match reveals {
+            Ok(reveals) => witnet_rad::run_tally_report(reveals, &packed_script, Some(liars)),
+            Err(e) => {
+                let context = &mut ReportContext::default();
+                let mut metadata = TallyMetaData::default();
+                metadata.liars = liars;
+                context.stage = Stage::Tally(metadata);
+
+                RadonReport::from_result(Err(e), &context)
+            }
+        }
     }
 }

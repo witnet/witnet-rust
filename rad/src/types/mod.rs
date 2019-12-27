@@ -8,7 +8,10 @@ use serde::Serialize;
 use serde_cbor::{to_vec, Value};
 
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::{chain::Hash, radon_report::TypeLike};
+use witnet_data_structures::{
+    chain::Hash,
+    radon_report::{RadonReport, TypeLike},
+};
 
 use crate::{
     error::RadError,
@@ -18,6 +21,7 @@ use crate::{
         integer::RadonInteger, map::RadonMap, string::RadonString,
     },
 };
+use witnet_data_structures::radon_report::ReportContext;
 
 pub mod array;
 pub mod boolean;
@@ -328,11 +332,13 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
 /// default values.
 pub fn serial_iter_decode<T>(
     iter: &mut dyn Iterator<Item = (&[u8], &T)>,
-    err_action: fn(RadError, &[u8], &T) -> Option<RadonTypes>,
-) -> Vec<RadonTypes> {
-    iter.filter_map(|(slice, inner)| match RadonTypes::try_from(slice) {
-        Ok(result) => Some(result),
-        Err(e) => err_action(e, slice, inner),
+    err_action: fn(RadError, &[u8], &T) -> Option<RadonReport<RadonTypes>>,
+) -> Vec<RadonReport<RadonTypes>> {
+    iter.filter_map(|(slice, inner)| {
+        match RadonReport::from_result(RadonTypes::try_from(slice), &ReportContext::default()) {
+            Ok(result) => Some(result),
+            Err(e) => err_action(e, slice, inner),
+        }
     })
     .collect()
 }

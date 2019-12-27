@@ -1,7 +1,7 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
-    convert::{TryFrom, TryInto},
+    convert::TryInto,
 };
 
 use witnet_crypto::{
@@ -18,19 +18,18 @@ use witnet_data_structures::{
     },
     data_request::{calculate_dr_vt_reward, DataRequestPool},
     error::{BlockError, DataRequestError, TransactionError},
-    radon_report::{Stage, TypeLike},
+    radon_report::{RadonReport, ReportContext, Stage, TallyMetaData, TypeLike},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
         Transaction, VTTransaction,
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
-use witnet_rad::error::RadError;
-use witnet_rad::types::serial_iter_decode;
 use witnet_rad::{
+    error::RadError,
     run_tally_report,
     script::{create_radon_script, unpack_radon_script},
-    types::RadonTypes,
+    types::{serial_iter_decode, RadonTypes},
 };
 
 /// Calculate the sum of the values of the outputs pointed by the
@@ -157,12 +156,12 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
 
     let aggregate = &rad_request.aggregate;
     let filters = aggregate.filters.as_slice();
-    let reducer = aggregate.reducer as u8;
+    let reducer = aggregate.reducer;
     create_radon_script(filters, reducer)?;
 
     let consensus = &rad_request.tally;
     let filters = consensus.filters.as_slice();
-    let reducer = consensus.reducer as u8;
+    let reducer = consensus.reducer;
     create_radon_script(filters, reducer)?;
 
     Ok(())
@@ -258,13 +257,38 @@ pub fn validate_consensus(
     reveals: Vec<&RevealTransaction>,
     miner_tally: &[u8],
     consensus: &RADTally,
+    non_error_min: f64,
 ) -> Result<HashSet<PublicKeyHash>, failure::Error> {
-    let radon_types_vec: Vec<RadonTypes> = reveals
-        .iter()
-        .filter_map(|reveal| RadonTypes::try_from(reveal.body.reveal.as_slice()).ok())
-        .collect();
+    let results = serial_iter_decode(
+        &mut reveals
+            .iter()
+            .map(|&reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
+        |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
+            log::warn!(
+                "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
+                reveal_tx,
+                &slice,
+                e
+            );
+            Some(RadonReport::from_result(Err(e), &ReportContext::default()).unwrap())
+        },
+    );
 
-    let report = run_tally_report(radon_types_vec, consensus)?;
+    let len_results = results.len();
+    let clause_result = tally_precondition_clause(results, non_error_min);
+
+    let report = match clause_result {
+        Ok((radon_types_vec, liars)) => run_tally_report(radon_types_vec, consensus, Some(liars))?,
+        Err(e) => {
+            let context = &mut ReportContext::default();
+            let mut metadata = TallyMetaData::default();
+            metadata.liars = vec![false; len_results];
+            context.stage = Stage::Tally(metadata);
+
+            RadonReport::from_result(Err(e), &context)?
+        }
+    };
+
     let metadata = report.metadata.clone();
     let tally_consensus = report
         .into_inner()
@@ -392,6 +416,13 @@ pub fn validate_dr_transaction<'a>(
 pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), TransactionError> {
     if request.witnesses < 1 {
         return Err(TransactionError::InsufficientWitnesses);
+    }
+
+    let cond = request.min_consensus_percentage > 50 && request.min_consensus_percentage < 100;
+    if !cond {
+        return Err(TransactionError::InvalidMinConsensus {
+            value: request.min_consensus_percentage,
+        });
     }
 
     let sum_fees = request
@@ -560,8 +591,9 @@ pub fn validate_tally_transaction<'a>(
     // Validate tally result
     let miner_tally = ta_tx.tally.clone();
     let tally_stage = &dr_output.data_request.tally;
+    let non_error_min = dr_output.min_consensus_percentage as f64 / 100.0;
 
-    let pkh_liars = validate_consensus(reveal_txns, &miner_tally, tally_stage)?;
+    let pkh_liars = validate_consensus(reveal_txns, &miner_tally, tally_stage, non_error_min)?;
 
     validate_tally_outputs(&dr_state, &ta_tx, reveal_length, pkh_liars)?;
 
