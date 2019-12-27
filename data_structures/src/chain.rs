@@ -727,6 +727,7 @@ pub struct DataRequestOutput {
     pub reveal_fee: u64,
     pub tally_fee: u64,
     pub extra_reveal_rounds: u16,
+    pub min_consensus_percentage: u32,
 }
 
 impl DataRequestOutput {

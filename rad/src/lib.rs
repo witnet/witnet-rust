@@ -127,10 +127,15 @@ pub fn run_aggregation(
 pub fn run_tally_report(
     radon_types_vec: Vec<RadonTypes>,
     consensus: &RADTally,
+    liars: Option<Vec<bool>>,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::default();
     let mut metadata = TallyMetaData::default();
-    metadata.liars = vec![false; radon_types_vec.len()];
+    if let Some(liars) = liars {
+        metadata.liars = liars;
+    } else {
+        metadata.liars = vec![false; radon_types_vec.len()];
+    }
     context.stage = Stage::Tally(metadata);
 
     let filters = consensus.filters.as_slice();
@@ -144,7 +149,7 @@ pub fn run_tally_report(
 
 /// Run tally stage of a data request, return `RadonTypes`.
 pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
-    run_tally_report(radon_types_vec, consensus).and_then(RadonReport::into_inner)
+    run_tally_report(radon_types_vec, consensus, None).and_then(RadonReport::into_inner)
 }
 
 #[cfg(test)]
@@ -399,6 +404,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::Mode as u32,
             },
+            None,
         )
         .unwrap();
 
@@ -428,6 +434,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::Mode as u32,
             },
+            None,
         )
         .unwrap();
 
@@ -458,6 +465,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::Mode as u32,
             },
+            None,
         )
         .unwrap();
 
@@ -486,6 +494,7 @@ mod tests {
                 filters: vec![RadonFilters::DeviationStandard as u8],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            None,
         )
         .unwrap();
 
@@ -523,6 +532,7 @@ mod tests {
                 ],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            None,
         )
         .unwrap();
 
@@ -555,6 +565,7 @@ mod tests {
                 filters: vec![],
                 reducer: RadonReducers::Mode as u32,
             },
+            None,
         )
         .unwrap();
 
@@ -587,6 +598,7 @@ mod tests {
                 ],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            None,
         )
         .unwrap_err();
 
@@ -623,6 +635,7 @@ mod tests {
                 filters: vec![RadonOpCodes::ArrayMap as u8],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            None,
         )
         .unwrap_err();
 
@@ -659,6 +672,7 @@ mod tests {
                 filters: vec![RadonOpCodes::ArrayGetArray as u8, 0],
                 reducer: RadonReducers::AverageMean as u32,
             },
+            None,
         )
         .unwrap_err();
 

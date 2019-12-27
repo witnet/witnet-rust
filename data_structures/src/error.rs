@@ -180,6 +180,9 @@ pub enum TransactionError {
         reveals_n, inputs_n
     )]
     MismatchingLiarsNumber { reveals_n: usize, inputs_n: usize },
+    /// Minimum consensus percentage is invalid
+    #[fail(display = "Minimum consensus percentage {} is invalid", value)]
+    InvalidMinConsensus { value: u32 },
 }
 
 /// The error type for operations on a [`Block`](Block)

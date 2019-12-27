@@ -533,6 +533,10 @@ pub struct RunTally {
     pub script: RADTally,
     /// Reveals vector for tally
     pub reveals: Vec<RadonTypes>,
+    /// Liars vector for tally
+    pub liars: Vec<bool>,
+    /// RadError
+    pub error: Option<RadError>,
 }
 
 impl Message for ResolveRA {

@@ -194,6 +194,7 @@ mod examples {
                 reveal_fee: 5,
                 tally_fee: 10,
                 extra_reveal_rounds: 2,
+                min_consensus_percentage: 51,
             },
             fee: 10,
         }
@@ -260,6 +261,7 @@ mod examples {
                 reveal_fee: 1,
                 tally_fee: 1,
                 extra_reveal_rounds: 3,
+                min_consensus_percentage: 51,
             },
             fee: 10,
         }
@@ -305,6 +307,7 @@ mod examples {
                 reveal_fee: 5,
                 tally_fee: 10,
                 extra_reveal_rounds: 2,
+                min_consensus_percentage: 51,
             },
             fee: 0,
         }

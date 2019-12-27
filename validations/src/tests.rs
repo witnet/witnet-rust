@@ -846,6 +846,7 @@ fn data_request_no_inputs() {
     let dr_output = DataRequestOutput {
         value: 1000,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -873,6 +874,7 @@ fn data_request_no_inputs_but_one_signature() {
     let dr_output = DataRequestOutput {
         value: 1000,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -909,6 +911,7 @@ fn data_request_one_input_but_no_signature() {
     let dr_output = DataRequestOutput {
         value: 1000,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -946,6 +949,7 @@ fn data_request_one_input_signatures() {
     let dr_output = DataRequestOutput {
         value: 1000,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -978,6 +982,7 @@ fn data_request_input_not_in_utxo() {
     let dr_output = DataRequestOutput {
         value: 1000,
         witnesses: 2,
+        min_consensus_percentage: 51,
         ..DataRequestOutput::default()
     };
 
@@ -1014,6 +1019,7 @@ fn data_request_input_not_enough_value() {
     let dr_output = DataRequestOutput {
         value: 1000,
         witnesses: 2,
+        min_consensus_percentage: 51,
         ..DataRequestOutput::default()
     };
 
@@ -1060,6 +1066,7 @@ fn test_rad_request(data_request: RADRequest) -> Result<(), failure::Error> {
     test_drtx(DataRequestOutput {
         value: 1000,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     })
@@ -1119,6 +1126,7 @@ fn data_request_witnesses_0() {
     let x = test_drtx(DataRequestOutput {
         value: 1000,
         witnesses: 0,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1136,6 +1144,7 @@ fn data_request_witnesses_1() {
     let x = test_drtx(DataRequestOutput {
         value: 1000,
         witnesses: 1,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1148,6 +1157,7 @@ fn data_request_no_value() {
     let x = test_drtx(DataRequestOutput {
         value: 0,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1165,6 +1175,7 @@ fn data_request_odd_value() {
     let x = test_drtx(DataRequestOutput {
         value: 999,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1186,6 +1197,7 @@ fn data_request_odd_tally_value() {
         value: 1000,
         tally_fee: 901,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1208,6 +1220,7 @@ fn data_request_invalid_value_commit_fee() {
         reveal_fee: 0,
         tally_fee: 0,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1230,6 +1243,7 @@ fn data_request_invalid_value_reveal_fee() {
         reveal_fee: 500,
         tally_fee: 0,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1252,6 +1266,7 @@ fn data_request_invalid_value_tally_fee() {
         reveal_fee: 0,
         tally_fee: 1000,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1274,6 +1289,7 @@ fn data_request_invalid_all_fees() {
         reveal_fee: 125,
         tally_fee: 500,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1296,6 +1312,7 @@ fn data_request_negative_value_commit_fee() {
         reveal_fee: 0,
         tally_fee: 0,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1318,6 +1335,7 @@ fn data_request_negative_value_reveal_fee() {
         reveal_fee: 501,
         tally_fee: 0,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1340,6 +1358,7 @@ fn data_request_negative_value_tally_fee() {
         reveal_fee: 0,
         tally_fee: 1001,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1362,6 +1381,7 @@ fn data_request_negative_all_fees() {
         reveal_fee: 126,
         tally_fee: 502,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1381,6 +1401,7 @@ fn data_request_miner_fee() {
     let dr_output = DataRequestOutput {
         value: 750,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1415,6 +1436,7 @@ fn data_request_miner_fee_with_change() {
     let dr_output = DataRequestOutput {
         value: 750,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1454,6 +1476,7 @@ fn data_request_miner_fee_with_too_much_change() {
     let dr_output = DataRequestOutput {
         value: 750,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1494,6 +1517,7 @@ fn data_request_zero_value_output() {
     let dr_output = DataRequestOutput {
         value: 750,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1549,7 +1573,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     .map(|_| ())
 }
 
-static DR_HASH: &str = "e166d37330dbc645a2b27fc74b661322fc071eeee5feabde0b7566bb1cc07c60";
+static DR_HASH: &str = "dc11c3b73af1ce17b412bdf70e859966d9ae53dcbdba2b617bc3993f8fa183f2";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
@@ -1561,6 +1585,7 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let dro = DataRequestOutput {
         value: 1000,
         witnesses: 1,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -1615,6 +1640,7 @@ fn test_commit_difficult_proof() -> Result<(), failure::Error> {
     let dro = DataRequestOutput {
         value: 1000,
         witnesses: 1,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -1667,6 +1693,7 @@ fn test_commit() -> Result<(), failure::Error> {
     let dro = DataRequestOutput {
         value: 1000,
         witnesses: 1,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -1850,6 +1877,7 @@ fn commitment_invalid_proof() {
     let dro = DataRequestOutput {
         value: 1000,
         witnesses: 1,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -1892,7 +1920,7 @@ fn commitment_proof_lower_than_target() {
     let x = test_commit_difficult_proof();
     // This is just the hash of the VRF, we do not care for the exact value as
     // long as it is below the target hash
-    let vrf_hash = "496449cc6bcaa7210e56cedc3b0cb1075bd3ca2c693c6269620423895d4e2c71,"
+    let vrf_hash = "8d4d2333e223ef43a42cb57633392a9122ec246b31a51b030934805e2683eb83,,"
         .parse()
         .unwrap();
     assert_eq!(
@@ -1918,6 +1946,7 @@ fn commitment_dr_in_reveal_stage() {
     let dro = DataRequestOutput {
         value: 1000,
         witnesses: 1,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -1991,6 +2020,7 @@ fn commitment_timelock() {
         let dro = DataRequestOutput {
             value: 1000,
             witnesses: 1,
+            min_consensus_percentage: 51,
             data_request: rad_request,
             ..DataRequestOutput::default()
         };
@@ -2056,6 +2086,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
     let dro = DataRequestOutput {
         value: 1000,
         witnesses: 1,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -2180,6 +2211,7 @@ fn reveal_dr_in_commit_stage() {
     let dro = DataRequestOutput {
         value: 1000,
         witnesses: 1,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -2304,6 +2336,7 @@ fn reveal_valid_commitment() {
         witnesses: 5,
         reveal_fee: 20,
         extra_reveal_rounds: 2,
+        min_consensus_percentage: 51,
         ..DataRequestOutput::default()
     };
     let dr_transaction = DRTransaction {
@@ -2398,6 +2431,7 @@ fn dr_pool_with_dr_in_tally_stage(
         witnesses: 5,
         reveal_fee: 20,
         value: 1100,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -2469,6 +2503,7 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
         commit_fee: 50,
         tally_fee: 100,
         value: 1300,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -2561,6 +2596,7 @@ fn tally_dr_not_tally_stage() {
         witnesses: 5,
         reveal_fee: 20,
         value: 1100,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -3383,6 +3419,7 @@ fn block_duplicated_commits() {
         value: 1000,
         commit_fee: 50,
         witnesses: 2,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -3459,6 +3496,7 @@ fn block_duplicated_reveals() {
         value: 1100,
         witnesses: 2,
         reveal_fee: 50,
+        min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
     };
@@ -3960,6 +3998,7 @@ fn block_add_drt() {
         let dr_output = DataRequestOutput {
             value: 750,
             witnesses: 2,
+            min_consensus_percentage: 51,
             data_request,
             ..DataRequestOutput::default()
         };
@@ -3994,6 +4033,7 @@ fn block_add_2_drt_same_input() {
         let dr_output = DataRequestOutput {
             value: 750,
             witnesses: 2,
+            min_consensus_percentage: 51,
             data_request,
             ..DataRequestOutput::default()
         };
@@ -4052,6 +4092,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
         let dr_output = DataRequestOutput {
             value: 750,
             witnesses: 2,
+            min_consensus_percentage: 51,
             data_request,
             ..DataRequestOutput::default()
         };
