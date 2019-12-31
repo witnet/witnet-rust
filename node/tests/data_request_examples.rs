@@ -131,6 +131,12 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
             RadonTypes::Float(RadonFloat::from(89271.66335)),
         ),
         (
+            "error_301_source.json",
+            examples::error_301_source(),
+            &[r#"{"data":[5]}"#],
+            RadonTypes::Float(RadonFloat::from(5.0)),
+        ),
+        (
             "random_source.json",
             examples::random_source(),
             &[r#"[{"status":"success","min":0,"max":100,"random":31}]"#],
@@ -314,6 +320,53 @@ mod examples {
                 reveal_fee: 10,
                 tally_fee: 40,
                 extra_reveal_rounds: 1,
+                min_consensus_percentage: 51,
+            },
+            fee: 0,
+        }
+    }
+
+    pub fn error_301_source() -> BuildDrt {
+        let url_0 =
+            "http://www.skyverge.com/woocommerce–rest–api-docs.html#authentication/over-https";
+        let r0_script = cbor_to_vec(&Value::Array(vec![
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetArray as i128),
+                Value::Text(String::from("data")),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayGetFloat as i128),
+                Value::Integer(0),
+            ]),
+        ]))
+        .unwrap();
+
+        BuildDrt {
+            dro: DataRequestOutput {
+                data_request: RADRequest {
+                    time_lock: 0,
+                    retrieve: vec![RADRetrieve {
+                        kind: RADType::HttpGet,
+                        url: url_0.to_string(),
+                        script: r0_script,
+                    }],
+                    aggregate: RADAggregate {
+                        filters: vec![],
+                        reducer: RadonReducers::AverageMean as u32,
+                    },
+                    tally: RADTally {
+                        filters: vec![],
+                        reducer: RadonReducers::AverageMean as u32,
+                    },
+                },
+                value: 1030,
+                witnesses: 2,
+                backup_witnesses: 1,
+                commit_fee: 5,
+                reveal_fee: 5,
+                tally_fee: 10,
+                extra_reveal_rounds: 2,
                 min_consensus_percentage: 51,
             },
             fee: 0,
