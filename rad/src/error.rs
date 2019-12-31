@@ -6,7 +6,10 @@ use serde_cbor::value::Value as SerdeCborValue;
 
 use witnet_data_structures::radon_error::{ErrorLike, RadonError, RadonErrors};
 
-use crate::{operators::RadonOpCodes, types::array::RadonArray};
+use crate::{
+    operators::RadonOpCodes,
+    types::{array::RadonArray, RadonTypes},
+};
 
 /// RAD errors.
 #[derive(Clone, Debug, PartialEq, Fail)]
@@ -213,8 +216,8 @@ pub enum RadError {
     #[fail(display = "Timeout during retrieval phase")]
     RetrieveTimeout,
     /// Tagged error code from CBOR value
-    #[fail(display = "Tagged error with code {}", code)]
-    TaggedError { code: u8 },
+    #[fail(display = "Tagged error with code {:?}", error_args)]
+    TaggedError { error_args: RadonTypes },
     /// Invalid script
     #[fail(display = "Value: {:?}, can not produce a properly script", value)]
     InvalidScript { value: SerdeCborValue },

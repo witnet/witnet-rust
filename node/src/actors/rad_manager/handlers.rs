@@ -2,13 +2,14 @@
 
 use actix::{Handler, Message, ResponseFuture};
 
+use super::RadManager;
+
 use crate::actors::messages::{ResolveRA, RunTally};
 use futures::Future;
 use tokio::util::FutureExt;
 use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage, TallyMetaData};
 use witnet_rad::{error::RadError, types::RadonTypes};
-
-use super::RadManager;
+use witnet_validations::validations::tally_precondition_clause;
 
 impl Handler<ResolveRA> for RadManager {
     type Result = ResponseFuture<RadonReport<RadonTypes>, RadError>;
@@ -30,32 +31,38 @@ impl Handler<ResolveRA> for RadManager {
             // Perform retrievals in parallel for the sake of synchronization between sources
             //  (increasing the likeliness of multiple sources returning results that are closer to each
             //  other).
-            let retrieve_responses = futures03::future::join_all(retrieve_responses_fut)
-                .await
-                .into_iter()
-                // FIXME: failed sources should not be ignored but rather passed along, as it is up to the
-                //  aggregator script to decide how to handle source errors. Aggregators may ignore/drop
-                //  errors by flattening the input array or just go ahead and try to apply a reducer that
-                //  will surely fail in runtime because of lack of homogeneity in the array. In such case,
-                //  we should make sure to throw the original source error, not the misleading "could not
-                //  apply reducer on an array that is not homogeneous".
-                .filter_map(|retrieve| {
-                    retrieve
-                        .map_err(|err| {
-                            log::warn!(
-                                "Failed to run retrieval for data request {}: {}",
-                                dr_pointer,
-                                err
-                            );
-                        })
-                        .ok()
-                })
-                .collect();
+            let retrieve_responses: Vec<RadonReport<RadonTypes>> =
+                futures03::future::join_all(retrieve_responses_fut)
+                    .await
+                    .into_iter()
+                    .filter_map(|retrieve| {
+                        let rad_report =
+                            RadonReport::from_result(retrieve, &ReportContext::default());
+                        match rad_report {
+                            Ok(x) => Some(x),
+                            Err(err) => {
+                                log::warn!(
+                                    "Failed to run retrieval for data request {}: {}",
+                                    dr_pointer,
+                                    err
+                                );
+                                None
+                            }
+                        }
+                    })
+                    .collect();
 
-            // Perform aggregation on the values that made it to the output vector after applying the
-            // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
-            // failures.
-            witnet_rad::run_aggregation_report(retrieve_responses, &aggregator)
+            let clause_result = tally_precondition_clause(retrieve_responses, 0.2);
+
+            match clause_result {
+                Ok((radon_types_vec, _)) => {
+                    // Perform aggregation on the values that made it to the output vector after applying the
+                    // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
+                    // failures.
+                    witnet_rad::run_aggregation_report(radon_types_vec, &aggregator)
+                }
+                Err(e) => RadonReport::from_result(Err(e), &ReportContext::default()),
+            }
         };
 
         // Magic conversion from std::future::Future (futures 0.3) and futures::Future (futures 0.1)

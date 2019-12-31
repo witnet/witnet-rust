@@ -1,13 +1,10 @@
-use std::convert::TryFrom;
-use std::io::Cursor;
+use std::{convert::TryFrom, io::Cursor};
 
-use cbor::types::Tag;
-use cbor::value::Value;
-use cbor::GenericEncoder;
+use cbor::{types::Tag, value::Value, GenericEncoder};
 use failure::Fail;
-use num_enum::IntoPrimitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-#[derive(Clone, Copy, Debug, IntoPrimitive)]
+#[derive(Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 /// List of RADON-level errors.
 /// **WARNING: these codes are consensus-critical.** They can be renamed but they cannot be
@@ -128,7 +125,7 @@ where
             .arguments
             .iter()
             .for_each(|argument| values.push(argument.clone()));
-        Value::Tagged(Tag::of(39), Box::new(Value::Array(values)))
+        Value::Tagged(Tag::of(37), Box::new(Value::Array(values)))
     }
 }
 

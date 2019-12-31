@@ -456,7 +456,9 @@ impl ChainManager {
                                         "{} Created Tally for Data Request {} with result: {}\n{}",
                                         Yellow.bold().paint("[Data Request]"),
                                         Yellow.bold().paint(&dr_pointer.to_string()),
-                                        Yellow.bold().paint(format!("{:?}", &tally_result.result)),
+                                        Yellow
+                                            .bold()
+                                            .paint(format!("{:?}", &tally_result.into_inner())),
                                         White.bold().paint(
                                             results.into_iter().map(|result| result).fold(
                                                 String::from("Reveals:"),
