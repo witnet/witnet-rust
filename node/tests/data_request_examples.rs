@@ -143,9 +143,10 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
 
 mod examples {
     use witnet_data_structures::chain::{
-        DataRequestOutput, RADAggregate, RADRequest, RADRetrieve, RADTally, RADType,
+        DataRequestOutput, RADAggregate, RADFilter, RADRequest, RADRetrieve, RADTally, RADType,
     };
     use witnet_node::actors::messages::BuildDrt;
+    use witnet_rad::filters::RadonFilters;
     use witnet_rad::{
         cbor_to_vec, filters::RadonFilters, operators::RadonOpCodes, reducers::RadonReducers,
         CborValue as Value,
@@ -184,16 +185,19 @@ mod examples {
                         reducer: RadonReducers::AverageMean as u32,
                     },
                     tally: RADTally {
-                        filters: vec![],
+                        filters: vec![RADFilter {
+                            op: RadonFilters::DeviationStandard as u32,
+                            args: vec![249, 60, 0],
+                        }],
                         reducer: RadonReducers::AverageMean as u32,
                     },
                 },
-                value: 1030,
-                witnesses: 2,
+                value: 1060,
+                witnesses: 4,
                 backup_witnesses: 1,
                 commit_fee: 5,
                 reveal_fee: 5,
-                tally_fee: 10,
+                tally_fee: 20,
                 extra_reveal_rounds: 2,
             },
             fee: 10,
