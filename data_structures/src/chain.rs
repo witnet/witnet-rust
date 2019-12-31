@@ -727,6 +727,9 @@ pub struct DataRequestOutput {
     pub reveal_fee: u64,
     pub tally_fee: u64,
     pub extra_reveal_rounds: u16,
+    // This field must be >50 and <100.
+    // >50 because simple majority
+    // <100 because a 100% consensus encourages to commit a RadError for free
     pub min_consensus_percentage: u32,
 }
 

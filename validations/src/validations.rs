@@ -1,7 +1,7 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
 };
 
 use witnet_crypto::{
@@ -18,7 +18,7 @@ use witnet_data_structures::{
     },
     data_request::{calculate_dr_vt_reward, DataRequestPool},
     error::{BlockError, DataRequestError, TransactionError},
-    radon_report::{RadonReport, ReportContext, Stage, TallyMetaData, TypeLike},
+    radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
         Transaction, VTTransaction,
@@ -290,9 +290,7 @@ pub fn validate_consensus(
     };
 
     let metadata = report.metadata.clone();
-    let tally_consensus = report
-        .into_inner()
-        .and_then(|tally| RadonTypes::encode(&tally))?;
+    let tally_consensus = Vec::<u8>::try_from(&report)?;
 
     if let Stage::Tally(tally_metadata) = metadata {
         if tally_consensus.as_slice() == miner_tally {
@@ -418,8 +416,7 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
         return Err(TransactionError::InsufficientWitnesses);
     }
 
-    let cond = request.min_consensus_percentage > 50 && request.min_consensus_percentage < 100;
-    if !cond {
+    if !((51..100).contains(&request.min_consensus_percentage)) {
         return Err(TransactionError::InvalidMinConsensus {
             value: request.min_consensus_percentage,
         });

@@ -149,7 +149,8 @@ pub fn create_radon_script(
     }
 
     let rad_reducer =
-        RadonReducers::try_from(reducer as u8).map_err(|_| unknown_reducer(reducer as i128))?;
+        RadonReducers::try_from(u8::try_from(reducer).map_err(|_| unknown_reducer(reducer as i128))?)
+            .map_err(|_| unknown_reducer(reducer as i128))?;
     match rad_reducer {
         RadonReducers::AverageMean | RadonReducers::Mode => {}
         _ => {

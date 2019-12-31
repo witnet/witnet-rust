@@ -6,7 +6,10 @@ use serde_cbor::value::Value as SerdeCborValue;
 
 use witnet_data_structures::radon_error::{ErrorLike, RadonError, RadonErrors};
 
-use crate::{operators::RadonOpCodes, types::array::RadonArray};
+use crate::{
+    operators::RadonOpCodes,
+    types::{array::RadonArray, RadonTypes},
+};
 
 /// RAD errors.
 #[derive(Clone, Debug, PartialEq, Fail)]
@@ -68,7 +71,7 @@ pub enum RadError {
     /// The given filter code is unknown
     #[fail(display = "Filter code `{}` is unknown", code)]
     UnknownFilter { code: i128 },
-    /// The given filter code is unknown
+    /// The given reducer code is unknown
     #[fail(display = "Reducer code `{}` is unknown", code)]
     UnknownReducer { code: i128 },
     /// The given hash function is not implemented
@@ -114,7 +117,7 @@ pub enum RadError {
         operator
     )]
     UnsupportedFilterInAT { operator: u8 },
-    /// This filter cannot be used in aggregation or tally stage
+    /// This reducer cannot be used in aggregation or tally stage
     #[fail(
         display = "Reducer {} cannot be used in aggregation or tally stage",
         operator
@@ -213,10 +216,13 @@ pub enum RadError {
     #[fail(display = "Timeout during retrieval phase")]
     RetrieveTimeout,
     /// Tagged error code from CBOR value
-    #[fail(display = "Tagged error with code {}", code)]
-    TaggedError { code: u8 },
+    #[fail(display = "Tagged error with code {:?}", error_args)]
+    TaggedError { error_args: RadonTypes },
     /// Invalid script
-    #[fail(display = "Value: {:?}, can not produce a properly script", value)]
+    #[fail(
+        display = "CBOR value cannot be translated into a proper RADON script: {:?}",
+        value
+    )]
     InvalidScript { value: SerdeCborValue },
 }
 

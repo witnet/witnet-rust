@@ -8,10 +8,6 @@ use serde::Serialize;
 use serde_cbor::{to_vec, Value};
 
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::{
-    chain::Hash,
-    radon_report::{RadonReport, TypeLike},
-};
 
 use crate::{
     error::RadError,
@@ -21,7 +17,11 @@ use crate::{
         integer::RadonInteger, map::RadonMap, string::RadonString,
     },
 };
-use witnet_data_structures::radon_report::ReportContext;
+use witnet_data_structures::{
+    chain::Hash,
+    radon_error::RadonErrors,
+    radon_report::{RadonReport, ReportContext, TypeLike},
+};
 
 pub mod array;
 pub mod boolean;
@@ -268,12 +268,47 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
         use cbor::value::Value as CborValue;
 
         match cbor_value {
-            // If the tag is 37, we encode the error in a `RadError`, otherwise we ignore the tag,
+            // If the tag is 39, we encode the error in a `RadError`, otherwise we ignore the tag,
             // unbox the tagged value and decode it through recurrently calling this same function.
+            // TODO(#938): Improve CBOR tagged error handling
             CborValue::Tagged(tag, boxed) => match (tag, std::boxed::Box::leak(boxed.clone())) {
-                (cbor::types::Tag::Unassigned(37), CborValue::U8(error_code)) => {
-                    let code = *error_code;
-                    Err(RadError::TaggedError { code })
+                (cbor::types::Tag::Unassigned(39), other) => {
+                    if let CborValue::Array(rad_array) = &*other {
+                        if !rad_array.is_empty() {
+                            let first_arg = rad_array[0].clone();
+
+                            if let CborValue::U8(error_code) = first_arg {
+                                let radon_error_res = RadonErrors::try_from(error_code);
+
+                                if let Ok(radon_error) = radon_error_res {
+                                    match radon_error {
+                                        RadonErrors::HTTPError => {
+                                            if rad_array.len() > 1 {
+                                                if let CborValue::U8(value) = rad_array[1].clone() {
+                                                    return Err(RadError::HttpStatus {
+                                                        status_code: value as u16,
+                                                    });
+                                                } else {
+                                                    return Err(RadError::HttpStatus {
+                                                        status_code: 0,
+                                                    });
+                                                }
+                                            }
+                                        }
+                                        _ => {
+                                            unimplemented!(
+                                                "RadonError not implemented in TryFrom CBOR value"
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let error_args = RadonTypes::try_from(&*other)?;
+
+                    Err(RadError::TaggedError { error_args })
                 }
                 (_, other) => RadonTypes::try_from(&*other),
             },

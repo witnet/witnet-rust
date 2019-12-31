@@ -181,7 +181,10 @@ pub enum TransactionError {
     )]
     MismatchingLiarsNumber { reveals_n: usize, inputs_n: usize },
     /// Minimum consensus percentage is invalid
-    #[fail(display = "Minimum consensus percentage {} is invalid", value)]
+    #[fail(
+        display = "Minimum consensus percentage {} is invalid. Must be >50 and <100",
+        value
+    )]
     InvalidMinConsensus { value: u32 },
 }
 

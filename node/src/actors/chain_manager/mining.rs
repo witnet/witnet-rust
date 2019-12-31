@@ -13,7 +13,7 @@ use witnet_data_structures::{
         Hashable, PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{create_tally, DataRequestPool},
-    radon_report::RadonReport,
+    radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, CommitTransactionBody, MintTransaction, RevealTransaction,
         RevealTransactionBody, TallyTransaction,
@@ -37,7 +37,6 @@ use crate::{
     },
     signature_mngr,
 };
-use witnet_data_structures::radon_report::ReportContext;
 
 impl ChainManager {
     /// Try to mine a block
@@ -445,7 +444,9 @@ impl ChainManager {
                                         "{} Created Tally for Data Request {} with result: {}\n{}",
                                         Yellow.bold().paint("[Data Request]"),
                                         Yellow.bold().paint(&dr_pointer.to_string()),
-                                        Yellow.bold().paint(format!("{:?}", &tally_result.result)),
+                                        Yellow
+                                            .bold()
+                                            .paint(format!("{:?}", &tally_result.into_inner())),
                                         White.bold().paint(
                                             results.into_iter().map(|result| result).fold(
                                                 String::from("Reveals:"),

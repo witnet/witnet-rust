@@ -300,11 +300,10 @@ mod examples {
                         reducer: RadonReducers::AverageMean as u32,
                     },
                     tally: RADTally {
-                        filters: vec![RADFilter{
+                        filters: vec![RADFilter {
                             op: RadonFilters::DeviationStandard as u32,
                             args: vec![249, 60, 0],
-                        }
-                     ],
+                        }],
                         reducer: RadonReducers::AverageMean as u32,
                     },
                 },

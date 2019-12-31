@@ -48,6 +48,7 @@ use witnet_data_structures::{
         TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
+    radon_report::{RadonReport, ReportContext},
     transaction::{TallyTransaction, Transaction},
     vrf::VrfCtx,
 };
@@ -807,15 +808,19 @@ fn update_reputation(
 }
 
 fn show_info_tally(tally_tx: &TallyTransaction, block_epoch: Epoch) {
-    let result = RadonTypes::try_from(tally_tx.tally.as_slice())
-        .map(|x| x.to_string())
-        .unwrap_or_else(|_| "RADError".to_string());
+    let result = RadonTypes::try_from(tally_tx.tally.as_slice());
+    let result_str = RadonReport::from_result(result, &ReportContext::default())
+        .map(|x| match x.into_inner() {
+            Ok(rad_types) => rad_types.to_string(),
+            Err(e) => format!("RadError: {:?}", e),
+        })
+        .unwrap_or_else(|e| format!("Unexpected RADError: {}", e));
     info!(
         "{} {} completed at epoch #{} with result: {}",
         Yellow.bold().paint("[Data Request]"),
         Yellow.bold().paint(tally_tx.dr_pointer.to_string()),
         Yellow.bold().paint(block_epoch.to_string()),
-        Yellow.bold().paint(result),
+        Yellow.bold().paint(result_str),
     );
 }
 
