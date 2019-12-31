@@ -5,7 +5,10 @@ use serde_cbor::{
 };
 use std::convert::TryFrom;
 
-use witnet_data_structures::radon_report::{RadonReport, ReportContext};
+use witnet_data_structures::{
+    chain::RADFilter,
+    radon_report::{RadonReport, ReportContext},
+};
 
 use crate::{
     error::RadError,
@@ -111,21 +114,20 @@ fn errorify(kind: RadError) -> RadError {
     kind
 }
 
-pub fn create_radon_script(filters: &[u8], reducer: u8) -> Result<Vec<RadonCall>, RadError> {
+pub fn create_radon_script(filters: &[RADFilter], reducer: u8) -> Result<Vec<RadonCall>, RadError> {
     let unknown_filter = |code| RadError::UnknownFilter { code };
     let unknown_reducer = |code| RadError::UnknownReducer { code };
 
     let mut radoncall_vec = vec![];
     for filter in filters {
+        let filter_op = filter.op as i128;
         let rad_filter =
-            RadonFilters::try_from(*filter).map_err(|_| unknown_filter(*filter as i128))?;
+            RadonFilters::try_from(u8::try_from(filter_op).map_err(|_| unknown_filter(filter_op))?)
+                .map_err(|_| unknown_filter(filter_op))?;
 
         // TODO: Update with more filters
-        let args = match rad_filter {
-            RadonFilters::DeviationStandard => Some(vec![
-                Value::Integer(RadonFilters::DeviationStandard as i128),
-                Value::Float(1.0),
-            ]),
+        match rad_filter {
+            RadonFilters::DeviationStandard => {}
             _ => {
                 return Err(RadError::UnsupportedFilterInAT {
                     operator: rad_filter as u8,
@@ -133,16 +135,20 @@ pub fn create_radon_script(filters: &[u8], reducer: u8) -> Result<Vec<RadonCall>
             }
         };
 
+        let filter_args = cbor::from_slice(filter.args.as_slice()).map_err(|e| {
+            errorify(RadError::BufferIsNotValue {
+                description: e.to_string(),
+            })
+        })?;
+
+        let args = Some(vec![Value::Integer(filter_op), filter_args]);
         radoncall_vec.push((RadonOpCodes::ArrayFilter, args));
     }
 
     let rad_reducer =
         RadonReducers::try_from(reducer).map_err(|_| unknown_reducer(reducer as i128))?;
-    let args = match rad_reducer {
-        RadonReducers::AverageMean => {
-            Some(vec![Value::Integer(RadonReducers::AverageMean as i128)])
-        }
-        RadonReducers::Mode => Some(vec![Value::Integer(RadonReducers::Mode as i128)]),
+    match rad_reducer {
+        RadonReducers::AverageMean | RadonReducers::Mode => {}
         _ => {
             return Err(RadError::UnsupportedReducerInAT {
                 operator: rad_reducer as u8,
@@ -150,6 +156,7 @@ pub fn create_radon_script(filters: &[u8], reducer: u8) -> Result<Vec<RadonCall>
         }
     };
 
+    let args = Some(vec![Value::Integer(reducer as i128)]);
     radoncall_vec.push((RadonOpCodes::ArrayReduce, args));
 
     Ok(radoncall_vec)
@@ -227,7 +234,10 @@ fn test_create_radon_script() {
         ),
     ];
 
-    let filters = vec![RadonFilters::DeviationStandard as u8];
+    let filters = vec![RADFilter {
+        op: RadonFilters::DeviationStandard as u32,
+        args: vec![249, 60, 0],
+    }];
     let reducer = RadonReducers::AverageMean as u8;
     let output = create_radon_script(filters.as_slice(), reducer).unwrap();
 
@@ -236,7 +246,10 @@ fn test_create_radon_script() {
 
 #[test]
 fn test_create_radon_script_invalid_filter() {
-    let filters = vec![RadonFilters::DeviationAbsolute as u8];
+    let filters = vec![RADFilter {
+        op: RadonFilters::DeviationAbsolute as u32,
+        args: vec![249, 60, 0],
+    }];
     let reducer = RadonReducers::AverageMean as u8;
     let output = create_radon_script(filters.as_slice(), reducer).unwrap_err();
 
@@ -245,7 +258,11 @@ fn test_create_radon_script_invalid_filter() {
     };
     assert_eq!(output, expected);
 
-    let output = create_radon_script(&[99], reducer).unwrap_err();
+    let filters = vec![RADFilter {
+        op: 99,
+        args: vec![],
+    }];
+    let output = create_radon_script(filters.as_slice(), reducer).unwrap_err();
 
     let expected = RadError::UnknownFilter { code: 99 };
     assert_eq!(output, expected);
@@ -253,7 +270,10 @@ fn test_create_radon_script_invalid_filter() {
 
 #[test]
 fn test_create_radon_script_invalid_reducer() {
-    let filters = vec![RadonFilters::DeviationStandard as u8];
+    let filters = vec![RADFilter {
+        op: RadonFilters::DeviationStandard as u32,
+        args: vec![249, 60, 0],
+    }];
     let reducer = RadonReducers::Min as u8;
     let output = create_radon_script(filters.as_slice(), reducer).unwrap_err();
 

@@ -105,6 +105,10 @@ message DataRequestOutput {
         enum RADType {
             HttpGet = 0;
         }
+        message RADFilter {
+            uint32 op = 1;
+            bytes args = 2;
+        }
         message RADRetrieve {
             RADType kind = 1;
             string url = 2;
@@ -112,11 +116,11 @@ message DataRequestOutput {
             bytes script = 3;
         }
         message RADAggregate {
-            bytes filters = 1;
+            repeated RADFilter filters = 1;
             uint32 reducer = 2;
         }
         message RADTally {
-            bytes filters = 1;
+            repeated RADFilter filters = 1;
             uint32 reducer = 2;
         }
 

@@ -862,21 +862,26 @@ pub struct RADRetrieve {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
+#[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADFilter", crate = "crate")]
+pub struct RADFilter {
+    pub op: u32,
+    pub args: Vec<u8>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(
     pb = "witnet::DataRequestOutput_RADRequest_RADAggregate",
     crate = "crate"
 )]
 pub struct RADAggregate {
-    // TODO(#934): Add arguments to the filters
-    pub filters: Vec<u8>,
+    pub filters: Vec<RADFilter>,
     pub reducer: u32,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
 #[protobuf_convert(pb = "witnet::DataRequestOutput_RADRequest_RADTally", crate = "crate")]
 pub struct RADTally {
-    // TODO(#934): Add arguments to the filters
-    pub filters: Vec<u8>,
+    pub filters: Vec<RADFilter>,
     pub reducer: u32,
 }
 

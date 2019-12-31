@@ -157,6 +157,7 @@ mod tests {
         types::{float::RadonFloat, integer::RadonInteger},
     };
     use serde_cbor::Value;
+    use witnet_data_structures::chain::RADFilter;
 
     #[test]
     fn test_run_retrieval() {
@@ -483,7 +484,10 @@ mod tests {
         let report = run_tally_report(
             radon_types_vec,
             &RADTally {
-                filters: vec![RadonFilters::DeviationStandard as u8],
+                filters: vec![RADFilter {
+                    op: RadonFilters::DeviationStandard as u32,
+                    args: vec![249, 60, 0],
+                }],
                 reducer: RadonReducers::AverageMean as u32,
             },
         )
@@ -518,8 +522,14 @@ mod tests {
             radon_types_vec,
             &RADTally {
                 filters: vec![
-                    RadonFilters::DeviationStandard as u8,
-                    RadonFilters::DeviationStandard as u8,
+                    RADFilter {
+                        op: RadonFilters::DeviationStandard as u32,
+                        args: vec![249, 60, 0],
+                    },
+                    RADFilter {
+                        op: RadonFilters::DeviationStandard as u32,
+                        args: vec![249, 60, 0],
+                    },
                 ],
                 reducer: RadonReducers::AverageMean as u32,
             },
@@ -582,8 +592,14 @@ mod tests {
             radon_types_vec,
             &RADTally {
                 filters: vec![
-                    RadonOpCodes::ArraySort as u8,
-                    RadonFilters::DeviationStandard as u8,
+                    RADFilter {
+                        op: RadonOpCodes::ArraySort as u32,
+                        args: vec![],
+                    },
+                    RADFilter {
+                        op: RadonFilters::DeviationStandard as u32,
+                        args: vec![249, 60, 0],
+                    },
                 ],
                 reducer: RadonReducers::AverageMean as u32,
             },
@@ -620,7 +636,10 @@ mod tests {
         let error = run_tally_report(
             radon_types_vec,
             &RADTally {
-                filters: vec![RadonOpCodes::ArrayMap as u8],
+                filters: vec![RADFilter {
+                    op: RadonOpCodes::ArrayMap as u32,
+                    args: vec![],
+                }],
                 reducer: RadonReducers::AverageMean as u32,
             },
         )
@@ -656,7 +675,10 @@ mod tests {
         let error = run_tally_report(
             radon_types_vec,
             &RADTally {
-                filters: vec![RadonOpCodes::ArrayGetArray as u8, 0],
+                filters: vec![RADFilter {
+                    op: RadonOpCodes::ArrayGetArray as u32,
+                    args: vec![],
+                }],
                 reducer: RadonReducers::AverageMean as u32,
             },
         )
