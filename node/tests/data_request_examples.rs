@@ -133,8 +133,8 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
         (
             "random_source.json",
             examples::random_source(),
-            &[r#"{"data":[5]}"#],
-            RadonTypes::Float(RadonFloat::from(5.0)),
+            &[r#"[{"status":"success","min":0,"max":100,"random":31}]"#],
+            RadonTypes::Float(RadonFloat::from(31.0)),
         ),
     ];
 
@@ -147,7 +147,8 @@ mod examples {
     };
     use witnet_node::actors::messages::BuildDrt;
     use witnet_rad::{
-        cbor_to_vec, operators::RadonOpCodes, reducers::RadonReducers, CborValue as Value,
+        cbor_to_vec, filters::RadonFilters, operators::RadonOpCodes, reducers::RadonReducers,
+        CborValue as Value,
     };
 
     pub fn bitcoin_price() -> BuildDrt {
@@ -284,16 +285,16 @@ mod examples {
     }
 
     pub fn random_source() -> BuildDrt {
-        let url_0 = "http://qrng.anu.edu.au/API/jsonI.php?length=1&type=uint8";
+        let url_0 = "https://csrng.net/csrng/csrng.php?min=0&max=100";
         let r0_script = cbor_to_vec(&Value::Array(vec![
-            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
+            Value::Integer(RadonOpCodes::StringParseJSONArray as i128),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGetArray as i128),
-                Value::Text(String::from("data")),
+                Value::Integer(RadonOpCodes::ArrayGetMap as i128),
+                Value::Integer(0),
             ]),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::ArrayGetFloat as i128),
-                Value::Integer(0),
+                Value::Integer(RadonOpCodes::MapGetFloat as i128),
+                Value::Text(String::from("random")),
             ]),
         ]))
         .unwrap();
@@ -303,10 +304,18 @@ mod examples {
             Value::Integer(RadonReducers::AverageMean as i128),
         ])]))
         .unwrap();
-        let tally_script = cbor_to_vec(&Value::Array(vec![Value::Array(vec![
-            Value::Integer(RadonOpCodes::ArrayReduce as i128),
-            Value::Integer(RadonReducers::AverageMean as i128),
-        ])]))
+
+        let tally_script = cbor_to_vec(&Value::Array(vec![
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayFilter as i128),
+                Value::Integer(RadonFilters::DeviationStandard as i128),
+                Value::Float(1.0),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::ArrayReduce as i128),
+                Value::Integer(RadonReducers::AverageMean as i128),
+            ]),
+        ]))
         .unwrap();
 
         BuildDrt {
@@ -326,12 +335,12 @@ mod examples {
                     },
                 },
                 value: 1030,
-                witnesses: 2,
+                witnesses: 4,
                 backup_witnesses: 1,
                 commit_fee: 5,
                 reveal_fee: 5,
                 tally_fee: 10,
-                extra_reveal_rounds: 2,
+                extra_reveal_rounds: 1,
             },
             fee: 0,
         }
