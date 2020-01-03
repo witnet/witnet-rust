@@ -483,7 +483,7 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     let liars_length = pkh_liars.len();
     let change_required = witnesses > n_reveals || liars_length > 0;
 
-    if change_required && (ta_tx.outputs.len() != n_reveals + 1) {
+    if change_required && (ta_tx.outputs.len() != n_reveals + 1 - liars_length) {
         return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
             expected_outputs: n_reveals + 1,
