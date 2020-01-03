@@ -299,6 +299,11 @@ pub struct Mining {
 #[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
 pub struct Ntp {
     /// Period that indicate the validity of a ntp timestamp
+    #[partial_struct(serde(
+        default,
+        deserialize_with = "from_secs",
+        rename = "update_period_seconds"
+    ))]
     pub update_period: Duration,
 
     /// Server to query ntp information
