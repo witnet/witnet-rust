@@ -49,10 +49,12 @@ pub fn update_global_timestamp(addr: &str) {
 
             if let Some(diff) = duration_between_timestamps(utc, ntp) {
                 ntp_diff.ntp_diff = diff;
+                log::debug!("Update NTP -> Our UTC is {} seconds before", diff.as_secs());
                 ntp_diff.bigger = true;
             } else {
                 let diff = duration_between_timestamps(ntp, utc).unwrap();
                 ntp_diff.ntp_diff = diff;
+                log::debug!("Update NTP -> Our UTC is {} seconds after", diff.as_secs());
                 ntp_diff.bigger = false;
             }
         }
