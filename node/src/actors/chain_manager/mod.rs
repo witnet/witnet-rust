@@ -40,6 +40,7 @@ use failure::Fail;
 use itertools::Itertools;
 use log::{error, info, trace, warn};
 
+use witnet_crypto::key::CryptoEngine;
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
@@ -147,6 +148,8 @@ pub struct ChainManager {
     own_pkh: Option<PublicKeyHash>,
     /// VRF context
     vrf_ctx: Option<VrfCtx>,
+    /// Sign and verify context
+    secp: Option<CryptoEngine>,
     /// Peers beacons boolean
     peers_beacons_received: bool,
     /// Consensus parameter (in %)
@@ -267,12 +270,14 @@ impl ChainManager {
             Some(chain_info),
             Some(rep_engine),
             Some(vrf_ctx),
+            Some(secp),
         ) = (
             self.current_epoch,
             self.epoch_constants,
             self.chain_state.chain_info.as_ref(),
             self.chain_state.reputation_engine.as_mut(),
             self.vrf_ctx.as_mut(),
+            self.secp.as_ref(),
         ) {
             let chain_beacon = chain_info.highest_block_checkpoint;
 
@@ -285,6 +290,7 @@ impl ChainManager {
                 vrf_ctx,
                 rep_engine,
                 epoch_constants,
+                secp,
             ) {
                 Ok(utxo_diff) => {
                     // Persist block and update ChainState
@@ -501,12 +507,14 @@ impl ChainManager {
             Some(current_epoch),
             Some(epoch_constants),
             Some(vrf_ctx),
+            Some(secp),
         ) = (
             self.chain_state.chain_info.as_ref(),
             self.chain_state.reputation_engine.as_ref(),
             self.current_epoch,
             self.epoch_constants,
             self.vrf_ctx.as_mut(),
+            self.secp.as_ref(),
         ) {
             if let Transaction::Commit(_commit) = &msg.transaction {
                 let timestamp_mining = epoch_constants
@@ -531,6 +539,7 @@ impl ChainManager {
                 current_epoch,
                 epoch_constants,
                 vrf_ctx,
+                secp,
             ) {
                 Ok(()) => {
                     // Broadcast valid transaction
@@ -947,6 +956,7 @@ mod tests {
             checkpoints_period: 30,
         });
         cm.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
+        cm.secp = Some(CryptoEngine::new());
         cm.chain_state.chain_info = Some(ChainInfo {
             environment: Environment::Testnet1,
             consensus_constants: ConsensusConstants {

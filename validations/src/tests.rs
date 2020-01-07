@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use witnet_crypto::{
+    key::CryptoEngine,
     secp256k1::{PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey},
     signature::sign,
 };
@@ -21,14 +22,14 @@ static MY_PKH_2: &str = "wit1z8mxkml4a50dyysqczsp7gj5pnvz3jsldras8t";
 fn sign_t<H: Hashable>(tx: &H) -> KeyedSignature {
     let Hash::SHA256(data) = tx.hash();
 
-    let secp = Secp256k1::new();
+    let secp = &Secp256k1::new();
     let secret_key =
         Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-    let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &secret_key);
+    let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
     let public_key = PublicKey::from(public_key);
     assert_eq!(public_key.pkh(), MY_PKH.parse().unwrap());
 
-    let signature = sign(secret_key, &data);
+    let signature = sign(secp, secret_key, &data);
 
     KeyedSignature {
         signature: Signature::from(signature),
@@ -40,14 +41,14 @@ fn sign_t<H: Hashable>(tx: &H) -> KeyedSignature {
 fn sign_t2<H: Hashable>(tx: &H) -> KeyedSignature {
     let Hash::SHA256(data) = tx.hash();
 
-    let secp = Secp256k1::new();
+    let secp = &Secp256k1::new();
     let secret_key =
         Secp256k1_SecretKey::from_slice(&[0x43; 32]).expect("32 bytes, within curve order");
-    let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &secret_key);
+    let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
     let public_key = PublicKey::from(public_key);
     assert_eq!(public_key.pkh(), MY_PKH_2.parse().unwrap());
 
-    let signature = sign(secret_key, &data);
+    let signature = sign(secp, secret_key, &data);
 
     KeyedSignature {
         signature: Signature::from(signature),
@@ -140,6 +141,7 @@ fn mint_valid() {
 
 #[test]
 fn vtt_no_inputs_no_outputs() {
+    let secp = &CryptoEngine::new();
     let utxo_pool = UnspentOutputsPool::default();
     let utxo_diff = UtxoDiff::new(&utxo_pool);
 
@@ -150,6 +152,7 @@ fn vtt_no_inputs_no_outputs() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -161,6 +164,7 @@ fn vtt_no_inputs_no_outputs() {
 
 #[test]
 fn vtt_no_inputs_zero_output() {
+    let secp = &CryptoEngine::new();
     let utxo_pool = UnspentOutputsPool::default();
     let utxo_diff = UtxoDiff::new(&utxo_pool);
 
@@ -179,6 +183,7 @@ fn vtt_no_inputs_zero_output() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -190,6 +195,7 @@ fn vtt_no_inputs_zero_output() {
 
 #[test]
 fn vtt_no_inputs() {
+    let secp = &CryptoEngine::new();
     let utxo_pool = UnspentOutputsPool::default();
     let utxo_diff = UtxoDiff::new(&utxo_pool);
 
@@ -208,6 +214,7 @@ fn vtt_no_inputs() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -219,6 +226,7 @@ fn vtt_no_inputs() {
 
 #[test]
 fn vtt_no_inputs_but_one_signature() {
+    let secp = &CryptoEngine::new();
     let utxo_pool = UnspentOutputsPool::default();
     let utxo_diff = UtxoDiff::new(&utxo_pool);
 
@@ -238,6 +246,7 @@ fn vtt_no_inputs_but_one_signature() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -250,6 +259,7 @@ fn vtt_no_inputs_but_one_signature() {
 
 #[test]
 fn vtt_one_input_but_no_signature() {
+    let secp = &CryptoEngine::new();
     let utxo_pool = UnspentOutputsPool::default();
     let utxo_diff = UtxoDiff::new(&utxo_pool);
     let vti = Input::new(
@@ -273,6 +283,7 @@ fn vtt_one_input_but_no_signature() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -377,6 +388,7 @@ where
 
 #[test]
 fn vtt_one_input_signatures() {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
@@ -403,6 +415,7 @@ fn vtt_one_input_signatures() {
             &utxo_diff,
             Epoch::default(),
             EpochConstants::default(),
+            secp,
         )
         .map(|_| ())
     });
@@ -410,6 +423,7 @@ fn vtt_one_input_signatures() {
 
 #[test]
 fn vtt_input_not_in_utxo() {
+    let secp = &CryptoEngine::new();
     let utxo_pool = UnspentOutputsPool::default();
     let utxo_diff = UtxoDiff::new(&utxo_pool);
     let vti = Input::new(
@@ -433,6 +447,7 @@ fn vtt_input_not_in_utxo() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -446,6 +461,7 @@ fn vtt_input_not_in_utxo() {
 
 #[test]
 fn vtt_input_not_enough_value() {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1,
@@ -470,6 +486,7 @@ fn vtt_input_not_enough_value() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -479,6 +496,7 @@ fn vtt_input_not_enough_value() {
 
 #[test]
 fn vtt_one_input_zero_value_output() {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1,
@@ -502,6 +520,7 @@ fn vtt_one_input_zero_value_output() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -514,6 +533,7 @@ fn vtt_one_input_zero_value_output() {
 
 #[test]
 fn vtt_one_input_two_outputs_negative_fee() {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 2,
@@ -542,6 +562,7 @@ fn vtt_one_input_two_outputs_negative_fee() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -551,6 +572,7 @@ fn vtt_one_input_two_outputs_negative_fee() {
 
 #[test]
 fn vtt_one_input_two_outputs() {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
@@ -579,6 +601,7 @@ fn vtt_one_input_two_outputs() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     )
     .map(|(_, _, fee)| fee);
     assert_eq!(x.unwrap(), 21 - 13 - 7,);
@@ -586,6 +609,7 @@ fn vtt_one_input_two_outputs() {
 
 #[test]
 fn vtt_two_inputs_one_signature() {
+    let secp = &CryptoEngine::new();
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
@@ -615,6 +639,7 @@ fn vtt_two_inputs_one_signature() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -627,6 +652,7 @@ fn vtt_two_inputs_one_signature() {
 
 #[test]
 fn vtt_two_inputs_one_signature_wrong_pkh() {
+    let secp = &CryptoEngine::new();
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
@@ -657,6 +683,7 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -674,6 +701,7 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
 
 #[test]
 fn vtt_two_inputs_three_signatures() {
+    let secp = &CryptoEngine::new();
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
@@ -703,6 +731,7 @@ fn vtt_two_inputs_three_signatures() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -715,6 +744,7 @@ fn vtt_two_inputs_three_signatures() {
 
 #[test]
 fn vtt_two_inputs_two_outputs() {
+    let secp = &CryptoEngine::new();
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 21,
@@ -749,6 +779,7 @@ fn vtt_two_inputs_two_outputs() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     )
     .map(|(_, _, fee)| fee);
     assert_eq!(x.unwrap(), 21 + 13 - 10 - 20,);
@@ -756,6 +787,7 @@ fn vtt_two_inputs_two_outputs() {
 
 #[test]
 fn vtt_input_value_overflow() {
+    let secp = &CryptoEngine::new();
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: u64::max_value(),
@@ -791,6 +823,7 @@ fn vtt_input_value_overflow() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
 
     assert_eq!(
@@ -801,6 +834,7 @@ fn vtt_input_value_overflow() {
 
 #[test]
 fn vtt_output_value_overflow() {
+    let secp = &CryptoEngine::new();
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: u64::max_value() - 1_000,
@@ -836,6 +870,7 @@ fn vtt_output_value_overflow() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
 
     assert_eq!(
@@ -846,6 +881,7 @@ fn vtt_output_value_overflow() {
 
 #[test]
 fn vtt_timelock() {
+    let secp = &CryptoEngine::new();
     // 1 epoch = 1000 seconds, for easy testing
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: 0,
@@ -872,7 +908,7 @@ fn vtt_timelock() {
         let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
         let vts = sign_t(&vt_body);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
-        validate_vt_transaction(&vt_tx, &utxo_diff, epoch, epoch_constants).map(|_| ())
+        validate_vt_transaction(&vt_tx, &utxo_diff, epoch, epoch_constants, secp).map(|_| ())
     };
 
     // (epoch, time_lock, should_be_accepted_into_block)
@@ -897,6 +933,7 @@ fn vtt_timelock() {
 
 #[test]
 fn vtt_valid() {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
@@ -921,6 +958,7 @@ fn vtt_valid() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     )
     .map(|(_, _, fee)| fee);
     // The fee is 1000 - 1000 = 0
@@ -929,6 +967,7 @@ fn vtt_valid() {
 
 #[test]
 fn data_request_no_inputs() {
+    let secp = &CryptoEngine::new();
     let utxo_pool = UnspentOutputsPool::default();
     let utxo_diff = UtxoDiff::new(&utxo_pool);
 
@@ -948,6 +987,7 @@ fn data_request_no_inputs() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -957,6 +997,7 @@ fn data_request_no_inputs() {
 
 #[test]
 fn data_request_no_inputs_but_one_signature() {
+    let secp = &CryptoEngine::new();
     let utxo_pool = UnspentOutputsPool::default();
     let utxo_diff = UtxoDiff::new(&utxo_pool);
 
@@ -977,6 +1018,7 @@ fn data_request_no_inputs_but_one_signature() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -989,6 +1031,7 @@ fn data_request_no_inputs_but_one_signature() {
 
 #[test]
 fn data_request_one_input_but_no_signature() {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
@@ -1015,6 +1058,7 @@ fn data_request_one_input_but_no_signature() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1027,6 +1071,7 @@ fn data_request_one_input_but_no_signature() {
 
 #[test]
 fn data_request_one_input_signatures() {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
@@ -1054,6 +1099,7 @@ fn data_request_one_input_signatures() {
             &utxo_diff,
             Epoch::default(),
             EpochConstants::default(),
+            secp,
         )
         .map(|_| ())
     });
@@ -1061,6 +1107,7 @@ fn data_request_one_input_signatures() {
 
 #[test]
 fn data_request_input_not_in_utxo() {
+    let secp = &CryptoEngine::new();
     let utxo_pool = UnspentOutputsPool::default();
     let utxo_diff = UtxoDiff::new(&utxo_pool);
     let vti = Input::new(
@@ -1084,6 +1131,7 @@ fn data_request_input_not_in_utxo() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1097,6 +1145,7 @@ fn data_request_input_not_in_utxo() {
 
 #[test]
 fn data_request_input_not_enough_value() {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1,
@@ -1121,6 +1170,7 @@ fn data_request_input_not_enough_value() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1130,6 +1180,7 @@ fn data_request_input_not_enough_value() {
 
 #[test]
 fn data_request_output_value_overflow() {
+    let secp = &CryptoEngine::new();
     let vto_21 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: u64::max_value() - 1_000,
@@ -1178,6 +1229,7 @@ fn data_request_output_value_overflow() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1188,6 +1240,7 @@ fn data_request_output_value_overflow() {
 // Helper function which creates a data request with a valid input with value 1000
 // and returns the validation error
 fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
+    let secp = &CryptoEngine::new();
     let vto = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
         value: 1000,
@@ -1205,6 +1258,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     )
     .map(|_| ())
 }
@@ -1410,6 +1464,7 @@ fn data_request_value_overflow() {
 #[test]
 fn data_request_miner_fee() {
     // Use 1000 input to pay 750 for data request
+    let secp = &CryptoEngine::new();
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
@@ -1436,6 +1491,7 @@ fn data_request_miner_fee() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -1445,6 +1501,7 @@ fn data_request_miner_fee() {
 #[test]
 fn data_request_miner_fee_with_change() {
     // Use 1000 input to pay 750 for data request, and request 200 change (+50 fee)
+    let secp = &CryptoEngine::new();
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
@@ -1476,6 +1533,7 @@ fn data_request_miner_fee_with_change() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -1485,6 +1543,7 @@ fn data_request_miner_fee_with_change() {
 #[test]
 fn data_request_miner_fee_with_too_much_change() {
     // Use 1000 input to pay 750 for data request, and request 300 change (-50 fee)
+    let secp = &CryptoEngine::new();
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
@@ -1516,6 +1575,7 @@ fn data_request_miner_fee_with_too_much_change() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1526,6 +1586,7 @@ fn data_request_miner_fee_with_too_much_change() {
 #[test]
 fn data_request_zero_value_output() {
     // Use 1000 input to pay 750 for data request, and request 300 change (-50 fee)
+    let secp = &CryptoEngine::new();
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
         witness_reward: 750 / 2,
@@ -1557,6 +1618,7 @@ fn data_request_zero_value_output() {
         &utxo_diff,
         Epoch::default(),
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1569,6 +1631,7 @@ fn data_request_zero_value_output() {
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
+    let secp = &CryptoEngine::new();
     let dr_pool = DataRequestPool::default();
     let beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -1582,6 +1645,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         &rep_eng,
         0,
         EpochConstants::default(),
+        secp,
     )
     .map(|_| ())
 }
@@ -1590,6 +1654,7 @@ static DR_HASH: &str = "dc11c3b73af1ce17b412bdf70e859966d9ae53dcbdba2b617bc3993f
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
+    let secp = &CryptoEngine::new();
     let mut dr_pool = DataRequestPool::default();
     let commit_beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -1625,6 +1690,7 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         &rep_eng,
         0,
         EpochConstants::default(),
+        secp,
     )
     .map(|_| ())
 }
@@ -1632,6 +1698,7 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
 // Helper function to test a commit with an existing data request,
 // but it is very difficult to construct a valid vrf proof
 fn test_commit_difficult_proof() {
+    let secp = &CryptoEngine::new();
     let mut dr_pool = DataRequestPool::default();
     let commit_beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -1689,6 +1756,7 @@ fn test_commit_difficult_proof() {
         &rep_eng,
         0,
         EpochConstants::default(),
+        secp,
     );
 
     match x.unwrap_err().downcast::<TransactionError>().unwrap() {
@@ -1700,6 +1768,7 @@ fn test_commit_difficult_proof() {
 
 // Helper function to test a commit with an existing data request
 fn test_commit() -> Result<(), failure::Error> {
+    let secp = &CryptoEngine::new();
     let mut dr_pool = DataRequestPool::default();
     let commit_beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -1747,6 +1816,7 @@ fn test_commit() -> Result<(), failure::Error> {
         &rep_eng,
         0,
         EpochConstants::default(),
+        secp,
     )
     .map(|_| ())
 }
@@ -1875,6 +1945,7 @@ fn commitment_unknown_dr() {
 
 #[test]
 fn commitment_invalid_proof() {
+    let secp = &CryptoEngine::new();
     let dr_pointer = DR_HASH.parse().unwrap();
     let mut cb = CommitTransactionBody::default();
     cb.dr_pointer = dr_pointer;
@@ -1924,6 +1995,7 @@ fn commitment_invalid_proof() {
         &rep_eng,
         0,
         EpochConstants::default(),
+        secp,
     )
     .map(|_| ());
 
@@ -1940,6 +2012,7 @@ fn commitment_proof_lower_than_target() {
 
 #[test]
 fn commitment_dr_in_reveal_stage() {
+    let secp = &CryptoEngine::new();
     let mut dr_pool = DataRequestPool::default();
     let block_hash = Hash::default();
     let commit_beacon = CheckpointBeacon::default();
@@ -1991,6 +2064,7 @@ fn commitment_dr_in_reveal_stage() {
         &rep_eng,
         0,
         EpochConstants::default(),
+        secp,
     );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
@@ -2006,6 +2080,7 @@ fn commitment_valid() {
 
 #[test]
 fn commitment_timelock() {
+    let secp = &CryptoEngine::new();
     // 1 epoch = 1000 seconds, for easy testing
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: 0,
@@ -2061,6 +2136,7 @@ fn commitment_timelock() {
             &rep_eng,
             epoch,
             epoch_constants,
+            secp,
         )
         .map(|_| ())
     };
@@ -2125,6 +2201,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
 
 #[test]
 fn reveal_signatures() {
+    let secp = &CryptoEngine::new();
     let (dr_pool, dr_pointer) = dr_pool_with_dr_in_reveal_stage();
 
     let mut rb = RevealTransactionBody::default();
@@ -2134,7 +2211,7 @@ fn reveal_signatures() {
     let f = |rb, rs| {
         let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-        validate_reveal_transaction(&r_tx, &dr_pool)
+        validate_reveal_transaction(&r_tx, &dr_pool, secp)
     };
 
     let hashable = rb;
@@ -2212,6 +2289,7 @@ fn reveal_signatures() {
 
 #[test]
 fn reveal_dr_in_commit_stage() {
+    let secp = &CryptoEngine::new();
     let mut dr_pool = DataRequestPool::default();
     let epoch = 0;
     let dro = DataRequestOutput {
@@ -2234,7 +2312,7 @@ fn reveal_dr_in_commit_stage() {
     let rs = sign_t(&rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool);
+    let x = validate_reveal_transaction(&r_tx, &dr_pool, secp);
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
         DataRequestError::NotRevealStage,
@@ -2243,13 +2321,14 @@ fn reveal_dr_in_commit_stage() {
 
 #[test]
 fn reveal_no_signature() {
+    let secp = &CryptoEngine::new();
     let (dr_pool, dr_pointer) = dr_pool_with_dr_in_reveal_stage();
 
     let mut rb = RevealTransactionBody::default();
     rb.dr_pointer = dr_pointer;
     let r_tx = RevealTransaction::new(rb, vec![]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool);
+    let x = validate_reveal_transaction(&r_tx, &dr_pool, secp);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::SignatureNotFound,
@@ -2258,6 +2337,7 @@ fn reveal_no_signature() {
 
 #[test]
 fn reveal_wrong_signature_public_key() {
+    let secp = &CryptoEngine::new();
     let (dr_pool, dr_pointer) = dr_pool_with_dr_in_reveal_stage();
 
     let bad_pkh = PublicKeyHash::default();
@@ -2268,7 +2348,7 @@ fn reveal_wrong_signature_public_key() {
     let rs = sign_t(&rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool);
+    let x = validate_reveal_transaction(&r_tx, &dr_pool, secp);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::PublicKeyHashMismatch {
@@ -2280,6 +2360,7 @@ fn reveal_wrong_signature_public_key() {
 
 #[test]
 fn reveal_unknown_dr() {
+    let secp = &CryptoEngine::new();
     let dr_pool = DataRequestPool::default();
     let dr_pointer = "2222222222222222222222222222222222222222222222222222222222222222"
         .parse()
@@ -2289,7 +2370,7 @@ fn reveal_unknown_dr() {
     let rs = sign_t(&rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool);
+    let x = validate_reveal_transaction(&r_tx, &dr_pool, secp);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestNotFound { hash: dr_pointer },
@@ -2298,6 +2379,7 @@ fn reveal_unknown_dr() {
 
 #[test]
 fn reveal_no_commitment() {
+    let secp = &CryptoEngine::new();
     let (dr_pool, dr_pointer) = dr_pool_with_dr_in_reveal_stage();
 
     let mut rb = RevealTransactionBody::default();
@@ -2306,7 +2388,7 @@ fn reveal_no_commitment() {
     let rs = sign_t2(&rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool);
+    let x = validate_reveal_transaction(&r_tx, &dr_pool, secp);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::CommitNotFound,
@@ -2315,6 +2397,7 @@ fn reveal_no_commitment() {
 
 #[test]
 fn reveal_invalid_commitment() {
+    let secp = &CryptoEngine::new();
     let (dr_pool, dr_pointer) = dr_pool_with_dr_in_reveal_stage();
 
     let mut rb = RevealTransactionBody::default();
@@ -2323,7 +2406,7 @@ fn reveal_invalid_commitment() {
     let rs = sign_t(&rb);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
-    let x = validate_reveal_transaction(&r_tx, &dr_pool);
+    let x = validate_reveal_transaction(&r_tx, &dr_pool, secp);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedCommitment,
@@ -2332,6 +2415,7 @@ fn reveal_invalid_commitment() {
 
 #[test]
 fn reveal_valid_commitment() {
+    let secp = &CryptoEngine::new();
     // Create DataRequestPool
     let mut dr_pool = DataRequestPool::default();
 
@@ -2389,7 +2473,7 @@ fn reveal_valid_commitment() {
         .unwrap();
     dr_pool.update_data_request_stages();
 
-    let fee = validate_reveal_transaction(&reveal_transaction, &dr_pool).unwrap();
+    let fee = validate_reveal_transaction(&reveal_transaction, &dr_pool, secp).unwrap();
     assert_eq!(fee, 20);
 
     // Create other reveal
@@ -2401,7 +2485,7 @@ fn reveal_valid_commitment() {
     let reveal_signature2 = sign_t(&reveal_body2);
     let reveal_transaction2 = RevealTransaction::new(reveal_body2, vec![reveal_signature2]);
 
-    let error = validate_reveal_transaction(&reveal_transaction2, &dr_pool);
+    let error = validate_reveal_transaction(&reveal_transaction2, &dr_pool, secp);
     assert_eq!(
         error.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedCommitment
@@ -2414,7 +2498,7 @@ fn reveal_valid_commitment() {
     dr_pool.update_data_request_stages();
 
     // Validate trying to include a reveal previously included
-    let error = validate_reveal_transaction(&reveal_transaction, &dr_pool);
+    let error = validate_reveal_transaction(&reveal_transaction, &dr_pool, secp);
     assert_eq!(
         error.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DuplicatedReveal {
@@ -2922,6 +3006,7 @@ fn tally_valid_2_reveals() {
 
 #[test]
 fn block_signatures() {
+    let secp = &CryptoEngine::new();
     let mut b = Block {
         block_header: Default::default(),
         block_sig: Default::default(),
@@ -2938,7 +3023,7 @@ fn block_signatures() {
     let hashable = b;
     let f = |mut b: Block, ks| {
         b.block_sig = ks;
-        validate_block_signature(&b)
+        validate_block_signature(&b, secp)
     };
 
     let ks = sign_t(&hashable);
@@ -3019,6 +3104,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
     mut mut_block: F,
     dr_pool: DataRequestPool,
 ) -> Result<(), failure::Error> {
+    let secp = &CryptoEngine::new();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
     let mut utxo_set = UnspentOutputsPool::default();
@@ -3092,6 +3178,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         vrf,
         &rep_eng,
         EpochConstants::default(),
+        secp,
     )
     .map(|_| ())
 }
@@ -3230,6 +3317,7 @@ fn block_invalid_poe() {
 
 #[test]
 fn block_difficult_proof() {
+    let secp = &CryptoEngine::new();
     let dr_pool = DataRequestPool::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
 
@@ -3305,6 +3393,7 @@ fn block_difficult_proof() {
                 vrf,
                 &rep_eng,
                 EpochConstants::default(),
+                secp,
             )
             .map(|_| ())
         };
@@ -3729,6 +3818,7 @@ fn block_change_merkle_tree() {
 ///////////////////////////////////////////////////////////////////////////////
 
 fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error> {
+    let secp = &CryptoEngine::new();
     if txns.len() > 1 {
         // FIXME(#685): add sequence validations
         unimplemented!();
@@ -3807,6 +3897,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             vrf,
             &rep_eng,
             EpochConstants::default(),
+            secp,
         )?;
 
         // FIXME(#685): add sequence validations

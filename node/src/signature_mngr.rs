@@ -12,7 +12,7 @@ use log;
 use crate::{actors::storage_keys::MASTER_KEY, storage_mngr};
 
 use witnet_crypto::{
-    key::{ExtendedSK, MasterKeyGen, SignEngine, PK, SK},
+    key::{CryptoEngine, ExtendedSK, MasterKeyGen, SignEngine, PK, SK},
     mnemonic::MnemonicGen,
     signature,
 };
@@ -87,6 +87,8 @@ struct SignatureManager {
     keypair: Option<(SK, PK)>,
     /// VRF context
     vrf_ctx: Option<VrfCtx>,
+    /// Secp256k1 context
+    secp: Option<CryptoEngine>,
 }
 
 impl SignatureManager {
@@ -144,6 +146,8 @@ impl Actor for SignatureManager {
                 ctx.stop();
             })
             .ok();
+
+        self.secp = Some(CryptoEngine::new());
 
         storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY)
             .and_then(move |master_key_from_storage| {
@@ -203,7 +207,7 @@ impl Handler<Sign> for SignatureManager {
     fn handle(&mut self, Sign(data): Sign, _ctx: &mut Self::Context) -> Self::Result {
         match self.keypair {
             Some((secret, public)) => {
-                let signature = signature::sign(secret, &data);
+                let signature = signature::sign(self.secp.as_ref().unwrap(), secret, &data);
                 let keyed_signature = KeyedSignature {
                     signature: Signature::from(signature),
                     public_key: PublicKey::from(public),
@@ -246,6 +250,7 @@ impl Handler<VrfProve> for SignatureManager {
             Self {
                 keypair: Some((secret, _public)),
                 vrf_ctx: Some(vrf),
+                ..
             } => {
                 // This conversion is cheap, it's just a memcpy
                 let sk = SecretKey::from(*secret);

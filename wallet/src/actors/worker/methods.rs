@@ -7,7 +7,7 @@ use crate::{account, constants, crypto, db::Database as _, model, params};
 
 impl Worker {
     pub fn start(concurrency: usize, db: Arc<rocksdb::DB>, params: params::Params) -> Addr<Self> {
-        let engine = types::SignEngine::signing_only();
+        let engine = types::CryptoEngine::new();
         let wallets = Arc::new(repository::Wallets::new(db::PlainDb::new(db.clone())));
 
         SyncArbiter::start(concurrency, move || Self {

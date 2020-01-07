@@ -18,7 +18,7 @@ pub struct Worker {
     db: Arc<rocksdb::DB>,
     wallets: Arc<repository::Wallets<db::PlainDb>>,
     params: params::Params,
-    engine: types::SignEngine,
+    engine: types::CryptoEngine,
     rng: rand::rngs::OsRng,
 }
 

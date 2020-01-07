@@ -172,6 +172,7 @@ impl ChainManager {
                     act.vrf_ctx.as_mut().unwrap(),
                     act.chain_state.reputation_engine.as_ref().unwrap(),
                     act.epoch_constants.unwrap(),
+                    act.secp.as_ref().unwrap(),
                 ) {
                     Ok(_) => {
                         // Send AddCandidates message to self
@@ -704,11 +705,11 @@ mod tests {
 
         // Create a KeyedSignature
         let Hash::SHA256(data) = block_header.hash();
-        let secp = Secp256k1::new();
+        let secp = &Secp256k1::new();
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &secret_key);
-        let signature = sign(secret_key, &data);
+        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
+        let signature = sign(secp, secret_key, &data);
         let witnet_pk = PublicKey::from(public_key);
         let witnet_signature = Signature::from(signature);
 
@@ -722,7 +723,7 @@ mod tests {
         };
 
         // Check Signature
-        assert!(verify(&public_key, &data, &signature).is_ok());
+        assert!(verify(secp, &public_key, &data, &signature).is_ok());
 
         // Check if block only contains the Mint Transaction
         assert_eq!(block.txns.mint.len(), 1);
@@ -733,7 +734,7 @@ mod tests {
         assert_eq!(block.txns.tally_txns.len(), 0);
 
         // Validate block signature
-        assert!(validate_block_signature(&block).is_ok());
+        assert!(validate_block_signature(&block, secp).is_ok());
     }
 
     #[test]
@@ -868,8 +869,8 @@ mod tests {
         };
         let sk: Secp256k1_SecretKey = secret_key.into();
 
-        let secp = Secp256k1::new();
-        let public_key = Secp256k1_PublicKey::from_secret_key(&secp, &sk);
+        let secp = &Secp256k1::new();
+        let public_key = Secp256k1_PublicKey::from_secret_key(secp, &sk);
 
         let data = [
             0xca, 0x18, 0xf5, 0xad, 0xc2, 0x18, 0x45, 0x25, 0x0e, 0x88, 0x14, 0x18, 0x1f, 0xf7,
@@ -877,8 +878,8 @@ mod tests {
             0x84, 0x9e, 0xc6, 0xb9,
         ];
 
-        let signature = sign(sk, &data);
-        assert!(verify(&public_key, &data, &signature).is_ok());
+        let signature = sign(secp, sk, &data);
+        assert!(verify(secp, &public_key, &data, &signature).is_ok());
 
         // Conversion step
         let witnet_signature = Signature::from(signature);
@@ -890,6 +891,6 @@ mod tests {
         assert_eq!(signature, signature2);
         assert_eq!(public_key, public_key2);
 
-        assert!(verify(&public_key2, &data, &signature2).is_ok());
+        assert!(verify(secp, &public_key2, &data, &signature2).is_ok());
     }
 }

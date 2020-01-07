@@ -126,7 +126,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     reputation_engine: Some(ref mut rep_engine),
                     ..
                 } => {
-                    if self.epoch_constants.is_none() || self.vrf_ctx.is_none() {
+                    if self.epoch_constants.is_none()
+                        || self.vrf_ctx.is_none()
+                        || self.secp.is_none()
+                    {
                         log::error!("{}", ChainManagerError::ChainNotReady);
                         return;
                     }
@@ -156,6 +159,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             self.vrf_ctx.as_mut().unwrap(),
                             rep_engine,
                             self.epoch_constants.unwrap(),
+                            self.secp.as_ref().unwrap(),
                         ) {
                             Ok(utxo_diff) => {
                                 let block_pkh = &block_candidate.block_sig.public_key.pkh();

@@ -23,7 +23,7 @@ use witnet_data_structures::{
 pub struct Wallet<T> {
     db: T,
     params: Params,
-    engine: types::SignEngine,
+    engine: types::CryptoEngine,
     state: RwLock<State>,
 }
 
@@ -31,7 +31,7 @@ impl<T> Wallet<T>
 where
     T: Database,
 {
-    pub fn unlock(db: T, params: Params, engine: types::SignEngine) -> Result<Self> {
+    pub fn unlock(db: T, params: Params, engine: types::CryptoEngine) -> Result<Self> {
         let name = db.get_opt(keys::wallet_name())?;
         let caption = db.get_opt(keys::wallet_caption())?;
         let account = db.get_or_default(keys::wallet_default_account())?;
@@ -362,7 +362,11 @@ where
             .into_iter()
             .map(|sign_key| {
                 let public_key = From::from(types::PK::from_secret_key(&self.engine, &sign_key));
-                let signature = From::from(types::signature::sign(sign_key, sign_data.as_ref()));
+                let signature = From::from(types::signature::sign(
+                    &self.engine,
+                    sign_key,
+                    sign_data.as_ref(),
+                ));
 
                 types::KeyedSignature {
                     signature,
@@ -399,7 +403,11 @@ where
             .into_iter()
             .map(|sign_key| {
                 let public_key = From::from(types::PK::from_secret_key(&self.engine, &sign_key));
-                let signature = From::from(types::signature::sign(sign_key, sign_data.as_ref()));
+                let signature = From::from(types::signature::sign(
+                    &self.engine,
+                    sign_key,
+                    sign_data.as_ref(),
+                ));
 
                 types::KeyedSignature {
                     signature,

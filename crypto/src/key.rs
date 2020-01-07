@@ -174,6 +174,9 @@ pub type SignEngine = Secp256k1<SignOnly>;
 /// Secp256k1 engine that can only be used for verifying.
 pub type VerifyEngine = Secp256k1<VerifyOnly>;
 
+/// Secp256k1 engine that can be used for signing and for verifying.
+pub type CryptoEngine = Secp256k1<secp256k1::All>;
+
 /// Extended Key is just a Key with a Chain Code
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

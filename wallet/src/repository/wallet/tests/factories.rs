@@ -14,7 +14,7 @@ pub fn wallet(data: Option<HashMap<Vec<u8>, Vec<u8>>>) -> (Wallet<db::HashMapDb>
         &source,
     )
     .unwrap();
-    let engine = types::SignEngine::signing_only();
+    let engine = types::CryptoEngine::new();
     let default_account_index = 0;
     let default_account =
         account::gen_account(&engine, default_account_index, &master_key).unwrap();

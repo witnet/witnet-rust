@@ -22,6 +22,7 @@ use witnet_util::timestamp::pretty_print;
 
 use log::{debug, error, info, warn};
 use std::time::Duration;
+use witnet_crypto::key::CryptoEngine;
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -45,6 +46,8 @@ impl Actor for ChainManager {
                 ctx.stop();
             })
             .ok();
+
+        self.secp = Some(CryptoEngine::new());
     }
 }
 

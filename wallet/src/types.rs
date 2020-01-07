@@ -8,7 +8,7 @@ pub use serde_json::Value as Json;
 
 pub use witnet_crypto::{
     hash::HashFunction,
-    key::{ExtendedPK, ExtendedSK, KeyDerivationError, KeyPath, SignEngine, ONE_KEY, PK, SK},
+    key::{CryptoEngine, ExtendedPK, ExtendedSK, KeyDerivationError, KeyPath, ONE_KEY, PK, SK},
     mnemonic::{Length as MnemonicLength, Mnemonic, MnemonicGen},
     signature,
 };

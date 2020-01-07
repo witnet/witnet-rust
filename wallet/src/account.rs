@@ -20,7 +20,7 @@ pub fn account_keypath(index: u32) -> types::KeyPath {
 /// The account index is kind of the account id and indicates in which
 /// branch the HD-Wallet derivation tree these account keys are.
 pub fn gen_account(
-    engine: &types::SignEngine,
+    engine: &types::CryptoEngine,
     account_index: u32,
     master_key: &types::ExtendedSK,
 ) -> Result<types::Account> {
