@@ -55,9 +55,9 @@ mod tests {
             RadonFloat::from(2f64).into(),
             RadonFloat::from(2f64).into(),
         ]);
-        let _expected = RadonTypes::from(RadonFloat::from(2f64));
+        let expected = RadonTypes::from(RadonFloat::from(2f64));
         let output = mode(&input).unwrap();
-        assert_eq!(output, _expected);
+        assert_eq!(output, expected);
     }
 
     #[test]
@@ -79,9 +79,9 @@ mod tests {
             RadonInteger::from(2i128).into(),
             RadonInteger::from(2i128).into(),
         ]);
-        let _expected = RadonTypes::from(RadonInteger::from(2i128));
+        let expected = RadonTypes::from(RadonInteger::from(2i128));
         let output = mode(&input).unwrap();
-        assert_eq!(output, _expected);
+        assert_eq!(output, expected);
     }
 
     #[test]
@@ -124,5 +124,37 @@ mod tests {
         let output = mode(&input).unwrap_err();
         let expected_error = ModeEmpty;
         assert_eq!(output, expected_error);
+    }
+
+    #[test]
+    fn test_operate_reduce_mode_array() {
+        let array1 = RadonArray::from(vec![
+            RadonInteger::from(1i128).into(),
+            RadonInteger::from(2i128).into(),
+            RadonInteger::from(3i128).into(),
+        ]);
+        let array2 = RadonArray::from(vec![
+            RadonInteger::from(2i128).into(),
+            RadonInteger::from(5i128).into(),
+            RadonInteger::from(4i128).into(),
+        ]);
+        let array3 = RadonArray::from(vec![
+            RadonInteger::from(1i128).into(),
+            RadonInteger::from(2i128).into(),
+            RadonInteger::from(3i128).into(),
+            RadonInteger::from(4i128).into(),
+        ]);
+
+        let input = RadonArray::from(vec![
+            array1.clone().into(),
+            array1.clone().into(),
+            array1.clone().into(),
+            array2.into(),
+            array3.into(),
+        ]);
+
+        let expected = RadonTypes::from(array1);
+        let output = mode(&input).unwrap();
+        assert_eq!(output, expected);
     }
 }
