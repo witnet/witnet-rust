@@ -8,12 +8,14 @@ use crate::types::{array::RadonArray, RadonType, RadonTypes};
 use witnet_data_structures::radon_report::ReportContext;
 
 pub mod deviation;
+pub mod mode;
 
 #[derive(Debug, PartialEq, TryFromPrimitive)]
 #[repr(u8)]
 pub enum RadonFilters {
     // Implemented
     DeviationStandard = 0x05,
+    Mode = 0x08,
 
     // Not implemented
     GreaterThan = 0x00,
@@ -23,7 +25,6 @@ pub enum RadonFilters {
     DeviationRelative = 0x04,
     Top = 0x06,
     Bottom = 0x07,
-    Mode = 0x08,
     LessOrEqualThan = 0x80,
     GreaterOrEqualThan = 0x81,
     NotEquals = 0x82,
@@ -59,6 +60,8 @@ pub fn filter(
             RadonFilters::DeviationStandard => {
                 deviation::standard_filter(input, extra_args, context)
             }
+
+            RadonFilters::Mode => mode::mode_filter(input, context),
             _ => error(),
         }
     } else {

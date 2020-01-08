@@ -130,7 +130,7 @@ pub fn create_radon_script_from_filters_and_reducer(
 
         // TODO: Update with more filters
         match rad_filter {
-            RadonFilters::DeviationStandard => {}
+            RadonFilters::DeviationStandard | RadonFilters::Mode => {}
             _ => {
                 return Err(RadError::UnsupportedFilterInAT {
                     operator: rad_filter as u8,
@@ -138,13 +138,18 @@ pub fn create_radon_script_from_filters_and_reducer(
             }
         };
 
-        let filter_args = cbor::from_slice(filter.args.as_slice()).map_err(|e| {
-            errorify(RadError::BufferIsNotValue {
-                description: e.to_string(),
-            })
-        })?;
+        let args = if filter.args.is_empty() {
+            Some(vec![Value::Integer(filter_op)])
+        } else {
+            let filter_args = cbor::from_slice(filter.args.as_slice()).map_err(|e| {
+                errorify(RadError::BufferIsNotValue {
+                    description: e.to_string(),
+                })
+            })?;
 
-        let args = Some(vec![Value::Integer(filter_op), filter_args]);
+            Some(vec![Value::Integer(filter_op), filter_args])
+        };
+
         radoncall_vec.push((RadonOpCodes::ArrayFilter, args));
     }
 

@@ -4,6 +4,7 @@ use std::{
     fmt,
 };
 
+use log;
 use serde::Serialize;
 use serde_cbor::{to_vec, Value};
 
@@ -296,7 +297,7 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
                                             }
                                         }
                                         _ => {
-                                            unimplemented!(
+                                            log::warn!(
                                                 "RadonError not implemented in TryFrom CBOR value"
                                             );
                                         }
