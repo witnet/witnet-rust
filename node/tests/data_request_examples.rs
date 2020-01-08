@@ -79,18 +79,20 @@ fn parse_examples() {
                 // This print is intentional, so when this test fails we know which example failed
                 println!("{}", path.display());
                 let a = fs::read_to_string(&path).unwrap();
-                let file_value = serde_json::from_str::<JsonRpcRequest<'_, BuildDrt>>(&a).unwrap();
-                if file_value.params != expected_dro {
-                    // If the contents do not match, print a nice message so the examples can
-                    // be easily updated manually
-                    let example_json = generate_example_json(expected_dro);
-                    panic!(
-                        "Mismatch in test {}:\n\nFILE CONTENTS:\n{}\n\nEXPECTED:\n{}\n\n",
-                        path.display(),
-                        a,
-                        example_json
-                    );
-                }
+
+                let file_value = match serde_json::from_str::<JsonRpcRequest<'_, BuildDrt>>(&a) {
+                    Ok(x) if x.params == expected_dro => x,
+                    _ => {
+                        // If the contents do not match, or the JSON does not match the schema,
+                        // print a nice message so the examples can be easily updated manually
+                        panic!(
+                            "Mismatch in test {}:\n\nFILE CONTENTS:\n{}\n\nEXPECTED:\n{}\n\n",
+                            path.display(),
+                            a,
+                            generate_example_json(expected_dro)
+                        )
+                    }
+                };
 
                 // Run data request locally
                 let local_result = run_dr_locally_with_data(&file_value.params.dro, example_data);
