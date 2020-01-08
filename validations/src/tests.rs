@@ -1618,7 +1618,7 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
 
 // Helper function to test a commit with an existing data request,
 // but it is very difficult to construct a valid vrf proof
-fn test_commit_difficult_proof() -> Result<(), failure::Error> {
+fn test_commit_difficult_proof() {
     let mut dr_pool = DataRequestPool::default();
     let commit_beacon = CheckpointBeacon::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
@@ -1668,7 +1668,7 @@ fn test_commit_difficult_proof() -> Result<(), failure::Error> {
     let cs = sign_t(&cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
-    validate_commit_transaction(
+    let x = validate_commit_transaction(
         &c_tx,
         &dr_pool,
         commit_beacon,
@@ -1676,8 +1676,13 @@ fn test_commit_difficult_proof() -> Result<(), failure::Error> {
         &rep_eng,
         0,
         EpochConstants::default(),
-    )
-    .map(|_| ())
+    );
+
+    match x.unwrap_err().downcast::<TransactionError>().unwrap() {
+        TransactionError::DataRequestEligibilityDoesNotMeetTarget { target_hash, .. }
+            if target_hash == Hash::with_first_u32(0x003f_ffff) => {}
+        e => panic!("{:?}", e),
+    }
 }
 
 // Helper function to test a commit with an existing data request
@@ -1917,19 +1922,7 @@ fn commitment_invalid_proof() {
 
 #[test]
 fn commitment_proof_lower_than_target() {
-    let x = test_commit_difficult_proof();
-    // This is just the hash of the VRF, we do not care for the exact value as
-    // long as it is below the target hash
-    let vrf_hash = "8d4d2333e223ef43a42cb57633392a9122ec246b31a51b030934805e2683eb83,,"
-        .parse()
-        .unwrap();
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::DataRequestEligibilityDoesNotMeetTarget {
-            vrf_hash,
-            target_hash: Hash::with_first_u32(0x003f_ffff),
-        }
-    );
+    test_commit_difficult_proof();
 }
 
 #[test]
