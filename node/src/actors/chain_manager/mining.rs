@@ -23,7 +23,7 @@ use witnet_data_structures::{
 use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
-    merkle_tree_root, tally_precondition_clause, update_utxo_diff, validate_block,
+    evaluate_tally_precondition_clause, merkle_tree_root, update_utxo_diff, validate_block,
     vt_transaction_fee, UtxoDiff,
 };
 
@@ -398,7 +398,8 @@ impl ChainManager {
                     let non_error_min =
                         dr_state.data_request.min_consensus_percentage as f64 / 100.0;
                     let len_results = results.len();
-                    let clause_result = tally_precondition_clause(results.clone(), non_error_min);
+                    let clause_result =
+                        evaluate_tally_precondition_clause(results.clone(), non_error_min);
 
                     let (reveals_vec, liars) = match clause_result {
                         Ok((results, liars)) => (Ok(results), liars),

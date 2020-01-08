@@ -9,7 +9,7 @@ use futures::Future;
 use tokio::util::FutureExt;
 use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage, TallyMetaData};
 use witnet_rad::{error::RadError, types::RadonTypes};
-use witnet_validations::validations::tally_precondition_clause;
+use witnet_validations::validations::evaluate_tally_precondition_clause;
 
 impl Handler<ResolveRA> for RadManager {
     type Result = ResponseFuture<RadonReport<RadonTypes>, RadError>;
@@ -52,7 +52,7 @@ impl Handler<ResolveRA> for RadManager {
                     })
                     .collect();
 
-            let clause_result = tally_precondition_clause(retrieve_responses, 0.2);
+            let clause_result = evaluate_tally_precondition_clause(retrieve_responses, 0.2);
 
             match clause_result {
                 Ok((radon_types_vec, _)) => {

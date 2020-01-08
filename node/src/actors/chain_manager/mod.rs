@@ -405,7 +405,7 @@ impl ChainManager {
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
                         for dr_report in &to_be_stored {
-                            show_info_tally(&dr_report.tally, block_epoch);
+                            show_tally_info(&dr_report.tally, block_epoch);
                         }
                         self.persist_data_requests(ctx, to_be_stored);
 
@@ -807,7 +807,7 @@ fn update_reputation(
     rep_eng.current_alpha = new_alpha;
 }
 
-fn show_info_tally(tally_tx: &TallyTransaction, block_epoch: Epoch) {
+fn show_tally_info(tally_tx: &TallyTransaction, block_epoch: Epoch) {
     let result = RadonTypes::try_from(tally_tx.tally.as_slice());
     let result_str = RadonReport::from_result(result, &ReportContext::default())
         .map(|x| match x.into_inner() {

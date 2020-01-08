@@ -7,7 +7,7 @@ use witnet_data_structures::{
 
 use crate::{
     error::RadError,
-    script::create_radon_script,
+    script::create_radon_script_from_filters_and_reducer,
     script::{execute_radon_script, unpack_radon_script},
     types::{array::RadonArray, string::RadonString, RadonTypes},
 };
@@ -108,7 +108,7 @@ pub fn run_aggregation_report(
 
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
-    let radon_script = create_radon_script(filters, reducer)?;
+    let radon_script = create_radon_script_from_filters_and_reducer(filters, reducer)?;
 
     let items_to_aggregate = RadonTypes::from(RadonArray::from(radon_types_vec));
 
@@ -140,7 +140,7 @@ pub fn run_tally_report(
 
     let filters = consensus.filters.as_slice();
     let reducer = consensus.reducer;
-    let radon_script = create_radon_script(filters, reducer)?;
+    let radon_script = create_radon_script_from_filters_and_reducer(filters, reducer)?;
 
     let items_to_tally = RadonTypes::from(RadonArray::from(radon_types_vec));
 

@@ -28,7 +28,7 @@ use witnet_data_structures::{
 use witnet_rad::{
     error::RadError,
     run_tally_report,
-    script::{create_radon_script, unpack_radon_script},
+    script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
     types::{serial_iter_decode, RadonTypes},
 };
 
@@ -157,12 +157,12 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
     let aggregate = &rad_request.aggregate;
     let filters = aggregate.filters.as_slice();
     let reducer = aggregate.reducer;
-    create_radon_script(filters, reducer)?;
+    create_radon_script_from_filters_and_reducer(filters, reducer)?;
 
     let consensus = &rad_request.tally;
     let filters = consensus.filters.as_slice();
     let reducer = consensus.reducer;
-    create_radon_script(filters, reducer)?;
+    create_radon_script_from_filters_and_reducer(filters, reducer)?;
 
     Ok(())
 }
@@ -204,7 +204,7 @@ fn update_liars(liars: &mut Vec<bool>, item: RadonTypes, condition: bool) -> Opt
     }
 }
 
-pub fn tally_precondition_clause(
+pub fn evaluate_tally_precondition_clause(
     reveals: Vec<RadonReport<RadonTypes>>,
     non_error_min: f64,
 ) -> Result<(Vec<RadonTypes>, Vec<bool>), RadError> {
@@ -275,7 +275,7 @@ pub fn validate_consensus(
     );
 
     let len_results = results.len();
-    let clause_result = tally_precondition_clause(results, non_error_min);
+    let clause_result = evaluate_tally_precondition_clause(results, non_error_min);
 
     let report = match clause_result {
         Ok((radon_types_vec, liars)) => run_tally_report(radon_types_vec, consensus, Some(liars))?,
@@ -1551,7 +1551,7 @@ mod tests {
             rad_rep_float,
         ];
 
-        let (out, liars) = tally_precondition_clause(v, 0.51).unwrap();
+        let (out, liars) = evaluate_tally_precondition_clause(v, 0.51).unwrap();
 
         assert_eq!(out, vec![rad_int.clone(), rad_int.clone(), rad_int]);
         assert_eq!(liars, vec![false, false, false, true]);
@@ -1574,7 +1574,7 @@ mod tests {
             rad_rep_int,
         ];
 
-        let (out, liars) = tally_precondition_clause(v, 0.51).unwrap();
+        let (out, liars) = evaluate_tally_precondition_clause(v, 0.51).unwrap();
 
         assert_eq!(out, vec![rad_int.clone(), rad_int.clone(), rad_int]);
         assert_eq!(liars, vec![false, true, false, false]);
@@ -1596,7 +1596,7 @@ mod tests {
             rad_rep_int,
         ];
 
-        let out = tally_precondition_clause(v, 0.51).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
 
         assert_eq!(out, rad_err);
     }
@@ -1617,7 +1617,7 @@ mod tests {
             rad_rep_int,
         ];
 
-        let out = tally_precondition_clause(v, 0.51).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
 
         assert_eq!(out, RadError::default());
     }
