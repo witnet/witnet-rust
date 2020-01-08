@@ -2166,7 +2166,7 @@ mod tests {
     #[test]
     fn secp256k1_from_into_secret_keys() {
         use crate::chain::SecretKey;
-        use secp256k1::{Secp256k1, SecretKey as Secp256k1_SecretKey};
+        use secp256k1::SecretKey as Secp256k1_SecretKey;
 
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");

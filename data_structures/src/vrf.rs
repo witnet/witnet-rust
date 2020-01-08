@@ -195,7 +195,6 @@ mod tests {
     use witnet_protected::Protected;
 
     use super::*;
-    use vrf::openssl::CipherSuite;
 
     #[test]
     fn vrf_derived_public_key() {

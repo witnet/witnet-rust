@@ -174,10 +174,10 @@ impl TallyMetaData {
 mod tests {
     use super::*;
     use crate::radon_error::{ErrorLike, RadonError, RadonErrors};
-    use core::fmt::Write;
     use failure::Fail;
-    use std::{error::Error, fmt};
+    use std::fmt;
 
+    #[test]
     fn test_encode_not_cbor() {
         #[derive(Default, Debug, Fail)]
         struct Dummy;
