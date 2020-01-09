@@ -165,7 +165,6 @@ pub fn connect_routes<T, S>(
             "getTransactions",
             GetTransactionsRequest
         ),
-        ("Send-Vtt", "sendVtt", SendVttRequest),
         (
             "Send-Transaction",
             "sendTransaction",
@@ -184,7 +183,6 @@ pub fn connect_routes<T, S>(
         ),
         ("Create-Vtt", "createVtt", CreateVttRequest),
         ("Run-Rad-Request", "runRadRequest", RunRadReqRequest),
-        ("Send-Data-Request", "sendDataRequest", SendDataReqRequest),
         ("Set", "set", SetRequest),
         ("Get", "get", GetRequest),
         ("Get-Balance", "getBalance", GetBalanceRequest),

@@ -486,7 +486,7 @@ impl App {
     }
 
     /// Send a transaction to witnet network using the Inventory method
-    pub fn send_transaction(
+    fn send_inventory_transaction(
         &self,
         txn: types::Transaction,
     ) -> ResponseActFuture<serde_json::Value> {
@@ -522,7 +522,7 @@ impl App {
         }
     }
 
-    pub fn send_vtt(
+    pub fn send_transaction(
         &self,
         session_id: &types::SessionId,
         wallet_id: &str,
@@ -537,38 +537,7 @@ impl App {
                     .map_err(From::from)
                     .into_actor(slf)
                     .and_then(|opt_transaction, slf, _ctx| match opt_transaction {
-                        Some(txn) => slf.send_transaction(txn),
-                        None => {
-                            let f = fut::err(validation_error(field_error(
-                                "transactionId",
-                                "Transaction not found",
-                            )));
-
-                            Box::new(f)
-                        }
-                    })
-            },
-        );
-
-        Box::new(f)
-    }
-
-    pub fn send_data_req(
-        &self,
-        session_id: &types::SessionId,
-        wallet_id: &str,
-        transaction_hash: String,
-    ) -> ResponseActFuture<serde_json::Value> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::GetTransaction(wallet, transaction_hash))
-                    .flatten()
-                    .map_err(From::from)
-                    .into_actor(slf)
-                    .and_then(|opt_transaction, slf, _ctx| match opt_transaction {
-                        Some(txn) => slf.send_transaction(txn),
+                        Some(txn) => slf.send_inventory_transaction(txn),
                         None => {
                             let f = fut::err(validation_error(field_error(
                                 "transactionId",
