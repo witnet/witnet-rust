@@ -410,11 +410,15 @@ pub fn validate_dr_transaction<'a>(
 ///
 /// A data request output is valid under the following conditions:
 /// - The number of witnesses is at least 1
-/// - The sum of fees is strictly less than the data request value
-/// - All witnesses receive exactly the same reward (value - total fees % witnesses == 0)
+/// - The witness reward is at least 1
+/// - The min_consensus_percentage is >50 and <100
 pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), TransactionError> {
     if request.witnesses < 1 {
         return Err(TransactionError::InsufficientWitnesses);
+    }
+
+    if request.witness_reward < 1 {
+        return Err(TransactionError::NoReward);
     }
 
     if !((51..100).contains(&request.min_consensus_percentage)) {
@@ -423,38 +427,14 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
         });
     }
 
-    let sum_fees = request
+    let _sum_fees = request
         .commit_fee
         .checked_add(request.reveal_fee)
         .and_then(|res| res.checked_mul(request.witnesses.into()))
         .and_then(|res| res.checked_add(request.tally_fee))
         .ok_or_else(|| TransactionError::FeeOverflow)?;
 
-    // Calculate reward to be shared between all the witnesses, which must be greater than 0
-    if request.witness_reward == 0 {
-        return Err(TransactionError::NoReward);
-    }
-
-    if request.total_value() <= sum_fees {
-        panic!("This can never happen");
-    }
-
-    let total_witness_reward = request.total_value() - sum_fees;
-
-    // Must be divisible by the number of witnesses
-    if (total_witness_reward % u64::from(request.witnesses)) != 0 {
-        Err(TransactionError::NonUniformReward {
-            reward: total_witness_reward,
-            witnesses: request.witnesses,
-        })
-    } else {
-        // TODO: value -> witness_reward refactor sanity check
-        assert_eq!(
-            total_witness_reward / u64::from(request.witnesses),
-            request.witness_reward
-        );
-        Ok(())
-    }
+    Ok(())
 }
 
 /// Function to validate a commit transaction

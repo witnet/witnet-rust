@@ -60,14 +60,9 @@ pub enum TransactionError {
         change, expected_change
     )]
     InvalidTallyChange { change: u64, expected_change: u64 },
-    #[fail(display = "The witness reward of a data request must be greater than zero")]
+    #[fail(display = "Data Request witness reward must be greater than zero")]
     NoReward,
-    #[fail(
-        display = "The reward is not the same for each witness. Reward: {}. Witnesses: {}",
-        reward, witnesses
-    )]
-    NonUniformReward { reward: u64, witnesses: u16 },
-    #[fail(display = "Data Request witnesses number is not enough")]
+    #[fail(display = "Data Request witnesses number must be greater than zero")]
     InsufficientWitnesses,
     #[fail(
         display = "Mismatching between local tally ({:?}) and miner tally ({:?})",
