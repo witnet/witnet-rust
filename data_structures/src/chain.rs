@@ -733,15 +733,24 @@ pub struct DataRequestOutput {
 }
 
 impl DataRequestOutput {
-    pub fn total_witnesses_reward(&self) -> u64 {
-        // TODO: overflow?
-        self.witness_reward * u64::from(self.witnesses)
-    }
     // Helper method so dr.value can be replaced with dr.total_value()
     pub fn total_value(&self) -> u64 {
-        // TODO: overflow?
-        self.tally_fee
-            + u64::from(self.witnesses) * (self.commit_fee + self.reveal_fee + self.witness_reward)
+        // Return max value on overflow, assuming that it is impossible to
+        // pay for a transaction with that cost
+        self.checked_total_value().unwrap_or(u64::max_value())
+    }
+    /// Calculate the total value of a data request, return error on overflow
+    ///
+    /// ```norun
+    /// total_value = (witness_reward + commit_fee + reveal_fee) * witnesses + tally_fee
+    /// ```
+    pub fn checked_total_value(&self) -> Result<u64, TransactionError> {
+        self.witness_reward
+            .checked_add(self.commit_fee)
+            .and_then(|res| res.checked_add(self.reveal_fee))
+            .and_then(|res| res.checked_mul(u64::from(self.witnesses)))
+            .and_then(|res| res.checked_add(self.tally_fee))
+            .ok_or_else(|| TransactionError::FeeOverflow)
     }
 }
 

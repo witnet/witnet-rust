@@ -320,13 +320,6 @@ impl DataRequestPool {
     }
 }
 
-/// Function to calculate the value transfer reward
-pub fn calculate_dr_vt_reward(dr_output: &DataRequestOutput) -> u64 {
-    let total_reward = dr_output.total_witnesses_reward();
-
-    total_reward / u64::from(dr_output.witnesses)
-}
-
 pub fn create_tally<RT>(
     dr_pointer: Hash,
     dr_output: &DataRequestOutput,
@@ -338,7 +331,7 @@ where
     RT: TypeLike,
 {
     if let Stage::Tally(tally_metadata) = &report.metadata {
-        let reveal_reward = calculate_dr_vt_reward(dr_output);
+        let reveal_reward = dr_output.witness_reward;
 
         let liars = &tally_metadata.liars;
 

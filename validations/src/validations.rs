@@ -16,7 +16,7 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine,
         UnspentOutputsPool, ValueTransferOutput,
     },
-    data_request::{calculate_dr_vt_reward, DataRequestPool},
+    data_request::DataRequestPool,
     error::{BlockError, DataRequestError, TransactionError},
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
     transaction::{
@@ -108,8 +108,8 @@ pub fn dr_transaction_fee(
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
     let in_value = transaction_inputs_sum(&dr_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
-    let out_value =
-        transaction_outputs_sum(&dr_tx.body.outputs) + dr_tx.body.dr_output.total_value();
+    let out_value = transaction_outputs_sum(&dr_tx.body.outputs)
+        + dr_tx.body.dr_output.checked_total_value()?;
 
     if out_value > in_value {
         Err(TransactionError::NegativeFee.into())
@@ -427,13 +427,7 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
         });
     }
 
-    let _sum_fees = request
-        .commit_fee
-        .checked_add(request.reveal_fee)
-        .and_then(|res| res.checked_mul(request.witnesses.into()))
-        .and_then(|res| res.checked_add(request.tally_fee))
-        .ok_or_else(|| TransactionError::FeeOverflow)?;
-
+    // Data request fees are checked in validate_dr_transaction
     Ok(())
 }
 
@@ -610,7 +604,7 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     }
 
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::default();
-    let reveal_reward = calculate_dr_vt_reward(&dr_state.data_request);
+    let reveal_reward = dr_state.data_request.witness_reward;
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         if change_required && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
             // Expected honest witnesses is tally outputs - 1, which would be
