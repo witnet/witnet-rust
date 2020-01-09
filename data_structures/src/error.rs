@@ -34,18 +34,11 @@ pub enum TransactionError {
     /// The transaction creates value
     #[fail(display = "Transaction creates value (its fee is negative)")]
     NegativeFee,
-    /// A transaction with the given hash wasn't found in a pool.
-    #[fail(display = "A hash is missing in the pool (\"{}\")", hash)]
-    PoolMiss { hash: Hash },
     /// An output with the given index wasn't found in a transaction.
     #[fail(display = "Output not found: {}", output)]
     OutputNotFound { output: OutputPointer },
     #[fail(display = "Data Request not found: {}", hash)]
     DataRequestNotFound { hash: Hash },
-    #[fail(display = "The transaction signature is invalid")]
-    InvalidSignature,
-    #[fail(display = "Tally transaction is invalid")]
-    InvalidTallyTransaction,
     #[fail(display = "Commit transaction has a invalid Proof of Eligibility")]
     InvalidDataRequestPoe,
     #[fail(
@@ -53,8 +46,6 @@ pub enum TransactionError {
         vrf_hash, target_hash
     )]
     DataRequestEligibilityDoesNotMeetTarget { vrf_hash: Hash, target_hash: Hash },
-    #[fail(display = "Invalid fee found: {}. Expected fee: {}", fee, expected_fee)]
-    InvalidFee { fee: u64, expected_fee: u64 },
     #[fail(
         display = "Invalid tally change found: {}. Expected value: {}",
         change, expected_change
@@ -121,9 +112,6 @@ pub enum TransactionError {
     /// This pkh was rewarded previously
     #[fail(display = "This pkh {} was rewarded previously", pkh)]
     MultipleRewards { pkh: PublicKeyHash },
-    /// No tally change in outputs
-    #[fail(display = "No tally change in outputs")]
-    NoTallyChange,
     /// There are a different number of outputs than expected
     #[fail(
         display = "There are a different number of outputs ({}) than expected ({})",
