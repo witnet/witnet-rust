@@ -108,7 +108,8 @@ pub fn dr_transaction_fee(
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
     let in_value = transaction_inputs_sum(&dr_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
-    let out_value = transaction_outputs_sum(&dr_tx.body.outputs) + dr_tx.body.dr_output.value;
+    let out_value =
+        transaction_outputs_sum(&dr_tx.body.outputs) + dr_tx.body.dr_output.total_value();
 
     if out_value > in_value {
         Err(TransactionError::NegativeFee.into())
@@ -430,13 +431,18 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
         .ok_or_else(|| TransactionError::FeeOverflow)?;
 
     // Calculate reward to be shared between all the witnesses, which must be greater than 0
-    if request.value <= sum_fees {
+    if request.witness_reward == 0 {
         return Err(TransactionError::NoReward {
-            value: request.value,
+            value: request.total_value(),
             fees: sum_fees,
         });
     }
-    let total_witness_reward = request.value - sum_fees;
+
+    if request.total_value() <= sum_fees {
+        panic!("This can never happen");
+    }
+
+    let total_witness_reward = request.total_value() - sum_fees;
 
     // Must be divisible by the number of witnesses
     if (total_witness_reward % u64::from(request.witnesses)) != 0 {
@@ -445,6 +451,11 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
             witnesses: request.witnesses,
         })
     } else {
+        // TODO: value -> witness_reward refactor sanity check
+        assert_eq!(
+            total_witness_reward / u64::from(request.witnesses),
+            request.witness_reward
+        );
         Ok(())
     }
 }

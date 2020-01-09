@@ -19,7 +19,7 @@ pub struct CreateDataReqRequest {
 #[serde(rename_all = "camelCase")]
 struct DataRequestOutput {
     data_request: RADRequest,
-    value: u64,
+    witness_reward: u64,
     witnesses: u16,
     backup_witnesses: u16,
     commit_fee: u64,
@@ -103,7 +103,7 @@ fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app:
             aggregate: request.data_request.aggregate,
             tally: request.data_request.tally,
         },
-        value: request.value,
+        witness_reward: request.witness_reward,
         witnesses: request.witnesses,
         backup_witnesses: request.backup_witnesses,
         commit_fee: request.commit_fee,

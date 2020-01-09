@@ -138,7 +138,7 @@ fn build_inputs_outputs_inner<S: std::hash::BuildHasher>(
     timestamp: u64,
 ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), NoMoney> {
     let output_value: u64 = outputs.iter().map(|x| x.value).sum::<u64>()
-        + dr_output.map(|o| o.value).unwrap_or_default();
+        + dr_output.map(|o| o.total_value()).unwrap_or_default();
     match take_enough_utxos(own_utxos, all_utxos, output_value + fee, timestamp) {
         Err(total_balance) => Err(NoMoney {
             transaction_outputs: output_value,
@@ -319,7 +319,8 @@ mod tests {
         match transaction {
             Transaction::ValueTransfer(tx) => tx.body.outputs.iter().map(|o| o.value).sum(),
             Transaction::DataRequest(tx) => {
-                tx.body.outputs.iter().map(|x| x.value).sum::<u64>() + tx.body.dr_output.value
+                tx.body.outputs.iter().map(|x| x.value).sum::<u64>()
+                    + tx.body.dr_output.total_value()
             }
             _ => 0,
         }
@@ -713,13 +714,13 @@ mod tests {
     #[test]
     fn exact_change_data_request() {
         let own_pkh = my_pkh();
-        let outputs = vec![pay_me(1000)];
+        let outputs = vec![pay_me(3900)];
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs.clone(), None, vec![]);
         assert_eq!(own_utxos.len(), 1);
 
         let t1 = build_drt_tx(
             DataRequestOutput {
-                value: 1000,
+                witness_reward: 3900 / 4,
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
@@ -729,12 +730,12 @@ mod tests {
             &all_utxos,
         )
         .unwrap();
-        assert_eq!(outputs_sum(&t1), 1000);
+        assert_eq!(outputs_sum(&t1), 3900);
 
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t2 = build_drt_tx(
             DataRequestOutput {
-                value: 1000,
+                witness_reward: 1000 / 4,
                 witnesses: 4,
                 commit_fee: 300,
                 reveal_fee: 400,
@@ -747,7 +748,7 @@ mod tests {
             &all_utxos,
         )
         .unwrap();
-        assert_eq!(outputs_sum(&t2), 1000);
+        assert_eq!(outputs_sum(&t2), 3900);
 
         // Execute transaction t2
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
@@ -763,7 +764,7 @@ mod tests {
 
         let t1 = build_drt_tx(
             DataRequestOutput {
-                value: 1000,
+                witness_reward: 1000 / 4,
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
@@ -778,7 +779,7 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         let t2 = build_drt_tx(
             DataRequestOutput {
-                value: 1000,
+                witness_reward: 1000 / 4,
                 witnesses: 4,
                 commit_fee: 300,
                 reveal_fee: 400,
@@ -795,22 +796,22 @@ mod tests {
 
         // Execute transaction t2
         let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
-        // This will create a change output with value 1_000_000 - 1_000
+        // This will create a change output with value 1_000_000 - 3_900
         assert_eq!(own_utxos.len(), 1);
         assert_eq!(
             all_utxos[own_utxos.iter().next().unwrap()].value,
-            1_000_000 - 1_000
+            1_000_000 - 3_900
         );
         assert_eq!(
             build_vtt_tx(
                 vec![],
-                1_000_000 - 1_000 + 1,
+                1_000_000 - 3_900 + 1,
                 &mut own_utxos,
                 own_pkh,
                 &all_utxos
             )
             .map_err(|x| x.total_balance),
-            Err(1_000_000 - 1_000)
+            Err(1_000_000 - 3_900)
         );
     }
 
@@ -823,7 +824,7 @@ mod tests {
 
         let t1 = build_drt_tx(
             DataRequestOutput {
-                value: 1000,
+                witness_reward: 1000 / 4,
                 witnesses: 4,
                 ..DataRequestOutput::default()
             },
@@ -839,7 +840,7 @@ mod tests {
         // and this account only has 1 UTXO
         let t2 = build_drt_tx(
             DataRequestOutput {
-                value: 1000,
+                witness_reward: 1000 / 4,
                 witnesses: 4,
                 commit_fee: 300,
                 reveal_fee: 400,
@@ -854,7 +855,7 @@ mod tests {
         assert_eq!(
             t2,
             Err(NoMoney {
-                transaction_outputs: 1000,
+                transaction_outputs: 3900,
                 transaction_fee: 0,
                 total_balance: 0,
             })

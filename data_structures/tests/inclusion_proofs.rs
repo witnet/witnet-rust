@@ -66,7 +66,7 @@ fn example_block(txns: BlockTransactions) -> Block {
 
 fn example_dr(id: usize) -> DRTransaction {
     let dr_output = DataRequestOutput {
-        value: id as u64,
+        witness_reward: id as u64,
         ..Default::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dr_output);

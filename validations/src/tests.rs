@@ -844,7 +844,7 @@ fn data_request_no_inputs() {
 
     // Try to create a data request with no inputs
     let dr_output = DataRequestOutput {
-        value: 1000,
+        witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -872,7 +872,7 @@ fn data_request_no_inputs_but_one_signature() {
 
     // No inputs but 1 signature
     let dr_output = DataRequestOutput {
-        value: 1000,
+        witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -909,7 +909,7 @@ fn data_request_one_input_but_no_signature() {
     let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
 
     let dr_output = DataRequestOutput {
-        value: 1000,
+        witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -947,7 +947,7 @@ fn data_request_one_input_signatures() {
     let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
 
     let dr_output = DataRequestOutput {
-        value: 1000,
+        witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -980,7 +980,7 @@ fn data_request_input_not_in_utxo() {
     );
 
     let dr_output = DataRequestOutput {
-        value: 1000,
+        witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
         ..DataRequestOutput::default()
@@ -1017,7 +1017,7 @@ fn data_request_input_not_enough_value() {
     let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
 
     let dr_output = DataRequestOutput {
-        value: 1000,
+        witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
         ..DataRequestOutput::default()
@@ -1064,7 +1064,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
 
 fn test_rad_request(data_request: RADRequest) -> Result<(), failure::Error> {
     test_drtx(DataRequestOutput {
-        value: 1000,
+        witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request,
@@ -1124,7 +1124,7 @@ fn data_request_witnesses_0() {
     // A data request with 0 witnesses is invalid
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
-        value: 1000,
+        witness_reward: 500,
         witnesses: 0,
         min_consensus_percentage: 51,
         data_request,
@@ -1142,7 +1142,7 @@ fn data_request_witnesses_1() {
     // But that can change in the future
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
-        value: 1000,
+        witness_reward: 1000,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request,
@@ -1155,7 +1155,7 @@ fn data_request_witnesses_1() {
 fn data_request_no_value() {
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
-        value: 0,
+        witness_reward: 0,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request,
@@ -1168,54 +1168,11 @@ fn data_request_no_value() {
 }
 
 #[test]
-fn data_request_odd_value() {
-    // A data request with 2 witnesses must have an even value,
-    // because it will be divided between the 2 witnesses.
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        value: 999,
-        witnesses: 2,
-        min_consensus_percentage: 51,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NonUniformReward {
-            witnesses: 2,
-            reward: 999
-        }
-    );
-}
-
-#[test]
-fn data_request_odd_tally_value() {
-    // A data request with 2 witnesses must have an even value,
-    // because it will be divided between the 2 witnesses.
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        value: 1000,
-        tally_fee: 901,
-        witnesses: 2,
-        min_consensus_percentage: 51,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NonUniformReward {
-            witnesses: 2,
-            reward: 99
-        }
-    );
-}
-
-#[test]
 fn data_request_invalid_value_commit_fee() {
-    // 1000 - (500*2) = 0, so the witnesses get 0 reward
+    // The witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
-        value: 1000,
+        witness_reward: 0,
         commit_fee: 500,
         reveal_fee: 0,
         tally_fee: 0,
@@ -1235,10 +1192,10 @@ fn data_request_invalid_value_commit_fee() {
 
 #[test]
 fn data_request_invalid_value_reveal_fee() {
-    // 1000 - (500*2) = 0, so the witnesses get 0 reward
+    // The witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
-        value: 1000,
+        witness_reward: 0,
         commit_fee: 0,
         reveal_fee: 500,
         tally_fee: 0,
@@ -1258,10 +1215,10 @@ fn data_request_invalid_value_reveal_fee() {
 
 #[test]
 fn data_request_invalid_value_tally_fee() {
-    // 1000 - 1000 = 0, so the witnesses get 0 reward
+    // The witnesses get 0 reward
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
-        value: 1000,
+        witness_reward: 0,
         commit_fee: 0,
         reveal_fee: 0,
         tally_fee: 1000,
@@ -1280,126 +1237,11 @@ fn data_request_invalid_value_tally_fee() {
 }
 
 #[test]
-fn data_request_invalid_all_fees() {
-    // 1000 - (125*2) - (125*2) - 500 = 0, so the witnesses get 0 reward
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        value: 1000,
-        commit_fee: 125,
-        reveal_fee: 125,
-        tally_fee: 500,
-        witnesses: 2,
-        min_consensus_percentage: 51,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward {
-            value: 1000,
-            fees: 1000
-        },
-    );
-}
-
-#[test]
-fn data_request_negative_value_commit_fee() {
-    // 1000 - (501*2) = -2, so the witnesses get 0 reward
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        value: 1000,
-        commit_fee: 501,
-        reveal_fee: 0,
-        tally_fee: 0,
-        witnesses: 2,
-        min_consensus_percentage: 51,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward {
-            value: 1000,
-            fees: 1002
-        },
-    );
-}
-
-#[test]
-fn data_request_negative_value_reveal_fee() {
-    // 1000 - (501*2) = -2, so the witnesses get 0 reward
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        value: 1000,
-        commit_fee: 0,
-        reveal_fee: 501,
-        tally_fee: 0,
-        witnesses: 2,
-        min_consensus_percentage: 51,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward {
-            value: 1000,
-            fees: 1002
-        },
-    );
-}
-
-#[test]
-fn data_request_negative_value_tally_fee() {
-    // 1000 - 1001 = -1, so the witnesses get 0 reward
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        value: 1000,
-        commit_fee: 0,
-        reveal_fee: 0,
-        tally_fee: 1001,
-        witnesses: 2,
-        min_consensus_percentage: 51,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward {
-            value: 1000,
-            fees: 1001
-        },
-    );
-}
-
-#[test]
-fn data_request_negative_all_fees() {
-    // 1000 - (126*2) - (126*2) - 502 = -6, so the witnesses get 0 reward
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        value: 1000,
-        commit_fee: 126,
-        reveal_fee: 126,
-        tally_fee: 502,
-        witnesses: 2,
-        min_consensus_percentage: 51,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward {
-            value: 1000,
-            fees: 1006
-        },
-    );
-}
-
-#[test]
 fn data_request_miner_fee() {
     // Use 1000 input to pay 750 for data request
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        value: 750,
+        witness_reward: 750 / 2,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request,
@@ -1434,7 +1276,7 @@ fn data_request_miner_fee_with_change() {
     // Use 1000 input to pay 750 for data request, and request 200 change (+50 fee)
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        value: 750,
+        witness_reward: 750 / 2,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request,
@@ -1474,7 +1316,7 @@ fn data_request_miner_fee_with_too_much_change() {
     // Use 1000 input to pay 750 for data request, and request 300 change (-50 fee)
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        value: 750,
+        witness_reward: 750 / 2,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request,
@@ -1515,7 +1357,7 @@ fn data_request_zero_value_output() {
     // Use 1000 input to pay 750 for data request, and request 300 change (-50 fee)
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
-        value: 750,
+        witness_reward: 750 / 2,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request,
@@ -1583,7 +1425,7 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let rep_eng = ReputationEngine::new(100);
 
     let dro = DataRequestOutput {
-        value: 1000,
+        witness_reward: 1000,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -1638,7 +1480,7 @@ fn test_commit_difficult_proof() {
     rep_eng.ars.push_activity(vec![rep_pkh]);
 
     let dro = DataRequestOutput {
-        value: 1000,
+        witness_reward: 1000,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -1696,7 +1538,7 @@ fn test_commit() -> Result<(), failure::Error> {
     };
 
     let dro = DataRequestOutput {
-        value: 1000,
+        witness_reward: 1000,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -1880,7 +1722,7 @@ fn commitment_invalid_proof() {
         .unwrap();
 
     let dro = DataRequestOutput {
-        value: 1000,
+        witness_reward: 1000,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -1937,7 +1779,7 @@ fn commitment_dr_in_reveal_stage() {
     };
 
     let dro = DataRequestOutput {
-        value: 1000,
+        witness_reward: 1000,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -2011,7 +1853,7 @@ fn commitment_timelock() {
         rad_request.time_lock = time_lock;
 
         let dro = DataRequestOutput {
-            value: 1000,
+            witness_reward: 1000,
             witnesses: 1,
             min_consensus_percentage: 51,
             data_request: rad_request,
@@ -2077,7 +1919,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
     let block_hash = Hash::default();
     let epoch = 0;
     let dro = DataRequestOutput {
-        value: 1000,
+        witness_reward: 1000,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -2202,7 +2044,7 @@ fn reveal_dr_in_commit_stage() {
     let mut dr_pool = DataRequestPool::default();
     let epoch = 0;
     let dro = DataRequestOutput {
-        value: 1000,
+        witness_reward: 1000,
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
@@ -2423,7 +2265,7 @@ fn dr_pool_with_dr_in_tally_stage(
     let dr_output = DataRequestOutput {
         witnesses: 5,
         reveal_fee: 20,
-        value: 1100,
+        witness_reward: 1000 / 5,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
@@ -2495,7 +2337,7 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
         reveal_fee: 50,
         commit_fee: 50,
         tally_fee: 100,
-        value: 1300,
+        witness_reward: 1300 / 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
@@ -2588,7 +2430,7 @@ fn tally_dr_not_tally_stage() {
     let dr_output = DataRequestOutput {
         witnesses: 5,
         reveal_fee: 20,
-        value: 1100,
+        witness_reward: 1000 / 5,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
         ..DataRequestOutput::default()
@@ -3409,7 +3251,7 @@ fn block_duplicated_commits() {
     let commit_beacon = block_beacon;
 
     let dro = DataRequestOutput {
-        value: 1000,
+        witness_reward: 1000 / 2,
         commit_fee: 50,
         witnesses: 2,
         min_consensus_percentage: 51,
@@ -3486,7 +3328,7 @@ fn block_duplicated_reveals() {
 
     // Add commits
     let dro = DataRequestOutput {
-        value: 1100,
+        witness_reward: 1100 / 2,
         witnesses: 2,
         reveal_fee: 50,
         min_consensus_percentage: 51,
@@ -3989,7 +3831,7 @@ fn block_add_drt() {
     let t0 = {
         let data_request = example_data_request();
         let dr_output = DataRequestOutput {
-            value: 750,
+            witness_reward: 750 / 2,
             witnesses: 2,
             min_consensus_percentage: 51,
             data_request,
@@ -4024,7 +3866,7 @@ fn block_add_2_drt_same_input() {
     let t0 = {
         let data_request = example_data_request();
         let dr_output = DataRequestOutput {
-            value: 750,
+            witness_reward: 750 / 2,
             witnesses: 2,
             min_consensus_percentage: 51,
             data_request,
@@ -4044,7 +3886,7 @@ fn block_add_2_drt_same_input() {
 
         let data_request = example_data_request();
         let dr_output = DataRequestOutput {
-            value: 750,
+            witness_reward: 750 / 2,
             witnesses: 2,
             data_request,
             ..DataRequestOutput::default()
@@ -4083,7 +3925,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
     let t0 = {
         let data_request = example_data_request();
         let dr_output = DataRequestOutput {
-            value: 750,
+            witness_reward: 750 / 2,
             witnesses: 2,
             min_consensus_percentage: 51,
             data_request,

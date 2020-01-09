@@ -719,8 +719,7 @@ pub struct ValueTransferOutput {
 #[protobuf_convert(pb = "witnet::DataRequestOutput")]
 pub struct DataRequestOutput {
     pub data_request: RADRequest,
-    // Total DataRequest value, included fees
-    pub value: u64,
+    pub witness_reward: u64,
     pub witnesses: u16,
     pub backup_witnesses: u16,
     pub commit_fee: u64,
@@ -735,10 +734,14 @@ pub struct DataRequestOutput {
 
 impl DataRequestOutput {
     pub fn total_witnesses_reward(&self) -> u64 {
-        self.value
-            - (self.commit_fee * u64::from(self.witnesses))
-            - (self.reveal_fee * u64::from(self.witnesses))
-            - self.tally_fee
+        // TODO: overflow?
+        self.witness_reward * u64::from(self.witnesses)
+    }
+    // Helper method so dr.value can be replaced with dr.total_value()
+    pub fn total_value(&self) -> u64 {
+        // TODO: overflow?
+        self.tally_fee
+            + u64::from(self.witnesses) * (self.commit_fee + self.reveal_fee + self.witness_reward)
     }
 }
 

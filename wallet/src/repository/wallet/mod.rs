@@ -464,7 +464,7 @@ where
         }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
         let mut state = self.state.write()?;
-        let value = request.value;
+        let value = request.total_value();
         let components = self._create_transaction_components(&mut state, value, fee, None)?;
 
         let new_balance = components.balance;

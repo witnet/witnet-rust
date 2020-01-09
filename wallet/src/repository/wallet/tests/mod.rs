@@ -602,7 +602,7 @@ fn test_create_data_request_spends_utxos() {
     assert!(state_utxo_set.contains_key(&out_pointer));
 
     let request = types::DataRequestOutput {
-        value: 1,
+        witness_reward: 1,
         witnesses: 1,
         ..types::DataRequestOutput::default()
     };

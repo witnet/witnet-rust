@@ -131,7 +131,7 @@ message DataRequestOutput {
     }
 
     RADRequest data_request = 1;
-    uint64 value = 2;
+    uint64 witness_reward = 2;
     uint32 witnesses = 3;
     uint32 backup_witnesses = 4;
     uint64 commit_fee = 5;
