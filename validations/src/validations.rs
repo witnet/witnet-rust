@@ -42,7 +42,7 @@ pub fn transaction_inputs_sum(
     epoch: Epoch,
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
-    let mut total_value = 0;
+    let mut total_value: u64 = 0;
 
     for input in inputs {
         let vt_output = utxo_diff.get(&input.output_pointer()).ok_or_else(|| {
@@ -61,7 +61,9 @@ pub fn transaction_inputs_sum(
             }
             .into());
         } else {
-            total_value += vt_output.value;
+            total_value = total_value
+                .checked_add(vt_output.value)
+                .ok_or(TransactionError::InputValueOverflow)?;
         }
     }
 
@@ -69,8 +71,15 @@ pub fn transaction_inputs_sum(
 }
 
 /// Calculate the sum of the values of the outputs of a transaction.
-pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> u64 {
-    outputs.iter().map(|o| o.value).sum()
+pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, TransactionError> {
+    let mut total_value: u64 = 0;
+    for vt_output in outputs {
+        total_value = total_value
+            .checked_add(vt_output.value)
+            .ok_or(TransactionError::OutputValueOverflow)?
+    }
+
+    Ok(total_value)
 }
 
 /// Returns the fee of a value transfer transaction.
@@ -86,7 +95,7 @@ pub fn vt_transaction_fee(
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
     let in_value = transaction_inputs_sum(&vt_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
-    let out_value = transaction_outputs_sum(&vt_tx.body.outputs);
+    let out_value = transaction_outputs_sum(&vt_tx.body.outputs)?;
 
     if out_value > in_value {
         Err(TransactionError::NegativeFee.into())
@@ -108,8 +117,9 @@ pub fn dr_transaction_fee(
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
     let in_value = transaction_inputs_sum(&dr_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
-    let out_value = transaction_outputs_sum(&dr_tx.body.outputs)
-        + dr_tx.body.dr_output.checked_total_value()?;
+    let out_value = transaction_outputs_sum(&dr_tx.body.outputs)?
+        .checked_add(dr_tx.body.dr_output.checked_total_value()?)
+        .ok_or(TransactionError::OutputValueOverflow)?;
 
     if out_value > in_value {
         Err(TransactionError::NegativeFee.into())

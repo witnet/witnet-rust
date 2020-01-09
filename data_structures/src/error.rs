@@ -31,6 +31,10 @@ pub enum TransactionError {
     NotValidTransaction,
     #[fail(display = "Sum of fees overflows")]
     FeeOverflow,
+    #[fail(display = "Sum of input values overflows")]
+    InputValueOverflow,
+    #[fail(display = "Sum of output values overflows")]
+    OutputValueOverflow,
     /// The transaction creates value
     #[fail(display = "Transaction creates value (its fee is negative)")]
     NegativeFee,

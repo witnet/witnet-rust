@@ -755,6 +755,96 @@ fn vtt_two_inputs_two_outputs() {
 }
 
 #[test]
+fn vtt_input_value_overflow() {
+    let vto_21 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: u64::max_value(),
+        time_lock: 0,
+    };
+    let vto_13 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: 1_000,
+        time_lock: 0,
+    };
+    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_diff = UtxoDiff::new(&utxo_pool);
+    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+
+    // The total output value should not overflow
+    let vto0 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: u64::max_value() - 10,
+        time_lock: 0,
+    };
+    let vto1 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: 10,
+        time_lock: 0,
+    };
+
+    let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0, vto1]);
+    let vts = sign_t(&vt_body);
+    let vt_tx = VTTransaction::new(vt_body, vec![vts; 2]);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::InputValueOverflow
+    );
+}
+
+#[test]
+fn vtt_output_value_overflow() {
+    let vto_21 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: u64::max_value() - 1_000,
+        time_lock: 0,
+    };
+    let vto_13 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: 1_000,
+        time_lock: 0,
+    };
+    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_diff = UtxoDiff::new(&utxo_pool);
+    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+
+    // The total output value should overflow
+    let vto0 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: u64::max_value(),
+        time_lock: 0,
+    };
+    let vto1 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: 1_000,
+        time_lock: 0,
+    };
+
+    let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0, vto1]);
+    let vts = sign_t(&vt_body);
+    let vt_tx = VTTransaction::new(vt_body, vec![vts; 2]);
+    let x = validate_vt_transaction(
+        &vt_tx,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::OutputValueOverflow
+    );
+}
+
+#[test]
 fn vtt_timelock() {
     // 1 epoch = 1000 seconds, for easy testing
     let epoch_constants = EpochConstants {
@@ -1038,6 +1128,63 @@ fn data_request_input_not_enough_value() {
     );
 }
 
+#[test]
+fn data_request_output_value_overflow() {
+    let vto_21 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: u64::max_value() - 1_000,
+        time_lock: 0,
+    };
+    let vto_13 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: 1_000,
+        time_lock: 0,
+    };
+    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_diff = UtxoDiff::new(&utxo_pool);
+    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+
+    let vto0 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: u64::max_value() - 1_000,
+        time_lock: 0,
+    };
+    let vto1 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: 1_000,
+        time_lock: 0,
+    };
+
+    // The sum of the value of vto0 + vto1 should not overflow,
+    // but the sum of vto0 + vto1 + dr_output should overflow
+    assert_eq!(
+        transaction_outputs_sum(&[vto0.clone(), vto1.clone()]).unwrap(),
+        u64::max_value()
+    );
+
+    let dr_output = DataRequestOutput {
+        witness_reward: 500,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        ..DataRequestOutput::default()
+    };
+
+    let dr_tx_body = DRTransactionBody::new(vec![vti0, vti1], vec![vto0, vto1], dr_output);
+    let drs = sign_t(&dr_tx_body);
+    let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs; 2]);
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::OutputValueOverflow
+    );
+}
+
 // Helper function which creates a data request with a valid input with value 1000
 // and returns the validation error
 fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
@@ -1200,6 +1347,63 @@ fn data_request_no_reward() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoReward,
+    );
+}
+
+#[test]
+fn data_request_value_overflow() {
+    let data_request = example_data_request();
+    let dro = DataRequestOutput {
+        witness_reward: 1,
+        commit_fee: 1,
+        reveal_fee: 1,
+        tally_fee: 1,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        data_request,
+        ..DataRequestOutput::default()
+    };
+    // Test different combinations of overflowing values
+    let x = test_drtx(DataRequestOutput {
+        witness_reward: u64::max_value(),
+        ..dro.clone()
+    });
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::FeeOverflow,
+    );
+    let x = test_drtx(DataRequestOutput {
+        witness_reward: u64::max_value() / u64::from(u16::max_value()),
+        witnesses: u16::max_value(),
+        ..dro.clone()
+    });
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::FeeOverflow,
+    );
+    let x = test_drtx(DataRequestOutput {
+        commit_fee: u64::max_value(),
+        ..dro.clone()
+    });
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::FeeOverflow,
+    );
+    let x = test_drtx(DataRequestOutput {
+        reveal_fee: u64::max_value(),
+        ..dro.clone()
+    });
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::FeeOverflow,
+    );
+    let x = test_drtx(DataRequestOutput {
+        tally_fee: u64::max_value(),
+        ..dro
+    });
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::FeeOverflow,
     );
 }
 
