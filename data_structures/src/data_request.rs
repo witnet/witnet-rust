@@ -783,6 +783,85 @@ mod tests {
     }
 
     #[test]
+    fn test_from_reveal_to_tally_3_stages_zero_reveals() {
+        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
+
+        let commit_transaction = CommitTransaction::new(
+            CommitTransactionBody::new(
+                dr_pointer,
+                Hash::default(),
+                DataRequestEligibilityClaim::default(),
+            ),
+            vec![KeyedSignature::default()],
+        );
+
+        let pk2 = PublicKey {
+            compressed: 0,
+            bytes: [1; 32],
+        };
+        let commit_transaction2 = CommitTransaction::new(
+            CommitTransactionBody::new(
+                dr_pointer,
+                Hash::default(),
+                DataRequestEligibilityClaim::default(),
+            ),
+            vec![KeyedSignature {
+                signature: Signature::default(),
+                public_key: pk2,
+            }],
+        );
+
+        p.process_commit(&commit_transaction, &fake_block_hash)
+            .unwrap();
+        p.process_commit(&commit_transaction2, &fake_block_hash)
+            .unwrap();
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in reveal stage 0
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            0
+        );
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in reveal stage 1
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            1
+        );
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in reveal stage 2
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            2
+        );
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in tally stage, after 3 reveal stages with no reveals
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::TALLY
+        );
+    }
+
+    #[test]
     fn test_from_tally_to_storage() {
         let (epoch, fake_block_hash, p, dr_pointer) = add_data_requests();
         let (fake_block_hash, p, dr_pointer) =
@@ -860,19 +939,14 @@ mod tests {
         let (fake_block_hash, mut p, dr_pointer) =
             from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
 
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
-
         // Now in reveal stage
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::REVEAL
         );
 
-        let (fake_block_hash, mut p, dr_pointer) =
-            from_reveal_to_tally(fake_block_hash, p, dr_pointer);
-
-        // Update stages
+        // Since extra_reveal_rounds = 0, updating again in reveal stage will
+        // move the data request to tally stage
         assert!(p.update_data_request_stages().is_empty());
 
         // Now in tally stage

@@ -1706,9 +1706,7 @@ impl DataRequestState {
                 }
             }
             DataRequestStage::REVEAL => {
-                if self.info.reveals.is_empty() {
-                    DataRequestStage::REVEAL
-                } else if self.info.reveals.len() < self.data_request.witnesses as usize
+                if self.info.reveals.len() < self.data_request.witnesses as usize
                     && self.info.current_reveal_round < self.data_request.extra_reveal_rounds
                 {
                     self.info.current_reveal_round += 1;
