@@ -224,6 +224,9 @@ pub enum RadError {
         value
     )]
     InvalidScript { value: SerdeCborValue },
+    /// No reveals received
+    #[fail(display = "No reveals received")]
+    NoReveals,
 }
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and

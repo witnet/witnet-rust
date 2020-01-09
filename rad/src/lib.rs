@@ -142,6 +142,10 @@ pub fn run_tally_report(
     let reducer = consensus.reducer;
     let radon_script = create_radon_script_from_filters_and_reducer(filters, reducer)?;
 
+    if radon_types_vec.is_empty() {
+        return RadonReport::from_result(Err(RadError::NoReveals), context);
+    }
+
     let items_to_tally = RadonTypes::from(RadonArray::from(radon_types_vec));
 
     execute_radon_script(items_to_tally, &radon_script, context)
@@ -704,5 +708,23 @@ mod tests {
                 code: RadonOpCodes::ArrayGetArray as i128,
             }
         );
+    }
+
+    #[test]
+    fn test_result_no_reveals() {
+        // Trying to create a tally with no reveals will return a RadError result
+        let reveals = vec![];
+        let report = run_tally_report(
+            reveals,
+            &RADTally {
+                filters: vec![],
+                reducer: RadonReducers::AverageMean as u32,
+            },
+            None,
+        )
+        .unwrap();
+
+        let output_tally = report.into_inner();
+        assert_eq!(output_tally, Err(RadError::NoReveals));
     }
 }
