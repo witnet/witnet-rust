@@ -432,10 +432,7 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
 
     // Calculate reward to be shared between all the witnesses, which must be greater than 0
     if request.witness_reward == 0 {
-        return Err(TransactionError::NoReward {
-            value: request.total_value(),
-            fees: sum_fees,
-        });
+        return Err(TransactionError::NoReward);
     }
 
     if request.total_value() <= sum_fees {

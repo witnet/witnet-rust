@@ -1163,19 +1163,35 @@ fn data_request_no_value() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward { value: 0, fees: 0 },
+        TransactionError::NoReward,
     );
 }
 
 #[test]
-fn data_request_invalid_value_commit_fee() {
-    // The witnesses get 0 reward
+fn data_request_minimum_value() {
+    // Create a data request with the minimum possible value
+    let data_request = example_data_request();
+    let dro = DataRequestOutput {
+        witness_reward: 1,
+        witnesses: 1,
+        min_consensus_percentage: 51,
+        data_request,
+        ..DataRequestOutput::default()
+    };
+    // The dro is valid
+    test_drtx(dro.clone()).unwrap();
+    // The total value is 1
+    assert_eq!(dro.total_value(), 1);
+}
+
+#[test]
+fn data_request_no_reward() {
     let data_request = example_data_request();
     let x = test_drtx(DataRequestOutput {
         witness_reward: 0,
-        commit_fee: 500,
-        reveal_fee: 0,
-        tally_fee: 0,
+        commit_fee: 100,
+        reveal_fee: 100,
+        tally_fee: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request,
@@ -1183,56 +1199,7 @@ fn data_request_invalid_value_commit_fee() {
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward {
-            value: 1000,
-            fees: 1000
-        },
-    );
-}
-
-#[test]
-fn data_request_invalid_value_reveal_fee() {
-    // The witnesses get 0 reward
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        witness_reward: 0,
-        commit_fee: 0,
-        reveal_fee: 500,
-        tally_fee: 0,
-        witnesses: 2,
-        min_consensus_percentage: 51,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward {
-            value: 1000,
-            fees: 1000
-        },
-    );
-}
-
-#[test]
-fn data_request_invalid_value_tally_fee() {
-    // The witnesses get 0 reward
-    let data_request = example_data_request();
-    let x = test_drtx(DataRequestOutput {
-        witness_reward: 0,
-        commit_fee: 0,
-        reveal_fee: 0,
-        tally_fee: 1000,
-        witnesses: 2,
-        min_consensus_percentage: 51,
-        data_request,
-        ..DataRequestOutput::default()
-    });
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoReward {
-            value: 1000,
-            fees: 1000
-        },
+        TransactionError::NoReward,
     );
 }
 
