@@ -6,10 +6,7 @@ use serde_cbor::value::Value as SerdeCborValue;
 
 use witnet_data_structures::radon_error::{ErrorLike, RadonError, RadonErrors};
 
-use crate::{
-    operators::RadonOpCodes,
-    types::{array::RadonArray, RadonTypes},
-};
+use crate::{operators::RadonOpCodes, types::array::RadonArray};
 
 /// RAD errors.
 #[derive(Clone, Debug, PartialEq, Fail)]
@@ -215,15 +212,35 @@ pub enum RadError {
     /// Timeout during retrieval phase
     #[fail(display = "Timeout during retrieval phase")]
     RetrieveTimeout,
-    /// Tagged error code from CBOR value
-    #[fail(display = "Tagged error with code {:?}", error_args)]
-    TaggedError { error_args: RadonTypes },
     /// Invalid script
     #[fail(
         display = "CBOR value cannot be translated into a proper RADON script: {:?}",
         value
     )]
     InvalidScript { value: SerdeCborValue },
+    /// Alleged `RadonError` is actually not an instance of `cbor::value::Value::Array`
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value` that was not `Array` (was actually `{}`)",
+        actual_type
+    )]
+    DecodeRadonErrorNotArray { actual_type: String },
+    /// Alleged `RadonError` is actually an empty `cbor::value::Value::Array`
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because the array was empty"
+    )]
+    DecodeRadonErrorEmptyArray,
+    /// Alleged `RadonError` contains an error code that is not `u8`
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its first element (the error code) was not `cbor::value::Value::U8` (was actually `{}`)",
+        actual_type
+    )]
+    DecodeRadonErrorBadCode { actual_type: String },
+    /// Alleged `RadonError` contains an unknown error code
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its first element (`{:?}`) did not match any known error code",
+        error_code
+    )]
+    DecodeRadonErrorUnknownCode { error_code: u8 },
     /// No reveals received
     #[fail(display = "No reveals received")]
     NoReveals,

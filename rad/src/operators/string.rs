@@ -111,6 +111,7 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
             RadonTypes::Float(_) => Ok(RadonTypes::from(RadonFloat::try_from(res.clone())?)),
             RadonTypes::Integer(_) => Ok(RadonTypes::from(RadonInteger::try_from(res.clone())?)),
             RadonTypes::Map(_) => Ok(RadonTypes::from(RadonMap::try_from(res.clone())?)),
+            RadonTypes::RadonError(_) => unreachable!(),
             RadonTypes::String(_) => Ok(RadonTypes::from(RadonString::try_from(res.clone())?)),
         })
         .unwrap_or(Ok(temp_def))

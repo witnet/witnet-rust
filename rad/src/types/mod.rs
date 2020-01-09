@@ -4,6 +4,7 @@ use std::{
     fmt,
 };
 
+use cbor::value::Value as CborValue;
 use log;
 use serde::Serialize;
 use serde_cbor::{to_vec, Value};
@@ -18,6 +19,7 @@ use crate::{
         integer::RadonInteger, map::RadonMap, string::RadonString,
     },
 };
+use witnet_data_structures::radon_error::RadonError;
 use witnet_data_structures::{
     chain::Hash,
     radon_error::RadonErrors,
@@ -46,6 +48,7 @@ pub enum RadonTypes {
     Array(RadonArray),
     Boolean(RadonBoolean),
     Bytes(RadonBytes),
+    RadonError(RadonError<RadError>),
     Float(RadonFloat),
     Integer(RadonInteger),
     Map(RadonMap),
@@ -68,6 +71,7 @@ impl RadonTypes {
             RadonTypes::Float(_) => RadonFloat::radon_type_name(),
             RadonTypes::Integer(_) => RadonInteger::radon_type_name(),
             RadonTypes::Map(_) => RadonMap::radon_type_name(),
+            RadonTypes::RadonError(_) => String::from("RadonError"),
             RadonTypes::String(_) => RadonString::radon_type_name(),
         }
     }
@@ -80,12 +84,13 @@ impl RadonTypes {
             RadonTypes::Float(_) => 3,
             RadonTypes::Integer(_) => 4,
             RadonTypes::Map(_) => 5,
-            RadonTypes::String(_) => 6,
+            RadonTypes::RadonError(_) => 6,
+            RadonTypes::String(_) => 7,
         }
     }
 
     pub fn num_types() -> usize {
-        7
+        8
     }
 
     pub fn as_operable(&self) -> &dyn Operable {
@@ -96,7 +101,46 @@ impl RadonTypes {
             RadonTypes::Float(inner) => inner,
             RadonTypes::Integer(inner) => inner,
             RadonTypes::Map(inner) => inner,
+            RadonTypes::RadonError(_) => unreachable!("`RadonTypes::RadonError` is not operable"),
             RadonTypes::String(inner) => inner,
+        }
+    }
+
+    /// Decodes `RadonTypes::RadonError` items from `cbor::value::Value::Array` values.
+    pub fn try_error_from_cbor_value(value: &CborValue) -> Result<Self, RadError> {
+        match value {
+            CborValue::Array(error_args) => {
+                if !error_args.is_empty() {
+                    match error_args.as_slice().split_first() {
+                        Some((head, tail)) => {
+                            if let CborValue::U8(error_code) = head {
+                                let kind =
+                                    RadonErrors::try_from(error_code.clone()).map_err(|_| {
+                                        RadError::DecodeRadonErrorUnknownCode {
+                                            error_code: error_code.clone(),
+                                        }
+                                    })?;
+
+                                Ok(RadonTypes::RadonError(RadonError::new(
+                                    kind,
+                                    None,
+                                    Vec::from(tail.clone()),
+                                )))
+                            } else {
+                                Err(RadError::DecodeRadonErrorBadCode {
+                                    actual_type: format!("{:?}", head),
+                                })
+                            }
+                        }
+                        None => Err(RadError::DecodeRadonErrorEmptyArray),
+                    }
+                } else {
+                    Err(RadError::DecodeRadonErrorEmptyArray)
+                }
+            }
+            _ => Err(RadError::DecodeRadonErrorNotArray {
+                actual_type: format!("{:?}", value),
+            }),
         }
     }
 }
@@ -140,6 +184,7 @@ impl fmt::Display for RadonTypes {
             RadonTypes::Float(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Integer(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::Map(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::RadonError(inner) => write!(f, "RadonTypes::{}", inner),
             RadonTypes::String(inner) => write!(f, "RadonTypes::{}", inner),
         }
     }
@@ -160,6 +205,12 @@ impl From<RadonBoolean> for RadonTypes {
 impl From<RadonBytes> for RadonTypes {
     fn from(bytes: RadonBytes) -> Self {
         RadonTypes::Bytes(bytes)
+    }
+}
+
+impl From<RadonError<RadError>> for RadonTypes {
+    fn from(error: RadonError<RadError>) -> Self {
+        RadonTypes::RadonError(error)
     }
 }
 
@@ -219,6 +270,10 @@ impl TryFrom<RadonTypes> for Value {
             RadonTypes::Array(radon_array) => radon_array.try_into(),
             RadonTypes::Boolean(radon_boolean) => radon_boolean.try_into(),
             RadonTypes::Bytes(radon_bytes) => radon_bytes.try_into(),
+            RadonTypes::RadonError(_error) => Err(RadError::Decode {
+                from: String::from("RadonTypes"),
+                to: String::from("serde_cbor::Value"),
+            }),
             RadonTypes::Float(radon_float) => radon_float.try_into(),
             RadonTypes::Integer(radon_integer) => radon_integer.try_into(),
             RadonTypes::Map(radon_map) => radon_map.try_into(),
@@ -231,7 +286,7 @@ impl TryFrom<RadonTypes> for Value {
 impl TryFrom<&[u8]> for RadonTypes {
     type Error = RadError;
 
-    fn try_from(slice: &[u8]) -> Result<RadonTypes, Self::Error> {
+    fn try_from(slice: &[u8]) -> Result<RadonTypes, <RadonTypes as TryFrom<&[u8]>>::Error> {
         let mut decoder = cbor::decoder::GenericDecoder::new(
             cbor::Config::default(),
             std::io::Cursor::new(slice),
@@ -247,7 +302,9 @@ impl TryFrom<&[u8]> for RadonTypes {
 impl TryFrom<&RadonTypes> for Vec<u8> {
     type Error = RadError;
 
-    fn try_from(radon_types: &RadonTypes) -> Result<Vec<u8>, Self::Error> {
+    fn try_from(
+        radon_types: &RadonTypes,
+    ) -> Result<Vec<u8>, <Vec<u8> as TryFrom<&RadonTypes>>::Error> {
         let type_name = RadonTypes::radon_type_name(radon_types);
         let value: Value = radon_types.clone().try_into()?;
 
@@ -266,56 +323,14 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
 
     fn try_from(cbor_value: &cbor::value::Value) -> Result<Self, Self::Error> {
         use cbor::value::Int;
-        use cbor::value::Value as CborValue;
 
         match cbor_value {
-            // If the tag is 39, we encode the error in a `RadError`, otherwise we ignore the tag,
-            // unbox the tagged value and decode it through recurrently calling this same function.
-            // TODO(#938): Improve CBOR tagged error handling
+            // If the tag is 39, we try to decode the value as `RadonTypes::RadonError`, otherwise
+            // we ignore the tag, unbox the tagged value and decode it through recurrently calling
+            // this same function.
             CborValue::Tagged(tag, boxed) => match (tag, std::boxed::Box::leak(boxed.clone())) {
                 (cbor::types::Tag::Unassigned(39), other) => {
-                    if let CborValue::Array(rad_array) = &*other {
-                        if !rad_array.is_empty() {
-                            let first_arg = rad_array[0].clone();
-
-                            if let CborValue::U8(error_code) = first_arg {
-                                let radon_error_res = RadonErrors::try_from(error_code);
-
-                                if let Ok(radon_error) = radon_error_res {
-                                    match radon_error {
-                                        RadonErrors::HTTPError => {
-                                            if rad_array.len() > 1 {
-                                                if let CborValue::U8(value) = rad_array[1].clone() {
-                                                    return Err(RadError::HttpStatus {
-                                                        status_code: value as u16,
-                                                    });
-                                                } else {
-                                                    return Err(RadError::HttpStatus {
-                                                        status_code: 0,
-                                                    });
-                                                }
-                                            }
-                                        }
-                                        RadonErrors::NoReveals => {
-                                            return Err(RadError::NoReveals);
-                                        }
-                                        RadonErrors::Unknown => {
-                                            return Err(RadError::Unknown);
-                                        }
-                                        _ => {
-                                            log::warn!(
-                                                "RadonError not implemented in TryFrom CBOR value"
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    let error_args = RadonTypes::try_from(&*other)?;
-
-                    Err(RadError::TaggedError { error_args })
+                    RadonTypes::try_error_from_cbor_value(other)
                 }
                 (_, other) => RadonTypes::try_from(&*other),
             },
@@ -383,4 +398,57 @@ pub fn serial_iter_decode<T>(
         }
     })
     .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_radontypes_try_error_from_cbor_value() {
+        use cbor::value::Value as CborValue;
+
+        let cbor_value_ok = CborValue::Array(vec![CborValue::U8(0x10), CborValue::U8(9)]);
+        let cbor_value_wrong_type = CborValue::U8(u8::default());
+        let cbor_value_empty_array = CborValue::Array(Vec::default());
+        let cbor_value_short_array = CborValue::Array(vec![CborValue::U8(0x11)]);
+        let cbor_value_bad_error_code = CborValue::Array(vec![CborValue::Bool(false)]);
+        let cbor_value_unknown_error_code = CborValue::Array(vec![CborValue::U8(0xFF)]);
+
+        let radon_types_ok = RadonTypes::try_error_from_cbor_value(&cbor_value_ok).unwrap();
+        let rad_error_wrong_type =
+            RadonTypes::try_error_from_cbor_value(&cbor_value_wrong_type).unwrap_err();
+        let rad_error_empty_array =
+            RadonTypes::try_error_from_cbor_value(&cbor_value_empty_array).unwrap_err();
+        let radon_types_short_array =
+            RadonTypes::try_error_from_cbor_value(&cbor_value_short_array).unwrap();
+        let rad_error_bad_error_code =
+            RadonTypes::try_error_from_cbor_value(&cbor_value_bad_error_code).unwrap_err();
+        let rad_error_unknown_error_code =
+            RadonTypes::try_error_from_cbor_value(&cbor_value_unknown_error_code).unwrap_err();
+
+        let expected_ok = RadonTypes::RadonError(RadonError::new(
+            RadonErrors::RequestTooManySources,
+            None,
+            vec![CborValue::U8(9)],
+        ));
+        let expected_wrong_type = RadError::DecodeRadonErrorNotArray {
+            actual_type: format!("{:?}", CborValue::U8(u8::default())),
+        };
+        let expected_empty_array = RadError::DecodeRadonErrorEmptyArray;
+        let expected_short_array =
+            RadonTypes::RadonError(RadonError::from(RadonErrors::ScriptTooManyCalls));
+        let expected_bad_error_code = RadError::DecodeRadonErrorBadCode {
+            actual_type: format!("{:?}", CborValue::Bool(false)),
+        };
+        let expected_unknown_error_code =
+            RadError::DecodeRadonErrorUnknownCode { error_code: 0xFF };
+
+        assert_eq!(radon_types_ok, expected_ok);
+        assert_eq!(rad_error_wrong_type, expected_wrong_type);
+        assert_eq!(rad_error_empty_array, expected_empty_array);
+        assert_eq!(radon_types_short_array, expected_short_array);
+        assert_eq!(rad_error_bad_error_code, expected_bad_error_code);
+        assert_eq!(rad_error_unknown_error_code, expected_unknown_error_code);
+    }
 }

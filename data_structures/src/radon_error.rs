@@ -1,10 +1,12 @@
 use std::{convert::TryFrom, io::Cursor};
 
+use crate::radon_report::TypeLike;
 use cbor::{types::Tag, value::Value, GenericEncoder};
 use failure::Fail;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::{Serialize, Serializer};
 
-#[derive(Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, IntoPrimitive, Serialize, TryFromPrimitive)]
 #[repr(u8)]
 /// List of RADON-level errors.
 /// **WARNING: these codes are consensus-critical.** They can be renamed but they cannot be
@@ -86,6 +88,27 @@ where
     /// Allow CBOR encoding of `RadonError` structures.
     pub fn encode(&self) -> Result<Vec<u8>, IE> {
         Vec::<u8>::try_from(self)
+    }
+}
+
+impl<IE> Serialize for RadonError<IE>
+where
+    IE: ErrorLike,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.kind.serialize(serializer)
+    }
+}
+
+impl<IE> std::fmt::Display for RadonError<IE>
+where
+    IE: ErrorLike,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "RadonError({:?})", self.kind)
     }
 }
 
