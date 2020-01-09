@@ -9,6 +9,7 @@ use witnet_data_structures::{
     },
     transaction::{DRTransactionBody, MemoizedHashable, VTTransactionBody},
 };
+use witnet_validations::validations::transaction_outputs_sum;
 
 /// Error when there is not enough balance to create a transaction
 #[derive(Copy, Clone, Debug, Fail, Eq, PartialEq)]
@@ -137,8 +138,16 @@ fn build_inputs_outputs_inner<S: std::hash::BuildHasher>(
     all_utxos: &UnspentOutputsPool,
     timestamp: u64,
 ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), NoMoney> {
-    let output_value: u64 = outputs.iter().map(|x| x.value).sum::<u64>()
-        + dr_output.map(|o| o.total_value()).unwrap_or_default();
+    // On error just assume the value is u64::max_value(), hoping that it is
+    // impossible to pay for this transaction
+    let output_value: u64 = transaction_outputs_sum(&outputs)
+        .unwrap_or(u64::max_value())
+        .saturating_add(
+            dr_output
+                .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
+                .unwrap_or_default(),
+        );
+
     match take_enough_utxos(own_utxos, all_utxos, output_value + fee, timestamp) {
         Err(total_balance) => Err(NoMoney {
             transaction_outputs: output_value,
@@ -317,11 +326,13 @@ mod tests {
 
     fn outputs_sum(transaction: &Transaction) -> u64 {
         match transaction {
-            Transaction::ValueTransfer(tx) => tx.body.outputs.iter().map(|o| o.value).sum(),
-            Transaction::DataRequest(tx) => {
-                tx.body.outputs.iter().map(|x| x.value).sum::<u64>()
-                    + tx.body.dr_output.total_value()
+            Transaction::ValueTransfer(vt_tx) => {
+                transaction_outputs_sum(&vt_tx.body.outputs).unwrap()
             }
+            Transaction::DataRequest(dr_tx) => transaction_outputs_sum(&dr_tx.body.outputs)
+                .unwrap()
+                .checked_add(dr_tx.body.dr_output.checked_total_value().unwrap())
+                .unwrap(),
             _ => 0,
         }
     }
