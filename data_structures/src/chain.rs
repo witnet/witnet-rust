@@ -733,12 +733,6 @@ pub struct DataRequestOutput {
 }
 
 impl DataRequestOutput {
-    // Helper method so dr.value can be replaced with dr.total_value()
-    pub fn total_value(&self) -> u64 {
-        // Return max value on overflow, assuming that it is impossible to
-        // pay for a transaction with that cost
-        self.checked_total_value().unwrap_or(u64::max_value())
-    }
     /// Calculate the total value of a data request, return error on overflow
     ///
     /// ```norun

@@ -1328,7 +1328,7 @@ fn data_request_minimum_value() {
     // The dro is valid
     test_drtx(dro.clone()).unwrap();
     // The total value is 1
-    assert_eq!(dro.total_value(), 1);
+    assert_eq!(dro.checked_total_value(), Ok(1));
 }
 
 #[test]

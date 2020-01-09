@@ -464,7 +464,9 @@ where
         }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
         let mut state = self.state.write()?;
-        let value = request.total_value();
+        let value = request
+            .checked_total_value()
+            .map_err(|_| Error::TransactionValueOverflow)?;
         let components = self._create_transaction_components(&mut state, value, fee, None)?;
 
         let new_balance = components.balance;
