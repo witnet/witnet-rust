@@ -29,8 +29,10 @@ use witnet_rad::{
     error::RadError,
     run_tally_report,
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
-    types::{serial_iter_decode, RadonTypes},
+    types::{RadonTypes, serial_iter_decode},
 };
+use witnet_rad::reducers::mode::mode;
+use witnet_rad::types::array::RadonArray;
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -228,8 +230,8 @@ pub fn evaluate_tally_precondition_clause(
     let mut counter = Counter::new(RadonTypes::num_types());
     for reveal in &reveals {
         match &reveal.result {
-            Err(_e) => {}
-            Ok(rad_types) => counter.increment(rad_types.discriminant()),
+            RadonTypes::RadonError(_) => {}
+            rad_types => counter.increment(rad_types.discriminant()),
         }
     }
 
@@ -239,28 +241,27 @@ pub fn evaluate_tally_precondition_clause(
         let mut liars = vec![];
         let results = reveals
             .into_iter()
-            .filter_map(|reveal| match reveal.into_inner() {
-                Err(_e) => {
-                    liars.push(true);
-                    None
-                }
-                Ok(rad_types) => {
-                    let condition = counter.max_pos == rad_types.discriminant();
-                    update_liars(&mut liars, rad_types, condition)
-                }
+            .filter_map(|reveal| {
+                let radon_types = reveal.into_inner();
+                let condition = counter.max_pos == radon_types.discriminant();
+                update_liars(&mut liars, radon_types, condition)
             })
             .collect();
 
         Ok((results, liars))
     } else {
-        let errors: Vec<RadError> = reveals
+        let errors: Vec<RadonTypes> = reveals
             .into_iter()
-            .filter_map(|reveal| reveal.into_inner().err())
+            .filter_map(|reveal| match reveal.into_inner() {
+                radon_types @ RadonTypes::RadonError(_) => Some(radon_types),
+                _ => None,
+            })
             .collect();
 
         // TODO: Currently we return the first error, but we should use the mode of errors
         if !errors.is_empty() {
-            Err(errors[0].clone())
+            unimplemented!();
+            //Err(errors[0].clone())
         } else {
             Err(RadError::default())
         }
@@ -1377,8 +1378,9 @@ pub fn compare_blocks(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
+
+    use super::*;
 
     #[test]
     fn test_compare_block() {
