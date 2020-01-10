@@ -6,7 +6,7 @@ use std::{
 };
 use witnet_data_structures::chain::DataRequestOutput;
 use witnet_node::actors::messages::BuildDrt;
-use witnet_rad::types::{float::RadonFloat, RadonTypes};
+use witnet_rad::types::{float::RadonFloat, string::RadonString, RadonTypes};
 
 /// Id. Can be null, a number, or a string
 #[derive(Debug, Serialize, Deserialize)]
@@ -143,6 +143,18 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
             examples::random_source(),
             &[r#"[{"status":"success","min":0,"max":100,"random":31}]"#],
             RadonTypes::Float(RadonFloat::from(31.0)),
+        ),
+        (
+            "bitcoin_last_hash.json",
+            examples::bitcoin_last_hash(),
+            &[
+                r#"0000000000000000000e3b5418f6c92cb19494dfea28a83da8643485925aba1b"#,
+                r#"{"hash":"0000000000000000000e3b5418f6c92cb19494dfea28a83da8643485925aba1b"}"#,
+                r#"{"data":{"best_block_hash":"0000000000000000000e3b5418f6c92cb19494dfea28a83da8643485925aba1b"}}"#,
+            ],
+            RadonTypes::String(RadonString::from(
+                "0000000000000000000e3b5418f6c92cb19494dfea28a83da8643485925aba1b",
+            )),
         ),
     ];
 
@@ -369,6 +381,80 @@ mod examples {
                 reveal_fee: 5,
                 tally_fee: 10,
                 extra_reveal_rounds: 2,
+                min_consensus_percentage: 51,
+            },
+            fee: 0,
+        }
+    }
+
+    pub fn bitcoin_last_hash() -> BuildDrt {
+        let url_0 = "https://blockchain.info/q/latesthash";
+        let r0_script = cbor_to_vec(&Value::Array(vec![])).unwrap();
+
+        let url_1 = "https://api-r.bitcoinchain.com/v1/status";
+        let r1_script = cbor_to_vec(&Value::Array(vec![
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetString as i128),
+                Value::Text(String::from("hash")),
+            ]),
+        ]))
+        .unwrap();
+
+        let url_2 = "https://api.blockchair.com/bitcoin/stats";
+        let r2_script = cbor_to_vec(&Value::Array(vec![
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
+                Value::Text(String::from("data")),
+            ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetString as i128),
+                Value::Text(String::from("best_block_hash")),
+            ]),
+        ]))
+        .unwrap();
+
+        BuildDrt {
+            dro: DataRequestOutput {
+                data_request: RADRequest {
+                    time_lock: 0,
+                    retrieve: vec![
+                        RADRetrieve {
+                            kind: RADType::HttpGet,
+                            url: url_0.to_string(),
+                            script: r0_script,
+                        },
+                        RADRetrieve {
+                            kind: RADType::HttpGet,
+                            url: url_1.to_string(),
+                            script: r1_script,
+                        },
+                        RADRetrieve {
+                            kind: RADType::HttpGet,
+                            url: url_2.to_string(),
+                            script: r2_script,
+                        },
+                    ],
+                    aggregate: RADAggregate {
+                        filters: vec![],
+                        reducer: RadonReducers::Mode as u32,
+                    },
+                    tally: RADTally {
+                        filters: vec![RADFilter {
+                            op: RadonFilters::Mode as u32,
+                            args: vec![],
+                        }],
+                        reducer: RadonReducers::Mode as u32,
+                    },
+                },
+                witness_reward: 1000,
+                witnesses: 3,
+                backup_witnesses: 1,
+                commit_fee: 10,
+                reveal_fee: 10,
+                tally_fee: 30,
+                extra_reveal_rounds: 1,
                 min_consensus_percentage: 51,
             },
             fee: 0,
