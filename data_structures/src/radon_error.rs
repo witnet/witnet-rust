@@ -1,6 +1,5 @@
 use std::{convert::TryFrom, io::Cursor};
 
-use crate::radon_report::TypeLike;
 use cbor::{types::Tag, value::Value, GenericEncoder};
 use failure::Fail;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -53,9 +52,7 @@ impl Default for RadonErrors {
 
 /// This trait identifies a structure that can be used as an error type for `RadonError` and
 /// `RadonReport`.
-pub trait ErrorLike: Default + From<cbor::encoder::EncodeError> + Fail {
-    fn intercept<RT>(value: Result<RT, Self>) -> Result<RT, RadonError<Self>>;
-}
+pub trait ErrorLike: Default + From<cbor::encoder::EncodeError> + Fail {}
 
 /// This structure is aimed to be the error type for the `result` field of `witnet_data_structures::radon_report::Report`.
 #[derive(Clone, Debug)]
@@ -122,20 +119,6 @@ where
             kind,
             arguments: Vec::new(),
             inner: None,
-        }
-    }
-}
-
-/// Allow constructing a `RadonError` with no arguments by just passing the `inner` field.
-impl<IE> From<IE> for RadonError<IE>
-where
-    IE: ErrorLike,
-{
-    fn from(inner: IE) -> Self {
-        RadonError {
-            kind: RadonErrors::default(),
-            arguments: Vec::new(),
-            inner: Some(inner),
         }
     }
 }

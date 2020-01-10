@@ -114,17 +114,16 @@ impl RadonTypes {
                     match error_args.as_slice().split_first() {
                         Some((head, tail)) => {
                             if let CborValue::U8(error_code) = head {
-                                let kind =
-                                    RadonErrors::try_from(error_code.clone()).map_err(|_| {
-                                        RadError::DecodeRadonErrorUnknownCode {
-                                            error_code: error_code.clone(),
-                                        }
-                                    })?;
+                                let kind = RadonErrors::try_from(*error_code).map_err(|_| {
+                                    RadError::DecodeRadonErrorUnknownCode {
+                                        error_code: *error_code,
+                                    }
+                                })?;
 
                                 Ok(RadonTypes::RadonError(RadonError::new(
                                     kind,
                                     None,
-                                    Vec::from(tail.clone()),
+                                    Vec::from(tail),
                                 )))
                             } else {
                                 Err(RadError::DecodeRadonErrorBadCode {
@@ -152,6 +151,16 @@ impl TypeLike for RadonTypes {
 
     fn encode(&self) -> Result<Vec<u8>, Self::Error> {
         Vec::<u8>::try_from(self)
+    }
+
+    /// Eases interception of RADON errors (errors that we want to commit, reveal and tally) so
+    /// they can be handled as valid `RadonTypes::RadonError` values, which are subject to
+    /// commitment, revealing, tallying, etc.
+    fn intercept(result: Result<Self, Self::Error>) -> Result<Self, Self::Error> {
+        match result {
+            Err(rad_error) => Ok(RadonTypes::RadonError(RadonError::try_from(rad_error)?)),
+            ok => ok,
+        }
     }
 }
 

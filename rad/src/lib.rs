@@ -44,7 +44,7 @@ pub fn run_retrieval_with_data_report(
 /// Run retrieval without performing any external network requests, return `RadonTypes`.
 pub fn run_retrieval_with_data(retrieve: &RADRetrieve, response: String) -> Result<RadonTypes> {
     let context = &mut ReportContext::default();
-    run_retrieval_with_data_report(retrieve, response, context).and_then(RadonReport::into_inner)
+    run_retrieval_with_data_report(retrieve, response, context).map(RadonReport::into_inner)
 }
 
 /// Run retrieval stage of a data request, return `RadonReport`.
@@ -95,7 +95,7 @@ pub async fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<
 pub async fn run_retrieval(retrieve: &RADRetrieve) -> Result<RadonTypes> {
     run_retrieval_report(retrieve)
         .await
-        .and_then(RadonReport::into_inner)
+        .map(RadonReport::into_inner)
 }
 
 /// Run aggregate stage of a data request, return `RadonReport`.
@@ -120,7 +120,7 @@ pub fn run_aggregation(
     radon_types_vec: Vec<RadonTypes>,
     aggregate: &RADAggregate,
 ) -> Result<RadonTypes> {
-    run_aggregation_report(radon_types_vec, aggregate).and_then(RadonReport::into_inner)
+    run_aggregation_report(radon_types_vec, aggregate).map(RadonReport::into_inner)
 }
 
 /// Run tally stage of a data request, return `RadonReport`.
@@ -153,7 +153,7 @@ pub fn run_tally_report(
 
 /// Run tally stage of a data request, return `RadonTypes`.
 pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Result<RadonTypes> {
-    run_tally_report(radon_types_vec, consensus, None).and_then(RadonReport::into_inner)
+    run_tally_report(radon_types_vec, consensus, None).map(RadonReport::into_inner)
 }
 
 #[cfg(test)]
@@ -415,7 +415,7 @@ mod tests {
 
         let expected_result = RadonTypes::Integer(RadonInteger::from(0));
         let expected_liars = vec![false];
-        assert_eq!(consensus.result.unwrap(), expected_result);
+        assert_eq!(consensus.result, expected_result);
         let tally_metadata = if let Stage::Tally(tm) = consensus.metadata {
             tm
         } else {
@@ -445,7 +445,7 @@ mod tests {
 
         let expected_result = RadonTypes::Integer(RadonInteger::from(0));
         let expected_liars = vec![false, false];
-        assert_eq!(consensus.result.unwrap(), expected_result);
+        assert_eq!(consensus.result, expected_result);
         let tally_metadata = if let Stage::Tally(tm) = consensus.metadata {
             tm
         } else {
@@ -476,7 +476,7 @@ mod tests {
 
         let expected_result = RadonTypes::Integer(RadonInteger::from(0));
         let expected_liars = vec![false, false, false];
-        assert_eq!(consensus.result.unwrap(), expected_result);
+        assert_eq!(consensus.result, expected_result);
         let tally_metadata = if let Stage::Tally(tm) = consensus.metadata {
             tm
         } else {
@@ -508,7 +508,7 @@ mod tests {
 
         let expected = RadonTypes::Float(RadonFloat::from(2f64));
 
-        let output_tally = report.clone().into_inner().unwrap();
+        let output_tally = report.clone().into_inner();
         assert_eq!(output_tally, expected);
 
         let expected_liars = vec![false, false, true];
@@ -550,7 +550,7 @@ mod tests {
         )
         .unwrap();
 
-        let output_tally = report.clone().into_inner().unwrap();
+        let output_tally = report.clone().into_inner();
         assert_eq!(output_tally, expected);
 
         let expected_liars = vec![true, false, false, true];
@@ -583,7 +583,7 @@ mod tests {
         )
         .unwrap();
 
-        let output_tally = report.clone().into_inner().unwrap();
+        let output_tally = report.clone().into_inner();
         assert_eq!(output_tally, expected);
 
         let expected_liars = vec![false, false, false, false];

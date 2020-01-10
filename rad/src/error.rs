@@ -1,5 +1,7 @@
 //! Error type definitions for the RAD module.
 
+use std::convert::TryFrom;
+
 use cbor::value::Value as CborValue;
 use failure::{self, Fail};
 use serde_cbor::value::Value as SerdeCborValue;
@@ -248,26 +250,7 @@ pub enum RadError {
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and
 /// `witnet_data_structures`.
-impl ErrorLike for RadError {
-    /// Eases interception of RADON errors (errors that we want to commit, reveal and tally) so
-    /// they can be handled differently versus raw RAD errors (which trigger no action other than
-    /// logging).
-    fn intercept<RT>(input: Result<RT, Self>) -> Result<RT, RadonError<Self>> {
-        match input {
-            Err(error) => Err(match error {
-                // TODO: support all cases of `RadError`
-                RadError::HttpStatus { status_code } => RadonError::new(
-                    RadonErrors::HTTPError,
-                    Some(error),
-                    vec![CborValue::U8(status_code as u8)],
-                ),
-                RadError::NoReveals => RadonError::new(RadonErrors::NoReveals, Some(error), vec![]),
-                other => RadonError::from(other),
-            }),
-            result => result.map_err(RadonError::from),
-        }
-    }
-}
+impl ErrorLike for RadError {}
 
 /// Use `RadError::Unknown` as the default error.
 impl std::default::Default for RadError {
@@ -327,6 +310,25 @@ impl From<cbor::decoder::DecodeError> for RadError {
         RadError::Decode {
             from: String::from("CBOR"),
             to: String::from("RadonTypes"),
+        }
+    }
+}
+
+impl TryFrom<RadError> for RadonError<RadError> {
+    type Error = RadError;
+
+    /// This is the main logic for intercepting `RadError` items and converting them into
+    /// `RadonError` so that they can be committed, revealed, tallied, etc.
+    fn try_from(rad_error: RadError) -> Result<Self, Self::Error> {
+        match rad_error {
+            // TODO: support all cases of `RadError`
+            RadError::HttpStatus { status_code } => Ok(RadonError::new(
+                RadonErrors::HTTPError,
+                Some(rad_error),
+                vec![CborValue::U8(status_code as u8)],
+            )),
+            RadError::NoReveals => Ok(RadonError::new(RadonErrors::NoReveals, Some(error), vec![])),
+            not_intercepted => Err(not_intercepted),
         }
     }
 }

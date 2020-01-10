@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::time::{Duration, Instant};
 
-use crate::radon_error::{ErrorLike, RadonError};
+use crate::radon_error::ErrorLike;
 
 /// A high level data structure aimed to be used as the return type of RAD executor methods:
 ///
@@ -17,8 +17,9 @@ where
 {
     /// Stage-specific metadata.
     pub metadata: Stage,
-    /// This is raw result: either a RadonTypes or a RadonError.
-    pub result: Result<RT, RadonError<RT::Error>>,
+    /// This the intercepted result of the script execution: any `IE` raised in runtime has already
+    /// been mapped into a `RT` (e.g. `RadError` -> `RadonTypes::RadonError`.
+    pub result: RT,
     /// Keep track of how many milliseconds did the execution take to complete or fail.
     pub running_time: Duration,
 }
@@ -34,19 +35,18 @@ where
         result: Result<RT, RT::Error>,
         context: &ReportContext,
     ) -> Result<Self, RT::Error> {
-        let result = RT::Error::intercept(result);
+        let intercepted = RT::intercept(result)?;
 
         Ok(RadonReport {
-            result,
+            result: intercepted,
             metadata: context.stage.clone(),
             running_time: context.duration(),
         })
     }
 
-    /// Recover a `Result` in the likes of `Result<RadonTypes, RadError>` from a `RadonReport`.
-    pub fn into_inner(self) -> Result<RT, RT::Error> {
+    /// Recover the inner result as a `RT` from a `RadonReport`.
+    pub fn into_inner(self) -> RT {
         self.result
-            .map_err(|radon_error| radon_error.inner.unwrap_or_default())
     }
 }
 
@@ -59,19 +59,17 @@ where
     type Error = RT::Error;
 
     fn try_from(report: &RadonReport<RT>) -> Result<Self, Self::Error> {
-        match report.result {
-            Ok(ref radon_types) => radon_types.encode(),
-            Err(ref radon_error) => radon_error.encode(),
-        }
+        report.result.encode()
     }
 }
 
 /// This trait identifies a RADON-compatible type system, i.e. most likely an `enum` with different
 /// cases for different data types.
-pub trait TypeLike {
+pub trait TypeLike: std::marker::Sized {
     type Error: ErrorLike;
 
     fn encode(&self) -> Result<Vec<u8>, Self::Error>;
+    fn intercept(result: Result<Self, Self::Error>) -> Result<Self, Self::Error>;
 }
 
 /// A generic structure for bubbling up any kind of metadata that may be generated during the
@@ -172,10 +170,13 @@ impl TallyMetaData {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::radon_error::{ErrorLike, RadonError, RadonErrors};
-    use failure::Fail;
     use std::fmt;
+
+    use failure::Fail;
+
+    use crate::radon_error::{ErrorLike, RadonError, RadonErrors};
+
+    use super::*;
 
     #[test]
     fn test_encode_not_cbor() {
@@ -190,11 +191,7 @@ mod tests {
         }
 
         // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
-        impl ErrorLike for Dummy {
-            fn intercept<RT>(value: Result<RT, Self>) -> Result<RT, RadonError<Self>> {
-                value.map_err(RadonError::from)
-            }
-        }
+        impl ErrorLike for Dummy {}
 
         // Satisfy the trait bound `(): std::convert::From<cbor::encoder::EncodeError>`
         impl std::convert::From<cbor::encoder::EncodeError> for Dummy {
