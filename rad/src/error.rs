@@ -244,6 +244,7 @@ impl ErrorLike for RadError {
                     Some(error),
                     vec![CborValue::U8(status_code as u8)],
                 ),
+                RadError::NoReveals => RadonError::new(RadonErrors::NoReveals, Some(error), vec![]),
                 other => RadonError::from(other),
             }),
             result => result.map_err(RadonError::from),

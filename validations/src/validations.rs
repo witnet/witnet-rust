@@ -219,6 +219,10 @@ pub fn evaluate_tally_precondition_clause(
     reveals: Vec<RadonReport<RadonTypes>>,
     non_error_min: f64,
 ) -> Result<(Vec<RadonTypes>, Vec<bool>), RadError> {
+    if reveals.is_empty() {
+        return Err(RadError::NoReveals);
+    }
+
     let reveals_len = reveals.len() as f64;
 
     let mut counter = Counter::new(RadonTypes::num_types());
@@ -1612,5 +1616,14 @@ mod tests {
         let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
 
         assert_eq!(out, RadError::default());
+    }
+
+    #[test]
+    fn test_tally_precondition_clause_no_reveals() {
+        let v = vec![];
+
+        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
+
+        assert_eq!(out, RadError::NoReveals);
     }
 }

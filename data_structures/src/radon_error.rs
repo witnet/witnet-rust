@@ -37,6 +37,9 @@ pub enum RadonErrors {
     Overflow = 0x41,
     /// Tried to divide by zero.
     DivisionByZero = 0x42,
+    // Other errors
+    /// Received zero reveals
+    NoReveals = 0x50,
 }
 
 /// Use `RadonErrors::Unknown` as the default value of `RadonErrors`.

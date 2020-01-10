@@ -296,6 +296,12 @@ impl TryFrom<&cbor::value::Value> for RadonTypes {
                                                 }
                                             }
                                         }
+                                        RadonErrors::NoReveals => {
+                                            return Err(RadError::NoReveals);
+                                        }
+                                        RadonErrors::Unknown => {
+                                            return Err(RadError::Unknown);
+                                        }
                                         _ => {
                                             log::warn!(
                                                 "RadonError not implemented in TryFrom CBOR value"
