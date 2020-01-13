@@ -8,6 +8,7 @@ use serde_cbor::value::Value as SerdeCborValue;
 
 use witnet_data_structures::radon_error::{ErrorLike, RadonError, RadonErrors};
 
+use crate::types::RadonTypes;
 use crate::{operators::RadonOpCodes, types::array::RadonArray};
 
 /// RAD errors.
@@ -327,8 +328,29 @@ impl TryFrom<RadError> for RadonError<RadError> {
                 Some(rad_error),
                 vec![CborValue::U8(status_code as u8)],
             )),
-            RadError::NoReveals => Ok(RadonError::new(RadonErrors::NoReveals, Some(error), vec![])),
+            RadError::NoReveals => Ok(RadonError::new(
+                RadonErrors::NoReveals,
+                Some(rad_error),
+                vec![],
+            )),
             not_intercepted => Err(not_intercepted),
+        }
+    }
+}
+
+impl TryFrom<Result<RadonTypes, RadError>> for RadonTypes {
+    type Error = RadError;
+
+    /// This is an alternative version of `RadError` interception that operates on the main result
+    /// type of the `witnet_rad` module, i.e. `Result<RadonTypes, RadError`.
+    fn try_from(value: Result<RadonTypes, RadError>) -> Result<Self, Self::Error> {
+        match value {
+            // Try to intercept errors
+            Err(rad_error) => {
+                RadonError::<RadError>::try_from(rad_error).map(RadonTypes::RadonError)
+            }
+            // Pass through actual values
+            ok => ok,
         }
     }
 }
