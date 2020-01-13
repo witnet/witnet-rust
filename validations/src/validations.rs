@@ -9,6 +9,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
+use witnet_data_structures::radon_error::{RadonError, RadonErrors};
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
@@ -25,14 +26,14 @@ use witnet_data_structures::{
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
+use witnet_rad::reducers::mode::mode;
+use witnet_rad::types::array::RadonArray;
 use witnet_rad::{
     error::RadError,
     run_tally_report,
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
-    types::{RadonTypes, serial_iter_decode},
+    types::{serial_iter_decode, RadonTypes},
 };
-use witnet_rad::reducers::mode::mode;
-use witnet_rad::types::array::RadonArray;
 
 /// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
@@ -182,7 +183,7 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
 
 // Auxiliar counter
 struct Counter {
-    max_pos: usize,
+    max_pos: Option<usize>,
     max_val: i32,
     values: Vec<i32>,
 }
@@ -192,8 +193,10 @@ impl Counter {
     fn increment(&mut self, pos: usize) {
         self.values[pos] += 1;
         if self.values[pos] > self.max_val {
-            self.max_pos = pos;
             self.max_val = self.values[pos];
+            self.max_pos = Some(pos);
+        } else if self.values[pos] == self.max_val {
+            self.max_pos = None;
         }
     }
 
@@ -201,7 +204,7 @@ impl Counter {
         let values = vec![0; n];
 
         Self {
-            max_pos: 0,
+            max_pos: None,
             max_val: 0,
             values,
         }
@@ -217,38 +220,61 @@ fn update_liars(liars: &mut Vec<bool>, item: RadonTypes, condition: bool) -> Opt
     }
 }
 
+/// An `Either`-like structure that covers the two possible return types of the
+/// `evaluate_tally_precondition_clause` method.
+#[derive(Debug)]
+pub enum TallyPreconditionClauseResult {
+    MajorityOfValues(Vec<RadonTypes>, Vec<bool>),
+    MajorityOfErrors(RadonTypes),
+}
+
+/// Run a precondition clause on an array of `RadonTypes` so as to check if the mode is a value or
+/// an error, which has clear consequences in regards to consensus, rewards and punishments.
 pub fn evaluate_tally_precondition_clause(
     reveals: Vec<RadonReport<RadonTypes>>,
     non_error_min: f64,
-) -> Result<(Vec<RadonTypes>, Vec<bool>), RadError> {
+) -> Result<TallyPreconditionClauseResult, RadError> {
+    // Short-circuit if there were no reveals
     if reveals.is_empty() {
         return Err(RadError::NoReveals);
     }
 
     let reveals_len = reveals.len() as f64;
-
     let mut counter = Counter::new(RadonTypes::num_types());
     for reveal in &reveals {
-        match &reveal.result {
-            RadonTypes::RadonError(_) => {}
-            rad_types => counter.increment(rad_types.discriminant()),
-        }
+        counter.increment(reveal.result.discriminant());
     }
 
-    let non_error_ratio = counter.max_val as f64 / reveals_len;
+    let error_ratio = counter.values
+        [RadonTypes::RadonError(RadonError::from(RadonErrors::default())).discriminant()]
+        as f64
+        / reveals_len;
 
-    if non_error_ratio > non_error_min {
+    if counter.max_pos.is_none() {
+        return Err(RadError::ModeTie {
+            values: RadonArray::from(
+                reveals
+                    .into_iter()
+                    .map(RadonReport::into_inner)
+                    .collect::<Vec<RadonTypes>>(),
+            ),
+        });
+    }
+
+    if error_ratio <= non_error_min {
         let mut liars = vec![];
         let results = reveals
             .into_iter()
             .filter_map(|reveal| {
                 let radon_types = reveal.into_inner();
-                let condition = counter.max_pos == radon_types.discriminant();
+                let condition = counter.max_pos.unwrap() == radon_types.discriminant();
                 update_liars(&mut liars, radon_types, condition)
             })
             .collect();
 
-        Ok((results, liars))
+        Ok(TallyPreconditionClauseResult::MajorityOfValues(
+            results, liars,
+        ))
     } else {
         let errors: Vec<RadonTypes> = reveals
             .into_iter()
@@ -258,13 +284,10 @@ pub fn evaluate_tally_precondition_clause(
             })
             .collect();
 
-        // TODO: Currently we return the first error, but we should use the mode of errors
-        if !errors.is_empty() {
-            unimplemented!();
-            //Err(errors[0].clone())
-        } else {
-            Err(RadError::default())
-        }
+        let errors_array = RadonArray::from(errors);
+        let errors_mode = mode(&errors_array)?;
+
+        Ok(TallyPreconditionClauseResult::MajorityOfErrors(errors_mode))
     }
 }
 
@@ -294,14 +317,26 @@ pub fn validate_consensus(
     let clause_result = evaluate_tally_precondition_clause(results, non_error_min);
 
     let report = match clause_result {
-        Ok((radon_types_vec, liars)) => run_tally_report(radon_types_vec, consensus, Some(liars))?,
+        // The reveals passed the precondition clause (a parametric majority of them were successful
+        // values). Run the tally, which will add more liars if any.
+        Ok(TallyPreconditionClauseResult::MajorityOfValues(radon_types_vec, liars)) => {
+            run_tally_report(radon_types_vec, consensus, Some(liars))?
+        }
+        // The reveals did not pass the precondition clause (a parametric majority of them were
+        // errors). Tally will not be run, and the mode of the errors will be committed.
+        Ok(TallyPreconditionClauseResult::MajorityOfErrors(mode_error)) => {
+            RadonReport::from_result(
+                Ok(mode_error),
+                &ReportContext::from_stage(Stage::Tally(TallyMetaData::default())),
+            )?
+        }
+        // Failed to evaluate the precondition clause. `RadonReport::from_result()?` is the last
+        // chance for errors to be intercepted and used for consensus.
         Err(e) => {
-            let context = &mut ReportContext::default();
             let mut metadata = TallyMetaData::default();
             metadata.liars = vec![false; len_results];
-            context.stage = Stage::Tally(metadata);
 
-            RadonReport::from_result(Err(e), &context)?
+            RadonReport::from_result(Err(e), &ReportContext::from_stage(Stage::Tally(metadata)))?
         }
     };
 
@@ -1381,6 +1416,7 @@ mod tests {
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
 
     use super::*;
+    use witnet_data_structures::radon_error::{RadonError, RadonErrors};
 
     #[test]
     fn test_compare_block() {
@@ -1516,20 +1552,20 @@ mod tests {
         let mut counter = Counter::new(7);
         counter.increment(6);
         assert_eq!(counter.max_val, 1);
-        assert_eq!(counter.max_pos, 6);
+        assert_eq!(counter.max_pos, Some(6));
 
         counter.increment(6);
         assert_eq!(counter.max_val, 2);
-        assert_eq!(counter.max_pos, 6);
+        assert_eq!(counter.max_pos, Some(6));
 
         counter.increment(0);
         assert_eq!(counter.max_val, 2);
-        assert_eq!(counter.max_pos, 6);
+        assert_eq!(counter.max_pos, Some(6));
 
         counter.increment(0);
         counter.increment(0);
         assert_eq!(counter.max_val, 3);
-        assert_eq!(counter.max_pos, 0);
+        assert_eq!(counter.max_pos, Some(0));
     }
 
     #[test]
@@ -1549,10 +1585,16 @@ mod tests {
             rad_rep_float,
         ];
 
-        let (out, liars) = evaluate_tally_precondition_clause(v, 0.51).unwrap();
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
 
-        assert_eq!(out, vec![rad_int.clone(), rad_int.clone(), rad_int]);
-        assert_eq!(liars, vec![false, false, false, true]);
+        if let TallyPreconditionClauseResult::MajorityOfValues(out, liars) =
+            tally_precondition_clause_result
+        {
+            assert_eq!(out, vec![rad_int.clone(), rad_int.clone(), rad_int]);
+            assert_eq!(liars, vec![false, false, false, true]);
+        } else {
+            panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
+        }
     }
 
     #[test]
@@ -1572,20 +1614,26 @@ mod tests {
             rad_rep_int,
         ];
 
-        let (out, liars) = evaluate_tally_precondition_clause(v, 0.51).unwrap();
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
 
-        assert_eq!(out, vec![rad_int.clone(), rad_int.clone(), rad_int]);
-        assert_eq!(liars, vec![false, true, false, false]);
+        if let TallyPreconditionClauseResult::MajorityOfValues(out, liars) =
+            tally_precondition_clause_result
+        {
+            assert_eq!(out, vec![rad_int.clone(), rad_int.clone(), rad_int]);
+            assert_eq!(liars, vec![false, true, false, false]);
+        } else {
+            panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
+        }
     }
 
     #[test]
     fn test_tally_precondition_clause_error() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
-        let rad_err = RadError::HttpStatus { status_code: 404 };
+        let rad_err = RadonTypes::RadonError(RadonError::from(RadonErrors::HTTPError));
 
         let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
         let rad_rep_err =
-            RadonReport::from_result(Err(rad_err.clone()), &ReportContext::default()).unwrap();
+            RadonReport::from_result(Ok(rad_err.clone()), &ReportContext::default()).unwrap();
 
         let v = vec![
             rad_rep_err.clone(),
@@ -1594,9 +1642,15 @@ mod tests {
             rad_rep_int,
         ];
 
-        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
 
-        assert_eq!(out, rad_err);
+        if let TallyPreconditionClauseResult::MajorityOfErrors(out) =
+            tally_precondition_clause_result
+        {
+            assert_eq!(out, rad_err);
+        } else {
+            panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
+        }
     }
 
     #[test]
@@ -1615,9 +1669,18 @@ mod tests {
             rad_rep_int,
         ];
 
-        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v.clone(), 0.51).unwrap_err();
 
-        assert_eq!(out, RadError::default());
+        assert_eq!(
+            out,
+            RadError::ModeTie {
+                values: RadonArray::from(
+                    v.into_iter()
+                        .map(RadonReport::into_inner)
+                        .collect::<Vec<RadonTypes>>()
+                )
+            }
+        );
     }
 
     #[test]
