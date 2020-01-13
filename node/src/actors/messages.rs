@@ -532,9 +532,9 @@ pub struct RunTally {
     /// RAD tally to be executed
     pub script: RADTally,
     /// Reveals vector for tally
-    pub reveals: Result<Vec<RadonTypes>, RadError>,
-    /// Liars vector for tally
-    pub liars: Vec<bool>,
+    pub reports: Vec<RadonReport<RadonTypes>>,
+    /// Minimum values vs. errors ratio over which tally is run, otherwise return mode of errors
+    pub min_consensus_ratio: f64,
 }
 
 impl Message for ResolveRA {

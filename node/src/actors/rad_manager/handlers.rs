@@ -8,8 +8,10 @@ use crate::actors::messages::{ResolveRA, RunTally};
 use futures::Future;
 use tokio::util::FutureExt;
 use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage, TallyMetaData};
-use witnet_rad::{error::RadError, types::RadonTypes};
-use witnet_validations::validations::evaluate_tally_precondition_clause;
+use witnet_rad::{error::RadError, run_tally_report, types::RadonTypes};
+use witnet_validations::validations::{
+    evaluate_tally_precondition_clause, TallyPreconditionClauseResult,
+};
 
 impl Handler<ResolveRA> for RadManager {
     type Result = ResponseFuture<RadonReport<RadonTypes>, RadError>;
@@ -55,11 +57,14 @@ impl Handler<ResolveRA> for RadManager {
             let clause_result = evaluate_tally_precondition_clause(retrieve_responses, 0.2);
 
             match clause_result {
-                Ok((radon_types_vec, _)) => {
+                Ok(TallyPreconditionClauseResult::MajorityOfValues(radon_types_vec, _)) => {
                     // Perform aggregation on the values that made it to the output vector after applying the
                     // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
                     // failures.
                     witnet_rad::run_aggregation_report(radon_types_vec, &aggregator)
+                }
+                Ok(TallyPreconditionClauseResult::MajorityOfErrors(errors_mode)) => {
+                    RadonReport::from_result(Ok(errors_mode), &ReportContext::default())
                 }
                 Err(e) => RadonReport::from_result(Err(e), &ReportContext::default()),
             }
@@ -93,20 +98,35 @@ impl Handler<ResolveRA> for RadManager {
 impl Handler<RunTally> for RadManager {
     type Result = <RunTally as Message>::Result;
 
+    // TODO: replace the body of this handler with a simple call to `validations::validate_consensus`
     fn handle(&mut self, msg: RunTally, _ctx: &mut Self::Context) -> Self::Result {
         let packed_script = msg.script;
-        let reveals = msg.reveals;
-        let liars = msg.liars;
+        let reports = msg.reports;
 
-        match reveals {
-            Ok(reveals) => witnet_rad::run_tally_report(reveals, &packed_script, Some(liars)),
+        let clause_result =
+            evaluate_tally_precondition_clause(reports.clone(), msg.min_consensus_ratio);
+
+        match clause_result {
+            // The reveals passed the precondition clause (a parametric majority of them were successful
+            // values). Run the tally, which will add more liars if any.
+            Ok(TallyPreconditionClauseResult::MajorityOfValues(radon_types_vec, liars)) => {
+                run_tally_report(radon_types_vec, &packed_script, Some(liars))
+            }
+            // The reveals did not pass the precondition clause (a parametric majority of them were
+            // errors). Tally will not be run, and the mode of the errors will be committed.
+            Ok(TallyPreconditionClauseResult::MajorityOfErrors(mode_error)) => {
+                RadonReport::from_result(
+                    Ok(mode_error),
+                    &ReportContext::from_stage(Stage::Tally(TallyMetaData::default())),
+                )
+            }
+            // Failed to evaluate the precondition clause. `RadonReport::from_result()?` is the last
+            // chance for errors to be intercepted and used for consensus.
             Err(e) => {
-                let context = &mut ReportContext::default();
                 let mut metadata = TallyMetaData::default();
-                metadata.liars = liars;
-                context.stage = Stage::Tally(metadata);
+                metadata.liars = vec![false; reports.len()];
 
-                RadonReport::from_result(Err(e), &context)
+                RadonReport::from_result(Err(e), &ReportContext::from_stage(Stage::Tally(metadata)))
             }
         }
     }

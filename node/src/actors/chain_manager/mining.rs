@@ -23,8 +23,7 @@ use witnet_data_structures::{
 use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
-    evaluate_tally_precondition_clause, merkle_tree_root, update_utxo_diff, validate_block,
-    vt_transaction_fee, UtxoDiff,
+    merkle_tree_root, update_utxo_diff, validate_block, vt_transaction_fee, UtxoDiff,
 };
 
 use crate::{
@@ -377,7 +376,7 @@ impl ChainManager {
                     // decoded are most likely malformed and therefore their authors shall be
                     // punished in the same way as non-revealers.
                     // TODO: leverage `rayon` so as to make this a parallel iterator.
-                    let results = serial_iter_decode(
+                    let reports = serial_iter_decode(
                         &mut reveals
                             .iter()
                             .map(|reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
@@ -395,23 +394,15 @@ impl ChainManager {
                         },
                     );
 
-                    let non_error_min =
+                    let min_consensus_ratio =
                         dr_state.data_request.min_consensus_percentage as f64 / 100.0;
-                    let len_results = results.len();
-                    let clause_result =
-                        evaluate_tally_precondition_clause(results.clone(), non_error_min);
-
-                    let (reveals_vec, liars) = match clause_result {
-                        Ok((results, liars)) => (Ok(results), liars),
-                        Err(e) => (Err(e), vec![false; len_results]),
-                    };
 
                     let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
                         .send(RunTally {
+                            min_consensus_ratio,
+                            reports: reports.clone(),
                             script: dr_state.data_request.data_request.tally.clone(),
-                            reveals: reveals_vec,
-                            liars,
                         })
                         .then(|result| match result {
                             // If the result of `RunTally` is `Ok`, it will be published as tally
@@ -449,7 +440,7 @@ impl ChainManager {
                                             .bold()
                                             .paint(format!("{:?}", &tally_result.into_inner())),
                                         White.bold().paint(
-                                            results.into_iter().map(|result| result).fold(
+                                            reports.into_iter().map(|result| result).fold(
                                                 String::from("Reveals:"),
                                                 |acc, item| format!(
                                                     "{}\n\t* {:?}",
