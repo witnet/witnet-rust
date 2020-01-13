@@ -105,6 +105,14 @@ impl ReportContext {
             _ => Duration::default(),
         }
     }
+
+    /// Create a context that is initialized for a particular stage
+    pub fn from_stage(stage: Stage) -> Self {
+        let mut new = Self::default();
+        new.stage = stage;
+
+        new
+    }
 }
 
 /// Tell different stage-specific metadata structures from each other.
