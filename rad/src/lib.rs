@@ -167,6 +167,7 @@ mod tests {
     };
     use serde_cbor::Value;
     use witnet_data_structures::chain::RADFilter;
+    use witnet_data_structures::radon_error::{RadonError, RadonErrors};
 
     #[test]
     fn test_run_retrieval() {
@@ -712,7 +713,8 @@ mod tests {
 
     #[test]
     fn test_result_no_reveals() {
-        // Trying to create a tally with no reveals will return a RadError result
+        // Trying to create a tally with no reveals will return a `RadonReport` with a
+        // `RadonTypes::RadonError()`.
         let reveals = vec![];
         let report = run_tally_report(
             reveals,
@@ -722,9 +724,10 @@ mod tests {
             },
             None,
         )
-        .unwrap();
+        .unwrap()
+        .into_inner();
+        let expected = RadonTypes::from(RadonError::from(RadonErrors::NoReveals));
 
-        let output_tally = report.into_inner();
-        assert_eq!(output_tally, Err(RadError::NoReveals));
+        assert_eq!(report, expected);
     }
 }

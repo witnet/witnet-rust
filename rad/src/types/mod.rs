@@ -5,7 +5,6 @@ use std::{
 };
 
 use cbor::value::Value as CborValue;
-use log;
 use serde::Serialize;
 use serde_cbor::{to_vec, Value};
 
@@ -149,6 +148,7 @@ impl RadonTypes {
 impl TypeLike for RadonTypes {
     type Error = RadError;
 
+    // FIXME(953)
     fn encode(&self) -> Result<Vec<u8>, Self::Error> {
         Vec::<u8>::try_from(self)
     }
@@ -179,6 +179,7 @@ impl PartialEq for RadonTypes {
 }
 
 impl std::hash::Hash for RadonTypes {
+    // FIXME(953)
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.encode().map(|vec| vec.hash(state)).unwrap();
     }
@@ -250,6 +251,7 @@ impl From<RadonString> for RadonTypes {
 impl TryFrom<Value> for RadonTypes {
     type Error = RadError;
 
+    // FIXME(953)
     fn try_from(value: Value) -> Result<RadonTypes, Self::Error> {
         match value {
             Value::Array(_) => RadonArray::try_from(value).map(Into::into),
@@ -274,15 +276,13 @@ impl TryFrom<Value> for RadonTypes {
 impl TryFrom<RadonTypes> for Value {
     type Error = RadError;
 
+    // FIXME(953)
     fn try_from(input: RadonTypes) -> Result<Self, Self::Error> {
         match input {
             RadonTypes::Array(radon_array) => radon_array.try_into(),
             RadonTypes::Boolean(radon_boolean) => radon_boolean.try_into(),
             RadonTypes::Bytes(radon_bytes) => radon_bytes.try_into(),
-            RadonTypes::RadonError(_error) => Err(RadError::Decode {
-                from: String::from("RadonTypes"),
-                to: String::from("serde_cbor::Value"),
-            }),
+            RadonTypes::RadonError(error) => Ok(Value::Integer(error.kind as i128)),
             RadonTypes::Float(radon_float) => radon_float.try_into(),
             RadonTypes::Integer(radon_integer) => radon_integer.try_into(),
             RadonTypes::Map(radon_map) => radon_map.try_into(),
@@ -311,6 +311,7 @@ impl TryFrom<&[u8]> for RadonTypes {
 impl TryFrom<&RadonTypes> for Vec<u8> {
     type Error = RadError;
 
+    // FIXME(953)
     fn try_from(
         radon_types: &RadonTypes,
     ) -> Result<Vec<u8>, <Vec<u8> as TryFrom<&RadonTypes>>::Error> {
@@ -324,7 +325,7 @@ impl TryFrom<&RadonTypes> for Vec<u8> {
     }
 }
 
-// TODO: migrate everything to using `cbor-codec` or wait for `serde_cbor` to support CBOR tags.
+// FIXME(953): migrate everything to using `cbor-codec` or wait for `serde_cbor` to support CBOR tags.
 /// Allow decoding RADON types also from `Value` structures coming from the `cbor-codec` crate.
 /// Take into account the difference between `cbor::value::Value` and `serde_cbor::Value`.
 impl TryFrom<&cbor::value::Value> for RadonTypes {
