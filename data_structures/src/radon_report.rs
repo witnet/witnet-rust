@@ -153,7 +153,7 @@ pub struct TallyMetaData {
     pub liars: Vec<bool>,
     /// Proportion between total reveals and "truthers" count:
     /// `liars.iter().filter(std::ops::Not).count() / reveals.len()`
-    consensus: f32,
+    pub consensus: f32,
 }
 
 impl TallyMetaData {
@@ -172,6 +172,11 @@ impl TallyMetaData {
             }
 
             assert!(new_iter.next().is_none());
+
+            self.consensus = self.liars.iter().fold(0., |count, liar| match liar {
+                true => count,
+                false => count + 1.,
+            }) / self.liars.len() as f32;
         }
     }
 }
