@@ -100,7 +100,7 @@ impl RadonTypes {
             RadonTypes::Float(inner) => inner,
             RadonTypes::Integer(inner) => inner,
             RadonTypes::Map(inner) => inner,
-            RadonTypes::RadonError(_) => unreachable!("`RadonTypes::RadonError` is not operable"),
+            RadonTypes::RadonError(_) => panic!("`RadonTypes::RadonError` is not operable"),
             RadonTypes::String(inner) => inner,
         }
     }
