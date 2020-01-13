@@ -730,4 +730,19 @@ mod tests {
 
         assert_eq!(report, expected);
     }
+
+    #[test]
+    fn compare_zero_int_and_zero_error() {
+        use std::convert::TryFrom;
+        use witnet_data_structures::radon_report::TypeLike;
+
+        // RadonInteger with value 0
+        let int = RadonTypes::from(RadonInteger::from(0));
+        // RadonError with error code 0
+        let err = RadonTypes::from(RadonError::from(RadonErrors::try_from(0).unwrap()));
+        // They are both encoded as Value::Integer(0)
+        assert_eq!(int.encode(), err.encode());
+        // But they are not equal
+        assert_ne!(int, err);
+    }
 }

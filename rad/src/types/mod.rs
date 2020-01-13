@@ -171,6 +171,10 @@ impl std::cmp::Eq for RadonTypes {}
 // https://rust-lang.github.io/rust-clippy/master/index.html#derive_hash_xor_eq
 impl PartialEq for RadonTypes {
     fn eq(&self, other: &RadonTypes) -> bool {
+        if self.discriminant() != other.discriminant() {
+            return false;
+        }
+
         let vec1 = self.encode();
         let vec2 = other.encode();
 
