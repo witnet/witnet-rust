@@ -740,9 +740,9 @@ mod tests {
         let int = RadonTypes::from(RadonInteger::from(0));
         // RadonError with error code 0
         let err = RadonTypes::from(RadonError::from(RadonErrors::try_from(0).unwrap()));
-        // They are both encoded as Value::Integer(0)
-        assert_eq!(int.encode(), err.encode());
-        // But they are not equal
+        // Ensure they encoded differently (errors are tagged using `39` as CBOR tag)
+        assert_ne!(int.encode(), err.encode());
+        // And they are not equal in runtime either
         assert_ne!(int, err);
     }
 }
