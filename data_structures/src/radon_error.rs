@@ -5,7 +5,7 @@ use failure::Fail;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Serialize, Serializer};
 
-#[derive(Clone, Copy, Debug, IntoPrimitive, Serialize, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, Eq, IntoPrimitive, PartialEq, Serialize, TryFromPrimitive)]
 #[repr(u8)]
 /// List of RADON-level errors.
 /// **WARNING: these codes are consensus-critical.** They can be renamed but they cannot be
@@ -55,7 +55,7 @@ impl Default for RadonErrors {
 pub trait ErrorLike: Default + From<cbor::encoder::EncodeError> + Fail {}
 
 /// This structure is aimed to be the error type for the `result` field of `witnet_data_structures::radon_report::Report`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RadonError<IE>
 where
     IE: ErrorLike,
