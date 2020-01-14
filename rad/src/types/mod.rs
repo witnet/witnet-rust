@@ -324,22 +324,32 @@ impl TryFrom<&RadonTypes> for Vec<u8> {
         radon_types: &RadonTypes,
     ) -> Result<Vec<u8>, <Vec<u8> as TryFrom<&RadonTypes>>::Error> {
         let type_name = RadonTypes::radon_type_name(radon_types);
-        let value: Value = radon_types.clone().try_into()?;
 
-        to_vec(&value).map_err(|_| RadError::Encode {
-            from: type_name,
-            to: "Vec<u8>".to_string(),
-        })
+        match radon_types {
+            RadonTypes::RadonError(radon_error) => {
+                Vec::<u8>::try_from(radon_error).map_err(|_| RadError::Encode {
+                    from: type_name,
+                    to: "Vec<u8>".to_string(),
+                })
+            }
+            _ => {
+                let value: Value = radon_types.clone().try_into()?;
+                to_vec(&value).map_err(|_| RadError::Encode {
+                    from: type_name,
+                    to: "Vec<u8>".to_string(),
+                })
+            }
+        }
     }
 }
 
 // FIXME(953): migrate everything to using `cbor-codec` or wait for `serde_cbor` to support CBOR tags.
 /// Allow decoding RADON types also from `Value` structures coming from the `cbor-codec` crate.
 /// Take into account the difference between `cbor::value::Value` and `serde_cbor::Value`.
-impl TryFrom<&cbor::value::Value> for RadonTypes {
+impl TryFrom<&CborValue> for RadonTypes {
     type Error = RadError;
 
-    fn try_from(cbor_value: &cbor::value::Value) -> Result<Self, Self::Error> {
+    fn try_from(cbor_value: &CborValue) -> Result<Self, Self::Error> {
         use cbor::value::Int;
 
         match cbor_value {
@@ -424,8 +434,6 @@ mod tests {
 
     #[test]
     fn test_radontypes_try_error_from_cbor_value() {
-        use cbor::value::Value as CborValue;
-
         let cbor_value_ok = CborValue::Array(vec![CborValue::U8(0x10), CborValue::U8(9)]);
         let cbor_value_wrong_type = CborValue::U8(u8::default());
         let cbor_value_empty_array = CborValue::Array(Vec::default());
