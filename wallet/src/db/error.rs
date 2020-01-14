@@ -5,8 +5,8 @@ use failure::Fail;
 pub enum Error {
     #[fail(display = "mutex poison error")]
     MutexPoison,
-    #[fail(display = "db key not found")]
-    DbKeyNotFound,
+    #[fail(display = "db key not found (key: {:?})", key)]
+    DbKeyNotFound { key: String },
     #[fail(display = "rocksdb failed: {}", _0)]
     Rocksdb(#[cause] rocksdb::Error),
     #[fail(display = "bincode failed: {}", _0)]

@@ -143,7 +143,7 @@ impl Worker {
             .wallets
             .wallet_salt_and_iv(wallet_id)
             .map_err(|err| match err {
-                repository::Error::Db(db::Error::DbKeyNotFound) => Error::WalletNotFound,
+                repository::Error::Db(db::Error::DbKeyNotFound { .. }) => Error::WalletNotFound,
                 err => Error::Repository(err),
             })?;
         let key = crypto::key_from_password(password, &salt, self.params.db_hash_iterations);
@@ -161,7 +161,7 @@ impl Worker {
         wallet_db
             .get(constants::ENCRYPTION_CHECK_KEY)
             .map_err(|err| match err {
-                db::Error::DbKeyNotFound => Error::WrongPassword,
+                db::Error::DbKeyNotFound { .. } => Error::WrongPassword,
                 err => Error::Db(err),
             })?;
 

@@ -4,6 +4,8 @@ mod plain;
 #[cfg(test)]
 mod tests;
 
+use std::fmt::Debug;
+
 pub use encrypted::*;
 pub use error::Error;
 pub use plain::*;
@@ -17,12 +19,14 @@ pub trait Database {
 
     fn get<K, V>(&self, key: &K) -> Result<V>
     where
-        K: AsRef<[u8]> + ?Sized,
+        K: AsRef<[u8]> + ?Sized + Debug,
         V: serde::de::DeserializeOwned,
     {
         let opt = self.get_opt(key)?;
 
-        opt.ok_or_else(|| Error::DbKeyNotFound)
+        opt.ok_or_else(|| Error::DbKeyNotFound {
+            key: format!("{:?}", key),
+        })
     }
 
     fn get_or_default<K, V>(&self, key: &K) -> Result<V>
