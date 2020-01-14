@@ -181,32 +181,52 @@ pub fn validate_rad_request(rad_request: &RADRequest) -> Result<(), failure::Err
     Ok(())
 }
 
-// Auxiliar counter
+/// An histogram-like counter that helps counting occurrences of different numeric categories.
 struct Counter {
+    /// Tracks the position inside `values` of the category that appears the most.
+    /// This MUST be initialized to `None`.
+    /// As long as `values` is not empty, `None` means there was a tie between multiple categories.
     max_pos: Option<usize>,
+    /// Tracks how many times does the most frequent category appear.
+    /// This is a cached version of `self.values[self.max_pos]`.
     max_val: i32,
-    values: Vec<i32>,
+    /// Tracks how many times does each different category appear.
+    categories: Vec<i32>,
 }
 
+/// Implementations for `struct Counter`
 impl Counter {
-    // If pos is bigger than values.len() it will panic
-    fn increment(&mut self, pos: usize) {
-        self.values[pos] += 1;
-        if self.values[pos] > self.max_val {
-            self.max_val = self.values[pos];
-            self.max_pos = Some(pos);
-        } else if self.values[pos] == self.max_val {
-            self.max_pos = None;
+    /// Increment by one the counter for a particular category.
+    fn increment(&mut self, category_id: usize) {
+        if category_id < self.categories.len() {
+            // Increment the counter by 1.
+            self.categories[category_id] += 1;
+
+            // Tell whether `max_pos` and `max_val` need to be updated.
+            match self.categories[category_id].cmp(&self.max_val) {
+                // If the recently updated counter is less than `max_pos`, do nothing.
+                Ordering::Less => {}
+                // If the recently updated counter is equal than `max_pos`, it is a tie.
+                Ordering::Equal => {
+                    self.max_pos = None;
+                }
+                // If the recently updated counter outgrows `max_pos`, update `max_val` and `max_pos`.
+                Ordering::Greater => {
+                    self.max_val = self.categories[category_id];
+                    self.max_pos = Some(category_id);
+                }
+            }
         }
     }
 
+    /// Create a new `struct Counter` that is initialized to truck a provided number of categories.
     fn new(n: usize) -> Self {
-        let values = vec![0; n];
+        let categories = vec![0; n];
 
         Self {
             max_pos: None,
             max_val: 0,
-            values,
+            categories,
         }
     }
 }
