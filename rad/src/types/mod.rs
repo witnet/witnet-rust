@@ -62,6 +62,7 @@ impl RadonTypes {
             .map_err(|_| RadError::Hash)
     }
 
+    /// Returns the name of the internal type of a `RadonTypes` item.
     pub fn radon_type_name(&self) -> String {
         match self {
             RadonTypes::Array(_) => RadonArray::radon_type_name(),
@@ -70,6 +71,9 @@ impl RadonTypes {
             RadonTypes::Float(_) => RadonFloat::radon_type_name(),
             RadonTypes::Integer(_) => RadonInteger::radon_type_name(),
             RadonTypes::Map(_) => RadonMap::radon_type_name(),
+            // `RadonError` does not implement `RadonType` nor `Operable` (it is not a type per se),
+            // but exists inside `RadonTypes` for the sake of dealing with error encoding / decoding
+            // in a more convenient way.
             RadonTypes::RadonError(_) => String::from("RadonError"),
             RadonTypes::String(_) => RadonString::radon_type_name(),
         }
