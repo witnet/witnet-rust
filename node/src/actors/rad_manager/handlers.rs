@@ -57,14 +57,20 @@ impl Handler<ResolveRA> for RadManager {
             let clause_result = evaluate_tally_precondition_clause(retrieve_responses, 0.2);
 
             match clause_result {
-                Ok(TallyPreconditionClauseResult::MajorityOfValues(radon_types_vec, _)) => {
+                Ok(TallyPreconditionClauseResult::MajorityOfValues {
+                    values,
+                    liars: _liars,
+                }) => {
                     // Perform aggregation on the values that made it to the output vector after applying the
                     // source scripts (aka _normalization scripts_ in the original whitepaper) and filtering out
                     // failures.
-                    witnet_rad::run_aggregation_report(radon_types_vec, &aggregator)
+                    witnet_rad::run_aggregation_report(values, &aggregator)
                 }
-                Ok(TallyPreconditionClauseResult::MajorityOfErrors(errors_mode)) => {
-                    RadonReport::from_result(Ok(errors_mode), &ReportContext::default())
+                Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
+                    RadonReport::from_result(
+                        Ok(RadonTypes::RadonError(errors_mode)),
+                        &ReportContext::default(),
+                    )
                 }
                 Err(e) => RadonReport::from_result(Err(e), &ReportContext::default()),
             }
@@ -109,14 +115,14 @@ impl Handler<RunTally> for RadManager {
         match clause_result {
             // The reveals passed the precondition clause (a parametric majority of them were successful
             // values). Run the tally, which will add more liars if any.
-            Ok(TallyPreconditionClauseResult::MajorityOfValues(radon_types_vec, liars)) => {
-                run_tally_report(radon_types_vec, &packed_script, Some(liars))
+            Ok(TallyPreconditionClauseResult::MajorityOfValues { values, liars }) => {
+                run_tally_report(values, &packed_script, Some(liars))
             }
             // The reveals did not pass the precondition clause (a parametric majority of them were
             // errors). Tally will not be run, and the mode of the errors will be committed.
-            Ok(TallyPreconditionClauseResult::MajorityOfErrors(mode_error)) => {
+            Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
                 RadonReport::from_result(
-                    Ok(mode_error),
+                    Ok(RadonTypes::RadonError(errors_mode)),
                     &ReportContext::from_stage(Stage::Tally(TallyMetaData::default())),
                 )
             }
