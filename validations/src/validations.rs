@@ -1592,7 +1592,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tally_precondition_clause() {
+    fn test_tally_precondition_clause_3_ints_vs_1_float() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_float = RadonTypes::Float(RadonFloat::from(1));
 
@@ -1621,7 +1621,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tally_precondition_clause2() {
+    fn test_tally_precondition_clause_3_ints_vs_1_error() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_err = RadError::HttpStatus { status_code: 404 };
 
@@ -1650,7 +1650,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tally_precondition_clause_error() {
+    fn test_tally_precondition_clause_majority_of_errors() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_err = RadonError::from(RadonErrors::HTTPError);
 
@@ -1680,7 +1680,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tally_precondition_clause_error2() {
+    fn test_tally_precondition_clause_errors_mode_tie() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_float = RadonTypes::Float(RadonFloat::from(1));
 
@@ -1689,6 +1689,45 @@ mod tests {
             RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
 
         let v = vec![
+            rad_rep_float.clone(),
+            rad_rep_int.clone(),
+            rad_rep_float,
+            rad_rep_int,
+        ];
+
+        let out = evaluate_tally_precondition_clause(v.clone(), 0.51).unwrap_err();
+
+        assert_eq!(
+            out,
+            RadError::ModeTie {
+                values: RadonArray::from(
+                    v.into_iter()
+                        .map(RadonReport::into_inner)
+                        .collect::<Vec<RadonTypes>>()
+                )
+            }
+        );
+    }
+
+    #[test]
+    fn test_tally_precondition_clause_3_errors_vs_2_ints_and_2_floats() {
+        let rad_int = RadonTypes::Integer(RadonInteger::from(1));
+        let rad_float = RadonTypes::Float(RadonFloat::from(1));
+        let rad_err = RadonError::from(RadonErrors::HTTPError);
+
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
+        let rad_rep_float =
+            RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
+        let rad_rep_err = RadonReport::from_result(
+            Ok(RadonTypes::RadonError(rad_err)),
+            &ReportContext::default(),
+        )
+        .unwrap();
+
+        let v = vec![
+            rad_rep_err.clone(),
+            rad_rep_err.clone(),
+            rad_rep_err,
             rad_rep_float.clone(),
             rad_rep_int.clone(),
             rad_rep_float,
