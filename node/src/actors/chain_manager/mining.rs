@@ -443,7 +443,7 @@ impl ChainManager {
                                             reports.into_iter().map(|result| result).fold(
                                                 String::from("Reveals:"),
                                                 |acc, item| format!(
-                                                    "{}\n\t* {:?}",
+                                                    "{}\n\t* {}",
                                                     acc,
                                                     item.into_inner()
                                                 )
