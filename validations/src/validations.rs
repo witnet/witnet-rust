@@ -1566,6 +1566,10 @@ mod tests {
         counter.increment(0);
         assert_eq!(counter.max_val, 3);
         assert_eq!(counter.max_pos, Some(0));
+
+        counter.increment(6);
+        assert_eq!(counter.max_val, 3);
+        assert_eq!(counter.max_pos, None);
     }
 
     #[test]
