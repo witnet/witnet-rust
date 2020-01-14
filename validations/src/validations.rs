@@ -339,7 +339,7 @@ pub fn evaluate_tally_precondition_clause(
 pub fn validate_consensus(
     reveals: Vec<&RevealTransaction>,
     miner_tally: &[u8],
-    consensus: &RADTally,
+    tally: &RADTally,
     non_error_min: f64,
 ) -> Result<HashSet<PublicKeyHash>, failure::Error> {
     let results = serial_iter_decode(
@@ -357,32 +357,9 @@ pub fn validate_consensus(
         },
     );
 
-    let len_results = results.len();
+    let results_len = results.len();
     let clause_result = evaluate_tally_precondition_clause(results, non_error_min);
-
-    let report = match clause_result {
-        // The reveals passed the precondition clause (a parametric majority of them were successful
-        // values). Run the tally, which will add more liars if any.
-        Ok(TallyPreconditionClauseResult::MajorityOfValues { values, liars }) => {
-            run_tally_report(values, consensus, Some(liars))?
-        }
-        // The reveals did not pass the precondition clause (a parametric majority of them were
-        // errors). Tally will not be run, and the mode of the errors will be committed.
-        Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
-            RadonReport::from_result(
-                Ok(RadonTypes::RadonError(errors_mode)),
-                &ReportContext::from_stage(Stage::Tally(TallyMetaData::default())),
-            )?
-        }
-        // Failed to evaluate the precondition clause. `RadonReport::from_result()?` is the last
-        // chance for errors to be intercepted and used for consensus.
-        Err(e) => {
-            let mut metadata = TallyMetaData::default();
-            metadata.liars = vec![false; len_results];
-
-            RadonReport::from_result(Err(e), &ReportContext::from_stage(Stage::Tally(metadata)))?
-        }
-    };
+    let report = construct_report_from_clause_result(clause_result, &tally, results_len)?;
 
     let metadata = report.metadata.clone();
     let tally_consensus = Vec::<u8>::try_from(&report)?;
@@ -415,6 +392,41 @@ pub fn validate_consensus(
         }
     } else {
         Err(TransactionError::NoTallyStage.into())
+    }
+}
+
+/// Construct a `RadonReport` from a `TallyPreconditionClauseResult`
+pub fn construct_report_from_clause_result(
+    clause_result: Result<TallyPreconditionClauseResult, RadError>,
+    script: &RADTally,
+    reports_len: usize,
+) -> Result<RadonReport<RadonTypes>, RadError> {
+    match clause_result {
+        // The reveals passed the precondition clause (a parametric majority of them were successful
+        // values). Run the tally, which will add more liars if any.
+        Ok(TallyPreconditionClauseResult::MajorityOfValues { values, liars }) => {
+            run_tally_report(values, script, Some(liars))
+        }
+        // The reveals did not pass the precondition clause (a parametric majority of them were
+        // errors). Tally will not be run, and the mode of the errors will be committed.
+        Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
+            // Do not impose penalties on any of the revealers.
+            let mut metadata = TallyMetaData::default();
+            metadata.update_liars(vec![false; reports_len]);
+
+            RadonReport::from_result(
+                Ok(RadonTypes::RadonError(errors_mode)),
+                &ReportContext::from_stage(Stage::Tally(metadata)),
+            )
+        }
+        // Failed to evaluate the precondition clause. `RadonReport::from_result()?` is the last
+        // chance for errors to be intercepted and used for consensus.
+        Err(e) => {
+            let mut metadata = TallyMetaData::default();
+            metadata.update_liars(vec![false; reports_len]);
+
+            RadonReport::from_result(Err(e), &ReportContext::from_stage(Stage::Tally(metadata)))
+        }
     }
 }
 
