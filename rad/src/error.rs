@@ -247,6 +247,9 @@ pub enum RadError {
     /// No reveals received
     #[fail(display = "No reveals received")]
     NoReveals,
+    /// Zero non-errored reveals left after filtering out errors
+    #[fail(display = "Zero non-errored reveals left after filtering out errors")]
+    NoRevealsAfterErrorFiltering,
 }
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and

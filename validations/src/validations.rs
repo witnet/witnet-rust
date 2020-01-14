@@ -198,23 +198,21 @@ struct Counter {
 impl Counter {
     /// Increment by one the counter for a particular category.
     fn increment(&mut self, category_id: usize) {
-        if category_id < self.categories.len() {
-            // Increment the counter by 1.
-            self.categories[category_id] += 1;
+        // Increment the counter by 1.
+        self.categories[category_id] += 1;
 
-            // Tell whether `max_pos` and `max_val` need to be updated.
-            match self.categories[category_id].cmp(&self.max_val) {
-                // If the recently updated counter is less than `max_pos`, do nothing.
-                Ordering::Less => {}
-                // If the recently updated counter is equal than `max_pos`, it is a tie.
-                Ordering::Equal => {
-                    self.max_pos = None;
-                }
-                // If the recently updated counter outgrows `max_pos`, update `max_val` and `max_pos`.
-                Ordering::Greater => {
-                    self.max_val = self.categories[category_id];
-                    self.max_pos = Some(category_id);
-                }
+        // Tell whether `max_pos` and `max_val` need to be updated.
+        match self.categories[category_id].cmp(&self.max_val) {
+            // If the recently updated counter is less than `max_pos`, do nothing.
+            Ordering::Less => {}
+            // If the recently updated counter is equal than `max_pos`, it is a tie.
+            Ordering::Equal => {
+                self.max_pos = None;
+            }
+            // If the recently updated counter outgrows `max_pos`, update `max_val` and `max_pos`.
+            Ordering::Greater => {
+                self.max_val = self.categories[category_id];
+                self.max_pos = Some(category_id);
             }
         }
     }
@@ -266,7 +264,7 @@ pub fn evaluate_tally_precondition_clause(
 
     // Count how many times is each RADON type featured in `reveals`, but count `RadonError` items
     // separately as they need to be handled differently.
-    let reveals_len = reveals.len() as f64;
+    let reveals_len = reveals.len();
     let mut values_counter = Counter::new(RadonTypes::num_types());
     let mut errors_counter = 0u32;
     for reveal in &reveals {
@@ -276,20 +274,8 @@ pub fn evaluate_tally_precondition_clause(
         }
     }
 
-    // Handle tie cases (there is the same amount of revealed values for multiple types)
-    if values_counter.max_pos.is_none() {
-        return Err(RadError::ModeTie {
-            values: RadonArray::from(
-                reveals
-                    .into_iter()
-                    .map(RadonReport::into_inner)
-                    .collect::<Vec<RadonTypes>>(),
-            ),
-        });
-    }
-
     // Compute ratio of reveals that are errors
-    let error_ratio = errors_counter as f64 / reveals_len;
+    let error_ratio = errors_counter as f64 / reveals_len as f64;
 
     // If the ratio of errors is over the user-defined threshold, return the mode of the errors.
     // Otherwise, return only non-error reveals, paired with a "liars" vector that positionally
@@ -313,6 +299,18 @@ pub fn evaluate_tally_precondition_clause(
             _ => unreachable!("Mode of `RadonArray` containing only `RadonError`s cannot possibly be different from `RadonError`"),
         }
     } else {
+        // Handle tie cases (there is the same amount of revealed values for multiple types).
+        if values_counter.max_pos.is_none() {
+            return Err(RadError::ModeTie {
+                values: RadonArray::from(
+                    reveals
+                        .into_iter()
+                        .map(RadonReport::into_inner)
+                        .collect::<Vec<RadonTypes>>(),
+                ),
+            });
+        }
+
         let mut liars = vec![];
         let results = reveals
             .into_iter()
@@ -1641,6 +1639,27 @@ mod tests {
     }
 
     #[test]
+    fn test_tally_precondition_clause_full_consensus() {
+        let rad_int = RadonTypes::Integer(RadonInteger::from(1));
+
+        let rad_rep_int =
+            RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default()).unwrap();
+
+        let v = vec![rad_rep_int.clone(), rad_rep_int];
+
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
+
+        if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
+            tally_precondition_clause_result
+        {
+            assert_eq!(values, vec![rad_int.clone(), rad_int]);
+            assert_eq!(liars, vec![false, false]);
+        } else {
+            panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
+        }
+    }
+
+    #[test]
     fn test_tally_precondition_clause_3_ints_vs_1_error() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_err = RadError::HttpStatus { status_code: 404 };
@@ -1775,5 +1794,32 @@ mod tests {
         let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
 
         assert_eq!(out, RadError::NoReveals);
+    }
+
+    #[test]
+    fn test_tally_precondition_clause_all_errors() {
+        let rad_err = RadonError::from(RadonErrors::HTTPError);
+        let rad_rep_err = RadonReport::from_result(
+            Ok(RadonTypes::RadonError(rad_err.clone())),
+            &ReportContext::default(),
+        )
+        .unwrap();
+
+        let v = vec![
+            rad_rep_err.clone(),
+            rad_rep_err.clone(),
+            rad_rep_err.clone(),
+            rad_rep_err,
+        ];
+
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
+
+        if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
+            tally_precondition_clause_result
+        {
+            assert_eq!(errors_mode, rad_err);
+        } else {
+            panic!("The result of the tally precondition clause was not `MajorityOfErrors`. It was: {:?}", tally_precondition_clause_result);
+        }
     }
 }
