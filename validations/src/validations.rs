@@ -1649,7 +1649,7 @@ mod tests {
         {
             assert_eq!(out, rad_err);
         } else {
-            panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
+            panic!("The result of the tally precondition clause was not `MajorityOfErrors`. It was: {:?}", tally_precondition_clause_result);
         }
     }
 
