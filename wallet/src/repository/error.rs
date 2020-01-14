@@ -9,10 +9,10 @@ pub enum Error {
     IndexOverflow,
     #[fail(display = "overflow when calculating transaction value")]
     TransactionValueOverflow,
-    #[fail(display = "account balance overflowed")]
-    BalanceOverflow,
-    #[fail(display = "account balance underflowed")]
-    BalanceUnderflow,
+    #[fail(display = "transaction balance overflowed")]
+    TransactionBalanceOverflow,
+    #[fail(display = "transaction balance underflowed")]
+    TransactionBalanceUnderflow,
     #[fail(display = "Invalid PKH: {}", _0)]
     Pkh(#[cause] types::PublicKeyHashParseError),
     #[fail(display = "not enough balance in account")]

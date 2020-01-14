@@ -1,13 +1,12 @@
 use std::sync::RwLock;
 
 use super::*;
-use crate::types::Hashable as _;
 use crate::{
     account, constants,
     db::{Database, WriteBatch as _},
     model,
     params::Params,
-    types,
+    types::{self, Hashable as _},
 };
 
 mod state;
@@ -15,7 +14,11 @@ mod state;
 mod tests;
 
 use state::State;
-use witnet_data_structures::chain::{Environment, Epoch};
+use std::convert::TryFrom;
+use witnet_data_structures::{
+    chain::{Environment, Epoch},
+    transaction::VTTransactionBody,
+};
 
 pub struct Wallet<T> {
     db: T,
@@ -250,20 +253,16 @@ where
     /// Get a transaction if exists.
     pub fn get_transaction(&self, account: u32, index: u32) -> Result<model::Transaction> {
         let value = self.db.get(&keys::transaction_value(account, index))?;
-        let entry = self.db.get(&keys::transaction_entry(account, index))?;
         let kind = self.db.get(&keys::transaction_type(account, index))?;
         let timestamp = self.db.get(&keys::transaction_timestamp(account, index))?;
         let hash: Vec<u8> = self.db.get(&keys::transaction_hash(account, index))?;
-        let label = self.db.get_opt(&keys::transaction_label(account, index))?;
         let fee = self.db.get_opt(&keys::transaction_fee(account, index))?;
         let block = self.db.get_opt(&keys::transaction_block(account, index))?;
 
         Ok(model::Transaction {
             value,
-            entry,
             kind,
             hex_hash: hex::encode(hash),
-            label,
             fee,
             block,
             timestamp,
@@ -314,38 +313,21 @@ where
         block: &model::BlockInfo,
         txns: &[types::VTTransactionBody],
     ) -> Result<()> {
-        // FIXME: Handle multiple accounts when indexing transactions
-        let account = 0;
         let mut state = self.state.write()?;
 
         for txn in txns {
             let hash = txn.hash().as_ref().to_vec();
-
-            match self.db.get_opt(&keys::transactions_index(&hash))? {
-                Some(txn_id) => {
-                    self.db
-                        .put(&keys::transaction_block(account, txn_id), block)?;
-                }
-                None => {
-                    for input in &txn.inputs {
-                        self._index_transaction_input(&mut state, &hash, &input, block)?;
-                    }
-
-                    for (index, output) in txn.outputs.iter().enumerate() {
-                        let out_ptr = model::OutPtr {
-                            txn_hash: hash.clone(),
-                            output_index: index as u32,
-                        };
-                        self._index_transaction_output(&mut state, &hash, out_ptr, &output, block)?;
-                    }
-                }
+            match self
+                .db
+                .get_opt::<_, u32>(&keys::transactions_index(&hash))?
+            {
+                None => self._index_transaction(&mut state, &hash, txn, block)?,
+                Some(_) => log::warn!(
+                    "The transaction {} already exists in the database",
+                    txn.hash()
+                ),
             }
         }
-
-        // TODO: persist changes to db
-        // self.db.write(batch)?;
-
-        // TODO: persist new values to state
 
         Ok(())
     }
@@ -366,7 +348,6 @@ where
             pkh,
             value,
             fee,
-            label,
             time_lock,
         }: types::VttParams,
     ) -> Result<types::VTTransaction> {
@@ -374,7 +355,6 @@ where
         let components =
             self._create_transaction_components(&mut state, value, fee, Some((pkh, time_lock)))?;
 
-        let new_balance = components.balance;
         let body = types::VTTransactionBody::new(components.inputs, components.outputs);
         let sign_data = body.hash();
         let signatures = components
@@ -392,64 +372,6 @@ where
             .collect();
 
         let transaction = types::VTTransaction::new(body, signatures);
-        let transaction_hash = transaction.hash().as_ref().to_vec();
-        let transaction_hex_hash = hex::encode(&transaction_hash);
-
-        // Persist the transaction
-        let account = state.account;
-        let transaction_id = state.transaction_next_id;
-        let transaction_next_id = transaction_id
-            .checked_add(1)
-            .ok_or_else(|| Error::TransactionIdOverflow)?;
-
-        // FIXME: Remove this clone by using a better mechanism such
-        // as STM or a persistent map
-        let mut new_utxo_set = state.utxo_set.clone();
-        for out_ptr in components.used_utxos {
-            new_utxo_set
-                .remove(&out_ptr)
-                .expect("invariant: remove vtt utxo, not found");
-        }
-
-        let mut batch = self.db.batch();
-
-        batch.put(keys::transaction_next_id(account), transaction_next_id)?;
-        batch.put(keys::account_balance(account), new_balance)?;
-        batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
-
-        batch.put(
-            keys::transaction(&transaction_hex_hash),
-            &types::Transaction::ValueTransfer(transaction.clone()),
-        )?;
-        batch.put(
-            keys::transaction_timestamp(account, transaction_id),
-            chrono::Local::now().timestamp(),
-        )?;
-        batch.put(keys::transaction_value(account, transaction_id), value)?;
-        batch.put(keys::transaction_fee(account, transaction_id), fee)?;
-        batch.put(
-            keys::transaction_entry(account, transaction_id),
-            model::TransactionEntry::Debit,
-        )?;
-        batch.put(
-            keys::transaction_type(account, transaction_id),
-            model::TransactionType::ValueTransfer,
-        )?;
-        if let Some(label) = label {
-            batch.put(keys::transaction_label(account, transaction_id), &label)?;
-        }
-        batch.put(keys::transactions_index(&transaction_hash), transaction_id)?;
-        batch.put(
-            keys::transaction_hash(account, transaction_id),
-            transaction_hash,
-        )?;
-
-        self.db.write(batch)?;
-
-        // update wallet state only after db has been updated
-        state.transaction_next_id = transaction_next_id;
-        state.utxo_set = new_utxo_set;
-        state.balance = new_balance;
 
         Ok(transaction)
     }
@@ -523,10 +445,6 @@ where
         batch.put(keys::transaction_value(account, transaction_id), value)?;
         batch.put(keys::transaction_fee(account, transaction_id), fee)?;
         batch.put(
-            keys::transaction_entry(account, transaction_id),
-            model::TransactionEntry::Debit,
-        )?;
-        batch.put(
             keys::transaction_type(account, transaction_id),
             model::TransactionType::DataRequest,
         )?;
@@ -597,7 +515,7 @@ where
                 .ok_or_else(|| Error::TransactionValueOverflow)?;
             balance = balance
                 .checked_sub(key_balance.amount)
-                .ok_or_else(|| Error::BalanceUnderflow)?;
+                .ok_or_else(|| Error::TransactionBalanceUnderflow)?;
             inputs.push(input);
             sign_keys.push(extended_sign_key.into());
             used_utxos.push(out_ptr.clone());
@@ -648,116 +566,101 @@ where
         Ok(address)
     }
 
-    fn _index_transaction_input(
+    fn _index_transaction(
         &self,
         state: &mut State,
         txn_hash: &[u8],
-        input: &types::TransactionInput,
+        txn: &VTTransactionBody,
         block: &model::BlockInfo,
     ) -> Result<()> {
-        let out_ptr: model::OutPtr = input.output_pointer().into();
         let account = 0;
-        let txn_id = state.transaction_next_id;
-        let old_balance = state.balance;
-        let mut batch = self.db.batch();
+        let mut db_utxo_set: model::UtxoSet = self
+            .db
+            .get(&keys::account_utxo_set(account))
+            .unwrap_or_default();
 
-        if let Some(model::KeyBalance { amount, .. }) = state.utxo_set.get(&out_ptr).cloned() {
-            let new_balance = old_balance
-                .checked_rem(amount)
-                .ok_or_else(|| Error::BalanceUnderflow)?;
-            let mut db_utxo_set: model::UtxoSet = self.db.get(&keys::account_utxo_set(account))?;
-            let txn_next_id = txn_id
-                .checked_add(1)
-                .ok_or_else(|| Error::TransactionValueOverflow)?;
+        let mut input_amount: u64 = 0;
+        for input in txn.inputs.iter() {
+            let out_ptr: model::OutPtr = input.output_pointer().into();
 
-            db_utxo_set.remove(&out_ptr);
-
-            batch.put(&keys::transaction_value(account, txn_id), amount)?;
-            batch.put(
-                keys::transaction_entry(account, txn_id),
-                model::TransactionEntry::Debit,
-            )?;
-            batch.put(
-                keys::transaction_type(account, txn_id),
-                model::TransactionType::ValueTransfer,
-            )?;
-            batch.put(
-                keys::transaction_timestamp(account, txn_id),
-                convert_block_epoch_to_timestamp(block.epoch),
-            )?;
-            batch.put(keys::transaction_block(account, txn_id), block)?;
-            batch.put(keys::account_balance(account), new_balance)?;
-            batch.put(keys::account_utxo_set(account), db_utxo_set)?;
-            batch.put(keys::transaction_next_id(account), txn_next_id)?;
-            batch.put(keys::transactions_index(txn_hash), txn_id)?;
-            batch.put(keys::transaction_hash(account, txn_id), txn_hash)?;
-
-            self.db.write(batch)?;
-
-            state.transaction_next_id = txn_next_id;
-            state.balance = new_balance;
-            state.utxo_set.remove(&out_ptr);
+            if let Some(model::KeyBalance { amount, .. }) = state.utxo_set.remove(&out_ptr) {
+                db_utxo_set.remove(&out_ptr);
+                input_amount = input_amount
+                    .checked_add(amount)
+                    .ok_or_else(|| Error::TransactionBalanceOverflow)?;
+            }
         }
 
-        Ok(())
-    }
+        let mut output_amount: u64 = 0;
+        for (index, output) in txn.outputs.iter().enumerate() {
+            if let Some(model::Path { .. }) = self.db.get_opt(&keys::pkh(&output.pkh))? {
+                let address = output.pkh.bech32(if self.params.testnet {
+                    Environment::Testnet1
+                } else {
+                    Environment::Mainnet
+                });
+                let key_balance = model::KeyBalance {
+                    pkh: output.pkh,
+                    amount: output.value,
+                };
 
-    fn _index_transaction_output(
-        &self,
-        state: &mut State,
-        txn_hash: &[u8],
-        out_ptr: model::OutPtr,
-        output: &types::VttOutput,
-        block: &model::BlockInfo,
-    ) -> Result<()> {
-        let pkh = output.pkh;
-        let amount = output.value;
-        let txn_id = state.transaction_next_id;
-        let old_balance = state.balance;
-        let mut batch = self.db.batch();
+                let out_ptr = model::OutPtr {
+                    txn_hash: Vec::from(txn_hash),
+                    output_index: index as u32,
+                };
 
-        if let Some(model::Path { account, .. }) = self.db.get_opt(&keys::pkh(&pkh))? {
-            let new_balance = old_balance
-                .checked_add(amount)
-                .ok_or_else(|| Error::BalanceOverflow)?;
-            let txn_next_id = txn_id
-                .checked_add(1)
-                .ok_or_else(|| Error::TransactionValueOverflow)?;
-            let mut db_utxo_set: model::UtxoSet = self
-                .db
-                .get(&keys::account_utxo_set(account))
-                .unwrap_or_default();
-            let address = pkh.bech32(if self.params.testnet {
-                Environment::Testnet1
-            } else {
-                Environment::Mainnet
-            });
-            let key_balance = model::KeyBalance { pkh, amount };
-
-            match db_utxo_set.insert(out_ptr.clone(), key_balance.clone()) {
-                None => {
-                    log::info!(
-                        "Found transaction to our address {}! Amount: +{} satowits",
-                        address,
-                        amount
-                    );
-                }
-                Some(x) => {
-                    if x != key_balance {
+                match db_utxo_set.insert(out_ptr.clone(), key_balance.clone()) {
+                    Some(_) => {
+                        log::warn!(
+                            "Found an already existing transaction to our address {}! Output pointer: {:?}",
+                            address,
+                            out_ptr
+                        );
+                    }
+                    _ => {
                         log::info!(
                             "Found transaction to our address {}! Amount: +{} satowits",
                             address,
-                            amount
+                            output.value
                         );
                     }
                 }
-            }
+                state.utxo_set.insert(out_ptr, key_balance);
 
-            batch.put(&keys::transaction_value(account, txn_id), amount)?;
-            batch.put(
-                keys::transaction_entry(account, txn_id),
-                model::TransactionEntry::Credit,
-            )?;
+                output_amount = output_amount
+                    .checked_add(output.value)
+                    .ok_or_else(|| Error::TransactionBalanceOverflow)?;
+            }
+        }
+
+        let txn_balance = (output_amount as i128)
+            .checked_sub(input_amount as i128)
+            .ok_or_else(|| Error::TransactionBalanceUnderflow)?;
+
+        let txn_balance =
+            i64::try_from(txn_balance).map_err(|_| Error::TransactionBalanceOverflow)?;
+
+        if txn_balance != 0 {
+            let new_balance = if txn_balance > 0 {
+                state
+                    .balance
+                    .checked_add(txn_balance.abs() as u64)
+                    .ok_or_else(|| Error::TransactionBalanceOverflow)?
+            } else {
+                state
+                    .balance
+                    .checked_sub(txn_balance.abs() as u64)
+                    .ok_or_else(|| Error::TransactionBalanceUnderflow)?
+            };
+
+            let txn_id = state.transaction_next_id;
+            let txn_next_id = txn_id
+                .checked_add(1)
+                .ok_or_else(|| Error::TransactionValueOverflow)?;
+
+            let mut batch = self.db.batch();
+
+            batch.put(&keys::transaction_value(account, txn_id), txn_balance)?;
             batch.put(
                 keys::transaction_type(account, txn_id),
                 model::TransactionType::ValueTransfer,
@@ -767,6 +670,7 @@ where
                 convert_block_epoch_to_timestamp(block.epoch),
             )?;
             batch.put(keys::transaction_block(account, txn_id), block)?;
+
             batch.put(keys::account_balance(account), new_balance)?;
             batch.put(keys::account_utxo_set(account), db_utxo_set)?;
             batch.put(keys::transaction_next_id(account), txn_next_id)?;
@@ -777,7 +681,6 @@ where
 
             state.transaction_next_id = txn_next_id;
             state.balance = new_balance;
-            state.utxo_set.insert(out_ptr, key_balance);
         }
 
         Ok(())

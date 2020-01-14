@@ -9,7 +9,7 @@ use crate::types;
 pub struct SendTransactionRequest {
     session_id: types::SessionId,
     wallet_id: String,
-    transaction_id: String,
+    transaction: types::Transaction,
 }
 
 impl Message for SendTransactionRequest {
@@ -20,6 +20,6 @@ impl Handler<SendTransactionRequest> for app::App {
     type Result = app::ResponseActFuture<serde_json::Value>;
 
     fn handle(&mut self, msg: SendTransactionRequest, _ctx: &mut Self::Context) -> Self::Result {
-        self.send_transaction(&msg.session_id, &msg.wallet_id, msg.transaction_id)
+        self.send_transaction(&msg.session_id, &msg.wallet_id, msg.transaction)
     }
 }

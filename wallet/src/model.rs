@@ -69,19 +69,14 @@ where
 #[derive(Debug, Serialize)]
 pub struct Transaction {
     pub hex_hash: String,
-    pub value: u64,
-    pub entry: TransactionEntry,
+    /// Transaction value from the wallet perspective: `value = own_outputs - own_inputs`
+    /// - A positive value means that the wallet received WITs from others.
+    /// - A negative value means that the wallet sent WITs to others.
+    pub value: i64,
     pub kind: TransactionType,
-    pub label: Option<String>,
     pub fee: Option<u64>,
     pub block: Option<BlockInfo>,
     pub timestamp: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum TransactionEntry {
-    Debit,
-    Credit,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

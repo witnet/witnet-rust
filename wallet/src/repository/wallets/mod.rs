@@ -102,7 +102,7 @@ impl<T: Database> Wallets<T> {
         batch.put(keys::wallet_id_salt(&id), &salt)?;
         batch.put(keys::wallet_id_iv(&id), &iv)?;
 
-        // // FIXME: Use merge operator or a transaction when available in rocksdb crate
+        // FIXME: Use merge operator or a transaction when available in rocksdb crate
         let wallet_id = id.to_string();
         let lock = self.wallets_mutex.lock()?;
         let mut ids: Vec<String> = self.db.get_or_default(&keys::wallet_ids())?;

@@ -526,28 +526,10 @@ impl App {
         &self,
         session_id: &types::SessionId,
         wallet_id: &str,
-        transaction_hash: String,
+        transaction: types::Transaction,
     ) -> ResponseActFuture<serde_json::Value> {
         let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::GetTransaction(wallet, transaction_hash))
-                    .flatten()
-                    .map_err(From::from)
-                    .into_actor(slf)
-                    .and_then(|opt_transaction, slf, _ctx| match opt_transaction {
-                        Some(txn) => slf.send_inventory_transaction(txn),
-                        None => {
-                            let f = fut::err(validation_error(field_error(
-                                "transactionId",
-                                "Transaction not found",
-                            )));
-
-                            Box::new(f)
-                        }
-                    })
-            },
+            move |_wallet, slf: &mut Self, _| slf.send_inventory_transaction(transaction),
         );
 
         Box::new(f)

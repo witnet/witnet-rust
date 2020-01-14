@@ -180,15 +180,6 @@ pub fn transaction_type(account_index: u32, transaction_id: u32) -> String {
     )
 }
 
-/// If a transaction belongs to the accounting entry of debit or credit.
-#[inline]
-pub fn transaction_entry(account_index: u32, transaction_id: u32) -> String {
-    format!(
-        "account-{}-transaction-{}-entry",
-        account_index, transaction_id
-    )
-}
-
 /// The block where a transaction is.
 #[inline]
 pub fn transaction_block(account_index: u32, transaction_id: u32) -> String {

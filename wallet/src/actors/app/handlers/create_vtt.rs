@@ -37,10 +37,9 @@ impl Handler<CreateVttRequest> for app::App {
         let testnet = self.params.testnet;
         let validated = validate(testnet, &msg.address).map_err(app::validation_error);
 
-        let f = fut::result(validated).and_then(|pkh, slf: &mut Self, _ctx| {
+        let f = fut::result(validated).and_then(move |pkh, slf: &mut Self, _ctx| {
             let params = types::VttParams {
                 pkh,
-                label: msg.label,
                 value: msg.amount,
                 fee: msg.fee,
                 time_lock: msg.time_lock,

@@ -110,7 +110,6 @@ pub struct CreateWalletData<'a> {
 
 pub struct VttParams {
     pub pkh: PublicKeyHash,
-    pub label: Option<String>,
     pub value: u64,
     pub fee: u64,
     pub time_lock: u64,
