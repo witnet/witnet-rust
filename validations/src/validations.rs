@@ -9,7 +9,7 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
-use witnet_data_structures::radon_error::{RadonError, RadonErrors};
+use witnet_data_structures::radon_error::RadonError;
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
@@ -35,7 +35,7 @@ use witnet_rad::{
     types::{serial_iter_decode, RadonTypes},
 };
 
-/// Calculate the sum of the values of the outputs pointed by the
+// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
 /// found in `pool`, then an error is returned instead indicating
 /// it. If a Signature is invalid an error is returned too
@@ -244,18 +244,20 @@ pub fn evaluate_tally_precondition_clause(
         return Err(RadError::NoReveals);
     }
 
+    // Count how many times is each RADON type featured in `reveals`, but count `RadonError` items
+    // separately as they need to be handled differently.
     let reveals_len = reveals.len() as f64;
-    let mut counter = Counter::new(RadonTypes::num_types());
+    let mut values_counter = Counter::new(RadonTypes::num_types());
+    let mut errors_counter = 0u32;
     for reveal in &reveals {
-        counter.increment(reveal.result.discriminant());
+        match reveal.result {
+            RadonTypes::RadonError(_) => errors_counter += 1,
+            _ => values_counter.increment(reveal.result.discriminant()),
+        }
     }
 
-    let error_ratio = counter.values
-        [RadonTypes::RadonError(RadonError::from(RadonErrors::default())).discriminant()]
-        as f64
-        / reveals_len;
-
-    if counter.max_pos.is_none() {
+    // Handle tie cases (there is the same amount of revealed values for multiple types)
+    if values_counter.max_pos.is_none() {
         return Err(RadError::ModeTie {
             values: RadonArray::from(
                 reveals
@@ -266,6 +268,13 @@ pub fn evaluate_tally_precondition_clause(
         });
     }
 
+    // Compute ratio of reveals that are errors
+    let error_ratio = errors_counter as f64 / reveals_len;
+
+    // If the ratio of errors is over the user-defined threshold, return the mode of the errors.
+    // Otherwise, return only non-error reveals, paired with a "liars" vector that positionally
+    // tells which of the input reveals were in consensus with the mode type (most frequent revealed
+    // type after discarding the errors).
     if error_ratio > non_error_min {
         let errors: Vec<RadonTypes> = reveals
             .into_iter()
@@ -289,7 +298,7 @@ pub fn evaluate_tally_precondition_clause(
             .into_iter()
             .filter_map(|reveal| {
                 let radon_types = reveal.into_inner();
-                let condition = counter.max_pos.unwrap() == radon_types.discriminant();
+                let condition = values_counter.max_pos.unwrap() == radon_types.discriminant();
                 update_liars(&mut liars, radon_types, condition)
             })
             .collect();
@@ -1423,10 +1432,10 @@ pub fn compare_blocks(
 
 #[cfg(test)]
 mod tests {
+    use witnet_data_structures::radon_error::{RadonError, RadonErrors};
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
 
     use super::*;
-    use witnet_data_structures::radon_error::{RadonError, RadonErrors};
 
     #[test]
     fn test_compare_block() {
