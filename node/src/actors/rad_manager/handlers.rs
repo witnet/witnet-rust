@@ -121,9 +121,13 @@ impl Handler<RunTally> for RadManager {
             // The reveals did not pass the precondition clause (a parametric majority of them were
             // errors). Tally will not be run, and the mode of the errors will be committed.
             Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
+                // Do not impose penalties on any of the revealers.
+                let mut metadata = TallyMetaData::default();
+                metadata.update_liars(vec![false; reports.len()]);
+
                 RadonReport::from_result(
                     Ok(RadonTypes::RadonError(errors_mode)),
-                    &ReportContext::from_stage(Stage::Tally(TallyMetaData::default())),
+                    &ReportContext::from_stage(Stage::Tally(metadata)),
                 )
             }
             // Failed to evaluate the precondition clause. `RadonReport::from_result()?` is the last
