@@ -18,7 +18,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     error::{BlockError, DataRequestError, TransactionError},
-    radon_error::RadonError,
+    radon_error::{RadonError, RadonErrors},
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
@@ -26,16 +26,15 @@ use witnet_data_structures::{
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
 };
-use witnet_rad::reducers::mode::mode;
-use witnet_rad::types::array::RadonArray;
 use witnet_rad::{
     error::RadError,
+    reducers::mode::mode,
     run_tally_report,
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
-    types::{serial_iter_decode, RadonTypes},
+    types::{array::RadonArray, serial_iter_decode, RadonTypes},
 };
 
-// Calculate the sum of the values of the outputs pointed by the
+/// Calculate the sum of the values of the outputs pointed by the
 /// inputs of a transaction. If an input pointed-output is not
 /// found in `pool`, then an error is returned instead indicating
 /// it. If a Signature is invalid an error is returned too
@@ -264,66 +263,74 @@ pub fn evaluate_tally_precondition_clause(
 
     // Count how many times is each RADON type featured in `reveals`, but count `RadonError` items
     // separately as they need to be handled differently.
-    let reveals_len = reveals.len();
-    let mut values_counter = Counter::new(RadonTypes::num_types());
-    let mut errors_counter = 0u32;
+    let reveals_len = reveals.len() as u32;
+    let mut counter = Counter::new(RadonTypes::num_types());
     for reveal in &reveals {
-        match reveal.result {
-            RadonTypes::RadonError(_) => errors_counter += 1,
-            _ => values_counter.increment(reveal.result.discriminant()),
-        }
+        counter.increment(reveal.result.discriminant());
     }
 
-    // Compute ratio of reveals that are errors
-    let error_ratio = errors_counter as f64 / reveals_len as f64;
+    // Compute ratio of type consensus amongst reveals (percentage of reveals that have same type
+    // as the frequent type).
+    let achieved_consensus = counter.max_val as f64 / reveals_len as f64;
 
-    // If the ratio of errors is over the user-defined threshold, return the mode of the errors.
-    // Otherwise, return only non-error reveals, paired with a "liars" vector that positionally
-    // tells which of the input reveals were in consensus with the mode type (most frequent revealed
-    // type after discarding the errors).
-    if error_ratio > non_error_min {
-        let errors: Vec<RadonTypes> = reveals
-            .into_iter()
-            .filter_map(|reveal| match reveal.into_inner() {
-                radon_types @ RadonTypes::RadonError(_) => Some(radon_types),
-                _ => None,
-            })
-            .collect();
+    // If the achieved consensus is over the user-defined threshold, continue.
+    // Otherwise, return `RadError::InsufficientConsensus`.
+    if achieved_consensus > non_error_min {
+        let error_type_discriminant =
+            RadonTypes::RadonError(RadonError::from(RadonErrors::default())).discriminant();
 
-        let errors_array = RadonArray::from(errors);
-
-        match mode(&errors_array)? {
-            RadonTypes::RadonError(errors_mode) => {
-                Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode })
-            }
-            _ => unreachable!("Mode of `RadonArray` containing only `RadonError`s cannot possibly be different from `RadonError`"),
-        }
-    } else {
-        // Handle tie cases (there is the same amount of revealed values for multiple types).
-        if values_counter.max_pos.is_none() {
-            return Err(RadError::ModeTie {
+        // Decide based on the most frequent type.
+        match counter.max_pos {
+            // Handle tie cases (there is the same amount of revealed values for multiple types).
+            None => Err(RadError::ModeTie {
                 values: RadonArray::from(
                     reveals
                         .into_iter()
                         .map(RadonReport::into_inner)
                         .collect::<Vec<RadonTypes>>(),
                 ),
-            });
+            }),
+            // Majority of errors, return errors mode.
+            Some(most_frequent_type) if most_frequent_type == error_type_discriminant => {
+                let errors: Vec<RadonTypes> = reveals
+                    .into_iter()
+                    .filter_map(|reveal| match reveal.into_inner() {
+                        radon_types @ RadonTypes::RadonError(_) => Some(radon_types),
+                        _ => None,
+                    })
+                    .collect();
+
+                let errors_array = RadonArray::from(errors);
+
+                match mode(&errors_array)? {
+                    RadonTypes::RadonError(errors_mode) => {
+                        Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode })
+                    }
+                    _ => unreachable!("Mode of `RadonArray` containing only `RadonError`s cannot possibly be different from `RadonError`"),
+                }
+            }
+            // Majority of values, compute and filter liars
+            Some(most_frequent_type) => {
+                let mut liars = vec![];
+                let results = reveals
+                    .into_iter()
+                    .filter_map(|reveal| {
+                        let radon_types = reveal.into_inner();
+                        let condition = most_frequent_type == radon_types.discriminant();
+                        update_liars(&mut liars, radon_types, condition)
+                    })
+                    .collect();
+
+                Ok(TallyPreconditionClauseResult::MajorityOfValues {
+                    values: results,
+                    liars,
+                })
+            }
         }
-
-        let mut liars = vec![];
-        let results = reveals
-            .into_iter()
-            .filter_map(|reveal| {
-                let radon_types = reveal.into_inner();
-                let condition = values_counter.max_pos.unwrap() == radon_types.discriminant();
-                update_liars(&mut liars, radon_types, condition)
-            })
-            .collect();
-
-        Ok(TallyPreconditionClauseResult::MajorityOfValues {
-            values: results,
-            liars,
+    } else {
+        Err(RadError::InsufficientConsensus {
+            achieved: achieved_consensus,
+            required: non_error_min,
         })
     }
 }
@@ -1626,7 +1633,7 @@ mod tests {
             rad_rep_float,
         ];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.70).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
             tally_precondition_clause_result
@@ -1647,7 +1654,7 @@ mod tests {
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.99).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
             tally_precondition_clause_result
@@ -1676,7 +1683,7 @@ mod tests {
             rad_rep_int,
         ];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.70).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
             tally_precondition_clause_result
@@ -1707,7 +1714,7 @@ mod tests {
             rad_rep_int,
         ];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.70).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -1734,7 +1741,7 @@ mod tests {
             rad_rep_int,
         ];
 
-        let out = evaluate_tally_precondition_clause(v.clone(), 0.51).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v.clone(), 0.49).unwrap_err();
 
         assert_eq!(
             out,
@@ -1758,7 +1765,7 @@ mod tests {
         let rad_rep_float =
             RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
         let rad_rep_err = RadonReport::from_result(
-            Ok(RadonTypes::RadonError(rad_err)),
+            Ok(RadonTypes::RadonError(rad_err.clone())),
             &ReportContext::default(),
         )
         .unwrap();
@@ -1766,25 +1773,23 @@ mod tests {
         let v = vec![
             rad_rep_err.clone(),
             rad_rep_err.clone(),
-            rad_rep_err,
+            rad_rep_err.clone(),
             rad_rep_float.clone(),
             rad_rep_int.clone(),
             rad_rep_float,
             rad_rep_int,
         ];
 
-        let out = evaluate_tally_precondition_clause(v.clone(), 0.51).unwrap_err();
+        let tally_precondition_clause_result =
+            evaluate_tally_precondition_clause(v.clone(), 0.40).unwrap();
 
-        assert_eq!(
-            out,
-            RadError::ModeTie {
-                values: RadonArray::from(
-                    v.into_iter()
-                        .map(RadonReport::into_inner)
-                        .collect::<Vec<RadonTypes>>()
-                )
-            }
-        );
+        if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
+            tally_precondition_clause_result
+        {
+            assert_eq!(errors_mode, rad_err);
+        } else {
+            panic!("The result of the tally precondition clause was not `MajorityOfErrors`. It was: {:?}", tally_precondition_clause_result);
+        }
     }
 
     #[test]
@@ -1821,5 +1826,32 @@ mod tests {
         } else {
             panic!("The result of the tally precondition clause was not `MajorityOfErrors`. It was: {:?}", tally_precondition_clause_result);
         }
+    }
+
+    #[test]
+    fn test_tally_precondition_clause_insufficient_consensus() {
+        let rad_int = RadonTypes::Integer(RadonInteger::from(1));
+        let rad_float = RadonTypes::Float(RadonFloat::from(1));
+
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
+        let rad_rep_float =
+            RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
+
+        let v = vec![
+            rad_rep_float.clone(),
+            rad_rep_int.clone(),
+            rad_rep_float,
+            rad_rep_int,
+        ];
+
+        let out = evaluate_tally_precondition_clause(v.clone(), 0.51).unwrap_err();
+
+        assert_eq!(
+            out,
+            RadError::InsufficientConsensus {
+                achieved: 0.5,
+                required: 0.51
+            }
+        );
     }
 }

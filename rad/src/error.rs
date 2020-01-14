@@ -247,6 +247,12 @@ pub enum RadError {
     /// No reveals received
     #[fail(display = "No reveals received")]
     NoReveals,
+    /// Insufficient consensus in tally precondition clause
+    #[fail(
+        display = "Tally precondition clause failed because of insufficient consensus (achieved: {}, required: {})",
+        achieved, required
+    )]
+    InsufficientConsensus { achieved: f64, required: f64 },
 }
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and
