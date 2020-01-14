@@ -152,7 +152,7 @@ impl RadonTypes {
 impl TypeLike for RadonTypes {
     type Error = RadError;
 
-    // FIXME(953)
+    // FIXME(953): Unify all CBOR libraries
     fn encode(&self) -> Result<Vec<u8>, Self::Error> {
         Vec::<u8>::try_from(self)
     }
@@ -187,7 +187,7 @@ impl PartialEq for RadonTypes {
 }
 
 impl std::hash::Hash for RadonTypes {
-    // FIXME(953)
+    // FIXME(953): Unify all CBOR libraries
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.encode().map(|vec| vec.hash(state)).unwrap();
     }
@@ -259,7 +259,7 @@ impl From<RadonString> for RadonTypes {
 impl TryFrom<Value> for RadonTypes {
     type Error = RadError;
 
-    // FIXME(953)
+    // FIXME(953): Unify all CBOR libraries
     fn try_from(value: Value) -> Result<RadonTypes, Self::Error> {
         match value {
             Value::Array(_) => RadonArray::try_from(value).map(Into::into),
@@ -284,7 +284,7 @@ impl TryFrom<Value> for RadonTypes {
 impl TryFrom<RadonTypes> for Value {
     type Error = RadError;
 
-    // FIXME(953)
+    // FIXME(953): Unify all CBOR libraries
     fn try_from(input: RadonTypes) -> Result<Self, Self::Error> {
         match input {
             RadonTypes::Array(radon_array) => radon_array.try_into(),
@@ -319,7 +319,7 @@ impl TryFrom<&[u8]> for RadonTypes {
 impl TryFrom<&RadonTypes> for Vec<u8> {
     type Error = RadError;
 
-    // FIXME(953)
+    // FIXME(953): Unify all CBOR libraries
     fn try_from(
         radon_types: &RadonTypes,
     ) -> Result<Vec<u8>, <Vec<u8> as TryFrom<&RadonTypes>>::Error> {

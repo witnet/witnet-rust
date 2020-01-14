@@ -9,7 +9,6 @@ use witnet_crypto::{
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::verify,
 };
-use witnet_data_structures::radon_error::RadonError;
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
@@ -19,6 +18,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     error::{BlockError, DataRequestError, TransactionError},
+    radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,

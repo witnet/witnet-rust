@@ -1,5 +1,8 @@
 //! # RAD Engine
 
+pub use serde_cbor::to_vec as cbor_to_vec;
+pub use serde_cbor::Value as CborValue;
+
 use witnet_data_structures::{
     chain::{RADAggregate, RADRetrieve, RADTally, RADType},
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
@@ -7,13 +10,11 @@ use witnet_data_structures::{
 
 use crate::{
     error::RadError,
-    script::create_radon_script_from_filters_and_reducer,
-    script::{execute_radon_script, unpack_radon_script},
+    script::{
+        create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
+    },
     types::{array::RadonArray, string::RadonString, RadonTypes},
 };
-
-pub use serde_cbor::to_vec as cbor_to_vec;
-pub use serde_cbor::Value as CborValue;
 
 pub mod error;
 pub mod filters;
@@ -158,16 +159,21 @@ pub fn run_tally(radon_types_vec: Vec<RadonTypes>, consensus: &RADTally) -> Resu
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use serde_cbor::Value;
+
+    use witnet_data_structures::{
+        chain::RADFilter,
+        radon_error::{RadonError, RadonErrors},
+    };
+
     use crate::{
         filters::RadonFilters,
         operators::RadonOpCodes,
         reducers::RadonReducers,
         types::{float::RadonFloat, integer::RadonInteger},
     };
-    use serde_cbor::Value;
-    use witnet_data_structures::chain::RADFilter;
-    use witnet_data_structures::radon_error::{RadonError, RadonErrors};
+
+    use super::*;
 
     #[test]
     fn test_run_retrieval() {
