@@ -6,7 +6,7 @@ use actix::{
     SystemService, WrapFuture,
 };
 use futures::future;
-use log::{debug, error, info, warn};
+use log;
 
 use witnet_data_structures::{
     builders::from_address,
@@ -55,7 +55,7 @@ impl Handler<EpochNotification<EpochPayload>> for ChainManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
-        debug!("Epoch notification received {:?}", msg.checkpoint);
+        log::debug!("Epoch notification received {:?}", msg.checkpoint);
     }
 }
 
@@ -64,7 +64,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for Session {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
-        debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        log::debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         self.current_epoch = msg.checkpoint;
 
         let now = get_timestamp();
@@ -73,7 +73,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for Session {
             let chain_manager_addr = ChainManager::from_registry();
 
             chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
-            warn!("Timeout for waiting blocks achieved");
+            log::warn!("Timeout for waiting blocks achieved");
             ctx.stop();
         }
     }
@@ -85,16 +85,17 @@ impl StreamHandler<BytesMut, Error> for Session {
     fn handle(&mut self, bytes: BytesMut, ctx: &mut Self::Context) {
         let result = WitnetMessage::from_pb_bytes(&bytes);
         match result {
-            Err(err) => error!("Error decoding message: {:?}", err),
+            Err(err) => log::error!("Error decoding message: {:?}", err),
             Ok(msg) => {
                 self.log_received_message(&msg, &bytes);
 
                 // Consensus constants validation between nodes
                 if msg.magic != self.magic_number {
-                    error!(
+                    log::error!(
                         "Mismatching consensus constants. \
                          Magic number received: {}, Ours: {}",
-                        msg.magic, self.magic_number
+                        msg.magic,
+                        self.magic_number
                     );
 
                     // Stop this session
@@ -171,7 +172,7 @@ impl StreamHandler<BytesMut, Error> for Session {
 
                         future::join_all(item_requests)
                             .into_actor(self)
-                            .map_err(|e, _, _| error!("Inventory request error: {}", e))
+                            .map_err(|e, _, _| log::error!("Inventory request error: {}", e))
                             .and_then(move |item_responses, session, _| {
                                 for (i, item_response) in item_responses.into_iter().enumerate() {
                                     match item_response {
@@ -180,15 +181,17 @@ impl StreamHandler<BytesMut, Error> for Session {
                                             // Failed to retrieve item from inventory manager
                                             match inventory[i] {
                                                 InventoryEntry::Block(hash) => {
-                                                    warn!(
+                                                    log::warn!(
                                                         "Inventory request: {}: block {}",
-                                                        e, hash
+                                                        e,
+                                                        hash
                                                     );
                                                 }
                                                 InventoryEntry::Tx(hash) => {
-                                                    warn!(
+                                                    log::warn!(
                                                         "Inventory request: {}: transaction {}",
-                                                        e, hash
+                                                        e,
+                                                        hash
                                                     );
                                                 }
                                             }
@@ -251,10 +254,12 @@ impl StreamHandler<BytesMut, Error> for Session {
                     // NOT SUPPORTED   //
                     /////////////////////
                     (session_type, session_status, msg_type) => {
-                        warn!(
+                        log::warn!(
                             "Message of type {} for session (type: {:?}, status: {:?}) is \
                              not supported",
-                            msg_type, session_type, session_status
+                            msg_type,
+                            session_type,
+                            session_status
                         );
                     }
                 };
@@ -268,7 +273,7 @@ impl Handler<SendGetPeers> for Session {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, _msg: SendGetPeers, _: &mut Context<Self>) {
-        debug!("Sending GetPeers message to peer at {:?}", self.remote_addr);
+        log::trace!("Sending GetPeers message to peer at {:?}", self.remote_addr);
         // Create get peers message
         let get_peers_msg = WitnetMessage::build_get_peers(self.magic_number);
         // Write get peers message in session
@@ -281,7 +286,7 @@ impl Handler<SendInventoryAnnouncement> for Session {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: SendInventoryAnnouncement, _: &mut Context<Self>) {
-        debug!(
+        log::trace!(
             "Sending AnnounceItems message to peer at {:?}",
             self.remote_addr
         );
@@ -300,7 +305,7 @@ impl Handler<SendInventoryItem> for Session {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, msg: SendInventoryItem, _: &mut Context<Self>) {
-        debug!(
+        log::trace!(
             "Sending SendInventoryItem message to peer at {:?}",
             self.remote_addr
         );
@@ -312,7 +317,7 @@ impl Handler<SendLastBeacon> for Session {
     type Result = SessionUnitResult;
 
     fn handle(&mut self, SendLastBeacon { beacon }: SendLastBeacon, _ctx: &mut Context<Self>) {
-        debug!("Sending LastBeacon to peer at {:?}", self.remote_addr);
+        log::trace!("Sending LastBeacon to peer at {:?}", self.remote_addr);
         send_last_beacon(self, beacon);
     }
 }
@@ -380,7 +385,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
             .then(|res, act, ctx| {
                 match res {
                     Ok(Ok(_)) => {
-                        debug!(
+                        log::debug!(
                             "Successfully consolidated session {:?} in SessionManager",
                             act.remote_addr
                         );
@@ -390,7 +395,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                         actix::fut::ok(())
                     }
                     _ => {
-                        warn!(
+                        log::warn!(
                             "Failed to consolidate session {:?} in SessionManager",
                             act.remote_addr
                         );
@@ -423,7 +428,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
         .then(|res, act, ctx| {
             match res {
                 Ok(Ok(addresses)) => {
-                    debug!(
+                    log::debug!(
                         "Received {} peer addresses from PeersManager",
                         addresses.len()
                     );
@@ -431,7 +436,7 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
                     act.send_message(peers_msg);
                 }
                 _ => {
-                    warn!("Failed to receive peer addresses from PeersManager");
+                    log::warn!("Failed to receive peer addresses from PeersManager");
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();
@@ -466,7 +471,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
     let block_hash = block.hash();
 
     if block_epoch == session.current_epoch {
-        debug!("Send Candidate");
+        log::debug!("Send Candidate");
         // Send a message to the ChainManager to try to add a new candidate
         chain_manager_addr.do_send(AddCandidates {
             blocks: vec![block.clone()],
@@ -477,7 +482,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
     if session.requested_block_hashes.contains(&block_hash) {
         session.requested_blocks.insert(block_hash, block);
     } else if block_epoch != session.current_epoch {
-        error!("Unexpected not requested block: {}", block_hash);
+        log::error!("Unexpected not requested block: {}", block_hash);
     }
 
     if session.requested_blocks.len() == session.requested_block_hashes.len() {
@@ -493,7 +498,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
                 // blocks, send a empty message to the ChainManager and close the session
                 blocks_vector.clear();
                 chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
-                warn!("Unexpected missing block: {}", hash);
+                log::warn!("Unexpected missing block: {}", hash);
             }
         }
 
@@ -550,7 +555,7 @@ fn handshake_verack(session: &mut Session) {
     let flags = &mut session.handshake_flags;
 
     if flags.verack_rx {
-        debug!("Verack message already received");
+        log::debug!("Verack message already received");
     }
 
     // Set verack_rx flag
@@ -562,7 +567,7 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
     let flags = &mut session.handshake_flags;
 
     if flags.version_rx {
-        debug!("Version message already received");
+        log::debug!("Version message already received");
     }
 
     // Placeholder for version fields verification
@@ -634,13 +639,14 @@ fn session_last_beacon_inbound(
                 Ok(Ok(chain_beacon)) => {
                     match received_checkpoint.cmp(&chain_beacon.checkpoint) {
                         Ordering::Greater => {
-                            warn!(
+                            log::warn!(
                                 "Received a checkpoint beacon that is ahead of ours ({} > {})",
-                                received_checkpoint, chain_beacon.checkpoint
+                                received_checkpoint,
+                                chain_beacon.checkpoint
                             );
                         }
                         Ordering::Equal => {
-                            info!("Our chain is on par with our peer's",);
+                            log::info!("Our chain is on par with our peer's",);
                         }
                         Ordering::Less => {
                             let range = received_checkpoint..=chain_beacon.checkpoint;
@@ -670,7 +676,7 @@ fn session_last_beacon_inbound(
                                         actix::fut::ok(())
                                     }
                                     _ => {
-                                        error!("LastBeacon::EpochRange didn't succeeded");
+                                        log::error!("LastBeacon::EpochRange didn't succeeded");
 
                                         actix::fut::err(())
                                     }
@@ -682,7 +688,7 @@ fn session_last_beacon_inbound(
                     actix::fut::ok(())
                 }
                 _ => {
-                    warn!("Failed to get highest checkpoint beacon from ChainManager");
+                    log::warn!("Failed to get highest checkpoint beacon from ChainManager");
                     // FIXME(#72): a full stop of the session is not correct (unregister should
                     // be skipped)
                     ctx.stop();

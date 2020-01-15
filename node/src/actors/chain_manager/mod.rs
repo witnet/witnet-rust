@@ -461,7 +461,7 @@ impl ChainManager {
         msg: AddTransaction,
         timestamp_now: i64,
     ) -> Result<(), failure::Error> {
-        log::debug!(
+        log::trace!(
             "AddTransaction received while StateMachine is in state {:?}",
             self.sm_state
         );
@@ -476,7 +476,7 @@ impl ChainManager {
         match self.transactions_pool.contains(&msg.transaction) {
             Ok(false) => {}
             Ok(true) => {
-                log::debug!(
+                log::trace!(
                     "Transaction is already in the pool: {}",
                     msg.transaction.hash()
                 );
@@ -531,7 +531,7 @@ impl ChainManager {
 
                     // Add valid transaction to transactions_pool
                     self.transactions_pool.insert(msg.transaction);
-                    log::debug!("Transaction added successfully");
+                    log::trace!("Transaction added successfully");
 
                     Ok(())
                 }

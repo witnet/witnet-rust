@@ -9,7 +9,7 @@ use actix::{
     Message, StreamHandler, SystemService, WrapFuture,
 };
 use ansi_term::Color::Cyan;
-use log::{debug, error, info, trace, warn};
+use log;
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use super::{NotSendingPeersBeaconsBecause, SessionsManager};
@@ -91,13 +91,16 @@ impl Handler<Register> for SessionsManager {
             .register_session(msg.session_type, msg.address, msg.actor);
 
         match &result {
-            Ok(_) => debug!(
+            Ok(_) => log::debug!(
                 "Session (type {:?}) registered for peer {}",
-                msg.session_type, msg.address
+                msg.session_type,
+                msg.address
             ),
-            Err(error) => error!(
+            Err(error) => log::error!(
                 "Error while registering peer {} (session type {:?}): {}",
-                msg.address, msg.session_type, error
+                msg.address,
+                msg.session_type,
+                error
             ),
         }
 
@@ -121,13 +124,16 @@ impl Handler<Unregister> for SessionsManager {
                     .unregister_session(msg.session_type, msg.status, msg.address);
 
             match &result {
-                Ok(_) => debug!(
+                Ok(_) => log::debug!(
                     "Session (type {:?}) unregistered for peer {}",
-                    msg.session_type, msg.address
+                    msg.session_type,
+                    msg.address
                 ),
-                Err(error) => error!(
+                Err(error) => log::error!(
                     "Error while unregistering peer {} (session type {:?}): {}",
-                    msg.address, msg.session_type, error
+                    msg.address,
+                    msg.session_type,
+                    error
                 ),
             }
 
@@ -165,13 +171,16 @@ impl Handler<Consolidate> for SessionsManager {
         }
 
         match &result {
-            Ok(_) => debug!(
+            Ok(_) => log::debug!(
                 "Established a consolidated {:?} session with the peer at {}",
-                msg.session_type, msg.address
+                msg.session_type,
+                msg.address
             ),
-            Err(error) => error!(
+            Err(error) => log::error!(
                 "Error while consolidating {:?} session with the peer at {}: {:?}",
-                msg.session_type, msg.address, error
+                msg.session_type,
+                msg.address,
+                error
             ),
         }
 
@@ -189,7 +198,7 @@ where
     type Result = ();
 
     fn handle(&mut self, msg: Anycast<T>, ctx: &mut Context<Self>) {
-        debug!(
+        log::trace!(
             "An Anycast<{}> message is now being forwarded to a random session",
             msg.command
         );
@@ -214,7 +223,7 @@ where
                     .wait(ctx);
             })
             .unwrap_or_else(|| {
-                warn!("No consolidated outbound session was found");
+                log::warn!("No consolidated outbound session was found");
             });
     }
 }
@@ -229,7 +238,7 @@ where
     type Result = ();
 
     fn handle(&mut self, msg: Broadcast<T>, _ctx: &mut Context<Self>) {
-        debug!(
+        log::trace!(
             "A Broadcast<{}> message is now being forwarded to all sessions",
             msg.command
         );
@@ -256,7 +265,7 @@ impl Handler<EpochNotification<()>> for SessionsManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<()>, ctx: &mut Context<Self>) {
-        info!(
+        log::info!(
             "{} Inbound: {} | Outbound: {}",
             Cyan.bold().paint("[Sessions]"),
             Cyan.bold()
@@ -264,7 +273,7 @@ impl Handler<EpochNotification<()>> for SessionsManager {
             Cyan.bold()
                 .paint(self.sessions.get_num_outbound_sessions().to_string())
         );
-        trace!("{:#?}", self.sessions.show_ips());
+        log::trace!("{:#?}", self.sessions.show_ips());
 
         self.current_epoch = msg.checkpoint;
 
@@ -273,7 +282,7 @@ impl Handler<EpochNotification<()>> for SessionsManager {
         match self.try_send_peers_beacons(ctx) {
             Ok(()) => {}
             Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) => {}
-            Err(e) => debug!("{}", e),
+            Err(e) => log::debug!("{}", e),
         }
 
         // Set timeout for receiving beacons
@@ -289,9 +298,9 @@ impl Handler<EpochNotification<()>> for SessionsManager {
             let timestamp_now = get_timestamp();
             let delay = timestamp_now - timestamp_mining;
             if delay < 0 {
-                error!("Time went backwards");
+                log::error!("Time went backwards");
             } else {
-                warn!(
+                log::warn!(
                     "Block mining was supposed to happen {} {} ago, but it will happen now",
                     delay,
                     if delay == 1 { "second" } else { "seconds" }
@@ -326,14 +335,14 @@ impl Handler<PeerBeacon> for SessionsManager {
 
     fn handle(&mut self, msg: PeerBeacon, ctx: &mut Context<Self>) {
         if !self.beacons.insert(msg.address, msg.beacon) {
-            debug!("Unexpected beacon from {}", msg.address);
+            log::debug!("Unexpected beacon from {}", msg.address);
         }
 
         // Check if we have all the beacons, and sent PeersBeacons message to ChainManager
         match self.try_send_peers_beacons(ctx) {
             Ok(()) => {}
             Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) => {}
-            Err(e) => debug!("{}", e),
+            Err(e) => log::debug!("{}", e),
         }
     }
 }
