@@ -106,7 +106,6 @@ impl Handler<ResolveRA> for RadManager {
 impl Handler<RunTally> for RadManager {
     type Result = <RunTally as Message>::Result;
 
-    // TODO: replace the body of this handler with a simple call to `validations::validate_consensus`
     fn handle(&mut self, msg: RunTally, _ctx: &mut Self::Context) -> Self::Result {
         let packed_script = msg.script;
         let reports = msg.reports;
