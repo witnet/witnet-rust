@@ -332,7 +332,7 @@ impl TryFrom<RadError> for RadonError<RadError> {
             RadError::HttpStatus { status_code } => Ok(RadonError::new(
                 RadonErrors::HTTPError,
                 Some(rad_error),
-                vec![CborValue::U8(status_code as u8)],
+                vec![CborValue::U16(status_code)],
             )),
             RadError::NoReveals => Ok(RadonError::new(
                 RadonErrors::NoReveals,
