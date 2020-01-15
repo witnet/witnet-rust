@@ -377,7 +377,8 @@ impl Handler<AddTransaction> for ChainManager {
     type Result = Result<(), failure::Error>;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) -> Self::Result {
-        self.add_transaction(msg)
+        let timestamp_now = get_timestamp();
+        self.add_transaction(msg, timestamp_now)
     }
 }
 

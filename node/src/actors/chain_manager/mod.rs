@@ -95,6 +95,9 @@ pub enum ChainManagerError {
     /// The node is not in Synced state
     #[fail(display = "The node is not yet synchronized")]
     NotSynced,
+    /// The node is trying to mine a block so commits are not allowed
+    #[fail(display = "Commit received while node is trying to mine a block")]
+    TooLateToCommit,
 }
 
 /// State Machine
@@ -453,7 +456,11 @@ impl ChainManager {
             .highest_block_checkpoint
     }
 
-    fn add_transaction(&mut self, msg: AddTransaction) -> Result<(), failure::Error> {
+    fn add_transaction(
+        &mut self,
+        msg: AddTransaction,
+        timestamp_now: i64,
+    ) -> Result<(), failure::Error> {
         log::debug!(
             "AddTransaction received while StateMachine is in state {:?}",
             self.sm_state
@@ -494,6 +501,18 @@ impl ChainManager {
             self.epoch_constants,
             self.vrf_ctx.as_mut(),
         ) {
+            if let Transaction::Commit(_commit) = &msg.transaction {
+                let timestamp_mining = epoch_constants
+                    .block_mining_timestamp(current_epoch)
+                    .unwrap();
+
+                if timestamp_now > timestamp_mining {
+                    let e = ChainManagerError::TooLateToCommit;
+                    log::debug!("{}", e);
+                    return Err(e.into());
+                }
+            }
+
             match validate_new_transaction(
                 msg.transaction.clone(),
                 (
@@ -908,7 +927,7 @@ mod tests {
         cm.current_epoch = Some(0);
         cm.epoch_constants = Some(EpochConstants {
             checkpoint_zero_timestamp: 0,
-            checkpoints_period: 1,
+            checkpoints_period: 30,
         });
         cm.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
         cm.chain_state.chain_info = Some(ChainInfo {
@@ -942,13 +961,31 @@ mod tests {
         };
 
         assert_eq!(
-            cm.add_transaction(msg)
+            cm.add_transaction(msg, 0)
                 .unwrap_err()
                 .downcast::<TransactionError>()
                 .unwrap(),
             TransactionError::DataRequestNotFound {
                 hash: Default::default(),
             }
+        );
+    }
+
+    #[test]
+    fn add_commit_late() {
+        let mut cm = empty_chain_manager();
+        let commit = CommitTransaction::default();
+
+        let msg = AddTransaction {
+            transaction: Transaction::Commit(commit),
+        };
+
+        assert_eq!(
+            cm.add_transaction(msg, 20)
+                .unwrap_err()
+                .downcast::<ChainManagerError>()
+                .unwrap(),
+            ChainManagerError::TooLateToCommit,
         );
     }
 
@@ -963,7 +1000,7 @@ mod tests {
         };
 
         assert_eq!(
-            cm.add_transaction(msg)
+            cm.add_transaction(msg, 0)
                 .unwrap_err()
                 .downcast::<TransactionError>()
                 .unwrap(),
@@ -982,7 +1019,7 @@ mod tests {
         };
 
         assert_eq!(
-            cm.add_transaction(msg)
+            cm.add_transaction(msg, 0)
                 .unwrap_err()
                 .downcast::<TransactionError>()
                 .unwrap(),
@@ -999,7 +1036,7 @@ mod tests {
         };
 
         assert_eq!(
-            cm.add_transaction(msg)
+            cm.add_transaction(msg, 0)
                 .unwrap_err()
                 .downcast::<TransactionError>()
                 .unwrap(),
