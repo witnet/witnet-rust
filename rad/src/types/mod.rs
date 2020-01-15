@@ -352,11 +352,14 @@ impl TryFrom<&CborValue> for RadonTypes {
             // If the tag is 39, we try to decode the value as `RadonTypes::RadonError`, otherwise
             // we ignore the tag, unbox the tagged value and decode it through recurrently calling
             // this same function.
-            CborValue::Tagged(tag, boxed) => match (tag, std::boxed::Box::leak(boxed.clone())) {
+            CborValue::Tagged(tag, boxed) => match (tag, boxed) {
                 (cbor::types::Tag::Unassigned(39), other) => {
-                    RadonTypes::try_error_from_cbor_value(other)
+                    RadonTypes::try_error_from_cbor_value(&*other)
                 }
-                (_, other) => RadonTypes::try_from(&*other),
+                (_, other) => {
+                    let unboxed: &CborValue = &*other;
+                    RadonTypes::try_from(unboxed)
+                }
             },
             // Booleans, numbers, strings and bytes are all converted easily.
             CborValue::Bool(x) => Ok(RadonTypes::Boolean(RadonBoolean::from(*x))),
