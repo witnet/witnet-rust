@@ -275,7 +275,7 @@ pub fn evaluate_tally_precondition_clause(
 
     // If the achieved consensus is over the user-defined threshold, continue.
     // Otherwise, return `RadError::InsufficientConsensus`.
-    if achieved_consensus > minimum_consensus {
+    if achieved_consensus >= minimum_consensus {
         let error_type_discriminant =
             RadonTypes::RadonError(RadonError::from(RadonErrors::default())).discriminant();
 
