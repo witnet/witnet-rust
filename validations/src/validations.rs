@@ -1806,15 +1806,14 @@ mod tests {
         let v = vec![
             rad_rep_err.clone(),
             rad_rep_err.clone(),
-            rad_rep_err.clone(),
+            rad_rep_err,
             rad_rep_float.clone(),
             rad_rep_int.clone(),
             rad_rep_float,
             rad_rep_int,
         ];
 
-        let tally_precondition_clause_result =
-            evaluate_tally_precondition_clause(v.clone(), 0.40).unwrap();
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.40).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -1877,7 +1876,7 @@ mod tests {
             rad_rep_int,
         ];
 
-        let out = evaluate_tally_precondition_clause(v.clone(), 0.51).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
 
         assert_eq!(
             out,
