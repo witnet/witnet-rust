@@ -254,7 +254,7 @@ pub enum TallyPreconditionClauseResult {
 /// an error, which has clear consequences in regards to consensus, rewards and punishments.
 pub fn evaluate_tally_precondition_clause(
     reveals: Vec<RadonReport<RadonTypes>>,
-    non_error_min: f64,
+    minimum_consensus: f64,
 ) -> Result<TallyPreconditionClauseResult, RadError> {
     // Short-circuit if there were no reveals
     if reveals.is_empty() {
@@ -275,7 +275,7 @@ pub fn evaluate_tally_precondition_clause(
 
     // If the achieved consensus is over the user-defined threshold, continue.
     // Otherwise, return `RadError::InsufficientConsensus`.
-    if achieved_consensus > non_error_min {
+    if achieved_consensus > minimum_consensus {
         let error_type_discriminant =
             RadonTypes::RadonError(RadonError::from(RadonErrors::default())).discriminant();
 
@@ -330,7 +330,7 @@ pub fn evaluate_tally_precondition_clause(
     } else {
         Err(RadError::InsufficientConsensus {
             achieved: achieved_consensus,
-            required: non_error_min,
+            required: minimum_consensus,
         })
     }
 }
