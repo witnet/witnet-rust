@@ -1679,6 +1679,27 @@ mod tests {
     }
 
     #[test]
+    fn test_tally_precondition_clause_exact_consensus() {
+        let rad_int = RadonTypes::Integer(RadonInteger::from(1));
+
+        let rad_rep_int =
+            RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default()).unwrap();
+
+        let v = vec![rad_rep_int.clone(), rad_rep_int];
+
+        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 1.).unwrap();
+
+        if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
+            tally_precondition_clause_result
+        {
+            assert_eq!(values, vec![rad_int.clone(), rad_int]);
+            assert_eq!(liars, vec![false, false]);
+        } else {
+            panic!("The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}", tally_precondition_clause_result);
+        }
+    }
+
+    #[test]
     fn test_tally_precondition_clause_3_ints_vs_1_error() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_err = RadError::HttpStatus { status_code: 404 };
