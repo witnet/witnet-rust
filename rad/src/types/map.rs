@@ -1,4 +1,3 @@
-use serde::Serialize;
 use serde_cbor::value::{from_value, to_value, Value};
 use std::{
     collections::{btree_map::BTreeMap, HashMap},
@@ -16,7 +15,7 @@ use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_MAP_TYPE_NAME: &str = "RadonMap";
 
-#[derive(Clone, Debug, PartialEq, Serialize, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct RadonMap {
     value: HashMap<String, RadonTypes>,
 }

@@ -3,7 +3,7 @@ use std::{convert::TryFrom, io::Cursor};
 use cbor::{types::Tag, value::Value, GenericEncoder};
 use failure::Fail;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 
 #[derive(Clone, Copy, Debug, Eq, IntoPrimitive, PartialEq, Serialize, TryFromPrimitive)]
 #[repr(u8)]
@@ -85,18 +85,6 @@ where
     /// Allow CBOR encoding of `RadonError` structures.
     pub fn encode(&self) -> Result<Vec<u8>, IE> {
         Vec::<u8>::try_from((*self).clone())
-    }
-}
-
-impl<IE> Serialize for RadonError<IE>
-where
-    IE: ErrorLike,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.kind.serialize(serializer)
     }
 }
 

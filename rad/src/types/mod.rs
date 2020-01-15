@@ -5,7 +5,6 @@ use std::{
 };
 
 use cbor::value::Value as CborValue;
-use serde::Serialize;
 use serde_cbor::{to_vec, Value};
 
 use witnet_crypto::hash::calculate_sha256;
@@ -42,7 +41,7 @@ where
     fn radon_type_name() -> String;
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug)]
 pub enum RadonTypes {
     Array(RadonArray),
     Boolean(RadonBoolean),

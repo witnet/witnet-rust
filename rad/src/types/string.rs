@@ -3,7 +3,6 @@ use std::{
     fmt,
 };
 
-use serde::Serialize;
 use serde_cbor::value::{from_value, Value};
 
 use crate::{
@@ -16,7 +15,7 @@ use witnet_data_structures::radon_report::ReportContext;
 
 pub const RADON_STRING_TYPE_NAME: &str = "RadonString";
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq, Serialize, Default)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq, Default)]
 pub struct RadonString {
     value: String,
 }

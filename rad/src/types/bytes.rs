@@ -4,7 +4,6 @@ use crate::{
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };
-use serde::{Serialize, Serializer};
 use serde_cbor::value::Value;
 use std::{
     convert::{TryFrom, TryInto},
@@ -22,15 +21,6 @@ pub struct RadonBytes {
 impl Default for RadonBytes {
     fn default() -> Self {
         Self { value: vec![] }
-    }
-}
-
-impl Serialize for RadonBytes {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.value().serialize(serializer)
     }
 }
 
