@@ -148,7 +148,7 @@ impl TypeLike for RadonTypes {
 
     // FIXME(953): Unify all CBOR libraries
     fn encode(&self) -> Result<Vec<u8>, Self::Error> {
-        Vec::<u8>::try_from(self)
+        Vec::<u8>::try_from((*self).clone())
     }
 
     /// Eases interception of RADON errors (errors that we want to commit, reveal and tally) so
@@ -307,19 +307,19 @@ impl TryFrom<&[u8]> for RadonTypes {
 
         let cbor_value = decoder.value()?;
 
-        RadonTypes::try_from(&cbor_value)
+        RadonTypes::try_from(cbor_value)
     }
 }
 
 /// Allow CBOR encoding of any variant of `RadonTypes`.
-impl TryFrom<&RadonTypes> for Vec<u8> {
+impl TryFrom<RadonTypes> for Vec<u8> {
     type Error = RadError;
 
     // FIXME(953): Unify all CBOR libraries
     fn try_from(
-        radon_types: &RadonTypes,
-    ) -> Result<Vec<u8>, <Vec<u8> as TryFrom<&RadonTypes>>::Error> {
-        let type_name = RadonTypes::radon_type_name(radon_types);
+        radon_types: RadonTypes,
+    ) -> Result<Vec<u8>, <Vec<u8> as TryFrom<RadonTypes>>::Error> {
+        let type_name = RadonTypes::radon_type_name(&radon_types);
 
         match radon_types {
             RadonTypes::RadonError(radon_error) => {
@@ -329,7 +329,7 @@ impl TryFrom<&RadonTypes> for Vec<u8> {
                 })
             }
             _ => {
-                let value: Value = radon_types.clone().try_into()?;
+                let value: Value = radon_types.try_into()?;
                 to_vec(&value).map_err(|_| RadError::Encode {
                     from: type_name,
                     to: "Vec<u8>".to_string(),
@@ -342,10 +342,10 @@ impl TryFrom<&RadonTypes> for Vec<u8> {
 // FIXME(953): migrate everything to using `cbor-codec` or wait for `serde_cbor` to support CBOR tags.
 /// Allow decoding RADON types also from `Value` structures coming from the `cbor-codec` crate.
 /// Take into account the difference between `cbor::value::Value` and `serde_cbor::Value`.
-impl TryFrom<&CborValue> for RadonTypes {
+impl TryFrom<CborValue> for RadonTypes {
     type Error = RadError;
 
-    fn try_from(cbor_value: &CborValue) -> Result<Self, Self::Error> {
+    fn try_from(cbor_value: CborValue) -> Result<Self, Self::Error> {
         use cbor::value::Int;
 
         match cbor_value {
@@ -357,43 +357,43 @@ impl TryFrom<&CborValue> for RadonTypes {
                     RadonTypes::try_error_from_cbor_value(&*other)
                 }
                 (_, other) => {
-                    let unboxed: &CborValue = &*other;
+                    let unboxed: CborValue = *other;
                     RadonTypes::try_from(unboxed)
                 }
             },
             // Booleans, numbers, strings and bytes are all converted easily.
-            CborValue::Bool(x) => Ok(RadonTypes::Boolean(RadonBoolean::from(*x))),
-            CborValue::U8(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x)))),
-            CborValue::U16(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x)))),
-            CborValue::U32(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x)))),
-            CborValue::U64(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x)))),
-            CborValue::I8(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x)))),
-            CborValue::I16(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x)))),
-            CborValue::I32(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x)))),
-            CborValue::I64(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x)))),
+            CborValue::Bool(x) => Ok(RadonTypes::Boolean(RadonBoolean::from(x))),
+            CborValue::U8(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x)))),
+            CborValue::U16(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x)))),
+            CborValue::U32(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x)))),
+            CborValue::U64(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x)))),
+            CborValue::I8(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x)))),
+            CborValue::I16(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x)))),
+            CborValue::I32(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x)))),
+            CborValue::I64(x) => Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x)))),
             CborValue::Int(Int::Neg(x)) => {
-                Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x))))
+                Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x))))
             }
             CborValue::Int(Int::Pos(x)) => {
-                Ok(RadonTypes::Integer(RadonInteger::from(i128::from(*x))))
+                Ok(RadonTypes::Integer(RadonInteger::from(i128::from(x))))
             }
-            CborValue::F32(x) => Ok(RadonTypes::Float(RadonFloat::from(f64::from(*x)))),
-            CborValue::F64(x) => Ok(RadonTypes::Float(RadonFloat::from(*x))),
+            CborValue::F32(x) => Ok(RadonTypes::Float(RadonFloat::from(f64::from(x)))),
+            CborValue::F64(x) => Ok(RadonTypes::Float(RadonFloat::from(x))),
             CborValue::Text(cbor::value::Text::Text(x)) => {
-                Ok(RadonTypes::String(RadonString::from(x.clone())))
+                Ok(RadonTypes::String(RadonString::from(x)))
             }
             CborValue::Bytes(cbor::value::Bytes::Bytes(x)) => {
-                Ok(RadonTypes::Bytes(RadonBytes::from(x.clone())))
+                Ok(RadonTypes::Bytes(RadonBytes::from(x)))
             }
             // Arrays need to be mapped.
             CborValue::Array(x) => x
-                .iter()
+                .into_iter()
                 .map(RadonTypes::try_from)
                 .collect::<Result<Vec<RadonTypes>, RadError>>()
                 .map(|rt_vec| RadonTypes::Array(RadonArray::from(rt_vec))),
             // Maps are a little tougher to convert, as we need to map keys and values independently.
             CborValue::Map(x) => Ok(RadonTypes::Map(RadonMap::from(
-                x.iter()
+                x.into_iter()
                     // FIXME: could we use `try_fold` instead of `filter_map` for short-circuiting
                     //  rather than ignoring non-string keys and weird values?
                     .filter_map(|(key, val)| match (key, val) {

@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_encode_not_cbor() {
-        #[derive(Default, Debug, Fail)]
+        #[derive(Clone, Default, Debug, Fail)]
         struct Dummy;
 
         // Satisfy the trait bound `Dummy: fmt::Display` required by `failure::Fail`
