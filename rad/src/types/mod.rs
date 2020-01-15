@@ -112,34 +112,28 @@ impl RadonTypes {
     /// Decodes `RadonTypes::RadonError` items from `cbor::value::Value::Array` values.
     pub fn try_error_from_cbor_value(value: &CborValue) -> Result<Self, RadError> {
         match value {
-            CborValue::Array(error_args) => {
-                if !error_args.is_empty() {
-                    match error_args.as_slice().split_first() {
-                        Some((head, tail)) => {
-                            if let CborValue::U8(error_code) = head {
-                                let kind = RadonErrors::try_from(*error_code).map_err(|_| {
-                                    RadError::DecodeRadonErrorUnknownCode {
-                                        error_code: *error_code,
-                                    }
-                                })?;
-
-                                Ok(RadonTypes::RadonError(RadonError::new(
-                                    kind,
-                                    None,
-                                    Vec::from(tail),
-                                )))
-                            } else {
-                                Err(RadError::DecodeRadonErrorBadCode {
-                                    actual_type: format!("{:?}", head),
-                                })
+            CborValue::Array(error_args) => match error_args.as_slice().split_first() {
+                Some((head, tail)) => {
+                    if let CborValue::U8(error_code) = head {
+                        let kind = RadonErrors::try_from(*error_code).map_err(|_| {
+                            RadError::DecodeRadonErrorUnknownCode {
+                                error_code: *error_code,
                             }
-                        }
-                        None => Err(RadError::DecodeRadonErrorEmptyArray),
+                        })?;
+
+                        Ok(RadonTypes::RadonError(RadonError::new(
+                            kind,
+                            None,
+                            Vec::from(tail),
+                        )))
+                    } else {
+                        Err(RadError::DecodeRadonErrorBadCode {
+                            actual_type: format!("{:?}", head),
+                        })
                     }
-                } else {
-                    Err(RadError::DecodeRadonErrorEmptyArray)
                 }
-            }
+                None => Err(RadError::DecodeRadonErrorEmptyArray),
+            },
             _ => Err(RadError::DecodeRadonErrorNotArray {
                 actual_type: format!("{:?}", value),
             }),
