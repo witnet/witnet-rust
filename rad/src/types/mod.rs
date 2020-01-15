@@ -290,7 +290,9 @@ impl TryFrom<RadonTypes> for Value {
             RadonTypes::Array(radon_array) => radon_array.try_into(),
             RadonTypes::Boolean(radon_boolean) => radon_boolean.try_into(),
             RadonTypes::Bytes(radon_bytes) => radon_bytes.try_into(),
-            RadonTypes::RadonError(error) => Ok(Value::Integer(error.kind as i128)),
+            RadonTypes::RadonError(error) => panic!(
+                "Should never try to build a `serde_cbor::Value` from `RadonTypes::RadonError`. Error was: {:?}", error
+            ),
             RadonTypes::Float(radon_float) => radon_float.try_into(),
             RadonTypes::Integer(radon_integer) => radon_integer.try_into(),
             RadonTypes::Map(radon_map) => radon_map.try_into(),
