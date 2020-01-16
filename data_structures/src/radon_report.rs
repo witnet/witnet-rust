@@ -190,6 +190,7 @@ mod tests {
     use crate::radon_error::{ErrorLike, RadonError, RadonErrors};
 
     use super::*;
+    use cbor::value::Value as CborValue;
 
     #[test]
     fn test_encode_not_cbor() {
@@ -204,7 +205,14 @@ mod tests {
         }
 
         // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
-        impl ErrorLike for Dummy {}
+        impl ErrorLike for Dummy {
+            fn encode_cbor_array(&self) -> Vec<CborValue> {
+                let kind = u8::from(RadonErrors::SourceScriptNotCBOR);
+                let arg0 = 2;
+
+                vec![CborValue::U8(kind), CborValue::U8(arg0)]
+            }
+        }
 
         // Satisfy the trait bound `(): std::convert::From<cbor::encoder::EncodeError>`
         impl std::convert::From<cbor::encoder::EncodeError> for Dummy {
@@ -213,13 +221,9 @@ mod tests {
             }
         }
 
-        let error = RadonError::<Dummy> {
-            kind: RadonErrors::SourceScriptNotCBOR,
-            arguments: vec![cbor::value::Value::U8(2)],
-            inner: None,
-        };
+        let error = RadonError::new(Dummy);
 
-        let encoded = error.encode().unwrap();
+        let encoded: Vec<u8> = error.encode_tagged_bytes().unwrap();
         let expected = vec![216, 39, 130, 1, 2];
 
         assert_eq!(encoded, expected);

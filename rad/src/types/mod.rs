@@ -17,6 +17,7 @@ use crate::{
         integer::RadonInteger, map::RadonMap, string::RadonString,
     },
 };
+use std::io::Cursor;
 use witnet_data_structures::radon_error::RadonError;
 use witnet_data_structures::{
     chain::Hash,
@@ -120,10 +121,20 @@ impl RadonTypes {
                             }
                         })?;
 
+                        let serde_cbor_error_args = if tail.is_empty() {
+                            None
+                        } else {
+                            // FIXME(#953): impl TryFrom<CborValue> for <SerdeCborValue>
+                            let mut encoder =
+                                cbor::encoder::GenericEncoder::new(Cursor::new(Vec::new()));
+                            encoder.value(&CborValue::Array(tail.to_vec()))?;
+                            let buffer = encoder.into_inner().into_writer().into_inner();
+
+                            Some(serde_cbor::from_slice(&buffer).unwrap())
+                        };
+
                         Ok(RadonTypes::RadonError(RadonError::new(
-                            kind,
-                            None,
-                            Vec::from(tail),
+                            RadError::try_from_kind_and_cbor_args(kind, serde_cbor_error_args)?,
                         )))
                     } else {
                         Err(RadError::DecodeRadonErrorBadCode {
@@ -322,10 +333,12 @@ impl TryFrom<RadonTypes> for Vec<u8> {
 
         match radon_types {
             RadonTypes::RadonError(radon_error) => {
-                Vec::<u8>::try_from(radon_error).map_err(|_| RadError::Encode {
-                    from: type_name,
-                    to: "Vec<u8>".to_string(),
-                })
+                radon_error
+                    .encode_tagged_bytes()
+                    .map_err(|_| RadError::Encode {
+                        from: type_name,
+                        to: "Vec<u8>".to_string(),
+                    })
             }
             _ => {
                 let value: Value = radon_types.try_into()?;
@@ -451,17 +464,14 @@ mod tests {
         let rad_error_unknown_error_code =
             RadonTypes::try_error_from_cbor_value(&cbor_value_unknown_error_code).unwrap_err();
 
-        let expected_ok = RadonTypes::RadonError(RadonError::new(
-            RadonErrors::RequestTooManySources,
-            None,
-            vec![CborValue::U8(9)],
-        ));
+        let expected_ok =
+            RadonTypes::RadonError(RadonError::try_from(RadError::RequestTooManySources).unwrap());
         let expected_wrong_type = RadError::DecodeRadonErrorNotArray {
             actual_type: format!("{:?}", CborValue::U8(u8::default())),
         };
         let expected_empty_array = RadError::DecodeRadonErrorEmptyArray;
         let expected_short_array =
-            RadonTypes::RadonError(RadonError::from(RadonErrors::ScriptTooManyCalls));
+            RadonTypes::RadonError(RadonError::try_from(RadError::ScriptTooManyCalls).unwrap());
         let expected_bad_error_code = RadError::DecodeRadonErrorBadCode {
             actual_type: format!("{:?}", CborValue::Bool(false)),
         };

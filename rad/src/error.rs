@@ -221,6 +221,9 @@ pub enum RadError {
         value
     )]
     InvalidScript { value: SerdeCborValue },
+    /// Failed to encode `RadonError` arguments
+    #[fail(display = "Failed to encode `RadonError` arguments `{}`", error_args)]
+    EncodeRadonErrorArguments { error_args: String },
     /// Alleged `RadonError` is actually not an instance of `cbor::value::Value::Array`
     #[fail(
         display = "Failed to decode a `RadonError` from a `cbor::value::Value` that was not `Array` (was actually `{}`)",
@@ -244,6 +247,15 @@ pub enum RadError {
         error_code
     )]
     DecodeRadonErrorUnknownCode { error_code: u8 },
+    /// Alleged `RadonError` does not have the expected arguments
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments (`{:?}`) were not compatible: {}",
+        arguments, message
+    )]
+    DecodeRadonErrorMissingArguments {
+        arguments: Option<SerdeCborValue>,
+        message: String,
+    },
     /// No reveals received
     #[fail(display = "No reveals received")]
     NoReveals,
@@ -253,11 +265,162 @@ pub enum RadError {
         achieved, required
     )]
     InsufficientConsensus { achieved: f64, required: f64 },
+    /// The request contains too many sources.
+    #[fail(display = "The request contains too many sources")]
+    RequestTooManySources,
+    /// The script contains too many calls.
+    #[fail(display = "The script contains too many calls")]
+    ScriptTooManyCalls,
+    /// At least one of the source scripts is not a valid CBOR-encoded value.
+    #[fail(display = "At least one of the source scripts is not a valid CBOR-encoded value")]
+    SourceScriptNotCBOR,
+    /// The CBOR value decoded from a source script is not an Array.
+    #[fail(display = "The CBOR value decoded from a source script is not an Array")]
+    SourceScriptNotArray,
+    /// The Array value decoded form a source script is not a valid RADON script.
+    #[fail(display = "The Array value decoded form a source script is not a valid RADON script")]
+    SourceScriptNotRADON,
+    /// Math operator caused an underflow.
+    #[fail(display = "Math operator caused an underflow")]
+    Underflow,
+    /// Tried to divide by zero.
+    #[fail(display = "Tried to divide by zero")]
+    DivisionByZero,
+    /// `RadError` cannot be converted to `RadonError` because the error code is not defined
+    #[fail(
+        display = "`RadError` cannot be converted to `RadonError` because the error code is not defined"
+    )]
+    EncodeRadonErrorUnknownCode,
+}
+
+impl RadError {
+    pub fn try_from_kind_and_cbor_args(
+        kind: RadonErrors,
+        error_args: Option<SerdeCborValue>,
+    ) -> Result<Self, RadError> {
+        fn deserialize_args<T: serde::de::DeserializeOwned>(
+            error_args: Option<SerdeCborValue>,
+        ) -> Result<T, RadError> {
+            let error_args = if let Some(x) = error_args {
+                x
+            } else {
+                return Err(RadError::DecodeRadonErrorMissingArguments {
+                    arguments: error_args,
+                    message: "No arguments found".to_string(),
+                });
+            };
+
+            serde_cbor::value::from_value(error_args.clone()).map_err(|e| {
+                RadError::DecodeRadonErrorMissingArguments {
+                    arguments: Some(error_args),
+                    message: e.to_string(),
+                }
+            })
+        };
+
+        Ok(match kind {
+            RadonErrors::Unknown => RadError::Unknown,
+            RadonErrors::RequestTooManySources => RadError::RequestTooManySources,
+            RadonErrors::ScriptTooManyCalls => RadError::ScriptTooManyCalls,
+            RadonErrors::Overflow => RadError::Overflow,
+            RadonErrors::NoReveals => RadError::NoReveals,
+            RadonErrors::SourceScriptNotCBOR => RadError::SourceScriptNotCBOR,
+            RadonErrors::SourceScriptNotArray => RadError::SourceScriptNotArray,
+            RadonErrors::SourceScriptNotRADON => RadError::SourceScriptNotRADON,
+            RadonErrors::Underflow => RadError::Underflow,
+            RadonErrors::DivisionByZero => RadError::DivisionByZero,
+            RadonErrors::UnsupportedOperator => {
+                let (input_type, operator, args) = deserialize_args(error_args)?;
+                RadError::UnsupportedOperator {
+                    input_type,
+                    operator,
+                    args,
+                }
+            }
+            RadonErrors::HTTPError => {
+                let (status_code,) = deserialize_args(error_args)?;
+                RadError::HttpStatus { status_code }
+            }
+        })
+    }
+
+    pub fn try_into_cbor_array(&self) -> Result<Vec<SerdeCborValue>, RadError> {
+        fn serialize_args<T: serde::Serialize + std::fmt::Debug>(
+            args: T,
+        ) -> Result<SerdeCborValue, RadError> {
+            serde_cbor::value::to_value(&args).map_err(|_| RadError::EncodeRadonErrorArguments {
+                error_args: format!("{:?}", args),
+            })
+        }
+
+        let kind = u8::from(self.try_into_error_code()?);
+
+        let args = match self {
+            RadError::UnsupportedOperator {
+                input_type,
+                operator,
+                args,
+            } => Some(serialize_args((input_type, operator, args))?),
+            RadError::HttpStatus { status_code } => Some(serialize_args((status_code,))?),
+            _ => None,
+        };
+
+        let mut v = vec![SerdeCborValue::Integer(i128::from(kind))];
+
+        match args {
+            None => {}
+            Some(SerdeCborValue::Array(a)) => {
+                // Append arguments to resulting array. The format of the resulting array is:
+                // [kind, arg0, arg1, arg2, ...]
+                v.extend(a);
+            }
+            Some(value) => {
+                // This can only happen if `serialize_args` is called with a non-tuple argument
+                // For example:
+                // `serialize_args(x)` is invalid, it should be `serialize_args((x,))`
+                panic!("Args should be an array, is {:?}", value);
+            }
+        }
+
+        Ok(v)
+    }
+    pub fn try_into_error_code(&self) -> Result<RadonErrors, RadError> {
+        Ok(match self {
+            RadError::Unknown => RadonErrors::Unknown,
+            RadError::SourceScriptNotCBOR => RadonErrors::SourceScriptNotCBOR,
+            RadError::SourceScriptNotArray => RadonErrors::SourceScriptNotArray,
+            RadError::SourceScriptNotRADON => RadonErrors::SourceScriptNotRADON,
+            RadError::RequestTooManySources => RadonErrors::RequestTooManySources,
+            RadError::ScriptTooManyCalls => RadonErrors::ScriptTooManyCalls,
+            RadError::UnsupportedOperator { .. } => RadonErrors::UnsupportedOperator,
+            RadError::HttpStatus { .. } => RadonErrors::HTTPError,
+            RadError::Underflow => RadonErrors::Underflow,
+            RadError::Overflow => RadonErrors::Overflow,
+            RadError::DivisionByZero => RadonErrors::DivisionByZero,
+            RadError::NoReveals => RadonErrors::NoReveals,
+            _ => return Err(RadError::EncodeRadonErrorUnknownCode),
+        })
+    }
 }
 
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and
 /// `witnet_data_structures`.
-impl ErrorLike for RadError {}
+impl ErrorLike for RadError {
+    fn encode_cbor_array(&self) -> Vec<CborValue> {
+        self.try_into_cbor_array()
+            .unwrap()
+            .into_iter()
+            .map(|scv| {
+                // FIXME(#953): impl TryFrom<SerdeCborValue> for <CborValue>
+                let mut decoder = cbor::decoder::GenericDecoder::new(
+                    cbor::Config::default(),
+                    std::io::Cursor::new(serde_cbor::to_vec(&scv).unwrap()),
+                );
+                decoder.value().unwrap()
+            })
+            .collect()
+    }
+}
 
 /// Use `RadError::Unknown` as the default error.
 impl std::default::Default for RadError {
@@ -327,19 +490,10 @@ impl TryFrom<RadError> for RadonError<RadError> {
     /// This is the main logic for intercepting `RadError` items and converting them into
     /// `RadonError` so that they can be committed, revealed, tallied, etc.
     fn try_from(rad_error: RadError) -> Result<Self, Self::Error> {
-        match rad_error {
-            // TODO: support all cases of `RadError`
-            RadError::HttpStatus { status_code } => Ok(RadonError::new(
-                RadonErrors::HTTPError,
-                Some(rad_error),
-                vec![CborValue::U16(status_code)],
-            )),
-            RadError::NoReveals => Ok(RadonError::new(
-                RadonErrors::NoReveals,
-                Some(rad_error),
-                vec![],
-            )),
-            not_intercepted => Err(not_intercepted),
+        // Assume that there exists a conversion if try_into_error_code returns Ok
+        match rad_error.try_into_error_code() {
+            Ok(_) => Ok(RadonError::new(rad_error)),
+            Err(_) => Err(rad_error),
         }
     }
 }

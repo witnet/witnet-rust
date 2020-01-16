@@ -18,7 +18,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     error::{BlockError, DataRequestError, TransactionError},
-    radon_error::{RadonError, RadonErrors},
+    radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
@@ -277,7 +277,8 @@ pub fn evaluate_tally_precondition_clause(
     // Otherwise, return `RadError::InsufficientConsensus`.
     if achieved_consensus >= minimum_consensus {
         let error_type_discriminant =
-            RadonTypes::RadonError(RadonError::from(RadonErrors::default())).discriminant();
+            RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap())
+                .discriminant();
 
         // Decide based on the most frequent type.
         match counter.max_pos {
@@ -1469,7 +1470,7 @@ pub fn compare_blocks(
 
 #[cfg(test)]
 mod tests {
-    use witnet_data_structures::radon_error::{RadonError, RadonErrors};
+    use witnet_data_structures::radon_error::RadonError;
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
 
     use super::*;
@@ -1731,7 +1732,7 @@ mod tests {
     #[test]
     fn test_tally_precondition_clause_majority_of_errors() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
-        let rad_err = RadonError::from(RadonErrors::HTTPError);
+        let rad_err = RadonError::try_from(RadError::HttpStatus { status_code: 0 }).unwrap();
 
         let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
         let rad_rep_err = RadonReport::from_result(
@@ -1792,7 +1793,7 @@ mod tests {
     fn test_tally_precondition_clause_3_errors_vs_2_ints_and_2_floats() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_float = RadonTypes::Float(RadonFloat::from(1));
-        let rad_err = RadonError::from(RadonErrors::HTTPError);
+        let rad_err = RadonError::try_from(RadError::HttpStatus { status_code: 0 }).unwrap();
 
         let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
         let rad_rep_float =
@@ -1835,7 +1836,7 @@ mod tests {
 
     #[test]
     fn test_tally_precondition_clause_all_errors() {
-        let rad_err = RadonError::from(RadonErrors::HTTPError);
+        let rad_err = RadonError::try_from(RadError::HttpStatus { status_code: 0 }).unwrap();
         let rad_rep_err = RadonReport::from_result(
             Ok(RadonTypes::RadonError(rad_err.clone())),
             &ReportContext::default(),

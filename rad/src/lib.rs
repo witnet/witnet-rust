@@ -174,6 +174,7 @@ mod tests {
     };
 
     use super::*;
+    use std::convert::TryFrom;
 
     #[test]
     fn test_run_retrieval() {
@@ -732,7 +733,7 @@ mod tests {
         )
         .unwrap()
         .into_inner();
-        let expected = RadonTypes::from(RadonError::from(RadonErrors::NoReveals));
+        let expected = RadonTypes::from(RadonError::try_from(RadError::NoReveals).unwrap());
 
         assert_eq!(report, expected);
     }
@@ -745,7 +746,11 @@ mod tests {
         // RadonInteger with value 0
         let int = RadonTypes::from(RadonInteger::from(0));
         // RadonError with error code 0
-        let err = RadonTypes::from(RadonError::from(RadonErrors::try_from(0).unwrap()));
+        let kind = RadonErrors::try_from(0).unwrap();
+        let err = RadonTypes::from(
+            RadonError::try_from(RadError::try_from_kind_and_cbor_args(kind, None).unwrap())
+                .unwrap(),
+        );
         // Ensure they encoded differently (errors are tagged using `39` as CBOR tag)
         assert_ne!(int.encode(), err.encode());
         // And they are not equal in runtime either
