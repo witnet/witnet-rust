@@ -31,6 +31,8 @@ pub enum RadonErrors {
     // Retrieval-specific errors
     /// At least one of the sources could not be retrieved, but returned HTTP error.
     HTTPError = 0x30,
+    /// Al least one of the sources could not be retrieved, timeout reached
+    RetrieveTimeout = 0x31,
     // Math errors
     /// Math operator caused an underflow.
     Underflow = 0x40,

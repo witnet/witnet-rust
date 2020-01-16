@@ -329,6 +329,7 @@ impl RadError {
             RadonErrors::SourceScriptNotRADON => RadError::SourceScriptNotRADON,
             RadonErrors::Underflow => RadError::Underflow,
             RadonErrors::DivisionByZero => RadError::DivisionByZero,
+            RadonErrors::RetrieveTimeout => RadError::RetrieveTimeout,
             RadonErrors::UnsupportedOperator => {
                 let (input_type, operator, args) = deserialize_args(error_args)?;
                 RadError::UnsupportedOperator {
@@ -398,6 +399,7 @@ impl RadError {
             RadError::Overflow => RadonErrors::Overflow,
             RadError::DivisionByZero => RadonErrors::DivisionByZero,
             RadError::NoReveals => RadonErrors::NoReveals,
+            RadError::RetrieveTimeout => RadonErrors::RetrieveTimeout,
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
     }

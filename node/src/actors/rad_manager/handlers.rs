@@ -88,13 +88,19 @@ impl Handler<ResolveRA> for RadManager {
             // handle HTTP timeouts.
             // A simple fix would be to offload computation to another thread, to avoid blocking
             // the main thread. Then the timeout would apply to the message passing between threads.
-            Box::new(fut.timeout(timeout).map_err(|error| {
-                if error.is_elapsed() {
-                    RadError::RetrieveTimeout
-                } else if error.is_inner() {
-                    error.into_inner().unwrap()
-                } else {
-                    panic!("Unhandled tokio timer error");
+            Box::new(fut.timeout(timeout).then(|result| match result {
+                Ok(x) => Ok(x),
+                Err(error) => {
+                    if error.is_elapsed() {
+                        RadonReport::from_result(
+                            Err(RadError::RetrieveTimeout),
+                            &ReportContext::default(),
+                        )
+                    } else if error.is_inner() {
+                        Err(error.into_inner().unwrap())
+                    } else {
+                        panic!("Unhandled tokio timer error");
+                    }
                 }
             }))
         } else {
