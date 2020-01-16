@@ -342,6 +342,16 @@ impl RadError {
                 let (status_code,) = deserialize_args(error_args)?;
                 RadError::HttpStatus { status_code }
             }
+            RadonErrors::InsufficientConsensus => {
+                let (achieved, required) = deserialize_args(error_args)?;
+                RadError::InsufficientConsensus { achieved, required }
+            }
+            RadonErrors::ModeTie => {
+                // TODO: we need to serialize RadonArray T_T
+                let values = RadonArray::from(vec![]);
+                //let (values,) = deserialize_args(error_args)?;
+                RadError::ModeTie { values }
+            }
         })
     }
 
@@ -363,6 +373,12 @@ impl RadError {
                 args,
             } => Some(serialize_args((input_type, operator, args))?),
             RadError::HttpStatus { status_code } => Some(serialize_args((status_code,))?),
+            RadError::InsufficientConsensus { achieved, required } => {
+                Some(serialize_args((achieved, required))?)
+            }
+            // TODO: serialize ModeTie args
+            RadError::ModeTie { .. } => None,
+            //RadError::ModeTie { values } => Some(serialize_args((values,))?),
             _ => None,
         };
 
@@ -400,6 +416,8 @@ impl RadError {
             RadError::DivisionByZero => RadonErrors::DivisionByZero,
             RadError::NoReveals => RadonErrors::NoReveals,
             RadError::RetrieveTimeout => RadonErrors::RetrieveTimeout,
+            RadError::InsufficientConsensus { .. } => RadonErrors::InsufficientConsensus,
+            RadError::ModeTie { .. } => RadonErrors::ModeTie,
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
     }

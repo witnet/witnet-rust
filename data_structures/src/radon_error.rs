@@ -43,6 +43,10 @@ pub enum RadonErrors {
     // Other errors
     /// Received zero reveals
     NoReveals = 0x50,
+    /// Insufficient consensus in tally precondition clause
+    InsufficientConsensus = 0x51,
+    /// There was a tie after applying the mode reducer
+    ModeTie = 0x52,
 }
 
 /// Use `RadonErrors::Unknown` as the default value of `RadonErrors`.
