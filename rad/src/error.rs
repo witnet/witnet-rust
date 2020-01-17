@@ -314,6 +314,7 @@ impl RadError {
         kind: RadonErrors,
         error_args: Option<SerdeCborValue>,
     ) -> Result<Self, RadError> {
+        // TODO: we currently allow extra arguments when the RadError does not expect any arguments
         fn deserialize_args<T: serde::de::DeserializeOwned>(
             error_args: Option<SerdeCborValue>,
         ) -> Result<T, RadError> {
@@ -569,6 +570,123 @@ impl TryFrom<Result<RadonTypes, RadError>> for RadonTypes {
             }
             // Pass through actual values
             ok => ok,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::integer::RadonInteger;
+    use num_enum::TryFromPrimitive;
+    use serde_cbor::Value;
+
+    fn rad_error_example(radon_errors: RadonErrors) -> RadError {
+        match radon_errors {
+            RadonErrors::UnsupportedOperator => RadError::UnsupportedOperator {
+                input_type: "RadonString".to_string(),
+                operator: "IntegerAdd".to_string(),
+                args: Some(vec![SerdeCborValue::Integer(1)]),
+            },
+            RadonErrors::HTTPError => RadError::HttpStatus { status_code: 404 },
+            RadonErrors::InsufficientConsensus => RadError::InsufficientConsensus {
+                achieved: 49.0,
+                required: 51.0,
+            },
+            RadonErrors::ModeTie => RadError::ModeTie {
+                values: RadonArray::from(vec![
+                    RadonTypes::Integer(RadonInteger::from(1)),
+                    RadonTypes::Integer(RadonInteger::from(1)),
+                    RadonTypes::Integer(RadonInteger::from(3)),
+                    RadonTypes::Integer(RadonInteger::from(3)),
+                ]),
+            },
+            _ => panic!("No example for {:?}", radon_errors),
+        }
+    }
+
+    // Return an iterator that visits all the variants of `RadonErrors`
+    // There are some crates that provide this functionality as a derive macro,
+    // for example "strum", so if we need more enum iterators in the future,
+    // consider using an external crate
+    fn all_radon_errors() -> impl Iterator<Item = RadonErrors> {
+        // RadonErrors are an enum with `u8` discriminant
+        // So just try all the possible `u8` values and return the successful ones
+        (0u8..=255).filter_map(|error_code| {
+            match RadonErrors::try_from_primitive(error_code) {
+                Ok(x) => Some(x),
+                // If this error code is not a RadonErrors, try the next one
+                Err(_) => None,
+            }
+        })
+    }
+
+    #[test]
+    fn all_radon_errors_can_be_converted_to_rad_error() {
+        for radon_errors in all_radon_errors() {
+            // Try to convert RadonErrors to RadError with no arguments
+            let maybe_rad_error = RadError::try_from_kind_and_cbor_args(radon_errors, None);
+            let rad_error = match maybe_rad_error {
+                Ok(x) => {
+                    // Good
+                    x
+                }
+                Err(RadError::DecodeRadonErrorMissingArguments) => {
+                    // Good, but we need some test arguments
+                    rad_error_example(radon_errors)
+                }
+                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+            };
+
+            // Now try the inverse: convert from RadError to RadonErrors
+            let again_radon_errors = rad_error.try_into_error_code();
+            match again_radon_errors {
+                Ok(x) => assert_eq!(x, radon_errors),
+                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+            }
+        }
+    }
+
+    #[test]
+    fn all_radon_errors_can_be_serialized() {
+        for radon_errors in all_radon_errors() {
+            // Try to convert RadonErrors to RadError with no arguments
+            let maybe_rad_error = RadError::try_from_kind_and_cbor_args(radon_errors, None);
+            let rad_error = match maybe_rad_error {
+                Ok(x) => {
+                    // Good
+                    x
+                }
+                Err(RadError::DecodeRadonErrorMissingArguments) => {
+                    // Good, but we need some test arguments
+                    rad_error_example(radon_errors)
+                }
+                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+            };
+
+            // Now try to serialize the resulting rad_error
+            let serde_cbor_array = match rad_error.try_into_cbor_array() {
+                Ok(x) => x,
+                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+            };
+            // The first element of the serialized CBOR array is the error code
+            // the rest are arguments
+            let error_code = u8::from(radon_errors);
+            assert_eq!(serde_cbor_array[0], Value::Integer(error_code.into()));
+
+            // Deserialize the result and compare
+            let serde_cbor_value = if serde_cbor_array.len() > 1 {
+                Some(SerdeCborValue::Array(serde_cbor_array[1..].to_vec()))
+            } else {
+                None
+            };
+            let deserialized_rad_error =
+                RadError::try_from_kind_and_cbor_args(radon_errors, serde_cbor_value);
+
+            match deserialized_rad_error {
+                Ok(x) => assert_eq!(x, rad_error),
+                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+            }
         }
     }
 }
