@@ -247,12 +247,28 @@ pub enum RadError {
         error_code
     )]
     DecodeRadonErrorUnknownCode { error_code: u8 },
+    /// Alleged `RadonError` does not have any arguments
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments are empty"
+    )]
+    DecodeRadonErrorMissingArguments,
     /// Alleged `RadonError` does not have the expected arguments
     #[fail(
         display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments (`{:?}`) were not compatible: {}",
         arguments, message
     )]
-    DecodeRadonErrorMissingArguments {
+    DecodeRadonErrorWrongArguments {
+        arguments: Option<SerdeCborValue>,
+        message: String,
+    },
+    /// Alleged `RadonError` has a `RadonTypes` argument which was wrongly serialized
+    // FIXME(#953): this error should not exist, but it is useful to detect problems with the
+    // current hacky implementation
+    #[fail(
+        display = "Failed to decode a `RadonError` from a `cbor::value::Value::Array` because its arguments (`{:?}`) were not compatible: {}",
+        arguments, message
+    )]
+    DecodeRadonErrorArgumentsRadonTypesFail {
         arguments: Option<SerdeCborValue>,
         message: String,
     },
@@ -304,19 +320,24 @@ impl RadError {
             let error_args = if let Some(x) = error_args {
                 x
             } else {
-                return Err(RadError::DecodeRadonErrorMissingArguments {
-                    arguments: error_args,
-                    message: "No arguments found".to_string(),
-                });
+                return Err(RadError::DecodeRadonErrorMissingArguments);
             };
 
             serde_cbor::value::from_value(error_args.clone()).map_err(|e| {
-                RadError::DecodeRadonErrorMissingArguments {
+                RadError::DecodeRadonErrorWrongArguments {
                     arguments: Some(error_args),
                     message: e.to_string(),
                 }
             })
         };
+
+        fn deserialize_radon_types_arg(bytes: Vec<u8>) -> Result<RadonTypes, RadError> {
+            // FIXME(#953): since RadonTypes does not implement serialize because of the
+            // limitations of serde_cbor, when the argument of a RadonError is a RadonTypes or
+            // some subtype (RadonArray, RadonMap, etc), we use serde_cbor to serialize to
+            // `Vec<u8>` and use this helper function to get the actual RadonTypes
+            RadonTypes::try_from(bytes.as_slice())
+        }
 
         Ok(match kind {
             RadonErrors::Unknown => RadError::Unknown,
@@ -347,9 +368,17 @@ impl RadError {
                 RadError::InsufficientConsensus { achieved, required }
             }
             RadonErrors::ModeTie => {
-                // TODO: we need to serialize RadonArray T_T
-                let values = RadonArray::from(vec![]);
-                //let (values,) = deserialize_args(error_args)?;
+                let (values,) = deserialize_args(error_args.clone())?;
+                // Deserialize values to `Vec<u8>`, then to `RadonTypes`, then to `RadonArray`
+                let values = match deserialize_radon_types_arg(values)? {
+                    RadonTypes::Array(a) => a,
+                    x => {
+                        return Err(RadError::DecodeRadonErrorArgumentsRadonTypesFail {
+                            arguments: error_args,
+                            message: format!("Expected `RadonArray`, found `{:?}`", x),
+                        })
+                    }
+                };
                 RadError::ModeTie { values }
             }
         })
@@ -364,6 +393,14 @@ impl RadError {
             })
         }
 
+        fn serialize_radon_types_arg(bytes: RadonTypes) -> Result<Vec<u8>, RadError> {
+            // FIXME(#953): since RadonTypes does not implement serialize because of the
+            // limitations of serde_cbor, when the argument of a RadonError is a RadonTypes or
+            // some subtype (RadonArray, RadonMap, etc), we use serde_cbor to serialize to
+            // `Vec<u8>` and use this helper function to get the actual RadonTypes
+            Vec::try_from(bytes)
+        }
+
         let kind = u8::from(self.try_into_error_code()?);
 
         let args = match self {
@@ -376,9 +413,10 @@ impl RadError {
             RadError::InsufficientConsensus { achieved, required } => {
                 Some(serialize_args((achieved, required))?)
             }
-            // TODO: serialize ModeTie args
-            RadError::ModeTie { .. } => None,
-            //RadError::ModeTie { values } => Some(serialize_args((values,))?),
+            RadError::ModeTie { values } => {
+                let values = serialize_radon_types_arg(RadonTypes::from((*values).clone()))?;
+                Some(serialize_args((values,))?)
+            }
             _ => None,
         };
 
