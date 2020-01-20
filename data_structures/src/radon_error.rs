@@ -4,6 +4,7 @@ use cbor::{types::Tag, value::Value as CborValue, GenericEncoder};
 use failure::Fail;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::Serialize;
+use serde_cbor::Value as SerdeCborValue;
 
 #[derive(Clone, Copy, Debug, Eq, IntoPrimitive, PartialEq, Serialize, TryFromPrimitive)]
 #[repr(u8)]
@@ -59,7 +60,7 @@ impl Default for RadonErrors {
 /// This trait identifies a structure that can be used as an error type for `RadonError` and
 /// `RadonReport`.
 pub trait ErrorLike: Clone + Fail {
-    fn encode_cbor_array(&self) -> Vec<CborValue>;
+    fn encode_cbor_array(&self) -> Vec<SerdeCborValue>;
 }
 
 /// This structure is aimed to be the error type for the `result` field of `witnet_data_structures::radon_report::Report`.
@@ -83,7 +84,19 @@ where
     }
 
     pub fn encode_tagged_value(&self) -> CborValue {
-        let values: Vec<CborValue> = self.inner.encode_cbor_array();
+        let values: Vec<CborValue> = self
+            .inner
+            .encode_cbor_array()
+            .into_iter()
+            .map(|scv| {
+                // FIXME(#953): impl TryFrom<SerdeCborValue> for <CborValue>
+                let mut decoder = cbor::decoder::GenericDecoder::new(
+                    cbor::Config::default(),
+                    std::io::Cursor::new(serde_cbor::to_vec(&scv).unwrap()),
+                );
+                decoder.value().unwrap()
+            })
+            .collect();
 
         CborValue::Tagged(Tag::of(39), Box::new(CborValue::Array(values)))
     }

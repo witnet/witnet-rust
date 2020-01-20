@@ -190,7 +190,7 @@ mod tests {
     use crate::radon_error::{ErrorLike, RadonError, RadonErrors};
 
     use super::*;
-    use cbor::value::Value as CborValue;
+    use serde_cbor::Value as SerdeCborValue;
 
     #[test]
     fn test_encode_not_cbor() {
@@ -206,11 +206,14 @@ mod tests {
 
         // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
         impl ErrorLike for Dummy {
-            fn encode_cbor_array(&self) -> Vec<CborValue> {
+            fn encode_cbor_array(&self) -> Vec<SerdeCborValue> {
                 let kind = u8::from(RadonErrors::SourceScriptNotCBOR);
                 let arg0 = 2;
 
-                vec![CborValue::U8(kind), CborValue::U8(arg0)]
+                vec![
+                    SerdeCborValue::Integer(kind.into()),
+                    SerdeCborValue::Integer(arg0.into()),
+                ]
             }
         }
 

@@ -2,7 +2,6 @@
 
 use std::convert::TryFrom;
 
-use cbor::value::Value as CborValue;
 use failure::{self, Fail};
 use serde_cbor::value::Value as SerdeCborValue;
 
@@ -330,7 +329,7 @@ impl RadError {
                     message: e.to_string(),
                 }
             })
-        };
+        }
 
         fn deserialize_radon_types_arg(bytes: Vec<u8>) -> Result<RadonTypes, RadError> {
             // FIXME(#953): since RadonTypes does not implement serialize because of the
@@ -465,19 +464,8 @@ impl RadError {
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and
 /// `witnet_data_structures`.
 impl ErrorLike for RadError {
-    fn encode_cbor_array(&self) -> Vec<CborValue> {
-        self.try_into_cbor_array()
-            .unwrap()
-            .into_iter()
-            .map(|scv| {
-                // FIXME(#953): impl TryFrom<SerdeCborValue> for <CborValue>
-                let mut decoder = cbor::decoder::GenericDecoder::new(
-                    cbor::Config::default(),
-                    std::io::Cursor::new(serde_cbor::to_vec(&scv).unwrap()),
-                );
-                decoder.value().unwrap()
-            })
-            .collect()
+    fn encode_cbor_array(&self) -> Vec<SerdeCborValue> {
+        self.try_into_cbor_array().unwrap()
     }
 }
 
