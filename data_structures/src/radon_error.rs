@@ -110,6 +110,14 @@ where
 
         Ok(encoder.into_inner().into_writer().into_inner())
     }
+
+    pub fn inner(&self) -> &IE {
+        &self.inner
+    }
+
+    pub fn into_inner(self) -> IE {
+        self.inner
+    }
 }
 
 impl<IE> std::fmt::Display for RadonError<IE>

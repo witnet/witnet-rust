@@ -321,7 +321,7 @@ impl RadError {
     pub fn try_from_kind_and_cbor_args(
         kind: RadonErrors,
         error_args: Option<SerdeCborValue>,
-    ) -> Result<Self, RadError> {
+    ) -> Result<RadonError<Self>, RadError> {
         // TODO: we currently allow extra arguments when the RadError does not expect any arguments
         fn deserialize_args<T: serde::de::DeserializeOwned>(
             error_args: Option<SerdeCborValue>,
@@ -348,7 +348,7 @@ impl RadError {
             RadonTypes::try_from(bytes.as_slice())
         }
 
-        Ok(match kind {
+        Ok(RadonError::new(match kind {
             RadonErrors::Unknown => RadError::Unknown,
             RadonErrors::RequestTooManySources => RadError::RequestTooManySources,
             RadonErrors::ScriptTooManyCalls => RadError::ScriptTooManyCalls,
@@ -397,7 +397,7 @@ impl RadError {
                     message: Some(message),
                 }
             }
-        })
+        }))
     }
 
     pub fn try_into_cbor_array(&self) -> Result<Vec<SerdeCborValue>, RadError> {
@@ -646,7 +646,8 @@ mod tests {
     fn all_radon_errors_can_be_converted_to_rad_error() {
         for radon_errors in all_radon_errors() {
             // Try to convert RadonErrors to RadError with no arguments
-            let maybe_rad_error = RadError::try_from_kind_and_cbor_args(radon_errors, None);
+            let maybe_rad_error =
+                RadError::try_from_kind_and_cbor_args(radon_errors, None).map(|r| r.into_inner());
             let rad_error = match maybe_rad_error {
                 Ok(x) => {
                     // Good
@@ -672,7 +673,8 @@ mod tests {
     fn all_radon_errors_can_be_serialized() {
         for radon_errors in all_radon_errors() {
             // Try to convert RadonErrors to RadError with no arguments
-            let maybe_rad_error = RadError::try_from_kind_and_cbor_args(radon_errors, None);
+            let maybe_rad_error =
+                RadError::try_from_kind_and_cbor_args(radon_errors, None).map(|r| r.into_inner());
             let rad_error = match maybe_rad_error {
                 Ok(x) => {
                     // Good
@@ -702,7 +704,8 @@ mod tests {
                 None
             };
             let deserialized_rad_error =
-                RadError::try_from_kind_and_cbor_args(radon_errors, serde_cbor_value);
+                RadError::try_from_kind_and_cbor_args(radon_errors, serde_cbor_value)
+                    .map(|r| r.into_inner());
 
             match deserialized_rad_error {
                 Ok(x) => assert_eq!(x, rad_error),

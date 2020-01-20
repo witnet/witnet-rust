@@ -134,9 +134,9 @@ impl RadonTypes {
                             Some(serde_cbor::from_slice(&buffer).unwrap())
                         };
 
-                        Ok(RadonTypes::RadonError(RadonError::new(
+                        Ok(RadonTypes::RadonError(
                             RadError::try_from_kind_and_cbor_args(kind, serde_cbor_error_args)?,
-                        )))
+                        ))
                     } else {
                         Err(RadError::DecodeRadonErrorBadCode {
                             actual_type: format!("{:?}", head),
