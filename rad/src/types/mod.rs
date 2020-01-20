@@ -170,7 +170,8 @@ impl TypeLike for RadonTypes {
             Err(rad_error) => {
                 RadonTypes::RadonError(RadonError::try_from(rad_error).unwrap_or_else(|error| {
                     let unhandled_rad_error = RadError::UnhandledIntercept {
-                        error: Some(Box::new(error)),
+                        inner: Some(Box::new(error)),
+                        message: None,
                     };
                     log::warn!("{}", unhandled_rad_error);
                     RadonError::new(unhandled_rad_error)

@@ -308,10 +308,13 @@ pub enum RadError {
     EncodeRadonErrorUnknownCode,
     /// `RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result
     #[fail(
-        display = "`RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result. Inner: {:?}",
-        error
+        display = "`RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result. Message: {:?}. Inner: `{:?}`",
+        message, inner
     )]
-    UnhandledIntercept { error: Option<Box<RadError>> },
+    UnhandledIntercept {
+        inner: Option<Box<RadError>>,
+        message: Option<String>,
+    },
 }
 
 impl RadError {
@@ -387,7 +390,13 @@ impl RadError {
                 };
                 RadError::ModeTie { values }
             }
-            RadonErrors::UnhandledIntercept => RadError::UnhandledIntercept { error: None },
+            RadonErrors::UnhandledIntercept => {
+                let (message,) = deserialize_args(error_args)?;
+                RadError::UnhandledIntercept {
+                    inner: None,
+                    message: Some(message),
+                }
+            }
         })
     }
 
@@ -423,6 +432,17 @@ impl RadError {
             RadError::ModeTie { values } => {
                 let values = serialize_radon_types_arg(RadonTypes::from((*values).clone()))?;
                 Some(serialize_args((values,))?)
+            }
+            RadError::UnhandledIntercept { inner, message } => {
+                let message = match (inner, message) {
+                    // Only serialize the message
+                    (_, Some(message)) => message.clone(),
+                    // But if there is no message, serialize the debug representation of inner
+                    (Some(inner), None) => format!("inner: {:?}", inner),
+                    // And if there is no inner, serialize this string
+                    (None, None) => "inner: None".to_string(),
+                };
+                Some(serialize_args((message,))?)
             }
             _ => None,
         };
@@ -597,6 +617,11 @@ mod tests {
                     RadonTypes::Integer(RadonInteger::from(3)),
                 ]),
             },
+            RadonErrors::UnhandledIntercept => RadError::UnhandledIntercept {
+                inner: None,
+                message: Some("Only the message field is serialized".to_string()),
+            },
+            // If this panics after adding a new `RadonTypes`, add a new example above
             _ => panic!("No example for {:?}", radon_errors),
         }
     }

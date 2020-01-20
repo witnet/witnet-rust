@@ -109,6 +109,7 @@ impl Handler<RunTally> for RadManager {
             construct_report_from_clause_result(clause_result, &packed_script, reports_len)
         };
 
+        // TODO: how to return `RadonReport`?
         Some(inner())
     }
 }
