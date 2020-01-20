@@ -18,11 +18,9 @@ use crate::{
         integer::RadonInteger, map::RadonMap, string::RadonString,
     },
 };
-use std::io::Cursor;
-use witnet_data_structures::radon_error::RadonError;
 use witnet_data_structures::{
     chain::Hash,
-    radon_error::RadonErrors,
+    radon_error::{try_from_cbor_value_for_serde_cbor_value, RadonError, RadonErrors},
     radon_report::{RadonReport, ReportContext, TypeLike},
 };
 
@@ -125,13 +123,10 @@ impl RadonTypes {
                         let serde_cbor_error_args = if tail.is_empty() {
                             None
                         } else {
-                            // FIXME(#953): impl TryFrom<CborValue> for <SerdeCborValue>
-                            let mut encoder =
-                                cbor::encoder::GenericEncoder::new(Cursor::new(Vec::new()));
-                            encoder.value(&CborValue::Array(tail.to_vec()))?;
-                            let buffer = encoder.into_inner().into_writer().into_inner();
-
-                            Some(serde_cbor::from_slice(&buffer).unwrap())
+                            // FIXME(#953): remove this conversion
+                            Some(try_from_cbor_value_for_serde_cbor_value(CborValue::Array(
+                                tail.to_vec(),
+                            )))
                         };
 
                         Ok(RadonTypes::RadonError(

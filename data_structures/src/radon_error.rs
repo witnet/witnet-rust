@@ -92,12 +92,8 @@ where
             .encode_cbor_array()
             .into_iter()
             .map(|scv| {
-                // FIXME(#953): impl TryFrom<SerdeCborValue> for <CborValue>
-                let mut decoder = cbor::decoder::GenericDecoder::new(
-                    cbor::Config::default(),
-                    std::io::Cursor::new(serde_cbor::to_vec(&scv).unwrap()),
-                );
-                decoder.value().unwrap()
+                // FIXME(#953): remove this conversion
+                try_from_serde_cbor_value_for_cbor_value(scv)
             })
             .collect();
 
@@ -127,4 +123,22 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "RadonError({:?})", self.inner)
     }
+}
+
+pub fn try_from_serde_cbor_value_for_cbor_value(serde_cbor_value: SerdeCborValue) -> CborValue {
+    // FIXME(#953): impl TryFrom<SerdeCborValue> for <CborValue>
+    let mut decoder = cbor::decoder::GenericDecoder::new(
+        cbor::Config::default(),
+        std::io::Cursor::new(serde_cbor::to_vec(&serde_cbor_value).unwrap()),
+    );
+    decoder.value().unwrap()
+}
+
+pub fn try_from_cbor_value_for_serde_cbor_value(cbor_value: CborValue) -> SerdeCborValue {
+    // FIXME(#953): impl TryFrom<CborValue> for <SerdeCborValue>
+    let mut encoder = cbor::encoder::GenericEncoder::new(Cursor::new(Vec::new()));
+    encoder.value(&cbor_value).unwrap();
+    let buffer = encoder.into_inner().into_writer().into_inner();
+
+    serde_cbor::from_slice(&buffer).unwrap()
 }
