@@ -520,8 +520,6 @@ impl Message for RequestPeers {
 pub struct ResolveRA {
     /// RAD request to be executed
     pub rad_request: RADRequest,
-    /// Data request hash
-    pub dr_pointer: Hash,
     /// Timeout: if the execution does not finish before the timeout, it is cancelled.
     pub timeout: Option<Duration>,
 }
@@ -542,7 +540,7 @@ impl Message for ResolveRA {
 }
 
 impl Message for RunTally {
-    type Result = Result<RadonReport<RadonTypes>, RadError>;
+    type Result = Option<RadonReport<RadonTypes>>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

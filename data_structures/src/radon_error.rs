@@ -48,6 +48,9 @@ pub enum RadonErrors {
     InsufficientConsensus = 0x51,
     /// There was a tie after applying the mode reducer
     ModeTie = 0x52,
+    // This should not exist:
+    /// Some tally error is not intercepted but should
+    UnhandledIntercept = 0xFF,
 }
 
 /// Use `RadonErrors::Unknown` as the default value of `RadonErrors`.

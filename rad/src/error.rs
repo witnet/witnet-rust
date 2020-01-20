@@ -306,6 +306,12 @@ pub enum RadError {
         display = "`RadError` cannot be converted to `RadonError` because the error code is not defined"
     )]
     EncodeRadonErrorUnknownCode,
+    /// `RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result
+    #[fail(
+        display = "`RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result. Inner: {:?}",
+        error
+    )]
+    UnhandledIntercept { error: Option<Box<RadError>> },
 }
 
 impl RadError {
@@ -381,6 +387,7 @@ impl RadError {
                 };
                 RadError::ModeTie { values }
             }
+            RadonErrors::UnhandledIntercept => RadError::UnhandledIntercept { error: None },
         })
     }
 
@@ -456,6 +463,7 @@ impl RadError {
             RadError::RetrieveTimeout => RadonErrors::RetrieveTimeout,
             RadError::InsufficientConsensus { .. } => RadonErrors::InsufficientConsensus,
             RadError::ModeTie { .. } => RadonErrors::ModeTie,
+            RadError::UnhandledIntercept { .. } => RadonErrors::UnhandledIntercept,
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
     }

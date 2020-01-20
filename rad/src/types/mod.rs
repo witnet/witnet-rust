@@ -5,6 +5,7 @@ use std::{
 };
 
 use cbor::value::Value as CborValue;
+use log;
 use serde_cbor::{to_vec, Value};
 
 use witnet_crypto::hash::calculate_sha256;
@@ -164,10 +165,18 @@ impl TypeLike for RadonTypes {
     /// Eases interception of RADON errors (errors that we want to commit, reveal and tally) so
     /// they can be handled as valid `RadonTypes::RadonError` values, which are subject to
     /// commitment, revealing, tallying, etc.
-    fn intercept(result: Result<Self, Self::Error>) -> Result<Self, Self::Error> {
+    fn intercept(result: Result<Self, Self::Error>) -> Self {
         match result {
-            Err(rad_error) => Ok(RadonTypes::RadonError(RadonError::try_from(rad_error)?)),
-            ok => ok,
+            Err(rad_error) => {
+                RadonTypes::RadonError(RadonError::try_from(rad_error).unwrap_or_else(|error| {
+                    let unhandled_rad_error = RadError::UnhandledIntercept {
+                        error: Some(Box::new(error)),
+                    };
+                    log::warn!("{}", unhandled_rad_error);
+                    RadonError::new(unhandled_rad_error)
+                }))
+            }
+            Ok(x) => x,
         }
     }
 }
@@ -428,13 +437,10 @@ impl TryFrom<CborValue> for RadonTypes {
 /// default values.
 pub fn serial_iter_decode<T>(
     iter: &mut dyn Iterator<Item = (&[u8], &T)>,
-    err_action: fn(RadError, &[u8], &T) -> Option<RadonReport<RadonTypes>>,
+    _err_action: fn(RadError, &[u8], &T) -> Option<RadonReport<RadonTypes>>,
 ) -> Vec<RadonReport<RadonTypes>> {
-    iter.filter_map(|(slice, inner)| {
-        match RadonReport::from_result(RadonTypes::try_from(slice), &ReportContext::default()) {
-            Ok(result) => Some(result),
-            Err(e) => err_action(e, slice, inner),
-        }
+    iter.map(|(slice, _inner)| {
+        RadonReport::from_result(RadonTypes::try_from(slice), &ReportContext::default())
     })
     .collect()
 }
@@ -450,7 +456,7 @@ mod tests {
         let cbor_value_empty_array = CborValue::Array(Vec::default());
         let cbor_value_short_array = CborValue::Array(vec![CborValue::U8(0x11)]);
         let cbor_value_bad_error_code = CborValue::Array(vec![CborValue::Bool(false)]);
-        let cbor_value_unknown_error_code = CborValue::Array(vec![CborValue::U8(0xFF)]);
+        let cbor_value_unknown_error_code = CborValue::Array(vec![CborValue::U8(0xF5)]);
 
         let radon_types_ok = RadonTypes::try_error_from_cbor_value(&cbor_value_ok).unwrap();
         let rad_error_wrong_type =
@@ -476,7 +482,7 @@ mod tests {
             actual_type: format!("{:?}", CborValue::Bool(false)),
         };
         let expected_unknown_error_code =
-            RadError::DecodeRadonErrorUnknownCode { error_code: 0xFF };
+            RadError::DecodeRadonErrorUnknownCode { error_code: 0xF5 };
 
         assert_eq!(radon_types_ok, expected_ok);
         assert_eq!(rad_error_wrong_type, expected_wrong_type);

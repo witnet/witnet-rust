@@ -144,7 +144,7 @@ pub fn run_tally_report(
     let radon_script = create_radon_script_from_filters_and_reducer(filters, reducer)?;
 
     if radon_types_vec.is_empty() {
-        return RadonReport::from_result(Err(RadError::NoReveals), context);
+        return Ok(RadonReport::from_result(Err(RadError::NoReveals), context));
     }
 
     let items_to_tally = RadonTypes::from(RadonArray::from(radon_types_vec));

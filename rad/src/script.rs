@@ -41,7 +41,7 @@ pub fn execute_radon_script(
     context.complete();
 
     // Return a report as constructed from the result and the context
-    RadonReport::from_result(result, context)
+    Ok(RadonReport::from_result(result, context))
 }
 
 /// Run any RADON script on given input data, and return `RadonTypes`.

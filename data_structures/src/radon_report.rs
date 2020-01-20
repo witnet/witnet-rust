@@ -31,17 +31,14 @@ where
 {
     /// Factory for constructing a `RadonReport` from the `Result` of something that could be
     /// `ErrorLike` plus a `ReportContext`.
-    pub fn from_result(
-        result: Result<RT, RT::Error>,
-        context: &ReportContext,
-    ) -> Result<Self, RT::Error> {
-        let intercepted = RT::intercept(result)?;
+    pub fn from_result(result: Result<RT, RT::Error>, context: &ReportContext) -> Self {
+        let intercepted = RT::intercept(result);
 
-        Ok(RadonReport {
+        RadonReport {
             result: intercepted,
             metadata: context.stage.clone(),
             running_time: context.duration(),
-        })
+        }
     }
 
     /// Recover the inner result as a `RT` from a `RadonReport`.
@@ -69,7 +66,7 @@ pub trait TypeLike: std::marker::Sized {
     type Error: ErrorLike;
 
     fn encode(&self) -> Result<Vec<u8>, Self::Error>;
-    fn intercept(result: Result<Self, Self::Error>) -> Result<Self, Self::Error>;
+    fn intercept(result: Result<Self, Self::Error>) -> Self;
 }
 
 /// A generic structure for bubbling up any kind of metadata that may be generated during the

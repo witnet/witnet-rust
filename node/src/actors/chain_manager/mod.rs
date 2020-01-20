@@ -829,8 +829,8 @@ fn update_reputation(
 fn show_tally_info(tally_tx: &TallyTransaction, block_epoch: Epoch) {
     let result = RadonTypes::try_from(tally_tx.tally.as_slice());
     let result_str = RadonReport::from_result(result, &ReportContext::default())
-        .map(|x| x.into_inner().to_string())
-        .unwrap_or_else(|e| format!("Unexpected RADError: {}", e));
+        .into_inner()
+        .to_string();
     info!(
         "{} {} completed at epoch #{} with result: {}",
         Yellow.bold().paint("[Data Request]"),

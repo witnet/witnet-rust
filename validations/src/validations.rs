@@ -354,13 +354,13 @@ pub fn validate_consensus(
                 &slice,
                 e
             );
-            Some(RadonReport::from_result(Err(e), &ReportContext::default()).unwrap())
+            Some(RadonReport::from_result(Err(e), &ReportContext::default()))
         },
     );
 
     let results_len = results.len();
     let clause_result = evaluate_tally_precondition_clause(results, non_error_min);
-    let report = construct_report_from_clause_result(clause_result, &tally, results_len)?;
+    let report = construct_report_from_clause_result(clause_result, &tally, results_len);
 
     let metadata = report.metadata.clone();
     let tally_consensus = Vec::<u8>::try_from(&report)?;
@@ -401,12 +401,21 @@ pub fn construct_report_from_clause_result(
     clause_result: Result<TallyPreconditionClauseResult, RadError>,
     script: &RADTally,
     reports_len: usize,
-) -> Result<RadonReport<RadonTypes>, RadError> {
+) -> RadonReport<RadonTypes> {
     match clause_result {
         // The reveals passed the precondition clause (a parametric majority of them were successful
         // values). Run the tally, which will add more liars if any.
         Ok(TallyPreconditionClauseResult::MajorityOfValues { values, liars }) => {
-            run_tally_report(values, script, Some(liars))
+            let mut metadata = TallyMetaData::default();
+            metadata.update_liars(vec![false; reports_len]);
+
+            match run_tally_report(values, script, Some(liars)) {
+                Ok(x) => x,
+                Err(e) => RadonReport::from_result(
+                    Err(e),
+                    &ReportContext::from_stage(Stage::Tally(metadata)),
+                ),
+            }
         }
         // The reveals did not pass the precondition clause (a parametric majority of them were
         // errors). Tally will not be run, and the mode of the errors will be committed.
@@ -1634,10 +1643,8 @@ mod tests {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_float = RadonTypes::Float(RadonFloat::from(1));
 
-        let rad_rep_int =
-            RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default()).unwrap();
-        let rad_rep_float =
-            RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default());
+        let rad_rep_float = RadonReport::from_result(Ok(rad_float), &ReportContext::default());
 
         let v = vec![
             rad_rep_int.clone(),
@@ -1662,8 +1669,7 @@ mod tests {
     fn test_tally_precondition_clause_full_consensus() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
 
-        let rad_rep_int =
-            RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default()).unwrap();
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default());
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
 
@@ -1683,8 +1689,7 @@ mod tests {
     fn test_tally_precondition_clause_exact_consensus() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
 
-        let rad_rep_int =
-            RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default()).unwrap();
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default());
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
 
@@ -1705,10 +1710,8 @@ mod tests {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_err = RadError::HttpStatus { status_code: 404 };
 
-        let rad_rep_int =
-            RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default()).unwrap();
-        let rad_rep_err =
-            RadonReport::from_result(Err(rad_err), &ReportContext::default()).unwrap();
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int.clone()), &ReportContext::default());
+        let rad_rep_err = RadonReport::from_result(Err(rad_err), &ReportContext::default());
 
         let v = vec![
             rad_rep_int.clone(),
@@ -1734,12 +1737,11 @@ mod tests {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_err = RadonError::try_from(RadError::HttpStatus { status_code: 0 }).unwrap();
 
-        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default());
         let rad_rep_err = RadonReport::from_result(
             Ok(RadonTypes::RadonError(rad_err.clone())),
             &ReportContext::default(),
-        )
-        .unwrap();
+        );
 
         let v = vec![
             rad_rep_err.clone(),
@@ -1764,9 +1766,8 @@ mod tests {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_float = RadonTypes::Float(RadonFloat::from(1));
 
-        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
-        let rad_rep_float =
-            RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default());
+        let rad_rep_float = RadonReport::from_result(Ok(rad_float), &ReportContext::default());
 
         let v = vec![
             rad_rep_float.clone(),
@@ -1795,14 +1796,12 @@ mod tests {
         let rad_float = RadonTypes::Float(RadonFloat::from(1));
         let rad_err = RadonError::try_from(RadError::HttpStatus { status_code: 0 }).unwrap();
 
-        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
-        let rad_rep_float =
-            RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default());
+        let rad_rep_float = RadonReport::from_result(Ok(rad_float), &ReportContext::default());
         let rad_rep_err = RadonReport::from_result(
             Ok(RadonTypes::RadonError(rad_err.clone())),
             &ReportContext::default(),
-        )
-        .unwrap();
+        );
 
         let v = vec![
             rad_rep_err.clone(),
@@ -1840,8 +1839,7 @@ mod tests {
         let rad_rep_err = RadonReport::from_result(
             Ok(RadonTypes::RadonError(rad_err.clone())),
             &ReportContext::default(),
-        )
-        .unwrap();
+        );
 
         let v = vec![
             rad_rep_err.clone(),
@@ -1866,9 +1864,8 @@ mod tests {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_float = RadonTypes::Float(RadonFloat::from(1));
 
-        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default()).unwrap();
-        let rad_rep_float =
-            RadonReport::from_result(Ok(rad_float), &ReportContext::default()).unwrap();
+        let rad_rep_int = RadonReport::from_result(Ok(rad_int), &ReportContext::default());
+        let rad_rep_float = RadonReport::from_result(Ok(rad_float), &ReportContext::default());
 
         let v = vec![
             rad_rep_float.clone(),

@@ -24,7 +24,6 @@ impl Handler<ResolveRA> for RadManager {
         // returns a std future. It is called fut03 because it uses the 0.3 version of futures,
         // while most of our codebase is still on 0.1 futures.
         let fut03 = async {
-            let dr_pointer = msg.dr_pointer;
             let sources = msg.rad_request.retrieve;
             let aggregator = msg.rad_request.aggregate;
 
@@ -39,21 +38,7 @@ impl Handler<ResolveRA> for RadManager {
                 futures03::future::join_all(retrieve_responses_fut)
                     .await
                     .into_iter()
-                    .filter_map(|retrieve| {
-                        let rad_report =
-                            RadonReport::from_result(retrieve, &ReportContext::default());
-                        match rad_report {
-                            Ok(x) => Some(x),
-                            Err(err) => {
-                                log::warn!(
-                                    "Failed to run retrieval for data request {}: {}",
-                                    dr_pointer,
-                                    err
-                                );
-                                None
-                            }
-                        }
-                    })
+                    .map(|retrieve| RadonReport::from_result(retrieve, &ReportContext::default()))
                     .collect();
 
             let clause_result = evaluate_tally_precondition_clause(retrieve_responses, 0.2);
@@ -69,12 +54,12 @@ impl Handler<ResolveRA> for RadManager {
                     witnet_rad::run_aggregation_report(values, &aggregator)
                 }
                 Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode }) => {
-                    RadonReport::from_result(
+                    Ok(RadonReport::from_result(
                         Ok(RadonTypes::RadonError(errors_mode)),
                         &ReportContext::default(),
-                    )
+                    ))
                 }
-                Err(e) => RadonReport::from_result(Err(e), &ReportContext::default()),
+                Err(e) => Ok(RadonReport::from_result(Err(e), &ReportContext::default())),
             }
         };
 
@@ -92,10 +77,10 @@ impl Handler<ResolveRA> for RadManager {
                 Ok(x) => Ok(x),
                 Err(error) => {
                     if error.is_elapsed() {
-                        RadonReport::from_result(
+                        Ok(RadonReport::from_result(
                             Err(RadError::RetrieveTimeout),
                             &ReportContext::default(),
-                        )
+                        ))
                     } else if error.is_inner() {
                         Err(error.into_inner().unwrap())
                     } else {
@@ -113,12 +98,17 @@ impl Handler<RunTally> for RadManager {
     type Result = <RunTally as Message>::Result;
 
     fn handle(&mut self, msg: RunTally, _ctx: &mut Self::Context) -> Self::Result {
-        let packed_script = msg.script;
-        let reports = msg.reports;
+        let inner = || {
+            let packed_script = msg.script;
+            let reports = msg.reports;
 
-        let reports_len = reports.len();
-        let clause_result = evaluate_tally_precondition_clause(reports, msg.min_consensus_ratio);
+            let reports_len = reports.len();
+            let clause_result =
+                evaluate_tally_precondition_clause(reports, msg.min_consensus_ratio);
 
-        construct_report_from_clause_result(clause_result, &packed_script, reports_len)
+            construct_report_from_clause_result(clause_result, &packed_script, reports_len)
+        };
+
+        Some(inner())
     }
 }

@@ -289,7 +289,6 @@ impl ChainManager {
                     rad_manager_addr
                         .send(ResolveRA {
                             rad_request,
-                            dr_pointer,
                             timeout: data_request_timeout,
                         })
                         .map(move |result| match result {
@@ -387,10 +386,7 @@ impl ChainManager {
                             &slice,
                             e
                         );
-                            Some(
-                                RadonReport::from_result(Err(e), &ReportContext::default())
-                                    .unwrap(),
-                            )
+                            Some(RadonReport::from_result(Err(e), &ReportContext::default()))
                         },
                     );
 
@@ -406,16 +402,13 @@ impl ChainManager {
                         })
                         .then(|result| match result {
                             // If the result of `RunTally` is `Ok`, it will be published as tally
-                            Ok(Ok(value)) => futures::future::ok(value),
+                            Ok(Some(value)) => futures::future::ok(value),
                             // If the result of `RunTally` is `Err`, we ignore this data request.
                             // If a data request has an invalid tally script, it will never resolve.
                             // The Radon engine should return `Ok(RadonError)` for errors which should
                             // be published as the result of the data request, or we could use a
                             // special radon value to indicate "generic error"
-                            Ok(Err(e)) => {
-                                log::warn!("Couldn't run tally: {}", e);
-                                futures::future::err(())
-                            }
+                            Ok(None) => unreachable!("Couldn't run tally"),
                             Err(e) => {
                                 log::error!("Couldn't run tally: {}", e);
                                 futures::future::err(())
