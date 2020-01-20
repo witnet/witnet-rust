@@ -346,16 +346,7 @@ pub fn validate_consensus(
     let results = serial_iter_decode(
         &mut reveals
             .iter()
-            .map(|&reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
-        |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
-            log::warn!(
-                "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
-                reveal_tx,
-                &slice,
-                e
-            );
-            Some(RadonReport::from_result(Err(e), &ReportContext::default()))
-        },
+            .map(|reveal_tx| reveal_tx.body.reveal.as_slice()),
     );
 
     let results_len = results.len();

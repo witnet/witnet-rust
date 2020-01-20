@@ -13,14 +13,13 @@ use witnet_data_structures::{
         Hashable, PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{create_tally, DataRequestPool},
-    radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, CommitTransactionBody, MintTransaction, RevealTransaction,
         RevealTransactionBody, TallyTransaction,
     },
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
-use witnet_rad::{error::RadError, types::serial_iter_decode};
+use witnet_rad::types::serial_iter_decode;
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
     merkle_tree_root, update_utxo_diff, validate_block, vt_transaction_fee, UtxoDiff,
@@ -378,16 +377,7 @@ impl ChainManager {
                     let reports = serial_iter_decode(
                         &mut reveals
                             .iter()
-                            .map(|reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
-                        |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
-                            log::warn!(
-                            "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
-                            reveal_tx,
-                            &slice,
-                            e
-                        );
-                            Some(RadonReport::from_result(Err(e), &ReportContext::default()))
-                        },
+                            .map(|reveal_tx| reveal_tx.body.reveal.as_slice()),
                     );
 
                     let min_consensus_ratio =
