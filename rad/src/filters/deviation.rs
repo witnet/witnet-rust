@@ -26,6 +26,7 @@ pub fn standard_filter(
 
     let sigmas = &extra_args[0];
     let sigmas_float = match sigmas {
+        Value::Integer(i) => *i as f64,
         Value::Float(f) => *f,
         _ => {
             return Err(wrong_args());
@@ -573,5 +574,35 @@ mod tests {
         let expected = vec![2];
 
         assert_eq!(istd(&input, sigmas), Ok(expected));
+    }
+
+    #[test]
+    fn test_filter_deviation_standard_integer_three_int_sigma() {
+        let input = vec![1, 2, 3];
+        let sigmas = 1;
+        let expected = vec![2];
+
+        let input_vec: Vec<RadonTypes> = input
+            .iter()
+            .map(|f| RadonTypes::Integer(RadonInteger::from(*f)))
+            .collect();
+        let input = RadonArray::from(input_vec);
+        let extra_args = vec![Value::Integer(sigmas)];
+
+        let output = standard_filter(&input, &extra_args, &mut ReportContext::default()).unwrap();
+
+        let output_vec = match output {
+            RadonTypes::Array(x) => x.value(),
+            _ => panic!("Filter method should return a RadonArray"),
+        };
+        let output_i128: Vec<i128> = output_vec
+            .into_iter()
+            .map(|r| match r {
+                RadonTypes::Integer(x) => x.value(),
+                _ => panic!("Filter method should return an array of integers"),
+            })
+            .collect();
+
+        assert_eq!(output_i128, expected);
     }
 }
