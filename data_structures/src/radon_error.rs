@@ -66,6 +66,9 @@ impl Default for RadonErrors {
 /// `RadonReport`.
 pub trait ErrorLike: Clone + Fail {
     fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error>;
+    fn decode_cbor_array(
+        serde_cbor_array: Vec<SerdeCborValue>,
+    ) -> Result<RadonError<Self>, failure::Error>;
 }
 
 /// This structure is aimed to be the error type for the `result` field of `witnet_data_structures::radon_report::Report`.

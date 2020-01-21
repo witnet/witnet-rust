@@ -212,6 +212,12 @@ mod tests {
                     SerdeCborValue::Integer(arg0.into()),
                 ])
             }
+
+            fn decode_cbor_array(
+                _serde_cbor_array: Vec<SerdeCborValue>,
+            ) -> Result<RadonError<Self>, failure::Error> {
+                unimplemented!()
+            }
         }
 
         // Satisfy the trait bound `(): std::convert::From<cbor::encoder::EncodeError>`

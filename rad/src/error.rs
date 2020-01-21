@@ -268,7 +268,7 @@ pub enum RadError {
         arguments, message
     )]
     DecodeRadonErrorArgumentsRadonTypesFail {
-        arguments: Option<SerdeCborValue>,
+        arguments: Option<Vec<SerdeCborValue>>,
         message: String,
     },
     /// No reveals received
@@ -327,16 +327,50 @@ pub enum RadError {
 }
 
 impl RadError {
+    pub fn try_from_cbor_array(
+        serde_cbor_array: Vec<SerdeCborValue>,
+    ) -> Result<RadonError<Self>, RadError> {
+        match serde_cbor_array.split_first() {
+            Some((head, tail)) => {
+                if let SerdeCborValue::Integer(error_code) = head {
+                    let error_code = u8::try_from(*error_code).map_err(|_| {
+                        RadError::DecodeRadonErrorBadCode {
+                            actual_type: format!("{:?}", head),
+                        }
+                    })?;
+                    let kind = RadonErrors::try_from(error_code)
+                        .map_err(|_| RadError::DecodeRadonErrorUnknownCode { error_code })?;
+
+                    let serde_cbor_error_args = if tail.is_empty() {
+                        None
+                    } else {
+                        Some(tail.to_vec())
+                    };
+
+                    Ok(RadError::try_from_kind_and_cbor_args(
+                        kind,
+                        serde_cbor_error_args,
+                    )?)
+                } else {
+                    Err(RadError::DecodeRadonErrorBadCode {
+                        actual_type: format!("{:?}", head),
+                    })
+                }
+            }
+            None => Err(RadError::DecodeRadonErrorEmptyArray),
+        }
+    }
+
     pub fn try_from_kind_and_cbor_args(
         kind: RadonErrors,
-        error_args: Option<SerdeCborValue>,
+        error_args: Option<Vec<SerdeCborValue>>,
     ) -> Result<RadonError<Self>, RadError> {
         // TODO: we currently allow extra arguments when the RadError does not expect any arguments
         fn deserialize_args<T: serde::de::DeserializeOwned>(
-            error_args: Option<SerdeCborValue>,
+            error_args: Option<Vec<SerdeCborValue>>,
         ) -> Result<T, RadError> {
             let error_args = if let Some(x) = error_args {
-                x
+                SerdeCborValue::Array(x)
             } else {
                 return Err(RadError::DecodeRadonErrorMissingArguments);
             };
@@ -493,6 +527,7 @@ impl RadError {
 
         Ok(v)
     }
+
     pub fn try_into_error_code(&self) -> Result<RadonErrors, RadError> {
         Ok(match self {
             RadError::Unknown => RadonErrors::Unknown,
@@ -522,6 +557,12 @@ impl RadError {
 impl ErrorLike for RadError {
     fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error> {
         self.try_into_cbor_array().map_err(Into::into)
+    }
+
+    fn decode_cbor_array(
+        serde_cbor_array: Vec<SerdeCborValue>,
+    ) -> Result<RadonError<Self>, failure::Error> {
+        Self::try_from_cbor_array(serde_cbor_array).map_err(Into::into)
     }
 }
 
@@ -730,14 +771,8 @@ mod tests {
             assert_eq!(serde_cbor_array[0], Value::Integer(error_code.into()));
 
             // Deserialize the result and compare
-            let serde_cbor_value = if serde_cbor_array.len() > 1 {
-                Some(SerdeCborValue::Array(serde_cbor_array[1..].to_vec()))
-            } else {
-                None
-            };
             let deserialized_rad_error =
-                RadError::try_from_kind_and_cbor_args(radon_errors, serde_cbor_value)
-                    .map(|r| r.into_inner());
+                RadError::try_from_cbor_array(serde_cbor_array).map(|r| r.into_inner());
 
             match deserialized_rad_error {
                 Ok(x) => assert_eq!(x, rad_error),
