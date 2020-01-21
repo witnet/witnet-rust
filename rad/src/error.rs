@@ -306,6 +306,15 @@ pub enum RadError {
         display = "`RadError` cannot be converted to `RadonError` because the error code is not defined"
     )]
     EncodeRadonErrorUnknownCode,
+    /// Generic error during tally execution
+    #[fail(
+        display = "Error during tally execution. Message: {:?}. Inner: `{:?}`",
+        message, inner
+    )]
+    TallyExecution {
+        inner: Option<Box<RadError>>,
+        message: Option<String>,
+    },
     /// `RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result
     #[fail(
         display = "`RadError` cannot be converted to `RadonError` but it should, because it is needed for the tally result. Message: {:?}. Inner: `{:?}`",
@@ -390,6 +399,13 @@ impl RadError {
                 };
                 RadError::ModeTie { values }
             }
+            RadonErrors::TallyExecution => {
+                let (message,) = deserialize_args(error_args)?;
+                RadError::TallyExecution {
+                    inner: None,
+                    message: Some(message),
+                }
+            }
             RadonErrors::UnhandledIntercept => {
                 let (message,) = deserialize_args(error_args)?;
                 RadError::UnhandledIntercept {
@@ -432,6 +448,17 @@ impl RadError {
             RadError::ModeTie { values } => {
                 let values = serialize_radon_types_arg(RadonTypes::from((*values).clone()))?;
                 Some(serialize_args((values,))?)
+            }
+            RadError::TallyExecution { inner, message } => {
+                let message = match (inner, message) {
+                    // Only serialize the message
+                    (_, Some(message)) => message.clone(),
+                    // But if there is no message, serialize the debug representation of inner
+                    (Some(inner), None) => format!("inner: {:?}", inner),
+                    // And if there is no inner, serialize this string
+                    (None, None) => "inner: None".to_string(),
+                };
+                Some(serialize_args((message,))?)
             }
             RadError::UnhandledIntercept { inner, message } => {
                 let message = match (inner, message) {
@@ -483,6 +510,7 @@ impl RadError {
             RadError::RetrieveTimeout => RadonErrors::RetrieveTimeout,
             RadError::InsufficientConsensus { .. } => RadonErrors::InsufficientConsensus,
             RadError::ModeTie { .. } => RadonErrors::ModeTie,
+            RadError::TallyExecution { .. } => RadonErrors::TallyExecution,
             RadError::UnhandledIntercept { .. } => RadonErrors::UnhandledIntercept,
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
@@ -616,6 +644,10 @@ mod tests {
                     RadonTypes::Integer(RadonInteger::from(3)),
                     RadonTypes::Integer(RadonInteger::from(3)),
                 ]),
+            },
+            RadonErrors::TallyExecution => RadError::TallyExecution {
+                inner: None,
+                message: Some("Only the message field is serialized".to_string()),
             },
             RadonErrors::UnhandledIntercept => RadError::UnhandledIntercept {
                 inner: None,

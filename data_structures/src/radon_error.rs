@@ -48,6 +48,8 @@ pub enum RadonErrors {
     InsufficientConsensus = 0x51,
     /// There was a tie after applying the mode reducer
     ModeTie = 0x52,
+    /// Generic error during tally execution
+    TallyExecution = 0x53,
     // This should not exist:
     /// Some tally error is not intercepted but should
     UnhandledIntercept = 0xFF,

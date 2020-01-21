@@ -403,7 +403,10 @@ pub fn construct_report_from_clause_result(
             match run_tally_report(values, script, Some(liars)) {
                 Ok(x) => x,
                 Err(e) => RadonReport::from_result(
-                    Err(e),
+                    Err(RadError::TallyExecution {
+                        inner: Some(Box::new(e)),
+                        message: None,
+                    }),
                     &ReportContext::from_stage(Stage::Tally(metadata)),
                 ),
             }
