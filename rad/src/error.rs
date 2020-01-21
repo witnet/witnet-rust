@@ -324,6 +324,9 @@ pub enum RadError {
         inner: Option<Box<RadError>>,
         message: Option<String>,
     },
+    /// Invalid reveal serialization (malformed reveals are converted to this value)
+    #[fail(display = "The reveal was not serialized correctly")]
+    MalformedReveal,
 }
 
 impl RadError {
@@ -403,6 +406,7 @@ impl RadError {
             RadonErrors::Underflow => RadError::Underflow,
             RadonErrors::DivisionByZero => RadError::DivisionByZero,
             RadonErrors::RetrieveTimeout => RadError::RetrieveTimeout,
+            RadonErrors::MalformedReveal => RadError::MalformedReveal,
             RadonErrors::UnsupportedOperator => {
                 let (input_type, operator, args) = deserialize_args(error_args)?;
                 RadError::UnsupportedOperator {
@@ -547,6 +551,7 @@ impl RadError {
             RadError::ModeTie { .. } => RadonErrors::ModeTie,
             RadError::TallyExecution { .. } => RadonErrors::TallyExecution,
             RadError::UnhandledIntercept { .. } => RadonErrors::UnhandledIntercept,
+            RadError::MalformedReveal => RadonErrors::MalformedReveal,
             _ => return Err(RadError::EncodeRadonErrorUnknownCode),
         })
     }

@@ -401,10 +401,20 @@ impl TryFrom<CborValue> for RadonTypes {
     }
 }
 
-/// Decode a vector of instances of RadonTypes from any iterator that yields `&[u8]`.
-pub fn serial_iter_decode(iter: &mut dyn Iterator<Item = &[u8]>) -> Vec<RadonReport<RadonTypes>> {
-    iter.map(|slice| {
-        RadonReport::from_result(RadonTypes::try_from(slice), &ReportContext::default())
+/// Decode a vector of instances of RadonTypes from any iterator that yields `(&[u8], &T)`.
+/// The `err_action` argument allows the caller of this function to decide whether
+/// it should act in a lossy way, i.e. ignoring items that cannot be decoded or replacing them with
+/// default values.
+pub fn serial_iter_decode<T>(
+    iter: &mut dyn Iterator<Item = (&[u8], &T)>,
+    err_action: fn(RadError, &[u8], &T) -> Option<RadonReport<RadonTypes>>,
+) -> Vec<RadonReport<RadonTypes>> {
+    iter.filter_map(|(slice, inner)| match RadonTypes::try_from(slice) {
+        Ok(radon_types) => Some(RadonReport::from_result(
+            Ok(radon_types),
+            &ReportContext::default(),
+        )),
+        Err(e) => err_action(e, slice, inner),
     })
     .collect()
 }
@@ -412,6 +422,53 @@ pub fn serial_iter_decode(iter: &mut dyn Iterator<Item = &[u8]>) -> Vec<RadonRep
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn serial_iter_decode_invalid_reveals() {
+        #[allow(clippy::trivially_copy_pass_by_ref)]
+        fn ignore_invalid_fn(_: RadError, _: &[u8], _: &()) -> Option<RadonReport<RadonTypes>> {
+            None
+        }
+        #[allow(clippy::trivially_copy_pass_by_ref)]
+        fn malformed_reveal_fn(_: RadError, _: &[u8], _: &()) -> Option<RadonReport<RadonTypes>> {
+            Some(RadonReport::from_result(
+                Err(RadError::MalformedReveal),
+                &ReportContext::default(),
+            ))
+        }
+
+        let malformed_reveal =
+            RadonTypes::RadonError(RadonError::try_from(RadError::MalformedReveal).unwrap());
+
+        // No reveals: returns empty vector
+        let zero_empty_bytes: Vec<(&[u8], &())> = vec![];
+        let empty: Vec<_> =
+            serial_iter_decode(&mut zero_empty_bytes.into_iter(), ignore_invalid_fn)
+                .into_iter()
+                .map(|report| report.into_inner())
+                .collect();
+        assert_eq!(empty, vec![]);
+
+        // One reveal with zero bytes: return err_action
+        // In this case, filter out invalid reveals, so it returns empty vector
+        let one_empty_bytes: Vec<(&[u8], &())> = vec![(&[], &())];
+        let still_empty: Vec<_> =
+            serial_iter_decode(&mut one_empty_bytes.into_iter(), ignore_invalid_fn)
+                .into_iter()
+                .map(|report| report.into_inner())
+                .collect();
+        assert_eq!(still_empty, vec![]);
+
+        // One reveal with zero bytes: return err_action
+        // In this case, replace invalid reveals with RadError::MalformedReveal
+        let one_empty_bytes: Vec<(&[u8], &())> = vec![(&[], &())];
+        let rad_decode_error_as_result: Vec<_> =
+            serial_iter_decode(&mut one_empty_bytes.into_iter(), malformed_reveal_fn)
+                .into_iter()
+                .map(|report| report.into_inner())
+                .collect();
+        assert_eq!(rad_decode_error_as_result, vec![malformed_reveal]);
+    }
 
     #[test]
     fn test_radontypes_try_error_from_cbor_value() {

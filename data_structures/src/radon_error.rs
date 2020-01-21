@@ -50,6 +50,8 @@ pub enum RadonErrors {
     ModeTie = 0x52,
     /// Generic error during tally execution
     TallyExecution = 0x53,
+    /// Invalid reveal serialization (malformed reveals are converted to this value)
+    MalformedReveal = 0x60,
     // This should not exist:
     /// Some tally error is not intercepted but should
     UnhandledIntercept = 0xFF,
