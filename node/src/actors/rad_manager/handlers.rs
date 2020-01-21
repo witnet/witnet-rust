@@ -98,18 +98,12 @@ impl Handler<RunTally> for RadManager {
     type Result = <RunTally as Message>::Result;
 
     fn handle(&mut self, msg: RunTally, _ctx: &mut Self::Context) -> Self::Result {
-        let inner = || {
-            let packed_script = msg.script;
-            let reports = msg.reports;
+        let packed_script = msg.script;
+        let reports = msg.reports;
 
-            let reports_len = reports.len();
-            let clause_result =
-                evaluate_tally_precondition_clause(reports, msg.min_consensus_ratio);
+        let reports_len = reports.len();
+        let clause_result = evaluate_tally_precondition_clause(reports, msg.min_consensus_ratio);
 
-            construct_report_from_clause_result(clause_result, &packed_script, reports_len)
-        };
-
-        // TODO: how to return `RadonReport`?
-        Some(inner())
+        construct_report_from_clause_result(clause_result, &packed_script, reports_len)
     }
 }

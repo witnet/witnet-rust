@@ -391,14 +391,9 @@ impl ChainManager {
                             script: dr_state.data_request.data_request.tally.clone(),
                         })
                         .then(|result| match result {
-                            // If the result of `RunTally` is `Ok`, it will be published as tally
-                            Ok(Some(value)) => futures::future::ok(value),
-                            // If the result of `RunTally` is `Err`, we ignore this data request.
-                            // If a data request has an invalid tally script, it will never resolve.
-                            // The Radon engine should return `Ok(RadonError)` for errors which should
-                            // be published as the result of the data request, or we could use a
-                            // special radon value to indicate "generic error"
-                            Ok(None) => unreachable!("Couldn't run tally"),
+                            // The result of `RunTally` will be published as tally
+                            Ok(value) => futures::future::ok(value),
+                            // Mailbox error
                             Err(e) => {
                                 log::error!("Couldn't run tally: {}", e);
                                 futures::future::err(())

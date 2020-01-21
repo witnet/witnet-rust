@@ -5,9 +5,15 @@ use std::{
     marker::Send,
     net::SocketAddr,
     ops::{Bound, RangeBounds},
+    time::Duration,
 };
 
-use actix::{actors::resolver::ResolverError, dev::ToEnvelope, Actor, Addr, Handler, Message};
+use actix::{
+    actors::resolver::ResolverError,
+    dev::{MessageResponse, ResponseChannel, ToEnvelope},
+    Actor, Addr, Handler, Message,
+};
+
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
@@ -30,9 +36,9 @@ use super::{
         AllEpochSubscription, EpochManagerError, SendableNotification, SingleEpochSubscription,
     },
     inventory_manager::InventoryManagerError,
+    rad_manager::RadManager,
     session::Session,
 };
-use std::time::Duration;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CHAIN MANAGER
@@ -540,7 +546,18 @@ impl Message for ResolveRA {
 }
 
 impl Message for RunTally {
-    type Result = Option<RadonReport<RadonTypes>>;
+    type Result = RadonReport<RadonTypes>;
+}
+
+impl<M> MessageResponse<RadManager, M> for RadonReport<RadonTypes>
+where
+    M: Message<Result = Self>,
+{
+    fn handle<R: ResponseChannel<M>>(self, _: &mut <RadManager as Actor>::Context, tx: Option<R>) {
+        if let Some(tx) = tx {
+            tx.send(self);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
