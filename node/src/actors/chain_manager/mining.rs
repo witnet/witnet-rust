@@ -416,7 +416,7 @@ impl ChainManager {
                                         Yellow.bold().paint(&dr_pointer.to_string()),
                                         Yellow
                                             .bold()
-                                            .paint(format!("{:?}", &tally_result.into_inner())),
+                                            .paint(format!("{}", &tally_result.into_inner())),
                                         White.bold().paint(
                                             reports.into_iter().map(|result| result).fold(
                                                 String::from("Reveals:"),
