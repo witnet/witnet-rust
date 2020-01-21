@@ -520,8 +520,8 @@ impl RadError {
 /// Satisfy the `ErrorLike` trait that ensures generic compatibility of `witnet_rad` and
 /// `witnet_data_structures`.
 impl ErrorLike for RadError {
-    fn encode_cbor_array(&self) -> Vec<SerdeCborValue> {
-        self.try_into_cbor_array().unwrap()
+    fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error> {
+        self.try_into_cbor_array().map_err(Into::into)
     }
 }
 

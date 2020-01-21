@@ -203,14 +203,14 @@ mod tests {
 
         // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
         impl ErrorLike for Dummy {
-            fn encode_cbor_array(&self) -> Vec<SerdeCborValue> {
+            fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error> {
                 let kind = u8::from(RadonErrors::SourceScriptNotCBOR);
                 let arg0 = 2;
 
-                vec![
+                Ok(vec![
                     SerdeCborValue::Integer(kind.into()),
                     SerdeCborValue::Integer(arg0.into()),
-                ]
+                ])
             }
         }
 

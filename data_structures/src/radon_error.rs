@@ -65,7 +65,7 @@ impl Default for RadonErrors {
 /// This trait identifies a structure that can be used as an error type for `RadonError` and
 /// `RadonReport`.
 pub trait ErrorLike: Clone + Fail {
-    fn encode_cbor_array(&self) -> Vec<SerdeCborValue>;
+    fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error>;
 }
 
 /// This structure is aimed to be the error type for the `result` field of `witnet_data_structures::radon_report::Report`.
@@ -88,10 +88,10 @@ where
         RadonError { inner }
     }
 
-    pub fn encode_tagged_value(&self) -> CborValue {
+    pub fn encode_tagged_value(&self) -> Result<CborValue, failure::Error> {
         let values: Vec<CborValue> = self
             .inner
-            .encode_cbor_array()
+            .encode_cbor_array()?
             .into_iter()
             .map(|scv| {
                 // FIXME(#953): remove this conversion
@@ -99,12 +99,15 @@ where
             })
             .collect();
 
-        CborValue::Tagged(Tag::of(39), Box::new(CborValue::Array(values)))
+        Ok(CborValue::Tagged(
+            Tag::of(39),
+            Box::new(CborValue::Array(values)),
+        ))
     }
 
-    pub fn encode_tagged_bytes(&self) -> Result<Vec<u8>, cbor::encoder::EncodeError> {
+    pub fn encode_tagged_bytes(&self) -> Result<Vec<u8>, failure::Error> {
         let mut encoder = GenericEncoder::new(Cursor::new(Vec::new()));
-        encoder.value(&self.encode_tagged_value())?;
+        encoder.value(&self.encode_tagged_value()?)?;
 
         Ok(encoder.into_inner().into_writer().into_inner())
     }
