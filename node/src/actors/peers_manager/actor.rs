@@ -2,9 +2,7 @@ use actix::prelude::*;
 use log::{debug, error, info};
 
 use super::PeersManager;
-use crate::actors::storage_keys::PEERS_KEY;
-use crate::config_mngr;
-use crate::storage_mngr;
+use crate::{actors::storage_keys, config_mngr, storage_mngr};
 use witnet_p2p::peers::Peers;
 
 /// Make actor from PeersManager
@@ -48,7 +46,11 @@ impl Actor for PeersManager {
                     Err(e) => error!("Error when adding peer addresses from config: {}", e),
                 }
 
-                storage_mngr::get::<_, Peers>(&PEERS_KEY)
+                let consensus_constants = (&config.consensus_constants).clone();
+                let magic = consensus_constants.get_magic();
+                act.set_magic(magic);
+
+                storage_mngr::get::<_, Peers>(&storage_keys::peers_key(magic))
                     .into_actor(act)
                     .map_err(|e, _, _| error!("Couldn't get peers from storage: {}", e))
                     .and_then(move |peers_from_storage, act, _ctx| {

@@ -20,12 +20,12 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 use witnet_util::parser::parse_hex;
 
-use crate::chain::Signature::Secp256k1;
-use crate::error::TransactionError;
 use crate::{
+    chain::Signature::Secp256k1,
     data_request::DataRequestPool,
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
+        TransactionError,
     },
     get_environment,
     proto::{schema::witnet, ProtobufConvert},
@@ -136,6 +136,13 @@ pub struct ConsensusConstants {
     /// Penalization factor: fraction of reputation lost by liars for out of consensus claims
     // FIXME(#172): Use fixed point arithmetic
     pub reputation_penalization_factor: f64,
+}
+
+impl ConsensusConstants {
+    pub fn get_magic(&self) -> u16 {
+        let magic = calculate_sha256(&self.to_pb_bytes().unwrap());
+        u16::from(magic.0[0]) << 8 | (u16::from(magic.0[1]))
+    }
 }
 
 /// Checkpoint beacon structure

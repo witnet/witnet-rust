@@ -5,14 +5,14 @@ use super::{
     handlers::{EpochPayload, EveryEpochPayload},
     ChainManager,
 };
-use crate::actors::{
-    epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
-    messages::{GetEpoch, GetEpochConstants, Subscribe},
-    storage_keys::CHAIN_STATE_KEY,
+use crate::{
+    actors::{
+        epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
+        messages::{GetEpoch, GetEpochConstants, Subscribe},
+        storage_keys,
+    },
+    config_mngr, signature_mngr, storage_mngr,
 };
-use crate::config_mngr;
-use crate::signature_mngr;
-use crate::storage_mngr;
 use witnet_data_structures::{
     chain::{ChainInfo, ChainState, CheckpointBeacon, ReputationEngine},
     vrf::VrfCtx,
@@ -57,7 +57,7 @@ impl ChainManager {
             // Get environment and consensus_constants parameters from config
             let environment = config.environment;
 
-            let consensus_constants = (&config.consensus_constants).clone();
+            let consensus_constants = config.consensus_constants.clone();
             act.max_block_weight = consensus_constants.max_block_weight;
             if config.mining.data_request_timeout == Duration::new(0, 0) {
                 act.data_request_timeout = None;
@@ -67,7 +67,10 @@ impl ChainManager {
 
             act.tx_pending_timeout = config.mempool.tx_pending_timeout;
 
-            storage_mngr::get::<_, ChainState>(&CHAIN_STATE_KEY)
+            let magic = consensus_constants.get_magic();
+            act.set_magic(magic);
+
+            storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
                 .into_actor(act)
                 .map_err(|e, _, _| error!("Error while getting chain state from storage: {}", e))
                 .and_then(move |chain_state_from_storage, act, _ctx| {

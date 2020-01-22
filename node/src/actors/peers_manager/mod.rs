@@ -7,10 +7,7 @@ use actix::{
 };
 
 use crate::{
-    actors::{
-        connections_manager::ConnectionsManager, messages::OutboundTcpConnect,
-        storage_keys::PEERS_KEY,
-    },
+    actors::{connections_manager::ConnectionsManager, messages::OutboundTcpConnect, storage_keys},
     storage_mngr,
 };
 use witnet_p2p::{peers::Peers, sessions::SessionType};
@@ -41,6 +38,8 @@ pub struct PeersManager {
     pub bucketing_update_period: i64,
     /// Timeout for handshake
     pub handshake_timeout: Duration,
+    /// Magic number from ConsensusConstants
+    magic: u16,
 }
 
 impl PeersManager {
@@ -48,7 +47,7 @@ impl PeersManager {
     fn persist_peers(&self, ctx: &mut Context<Self>, storage_peers_period: Duration) {
         // Schedule the discovery_peers with a given period
         ctx.run_later(storage_peers_period, move |act, ctx| {
-            storage_mngr::put(&PEERS_KEY, &act.peers)
+            storage_mngr::put(&storage_keys::peers_key(act.get_magic()), &act.peers)
                 .into_actor(act)
                 .and_then(|_, _, _| {
                     log::trace!("PeersManager successfully persisted peers to storage");
@@ -122,6 +121,16 @@ impl PeersManager {
             }
             act.feeler(ctx, feeler_peers_period);
         });
+    }
+
+    /// Set Magic number
+    pub fn set_magic(&mut self, new_magic: u16) {
+        self.magic = new_magic;
+    }
+
+    /// Get Magic number
+    pub fn get_magic(&self) -> u16 {
+        self.magic
     }
 }
 

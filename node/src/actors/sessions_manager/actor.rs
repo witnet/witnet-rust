@@ -2,8 +2,7 @@ use super::SessionsManager;
 use crate::config_mngr;
 use actix::prelude::*;
 use log;
-use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::{chain::EpochConstants, proto::ProtobufConvert};
+use witnet_data_structures::chain::EpochConstants;
 use witnet_util::timestamp::get_timestamp;
 
 /// Make actor from `SessionsManager`
@@ -54,9 +53,8 @@ impl Actor for SessionsManager {
                     .epoch_at(get_timestamp())
                     .unwrap_or_default();
 
-                let magic = calculate_sha256(&consensus_constants.to_pb_bytes().unwrap());
-                let magic = u16::from(magic.0[0]) << 8 | (u16::from(magic.0[1]));
-                act.sessions.set_magic_number(magic);
+                act.sessions
+                    .set_magic_number(consensus_constants.get_magic());
 
                 // The peers bootstrapping process begins upon SessionsManager's start
                 act.bootstrap_peers(ctx, bootstrap_peers_period);

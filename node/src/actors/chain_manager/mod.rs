@@ -66,7 +66,7 @@ use crate::{
             AddItems, AddTransaction, Broadcast, NewBlock, SendInventoryItem, StoreInventoryItem,
         },
         sessions_manager::SessionsManager,
-        storage_keys::CHAIN_STATE_KEY,
+        storage_keys,
     },
     storage_mngr,
 };
@@ -157,6 +157,8 @@ pub struct ChainManager {
     data_request_timeout: Option<Duration>,
     /// Pending transaction timeout
     tx_pending_timeout: u64,
+    /// Magic number from ConsensusConstants
+    magic: u16,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -177,14 +179,17 @@ impl ChainManager {
             }
         };
 
-        storage_mngr::put(&CHAIN_STATE_KEY, &self.last_chain_state)
-            .into_actor(self)
-            .and_then(|_, _, _| {
-                trace!("Successfully persisted chain_info into storage");
-                fut::ok(())
-            })
-            .map_err(|err, _, _| error!("Failed to persist chain_info into storage: {}", err))
-            .wait(ctx);
+        storage_mngr::put(
+            &storage_keys::chain_state_key(self.get_magic()),
+            &self.last_chain_state,
+        )
+        .into_actor(self)
+        .and_then(|_, _, _| {
+            trace!("Successfully persisted chain_info into storage");
+            fut::ok(())
+        })
+        .map_err(|err, _, _| error!("Failed to persist chain_info into storage: {}", err))
+        .wait(ctx);
     }
     /// Method to persist the chain_state into storage
     fn persist_chain_state(&mut self, ctx: &mut Context<Self>) {
@@ -546,6 +551,16 @@ impl ChainManager {
         } else {
             Err(ChainManagerError::ChainNotReady.into())
         }
+    }
+
+    /// Set Magic number
+    pub fn set_magic(&mut self, new_magic: u16) {
+        self.magic = new_magic;
+    }
+
+    /// Get Magic number
+    pub fn get_magic(&self) -> u16 {
+        self.magic
     }
 }
 
