@@ -96,6 +96,7 @@ mod tests {
                 RadonInteger::from(1).into(),
                 RadonInteger::from(2).into(),
             ]),
+            max_count: 1,
         };
 
         let mut ctx = ReportContext::default();
@@ -171,6 +172,7 @@ mod tests {
                 RadonString::from("Hello").into(),
                 RadonString::from("World").into(),
             ]),
+            max_count: 1,
         };
 
         let mut ctx = ReportContext::default();

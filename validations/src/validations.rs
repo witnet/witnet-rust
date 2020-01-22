@@ -290,6 +290,7 @@ pub fn evaluate_tally_precondition_clause(
                         .map(RadonReport::into_inner)
                         .collect::<Vec<RadonTypes>>(),
                 ),
+                max_count: counter.max_val as u16,
             }),
             // Majority of errors, return errors mode.
             Some(most_frequent_type) if most_frequent_type == error_type_discriminant => {
@@ -1791,7 +1792,8 @@ mod tests {
                     v.into_iter()
                         .map(RadonReport::into_inner)
                         .collect::<Vec<RadonTypes>>()
-                )
+                ),
+                max_count: 2,
             }
         );
     }

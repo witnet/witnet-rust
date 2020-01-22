@@ -127,7 +127,7 @@ pub enum RadError {
         display = "There was a tie after applying the mode reducer on values: `{:?}`",
         values
     )]
-    ModeTie { values: RadonArray },
+    ModeTie { values: RadonArray, max_count: u16 },
     /// Tried to apply mod reducer on an empty array
     #[fail(display = "Tried to apply mode reducer on an empty array")]
     ModeEmpty,
@@ -435,7 +435,10 @@ impl RadError {
                         })
                     }
                 };
-                RadError::ModeTie { values }
+                RadError::ModeTie {
+                    values,
+                    max_count: 0,
+                }
             }
             RadonErrors::TallyExecution => {
                 let (message,) = deserialize_args(error_args)?;
@@ -483,7 +486,7 @@ impl RadError {
             RadError::InsufficientConsensus { achieved, required } => {
                 Some(serialize_args((achieved, required))?)
             }
-            RadError::ModeTie { values } => {
+            RadError::ModeTie { values, .. } => {
                 let values = serialize_radon_types_arg(RadonTypes::from((*values).clone()))?;
                 Some(serialize_args((values,))?)
             }
@@ -690,6 +693,8 @@ mod tests {
                     RadonTypes::Integer(RadonInteger::from(3)),
                     RadonTypes::Integer(RadonInteger::from(3)),
                 ]),
+                // TODO: this is wrong but RadonErrors::ModeTie will be removed
+                max_count: 0,
             },
             RadonErrors::TallyExecution => RadError::TallyExecution {
                 inner: None,

@@ -33,6 +33,7 @@ pub fn mode(input: &RadonArray) -> Result<RadonTypes, RadError> {
     if mode_vector.len() > 1 {
         Err(RadError::ModeTie {
             values: input.clone(),
+            max_count: *max_count as u16,
         })
     } else {
         Ok(mode_vector[0].clone())
@@ -68,7 +69,10 @@ mod tests {
         ]);
 
         let output = mode(&input).unwrap_err();
-        let expected_error = ModeTie { values: input };
+        let expected_error = ModeTie {
+            values: input,
+            max_count: 1,
+        };
         assert_eq!(output, expected_error);
     }
 
@@ -91,7 +95,10 @@ mod tests {
             RadonInteger::from(2i128).into(),
         ]);
         let output = mode(&input).unwrap_err();
-        let expected_error = ModeTie { values: input };
+        let expected_error = ModeTie {
+            values: input,
+            max_count: 1,
+        };
         assert_eq!(output, expected_error);
     }
 
@@ -114,7 +121,10 @@ mod tests {
             RadonString::from("Bye world!").into(),
         ]);
         let output = mode(&input).unwrap_err();
-        let expected_error = ModeTie { values: input };
+        let expected_error = ModeTie {
+            values: input,
+            max_count: 1,
+        };
         assert_eq!(output, expected_error);
     }
 
