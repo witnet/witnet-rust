@@ -170,6 +170,20 @@ pub enum TransactionError {
         value
     )]
     InvalidMinConsensus { value: u32 },
+    /// Error when there is not enough balance to create a transaction
+    #[fail(
+        display = "Cannot build a transaction. Transaction value is greater than available balance: \
+                   (Total Balance:{}, Available Balance:{}, Transaction value:{})",
+        total_balance, available_balance, transaction_value
+    )]
+    NoMoney {
+        total_balance: u64,
+        available_balance: u64,
+        transaction_value: u64,
+    },
+    /// Zero amount specified
+    #[fail(display = "Cannot build transaction with zero value")]
+    ZeroAmount,
 }
 
 /// The error type for operations on a [`Block`](Block)

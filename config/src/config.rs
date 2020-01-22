@@ -108,6 +108,11 @@ pub struct Config {
     #[partial_struct(ty = "PartialNtp")]
     #[partial_struct(serde(default))]
     pub ntp: Ntp,
+
+    /// Mempool-related configuration
+    #[partial_struct(ty = "PartialMempool")]
+    #[partial_struct(serde(default))]
+    pub mempool: Mempool,
 }
 
 /// Log-specific configuration.
@@ -313,6 +318,14 @@ pub struct Ntp {
     pub enabled: bool,
 }
 
+/// Mempool-related configuration
+#[derive(PartialStruct, Debug, Clone, PartialEq)]
+#[partial_struct(derive(Deserialize, Default, Debug, Clone, PartialEq))]
+pub struct Mempool {
+    /// Timeout to use again an UTXO spent by a pending transaction
+    pub tx_pending_timeout: u64,
+}
+
 impl Config {
     pub fn from_partial(config: &PartialConfig) -> Self {
         let defaults: &dyn Defaults = match config.environment {
@@ -355,6 +368,7 @@ impl Config {
             wallet: Wallet::from_partial(&config.wallet, defaults),
             rocksdb: Rocksdb::from_partial(&config.rocksdb, defaults),
             ntp: Ntp::from_partial(&config.ntp, defaults),
+            mempool: Mempool::from_partial(&config.mempool, defaults),
         }
     }
 }
@@ -537,6 +551,17 @@ impl Ntp {
                 .enabled
                 .to_owned()
                 .unwrap_or_else(|| defaults.ntp_enabled()),
+        }
+    }
+}
+
+impl Mempool {
+    pub fn from_partial(config: &PartialMempool, defaults: &dyn Defaults) -> Self {
+        Mempool {
+            tx_pending_timeout: config
+                .tx_pending_timeout
+                .to_owned()
+                .unwrap_or_else(|| defaults.mempool_tx_pending_timeout()),
         }
     }
 }

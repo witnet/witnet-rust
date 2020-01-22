@@ -155,6 +155,8 @@ pub struct ChainManager {
     epoch_constants: Option<EpochConstants>,
     /// Timeout for data request retrieval and aggregation execution
     data_request_timeout: Option<Duration>,
+    /// Pending transaction timeout
+    tx_pending_timeout: u64,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -600,7 +602,7 @@ fn update_pools(
     transactions_pool: &mut TransactionsPool,
     utxo_diff: Diff,
     own_pkh: Option<PublicKeyHash>,
-    own_utxos: &mut HashSet<OutputPointer>,
+    own_utxos: &mut HashMap<OutputPointer, u64>,
     epoch_constants: EpochConstants,
 ) -> ReputationInfo {
     let mut rep_info = ReputationInfo::new();
@@ -654,7 +656,7 @@ fn update_pools(
             |own_utxos, output_pointer, output| {
                 // Insert new outputs
                 if output.pkh == own_pkh {
-                    own_utxos.insert(output_pointer.clone());
+                    own_utxos.insert(output_pointer.clone(), 0);
                 }
             },
             |own_utxos, output_pointer| {

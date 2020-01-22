@@ -65,6 +65,8 @@ impl ChainManager {
                 act.data_request_timeout = Some(config.mining.data_request_timeout);
             }
 
+            act.tx_pending_timeout = config.mempool.tx_pending_timeout;
+
             storage_mngr::get::<_, ChainState>(&CHAIN_STATE_KEY)
                 .into_actor(act)
                 .map_err(|e, _, _| error!("Error while getting chain state from storage: {}", e))

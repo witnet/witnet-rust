@@ -234,6 +234,10 @@ pub trait Defaults {
     fn ntp_enabled(&self) -> bool {
         true
     }
+
+    fn mempool_tx_pending_timeout(&self) -> u64 {
+        u64::from(self.consensus_constants_checkpoints_period()) * 10
+    }
 }
 
 /// Struct that will implement all the mainnet defaults

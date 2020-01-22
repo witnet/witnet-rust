@@ -667,10 +667,11 @@ impl Handler<BuildVtt> for ChainManager {
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
             timestamp,
+            self.tx_pending_timeout,
         ) {
             Err(e) => {
                 log::error!("{}", e);
-                Box::new(actix::fut::err(e.into()))
+                Box::new(actix::fut::err(e))
             }
             Ok(vtt) => {
                 let fut = transaction_factory::sign_transaction(&vtt, vtt.inputs.len())
@@ -715,10 +716,11 @@ impl Handler<BuildDrt> for ChainManager {
             self.own_pkh.unwrap(),
             &self.chain_state.unspent_outputs_pool,
             timestamp,
+            self.tx_pending_timeout,
         ) {
             Err(e) => {
                 log::error!("{}", e);
-                Box::new(actix::fut::err(e.into()))
+                Box::new(actix::fut::err(e))
             }
             Ok(drt) => {
                 log::debug!("Created drt:\n{:?}", drt);

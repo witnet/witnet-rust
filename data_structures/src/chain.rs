@@ -6,7 +6,7 @@ use secp256k1::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     convert::{TryFrom, TryInto},
     fmt,
     ops::{AddAssign, SubAssign},
@@ -1755,7 +1755,8 @@ pub struct ChainState {
     /// List of consolidated blocks by epoch
     pub block_chain: Blockchain,
     /// List of unspent outputs that can be spent by this node
-    pub own_utxos: HashSet<OutputPointer>,
+    /// Those UTXOs have a timestamp value to avoid double spending
+    pub own_utxos: HashMap<OutputPointer, u64>,
     /// Reputation engine
     pub reputation_engine: Option<ReputationEngine>,
 }
