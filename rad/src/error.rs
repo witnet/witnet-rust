@@ -386,14 +386,6 @@ impl RadError {
             })
         }
 
-        fn deserialize_radon_types_arg(bytes: Vec<u8>) -> Result<RadonTypes, RadError> {
-            // FIXME(#953): since RadonTypes does not implement serialize because of the
-            // limitations of serde_cbor, when the argument of a RadonError is a RadonTypes or
-            // some subtype (RadonArray, RadonMap, etc), we use serde_cbor to serialize to
-            // `Vec<u8>` and use this helper function to get the actual RadonTypes
-            RadonTypes::try_from(bytes.as_slice())
-        }
-
         Ok(RadonError::new(match kind {
             RadonErrors::Unknown => RadError::Unknown,
             RadonErrors::RequestTooManySources => RadError::RequestTooManySources,
@@ -423,23 +415,6 @@ impl RadError {
                 let (achieved, required) = deserialize_args(error_args)?;
                 RadError::InsufficientConsensus { achieved, required }
             }
-            RadonErrors::ModeTie => {
-                let (values,) = deserialize_args(error_args.clone())?;
-                // Deserialize values to `Vec<u8>`, then to `RadonTypes`, then to `RadonArray`
-                let values = match deserialize_radon_types_arg(values)? {
-                    RadonTypes::Array(a) => a,
-                    x => {
-                        return Err(RadError::DecodeRadonErrorArgumentsRadonTypesFail {
-                            arguments: error_args,
-                            message: format!("Expected `RadonArray`, found `{:?}`", x),
-                        })
-                    }
-                };
-                RadError::ModeTie {
-                    values,
-                    max_count: 0,
-                }
-            }
             RadonErrors::TallyExecution => {
                 let (message,) = deserialize_args(error_args)?;
                 RadError::TallyExecution {
@@ -466,14 +441,6 @@ impl RadError {
             })
         }
 
-        fn serialize_radon_types_arg(bytes: RadonTypes) -> Result<Vec<u8>, RadError> {
-            // FIXME(#953): since RadonTypes does not implement serialize because of the
-            // limitations of serde_cbor, when the argument of a RadonError is a RadonTypes or
-            // some subtype (RadonArray, RadonMap, etc), we use serde_cbor to serialize to
-            // `Vec<u8>` and use this helper function to get the actual RadonTypes
-            Vec::try_from(bytes)
-        }
-
         let kind = u8::from(self.try_into_error_code()?);
 
         let args = match self {
@@ -485,10 +452,6 @@ impl RadError {
             RadError::HttpStatus { status_code } => Some(serialize_args((status_code,))?),
             RadError::InsufficientConsensus { achieved, required } => {
                 Some(serialize_args((achieved, required))?)
-            }
-            RadError::ModeTie { values, .. } => {
-                let values = serialize_radon_types_arg(RadonTypes::from((*values).clone()))?;
-                Some(serialize_args((values,))?)
             }
             RadError::TallyExecution { inner, message } => {
                 let message = match (inner, message) {
@@ -551,7 +514,6 @@ impl RadError {
             RadError::NoReveals => RadonErrors::NoReveals,
             RadError::RetrieveTimeout => RadonErrors::RetrieveTimeout,
             RadError::InsufficientConsensus { .. } => RadonErrors::InsufficientConsensus,
-            RadError::ModeTie { .. } => RadonErrors::ModeTie,
             RadError::TallyExecution { .. } => RadonErrors::TallyExecution,
             RadError::UnhandledIntercept { .. } => RadonErrors::UnhandledIntercept,
             RadError::MalformedReveal => RadonErrors::MalformedReveal,
@@ -670,7 +632,6 @@ impl TryFrom<Result<RadonTypes, RadError>> for RadonTypes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::integer::RadonInteger;
     use num_enum::TryFromPrimitive;
     use serde_cbor::Value;
 
@@ -685,16 +646,6 @@ mod tests {
             RadonErrors::InsufficientConsensus => RadError::InsufficientConsensus {
                 achieved: 49.0,
                 required: 51.0,
-            },
-            RadonErrors::ModeTie => RadError::ModeTie {
-                values: RadonArray::from(vec![
-                    RadonTypes::Integer(RadonInteger::from(1)),
-                    RadonTypes::Integer(RadonInteger::from(1)),
-                    RadonTypes::Integer(RadonInteger::from(3)),
-                    RadonTypes::Integer(RadonInteger::from(3)),
-                ]),
-                // TODO: this is wrong but RadonErrors::ModeTie will be removed
-                max_count: 0,
             },
             RadonErrors::TallyExecution => RadError::TallyExecution {
                 inner: None,

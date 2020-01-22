@@ -46,8 +46,6 @@ pub enum RadonErrors {
     NoReveals = 0x50,
     /// Insufficient consensus in tally precondition clause
     InsufficientConsensus = 0x51,
-    /// There was a tie after applying the mode reducer
-    ModeTie = 0x52,
     /// Generic error during tally execution
     TallyExecution = 0x53,
     /// Invalid reveal serialization (malformed reveals are converted to this value)
