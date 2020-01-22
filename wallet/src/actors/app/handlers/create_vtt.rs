@@ -1,9 +1,11 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 
 use crate::actors::app;
 use crate::types;
 use crate::types::{Hashable as _, ProtobufConvert as _};
+
 use witnet_data_structures::chain::Environment;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -20,10 +22,21 @@ pub struct CreateVttRequest {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Part of CreateVttResponse struct, containing additional data to be displayed in clients
+/// (e.g. in a confirmation screen)
+pub struct VttMetadata {
+    to: String,
+    value: u64,
+    fee: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateVttResponse {
     pub transaction_id: String,
     pub transaction: types::Transaction,
     pub bytes: String,
+    pub metadata: VttMetadata,
 }
 
 impl Message for CreateVttRequest {
@@ -49,11 +62,17 @@ impl Handler<CreateVttRequest> for app::App {
                 .map(|transaction, _, _| {
                     let transaction_id = hex::encode(transaction.hash().as_ref());
                     let bytes = hex::encode(transaction.to_pb_bytes().unwrap());
+                    let fee = msg.fee * u64::try_from(bytes.len()).unwrap();
 
                     CreateVttResponse {
                         transaction_id,
                         transaction,
                         bytes,
+                        metadata: VttMetadata {
+                            to: msg.address,
+                            value: msg.amount,
+                            fee,
+                        },
                     }
                 })
         });
