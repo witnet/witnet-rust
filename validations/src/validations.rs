@@ -31,7 +31,7 @@ use witnet_rad::{
     reducers::mode::mode,
     run_tally_report,
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
-    types::{array::RadonArray, serial_iter_decode, RadonTypes},
+    types::{array::RadonArray, serial_iter_decode, RadonType, RadonTypes},
 };
 
 /// Calculate the sum of the values of the outputs pointed by the
@@ -303,12 +303,51 @@ pub fn evaluate_tally_precondition_clause(
                     .collect();
 
                 let errors_array = RadonArray::from(errors);
+                // Use the mode filter to get the count of the most common error.
+                // That count must be greater than or equal to minimum_consensus,
+                // otherwise RadError::InsufficientConsensus is returned
+                let most_common_error_array = witnet_rad::filters::mode::mode_filter(
+                    &errors_array,
+                    &mut ReportContext::default(),
+                );
 
-                match mode(&errors_array)? {
-                    RadonTypes::RadonError(errors_mode) => {
-                        Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode })
+                match most_common_error_array {
+                    Ok(RadonTypes::Array(x)) => {
+                        let x_value = x.value();
+                        let achieved_consensus = x_value.len() as f64 / reveals_len as f64;
+                        if achieved_consensus >= minimum_consensus {
+                            match mode(&errors_array)? {
+                                RadonTypes::RadonError(errors_mode) => {
+                                    Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode })
+                                }
+                                _ => unreachable!("Mode of `RadonArray` containing only `RadonError`s cannot possibly be different from `RadonError`"),
+                            }
+                        } else {
+                            Err(RadError::InsufficientConsensus {
+                                achieved: achieved_consensus,
+                                required: minimum_consensus,
+                            })
+                        }
                     }
-                    _ => unreachable!("Mode of `RadonArray` containing only `RadonError`s cannot possibly be different from `RadonError`"),
+                    Ok(_) => {
+                        unreachable!("Mode filter should always return a `RadonArray`");
+                    }
+                    Err(RadError::ModeTie { values, max_count }) => {
+                        let achieved_consensus = max_count as f64 / reveals_len as f64;
+                        if achieved_consensus < minimum_consensus {
+                            Err(RadError::InsufficientConsensus {
+                                achieved: achieved_consensus,
+                                required: minimum_consensus,
+                            })
+                        } else {
+                            // This is only possible if minimum_consensus <= 0.50
+                            Err(RadError::ModeTie { values, max_count })
+                        }
+                    }
+                    Err(e) => panic!(
+                        "Unexpected error when applying filter_mode on array of errors: {}",
+                        e
+                    ),
                 }
             }
             // Majority of values, compute and filter liars
@@ -1769,7 +1808,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tally_precondition_clause_errors_mode_tie() {
+    fn test_tally_precondition_clause_mode_tie() {
         let rad_int = RadonTypes::Integer(RadonInteger::from(1));
         let rad_float = RadonTypes::Float(RadonFloat::from(1));
 
@@ -1889,6 +1928,66 @@ mod tests {
             RadError::InsufficientConsensus {
                 achieved: 0.5,
                 required: 0.51
+            }
+        );
+    }
+
+    #[test]
+    fn test_tally_precondition_clause_errors_insufficient_consensus() {
+        // Two revealers that report two different errors result in `InsufficientConsensus`
+        // because there is only 50% consensus (1/2)
+        let rad_err1 = RadonError::try_from(RadError::HttpStatus { status_code: 0 }).unwrap();
+        let rad_err2 = RadonError::try_from(RadError::RetrieveTimeout).unwrap();
+        let rad_rep_err1 = RadonReport::from_result(
+            Ok(RadonTypes::RadonError(rad_err1)),
+            &ReportContext::default(),
+        );
+        let rad_rep_err2 = RadonReport::from_result(
+            Ok(RadonTypes::RadonError(rad_err2)),
+            &ReportContext::default(),
+        );
+
+        let v = vec![rad_rep_err1, rad_rep_err2];
+
+        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
+
+        assert_eq!(
+            out,
+            RadError::InsufficientConsensus {
+                achieved: 0.5,
+                required: 0.51
+            }
+        );
+    }
+
+    #[test]
+    fn test_tally_precondition_clause_errors_mode_tie() {
+        // Two revealers that report two different errors when min_consensus is below 50%
+        // result in RadError::ModeTie
+        let rad_err1 = RadonError::try_from(RadError::HttpStatus { status_code: 0 }).unwrap();
+        let rad_err2 = RadonError::try_from(RadError::RetrieveTimeout).unwrap();
+        let rad_rep_err1 = RadonReport::from_result(
+            Ok(RadonTypes::RadonError(rad_err1)),
+            &ReportContext::default(),
+        );
+        let rad_rep_err2 = RadonReport::from_result(
+            Ok(RadonTypes::RadonError(rad_err2)),
+            &ReportContext::default(),
+        );
+
+        let v = vec![rad_rep_err1, rad_rep_err2];
+
+        let out = evaluate_tally_precondition_clause(v.clone(), 0.49).unwrap_err();
+
+        assert_eq!(
+            out,
+            RadError::ModeTie {
+                values: RadonArray::from(
+                    v.into_iter()
+                        .map(RadonReport::into_inner)
+                        .collect::<Vec<RadonTypes>>()
+                ),
+                max_count: 1,
             }
         );
     }
