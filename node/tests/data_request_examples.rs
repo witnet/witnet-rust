@@ -120,14 +120,8 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
         (
             "bitcoin_price.json",
             examples::bitcoin_price(),
-            &[r#"{"bpi":{"USD":{"rate_float":89279.0567}}}"#],
-            RadonTypes::Float(RadonFloat::from(89279.0567)),
-        ),
-        (
-            "bitcoin_price_multiple_sources.json",
-            examples::bitcoin_price_multiple_sources(),
             &[
-                r#"{"last":89264.27}"#,
+                r#"{"last":"89264.27"}"#,
                 r#"{"bpi":{"USD":{"rate_float":89279.0567}}}"#,
             ],
             RadonTypes::Float(RadonFloat::from(89271.66335)),
@@ -172,59 +166,6 @@ mod examples {
     };
 
     pub fn bitcoin_price() -> BuildDrt {
-        let url_0 = "https://api.coindesk.com/v1/bpi/currentprice.json";
-        let r0_script = cbor_to_vec(&Value::Array(vec![
-            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
-            Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGetMap as i128),
-                Value::Text(String::from("bpi")),
-            ]),
-            Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGetMap as i128),
-                Value::Text(String::from("USD")),
-            ]),
-            Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGetFloat as i128),
-                Value::Text(String::from("rate_float")),
-            ]),
-        ]))
-        .unwrap();
-
-        BuildDrt {
-            dro: DataRequestOutput {
-                data_request: RADRequest {
-                    time_lock: 0,
-                    retrieve: vec![RADRetrieve {
-                        kind: RADType::HttpGet,
-                        url: url_0.to_string(),
-                        script: r0_script,
-                    }],
-                    aggregate: RADAggregate {
-                        filters: vec![],
-                        reducer: RadonReducers::AverageMean as u32,
-                    },
-                    tally: RADTally {
-                        filters: vec![RADFilter {
-                            op: RadonFilters::DeviationStandard as u32,
-                            args: vec![249, 60, 0],
-                        }],
-                        reducer: RadonReducers::AverageMean as u32,
-                    },
-                },
-                witness_reward: 1000,
-                witnesses: 4,
-                backup_witnesses: 1,
-                commit_fee: 5,
-                reveal_fee: 5,
-                tally_fee: 20,
-                extra_reveal_rounds: 2,
-                min_consensus_percentage: 51,
-            },
-            fee: 10,
-        }
-    }
-
-    pub fn bitcoin_price_multiple_sources() -> BuildDrt {
         let url_0 = "https://www.bitstamp.net/api/ticker/";
         let r0_script = cbor_to_vec(&Value::Array(vec![
             Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
