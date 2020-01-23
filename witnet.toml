@@ -14,5 +14,8 @@ checkpoints_period = 30
 checkpoint_zero_timestamp = 1579651200
 genesis_hash = "00000000000000000000000000000000000000007769746e65742d302e362e31"
 
+[ntp]
+update_period_seconds = 8000000
+
 [log]
 level = "debug"
