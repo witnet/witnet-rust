@@ -1,9 +1,11 @@
-use std::net::SocketAddr;
-use std::str::FromStr;
 use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
     fmt,
     io::{self, BufRead, BufReader, Read, Write},
+    net::SocketAddr,
     net::TcpStream,
+    str::FromStr,
 };
 
 use failure::{bail, Fail};
@@ -12,12 +14,13 @@ use serde_json::json;
 
 use itertools::Itertools;
 use log::*;
-use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
-use witnet_data_structures::chain::{
-    DataRequestOutput, Environment, OutputPointer, PublicKeyHash, Reputation, ValueTransferOutput,
+use witnet_data_structures::{
+    chain::{
+        Block, DataRequestInfo, DataRequestOutput, Environment, OutputPointer, PublicKeyHash,
+        Reputation, ValueTransferOutput,
+    },
+    proto::ProtobufConvert,
 };
-use witnet_data_structures::proto::ProtobufConvert;
 use witnet_node::actors::{json_rpc::json_rpc_methods::GetBlockChainParams, messages::BuildVtt};
 use witnet_rad::types::RadonTypes;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
@@ -55,6 +58,49 @@ pub fn get_blockchain(addr: SocketAddr, epoch: i64, limit: u32) -> Result<(), fa
 
     for (epoch, hash) in block_chain {
         println!("block for epoch #{} had digest {}", epoch, hash);
+    }
+
+    Ok(())
+}
+
+pub fn get_resolved_drs(addr: SocketAddr, epoch: i64, limit: u32) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let params = GetBlockChainParams { epoch, limit };
+    let response = send_request(
+        &mut stream,
+        &format!(
+            r#"{{"jsonrpc": "2.0","method": "getBlockChain", "params": {}, "id": 1}}"#,
+            serde_json::to_string(&params).unwrap()
+        ),
+    )?;
+    let block_chain: ResponseBlockChain<'_> = parse_response(&response)?;
+
+    for (_epoch, hash) in block_chain {
+        let request = format!(
+            r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
+            hash,
+        );
+        let response = send_request(&mut stream, &request)?;
+        let block: ResponseBlock = parse_response(&response)?;
+
+        for tally in block.txns.tally_txns {
+            let request = format!(
+                r#"{{"jsonrpc": "2.0","method": "dataRequestReport", "params": [{:?}], "id": "1"}}"#,
+                tally.dr_pointer.to_string(),
+            );
+            let response = send_request(&mut stream, &request)?;
+            let dr_info: DataRequestInfo = parse_response(&response)?;
+
+            println!("Data request {}", tally.dr_pointer);
+            dr_info.reveals.into_iter().for_each(|(_pkh, reveal_tx)| {
+                let v = RadonTypes::try_from(reveal_tx.body.reveal.as_slice()).unwrap();
+
+                println!("- {}", v);
+            });
+            let tally = RadonTypes::try_from(dr_info.tally.unwrap().tally.as_slice()).unwrap();
+            println!("^ Tally: {}", tally);
+            println!();
+        }
     }
 
     Ok(())
@@ -310,6 +356,7 @@ pub fn send_dr(
 
 // Response of the getBlockChain JSON-RPC method
 type ResponseBlockChain<'a> = Vec<(u32, &'a str)>;
+type ResponseBlock = Block;
 
 // Quick and simple JSON-RPC client implementation
 

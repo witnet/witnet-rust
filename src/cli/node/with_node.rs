@@ -19,6 +19,9 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
         Command::BlockChain { node, epoch, limit } => {
             rpc::get_blockchain(node.unwrap_or(config.jsonrpc.server_address), epoch, limit)
         }
+        Command::GetResolvedDrs { node, epoch, limit } => {
+            rpc::get_resolved_drs(node.unwrap_or(config.jsonrpc.server_address), epoch, limit)
+        }
         Command::GetBalance { node, pkh } => {
             let pkh = pkh.map(|x| x.parse()).transpose()?;
             rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), pkh)
@@ -100,6 +103,18 @@ pub enum Command {
     },
     #[structopt(name = "blockchain", about = "List block hashes")]
     BlockChain {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// First epoch for which to show block hashes. If negative, show blocks from the last n epochs.
+        #[structopt(long = "epoch", default_value = "-50")]
+        epoch: i64,
+        /// Number of epochs for which to show block hashes. If zero, unlimited.
+        #[structopt(long = "limit", default_value = "0")]
+        limit: u32,
+    },
+    #[structopt(name = "getResolvedDrs", about = "List resolved data requests")]
+    GetResolvedDrs {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
