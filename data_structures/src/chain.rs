@@ -1698,12 +1698,10 @@ impl DataRequestState {
         }
     }
 
-    /// Advance to the next stage, returning true on success.
+    /// Advance to the next stage.
     /// Since the data requests are updated by looking at the transactions from a valid block,
     /// the only issue would be that there were no commits in that block.
-    pub fn update_stage(&mut self) -> bool {
-        let old_stage = self.stage;
-
+    pub fn update_stage(&mut self) {
         self.stage = match self.stage {
             DataRequestStage::COMMIT => {
                 if self.info.commits.is_empty() {
@@ -1730,8 +1728,6 @@ impl DataRequestState {
                 }
             }
         };
-
-        self.stage != old_stage
     }
 }
 

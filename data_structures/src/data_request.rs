@@ -203,8 +203,9 @@ impl DataRequestPool {
             .filter_map(|(dr_pointer, dr_state)| {
                 // We can notify the user that a data request from "my_claims" is available
                 // for reveal.
-                if dr_state.update_stage() {
-                    if let DataRequestStage::REVEAL = dr_state.stage {
+                dr_state.update_stage();
+                match dr_state.stage {
+                    DataRequestStage::REVEAL => {
                         // When a data request changes from commit stage to reveal stage, it should
                         // be removed from the "data_requests_by_epoch" map, which stores the data
                         // requests potentially available for commitment
@@ -223,29 +224,35 @@ impl DataRequestPool {
                             }
                         }
 
-                        if let Some(transaction) = waiting_for_reveal.remove(dr_pointer) {
+                        if let Some(transaction) = waiting_for_reveal.get(dr_pointer) {
                             // We submitted a commit for this data request!
                             // But has it been included into the block?
                             let pkh = PublicKeyHash::from_public_key(
                                 &transaction.signatures[0].public_key,
                             );
-                            if dr_state.info.commits.contains_key(&pkh) {
+                            if dr_state.info.commits.contains_key(&pkh)
+                                && !dr_state.info.reveals.contains_key(&pkh)
+                            {
                                 // We found our commit, return the reveal transaction to be sent
-                                return Some(transaction);
-                            } else {
+                                // until it would be included in a block.
+                                return Some(transaction.clone());
+                            } else if !dr_state.info.commits.contains_key(&pkh)
+                                && dr_state.info.current_reveal_round == 0
+                            {
                                 info!(
                                     "The sent commit transaction has not been \
                                      selected to be part of the data request {:?}",
                                     dr_pointer
                                 );
-                                debug!(
-                                    "Commit with pkh ({}) removed from the list of commits waiting \
-                                     for reveal",
-                                    pkh
-                                );
                             }
                         }
                     }
+
+                    DataRequestStage::TALLY => {
+                        // Remove pending reveals in Tally stage
+                        waiting_for_reveal.remove(dr_pointer);
+                    }
+                    _ => {}
                 }
 
                 None
@@ -913,7 +920,10 @@ mod tests {
         assert_eq!(my_reveals.len(), 1);
         let my_reveal = &my_reveals[0];
         assert_eq!(my_reveal, &reveal_transaction);
-        assert_eq!(p.waiting_for_reveal.get(&dr_pointer), None);
+        assert_eq!(
+            p.waiting_for_reveal.get(&dr_pointer),
+            Some(&reveal_transaction)
+        );
 
         // Now in reveal stage
         assert_eq!(
@@ -921,7 +931,15 @@ mod tests {
             DataRequestStage::REVEAL
         );
 
-        from_reveal_to_tally(fake_block_hash, p, dr_pointer);
+        let (_, p, dr_pointer) = from_reveal_to_tally(fake_block_hash, p, dr_pointer);
+
+        assert_eq!(p.waiting_for_reveal.get(&dr_pointer), None);
+
+        // Now in tally stage
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::TALLY
+        );
     }
 
     #[test]
