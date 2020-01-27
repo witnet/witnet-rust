@@ -166,12 +166,6 @@ impl ChainManager {
             // Get consensus parameter from config
             act.consensus_c = config.connections.consensus_c;
 
-            if act.mining_enabled {
-                debug!("Mining enabled!");
-            } else {
-                debug!("Mining explicitly disabled by configuration.");
-            }
-
             fut::ok(())
         }).map_err(|err,_,_| {
             log::error!("Couldn't initialize from storage: {}", err);

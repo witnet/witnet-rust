@@ -41,7 +41,7 @@ impl ChainManager {
     /// Try to mine a block
     pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) {
         if !self.mining_enabled {
-            debug!("Mining not enabled");
+            debug!("Mining disabled in configuration");
             return;
         }
 
