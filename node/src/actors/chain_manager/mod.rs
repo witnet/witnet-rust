@@ -410,7 +410,25 @@ impl ChainManager {
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
 
                 match self.sm_state {
+                    StateMachine::WaitingConsensus => {
+                        // Persist finished data requests into storage
+                        let to_be_stored =
+                            self.chain_state.data_request_pool.finished_data_requests();
+                        self.persist_data_requests(ctx, to_be_stored);
+
+                        let _reveals = self
+                            .chain_state
+                            .data_request_pool
+                            .update_data_request_stages();
+
+                        self.persist_items(
+                            ctx,
+                            vec![StoreInventoryItem::Block(Box::new(block.clone()))],
+                        );
+                    }
                     StateMachine::Synchronizing => {
+                        // In Synchronizing stage, blocks and data requests are persisted
+                        // trough batches in AddBlocks handler
                         let _reveals = self
                             .chain_state
                             .data_request_pool
@@ -452,7 +470,6 @@ impl ChainManager {
                             block: block.clone(),
                         })
                     }
-                    _ => {}
                 }
             }
             _ => {

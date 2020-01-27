@@ -23,7 +23,7 @@ use crate::{
             BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
             GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetReputation,
             GetReputationAll, GetReputationStatus, GetReputationStatusResult, GetState,
-            PeersBeacons, SendLastBeacon, SessionUnitResult, StoreInventoryItem, TryMineBlock,
+            PeersBeacons, SendLastBeacon, SessionUnitResult, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -507,12 +507,6 @@ impl Handler<PeersBeacons> for ChainManager {
                                 Ok(()) => {
                                     log::info!("Consolidate consensus candidate. Synced state");
                                     log::info!("{}", SYNCED_BANNER);
-                                    self.persist_items(
-                                        ctx,
-                                        vec![StoreInventoryItem::Block(Box::new(
-                                            consensus_block.clone(),
-                                        ))],
-                                    );
                                     StateMachine::Synced
                                 }
                                 Err(e) => {
