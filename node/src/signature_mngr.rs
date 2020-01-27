@@ -27,14 +27,8 @@ use witnet_protected::ProtectedString;
 
 /// Start the signature manager
 pub fn start() {
-    let addr = SignatureManager::start_default();
+    let addr = SignatureManagerAdapter::start_default();
     actix::SystemRegistry::set(addr);
-}
-
-/// Set the key used to sign
-pub fn set_key(key: SK) -> impl Future<Item = (), Error = failure::Error> {
-    let addr = SignatureManager::from_registry();
-    addr.send(SetKey(key)).flatten()
 }
 
 /// Sign a piece of (Hashable) data with the stored key.
@@ -53,7 +47,7 @@ where
 ///
 /// This might fail if the manager has not been initialized with a key
 pub fn sign_data(data: [u8; 32]) -> impl Future<Item = KeyedSignature, Error = failure::Error> {
-    let addr = SignatureManager::from_registry();
+    let addr = SignatureManagerAdapter::from_registry();
     addr.send(Sign(data.to_vec())).flatten()
 }
 
@@ -61,7 +55,7 @@ pub fn sign_data(data: [u8; 32]) -> impl Future<Item = KeyedSignature, Error = f
 ///
 /// This might fail if the manager has not been initialized with a key
 pub fn pkh() -> impl Future<Item = PublicKeyHash, Error = failure::Error> {
-    let addr = SignatureManager::from_registry();
+    let addr = SignatureManagerAdapter::from_registry();
     addr.send(GetPkh).flatten()
 }
 
@@ -69,7 +63,7 @@ pub fn pkh() -> impl Future<Item = PublicKeyHash, Error = failure::Error> {
 ///
 /// This might fail if the manager has not been initialized with a key
 pub fn public_key() -> impl Future<Item = PublicKey, Error = failure::Error> {
-    let addr = SignatureManager::from_registry();
+    let addr = SignatureManagerAdapter::from_registry();
     addr.send(GetPublicKey).flatten()
 }
 
@@ -77,7 +71,7 @@ pub fn public_key() -> impl Future<Item = PublicKey, Error = failure::Error> {
 pub fn vrf_prove(
     message: VrfMessage,
 ) -> impl Future<Item = (VrfProof, Hash), Error = failure::Error> {
-    let addr = SignatureManager::from_registry();
+    let addr = SignatureManagerAdapter::from_registry();
     addr.send(VrfProve(message)).flatten()
 }
 
@@ -100,9 +94,13 @@ impl SignatureManager {
 }
 
 struct SetKey(SK);
+
 struct Sign(Vec<u8>);
+
 struct GetPkh;
+
 struct GetPublicKey;
+
 struct VrfProve(VrfMessage);
 
 fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = failure::Error> {
@@ -134,7 +132,7 @@ fn create_master_key() -> Box<dyn Future<Item = SK, Error = failure::Error>> {
 }
 
 impl Actor for SignatureManager {
-    type Context = Context<Self>;
+    type Context = SyncContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("Signature Manager actor has been started!");
@@ -148,28 +146,8 @@ impl Actor for SignatureManager {
             .ok();
 
         self.secp = Some(CryptoEngine::new());
-
-        storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY)
-            .and_then(move |master_key_from_storage| {
-                master_key_from_storage.map_or_else(create_master_key, |master_key| {
-                    let master_key: ExtendedSK = master_key.into();
-                    let fut = futures::future::ok(master_key.into());
-
-                    Box::new(fut)
-                })
-            })
-            .map_err(|e| log::error!("Couldn't initialize Signature Manager: {}", e))
-            .into_actor(self)
-            .map(|secret_key, act, _ctx| {
-                act.set_key(secret_key);
-            })
-            .wait(ctx);
     }
 }
-
-impl Supervised for SignatureManager {}
-
-impl SystemService for SignatureManager {}
 
 impl Message for SetKey {
     type Result = Result<(), failure::Error>;
@@ -265,5 +243,86 @@ impl Handler<VrfProve> for SignatureManager {
                 ..
             } => bail!("Signature Manager cannot create VRF proofs because it does not contain a vrf context"),
         }
+    }
+}
+
+struct SignatureManagerAdapter {
+    crypto: Addr<SignatureManager>,
+}
+
+impl Supervised for SignatureManagerAdapter {}
+
+impl SystemService for SignatureManagerAdapter {}
+
+impl Default for SignatureManagerAdapter {
+    fn default() -> Self {
+        let crypto = SyncArbiter::start(1, SignatureManager::default);
+        Self { crypto }
+    }
+}
+
+impl Actor for SignatureManagerAdapter {
+    type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        log::debug!("Signature Manager Adapter actor has been started!");
+        let crypto = self.crypto.clone();
+
+        storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY)
+            .and_then(move |master_key_from_storage| {
+                master_key_from_storage.map_or_else(create_master_key, |master_key| {
+                    let master_key: ExtendedSK = master_key.into();
+                    let fut = futures::future::ok(master_key.into());
+
+                    Box::new(fut)
+                })
+            })
+            .and_then(move |master_key| crypto.send(SetKey(master_key)).flatten())
+            .map_err(|err| {
+                log::error!("Failed to configure master key: {}", err);
+                System::current().stop_with_code(1);
+            })
+            .into_actor(self)
+            .wait(ctx);
+    }
+}
+
+impl Handler<SetKey> for SignatureManagerAdapter {
+    type Result = ResponseFuture<(), failure::Error>;
+
+    fn handle(&mut self, msg: SetKey, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
+impl Handler<Sign> for SignatureManagerAdapter {
+    type Result = ResponseFuture<KeyedSignature, failure::Error>;
+
+    fn handle(&mut self, msg: Sign, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
+impl Handler<GetPkh> for SignatureManagerAdapter {
+    type Result = ResponseFuture<PublicKeyHash, failure::Error>;
+
+    fn handle(&mut self, msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
+impl Handler<GetPublicKey> for SignatureManagerAdapter {
+    type Result = ResponseFuture<PublicKey, failure::Error>;
+
+    fn handle(&mut self, msg: GetPublicKey, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
+impl Handler<VrfProve> for SignatureManagerAdapter {
+    type Result = ResponseFuture<(VrfProof, Hash), failure::Error>;
+
+    fn handle(&mut self, msg: VrfProve, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
     }
 }

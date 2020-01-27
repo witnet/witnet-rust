@@ -27,6 +27,7 @@ pub fn run(config: Config, callback: fn()) -> Result<(), failure::Error> {
     config_mngr::start();
     actix::Arbiter::spawn(config_mngr::set(config).map_err(|_| System::current().stop()));
 
+    // Start StorageManager actor & SignatureManager
     storage_mngr::start();
     signature_mngr::start();
 
