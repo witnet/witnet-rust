@@ -28,9 +28,7 @@ use witnet_validations::validations::{
 
 use crate::{
     actors::{
-        chain_manager::{
-            process_validations, transaction_factory::sign_transaction, ChainManager, StateMachine,
-        },
+        chain_manager::{transaction_factory::sign_transaction, ChainManager, StateMachine},
         messages::{
             AddCandidates, AddCommitReveal, GetHighestCheckpointBeacon, ResolveRA, RunTally,
         },
@@ -162,40 +160,30 @@ impl ChainManager {
                     })
                     .into_actor(act)
             })
-            .and_then(move |block, act, ctx| {
-                match process_validations(
-                    &block,
+            .and_then(move |block, act, _ctx| {
+                act.future_process_validations(
+                    block.clone(),
                     current_epoch,
                     beacon,
-                    act.chain_state.reputation_engine.as_ref().unwrap(),
-                    act.epoch_constants.unwrap(),
-                    &act.chain_state.unspent_outputs_pool,
-                    &act.chain_state.data_request_pool,
-                    // The unwrap is safe because if there is no VRF context,
-                    // the actor should have stopped execution
-                    act.vrf_ctx.as_mut().unwrap(),
-                    act.secp.as_ref().unwrap(),
-                ) {
-                    Ok(_) => {
-                        // Send AddCandidates message to self
-                        // This will run all the validations again
+                    epoch_constants,
+                )
+                .map(|_diff, act, ctx| {
+                    // Send AddCandidates message to self
+                    // This will run all the validations again
 
-                        let block_hash = block.hash();
-                        log::info!(
-                            "Proposed block candidate {}",
-                            Yellow.bold().paint(block_hash.to_string())
-                        );
-                        act.handle(
-                            AddCandidates {
-                                blocks: vec![block],
-                            },
-                            ctx,
-                        );
-                    }
-
-                    Err(e) => error!("Error trying to mine a block: {}", e),
-                }
-                actix::fut::ok(())
+                    let block_hash = block.hash();
+                    log::info!(
+                        "Proposed block candidate {}",
+                        Yellow.bold().paint(block_hash.to_string())
+                    );
+                    act.handle(
+                        AddCandidates {
+                            blocks: vec![block],
+                        },
+                        ctx,
+                    );
+                })
+                .map_err(|e, _, _| error!("Error trying to mine a block: {}", e))
             })
             .wait(ctx);
     }
@@ -622,6 +610,7 @@ mod tests {
     use witnet_validations::validations::validate_block_signature;
 
     use super::*;
+    use crate::actors::chain_manager::verify_signatures;
 
     #[test]
     fn build_empty_block() {
@@ -738,7 +727,7 @@ mod tests {
         // Validate block signature
         let mut signatures_to_verify = vec![];
         assert!(validate_block_signature(&block, &mut signatures_to_verify).is_ok());
-        // TODO: validate signatures_to_verify
+        assert!(verify_signatures(signatures_to_verify, vrf, secp).is_ok());
     }
 
     #[test]

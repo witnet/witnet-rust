@@ -108,6 +108,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             self.candidates.clear();
         }
 
+        self.peers_beacons_received = false;
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 if let Some(chain_info) = &self.chain_state.chain_info {

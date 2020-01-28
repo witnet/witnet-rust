@@ -69,7 +69,7 @@ use crate::{
         sessions_manager::SessionsManager,
         storage_keys,
     },
-    storage_mngr,
+    signature_mngr, storage_mngr,
 };
 use witnet_crypto::signature::verify;
 use witnet_data_structures::chain::SignaturesToVerify;
@@ -590,6 +590,41 @@ impl ChainManager {
     /// Get Magic number
     pub fn get_magic(&self) -> u16 {
         self.magic
+    }
+
+    /// TODO: Add docs
+    pub fn future_process_validations(
+        &mut self,
+        block: Block,
+        current_epoch: Epoch,
+        chain_beacon: CheckpointBeacon,
+        epoch_constants: EpochConstants,
+    ) -> ResponseActFuture<Self, Diff, failure::Error> {
+        let mut signatures_to_verify = vec![];
+        let fut = futures::future::result(validate_block(
+            &block,
+            current_epoch,
+            chain_beacon,
+            &mut signatures_to_verify,
+            self.chain_state.reputation_engine.as_ref().unwrap(),
+        ))
+        .and_then(|()| signature_mngr::verify_signatures(signatures_to_verify))
+        .into_actor(self)
+        .and_then(move |(), act, _ctx| {
+            let mut signatures_to_verify = vec![];
+            futures::future::result(validate_block_transactions(
+                &act.chain_state.unspent_outputs_pool,
+                &act.chain_state.data_request_pool,
+                &block,
+                &mut signatures_to_verify,
+                act.chain_state.reputation_engine.as_ref().unwrap(),
+                epoch_constants,
+            ))
+            .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
+            .into_actor(act)
+        });
+
+        Box::new(fut)
     }
 }
 /// Method to process validations
