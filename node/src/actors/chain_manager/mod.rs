@@ -989,7 +989,8 @@ fn show_sync_progress(
     );
 }
 
-fn verify_signatures(
+/// Verify signatures sync
+pub fn verify_signatures(
     signatures_to_verify: Vec<SignaturesToVerify>,
     vrf_ctx: &mut VrfCtx,
     secp_ctx: &CryptoEngine,

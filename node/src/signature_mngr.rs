@@ -11,11 +11,13 @@ use log;
 
 use crate::{actors::storage_keys::MASTER_KEY, storage_mngr};
 
+use crate::actors::chain_manager;
 use witnet_crypto::{
     key::{CryptoEngine, ExtendedSK, MasterKeyGen, SignEngine, PK, SK},
     mnemonic::MnemonicGen,
     signature,
 };
+use witnet_data_structures::chain::SignaturesToVerify;
 use witnet_data_structures::{
     chain::{
         ExtendedSecretKey, Hash, Hashable, KeyedSignature, PublicKey, PublicKeyHash, SecretKey,
@@ -75,6 +77,14 @@ pub fn vrf_prove(
     addr.send(VrfProve(message)).flatten()
 }
 
+/// Verify signatures async
+pub fn verify_signatures(
+    message: Vec<SignaturesToVerify>,
+) -> impl Future<Item = (), Error = failure::Error> {
+    let addr = SignatureManagerAdapter::from_registry();
+    addr.send(VerifySignatures(message)).flatten()
+}
+
 #[derive(Debug, Default)]
 struct SignatureManager {
     /// Secret and public key
@@ -102,6 +112,8 @@ struct GetPkh;
 struct GetPublicKey;
 
 struct VrfProve(VrfMessage);
+
+struct VerifySignatures(Vec<SignaturesToVerify>);
 
 fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = failure::Error> {
     let master_key = ExtendedSecretKey::from(master_key);
@@ -167,6 +179,10 @@ impl Message for GetPublicKey {
 
 impl Message for VrfProve {
     type Result = Result<(VrfProof, Hash), failure::Error>;
+}
+
+impl Message for VerifySignatures {
+    type Result = Result<(), failure::Error>;
 }
 
 impl Handler<SetKey> for SignatureManager {
@@ -243,6 +259,18 @@ impl Handler<VrfProve> for SignatureManager {
                 ..
             } => bail!("Signature Manager cannot create VRF proofs because it does not contain a vrf context"),
         }
+    }
+}
+
+impl Handler<VerifySignatures> for SignatureManager {
+    type Result = <VerifySignatures as Message>::Result;
+
+    fn handle(&mut self, msg: VerifySignatures, _ctx: &mut Self::Context) -> Self::Result {
+        chain_manager::verify_signatures(
+            msg.0,
+            self.vrf_ctx.as_mut().unwrap(),
+            self.secp.as_ref().unwrap(),
+        )
     }
 }
 
@@ -323,6 +351,14 @@ impl Handler<VrfProve> for SignatureManagerAdapter {
     type Result = ResponseFuture<(VrfProof, Hash), failure::Error>;
 
     fn handle(&mut self, msg: VrfProve, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
+impl Handler<VerifySignatures> for SignatureManagerAdapter {
+    type Result = ResponseFuture<(), failure::Error>;
+
+    fn handle(&mut self, msg: VerifySignatures, _ctx: &mut Self::Context) -> Self::Result {
         Box::new(self.crypto.send(msg).flatten())
     }
 }
