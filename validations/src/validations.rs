@@ -6,16 +6,15 @@ use std::{
 
 use witnet_crypto::{
     hash::Sha256,
-    key::CryptoEngine,
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
-    signature::verify,
+    signature::{PublicKey, Signature},
 };
 use witnet_data_structures::{
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
         DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature,
         OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine,
-        UnspentOutputsPool, ValueTransferOutput,
+        SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::DataRequestPool,
     error::{BlockError, DataRequestError, TransactionError},
@@ -493,14 +492,14 @@ pub fn validate_vt_transaction<'a>(
     utxo_diff: &UtxoDiff,
     epoch: Epoch,
     epoch_constants: EpochConstants,
-    secp: &CryptoEngine,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     validate_transaction_signature(
         &vt_tx.signatures,
         &vt_tx.body.inputs,
         vt_tx.hash(),
         utxo_diff,
-        secp,
+        signatures_to_verify,
     )?;
 
     // A value transfer transaction must have at least one input
@@ -539,14 +538,14 @@ pub fn validate_dr_transaction<'a>(
     utxo_diff: &UtxoDiff,
     epoch: Epoch,
     epoch_constants: EpochConstants,
-    secp: &CryptoEngine,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     validate_transaction_signature(
         &dr_tx.signatures,
         &dr_tx.body.inputs,
         dr_tx.hash(),
         utxo_diff,
-        secp,
+        signatures_to_verify,
     )?;
 
     // A value transfer output cannot have zero value
@@ -604,11 +603,10 @@ pub fn validate_commit_transaction(
     co_tx: &CommitTransaction,
     dr_pool: &DataRequestPool,
     beacon: CheckpointBeacon,
-    vrf: &mut VrfCtx,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
     epoch: Epoch,
     epoch_constants: EpochConstants,
-    secp: &CryptoEngine,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -633,7 +631,8 @@ pub fn validate_commit_transaction(
         .into());
     }
 
-    let commit_signature = validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures, secp)?;
+    let commit_signature =
+        validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures, signatures_to_verify)?;
 
     let pkh = commit_signature.public_key.pkh();
     let pkh2 = co_tx.body.proof.proof.pkh();
@@ -656,13 +655,13 @@ pub fn validate_commit_transaction(
         num_witnesses,
         num_active_identities,
     );
-    verify_poe_data_request(
-        vrf,
+    add_dr_vrf_signature_to_verify(
+        signatures_to_verify,
         &co_tx.body.proof,
         beacon,
         co_tx.body.dr_pointer,
         target_hash,
-    )?;
+    );
 
     // The commit fee here is the fee to include one commit
     Ok((dr_pointer, dr_output.witnesses, dr_output.commit_fee))
@@ -672,7 +671,7 @@ pub fn validate_commit_transaction(
 pub fn validate_reveal_transaction(
     re_tx: &RevealTransaction,
     dr_pool: &DataRequestPool,
-    secp: &CryptoEngine,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<u64, failure::Error> {
     // Get DataRequest information
     let dr_pointer = re_tx.body.dr_pointer;
@@ -685,7 +684,8 @@ pub fn validate_reveal_transaction(
         return Err(DataRequestError::NotRevealStage.into());
     }
 
-    let reveal_signature = validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures, secp)?;
+    let reveal_signature =
+        validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures, signatures_to_verify)?;
     let pkh = reveal_signature.public_key.pkh();
     let pkh2 = re_tx.body.pkh;
     if pkh != pkh2 {
@@ -808,7 +808,10 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
 }
 
 /// Function to validate a block signature
-pub fn validate_block_signature(block: &Block, secp: &CryptoEngine) -> Result<(), failure::Error> {
+pub fn validate_block_signature(
+    block: &Block,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+) -> Result<(), failure::Error> {
     let proof_pkh = block.block_header.proof.proof.pkh();
     let signature_pkh = block.block_sig.public_key.pkh();
     if proof_pkh != signature_pkh {
@@ -826,8 +829,9 @@ pub fn validate_block_signature(block: &Block, secp: &CryptoEngine) -> Result<()
 
     let Hash::SHA256(message) = block.hash();
 
-    verify(secp, &public_key, &message, &signature)
-        .map_err(|_| BlockError::VerifySignatureFail { hash: block.hash() }.into())
+    add_secp_block_signature_to_verify(signatures_to_verify, &public_key, &message, &signature);
+
+    Ok(())
 }
 
 /// Function to validate a pkh signature
@@ -850,11 +854,70 @@ pub fn validate_pkh_signature(
     }
     Ok(())
 }
+
+/// Add secp tx signatures to verification list
+pub fn add_secp_tx_signature_to_verify(
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    public_key: &PublicKey,
+    data: &[u8],
+    sig: &Signature,
+) {
+    signatures_to_verify.push(SignaturesToVerify::SecpTx {
+        public_key: *public_key,
+        data: data.to_vec(),
+        signature: *sig,
+    });
+}
+
+/// Add secp tx signatures to verification list
+pub fn add_secp_block_signature_to_verify(
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    public_key: &PublicKey,
+    data: &[u8],
+    sig: &Signature,
+) {
+    signatures_to_verify.push(SignaturesToVerify::SecpBlock {
+        public_key: *public_key,
+        data: data.to_vec(),
+        signature: *sig,
+    });
+}
+
+/// Add vrf signatures to verification list
+pub fn add_dr_vrf_signature_to_verify(
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    proof: &DataRequestEligibilityClaim,
+    beacon: CheckpointBeacon,
+    dr_hash: Hash,
+    target_hash: Hash,
+) {
+    signatures_to_verify.push(SignaturesToVerify::VrfDr {
+        proof: proof.clone(),
+        beacon,
+        dr_hash,
+        target_hash,
+    })
+}
+
+/// Add vrf signatures to verification list
+pub fn add_block_vrf_signature_to_verify(
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    proof: &BlockEligibilityClaim,
+    beacon: CheckpointBeacon,
+    target_hash: Hash,
+) {
+    signatures_to_verify.push(SignaturesToVerify::VrfBlock {
+        proof: proof.clone(),
+        beacon,
+        target_hash,
+    })
+}
+
 /// Function to validate a commit/reveal transaction signature
 pub fn validate_commit_reveal_signature<'a>(
     tx_hash: Hash,
     signatures: &'a [KeyedSignature],
-    secp: &CryptoEngine,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<&'a KeyedSignature, failure::Error> {
     if let Some(tx_keyed_signature) = signatures.get(0) {
         let Hash::SHA256(message) = tx_hash;
@@ -876,7 +939,7 @@ pub fn validate_commit_reveal_signature<'a>(
             .try_into()
             .map_err(fte)?;
 
-        verify(secp, &public_key, &message, &signature).map_err(fte)?;
+        add_secp_tx_signature_to_verify(signatures_to_verify, &public_key, &message, &signature);
 
         Ok(tx_keyed_signature)
     } else {
@@ -890,7 +953,7 @@ pub fn validate_transaction_signature(
     inputs: &[Input],
     tx_hash: Hash,
     utxo_set: &UtxoDiff,
-    secp: &CryptoEngine,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<(), failure::Error> {
     if signatures.len() != inputs.len() {
         return Err(TransactionError::MismatchingSignaturesNumber {
@@ -923,7 +986,12 @@ pub fn validate_transaction_signature(
         // Validate the actual signature
         let public_key = keyed_signature.public_key.clone().try_into().map_err(fte)?;
         let signature = keyed_signature.signature.clone().try_into().map_err(fte)?;
-        verify(secp, &public_key, &tx_hash_bytes, &signature).map_err(fte)?;
+        add_secp_tx_signature_to_verify(
+            signatures_to_verify,
+            &public_key,
+            &tx_hash_bytes,
+            &signature,
+        );
     }
 
     Ok(())
@@ -979,10 +1047,9 @@ pub fn validate_block_transactions(
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
     block: &Block,
-    vrf: &mut VrfCtx,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
     epoch_constants: EpochConstants,
-    secp: &CryptoEngine,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let mut utxo_diff = UtxoDiff::new(utxo_set);
@@ -994,8 +1061,13 @@ pub fn validate_block_transactions(
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
     for transaction in &block.txns.value_transfer_txns {
-        let (inputs, outputs, fee) =
-            validate_vt_transaction(transaction, &utxo_diff, epoch, epoch_constants, secp)?;
+        let (inputs, outputs, fee) = validate_vt_transaction(
+            transaction,
+            &utxo_diff,
+            epoch,
+            epoch_constants,
+            signatures_to_verify,
+        )?;
         total_fee += fee;
 
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
@@ -1010,8 +1082,13 @@ pub fn validate_block_transactions(
     // Validate data request transactions in a block
     let mut dr_mt = ProgressiveMerkleTree::sha256();
     for transaction in &block.txns.data_request_txns {
-        let (inputs, outputs, fee) =
-            validate_dr_transaction(transaction, &utxo_diff, epoch, epoch_constants, secp)?;
+        let (inputs, outputs, fee) = validate_dr_transaction(
+            transaction,
+            &utxo_diff,
+            epoch,
+            epoch_constants,
+            signatures_to_verify,
+        )?;
         total_fee += fee;
 
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
@@ -1033,11 +1110,10 @@ pub fn validate_block_transactions(
             &transaction,
             dr_pool,
             block_beacon,
-            vrf,
+            signatures_to_verify,
             rep_eng,
             epoch,
             epoch_constants,
-            secp,
         )?;
 
         // Validation for only one commit for pkh/data request in a block
@@ -1072,7 +1148,7 @@ pub fn validate_block_transactions(
     let mut re_mt = ProgressiveMerkleTree::sha256();
     let mut reveal_hs = HashSet::with_capacity(block.txns.reveal_txns.len());
     for transaction in &block.txns.reveal_txns {
-        let fee = validate_reveal_transaction(&transaction, dr_pool, secp)?;
+        let fee = validate_reveal_transaction(&transaction, dr_pool, signatures_to_verify)?;
 
         // Validation for only one reveal for pkh/data request in a block
         let pkh = transaction.body.pkh;
@@ -1142,18 +1218,13 @@ pub fn validate_block_transactions(
 }
 
 /// Function to validate a block
-#[allow(clippy::too_many_arguments)]
 pub fn validate_block(
     block: &Block,
     current_epoch: Epoch,
     chain_beacon: CheckpointBeacon,
-    utxo_set: &UnspentOutputsPool,
-    data_request_pool: &DataRequestPool,
-    vrf: &mut VrfCtx,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
-    epoch_constants: EpochConstants,
-    secp: &CryptoEngine,
-) -> Result<Diff, failure::Error> {
+) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
 
@@ -1178,24 +1249,15 @@ pub fn validate_block(
     } else {
         let total_identities = rep_eng.ars.active_identities_number() as u32;
         let target_hash = calculate_randpoe_threshold(total_identities);
-        verify_poe_block(
-            vrf,
+
+        add_block_vrf_signature_to_verify(
+            signatures_to_verify,
             &block.block_header.proof,
             block.block_header.beacon,
             target_hash,
-        )?;
-        validate_block_signature(&block, secp)?;
+        );
 
-        // TODO: in the future, a block without any transactions may be invalid
-        validate_block_transactions(
-            &utxo_set,
-            &data_request_pool,
-            &block,
-            vrf,
-            rep_eng,
-            epoch_constants,
-            secp,
-        )
+        validate_block_signature(&block, signatures_to_verify)
     }
 }
 
@@ -1203,7 +1265,7 @@ pub fn validate_block(
 pub fn validate_candidate(
     block: &Block,
     current_epoch: Epoch,
-    vrf: &mut VrfCtx,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
     total_identities: u32,
 ) -> Result<(), BlockError> {
     let block_epoch = block.block_header.beacon.checkpoint;
@@ -1215,12 +1277,14 @@ pub fn validate_candidate(
     }
 
     let target_hash = calculate_randpoe_threshold(total_identities);
-    verify_poe_block(
-        vrf,
+    add_block_vrf_signature_to_verify(
+        signatures_to_verify,
         &block.block_header.proof,
         block.block_header.beacon,
         target_hash,
-    )
+    );
+
+    Ok(())
 }
 
 /// Validate a standalone transaction received from the network
@@ -1234,21 +1298,28 @@ pub fn validate_new_transaction(
     current_block_hash: Hash,
     current_epoch: Epoch,
     epoch_constants: EpochConstants,
-    vrf_ctx: &mut VrfCtx,
-    secp: &CryptoEngine,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<(), failure::Error> {
     let utxo_diff = UtxoDiff::new(&unspent_outputs_pool);
 
     match transaction {
-        Transaction::ValueTransfer(tx) => {
-            validate_vt_transaction(&tx, &utxo_diff, current_epoch, epoch_constants, secp)
-                .map(|_| ())
-        }
+        Transaction::ValueTransfer(tx) => validate_vt_transaction(
+            &tx,
+            &utxo_diff,
+            current_epoch,
+            epoch_constants,
+            signatures_to_verify,
+        )
+        .map(|_| ()),
 
-        Transaction::DataRequest(tx) => {
-            validate_dr_transaction(&tx, &utxo_diff, current_epoch, epoch_constants, secp)
-                .map(|_| ())
-        }
+        Transaction::DataRequest(tx) => validate_dr_transaction(
+            &tx,
+            &utxo_diff,
+            current_epoch,
+            epoch_constants,
+            signatures_to_verify,
+        )
+        .map(|_| ()),
         Transaction::Commit(tx) => {
             // We need a checkpoint beacon with the current epoch and the hash of the previous block
             let dr_beacon = CheckpointBeacon {
@@ -1260,16 +1331,15 @@ pub fn validate_new_transaction(
                 &tx,
                 &data_request_pool,
                 dr_beacon,
-                vrf_ctx,
+                signatures_to_verify,
                 &reputation_engine,
                 current_epoch,
                 epoch_constants,
-                secp,
             )
             .map(|_| ())
         }
         Transaction::Reveal(tx) => {
-            validate_reveal_transaction(&tx, &data_request_pool, secp).map(|_| ())
+            validate_reveal_transaction(&tx, &data_request_pool, signatures_to_verify).map(|_| ())
         }
         _ => Err(TransactionError::NotValidTransaction.into()),
     }

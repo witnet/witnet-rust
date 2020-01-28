@@ -23,12 +23,14 @@ use witnet_data_structures::{
 use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
-    merkle_tree_root, update_utxo_diff, validate_block, vt_transaction_fee, UtxoDiff,
+    merkle_tree_root, update_utxo_diff, vt_transaction_fee, UtxoDiff,
 };
 
 use crate::{
     actors::{
-        chain_manager::{transaction_factory::sign_transaction, ChainManager, StateMachine},
+        chain_manager::{
+            process_validations, transaction_factory::sign_transaction, ChainManager, StateMachine,
+        },
         messages::{
             AddCandidates, AddCommitReveal, GetHighestCheckpointBeacon, ResolveRA, RunTally,
         },
@@ -161,17 +163,17 @@ impl ChainManager {
                     .into_actor(act)
             })
             .and_then(move |block, act, ctx| {
-                match validate_block(
+                match process_validations(
                     &block,
                     current_epoch,
                     beacon,
+                    act.chain_state.reputation_engine.as_ref().unwrap(),
+                    act.epoch_constants.unwrap(),
                     &act.chain_state.unspent_outputs_pool,
                     &act.chain_state.data_request_pool,
                     // The unwrap is safe because if there is no VRF context,
                     // the actor should have stopped execution
                     act.vrf_ctx.as_mut().unwrap(),
-                    act.chain_state.reputation_engine.as_ref().unwrap(),
-                    act.epoch_constants.unwrap(),
                     act.secp.as_ref().unwrap(),
                 ) {
                     Ok(_) => {
@@ -734,7 +736,9 @@ mod tests {
         assert_eq!(block.txns.tally_txns.len(), 0);
 
         // Validate block signature
-        assert!(validate_block_signature(&block, secp).is_ok());
+        let mut signatures_to_verify = vec![];
+        assert!(validate_block_signature(&block, &mut signatures_to_verify).is_ok());
+        // TODO: validate signatures_to_verify
     }
 
     #[test]

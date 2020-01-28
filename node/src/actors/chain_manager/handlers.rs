@@ -11,11 +11,12 @@ use witnet_data_structures::{
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
-use witnet_validations::validations::{compare_blocks, validate_block, validate_rad_request};
+use witnet_validations::validations::{compare_blocks, validate_rad_request};
 
 use super::{
     show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine,
 };
+use crate::actors::chain_manager::process_validations;
 use crate::{
     actors::{
         messages::{
@@ -150,15 +151,17 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 continue;
                             }
                         }
-                        match validate_block(
+                        match process_validations(
                             &block_candidate,
                             current_epoch,
                             chain_info.highest_block_checkpoint,
-                            &self.chain_state.unspent_outputs_pool,
-                            &self.chain_state.data_request_pool,
-                            self.vrf_ctx.as_mut().unwrap(),
                             rep_engine,
                             self.epoch_constants.unwrap(),
+                            &self.chain_state.unspent_outputs_pool,
+                            &self.chain_state.data_request_pool,
+                            // The unwrap is safe because if there is no VRF context,
+                            // the actor should have stopped execution
+                            self.vrf_ctx.as_mut().unwrap(),
                             self.secp.as_ref().unwrap(),
                         ) {
                             Ok(utxo_diff) => {
@@ -167,7 +170,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 chosen_candidate =
                                     Some((key, reputation, block_candidate, utxo_diff))
                             }
-                            Err(e) => log::debug!("{}", e),
+                            Err(e) => log::warn!("{}", e),
                         }
                     }
 

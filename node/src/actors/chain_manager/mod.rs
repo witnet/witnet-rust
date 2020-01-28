@@ -56,7 +56,7 @@ use witnet_data_structures::{
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
-    validate_block, validate_candidate, validate_new_transaction, Diff,
+    validate_block, validate_block_transactions, validate_candidate, validate_new_transaction, Diff,
 };
 
 use crate::{
@@ -71,6 +71,9 @@ use crate::{
     },
     storage_mngr,
 };
+use witnet_crypto::signature::verify;
+use witnet_data_structures::chain::SignaturesToVerify;
+use witnet_data_structures::error::{BlockError, TransactionError};
 
 mod actor;
 mod handlers;
@@ -270,7 +273,7 @@ impl ChainManager {
             Some(chain_info),
             Some(rep_engine),
             Some(vrf_ctx),
-            Some(secp),
+            Some(secp_ctx),
         ) = (
             self.current_epoch,
             self.epoch_constants,
@@ -281,49 +284,52 @@ impl ChainManager {
         ) {
             let chain_beacon = chain_info.highest_block_checkpoint;
 
-            match validate_block(
+            let utxo_diff = process_validations(
                 block,
                 current_epoch,
                 chain_beacon,
+                rep_engine,
+                epoch_constants,
                 &self.chain_state.unspent_outputs_pool,
                 &self.chain_state.data_request_pool,
                 vrf_ctx,
-                rep_engine,
-                epoch_constants,
-                secp,
-            ) {
-                Ok(utxo_diff) => {
-                    // Persist block and update ChainState
-                    self.consolidate_block(ctx, block, utxo_diff);
+                secp_ctx,
+            )?;
 
-                    Ok(())
-                }
-                Err(e) => Err(e),
-            }
+            // Persist block and update ChainState
+            self.consolidate_block(ctx, block, utxo_diff);
+
+            Ok(())
         } else {
             Err(ChainManagerError::ChainNotReady.into())
         }
     }
-
+    #[allow(clippy::map_entry)]
     fn process_candidate(&mut self, block: Block) {
-        if let (Some(current_epoch), Some(rep_engine)) = (
+        if let (Some(current_epoch), Some(rep_engine), Some(vrf_ctx), Some(secp_ctx)) = (
             self.current_epoch,
             self.chain_state.reputation_engine.as_ref(),
+            self.vrf_ctx.as_mut(),
+            self.secp.as_ref(),
         ) {
             let hash_block = block.hash();
             let total_identities = rep_engine.ars.active_identities_number() as u32;
 
             if !self.candidates.contains_key(&hash_block) {
+                let mut signatures_to_verify = vec![];
                 match validate_candidate(
                     &block,
                     current_epoch,
-                    self.vrf_ctx.as_mut().unwrap(),
+                    &mut signatures_to_verify,
                     total_identities,
                 ) {
-                    Ok(()) => {
-                        self.candidates.insert(hash_block, block.clone());
-                        self.broadcast_item(InventoryItem::Block(block));
-                    }
+                    Ok(_) => match verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx) {
+                        Ok(_) => {
+                            self.candidates.insert(hash_block, block.clone());
+                            self.broadcast_item(InventoryItem::Block(block));
+                        }
+                        Err(e) => warn!("{}", e),
+                    },
                     Err(e) => warn!("{}", e),
                 }
             }
@@ -523,15 +529,11 @@ impl ChainManager {
             Some(reputation_engine),
             Some(current_epoch),
             Some(epoch_constants),
-            Some(vrf_ctx),
-            Some(secp),
         ) = (
             self.chain_state.chain_info.as_ref(),
             self.chain_state.reputation_engine.as_ref(),
             self.current_epoch,
             self.epoch_constants,
-            self.vrf_ctx.as_mut(),
-            self.secp.as_ref(),
         ) {
             if let Transaction::Commit(_commit) = &msg.transaction {
                 let timestamp_mining = epoch_constants
@@ -545,6 +547,8 @@ impl ChainManager {
                 }
             }
 
+            let mut signatures_to_verify = vec![];
+
             match validate_new_transaction(
                 msg.transaction.clone(),
                 (
@@ -555,8 +559,7 @@ impl ChainManager {
                 chain_info.highest_block_checkpoint.hash_prev_block,
                 current_epoch,
                 epoch_constants,
-                vrf_ctx,
-                secp,
+                &mut signatures_to_verify,
             ) {
                 Ok(()) => {
                     // Broadcast valid transaction
@@ -588,6 +591,42 @@ impl ChainManager {
     pub fn get_magic(&self) -> u16 {
         self.magic
     }
+}
+/// Method to process validations
+#[allow(clippy::too_many_arguments)]
+pub fn process_validations(
+    block: &Block,
+    current_epoch: Epoch,
+    chain_beacon: CheckpointBeacon,
+    rep_eng: &ReputationEngine,
+    epoch_constants: EpochConstants,
+    utxo_set: &UnspentOutputsPool,
+    dr_pool: &DataRequestPool,
+    vrf_ctx: &mut VrfCtx,
+    secp_ctx: &CryptoEngine,
+) -> Result<Diff, failure::Error> {
+    let mut signatures_to_verify = vec![];
+    validate_block(
+        block,
+        current_epoch,
+        chain_beacon,
+        &mut signatures_to_verify,
+        rep_eng,
+    )?;
+    verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
+
+    let mut signatures_to_verify = vec![];
+    let utxo_dif = validate_block_transactions(
+        utxo_set,
+        dr_pool,
+        block,
+        &mut signatures_to_verify,
+        rep_eng,
+        epoch_constants,
+    )?;
+    verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
+
+    Ok(utxo_dif)
 }
 
 #[derive(Debug, Default)]
@@ -948,6 +987,80 @@ fn show_sync_progress(
         target_beacon.checkpoint,
         human_age
     );
+}
+
+fn verify_signatures(
+    signatures_to_verify: Vec<SignaturesToVerify>,
+    vrf_ctx: &mut VrfCtx,
+    secp_ctx: &CryptoEngine,
+) -> Result<(), failure::Error> {
+    for x in signatures_to_verify {
+        match x {
+            SignaturesToVerify::VrfBlock {
+                proof,
+                beacon,
+                target_hash,
+            } => {
+                let vrf_hash = proof
+                    .verify(vrf_ctx, beacon)
+                    .map_err(|_| BlockError::NotValidPoe)?;
+                if vrf_hash > target_hash {
+                    return Err(BlockError::BlockEligibilityDoesNotMeetTarget {
+                        vrf_hash,
+                        target_hash,
+                    }
+                    .into());
+                }
+            }
+            SignaturesToVerify::VrfDr {
+                proof,
+                beacon,
+                dr_hash,
+                target_hash,
+            } => {
+                let vrf_hash = proof
+                    .verify(vrf_ctx, beacon, dr_hash)
+                    .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
+                if vrf_hash > target_hash {
+                    return Err(TransactionError::DataRequestEligibilityDoesNotMeetTarget {
+                        vrf_hash,
+                        target_hash,
+                    }
+                    .into());
+                }
+            }
+            SignaturesToVerify::SecpTx {
+                public_key,
+                data,
+                signature,
+            } => verify(secp_ctx, &public_key, &data, &signature).map_err(|e| {
+                TransactionError::VerifyTransactionSignatureFail {
+                    hash: {
+                        let mut sha256 = [0; 32];
+                        sha256.copy_from_slice(&data);
+                        Hash::SHA256(sha256)
+                    },
+                    index: 0,
+                    msg: e.to_string(),
+                }
+            })?,
+
+            SignaturesToVerify::SecpBlock {
+                public_key,
+                data,
+                signature,
+            } => verify(secp_ctx, &public_key, &data, &signature).map_err(|_e| {
+                BlockError::VerifySignatureFail {
+                    hash: {
+                        let mut sha256 = [0; 32];
+                        sha256.copy_from_slice(&data);
+                        Hash::SHA256(sha256)
+                    },
+                }
+            })?,
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

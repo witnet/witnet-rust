@@ -33,7 +33,7 @@ use crate::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
         TallyTransaction, Transaction, VTTransaction,
     },
-    vrf::BlockEligibilityClaim,
+    vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
 };
 use bech32::{FromBase32, ToBase32};
 
@@ -1998,6 +1998,30 @@ impl EpochConstants {
             ))
             .ok_or(EpochCalculationError::Overflow)
     }
+}
+
+pub enum SignaturesToVerify {
+    VrfDr {
+        proof: DataRequestEligibilityClaim,
+        beacon: CheckpointBeacon,
+        dr_hash: Hash,
+        target_hash: Hash,
+    },
+    VrfBlock {
+        proof: BlockEligibilityClaim,
+        beacon: CheckpointBeacon,
+        target_hash: Hash,
+    },
+    SecpTx {
+        public_key: Secp256k1_PublicKey,
+        data: Vec<u8>,
+        signature: Secp256k1_Signature,
+    },
+    SecpBlock {
+        public_key: Secp256k1_PublicKey,
+        data: Vec<u8>,
+        signature: Secp256k1_Signature,
+    },
 }
 
 // Auxiliar functions for test

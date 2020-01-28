@@ -2,10 +2,13 @@
 
 use crate::key::CryptoEngine;
 use failure::Fail;
-use secp256k1::{Message, PublicKey, SecretKey};
+use secp256k1::{Message, SecretKey};
 
 /// Signature
 pub type Signature = secp256k1::Signature;
+
+/// PublicKey
+pub type PublicKey = secp256k1::PublicKey;
 
 /// The error type for operations with signatures
 #[derive(Debug, PartialEq, Fail)]
