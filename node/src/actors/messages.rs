@@ -262,7 +262,7 @@ pub struct AddCommitReveal {
 }
 
 impl Message for AddCommitReveal {
-    type Result = ();
+    type Result = Result<(), failure::Error>;
 }
 
 /// Get transaction from mempool by hash

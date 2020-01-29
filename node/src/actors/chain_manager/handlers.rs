@@ -382,7 +382,7 @@ impl Handler<AddCandidates> for ChainManager {
 
 /// Handler for AddTransaction message
 impl Handler<AddTransaction> for ChainManager {
-    type Result = Result<(), failure::Error>;
+    type Result = ResponseActFuture<Self, (), failure::Error>;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) -> Self::Result {
         let timestamp_now = get_timestamp();
@@ -876,7 +876,7 @@ impl Handler<TryMineBlock> for ChainManager {
 }
 
 impl Handler<AddCommitReveal> for ChainManager {
-    type Result = ();
+    type Result = ResponseActFuture<Self, (), failure::Error>;
 
     fn handle(
         &mut self,
@@ -894,14 +894,18 @@ impl Handler<AddCommitReveal> for ChainManager {
 
         // Send AddTransaction message to self
         // And broadcast it to all of peers
-        if let Err(e) = self.handle(
-            AddTransaction {
-                transaction: Transaction::Commit(commit_transaction),
-            },
-            ctx,
-        ) {
-            log::warn!("Failed to add commit transaction: {}", e);
-        }
+        Box::new(
+            self.handle(
+                AddTransaction {
+                    transaction: Transaction::Commit(commit_transaction),
+                },
+                ctx,
+            )
+            .map_err(|e, _, _| {
+                log::warn!("Failed to add commit transaction: {}", e);
+                e
+            }),
+        )
     }
 }
 
