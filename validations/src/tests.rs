@@ -15,10 +15,18 @@ use witnet_protected::Protected;
 use witnet_rad::{error::RadError, reducers::RadonReducers};
 
 use crate::validations::*;
-use witnet_crypto::signature::verify;
 
 static MY_PKH: &str = "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm";
 static MY_PKH_2: &str = "wit1z8mxkml4a50dyysqczsp7gj5pnvz3jsldras8t";
+
+fn verify_signatures_test(
+    signatures_to_verify: Vec<SignaturesToVerify>,
+) -> Result<(), failure::Error> {
+    let secp = &CryptoEngine::new();
+    let vrf = &mut VrfCtx::secp256k1().unwrap();
+
+    verify_signatures(signatures_to_verify, vrf, secp)
+}
 
 fn sign_t<H: Hashable>(tx: &H) -> KeyedSignature {
     let Hash::SHA256(data) = tx.hash();
@@ -55,80 +63,6 @@ fn sign_t2<H: Hashable>(tx: &H) -> KeyedSignature {
         signature: Signature::from(signature),
         public_key,
     }
-}
-
-fn validate_signatures(
-    signatures_to_verify: Vec<SignaturesToVerify>,
-) -> Result<(), failure::Error> {
-    let secp = &CryptoEngine::new();
-    let vrf = &mut VrfCtx::secp256k1().unwrap();
-    for x in signatures_to_verify {
-        match x {
-            SignaturesToVerify::VrfBlock {
-                proof,
-                beacon,
-                target_hash,
-            } => {
-                let vrf_hash = proof
-                    .verify(vrf, beacon)
-                    .map_err(|_| BlockError::NotValidPoe)?;
-                if vrf_hash > target_hash {
-                    return Err(BlockError::BlockEligibilityDoesNotMeetTarget {
-                        vrf_hash,
-                        target_hash,
-                    }
-                    .into());
-                }
-            }
-            SignaturesToVerify::VrfDr {
-                proof,
-                beacon,
-                dr_hash,
-                target_hash,
-            } => {
-                let vrf_hash = proof
-                    .verify(vrf, beacon, dr_hash)
-                    .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
-                if vrf_hash > target_hash {
-                    return Err(TransactionError::DataRequestEligibilityDoesNotMeetTarget {
-                        vrf_hash,
-                        target_hash,
-                    }
-                    .into());
-                }
-            }
-            SignaturesToVerify::SecpTx {
-                public_key,
-                data,
-                signature,
-            } => verify(secp, &public_key, &data, &signature).map_err(|e| {
-                TransactionError::VerifyTransactionSignatureFail {
-                    hash: {
-                        let mut sha256 = [0; 32];
-                        sha256.copy_from_slice(&data);
-                        Hash::SHA256(sha256)
-                    },
-                    index: 0,
-                    msg: e.to_string(),
-                }
-            })?,
-
-            SignaturesToVerify::SecpBlock {
-                public_key,
-                data,
-                signature,
-            } => verify(secp, &public_key, &data, &signature).map_err(|_e| {
-                BlockError::VerifySignatureFail {
-                    hash: {
-                        let mut sha256 = [0; 32];
-                        sha256.copy_from_slice(&data);
-                        Hash::SHA256(sha256)
-                    },
-                }
-            })?,
-        }
-    }
-    Ok(())
 }
 
 // Counter used to prevent creating two transactions with the same hash
@@ -492,7 +426,7 @@ fn vtt_one_input_signatures() {
             EpochConstants::default(),
             &mut signatures_to_verify,
         )?;
-        validate_signatures(signatures_to_verify)?;
+        verify_signatures_test(signatures_to_verify)?;
 
         Ok(())
     });
@@ -992,7 +926,7 @@ fn vtt_timelock() {
             epoch_constants,
             &mut signatures_to_verify,
         )?;
-        validate_signatures(signatures_to_verify)
+        verify_signatures_test(signatures_to_verify)
     };
 
     // (epoch, time_lock, should_be_accepted_into_block)
@@ -1185,7 +1119,7 @@ fn data_request_one_input_signatures() {
             EpochConstants::default(),
             &mut signatures_to_verify,
         )?;
-        validate_signatures(signatures_to_verify)?;
+        verify_signatures_test(signatures_to_verify)?;
 
         Ok(())
     });
@@ -1774,7 +1708,7 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         0,
         EpochConstants::default(),
     )?;
-    validate_signatures(signatures_to_verify)?;
+    verify_signatures_test(signatures_to_verify)?;
 
     Ok(())
 }
@@ -1841,7 +1775,7 @@ fn test_commit_difficult_proof() {
         0,
         EpochConstants::default(),
     )
-    .and_then(|_| validate_signatures(signatures_to_verify));
+    .and_then(|_| verify_signatures_test(signatures_to_verify));
 
     match x.unwrap_err().downcast::<TransactionError>().unwrap() {
         TransactionError::DataRequestEligibilityDoesNotMeetTarget { target_hash, .. }
@@ -2079,7 +2013,7 @@ fn commitment_invalid_proof() {
         0,
         EpochConstants::default(),
     )
-    .and_then(|_| validate_signatures(signatures_to_verify));
+    .and_then(|_| verify_signatures_test(signatures_to_verify));
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2209,7 +2143,6 @@ fn commitment_timelock() {
         let c_tx = CommitTransaction::new(cb, vec![cs]);
 
         let mut signatures_to_verify = vec![];
-        //TODO: validate signatures_to_verify
         validate_commit_transaction(
             &c_tx,
             &dr_pool,
@@ -2219,7 +2152,9 @@ fn commitment_timelock() {
             epoch,
             epoch_constants,
         )
-        .map(|_| ())
+        .map(|_| ())?;
+
+        verify_signatures_test(signatures_to_verify)
     };
 
     // (epoch, time_lock, should_be_accepted_into_block)
@@ -2292,7 +2227,7 @@ fn reveal_signatures() {
         let r_tx = RevealTransaction::new(rb, vec![rs]);
         let mut signatures_to_verify = vec![];
         let ret = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify)?;
-        validate_signatures(signatures_to_verify)?;
+        verify_signatures_test(signatures_to_verify)?;
         Ok(ret)
     };
 
@@ -3106,7 +3041,7 @@ fn block_signatures() {
         b.block_sig = ks;
         let mut signatures_to_verify = vec![];
         validate_block_signature(&b, &mut signatures_to_verify)?;
-        validate_signatures(signatures_to_verify)?;
+        verify_signatures_test(signatures_to_verify)?;
         Ok(())
     };
 
@@ -3252,7 +3187,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         &mut signatures_to_verify,
         rep_eng.ars.active_identities_number() as u32,
     )?;
-    validate_signatures(signatures_to_verify)?;
+    verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
 
     validate_block(
@@ -3262,7 +3197,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         &mut signatures_to_verify,
         &rep_eng,
     )?;
-    validate_signatures(signatures_to_verify)?;
+    verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
 
     validate_block_transactions(
@@ -3273,7 +3208,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         &rep_eng,
         EpochConstants::default(),
     )?;
-    validate_signatures(signatures_to_verify)?;
+    verify_signatures_test(signatures_to_verify)?;
 
     Ok(())
 }
@@ -3478,7 +3413,7 @@ fn block_difficult_proof() {
                 &mut signatures_to_verify,
                 rep_eng.ars.active_identities_number() as u32,
             )?;
-            validate_signatures(signatures_to_verify)?;
+            verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
 
             validate_block(
@@ -3488,7 +3423,7 @@ fn block_difficult_proof() {
                 &mut signatures_to_verify,
                 &rep_eng,
             )?;
-            validate_signatures(signatures_to_verify)?;
+            verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
 
             validate_block_transactions(
@@ -3499,7 +3434,7 @@ fn block_difficult_proof() {
                 &rep_eng,
                 EpochConstants::default(),
             )?;
-            validate_signatures(signatures_to_verify)?;
+            verify_signatures_test(signatures_to_verify)?;
 
             Ok(())
         };
@@ -3990,7 +3925,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &mut signatures_to_verify,
             rep_eng.ars.active_identities_number() as u32,
         )?;
-        validate_signatures(signatures_to_verify)?;
+        verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
 
         // Validate block VRF
@@ -4001,7 +3936,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &mut signatures_to_verify,
             &rep_eng,
         )?;
-        validate_signatures(signatures_to_verify)?;
+        verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
 
         // Do the expensive validation
@@ -4013,7 +3948,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &rep_eng,
             EpochConstants::default(),
         )?;
-        validate_signatures(signatures_to_verify)?;
+        verify_signatures_test(signatures_to_verify)?;
 
         // FIXME(#685): add sequence validations
         //update_pools(&b)?;

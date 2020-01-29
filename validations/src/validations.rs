@@ -6,8 +6,9 @@ use std::{
 
 use witnet_crypto::{
     hash::Sha256,
+    key::CryptoEngine,
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
-    signature::{PublicKey, Signature},
+    signature::{verify, PublicKey, Signature},
 };
 use witnet_data_structures::{
     chain::{
@@ -1611,6 +1612,81 @@ pub fn compare_blocks(
         .cmp(&b2_rep)
         // Bigger hash implies worse block candidate
         .then(b1_hash.cmp(&b2_hash).reverse())
+}
+
+/// Blocking process to verify signatures
+pub fn verify_signatures(
+    signatures_to_verify: Vec<SignaturesToVerify>,
+    vrf: &mut VrfCtx,
+    secp: &CryptoEngine,
+) -> Result<(), failure::Error> {
+    for x in signatures_to_verify {
+        match x {
+            SignaturesToVerify::VrfBlock {
+                proof,
+                beacon,
+                target_hash,
+            } => {
+                let vrf_hash = proof
+                    .verify(vrf, beacon)
+                    .map_err(|_| BlockError::NotValidPoe)?;
+                if vrf_hash > target_hash {
+                    return Err(BlockError::BlockEligibilityDoesNotMeetTarget {
+                        vrf_hash,
+                        target_hash,
+                    }
+                    .into());
+                }
+            }
+            SignaturesToVerify::VrfDr {
+                proof,
+                beacon,
+                dr_hash,
+                target_hash,
+            } => {
+                let vrf_hash = proof
+                    .verify(vrf, beacon, dr_hash)
+                    .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
+                if vrf_hash > target_hash {
+                    return Err(TransactionError::DataRequestEligibilityDoesNotMeetTarget {
+                        vrf_hash,
+                        target_hash,
+                    }
+                    .into());
+                }
+            }
+            SignaturesToVerify::SecpTx {
+                public_key,
+                data,
+                signature,
+            } => verify(secp, &public_key, &data, &signature).map_err(|e| {
+                TransactionError::VerifyTransactionSignatureFail {
+                    hash: {
+                        let mut sha256 = [0; 32];
+                        sha256.copy_from_slice(&data);
+                        Hash::SHA256(sha256)
+                    },
+                    index: 0,
+                    msg: e.to_string(),
+                }
+            })?,
+
+            SignaturesToVerify::SecpBlock {
+                public_key,
+                data,
+                signature,
+            } => verify(secp, &public_key, &data, &signature).map_err(|_e| {
+                BlockError::VerifySignatureFail {
+                    hash: {
+                        let mut sha256 = [0; 32];
+                        sha256.copy_from_slice(&data);
+                        Hash::SHA256(sha256)
+                    },
+                }
+            })?,
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

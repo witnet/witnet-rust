@@ -41,22 +41,11 @@ use itertools::Itertools;
 use log::{error, info, trace, warn};
 
 use witnet_crypto::key::CryptoEngine;
-use witnet_data_structures::{
-    chain::{
-        penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
-        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash, Hashable,
-        InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
-        TransactionsPool, UnspentOutputsPool,
-    },
-    data_request::DataRequestPool,
-    radon_report::{RadonReport, ReportContext},
-    transaction::{TallyTransaction, Transaction},
-    vrf::VrfCtx,
-};
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::validations::{
-    validate_block, validate_block_transactions, validate_candidate, validate_new_transaction, Diff,
+    validate_block, validate_block_transactions, validate_candidate, validate_new_transaction,
+    verify_signatures, Diff,
 };
 
 use crate::{
@@ -71,9 +60,18 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
-use witnet_crypto::signature::verify;
-use witnet_data_structures::chain::SignaturesToVerify;
-use witnet_data_structures::error::{BlockError, TransactionError};
+use witnet_data_structures::{
+    chain::{
+        penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
+        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash, Hashable,
+        InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
+        TransactionsPool, UnspentOutputsPool,
+    },
+    data_request::DataRequestPool,
+    radon_report::{RadonReport, ReportContext},
+    transaction::{TallyTransaction, Transaction},
+    vrf::VrfCtx,
+};
 
 mod actor;
 mod handlers;
@@ -598,7 +596,7 @@ impl ChainManager {
         self.magic
     }
 
-    /// TODO: Add docs
+    /// Block validation process which uses futures
     pub fn future_process_validations(
         &mut self,
         block: Block,
@@ -633,7 +631,8 @@ impl ChainManager {
         Box::new(fut)
     }
 }
-/// Method to process validations
+
+/// Block validation process which doesn't use futures
 #[allow(clippy::too_many_arguments)]
 pub fn process_validations(
     block: &Block,
@@ -1028,81 +1027,6 @@ fn show_sync_progress(
         target_beacon.checkpoint,
         human_age
     );
-}
-
-/// Verify signatures sync
-pub fn verify_signatures(
-    signatures_to_verify: Vec<SignaturesToVerify>,
-    vrf_ctx: &mut VrfCtx,
-    secp_ctx: &CryptoEngine,
-) -> Result<(), failure::Error> {
-    for x in signatures_to_verify {
-        match x {
-            SignaturesToVerify::VrfBlock {
-                proof,
-                beacon,
-                target_hash,
-            } => {
-                let vrf_hash = proof
-                    .verify(vrf_ctx, beacon)
-                    .map_err(|_| BlockError::NotValidPoe)?;
-                if vrf_hash > target_hash {
-                    return Err(BlockError::BlockEligibilityDoesNotMeetTarget {
-                        vrf_hash,
-                        target_hash,
-                    }
-                    .into());
-                }
-            }
-            SignaturesToVerify::VrfDr {
-                proof,
-                beacon,
-                dr_hash,
-                target_hash,
-            } => {
-                let vrf_hash = proof
-                    .verify(vrf_ctx, beacon, dr_hash)
-                    .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
-                if vrf_hash > target_hash {
-                    return Err(TransactionError::DataRequestEligibilityDoesNotMeetTarget {
-                        vrf_hash,
-                        target_hash,
-                    }
-                    .into());
-                }
-            }
-            SignaturesToVerify::SecpTx {
-                public_key,
-                data,
-                signature,
-            } => verify(secp_ctx, &public_key, &data, &signature).map_err(|e| {
-                TransactionError::VerifyTransactionSignatureFail {
-                    hash: {
-                        let mut sha256 = [0; 32];
-                        sha256.copy_from_slice(&data);
-                        Hash::SHA256(sha256)
-                    },
-                    index: 0,
-                    msg: e.to_string(),
-                }
-            })?,
-
-            SignaturesToVerify::SecpBlock {
-                public_key,
-                data,
-                signature,
-            } => verify(secp_ctx, &public_key, &data, &signature).map_err(|_e| {
-                BlockError::VerifySignatureFail {
-                    hash: {
-                        let mut sha256 = [0; 32];
-                        sha256.copy_from_slice(&data);
-                        Hash::SHA256(sha256)
-                    },
-                }
-            })?,
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

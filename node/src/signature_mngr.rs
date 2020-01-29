@@ -11,21 +11,20 @@ use log;
 
 use crate::{actors::storage_keys::MASTER_KEY, storage_mngr};
 
-use crate::actors::chain_manager;
 use witnet_crypto::{
     key::{CryptoEngine, ExtendedSK, MasterKeyGen, SignEngine, PK, SK},
     mnemonic::MnemonicGen,
     signature,
 };
-use witnet_data_structures::chain::SignaturesToVerify;
 use witnet_data_structures::{
     chain::{
         ExtendedSecretKey, Hash, Hashable, KeyedSignature, PublicKey, PublicKeyHash, SecretKey,
-        Signature,
+        Signature, SignaturesToVerify,
     },
     vrf::{VrfCtx, VrfMessage, VrfProof},
 };
 use witnet_protected::ProtectedString;
+use witnet_validations::validations;
 
 /// Start the signature manager
 pub fn start() {
@@ -266,7 +265,7 @@ impl Handler<VerifySignatures> for SignatureManager {
     type Result = <VerifySignatures as Message>::Result;
 
     fn handle(&mut self, msg: VerifySignatures, _ctx: &mut Self::Context) -> Self::Result {
-        chain_manager::verify_signatures(
+        validations::verify_signatures(
             msg.0,
             self.vrf_ctx.as_mut().unwrap(),
             self.secp.as_ref().unwrap(),
