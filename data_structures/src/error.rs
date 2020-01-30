@@ -74,10 +74,10 @@ pub enum TransactionError {
     MismatchingSignaturesNumber { signatures_n: u8, inputs_n: u8 },
     /// Transaction verification process failed.
     #[fail(
-        display = "Failed to verify the signature of input {} in transaction {}: {}",
-        index, hash, msg
+        display = "Failed to verify the signature of transaction {}: {}",
+        hash, msg
     )]
-    VerifyTransactionSignatureFail { hash: Hash, index: u8, msg: String },
+    VerifyTransactionSignatureFail { hash: Hash, msg: String },
     /// Signature not found
     #[fail(display = "Transaction signature not found")]
     SignatureNotFound,

@@ -925,7 +925,6 @@ pub fn validate_commit_reveal_signature<'a>(
 
         let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
             hash: tx_hash,
-            index: 0,
             msg: e.to_string(),
         };
 
@@ -968,12 +967,11 @@ pub fn validate_transaction_signature(
         Hash::SHA256(x) => x.to_vec(),
     };
 
-    for (i, (input, keyed_signature)) in inputs.iter().zip(signatures.iter()).enumerate() {
+    for (input, keyed_signature) in inputs.iter().zip(signatures.iter()) {
         // Helper function to map errors to include transaction hash and input
         // index, as well as the error message.
         let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
             hash: tx_hash,
-            index: i as u8,
             msg: e.to_string(),
         };
         // All of the following map_err can be removed if we refactor this to
@@ -1666,7 +1664,6 @@ pub fn verify_signatures(
                         sha256.copy_from_slice(&data);
                         Hash::SHA256(sha256)
                     },
-                    index: 0,
                     msg: e.to_string(),
                 }
             })?,

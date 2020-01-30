@@ -319,7 +319,6 @@ where
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             msg: TransactionError::PublicKeyHashMismatch {
                 expected_pkh: MY_PKH.parse().unwrap(),
                 signature_pkh,
@@ -338,7 +337,6 @@ where
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             msg: Secp256k1ConversionError::FailSignatureConversion.to_string(),
         },
     );
@@ -353,7 +351,6 @@ where
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             msg: "Fail in verify process".to_string(),
         },
     );
@@ -367,7 +364,6 @@ where
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             // A "Fail in verify process" msg would also be correct here
             msg: TransactionError::PublicKeyHashMismatch {
                 expected_pkh: MY_PKH.parse().unwrap(),
@@ -385,7 +381,6 @@ where
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             msg: TransactionError::PublicKeyHashMismatch {
                 expected_pkh: MY_PKH.parse().unwrap(),
                 signature_pkh,
@@ -700,7 +695,6 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash: vt_tx.hash(),
-            index: 1,
             msg: TransactionError::PublicKeyHashMismatch {
                 expected_pkh: MY_PKH.parse().unwrap(),
                 signature_pkh: MY_PKH_2.parse().unwrap(),
@@ -1869,7 +1863,6 @@ fn commitment_signatures() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             msg: Secp256k1ConversionError::FailSignatureConversion.to_string(),
         },
     );
@@ -1884,7 +1877,6 @@ fn commitment_signatures() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             msg: Secp256k1ConversionError::FailSignatureConversion.to_string(),
         },
     );
@@ -1899,7 +1891,6 @@ fn commitment_signatures() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             msg: "Fail in verify process".to_string(),
         },
     );
@@ -2243,7 +2234,6 @@ fn reveal_signatures() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             msg: Secp256k1ConversionError::FailSignatureConversion.to_string(),
         },
     );
@@ -2258,7 +2248,6 @@ fn reveal_signatures() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            index: 0,
             msg: Secp256k1ConversionError::FailSignatureConversion.to_string(),
         },
     );
