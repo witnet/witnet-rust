@@ -209,18 +209,20 @@ impl DataRequestPool {
                         // When a data request changes from commit stage to reveal stage, it should
                         // be removed from the "data_requests_by_epoch" map, which stores the data
                         // requests potentially available for commitment
-                        if let Some(hs) = data_requests_by_epoch.get_mut(&dr_state.epoch) {
-                            let present = hs.remove(dr_pointer);
-                            if hs.is_empty() {
-                                data_requests_by_epoch.remove(&dr_state.epoch);
-                            }
-                            if !present {
-                                log::error!(
-                                    "Data request {:?} was not present in the \
-                                     data_requests_by_epoch map (epoch #{})",
-                                    dr_pointer,
-                                    dr_state.epoch
-                                );
+                        if dr_state.info.current_reveal_round == 0 {
+                            if let Some(hs) = data_requests_by_epoch.get_mut(&dr_state.epoch) {
+                                let present = hs.remove(dr_pointer);
+                                if hs.is_empty() {
+                                    data_requests_by_epoch.remove(&dr_state.epoch);
+                                }
+                                if !present {
+                                    log::error!(
+                                        "Data request {:?} was not present in the \
+                                         data_requests_by_epoch map (epoch #{})",
+                                        dr_pointer,
+                                        dr_state.epoch
+                                    );
+                                }
                             }
                         }
 
