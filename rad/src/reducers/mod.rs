@@ -46,7 +46,9 @@ pub fn reduce(input: &RadonArray, reducer_code: RadonReducers) -> Result<RadonTy
 
     if input.is_homogeneous() || input.value().is_empty() {
         match reducer_code {
-            RadonReducers::AverageMean => average::mean(input),
+            RadonReducers::AverageMean => {
+                average::mean(input, average::MeanReturnPolicy::RoundToInteger)
+            }
             RadonReducers::Mode => mode::mode(input),
             RadonReducers::DeviationStandard => deviation::standard(input),
             _ => error(),

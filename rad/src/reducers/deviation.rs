@@ -1,7 +1,10 @@
 use crate::{
     error::RadError,
     operators::array::transpose,
-    reducers::{average::mean, RadonReducers},
+    reducers::{
+        average::{mean, MeanReturnPolicy},
+        RadonReducers,
+    },
     types::{array::RadonArray, float::RadonFloat, RadonType, RadonTypes},
 };
 use std::ops::Div;
@@ -14,7 +17,7 @@ pub fn standard(input: &RadonArray) -> Result<RadonTypes, RadError> {
     match value.first() {
         None => Ok(RadonTypes::from(RadonFloat::from(std::f64::NAN))),
         Some(RadonTypes::Float(_)) => {
-            let mean_value = mean(input)?;
+            let mean_value = mean(input, MeanReturnPolicy::ReturnFloat)?;
             let mean_float = if let RadonTypes::Float(f) = mean_value {
                 f
             } else {
@@ -42,7 +45,7 @@ pub fn standard(input: &RadonArray) -> Result<RadonTypes, RadError> {
             Ok(RadonTypes::from(RadonFloat::from(stddev)))
         }
         Some(RadonTypes::Integer(_)) => {
-            let mean_value = mean(input)?;
+            let mean_value = mean(input, MeanReturnPolicy::ReturnFloat)?;
             let mean_float = if let RadonTypes::Float(f) = mean_value {
                 f
             } else {

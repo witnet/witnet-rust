@@ -1,12 +1,62 @@
+use std::ops::Div;
+
 use crate::{
     error::RadError,
-    operators::array::transpose,
+    operators::{array as array_operators, float as float_operators},
     reducers::RadonReducers,
     types::{array::RadonArray, float::RadonFloat, integer::RadonInteger, RadonType, RadonTypes},
 };
-use std::ops::Div;
 
-pub fn mean(input: &RadonArray) -> Result<RadonTypes, RadError> {
+/// Different available policies regarding what to do with the resulting Float after applying the
+/// average mean.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum MeanReturnPolicy {
+    /// Pure `Fn(Array<T>) -> Float` behavior.
+    ReturnFloat,
+    /// Enforces `Fn(Array<T>) -> T` behavior (if needed).
+    RoundToInteger,
+}
+
+/// Computes the average mean of the values found in a `RadonArray`.
+///
+/// Please note that `input` is assumed to be homogeneus.
+///
+/// # Return policy
+///
+/// Depending on the `return_policy` parameter, it will enforce the reducer contract, i.e.
+/// `Fn(Array<T>) -> T`. In other words, if the input was `Integer`, and the policy is
+/// `RoundToInteger` it will round the final `Float` so the input and output types do match.
+///
+/// The standard behavior for the `AverageMean` reducer is with `RoundToInteger`. However, the
+/// `DeviationStandard` reducer should call it with `ReturnFloat`.
+///
+/// # Examples
+///
+/// ```rust
+/// use witnet_rad::{
+///     reducers::average::{
+///         mean, MeanReturnPolicy
+///     },
+///     types::{
+///         array::RadonArray,
+///         float::RadonFloat,
+///         integer::RadonInteger,
+///         RadonTypes,
+///     },
+/// };
+///
+/// let integer_values = RadonArray::from(vec![
+///     RadonTypes::Integer(RadonInteger::from(1)),
+///     RadonTypes::Integer(RadonInteger::from(2))
+/// ]);
+///
+/// let integer_mean = RadonTypes::Integer(RadonInteger::from(2));
+/// let float_mean = RadonTypes::Float(RadonFloat::from(1.5));
+///
+/// assert_eq!(mean(&integer_values, MeanReturnPolicy::RoundToInteger), Ok(integer_mean));
+/// assert_eq!(mean(&integer_values, MeanReturnPolicy::ReturnFloat), Ok(float_mean));
+/// ```
+pub fn mean(input: &RadonArray, return_policy: MeanReturnPolicy) -> Result<RadonTypes, RadError> {
     let value = input.value();
     let value_len = value.len();
 
@@ -40,17 +90,25 @@ pub fn mean(input: &RadonArray) -> Result<RadonTypes, RadError> {
             let sum = sum?;
 
             // Divide sum by the count of numeric values that were summed
-            let mean_value: f64 = sum.div(value_len as f64);
+            let float_mean = RadonFloat::from(sum.div(value_len as f64));
 
-            Ok(RadonTypes::from(RadonFloat::from(mean_value)))
+            // In `RoundToInteger` mode, round the float so as to satisfy the reducers' inherent
+            // contract.
+            let mean = if return_policy == MeanReturnPolicy::RoundToInteger {
+                RadonTypes::from(float_operators::round(&float_mean))
+            } else {
+                RadonTypes::from(float_mean)
+            };
+
+            Ok(mean)
         }
         Some(RadonTypes::Array(_)) => {
-            let v = transpose(input)?;
+            let v = array_operators::transpose(input)?;
 
             let mut mean_v = vec![];
             for v2mean in v.value() {
                 if let RadonTypes::Array(v2mean) = v2mean {
-                    mean_v.push(mean(&v2mean)?);
+                    mean_v.push(mean(&v2mean, return_policy)?);
                 } else {
                     unreachable!()
                 }
@@ -67,12 +125,14 @@ pub fn mean(input: &RadonArray) -> Result<RadonTypes, RadError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use serde_cbor::Value;
+
     use crate::{
         operators::array::reduce,
         types::{float::RadonFloat, integer::RadonInteger, string::RadonString},
     };
-    use serde_cbor::Value;
+
+    use super::*;
 
     #[test]
     fn test_reduce_average_mean_float() {
@@ -80,7 +140,7 @@ mod tests {
             RadonFloat::from(1f64).into(),
             RadonFloat::from(2f64).into(),
         ]);
-        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
+        let args = &[Value::Integer(RadonReducers::AverageMean as i128)];
         let expected = RadonTypes::from(RadonFloat::from(1.5f64));
 
         let output = reduce(input, args).unwrap();
@@ -190,7 +250,7 @@ mod tests {
     #[test]
     fn test_operate_reduce_mean_empty() {
         let input = RadonArray::from(vec![]);
-        let output = mean(&input).unwrap();
+        let output = mean(&input, MeanReturnPolicy::ReturnFloat).unwrap();
         assert_eq!(output, RadonTypes::from(RadonFloat::from(std::f64::NAN)));
     }
 
@@ -200,8 +260,8 @@ mod tests {
             RadonInteger::from(1i128).into(),
             RadonInteger::from(2i128).into(),
         ]);
-        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
-        let expected = RadonTypes::from(RadonFloat::from(1.5f64));
+        let args = &[Value::Integer(RadonReducers::AverageMean as i128)];
+        let expected = RadonTypes::Integer(RadonInteger::from(2));
 
         let output = reduce(input, args).unwrap();
 
@@ -211,21 +271,21 @@ mod tests {
     #[test]
     fn test_reduce_average_mean_integer_arrays() {
         let array_1 = RadonTypes::from(RadonArray::from(vec![
-            RadonInteger::from(1i128).into(),
-            RadonInteger::from(2i128).into(),
+            RadonInteger::from(1).into(),
+            RadonInteger::from(2).into(),
         ]));
         let array_2 = RadonTypes::from(RadonArray::from(vec![
-            RadonInteger::from(6i128).into(),
-            RadonInteger::from(10i128).into(),
+            RadonInteger::from(6).into(),
+            RadonInteger::from(10).into(),
         ]));
         let input = RadonArray::from(vec![array_1, array_2]);
 
         let expected = RadonTypes::from(RadonArray::from(vec![
-            RadonFloat::from(3.5f64).into(),
-            RadonFloat::from(6f64).into(),
+            RadonInteger::from(4).into(),
+            RadonInteger::from(6).into(),
         ]));
 
-        let args = &[Value::Integer(0x03)]; // This is RadonReducers::AverageMean
+        let args = &[Value::Integer(RadonReducers::AverageMean as i128)];
         let output = reduce(&input, args).unwrap();
 
         assert_eq!(output, expected);

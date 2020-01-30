@@ -135,7 +135,8 @@ fn boolean_standard_filter(input: &RadonArray, sigmas_float: f64) -> Result<Rado
     match value.first() {
         None => Ok(input.clone()),
         Some(RadonTypes::Float(_)) => {
-            let mean = reducers::average::mean(input)?;
+            let mean =
+                reducers::average::mean(input, reducers::average::MeanReturnPolicy::ReturnFloat)?;
             let mean_float = RadonFloat::try_from(mean)?;
             let std_dev = reducers::deviation::standard(input)?;
             let std_dev_float = RadonFloat::try_from(std_dev)?;
@@ -154,7 +155,8 @@ fn boolean_standard_filter(input: &RadonArray, sigmas_float: f64) -> Result<Rado
             Ok(RadonArray::from(result))
         }
         Some(RadonTypes::Integer(_)) => {
-            let mean = reducers::average::mean(input)?;
+            let mean =
+                reducers::average::mean(input, reducers::average::MeanReturnPolicy::ReturnFloat)?;
             let mean_float = RadonFloat::try_from(mean)?;
             let std_dev = reducers::deviation::standard(input)?;
             let std_dev_float = RadonFloat::try_from(std_dev)?;
