@@ -20,6 +20,7 @@ pub use witnet_data_structures::{
         ValueTransferOutput as VttOutput,
     },
     proto::ProtobufConvert,
+    radon_report::RadonReport,
     transaction::{
         DRTransaction, DRTransactionBody, Transaction, VTTransaction, VTTransactionBody,
     },

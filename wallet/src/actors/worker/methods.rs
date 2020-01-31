@@ -1,5 +1,4 @@
 use jsonrpc_core as rpc;
-use rayon::prelude::*;
 use serde_json::json;
 
 use super::*;
@@ -19,26 +18,13 @@ impl Worker {
         })
     }
 
-    pub fn run_rad_request(&self, request: types::RADRequest) -> Result<types::RadonTypes> {
-        // Block on data request retrieval because the wallet was designed with a blocking
-        // run_retrieval in mind.
-        // This can be made non-blocking by returning a future here and updating
-        // the Handler<RunRadRequest> to return ResponseFuture<types::RadonTypes, Error>
-        let run_retrieval_blocking =
-            |retrieve| futures03::executor::block_on(witnet_rad::run_retrieval(retrieve));
-
-        let value = request
-            .retrieve
-            .par_iter()
-            .map(run_retrieval_blocking)
-            .collect::<result::Result<Vec<_>, _>>()
-            .and_then(|retrievals| {
-                witnet_rad::run_aggregation(retrievals, &request.aggregate)
-                    .map_err(Into::into)
-                    .and_then(|aggregated| witnet_rad::run_tally(vec![aggregated], &request.tally))
-            })?;
-
-        Ok(value)
+    pub fn run_rad_request(
+        &self,
+        request: types::RADRequest,
+    ) -> types::RadonReport<types::RadonTypes> {
+        // Block on data request retrieval because the wallet was designed with a blocking run retrieval in mind.
+        // This can be made non-blocking by returning a future here and updating.
+        futures03::executor::block_on(witnet_rad::try_data_request(&request))
     }
 
     pub fn gen_mnemonic(&self, length: types::MnemonicLength) -> String {

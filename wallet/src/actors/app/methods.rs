@@ -134,7 +134,10 @@ impl App {
     }
 
     /// Run a RADRequest and return the computed result.
-    pub fn run_rad_request(&self, req: types::RADRequest) -> ResponseFuture<types::RadonTypes> {
+    pub fn run_rad_request(
+        &self,
+        req: types::RADRequest,
+    ) -> ResponseFuture<types::RadonReport<types::RadonTypes>> {
         let f = self
             .params
             .worker

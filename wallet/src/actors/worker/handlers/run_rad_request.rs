@@ -7,7 +7,7 @@ use crate::types;
 pub struct RunRadRequest(pub types::RADRequest);
 
 impl Message for RunRadRequest {
-    type Result = worker::Result<types::RadonTypes>;
+    type Result = worker::Result<types::RadonReport<types::RadonTypes>>;
 }
 
 impl Handler<RunRadRequest> for worker::Worker {
@@ -19,6 +19,6 @@ impl Handler<RunRadRequest> for worker::Worker {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         log::debug!("Executing RAD request");
-        self.run_rad_request(request)
+        Ok(self.run_rad_request(request))
     }
 }

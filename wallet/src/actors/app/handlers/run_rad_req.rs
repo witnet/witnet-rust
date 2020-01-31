@@ -13,7 +13,7 @@ pub struct RunRadReqRequest {
 #[derive(Debug, Serialize)]
 pub struct RunRadReqResponse {
     #[serde(serialize_with = "debug_serialize")]
-    pub result: types::RadonTypes,
+    pub result: types::RadonReport<types::RadonTypes>,
 }
 
 // Serialize a type as a string, using its debug representation
