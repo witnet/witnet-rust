@@ -4,7 +4,7 @@ pub use serde_cbor::to_vec as cbor_to_vec;
 pub use serde_cbor::Value as CborValue;
 
 use witnet_data_structures::{
-    chain::{RADAggregate, RADRetrieve, RADTally, RADType},
+    chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType},
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
 };
 
@@ -25,6 +25,32 @@ pub mod script;
 pub mod types;
 
 pub type Result<T> = std::result::Result<T, RadError>;
+
+pub async fn try_data_request(request: &RADRequest) -> RadonReport<RadonTypes> {
+    let context = &mut ReportContext::default();
+
+    let retrieve_responses_fut = request
+        .retrieve
+        .iter()
+        .map(|retrieve| run_retrieval_report(retrieve));
+
+    let retrieve_responses: Vec<RadonTypes> = futures::future::join_all(retrieve_responses_fut)
+        .await
+        .into_iter()
+        .map(|retrieve| {
+            retrieve
+                .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
+                .into_inner()
+        })
+        .collect();
+
+    let aggregation_response = run_aggregation_report(retrieve_responses, &request.aggregate)
+        .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
+        .into_inner();
+
+    run_tally_report(vec![aggregation_response], &request.tally, None)
+        .unwrap_or_else(|error| RadonReport::from_result(Err(error), context))
+}
 
 /// Run retrieval without performing any external network requests, return `RadonReport`.
 pub fn run_retrieval_with_data_report(
