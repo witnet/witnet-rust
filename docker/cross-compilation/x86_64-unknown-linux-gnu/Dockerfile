@@ -31,5 +31,5 @@ RUN apt-get clean && apt-get autoremove
 ENV OPENSSL_DIR=/openssl \
     OPENSSL_INCLUDE_DIR=/openssl/include \
     OPENSSL_LIB_DIR=/openssl/lib \
-    RUST_BACKTRACE=1 \
-    STRIP=strip
+    RUST_BACKTRACE=1
+    #STRIP=strip

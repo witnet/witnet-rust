@@ -43,5 +43,5 @@ ENV CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc \
     OPENSSL_INCLUDE_DIR=/openssl/include \
     OPENSSL_LIB_DIR=/openssl/lib \
     PKG_CONFIG_ALLOW_CROSS=1 \
-    RUST_BACKTRACE=1 \
-    STRIP=arm-linux-gnueabihf-strip
+    RUST_BACKTRACE=1
+    #STRIP=arm-linux-gnueabihf-strip
