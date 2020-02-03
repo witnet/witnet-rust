@@ -271,6 +271,9 @@ pub enum RadError {
         arguments: Option<Vec<SerdeCborValue>>,
         message: String,
     },
+    /// No commits received
+    #[fail(display = "Insufficient commits received")]
+    InsufficientCommits,
     /// No reveals received
     #[fail(display = "No reveals received")]
     NoReveals,
@@ -391,6 +394,7 @@ impl RadError {
             RadonErrors::RequestTooManySources => RadError::RequestTooManySources,
             RadonErrors::ScriptTooManyCalls => RadError::ScriptTooManyCalls,
             RadonErrors::Overflow => RadError::Overflow,
+            RadonErrors::InsufficientCommits => RadError::InsufficientCommits,
             RadonErrors::NoReveals => RadError::NoReveals,
             RadonErrors::SourceScriptNotCBOR => RadError::SourceScriptNotCBOR,
             RadonErrors::SourceScriptNotArray => RadError::SourceScriptNotArray,
@@ -511,6 +515,7 @@ impl RadError {
             RadError::Underflow => RadonErrors::Underflow,
             RadError::Overflow => RadonErrors::Overflow,
             RadError::DivisionByZero => RadonErrors::DivisionByZero,
+            RadError::InsufficientCommits => RadonErrors::InsufficientCommits,
             RadError::NoReveals => RadonErrors::NoReveals,
             RadError::RetrieveTimeout => RadonErrors::RetrieveTimeout,
             RadError::InsufficientConsensus { .. } => RadonErrors::InsufficientConsensus,

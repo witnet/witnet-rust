@@ -387,12 +387,15 @@ impl ChainManager {
                     let min_consensus_ratio =
                         dr_state.data_request.min_consensus_percentage as f64 / 100.0;
 
+                    let num_commits = dr_state.info.commits.len();
+
                     let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
                         .send(RunTally {
                             min_consensus_ratio,
                             reports: reports.clone(),
                             script: dr_state.data_request.data_request.tally.clone(),
+                            num_commits,
                         })
                         .then(|result| match result {
                             // The result of `RunTally` will be published as tally

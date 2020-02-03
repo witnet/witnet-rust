@@ -1662,7 +1662,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     .map(|_| ())
 }
 
-static DR_HASH: &str = "dc11c3b73af1ce17b412bdf70e859966d9ae53dcbdba2b617bc3993f8fa183f2";
+static DR_HASH: &str = "0a866ced5ca378e3e01a75f755384972868e99f838dec4ddb06adc465f5e481c";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {

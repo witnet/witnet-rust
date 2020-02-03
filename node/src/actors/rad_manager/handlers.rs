@@ -41,7 +41,7 @@ impl Handler<ResolveRA> for RadManager {
                     .map(|retrieve| RadonReport::from_result(retrieve, &ReportContext::default()))
                     .collect();
 
-            let clause_result = evaluate_tally_precondition_clause(retrieve_responses, 0.2);
+            let clause_result = evaluate_tally_precondition_clause(retrieve_responses, 0.2, 1);
 
             match clause_result {
                 Ok(TallyPreconditionClauseResult::MajorityOfValues {
@@ -102,7 +102,8 @@ impl Handler<RunTally> for RadManager {
         let reports = msg.reports;
 
         let reports_len = reports.len();
-        let clause_result = evaluate_tally_precondition_clause(reports, msg.min_consensus_ratio);
+        let clause_result =
+            evaluate_tally_precondition_clause(reports, msg.min_consensus_ratio, msg.num_commits);
 
         construct_report_from_clause_result(clause_result, &packed_script, reports_len)
     }

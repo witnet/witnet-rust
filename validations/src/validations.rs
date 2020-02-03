@@ -256,7 +256,12 @@ pub enum TallyPreconditionClauseResult {
 pub fn evaluate_tally_precondition_clause(
     reveals: Vec<RadonReport<RadonTypes>>,
     minimum_consensus: f64,
+    num_commits: usize,
 ) -> Result<TallyPreconditionClauseResult, RadError> {
+    // Short-circuit if there were no commits
+    if num_commits == 0 {
+        return Err(RadError::InsufficientCommits);
+    }
     // Short-circuit if there were no reveals
     if reveals.is_empty() {
         return Err(RadError::NoReveals);
@@ -383,6 +388,7 @@ pub fn validate_consensus(
     miner_tally: &[u8],
     tally: &RADTally,
     non_error_min: f64,
+    num_commits: usize,
 ) -> Result<HashSet<PublicKeyHash>, failure::Error> {
     let results = serial_iter_decode(
         &mut reveals
@@ -403,7 +409,7 @@ pub fn validate_consensus(
     );
 
     let results_len = results.len();
-    let clause_result = evaluate_tally_precondition_clause(results, non_error_min);
+    let clause_result = evaluate_tally_precondition_clause(results, non_error_min, num_commits);
     let report = construct_report_from_clause_result(clause_result, &tally, results_len);
 
     let metadata = report.metadata.clone();
@@ -742,8 +748,15 @@ pub fn validate_tally_transaction<'a>(
     let miner_tally = ta_tx.tally.clone();
     let tally_stage = &dr_output.data_request.tally;
     let non_error_min = dr_output.min_consensus_percentage as f64 / 100.0;
+    let num_commits = dr_state.info.commits.len();
 
-    let pkh_liars = validate_consensus(reveal_txns, &miner_tally, tally_stage, non_error_min)?;
+    let pkh_liars = validate_consensus(
+        reveal_txns,
+        &miner_tally,
+        tally_stage,
+        non_error_min,
+        num_commits,
+    )?;
 
     validate_tally_outputs(&dr_state, &ta_tx, reveal_length, pkh_liars)?;
 
@@ -1865,7 +1878,8 @@ mod tests {
             rad_rep_float,
         ];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.70).unwrap();
+        let tally_precondition_clause_result =
+            evaluate_tally_precondition_clause(v, 0.70, 4).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
             tally_precondition_clause_result
@@ -1885,7 +1899,8 @@ mod tests {
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.99).unwrap();
+        let tally_precondition_clause_result =
+            evaluate_tally_precondition_clause(v, 0.99, 2).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
             tally_precondition_clause_result
@@ -1905,7 +1920,8 @@ mod tests {
 
         let v = vec![rad_rep_int.clone(), rad_rep_int];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 1.).unwrap();
+        let tally_precondition_clause_result =
+            evaluate_tally_precondition_clause(v, 1., 2).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
             tally_precondition_clause_result
@@ -1932,7 +1948,8 @@ mod tests {
             rad_rep_int,
         ];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.70).unwrap();
+        let tally_precondition_clause_result =
+            evaluate_tally_precondition_clause(v, 0.70, 4).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfValues { values, liars } =
             tally_precondition_clause_result
@@ -1962,7 +1979,8 @@ mod tests {
             rad_rep_int,
         ];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.70).unwrap();
+        let tally_precondition_clause_result =
+            evaluate_tally_precondition_clause(v, 0.70, 4).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -1988,7 +2006,7 @@ mod tests {
             rad_rep_int,
         ];
 
-        let out = evaluate_tally_precondition_clause(v.clone(), 0.49).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 4).unwrap_err();
 
         assert_eq!(
             out,
@@ -2026,7 +2044,8 @@ mod tests {
             rad_rep_int,
         ];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.40).unwrap();
+        let tally_precondition_clause_result =
+            evaluate_tally_precondition_clause(v, 0.40, 7).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -2038,10 +2057,19 @@ mod tests {
     }
 
     #[test]
+    fn test_tally_precondition_clause_no_commits() {
+        let v = vec![];
+
+        let out = evaluate_tally_precondition_clause(v, 0.51, 0).unwrap_err();
+
+        assert_eq!(out, RadError::InsufficientCommits);
+    }
+
+    #[test]
     fn test_tally_precondition_clause_no_reveals() {
         let v = vec![];
 
-        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 1).unwrap_err();
 
         assert_eq!(out, RadError::NoReveals);
     }
@@ -2061,7 +2089,8 @@ mod tests {
             rad_rep_err,
         ];
 
-        let tally_precondition_clause_result = evaluate_tally_precondition_clause(v, 0.51).unwrap();
+        let tally_precondition_clause_result =
+            evaluate_tally_precondition_clause(v, 0.51, 4).unwrap();
 
         if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
             tally_precondition_clause_result
@@ -2087,7 +2116,7 @@ mod tests {
             rad_rep_int,
         ];
 
-        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 4).unwrap_err();
 
         assert_eq!(
             out,
@@ -2115,7 +2144,7 @@ mod tests {
 
         let v = vec![rad_rep_err1, rad_rep_err2];
 
-        let out = evaluate_tally_precondition_clause(v, 0.51).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v, 0.51, 2).unwrap_err();
 
         assert_eq!(
             out,
@@ -2143,7 +2172,7 @@ mod tests {
 
         let v = vec![rad_rep_err1, rad_rep_err2];
 
-        let out = evaluate_tally_precondition_clause(v.clone(), 0.49).unwrap_err();
+        let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 2).unwrap_err();
 
         assert_eq!(
             out,

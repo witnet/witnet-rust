@@ -251,6 +251,15 @@ impl DataRequestPool {
                     }
 
                     DataRequestStage::TALLY => {
+                        // When a data request changes from commit stage to tally stage
+                        // (not enough commits to go into reveal stage)
+                        // it should be removed from the "data_requests_by_epoch" map
+                        if let Some(hs) = data_requests_by_epoch.get_mut(&dr_state.epoch) {
+                            hs.remove(dr_pointer);
+                            if hs.is_empty() {
+                                data_requests_by_epoch.remove(&dr_state.epoch);
+                            }
+                        }
                         // Remove pending reveals in Tally stage
                         waiting_for_reveal.remove(dr_pointer);
                     }
@@ -408,6 +417,47 @@ mod tests {
         };
         let dr_transaction = DRTransaction::new(
             DRTransactionBody::new(vec![Input::default()], vec![], DataRequestOutput::default()),
+            vec![KeyedSignature::default()],
+        );
+        let dr_pointer = dr_transaction.hash();
+
+        let mut p = DataRequestPool::default();
+        p.process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &fake_block_hash,
+        )
+        .unwrap();
+
+        assert!(p.waiting_for_reveal.is_empty());
+        assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
+        assert_eq!(p.data_request_pool[&dr_pointer].info, empty_info);
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::COMMIT
+        );
+        assert!(p.to_be_stored.is_empty());
+
+        assert!(p.update_data_request_stages().is_empty());
+
+        (epoch, fake_block_hash, p, dr_transaction.hash())
+    }
+
+    fn add_data_requests_with_2_commit_stages() -> (u32, Hash, DataRequestPool, Hash) {
+        let fake_block_hash = Hash::SHA256([1; 32]);
+        let epoch = 0;
+        let empty_info = DataRequestInfo {
+            block_hash_dr_tx: Some(fake_block_hash),
+            ..DataRequestInfo::default()
+        };
+        let dr_output = DataRequestOutput {
+            witnesses: 2,
+            extra_commit_rounds: 1,
+            ..DataRequestOutput::default()
+        };
+        let dr_transaction = DRTransaction::new(
+            DRTransactionBody::new(vec![Input::default()], vec![], dr_output),
             vec![KeyedSignature::default()],
         );
         let dr_pointer = dr_transaction.hash();
@@ -945,27 +995,15 @@ mod tests {
     }
 
     #[test]
-    fn update_multiple_times() {
-        // Only the first consecutive call to update_data_request_stages should change the state
-        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
-
-        assert!(p.update_data_request_stages().is_empty());
+    fn update_no_commits() {
+        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
 
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::COMMIT
         );
 
-        let (fake_block_hash, mut p, dr_pointer) =
-            from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
-
-        // Now in reveal stage
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::REVEAL
-        );
-
-        // Since extra_reveal_rounds = 0, updating again in reveal stage will
+        // Since extra_commit_rounds = 0, updating again in commit stage will
         // move the data request to tally stage
         assert!(p.update_data_request_stages().is_empty());
 
@@ -976,5 +1014,58 @@ mod tests {
         );
 
         from_tally_to_storage(fake_block_hash, p, dr_pointer);
+    }
+
+    #[test]
+    fn update_no_commits_1_extra() {
+        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_2_commit_stages();
+
+        // 1 extra commit rounds
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::COMMIT
+        );
+
+        assert!(p.update_data_request_stages().is_empty());
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::COMMIT
+        );
+
+        // Since extra_commit_rounds = 1, updating again in commit stage will
+        // move the data request to tally stage
+        assert!(p.update_data_request_stages().is_empty());
+
+        // Now in tally stage
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::TALLY
+        );
+
+        from_tally_to_storage(fake_block_hash, p, dr_pointer);
+    }
+
+    #[test]
+    fn update_commits_1_extra() {
+        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_2_commit_stages();
+
+        // 1 extra commit rounds
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::COMMIT
+        );
+
+        assert!(p.update_data_request_stages().is_empty());
+
+        // Add commit and update stage
+        let (_fake_block_hash, p, dr_pointer) =
+            from_commit_to_reveal(epoch, fake_block_hash, p, dr_pointer);
+
+        // Since extra_commit_rounds = 1, and we received all the commits,
+        // updating again in commit stage will move the data request to reveal stage
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
     }
 }

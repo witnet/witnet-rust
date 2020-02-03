@@ -539,6 +539,8 @@ pub struct RunTally {
     pub reports: Vec<RadonReport<RadonTypes>>,
     /// Minimum values vs. errors ratio over which tally is run, otherwise return mode of errors
     pub min_consensus_ratio: f64,
+    /// Number of commits
+    pub num_commits: usize,
 }
 
 impl Message for ResolveRA {

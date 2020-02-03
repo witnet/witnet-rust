@@ -732,6 +732,7 @@ pub struct DataRequestOutput {
     pub commit_fee: u64,
     pub reveal_fee: u64,
     pub tally_fee: u64,
+    pub extra_commit_rounds: u16,
     pub extra_reveal_rounds: u16,
     // This field must be >50 and <100.
     // >50 because simple majority
@@ -1551,7 +1552,9 @@ pub struct DataRequestReport {
     pub block_hash_dr_tx: Hash,
     /// Hash of the block with the TallyTransaction
     pub block_hash_tally_tx: Hash,
-    /// Current reveal round
+    /// Current commit round starting from 1
+    pub current_commit_round: u16,
+    /// Current reveal round starting from 0
     pub current_reveal_round: u16,
 }
 
@@ -1568,6 +1571,7 @@ impl TryFrom<DataRequestInfo> for DataRequestReport {
                 tally,
                 block_hash_dr_tx,
                 block_hash_tally_tx,
+                current_commit_round: x.current_commit_round,
                 current_reveal_round: x.current_reveal_round,
             })
         } else {
@@ -1589,6 +1593,8 @@ pub struct DataRequestInfo {
     pub block_hash_dr_tx: Option<Hash>,
     /// Hash of the block with the TallyTransaction
     pub block_hash_tally_tx: Option<Hash>,
+    /// Current commit round
+    pub current_commit_round: u16,
     /// Current reveal round
     pub current_reveal_round: u16,
 }
@@ -1605,6 +1611,7 @@ impl From<DataRequestReport> for DataRequestInfo {
             tally: Some(x.tally),
             block_hash_dr_tx: Some(x.block_hash_dr_tx),
             block_hash_tally_tx: Some(x.block_hash_tally_tx),
+            current_commit_round: x.current_commit_round,
             current_reveal_round: x.current_reveal_round,
         }
     }
@@ -1705,7 +1712,12 @@ impl DataRequestState {
         self.stage = match self.stage {
             DataRequestStage::COMMIT => {
                 if self.info.commits.is_empty() {
-                    DataRequestStage::COMMIT
+                    if self.info.current_commit_round <= self.data_request.extra_commit_rounds {
+                        self.info.current_commit_round += 1;
+                        DataRequestStage::COMMIT
+                    } else {
+                        DataRequestStage::TALLY
+                    }
                 } else {
                     DataRequestStage::REVEAL
                 }

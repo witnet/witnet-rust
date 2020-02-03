@@ -25,6 +25,7 @@ struct DataRequestOutput {
     commit_fee: u64,
     reveal_fee: u64,
     tally_fee: u64,
+    extra_commit_rounds: u16,
     extra_reveal_rounds: u16,
     min_consensus_percentage: u32,
 }
@@ -109,6 +110,7 @@ fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app:
         commit_fee: request.commit_fee,
         reveal_fee: request.reveal_fee,
         tally_fee: request.tally_fee,
+        extra_commit_rounds: request.extra_commit_rounds,
         extra_reveal_rounds: request.extra_reveal_rounds,
         min_consensus_percentage: request.min_consensus_percentage,
     };
