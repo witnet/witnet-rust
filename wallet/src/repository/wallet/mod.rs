@@ -627,7 +627,7 @@ where
                     }
                     _ => {
                         log::info!(
-                            "Found transaction to our address {}! Amount: +{} satowits",
+                            "Found transaction to our address {}! Amount: +{} nanowits",
                             address,
                             output.value
                         );

@@ -1429,14 +1429,15 @@ pub fn validate_merkle_tree(block: &Block) -> bool {
     merkle_roots == block.block_header.merkle_roots
 }
 
-/// 1 satowit is the minimal unit of value
-/// 1 wit = 100_000_000 satowits
-pub const SATOWITS_PER_WIT: u64 = 100_000_000;
+/// 1 nanowit is the minimal unit of value
+/// 1 wit = 10^9 nanowits
+pub const NANOWITS_PER_WIT: u64 = 1_000_000_000;
 
 /// Calculate the block mining reward.
-/// Returns "satowits", where 1 wit = 100_000_000 satowits.
+/// Returns nanowits.
 pub fn block_reward(epoch: Epoch) -> u64 {
-    let initial_reward: u64 = 500 * SATOWITS_PER_WIT;
+    // Initial reward: 500 wits
+    let initial_reward: u64 = 500 * NANOWITS_PER_WIT;
     let halvings = epoch / 1_750_000;
     if halvings < 64 {
         initial_reward >> halvings
@@ -1729,19 +1730,21 @@ mod tests {
 
     #[test]
     fn test_block_reward() {
-        // Satowits per wit
-        let spw = 100_000_000;
+        // 1 wit = 10^9 nanowits, block_reward returns nanowits
+        let wit = 1_000_000_000;
 
-        assert_eq!(block_reward(0), 500 * spw);
-        assert_eq!(block_reward(1), 500 * spw);
-        assert_eq!(block_reward(1_749_999), 500 * spw);
-        assert_eq!(block_reward(1_750_000), 250 * spw);
-        assert_eq!(block_reward(3_499_999), 250 * spw);
-        assert_eq!(block_reward(3_500_000), 125 * spw);
-        assert_eq!(block_reward(1_750_000 * 35), 1);
-        assert_eq!(block_reward(1_750_000 * 36), 0);
+        assert_eq!(block_reward(0), 500 * wit);
+        assert_eq!(block_reward(1), 500 * wit);
+        assert_eq!(block_reward(1_749_999), 500 * wit);
+        assert_eq!(block_reward(1_750_000), 250 * wit);
+        assert_eq!(block_reward(3_499_999), 250 * wit);
+        assert_eq!(block_reward(3_500_000), 125 * wit);
+        assert_eq!(block_reward(1_750_000 * 37), 3);
+        assert_eq!(block_reward(1_750_000 * 38), 1);
+        assert_eq!(block_reward(1_750_000 * 39), 0);
         assert_eq!(block_reward(1_750_000 * 63), 0);
         assert_eq!(block_reward(1_750_000 * 64), 0);
+        assert_eq!(block_reward(1_750_000 * 65), 0);
         assert_eq!(block_reward(1_750_000 * 100), 0);
     }
 
