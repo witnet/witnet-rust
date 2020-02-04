@@ -1554,7 +1554,7 @@ pub struct DataRequestReport {
     pub block_hash_tally_tx: Hash,
     /// Current commit round starting from 1
     pub current_commit_round: u16,
-    /// Current reveal round starting from 0
+    /// Current reveal round starting from 1
     pub current_reveal_round: u16,
 }
 
@@ -1719,12 +1719,13 @@ impl DataRequestState {
                         DataRequestStage::TALLY
                     }
                 } else {
+                    self.info.current_reveal_round = 1;
                     DataRequestStage::REVEAL
                 }
             }
             DataRequestStage::REVEAL => {
                 if self.info.reveals.len() < self.data_request.witnesses as usize
-                    && self.info.current_reveal_round < self.data_request.extra_reveal_rounds
+                    && self.info.current_reveal_round <= self.data_request.extra_reveal_rounds
                 {
                     self.info.current_reveal_round += 1;
                     DataRequestStage::REVEAL

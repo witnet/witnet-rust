@@ -209,7 +209,7 @@ impl DataRequestPool {
                         // When a data request changes from commit stage to reveal stage, it should
                         // be removed from the "data_requests_by_epoch" map, which stores the data
                         // requests potentially available for commitment
-                        if dr_state.info.current_reveal_round == 0 {
+                        if dr_state.info.current_reveal_round == 1 {
                             if let Some(hs) = data_requests_by_epoch.get_mut(&dr_state.epoch) {
                                 let present = hs.remove(dr_pointer);
                                 if hs.is_empty() {
@@ -239,7 +239,7 @@ impl DataRequestPool {
                                 // until it would be included in a block.
                                 return Some(transaction.clone());
                             } else if !dr_state.info.commits.contains_key(&pkh)
-                                && dr_state.info.current_reveal_round == 0
+                                && dr_state.info.current_reveal_round == 1
                             {
                                 info!(
                                     "The sent commit transaction has not been \
@@ -704,14 +704,14 @@ mod tests {
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
 
-        // Now in reveal stage 0
+        // Now in reveal stage 1
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::REVEAL
         );
         assert_eq!(
             p.data_request_pool[&dr_pointer].info.current_reveal_round,
-            0
+            1
         );
 
         let reveal_transaction = RevealTransaction::new(
@@ -724,18 +724,6 @@ mod tests {
 
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
-        // Now in reveal stage 1
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::REVEAL
-        );
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].info.current_reveal_round,
-            1
-        );
-
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
         // Now in reveal stage 2
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -744,6 +732,18 @@ mod tests {
         assert_eq!(
             p.data_request_pool[&dr_pointer].info.current_reveal_round,
             2
+        );
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in reveal stage 3
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            3
         );
 
         // Update stages
@@ -792,14 +792,14 @@ mod tests {
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
 
-        // Now in reveal stage 0
+        // Now in reveal stage 1
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::REVEAL
         );
         assert_eq!(
             p.data_request_pool[&dr_pointer].info.current_reveal_round,
-            0
+            1
         );
 
         let reveal_transaction = RevealTransaction::new(
@@ -812,14 +812,14 @@ mod tests {
 
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
-        // Now in reveal stage 1
+        // Now in reveal stage 2
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::REVEAL
         );
         assert_eq!(
             p.data_request_pool[&dr_pointer].info.current_reveal_round,
-            1
+            2
         );
 
         let reveal_transaction2 = RevealTransaction::new(
@@ -877,18 +877,6 @@ mod tests {
 
         // Update stages
         assert!(p.update_data_request_stages().is_empty());
-        // Now in reveal stage 0
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].stage,
-            DataRequestStage::REVEAL
-        );
-        assert_eq!(
-            p.data_request_pool[&dr_pointer].info.current_reveal_round,
-            0
-        );
-
-        // Update stages
-        assert!(p.update_data_request_stages().is_empty());
         // Now in reveal stage 1
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -909,6 +897,18 @@ mod tests {
         assert_eq!(
             p.data_request_pool[&dr_pointer].info.current_reveal_round,
             2
+        );
+
+        // Update stages
+        assert!(p.update_data_request_stages().is_empty());
+        // Now in reveal stage 3
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].stage,
+            DataRequestStage::REVEAL
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_reveal_round,
+            3
         );
 
         // Update stages
@@ -1002,6 +1002,10 @@ mod tests {
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::COMMIT
         );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_commit_round,
+            1
+        );
 
         // Since extra_commit_rounds = 0, updating again in commit stage will
         // move the data request to tally stage
@@ -1025,11 +1029,19 @@ mod tests {
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::COMMIT
         );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_commit_round,
+            1
+        );
 
         assert!(p.update_data_request_stages().is_empty());
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::COMMIT
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_commit_round,
+            2
         );
 
         // Since extra_commit_rounds = 1, updating again in commit stage will
@@ -1053,6 +1065,10 @@ mod tests {
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::COMMIT
+        );
+        assert_eq!(
+            p.data_request_pool[&dr_pointer].info.current_commit_round,
+            1
         );
 
         assert!(p.update_data_request_stages().is_empty());
