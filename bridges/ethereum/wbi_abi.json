@@ -75,49 +75,13 @@
   },
   {
     "constant": true,
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "requests",
+    "inputs": [],
+    "name": "absCount",
     "outputs": [
       {
-        "internalType": "bytes",
-        "name": "dr",
-        "type": "bytes"
-      },
-      {
-        "internalType": "uint256",
-        "name": "inclusionReward",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "tallyReward",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "result",
-        "type": "bytes"
-      },
-      {
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "drHash",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address payable",
-        "name": "pkhClaim",
-        "type": "address"
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
       }
     ],
     "payable": false,
@@ -125,49 +89,24 @@
     "type": "function"
   },
   {
-    "constant": false,
+    "constant": true,
     "inputs": [
       {
-        "internalType": "bytes",
-        "name": "_dr",
-        "type": "bytes"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_tallyReward",
-        "type": "uint256"
+        "internalType": "uint256[]",
+        "name": "_ids",
+        "type": "uint256[]"
       }
     ],
-    "name": "postDataRequest",
+    "name": "checkDataRequestsClaimability",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "bool[]",
         "name": "",
-        "type": "uint256"
+        "type": "bool[]"
       }
     ],
-    "payable": true,
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "constant": false,
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_id",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_tallyReward",
-        "type": "uint256"
-      }
-    ],
-    "name": "upgradeDataRequest",
-    "outputs": [],
-    "payable": true,
-    "stateMutability": "payable",
+    "payable": false,
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -220,17 +159,199 @@
     "constant": true,
     "inputs": [
       {
-        "internalType": "uint256[]",
-        "name": "_ids",
-        "type": "uint256[]"
+        "internalType": "uint256[2]",
+        "name": "_publicKey",
+        "type": "uint256[2]"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "_proof",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_message",
+        "type": "bytes"
       }
     ],
-    "name": "checkDataRequestsClaimability",
+    "name": "computeFastVerifyParams",
     "outputs": [
       {
-        "internalType": "bool[]",
+        "internalType": "uint256[2]",
         "name": "",
-        "type": "bool[]"
+        "type": "uint256[2]"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "",
+        "type": "uint256[4]"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "_point",
+        "type": "bytes"
+      }
+    ],
+    "name": "decodePoint",
+    "outputs": [
+      {
+        "internalType": "uint256[2]",
+        "name": "",
+        "type": "uint256[2]"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "_proof",
+        "type": "bytes"
+      }
+    ],
+    "name": "decodeProof",
+    "outputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "",
+        "type": "uint256[4]"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "getLastBeacon",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_address",
+        "type": "address"
+      }
+    ],
+    "name": "isABSMember",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "_dr",
+        "type": "bytes"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_tallyReward",
+        "type": "uint256"
+      }
+    ],
+    "name": "postDataRequest",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "payable": true,
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_id",
+        "type": "uint256"
+      }
+    ],
+    "name": "readDataRequest",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_id",
+        "type": "uint256"
+      }
+    ],
+    "name": "readDrHash",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_id",
+        "type": "uint256"
+      }
+    ],
+    "name": "readResult",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
       }
     ],
     "payable": false,
@@ -307,58 +428,46 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_id",
+        "name": "",
         "type": "uint256"
       }
     ],
-    "name": "readDataRequest",
+    "name": "requests",
     "outputs": [
       {
         "internalType": "bytes",
-        "name": "",
+        "name": "dr",
         "type": "bytes"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "constant": true,
-    "inputs": [
+      },
       {
         "internalType": "uint256",
-        "name": "_id",
+        "name": "inclusionReward",
         "type": "uint256"
-      }
-    ],
-    "name": "readResult",
-    "outputs": [
+      },
+      {
+        "internalType": "uint256",
+        "name": "tallyReward",
+        "type": "uint256"
+      },
       {
         "internalType": "bytes",
-        "name": "",
+        "name": "result",
         "type": "bytes"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "constant": true,
-    "inputs": [
+      },
       {
         "internalType": "uint256",
-        "name": "_id",
+        "name": "timestamp",
         "type": "uint256"
-      }
-    ],
-    "name": "readDrHash",
-    "outputs": [
+      },
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "drHash",
         "type": "uint256"
+      },
+      {
+        "internalType": "address payable",
+        "name": "pkhClaim",
+        "type": "address"
       }
     ],
     "payable": false,
@@ -381,99 +490,6 @@
     "type": "function"
   },
   {
-    "constant": true,
-    "inputs": [],
-    "name": "getLastBeacon",
-    "outputs": [
-      {
-        "internalType": "bytes",
-        "name": "",
-        "type": "bytes"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "constant": true,
-    "inputs": [
-      {
-        "internalType": "bytes",
-        "name": "_proof",
-        "type": "bytes"
-      }
-    ],
-    "name": "decodeProof",
-    "outputs": [
-      {
-        "internalType": "uint256[4]",
-        "name": "",
-        "type": "uint256[4]"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "constant": true,
-    "inputs": [
-      {
-        "internalType": "bytes",
-        "name": "_point",
-        "type": "bytes"
-      }
-    ],
-    "name": "decodePoint",
-    "outputs": [
-      {
-        "internalType": "uint256[2]",
-        "name": "",
-        "type": "uint256[2]"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "constant": true,
-    "inputs": [
-      {
-        "internalType": "uint256[2]",
-        "name": "_publicKey",
-        "type": "uint256[2]"
-      },
-      {
-        "internalType": "uint256[4]",
-        "name": "_proof",
-        "type": "uint256[4]"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_message",
-        "type": "bytes"
-      }
-    ],
-    "name": "computeFastVerifyParams",
-    "outputs": [
-      {
-        "internalType": "uint256[2]",
-        "name": "",
-        "type": "uint256[2]"
-      },
-      {
-        "internalType": "uint256[4]",
-        "name": "",
-        "type": "uint256[4]"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
     "constant": false,
     "inputs": [
       {
@@ -486,6 +502,26 @@
     "outputs": [],
     "payable": false,
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_tallyReward",
+        "type": "uint256"
+      }
+    ],
+    "name": "upgradeDataRequest",
+    "outputs": [],
+    "payable": true,
+    "stateMutability": "payable",
     "type": "function"
   }
 ]
