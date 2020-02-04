@@ -13,13 +13,11 @@ pub mod methods;
 pub mod params;
 pub mod routes;
 mod state;
-pub mod validation;
 
 pub use error::*;
 pub use handlers::*;
 pub use params::*;
 pub use routes::*;
-pub use validation::*;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
