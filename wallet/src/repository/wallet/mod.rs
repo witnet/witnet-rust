@@ -410,7 +410,7 @@ where
             .collect();
 
         Ok(types::DRTransaction::new(body, signatures))
-        }
+    }
 
     fn _create_transaction_components(
         &self,
@@ -601,7 +601,7 @@ where
             let txn_id = state.transaction_next_id;
             let txn_next_id = txn_id
                 .checked_add(1)
-                .ok_or_else(|| Error::TransactionValueOverflow)?;
+                .ok_or_else(|| Error::TransactionIdOverflow)?;
 
             let mut batch = self.db.batch();
 
