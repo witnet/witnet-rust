@@ -270,6 +270,7 @@ impl Handler<VerifySignatures> for SignatureManager {
             self.vrf_ctx.as_mut().unwrap(),
             self.secp.as_ref().unwrap(),
         )
+        .map(|_| ())
     }
 }
 

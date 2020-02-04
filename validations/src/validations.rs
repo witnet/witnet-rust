@@ -1236,6 +1236,7 @@ pub fn validate_block(
     chain_beacon: CheckpointBeacon,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
+    mining_bf: u32,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -1260,7 +1261,7 @@ pub fn validate_block(
         .into())
     } else {
         let total_identities = rep_eng.ars.active_identities_number() as u32;
-        let (target_hash, _) = calculate_randpoe_threshold(total_identities);
+        let (target_hash, _) = calculate_randpoe_threshold(total_identities, mining_bf);
 
         add_block_vrf_signature_to_verify(
             signatures_to_verify,
@@ -1279,6 +1280,7 @@ pub fn validate_candidate(
     current_epoch: Epoch,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     total_identities: u32,
+    mining_bf: u32,
 ) -> Result<(), BlockError> {
     let block_epoch = block.block_header.beacon.checkpoint;
     if block_epoch != current_epoch {
@@ -1288,7 +1290,7 @@ pub fn validate_candidate(
         });
     }
 
-    let (target_hash, _) = calculate_randpoe_threshold(total_identities);
+    let (target_hash, _) = calculate_randpoe_threshold(total_identities, mining_bf);
     add_block_vrf_signature_to_verify(
         signatures_to_verify,
         &block.block_header.proof,
@@ -1357,12 +1359,12 @@ pub fn validate_new_transaction(
     }
 }
 
-pub fn calculate_randpoe_threshold(total_identities: u32) -> (Hash, f64) {
+pub fn calculate_randpoe_threshold(total_identities: u32, replication_factor: u32) -> (Hash, f64) {
     let max = u32::max_value();
     let target = if total_identities == 0 {
         max
     } else {
-        max / total_identities
+        (max / total_identities).saturating_mul(replication_factor)
     };
 
     let probability = (target as f64 / max as f64) * 100_f64;
@@ -1400,6 +1402,49 @@ pub fn calculate_reppoe_threshold(
 
     let probability = (target as f64 / max as f64) * 100_f64;
     (Hash::with_first_u32(target), probability)
+}
+
+/// Used to classify VRF hashes into slots.
+///
+/// When trying to mine a block, the node considers itself eligible if the hash of the VRF is lower
+/// than `calculate_randpoe_threshold(total_identities, rf)` with `rf = mining_backup_factor`.
+///
+/// However, in order to consolidate a block, the nodes choose the best block that is valid under
+/// `rf = mining_replication_factor`. If there is no valid block within that range, it retries with
+/// increasing values of `rf`. For example, with `mining_backup_factor = 4` and
+/// `mining_replication_factor = 8`, there are 5 different slots:
+/// `rf = 4, rf = 5, rf = 6, rf = 7, rf = 8`. Blocks in later slots can only be better candidates
+/// if the previous slots have zero valid blocks.
+#[derive(Clone, Debug, Default)]
+pub struct VrfSlots {
+    target_hashes: Vec<Hash>,
+}
+
+impl VrfSlots {
+    /// `target_hashes` must be sorted
+    pub fn new(target_hashes: Vec<Hash>) -> Self {
+        Self { target_hashes }
+    }
+
+    pub fn from_rf(total_identities: u32, replication_factor: u32, backup_factor: u32) -> Self {
+        Self::new(
+            (replication_factor..=backup_factor)
+                .map(|rf| calculate_randpoe_threshold(total_identities, rf).0)
+                .collect(),
+        )
+    }
+
+    pub fn slot(&self, hash: &Hash) -> u32 {
+        let num_sections = self.target_hashes.len();
+        self.target_hashes
+            .iter()
+            // The section is the index of the first section hash that is less
+            // than or equal to the provided hash
+            .position(|th| hash <= th)
+            // If the provided hash is greater than all of the section hashes,
+            // return the number of sections
+            .unwrap_or(num_sections) as u32
+    }
 }
 
 /// Function to calculate a merkle tree from a transaction vector
@@ -1614,17 +1659,40 @@ impl<'a> UtxoDiff<'a> {
     }
 }
 
-pub fn compare_blocks(
+/// Compare block candidates.
+///
+/// The comparison algorithm is:
+/// * Calculate sections of each VRF hash. See [VrfSections] for more information.
+/// * Choose the block in the smaller VRF section.
+/// * In case of tie, choose the block whose pkh has most total reputation.
+/// * In case of tie, choose the block with the lower VRF hash.
+/// * In case of tie, choose the block with the lower block hash.
+/// * In case of tie, they are the same block.
+///
+/// Returns `Ordering::Greater` if candidate 1 is better than candidate 2.
+///
+/// Note that this only compares the block candidates, it does not validate them. A block must be
+/// the best candidate and additionally it must be valid in order to be the consolidated block.
+pub fn compare_block_candidates(
     b1_hash: Hash,
     b1_rep: Reputation,
+    b1_vrf_hash: Hash,
     b2_hash: Hash,
     b2_rep: Reputation,
+    b2_vrf_hash: Hash,
+    s: &VrfSlots,
 ) -> Ordering {
-    // Greater implies than the block is a better choice
-    // Bigger reputation implies better block candidate
-    b1_rep
-        .cmp(&b2_rep)
-        // Bigger hash implies worse block candidate
+    let section1 = s.slot(&b1_vrf_hash);
+    let section2 = s.slot(&b2_vrf_hash);
+    // Bigger section implies worse block candidate
+    section1
+        .cmp(&section2)
+        .reverse()
+        // Bigger reputation implies better block candidate
+        .then(b1_rep.cmp(&b2_rep))
+        // Bigger vrf hash implies worse block candidate
+        .then(b1_vrf_hash.cmp(&b2_vrf_hash).reverse())
+        // Bigger block implies worse block candidate
         .then(b1_hash.cmp(&b2_hash).reverse())
 }
 
@@ -1633,7 +1701,8 @@ pub fn verify_signatures(
     signatures_to_verify: Vec<SignaturesToVerify>,
     vrf: &mut VrfCtx,
     secp: &CryptoEngine,
-) -> Result<(), failure::Error> {
+) -> Result<Vec<Hash>, failure::Error> {
+    let mut vrf_hashes = vec![];
     for x in signatures_to_verify {
         match x {
             SignaturesToVerify::VrfBlock {
@@ -1651,6 +1720,7 @@ pub fn verify_signatures(
                     }
                     .into());
                 }
+                vrf_hashes.push(vrf_hash);
             }
             SignaturesToVerify::VrfDr {
                 proof,
@@ -1699,48 +1769,140 @@ pub fn verify_signatures(
             })?,
         }
     }
-    Ok(())
+
+    Ok(vrf_hashes)
 }
 
 #[cfg(test)]
 mod tests {
-    use witnet_data_structures::radon_error::RadonError;
-    use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
-
     use super::*;
 
+    use witnet_data_structures::{chain::SecretKey, radon_error::RadonError};
+    use witnet_protected::Protected;
+    use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
+
     #[test]
-    fn test_compare_block() {
-        let hash_1s = Hash::SHA256([1; 32]);
-        let hash_2s = Hash::SHA256([2; 32]);
+    fn test_compare_candidate_same_section() {
+        let bh_1 = Hash::SHA256([10; 32]);
+        let bh_2 = Hash::SHA256([20; 32]);
         let rep_1 = Reputation(1);
         let rep_2 = Reputation(2);
+        let vrf_1 = Hash::SHA256([1; 32]);
+        let vrf_2 = Hash::SHA256([2; 32]);
+        // Only one section and all VRFs are valid
+        let vrf_sections = VrfSlots::default();
 
-        // Same hash different reputation
+        // The candidate with greater reputation always wins
+        for &bh_i in &[bh_1, bh_2] {
+            for &bh_j in &[bh_1, bh_2] {
+                for &vrf_i in &[vrf_1, vrf_2] {
+                    for &vrf_j in &[vrf_1, vrf_2] {
+                        assert_eq!(
+                            compare_block_candidates(
+                                bh_i,
+                                rep_1,
+                                vrf_i,
+                                bh_j,
+                                rep_2,
+                                vrf_j,
+                                &vrf_sections
+                            ),
+                            Ordering::Less
+                        );
+                        assert_eq!(
+                            compare_block_candidates(
+                                bh_i,
+                                rep_2,
+                                vrf_i,
+                                bh_j,
+                                rep_1,
+                                vrf_j,
+                                &vrf_sections
+                            ),
+                            Ordering::Greater
+                        );
+                    }
+                }
+            }
+        }
+
+        // Equal reputation: the candidate with lower VRF hash wins
+        for &bh_i in &[bh_1, bh_2] {
+            for &bh_j in &[bh_1, bh_2] {
+                assert_eq!(
+                    compare_block_candidates(bh_i, rep_1, vrf_1, bh_j, rep_1, vrf_2, &vrf_sections),
+                    Ordering::Greater
+                );
+                assert_eq!(
+                    compare_block_candidates(bh_i, rep_1, vrf_2, bh_j, rep_1, vrf_1, &vrf_sections),
+                    Ordering::Less
+                );
+            }
+        }
+
+        // Equal reputation and equal VRF hash: the candidate with lower block hash wins
         assert_eq!(
-            compare_blocks(hash_1s, rep_1, hash_1s, rep_2),
-            Ordering::Less
-        );
-        assert_eq!(
-            compare_blocks(hash_1s, rep_2, hash_1s, rep_1),
+            compare_block_candidates(bh_1, rep_1, vrf_1, bh_2, rep_1, vrf_1, &vrf_sections),
             Ordering::Greater
         );
-
-        // Same reputation different hash
         assert_eq!(
-            compare_blocks(hash_2s, rep_1, hash_1s, rep_1),
+            compare_block_candidates(bh_2, rep_1, vrf_1, bh_1, rep_1, vrf_1, &vrf_sections),
             Ordering::Less
         );
-        assert_eq!(
-            compare_blocks(hash_1s, rep_1, hash_2s, rep_1),
-            Ordering::Greater
-        );
 
-        // Same reputation and hash
+        // Everything equal: it is the same block
         assert_eq!(
-            compare_blocks(hash_1s, rep_1, hash_1s, rep_1),
+            compare_block_candidates(bh_1, rep_1, vrf_1, bh_1, rep_1, vrf_1, &vrf_sections),
             Ordering::Equal
         );
+    }
+
+    #[test]
+    fn test_compare_candidate_different_section() {
+        let bh_1 = Hash::SHA256([10; 32]);
+        let bh_2 = Hash::SHA256([20; 32]);
+        let rep_1 = Reputation(1);
+        let rep_2 = Reputation(2);
+        // Candidate 1 should always be better than candidate 2
+        let vrf_sections = VrfSlots::from_rf(16, 1, 2);
+        // Candidate 1 is in section 0
+        let vrf_1 = vrf_sections.target_hashes[0];
+        // Candidate 2 is in section 1
+        let vrf_2 = vrf_sections.target_hashes[1];
+
+        // The candidate in the lower section always wins
+        for &bh_i in &[bh_1, bh_2] {
+            for &bh_j in &[bh_1, bh_2] {
+                for &rep_i in &[rep_1, rep_2] {
+                    for &rep_j in &[rep_1, rep_2] {
+                        assert_eq!(
+                            compare_block_candidates(
+                                bh_i,
+                                rep_i,
+                                vrf_1,
+                                bh_j,
+                                rep_j,
+                                vrf_2,
+                                &vrf_sections
+                            ),
+                            Ordering::Greater
+                        );
+                        assert_eq!(
+                            compare_block_candidates(
+                                bh_i,
+                                rep_i,
+                                vrf_2,
+                                bh_j,
+                                rep_j,
+                                vrf_1,
+                                &vrf_sections
+                            ),
+                            Ordering::Less
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
@@ -1765,27 +1927,57 @@ mod tests {
 
     #[test]
     fn target_randpoe() {
+        let rf = 1;
         let max_hash = Hash::with_first_u32(0xFFFF_FFFF);
-        let (t00, p00) = calculate_randpoe_threshold(0);
-        let (t01, p01) = calculate_randpoe_threshold(1);
+        let (t00, p00) = calculate_randpoe_threshold(0, rf);
+        let (t01, p01) = calculate_randpoe_threshold(1, rf);
         assert_eq!(t00, max_hash);
         assert_eq!(t00, t01);
         assert_eq!(p00.round() as i128, 100);
         assert_eq!(p00.round() as i128, p01.round() as i128);
-        let (t02, p02) = calculate_randpoe_threshold(2);
+        let (t02, p02) = calculate_randpoe_threshold(2, rf);
         assert_eq!(t02, Hash::with_first_u32(0x7FFF_FFFF));
         assert_eq!(p02.round() as i128, 50);
-        let (t03, p03) = calculate_randpoe_threshold(3);
+        let (t03, p03) = calculate_randpoe_threshold(3, rf);
         assert_eq!(t03, Hash::with_first_u32(0x5555_5555));
         assert_eq!(p03.round() as i128, 33);
-        let (t04, p04) = calculate_randpoe_threshold(4);
+        let (t04, p04) = calculate_randpoe_threshold(4, rf);
         assert_eq!(t04, Hash::with_first_u32(0x3FFF_FFFF));
         assert_eq!(p04.round() as i128, 25);
-        let (t05, p05) = calculate_randpoe_threshold(1024);
+        let (t05, p05) = calculate_randpoe_threshold(1024, rf);
         assert_eq!(t05, Hash::with_first_u32(0x003F_FFFF));
         assert_eq!(p05.round() as i128, 0);
-        let (t06, p06) = calculate_randpoe_threshold(1024 * 1024);
+        let (t06, p06) = calculate_randpoe_threshold(1024 * 1024, rf);
         assert_eq!(t06, Hash::with_first_u32(0x0000_0FFF));
+        assert_eq!(p06.round() as i128, 0);
+    }
+
+    #[test]
+    fn target_randpoe_rf_4() {
+        let rf = 4;
+        let max_hash = Hash::with_first_u32(0xFFFF_FFFF);
+        let (t00, p00) = calculate_randpoe_threshold(0, rf);
+        let (t01, p01) = calculate_randpoe_threshold(1, rf);
+        assert_eq!(t00, max_hash);
+        assert_eq!(t01, max_hash);
+        assert_eq!(p00.round() as i128, 100);
+        assert_eq!(p01.round() as i128, 100);
+        let (t02, p02) = calculate_randpoe_threshold(2, rf);
+        assert_eq!(t02, max_hash);
+        assert_eq!(p02.round() as i128, 100);
+        let (t03, p03) = calculate_randpoe_threshold(3, rf);
+        assert_eq!(t03, max_hash);
+        assert_eq!(p03.round() as i128, 100);
+        let (t04, p04) = calculate_randpoe_threshold(4, rf);
+        // TODO: rounding errors
+        //assert_eq!(t04, max_hash);
+        assert_eq!(t04, Hash::with_first_u32(0xFFFF_FFFC));
+        assert_eq!(p04.round() as i128, 100);
+        let (t05, p05) = calculate_randpoe_threshold(1024, rf);
+        assert_eq!(t05, Hash::with_first_u32(0x00FF_FFFC));
+        assert_eq!(p05.round() as i128, 0);
+        let (t06, p06) = calculate_randpoe_threshold(1024 * 1024, rf);
+        assert_eq!(t06, Hash::with_first_u32(0x0000_3FFC));
         assert_eq!(p06.round() as i128, 0);
     }
 
@@ -2206,5 +2398,64 @@ mod tests {
                 max_count: 1,
             }
         );
+    }
+
+    #[test]
+    fn vrf_sections() {
+        let h0 = Hash::default();
+        let h1 = Hash::with_first_u32(1);
+        let h2 = Hash::with_first_u32(2);
+        let h3 = Hash::with_first_u32(3);
+        let a = VrfSlots::new(vec![]);
+        assert_eq!(a.slot(&h0), 0);
+
+        let a = VrfSlots::new(vec![h0]);
+        assert_eq!(a.slot(&h0), 0);
+        assert_eq!(a.slot(&h1), 1);
+
+        let a = VrfSlots::new(vec![h0, h2]);
+        assert_eq!(a.slot(&h0), 0);
+        assert_eq!(a.slot(&h1), 1);
+        assert_eq!(a.slot(&h2), 1);
+        assert_eq!(a.slot(&h3), 2);
+    }
+
+    #[test]
+    fn calling_validate_candidate_and_then_verify_signatures_returns_block_vrf_hash() {
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let secp = &CryptoEngine::new();
+        let mut block = Block {
+            block_header: Default::default(),
+            block_sig: Default::default(),
+            txns: Default::default(),
+        };
+        let secret_key = SecretKey {
+            bytes: Protected::from(vec![0x44; 32]),
+        };
+        block.block_header.proof =
+            BlockEligibilityClaim::create(vrf, &secret_key, block.block_header.beacon).unwrap();
+        let vrf_hash = block
+            .block_header
+            .proof
+            .verify(vrf, block.block_header.beacon)
+            .unwrap();
+
+        let current_epoch = 0;
+        let mut signatures_to_verify = vec![];
+        let total_identities = 1;
+        let mining_bf = 1;
+        let res = validate_candidate(
+            &block,
+            current_epoch,
+            &mut signatures_to_verify,
+            total_identities,
+            mining_bf,
+        );
+        assert_eq!(res, Ok(()));
+        assert_eq!(signatures_to_verify.len(), 1);
+
+        let vrf_hashes = verify_signatures(signatures_to_verify, vrf, secp).unwrap();
+        assert_eq!(vrf_hashes.len(), 1);
+        assert_eq!(vrf_hashes[0], vrf_hash);
     }
 }

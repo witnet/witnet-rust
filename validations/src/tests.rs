@@ -25,7 +25,7 @@ fn verify_signatures_test(
     let secp = &CryptoEngine::new();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
 
-    verify_signatures(signatures_to_verify, vrf, secp)
+    verify_signatures(signatures_to_verify, vrf, secp).map(|_| ())
 }
 
 fn sign_t<H: Hashable>(tx: &H) -> KeyedSignature {
@@ -3140,6 +3140,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         hash_prev_block: last_block_hash,
     };
     let my_pkh = PublicKeyHash::default();
+    let mining_bf = 8;
 
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
@@ -3175,6 +3176,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         current_epoch,
         &mut signatures_to_verify,
         rep_eng.ars.active_identities_number() as u32,
+        mining_bf,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -3185,6 +3187,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         chain_beacon,
         &mut signatures_to_verify,
         &rep_eng,
+        mining_bf,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -3371,6 +3374,7 @@ fn block_difficult_proof() {
         hash_prev_block: last_block_hash,
     };
     let my_pkh = PublicKeyHash::default();
+    let mining_bf = 8;
 
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
@@ -3401,6 +3405,7 @@ fn block_difficult_proof() {
                 current_epoch,
                 &mut signatures_to_verify,
                 rep_eng.ars.active_identities_number() as u32,
+                mining_bf,
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -3411,6 +3416,7 @@ fn block_difficult_proof() {
                 chain_beacon,
                 &mut signatures_to_verify,
                 &rep_eng,
+                mining_bf,
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -3437,7 +3443,7 @@ fn block_difficult_proof() {
             vrf_hash: "40167423312aad76b13613d822d8fc677b8db84667202c33fbbaeb3008906bdc"
                 .parse()
                 .unwrap(),
-            target_hash: Hash::with_first_u32(0x007f_ffff),
+            target_hash: Hash::with_first_u32(0x007f_ffff * mining_bf),
         },
     );
 }
@@ -3906,6 +3912,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
 
         b.block_sig = sign_t(&b.block_header);
 
+        let mining_bf = 1;
         // First, validate candidate block (can return false positives)
         let mut signatures_to_verify = vec![];
         validate_candidate(
@@ -3913,6 +3920,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             current_epoch,
             &mut signatures_to_verify,
             rep_eng.ars.active_identities_number() as u32,
+            mining_bf,
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -3924,6 +3932,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             chain_beacon,
             &mut signatures_to_verify,
             &rep_eng,
+            mining_bf,
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];

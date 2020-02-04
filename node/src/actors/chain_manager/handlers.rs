@@ -11,7 +11,7 @@ use witnet_data_structures::{
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
 };
-use witnet_validations::validations::{compare_blocks, validate_rad_request};
+use witnet_validations::validations::{compare_block_candidates, validate_rad_request, VrfSlots};
 
 use super::{
     show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine,
@@ -139,19 +139,31 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         return;
                     }
                     // Decide the best candidate
+                    let target_vrf_slots = VrfSlots::from_rf(
+                        rep_engine.ars.active_identities_number() as u32,
+                        chain_info.consensus_constants.mining_replication_factor,
+                        chain_info.consensus_constants.mining_backup_factor,
+                    );
                     // TODO: replace for loop with a try_fold
                     let mut chosen_candidate = None;
-                    for (key, block_candidate) in self.candidates.drain() {
+                    for (key, (block_candidate, vrf_proof)) in self.candidates.drain() {
                         let block_pkh = &block_candidate.block_sig.public_key.pkh();
                         let reputation = rep_engine.trs.get(block_pkh);
 
-                        if let Some((chosen_key, chosen_reputation, _, _)) = chosen_candidate {
-                            if compare_blocks(key, reputation, chosen_key, chosen_reputation)
-                                != Ordering::Greater
+                        if let Some((chosen_key, chosen_reputation, chosen_vrf_proof, _, _)) =
+                            chosen_candidate
+                        {
+                            if compare_block_candidates(
+                                key,
+                                reputation,
+                                vrf_proof,
+                                chosen_key,
+                                chosen_reputation,
+                                chosen_vrf_proof,
+                                &target_vrf_slots,
+                            ) != Ordering::Greater
                             {
-                                // Ignore in case that reputation would be lower
-                                // than previously chosen candidate or would be
-                                // equal but with highest hash
+                                // Ignore candidates that are worse than the current best candidate
                                 continue;
                             }
                         }
@@ -167,19 +179,20 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             // the actor should have stopped execution
                             self.vrf_ctx.as_mut().unwrap(),
                             self.secp.as_ref().unwrap(),
+                            chain_info.consensus_constants.mining_backup_factor,
                         ) {
                             Ok(utxo_diff) => {
                                 let block_pkh = &block_candidate.block_sig.public_key.pkh();
                                 let reputation = rep_engine.trs.get(block_pkh);
                                 chosen_candidate =
-                                    Some((key, reputation, block_candidate, utxo_diff))
+                                    Some((key, reputation, vrf_proof, block_candidate, utxo_diff))
                             }
                             Err(e) => log::warn!("{}", e),
                         }
                     }
 
                     // Consolidate the best candidate
-                    if let Some((_, _, block, utxo_diff)) = chosen_candidate {
+                    if let Some((_, _, _, block, utxo_diff)) = chosen_candidate {
                         // Persist block and update ChainState
                         self.consolidate_block(ctx, &block, utxo_diff);
                     } else {
@@ -508,7 +521,8 @@ impl Handler<PeersBeacons> for ChainManager {
                         // Review candidates
                         let consensus_block_hash = consensus_beacon.hash_prev_block;
                         // TODO: Be functional my friend
-                        if let Some(consensus_block) = self.candidates.remove(&consensus_block_hash)
+                        if let Some((consensus_block, _consensus_block_vrf_hash)) =
+                            self.candidates.remove(&consensus_block_hash)
                         {
                             match self.process_requested_block(ctx, &consensus_block) {
                                 Ok(()) => {

@@ -144,7 +144,8 @@ pub struct ChainManager {
     /// The best beacon known to this node—to which it will try to catch up
     target_beacon: Option<CheckpointBeacon>,
     /// Map that stores candidate blocks for further validation and consolidation as tip of the blockchain
-    candidates: HashMap<Hash, Block>,
+    /// (block_hash, (block, block_vrf_hash))
+    candidates: HashMap<Hash, (Block, Hash)>,
     /// Our public key hash, used to create the mint transaction
     own_pkh: Option<PublicKeyHash>,
     /// VRF context
@@ -281,6 +282,7 @@ impl ChainManager {
             self.secp.as_ref(),
         ) {
             let chain_beacon = chain_info.highest_block_checkpoint;
+            let mining_bf = chain_info.consensus_constants.mining_backup_factor;
 
             let utxo_diff = process_validations(
                 block,
@@ -292,6 +294,7 @@ impl ChainManager {
                 &self.chain_state.data_request_pool,
                 vrf_ctx,
                 secp_ctx,
+                mining_bf,
             )?;
 
             // Persist block and update ChainState
@@ -314,16 +317,28 @@ impl ChainManager {
             let total_identities = rep_engine.ars.active_identities_number() as u32;
 
             if !self.candidates.contains_key(&hash_block) {
+                let mining_bf = self
+                    .chain_state
+                    .chain_info
+                    .as_ref()
+                    .unwrap()
+                    .consensus_constants
+                    .mining_backup_factor;
                 let mut signatures_to_verify = vec![];
                 match validate_candidate(
                     &block,
                     current_epoch,
                     &mut signatures_to_verify,
                     total_identities,
+                    mining_bf,
                 ) {
+                    // This only verifies the block VRF proof and returns the vrf_hash
+                    // It is tested in
+                    // calling_validate_candidate_and_then_verify_signatures_returns_block_vrf_hash
                     Ok(_) => match verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx) {
-                        Ok(_) => {
-                            self.candidates.insert(hash_block, block.clone());
+                        Ok(vrf_hash) => {
+                            self.candidates
+                                .insert(hash_block, (block.clone(), vrf_hash[0]));
                             self.broadcast_item(InventoryItem::Block(block));
                         }
                         Err(e) => warn!("{}", e),
@@ -606,6 +621,7 @@ impl ChainManager {
         current_epoch: Epoch,
         chain_beacon: CheckpointBeacon,
         epoch_constants: EpochConstants,
+        mining_bf: u32,
     ) -> ResponseActFuture<Self, Diff, failure::Error> {
         let mut signatures_to_verify = vec![];
         let fut = futures::future::result(validate_block(
@@ -614,6 +630,7 @@ impl ChainManager {
             chain_beacon,
             &mut signatures_to_verify,
             self.chain_state.reputation_engine.as_ref().unwrap(),
+            mining_bf,
         ))
         .and_then(|()| signature_mngr::verify_signatures(signatures_to_verify))
         .into_actor(self)
@@ -647,6 +664,7 @@ pub fn process_validations(
     dr_pool: &DataRequestPool,
     vrf_ctx: &mut VrfCtx,
     secp_ctx: &CryptoEngine,
+    mining_bf: u32,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -655,6 +673,7 @@ pub fn process_validations(
         chain_beacon,
         &mut signatures_to_verify,
         rep_eng,
+        mining_bf,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 

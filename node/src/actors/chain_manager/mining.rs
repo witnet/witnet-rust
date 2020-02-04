@@ -69,6 +69,11 @@ impl ChainManager {
 
             return;
         }
+        if self.chain_state.chain_info.is_none() {
+            log::warn!("ChainInfo is not set");
+
+            return;
+        }
         let epoch_constants = self.epoch_constants.unwrap();
         let total_identities = self
             .chain_state
@@ -79,6 +84,13 @@ impl ChainManager {
             .active_identities_number() as u32;
 
         let current_epoch = self.current_epoch.unwrap();
+        let mining_bf = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .consensus_constants
+            .mining_backup_factor;
 
         // Check eligibility
         // S(H(beacon))
@@ -108,7 +120,8 @@ impl ChainManager {
             .map_err(|e| log::error!("Failed to create block eligibility proof: {}", e))
             .map(move |(vrf_proof, vrf_proof_hash)| {
                 // invalid: vrf_hash > target_hash
-                let (target_hash, probability) = calculate_randpoe_threshold(total_identities);
+                let (target_hash, probability) =
+                    calculate_randpoe_threshold(total_identities, mining_bf);
                 let proof_invalid = vrf_proof_hash > target_hash;
 
                 log::debug!("Probability to mine a block: {:.6}%", probability);
@@ -167,6 +180,7 @@ impl ChainManager {
                     current_epoch,
                     beacon,
                     epoch_constants,
+                    mining_bf,
                 )
                 .map(|_diff, act, ctx| {
                     // Send AddCandidates message to self
