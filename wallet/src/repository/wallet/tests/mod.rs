@@ -1,6 +1,7 @@
 use std::{collections::HashMap, iter::FromIterator as _, mem};
 
 use super::*;
+use crate::types::Hashable;
 use crate::*;
 
 mod factories;
@@ -528,7 +529,7 @@ fn test_create_vtt_does_not_spend_utxos() {
 }
 
 #[test]
-fn test_create_data_request_spends_utxos() {
+fn test_create_data_request_does_not_spend_utxos() {
     let pkh = factories::pkh();
     let out_pointer = model::OutPtr {
         txn_hash: vec![0; 32],
@@ -579,41 +580,16 @@ fn test_create_data_request_spends_utxos() {
     let new_utxo_set: HashMap<model::OutPtr, model::KeyBalance> =
         db.get(&keys::account_utxo_set(0)).unwrap();
 
-    assert!(!new_utxo_set.contains_key(&out_pointer));
-    assert!(!state_utxo_set.contains_key(&out_pointer));
+    // nothing should change because DR is only created but not yet confirmed (sent!)
+    assert!(new_utxo_set.contains_key(&out_pointer));
+    assert!(state_utxo_set.contains_key(&out_pointer));
 
-    assert_eq!(0, wallet.balance().unwrap().amount);
-    assert_eq!(0, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
+    assert_eq!(1, wallet.balance().unwrap().amount);
+    assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
 
-    assert!(db.contains(&keys::transaction_timestamp(0, 0)).unwrap());
     assert!(db
-        .contains(&keys::transaction(&hex::encode(data_req.hash().as_ref())))
-        .unwrap());
-    assert_eq!(1, db.get::<_, u64>(&keys::transaction_value(0, 0)).unwrap());
-    assert_eq!(
-        data_req.hash().as_ref(),
-        db.get::<_, Vec<u8>>(&keys::transaction_hash(0, 0))
-            .unwrap()
-            .as_slice()
-    );
-    assert_eq!(0, db.get::<_, u64>(&keys::transaction_fee(0, 0)).unwrap());
-    assert_eq!(
-        None,
-        db.get_opt::<_, u64>(&keys::transaction_block(0, 0))
-            .unwrap()
-    );
-    assert_eq!(
-        mem::discriminant(&model::TransactionType::DataRequest),
-        mem::discriminant(
-            &db.get::<_, model::TransactionType>(&keys::transaction_type(0, 0))
-                .unwrap()
-        )
-    );
-    assert_eq!(
-        0,
-        db.get::<_, u32>(&keys::transactions_index(data_req.hash().as_ref()))
-            .unwrap()
-    );
+        .get::<_, u32>(&keys::transactions_index(data_req.hash().as_ref()))
+        .is_err());
 }
 
 #[test]

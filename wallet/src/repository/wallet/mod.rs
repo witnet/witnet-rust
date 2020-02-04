@@ -375,9 +375,7 @@ where
             })
             .collect();
 
-        let transaction = types::VTTransaction::new(body, signatures);
-
-        Ok(transaction)
+        Ok(types::VTTransaction::new(body, signatures))
     }
 
     /// Create a new data request transaction using available UTXOs.
@@ -391,7 +389,6 @@ where
             .map_err(|_| Error::TransactionValueOverflow)?;
         let components = self._create_transaction_components(&mut state, value, fee, None)?;
 
-        let new_balance = components.balance;
         let body = types::DRTransactionBody::new(components.inputs, components.outputs, request);
         let sign_data = body.hash();
         let signatures = components
@@ -412,64 +409,8 @@ where
             })
             .collect();
 
-        let transaction = types::DRTransaction::new(body, signatures);
-        let transaction_hash = transaction.hash().as_ref().to_vec();
-        let transaction_hex_hash = hex::encode(&transaction_hash);
-
-        // Persist the transaction
-        let account = state.account;
-        let transaction_id = state.transaction_next_id;
-        let transaction_next_id = transaction_id
-            .checked_add(1)
-            .ok_or_else(|| Error::TransactionIdOverflow)?;
-
-        // FIXME: Remove this clone by using a better mechanism such
-        // as STM or a persistent map
-        let mut new_utxo_set = state.utxo_set.clone();
-        for out_ptr in components.used_utxos {
-            new_utxo_set
-                .remove(&out_ptr)
-                .expect("invariant: remove dr utxo, not found");
+        Ok(types::DRTransaction::new(body, signatures))
         }
-
-        let mut batch = self.db.batch();
-
-        batch.put(keys::transaction_next_id(account), transaction_next_id)?;
-        batch.put(keys::account_utxo_set(account), &new_utxo_set)?;
-        batch.put(keys::account_balance(account), new_balance)?;
-
-        batch.put(
-            keys::transaction(&transaction_hex_hash),
-            &types::Transaction::DataRequest(transaction.clone()),
-        )?;
-        batch.put(
-            keys::transaction_timestamp(account, transaction_id),
-            chrono::Local::now().timestamp(),
-        )?;
-        batch.put(keys::transaction_value(account, transaction_id), value)?;
-        batch.put(keys::transaction_fee(account, transaction_id), fee)?;
-        batch.put(
-            keys::transaction_type(account, transaction_id),
-            model::TransactionType::DataRequest,
-        )?;
-        if let Some(label) = label {
-            batch.put(keys::transaction_label(account, transaction_id), &label)?;
-        }
-        batch.put(keys::transactions_index(&transaction_hash), transaction_id)?;
-        batch.put(
-            keys::transaction_hash(account, transaction_id),
-            transaction_hash,
-        )?;
-
-        self.db.write(batch)?;
-
-        // update wallet state only after db has been updated
-        state.transaction_next_id = transaction_next_id;
-        state.utxo_set = new_utxo_set;
-        state.balance = new_balance;
-
-        Ok(transaction)
-    }
 
     fn _create_transaction_components(
         &self,
