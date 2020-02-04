@@ -270,6 +270,8 @@ message ConsensusConstants {
     uint32 reputation_issuance = 7;
     uint32 reputation_issuance_stop = 8;
     double reputation_penalization_factor = 9;
+    uint32 mining_backup_factor = 10;
+    uint32 mining_replication_factor = 11;
 }
 
 message VrfProof {

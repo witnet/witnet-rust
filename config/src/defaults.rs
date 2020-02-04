@@ -164,6 +164,16 @@ pub trait Defaults {
         0.5
     }
 
+    /// Backup factor for mining: valid VRFs under this factor will result in broadcasting a block
+    fn consensus_constants_mining_backup_factor(&self) -> u32 {
+        8
+    }
+
+    /// Replication factor for mining: valid VRFs under this factor will have priority
+    fn consensus_constants_mining_replication_factor(&self) -> u32 {
+        4
+    }
+
     /// Wallet server address
     fn wallet_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11212)

@@ -136,6 +136,12 @@ pub struct ConsensusConstants {
     /// Penalization factor: fraction of reputation lost by liars for out of consensus claims
     // FIXME(#172): Use fixed point arithmetic
     pub reputation_penalization_factor: f64,
+
+    /// Backup factor for mining: valid VRFs under this factor will result in broadcasting a block
+    pub mining_backup_factor: u32,
+
+    /// Replication factor for mining: valid VRFs under this factor will have priority
+    pub mining_replication_factor: u32,
 }
 
 impl ConsensusConstants {

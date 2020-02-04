@@ -414,6 +414,14 @@ pub fn consensus_constants_from_partial(
             .reputation_penalization_factor
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_reputation_penalization_factor()),
+        mining_backup_factor: config
+            .mining_backup_factor
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_mining_backup_factor()),
+        mining_replication_factor: config
+            .mining_replication_factor
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_mining_replication_factor()),
     }
 }
 
