@@ -117,7 +117,6 @@ pub struct VttParams {
 }
 
 pub struct DataReqParams {
-    pub label: Option<String>,
     pub fee: u64,
     pub request: DataRequestOutput,
 }

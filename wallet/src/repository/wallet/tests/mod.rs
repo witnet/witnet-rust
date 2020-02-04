@@ -572,11 +572,7 @@ fn test_create_data_request_spends_utxos() {
     };
 
     let data_req = wallet
-        .create_data_req(types::DataReqParams {
-            label: None,
-            fee: 0,
-            request,
-        })
+        .create_data_req(types::DataReqParams { fee: 0, request })
         .unwrap();
 
     let state_utxo_set = wallet.utxo_set().unwrap();

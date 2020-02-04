@@ -162,15 +162,6 @@ pub fn transaction_fee(account_index: u32, transaction_id: u32) -> String {
     )
 }
 
-/// A transaction's label.
-#[inline]
-pub fn transaction_label(account_index: u32, transaction_id: u32) -> String {
-    format!(
-        "account-{}-transaction-{}-label",
-        account_index, transaction_id
-    )
-}
-
 /// The type of a transaction: Value Transfer, Data Request, etc.
 #[inline]
 pub fn transaction_type(account_index: u32, transaction_id: u32) -> String {

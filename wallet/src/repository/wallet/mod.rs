@@ -383,11 +383,7 @@ where
     /// Create a new data request transaction using available UTXOs.
     pub fn create_data_req(
         &self,
-        types::DataReqParams {
-            label,
-            fee,
-            request,
-        }: types::DataReqParams,
+        types::DataReqParams { fee, request }: types::DataReqParams,
     ) -> Result<types::DRTransaction> {
         let mut state = self.state.write()?;
         let value = request

@@ -10,9 +10,8 @@ use crate::types::{Hashable as _, ProtobufConvert as _};
 pub struct CreateDataReqRequest {
     session_id: types::SessionId,
     wallet_id: String,
-    label: Option<String>,
-    fee: u64,
     request: DataRequestOutput,
+    fee: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,7 +57,6 @@ impl Handler<CreateDataReqRequest> for app::App {
         &mut self,
         CreateDataReqRequest {
             request,
-            label,
             fee,
             session_id,
             wallet_id,
@@ -68,11 +66,7 @@ impl Handler<CreateDataReqRequest> for app::App {
         let validated = validate(request).map_err(app::validation_error);
 
         let f = fut::result(validated).and_then(move |request, slf: &mut Self, _ctx| {
-            let params = types::DataReqParams {
-                request,
-                fee,
-                label,
-            };
+            let params = types::DataReqParams { request, fee };
 
             slf.create_data_req(&session_id, &wallet_id, params)
                 .map(|transaction, _, _| {
