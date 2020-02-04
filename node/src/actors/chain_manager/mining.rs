@@ -5,7 +5,6 @@ use actix::{
 };
 use ansi_term::Color::{White, Yellow};
 use futures::future::{join_all, Future};
-use log::{debug, error, info, warn};
 
 use witnet_data_structures::{
     chain::{
@@ -41,32 +40,32 @@ impl ChainManager {
     /// Try to mine a block
     pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) {
         if !self.mining_enabled {
-            debug!("Mining disabled in configuration");
+            log::debug!("Mining disabled in configuration");
             return;
         }
 
         // We only want to mine in Synced state
         if self.sm_state != StateMachine::Synced {
-            debug!("Not mining because node is not synced");
+            log::debug!("Not mining because node is not synced");
             return;
         }
 
         if self.current_epoch.is_none() {
-            warn!("Cannot mine a block because current epoch is unknown");
+            log::warn!("Cannot mine a block because current epoch is unknown");
 
             return;
         }
         if self.own_pkh.is_none() {
-            warn!("PublicKeyHash is not set. All mined wits will be lost!");
+            log::warn!("PublicKeyHash is not set. All mined wits will be lost!");
         }
 
         if self.chain_state.reputation_engine.is_none() {
-            warn!("Reputation engine is not set");
+            log::warn!("Reputation engine is not set");
 
             return;
         }
         if self.epoch_constants.is_none() {
-            warn!("EpochConstants is not set");
+            log::warn!("EpochConstants is not set");
 
             return;
         }
@@ -94,9 +93,10 @@ impl ChainManager {
             // and chain beacon is the same that the last block known.
             // Our chain beacon always come from the past epoch. So, a chain beacon
             // with the current epoch is the same error if it is come from the future
-            error!(
+            log::error!(
                 "The current highest checkpoint beacon is from the future ({:?} >= {:?})",
-                beacon.checkpoint, current_epoch
+                beacon.checkpoint,
+                current_epoch
             );
             return;
         }
@@ -105,19 +105,20 @@ impl ChainManager {
 
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(beacon))
-            .map_err(|e| error!("Failed to create block eligibility proof: {}", e))
+            .map_err(|e| log::error!("Failed to create block eligibility proof: {}", e))
             .map(move |(vrf_proof, vrf_proof_hash)| {
                 // invalid: vrf_hash > target_hash
-                let target_hash = calculate_randpoe_threshold(total_identities);
+                let (target_hash, probability) = calculate_randpoe_threshold(total_identities);
                 let proof_invalid = vrf_proof_hash > target_hash;
 
-                debug!("Target hash: {}", target_hash);
-                debug!("Our proof:   {}", vrf_proof_hash);
+                log::debug!("Probability to mine a block: {:.6}%", probability);
+                log::trace!("Target hash: {}", target_hash);
+                log::trace!("Our proof:   {}", vrf_proof_hash);
                 if proof_invalid {
-                    debug!("No eligibility for mining");
+                    log::debug!("No eligibility for mining a block");
                     Err(())
                 } else {
-                    info!(
+                    log::info!(
                         "{} Discovered eligibility for mining a block for epoch #{}",
                         Yellow.bold().paint("[Mining]"),
                         Yellow.bold().paint(beacon.checkpoint.to_string())
@@ -152,7 +153,7 @@ impl ChainManager {
 
                 // Sign the block hash
                 signature_mngr::sign(&block_header)
-                    .map_err(|e| error!("Couldn't sign beacon: {}", e))
+                    .map_err(|e| log::error!("Couldn't sign beacon: {}", e))
                     .map(|block_sig| Block {
                         block_header,
                         block_sig,
@@ -183,7 +184,7 @@ impl ChainManager {
                         ctx,
                     );
                 })
-                .map_err(|e, _, _| error!("Error trying to mine a block: {}", e))
+                .map_err(|e, _, _| log::error!("Error trying to mine a block: {}", e))
             })
             .wait(ctx);
     }
@@ -198,7 +199,7 @@ impl ChainManager {
             .map(|x| x.highest_block_checkpoint);
 
         if self.current_epoch.is_none() || self.own_pkh.is_none() || beacon.is_none() {
-            warn!("Cannot mine a data request because current epoch or own pkh is unknown");
+            log::warn!("Cannot mine a data request because current epoch or own pkh is unknown");
 
             return;
         }
@@ -218,10 +219,12 @@ impl ChainManager {
         let my_reputation = rep_eng.trs.get(&own_pkh);
         let total_active_reputation = rep_eng.trs.get_sum(rep_eng.ars.active_identities());
         let num_active_identities = rep_eng.ars.active_identities_number() as u32;
-        debug!("{} data requests for this epoch", dr_pointers.len());
-        debug!(
+        log::debug!("{} data requests for this epoch", dr_pointers.len());
+        log::debug!(
             "Reputation: {}, total: {}, active identities: {}",
-            my_reputation.0, total_active_reputation.0, num_active_identities,
+            my_reputation.0,
+            total_active_reputation.0,
+            num_active_identities,
         );
 
         for (dr_pointer, data_request_output) in dr_pointers.into_iter().filter_map(|dr_pointer| {
@@ -231,8 +234,8 @@ impl ChainManager {
                 .get_dr_output(&dr_pointer)
                 .map(|data_request_output| (dr_pointer, data_request_output))
         }) {
-            let num_witnesses =
-                data_request_output.witnesses + data_request_output.backup_witnesses;
+            let num_witnesses = data_request_output.witnesses;
+            let num_backup_witnesses = data_request_output.backup_witnesses;
             // The beacon used to create and verify data requests must be set to the current epoch
             let dr_beacon = CheckpointBeacon {
                 checkpoint: current_epoch,
@@ -240,29 +243,38 @@ impl ChainManager {
             };
             signature_mngr::vrf_prove(VrfMessage::data_request(dr_beacon, dr_pointer))
                 .map_err(move |e| {
-                    error!(
+                    log::error!(
                         "Couldn't create VRF proof for data request {}: {}",
-                        dr_pointer, e
+                        dr_pointer,
+                        e
                     )
                 })
                 .map(move |(vrf_proof, vrf_proof_hash)| {
                     // invalid: vrf_hash > target_hash
-                    let target_hash = calculate_reppoe_threshold(
+                    let (target_hash, probability) = calculate_reppoe_threshold(
                         my_reputation,
                         total_active_reputation,
-                        num_witnesses,
+                        num_witnesses + num_backup_witnesses,
                         num_active_identities,
                     );
                     let proof_invalid = vrf_proof_hash > target_hash;
 
-                    debug!("{} witnesses", num_witnesses);
-                    debug!("[DR] Target hash: {}", target_hash);
-                    debug!("[DR] Our proof:   {}", vrf_proof_hash);
+                    log::debug!(
+                        "{} witnesses and {} backup witnesses",
+                        num_witnesses,
+                        num_backup_witnesses
+                    );
+                    log::debug!(
+                        "Probability to be eligible for this data request: {:.6}%",
+                        probability
+                    );
+                    log::trace!("[DR] Target hash: {}", target_hash);
+                    log::trace!("[DR] Our proof:   {}", vrf_proof_hash);
                     if proof_invalid {
-                        debug!("No eligibility for data request {}", dr_pointer);
+                        log::debug!("No eligibility for data request {}", dr_pointer);
                         Err(())
                     } else {
-                        info!(
+                        log::info!(
                             "{} Discovered eligibility for mining a data request {} for epoch #{}",
                             Yellow.bold().paint("[Mining]"),
                             Yellow.bold().paint(dr_pointer.to_string()),
@@ -359,7 +371,7 @@ impl ChainManager {
             dr_reveals
                 .into_iter()
                 .map(|(dr_pointer, reveals, dr_state)| {
-                    debug!("Building tally for data request {}", dr_pointer);
+                    log::debug!("Building tally for data request {}", dr_pointer);
 
                     // Use the serial decoder to decode all the reveals in a lossy way, i.e. will
                     // ignore reveals that cannot be decoded. At this point, reveals that cannot be
@@ -417,7 +429,7 @@ impl ChainManager {
 
                             match tally {
                                 Ok(t) => {
-                                    info!(
+                                    log::info!(
                                         "{} Created Tally for Data Request {} with result: {}\n{}",
                                         Yellow.bold().paint("[Data Request]"),
                                         Yellow.bold().paint(&dr_pointer.to_string()),
@@ -487,7 +499,7 @@ fn build_block(
         let transaction_fee = match vt_transaction_fee(&vt_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
-                warn!(
+                log::warn!(
                     "Error when calculating transaction fee for transaction: {}",
                     e
                 );
@@ -519,7 +531,7 @@ fn build_block(
         let transaction_fee = match dr_transaction_fee(&dr_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
-                warn!(
+                log::warn!(
                     "Error when calculating transaction fee for transaction: {}",
                     e
                 );
@@ -542,7 +554,9 @@ fn build_block(
             tally_txns.push(ta_tx.clone());
             transaction_fees += dr_output.tally_fee;
         } else {
-            warn!("Data Request pointed by tally transaction doesn't exist in DataRequestPool");
+            log::warn!(
+                "Data Request pointed by tally transaction doesn't exist in DataRequestPool"
+            );
         }
     }
 

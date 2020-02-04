@@ -656,7 +656,7 @@ pub fn validate_commit_transaction(
     let total_active_reputation = rep_eng.trs.get_sum(rep_eng.ars.active_identities());
     let num_witnesses = dr_output.witnesses + dr_output.backup_witnesses;
     let num_active_identities = rep_eng.ars.active_identities_number() as u32;
-    let target_hash = calculate_reppoe_threshold(
+    let (target_hash, _) = calculate_reppoe_threshold(
         my_reputation,
         total_active_reputation,
         num_witnesses,
@@ -1260,7 +1260,7 @@ pub fn validate_block(
         .into())
     } else {
         let total_identities = rep_eng.ars.active_identities_number() as u32;
-        let target_hash = calculate_randpoe_threshold(total_identities);
+        let (target_hash, _) = calculate_randpoe_threshold(total_identities);
 
         add_block_vrf_signature_to_verify(
             signatures_to_verify,
@@ -1288,7 +1288,7 @@ pub fn validate_candidate(
         });
     }
 
-    let target_hash = calculate_randpoe_threshold(total_identities);
+    let (target_hash, _) = calculate_randpoe_threshold(total_identities);
     add_block_vrf_signature_to_verify(
         signatures_to_verify,
         &block.block_header.proof,
@@ -1357,7 +1357,7 @@ pub fn validate_new_transaction(
     }
 }
 
-pub fn calculate_randpoe_threshold(total_identities: u32) -> Hash {
+pub fn calculate_randpoe_threshold(total_identities: u32) -> (Hash, f64) {
     let max = u32::max_value();
     let target = if total_identities == 0 {
         max
@@ -1365,7 +1365,8 @@ pub fn calculate_randpoe_threshold(total_identities: u32) -> Hash {
         max / total_identities
     };
 
-    Hash::with_first_u32(target)
+    let probability = (target as f64 / max as f64) * 100_f64;
+    (Hash::with_first_u32(target), probability)
 }
 
 pub fn calculate_reppoe_threshold(
@@ -1373,7 +1374,7 @@ pub fn calculate_reppoe_threshold(
     total_active_reputation: Reputation,
     num_witnesses: u16,
     num_active_identities: u32,
-) -> Hash {
+) -> (Hash, f64) {
     // Add 1 to reputation because otherwise a node with 0 reputation would
     // never be eligible for a data request
     let my_reputation = my_reputation.0 + 1;
@@ -1397,7 +1398,8 @@ pub fn calculate_reppoe_threshold(
         (max / total_active_reputation) * num_witnesses * my_reputation
     };
 
-    Hash::with_first_u32(target)
+    let probability = (target as f64 / max as f64) * 100_f64;
+    (Hash::with_first_u32(target), probability)
 }
 
 /// Function to calculate a merkle tree from a transaction vector
@@ -1764,43 +1766,54 @@ mod tests {
     #[test]
     fn target_randpoe() {
         let max_hash = Hash::with_first_u32(0xFFFF_FFFF);
-        let t00 = calculate_randpoe_threshold(0);
-        let t01 = calculate_randpoe_threshold(1);
+        let (t00, p00) = calculate_randpoe_threshold(0);
+        let (t01, p01) = calculate_randpoe_threshold(1);
         assert_eq!(t00, max_hash);
         assert_eq!(t00, t01);
-        let t02 = calculate_randpoe_threshold(2);
+        assert_eq!(p00.round() as i128, 100);
+        assert_eq!(p00.round() as i128, p01.round() as i128);
+        let (t02, p02) = calculate_randpoe_threshold(2);
         assert_eq!(t02, Hash::with_first_u32(0x7FFF_FFFF));
-        let t03 = calculate_randpoe_threshold(3);
+        assert_eq!(p02.round() as i128, 50);
+        let (t03, p03) = calculate_randpoe_threshold(3);
         assert_eq!(t03, Hash::with_first_u32(0x5555_5555));
-        let t04 = calculate_randpoe_threshold(4);
+        assert_eq!(p03.round() as i128, 33);
+        let (t04, p04) = calculate_randpoe_threshold(4);
         assert_eq!(t04, Hash::with_first_u32(0x3FFF_FFFF));
-        let t05 = calculate_randpoe_threshold(1024);
+        assert_eq!(p04.round() as i128, 25);
+        let (t05, p05) = calculate_randpoe_threshold(1024);
         assert_eq!(t05, Hash::with_first_u32(0x003F_FFFF));
-        let t06 = calculate_randpoe_threshold(1024 * 1024);
+        assert_eq!(p05.round() as i128, 0);
+        let (t06, p06) = calculate_randpoe_threshold(1024 * 1024);
         assert_eq!(t06, Hash::with_first_u32(0x0000_0FFF));
+        assert_eq!(p06.round() as i128, 0);
     }
 
     #[test]
     fn target_reppoe() {
         // 100% when we have all the reputation
-        let t00 = calculate_reppoe_threshold(Reputation(50), Reputation(50), 1, 1);
+        let (t00, p00) = calculate_reppoe_threshold(Reputation(50), Reputation(50), 1, 1);
         assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
+        assert_eq!(p00.round() as i128, 100);
 
         // 50% when there are 2 nodes with 50% of the reputation each
-        let t01 = calculate_reppoe_threshold(Reputation(1), Reputation(2), 1, 2);
+        let (t01, p01) = calculate_reppoe_threshold(Reputation(1), Reputation(2), 1, 2);
         // Since the calculate_reppoe function first divides and later
         // multiplies, we get a rounding error here
         assert_eq!(t01, Hash::with_first_u32(0x7FFF_FFFE));
+        assert_eq!(p01.round() as i128, 50);
 
         // 10 identities with 100 total reputation but 10 witnesses for the data request:
         // 10 * (10 + 1) / (100 + 10) = 100%
-        let t02 = calculate_reppoe_threshold(Reputation(10), Reputation(100), 10, 10);
+        let (t02, p02) = calculate_reppoe_threshold(Reputation(10), Reputation(100), 10, 10);
         assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
+        assert_eq!(p02.round() as i128, 100);
 
         // 10 identities with 100 total reputation but 10 witnesses for the data request:
-        // 1 * (50 + 1) / (100 + 10) = 46%
-        let t03 = calculate_reppoe_threshold(Reputation(50), Reputation(100), 1, 10);
+        // 1 * (50 + 1) / (100 + 10) ~= 46%
+        let (t03, p03) = calculate_reppoe_threshold(Reputation(50), Reputation(100), 1, 10);
         assert_eq!(t03, Hash::with_first_u32(0x76B0_DF5F));
+        assert_eq!(p03.round() as i128, 46);
     }
 
     #[test]
@@ -1808,34 +1821,42 @@ mod tests {
         // Test the behavior of the algorithm when our node has 0 reputation
 
         // 100% when the total reputation is 0
-        let t00 = calculate_reppoe_threshold(Reputation(0), Reputation(0), 1, 0);
+        let (t00, p00) = calculate_reppoe_threshold(Reputation(0), Reputation(0), 1, 0);
         assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
-        let t01 = calculate_reppoe_threshold(Reputation(0), Reputation(0), 100, 0);
+        assert_eq!(p00.round() as i128, 100);
+        let (t01, p01) = calculate_reppoe_threshold(Reputation(0), Reputation(0), 100, 0);
         assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-        let t02 = calculate_reppoe_threshold(Reputation(0), Reputation(0), 1, 1);
+        assert_eq!(p01.round() as i128, 100);
+        let (t02, p02) = calculate_reppoe_threshold(Reputation(0), Reputation(0), 1, 1);
         assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
+        assert_eq!(p02.round() as i128, 100);
 
         // 50% when the total reputation is 1
-        let t03 = calculate_reppoe_threshold(Reputation(0), Reputation(1), 1, 1);
+        let (t03, p03) = calculate_reppoe_threshold(Reputation(0), Reputation(1), 1, 1);
         assert_eq!(t03, Hash::with_first_u32(0x7FFF_FFFF));
+        assert_eq!(p03.round() as i128, 50);
 
         // 33% when the total reputation is 1 but there are 2 active identities
-        let t04 = calculate_reppoe_threshold(Reputation(0), Reputation(1), 1, 2);
+        let (t04, p04) = calculate_reppoe_threshold(Reputation(0), Reputation(1), 1, 2);
         assert_eq!(t04, Hash::with_first_u32(0x5555_5555));
+        assert_eq!(p04.round() as i128, 33);
 
-        // 10 identities with 100 total reputation: 1 / (100 + 10) = 0.9%
-        let t05 = calculate_reppoe_threshold(Reputation(0), Reputation(100), 1, 10);
+        // 10 identities with 100 total reputation: 1 / (100 + 10) ~= 0.9%
+        let (t05, p05) = calculate_reppoe_threshold(Reputation(0), Reputation(100), 1, 10);
         assert_eq!(t05, Hash::with_first_u32(0x0253_C825));
+        assert_eq!(p05.round() as i128, 1);
 
         // 10 identities with 100 total reputation but 10 witnesses for the data request:
-        // 10 * 1 / (100 + 10) = 9%
-        let t06 = calculate_reppoe_threshold(Reputation(0), Reputation(100), 10, 10);
+        // 10 * 1 / (100 + 10) ~= 9%
+        let (t06, p06) = calculate_reppoe_threshold(Reputation(0), Reputation(100), 10, 10);
         assert_eq!(t06, Hash::with_first_u32(0x1745_D172));
+        assert_eq!(p06.round() as i128, 9);
 
         // 10_000 identities with 10_000 total reputation but 10 witnesses for the data request:
-        // 10 * 1 / (10000 + 100) = 0.099%
-        let t07 = calculate_reppoe_threshold(Reputation(0), Reputation(10_000), 10, 100);
+        // 10 * 1 / (10000 + 100) ~= 0.099%
+        let (t07, p07) = calculate_reppoe_threshold(Reputation(0), Reputation(10_000), 10, 100);
         assert_eq!(t07, Hash::with_first_u32(0x0040_E318));
+        assert_eq!(p07.round() as i128, 0);
     }
 
     #[test]
