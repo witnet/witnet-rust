@@ -6,7 +6,7 @@ use secp256k1::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     fmt,
     ops::{AddAssign, SubAssign},
@@ -924,6 +924,9 @@ pub struct TransactionsPool {
     re_hash_index: HashMap<Hash, RevealTransaction>,
     // A map of `data_request_hash` to a map of `reveal_pkh` to `reveal_transaction_hash`
     re_transactions: HashMap<Hash, HashMap<PublicKeyHash, Hash>>,
+    // A hashset of recently received transactions hashes
+    // Used to avoid validating the same transaction more than once
+    pending_transactions: HashSet<Hash>,
 }
 
 impl TransactionsPool {
@@ -956,6 +959,7 @@ impl TransactionsPool {
             re_hash_index: HashMap::with_capacity(capacity),
             re_transactions: HashMap::with_capacity(capacity),
             sorted_index: BTreeSet::new(),
+            pending_transactions: HashSet::new(),
         }
     }
 
@@ -1037,25 +1041,29 @@ impl TransactionsPool {
     pub fn contains(&self, transaction: &Transaction) -> Result<bool, TransactionError> {
         let tx_hash = transaction.hash();
 
-        match transaction {
-            Transaction::ValueTransfer(_vt) => Ok(self.vt_contains(&tx_hash)),
-            Transaction::DataRequest(_drt) => Ok(self.dr_contains(&tx_hash)),
-            Transaction::Commit(ct) => {
-                let dr_pointer = ct.body.dr_pointer;
-                let pkh = ct.body.proof.proof.pkh();
+        if self.pending_transactions.contains(&tx_hash) {
+            Ok(true)
+        } else {
+            match transaction {
+                Transaction::ValueTransfer(_vt) => Ok(self.vt_contains(&tx_hash)),
+                Transaction::DataRequest(_drt) => Ok(self.dr_contains(&tx_hash)),
+                Transaction::Commit(ct) => {
+                    let dr_pointer = ct.body.dr_pointer;
+                    let pkh = ct.body.proof.proof.pkh();
 
-                self.commit_contains(&dr_pointer, &pkh, &tx_hash)
-            }
-            Transaction::Reveal(rt) => {
-                let dr_pointer = rt.body.dr_pointer;
-                let pkh = rt.body.pkh;
+                    self.commit_contains(&dr_pointer, &pkh, &tx_hash)
+                }
+                Transaction::Reveal(rt) => {
+                    let dr_pointer = rt.body.dr_pointer;
+                    let pkh = rt.body.pkh;
 
-                self.reveal_contains(&dr_pointer, &pkh, &tx_hash)
+                    self.reveal_contains(&dr_pointer, &pkh, &tx_hash)
+                }
+                // Tally and mint transaction only exist inside blocks, it should
+                // be impossible for nodes to broadcast these kinds of transactions.
+                Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),
+                Transaction::Mint(_mt) => Err(TransactionError::NotValidTransaction),
             }
-            // Tally and mint transaction only exist inside blocks, it should
-            // be impossible for nodes to broadcast these kinds of transactions.
-            Transaction::Tally(_tt) => Err(TransactionError::NotValidTransaction),
-            Transaction::Mint(_mt) => Err(TransactionError::NotValidTransaction),
         }
     }
 
@@ -1321,6 +1329,16 @@ impl TransactionsPool {
             }
             _ => {}
         }
+    }
+
+    /// Insert a pending transaction hash
+    pub fn insert_pending_transaction(&mut self, transaction: &Transaction) {
+        self.pending_transactions.insert(transaction.hash());
+    }
+
+    /// Remove a pending transaction hash
+    pub fn clear_pending_transactions(&mut self) {
+        self.pending_transactions.clear();
     }
 
     /// An iterator visiting all the value transfer transactions

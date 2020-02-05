@@ -100,6 +100,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             chain_beacon.hash_prev_block
         );
 
+        // Clear pending transactions HashSet
+        self.transactions_pool.clear_pending_transactions();
+
         // Handle case consensus not achieved
         if !self.peers_beacons_received {
             log::warn!("No beacon messages received from peers. Moving to WaitingConsensus status");

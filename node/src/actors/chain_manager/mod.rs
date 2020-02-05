@@ -508,7 +508,10 @@ impl ChainManager {
         };
 
         match self.transactions_pool.contains(&msg.transaction) {
-            Ok(false) => {}
+            Ok(false) => {
+                self.transactions_pool
+                    .insert_pending_transaction(&msg.transaction);
+            }
             Ok(true) => {
                 log::trace!(
                     "Transaction is already in the pool: {}",
