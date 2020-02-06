@@ -18,6 +18,7 @@ use crate::validations::*;
 
 static MY_PKH: &str = "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm";
 static MY_PKH_2: &str = "wit1z8mxkml4a50dyysqczsp7gj5pnvz3jsldras8t";
+static MY_PKH_3: &str = "wit164gu2l8p7suvc7zq5xvc27h63td75g6uspwpn5";
 
 fn verify_signatures_test(
     signatures_to_verify: Vec<SignaturesToVerify>,
@@ -56,6 +57,25 @@ fn sign_t2<H: Hashable>(tx: &H) -> KeyedSignature {
     let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
     let public_key = PublicKey::from(public_key);
     assert_eq!(public_key.pkh(), MY_PKH_2.parse().unwrap());
+
+    let signature = sign(secp, secret_key, &data);
+
+    KeyedSignature {
+        signature: Signature::from(signature),
+        public_key,
+    }
+}
+
+// Sign with a different public key
+fn sign_t3<H: Hashable>(tx: &H) -> KeyedSignature {
+    let Hash::SHA256(data) = tx.hash();
+
+    let secp = &Secp256k1::new();
+    let secret_key =
+        Secp256k1_SecretKey::from_slice(&[0x69; 32]).expect("32 bytes, within curve order");
+    let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
+    let public_key = PublicKey::from(public_key);
+    assert_eq!(public_key.pkh(), MY_PKH_3.parse().unwrap());
 
     let signature = sign(secp, secret_key, &data);
 
@@ -1678,7 +1698,7 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
-    let drs = sign_t(&dr_body);
+    let drs = sign_t3(&dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
@@ -1736,7 +1756,7 @@ fn test_commit_difficult_proof() {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
-    let drs = sign_t(&dr_body);
+    let drs = sign_t3(&dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
@@ -1797,7 +1817,7 @@ fn test_commit() -> Result<(), failure::Error> {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
-    let drs = sign_t(&dr_body);
+    let drs = sign_t3(&dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
@@ -1978,7 +1998,7 @@ fn commitment_invalid_proof() {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
-    let drs = sign_t(&dr_body);
+    let drs = sign_t2(&dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_epoch = 0;
     dr_pool
@@ -2009,6 +2029,67 @@ fn commitment_invalid_proof() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidDataRequestPoe,
+    );
+}
+
+#[test]
+fn commitment_from_data_requester() {
+    let dr_pointer = DR_HASH.parse().unwrap();
+    let mut cb = CommitTransactionBody::default();
+    cb.dr_pointer = dr_pointer;
+
+    let mut dr_pool = DataRequestPool::default();
+    let commit_beacon = CheckpointBeacon::default();
+    let vrf = &mut VrfCtx::secp256k1().unwrap();
+    let rep_eng = ReputationEngine::new(100);
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
+
+    // Create an invalid proof by suppliying a different dr_pointer
+    let bad_dr_pointer = Hash::default();
+    cb.proof = DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, bad_dr_pointer)
+        .unwrap();
+
+    let dro = DataRequestOutput {
+        witness_reward: 1000,
+        witnesses: 1,
+        min_consensus_percentage: 51,
+        data_request: example_data_request(),
+        ..DataRequestOutput::default()
+    };
+    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let drs = sign_t(&dr_body);
+    let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
+    let dr_epoch = 0;
+    dr_pool
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
+        .unwrap();
+
+    // Sign commitment
+    let cs = sign_t(&cb);
+    let c_tx = CommitTransaction::new(cb, vec![cs]);
+    let mut signatures_to_verify = vec![];
+
+    let x = validate_commit_transaction(
+        &c_tx,
+        &dr_pool,
+        commit_beacon,
+        &mut signatures_to_verify,
+        &rep_eng,
+        0,
+        EpochConstants::default(),
+    )
+    .and_then(|_| verify_signatures_test(signatures_to_verify));
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::DataRequestPkhInCommit,
     );
 }
 
@@ -2111,7 +2192,7 @@ fn commitment_timelock() {
             ..DataRequestOutput::default()
         };
         let dr_body = DRTransactionBody::new(vec![], vec![], dro);
-        let drs = sign_t(&dr_body);
+        let drs = sign_t3(&dr_body);
         let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
         let dr_hash = dr_transaction.hash();
         let dr_epoch = 0;
@@ -2180,7 +2261,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
-    let drs = sign_t(&dr_body);
+    let drs = sign_t3(&dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_pointer = dr_transaction.hash();
 
@@ -3555,7 +3636,7 @@ fn block_duplicated_commits() {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
-    let drs = sign_t(&dr_body);
+    let drs = sign_t2(&dr_body);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     let dr_epoch = 0;
@@ -3646,7 +3727,7 @@ fn block_duplicated_reveals() {
         .unwrap();
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_t(&RevealTransactionBody::default()).public_key;
+    let public_key = sign_t3(&RevealTransactionBody::default()).public_key;
     let public_key2 = sign_t2(&RevealTransactionBody::default()).public_key;
 
     let dr_pointer = dr_hash;
@@ -3656,7 +3737,7 @@ fn block_duplicated_reveals() {
     let reveal_value = vec![0x00];
     let reveal_body =
         RevealTransactionBody::new(dr_pointer, reveal_value.clone(), public_key.pkh());
-    let reveal_signature = sign_t(&reveal_body);
+    let reveal_signature = sign_t3(&reveal_body);
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(

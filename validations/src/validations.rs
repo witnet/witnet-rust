@@ -638,8 +638,12 @@ pub fn validate_commit_transaction(
         .into());
     }
 
-    let commit_signature =
-        validate_commit_reveal_signature(co_tx.hash(), &co_tx.signatures, signatures_to_verify)?;
+    let commit_signature = validate_commit_reveal_signature(
+        co_tx.hash(),
+        &co_tx.signatures,
+        signatures_to_verify,
+        dr_state.pkh,
+    )?;
 
     let pkh = commit_signature.public_key.pkh();
     let pkh2 = co_tx.body.proof.proof.pkh();
@@ -691,8 +695,12 @@ pub fn validate_reveal_transaction(
         return Err(DataRequestError::NotRevealStage.into());
     }
 
-    let reveal_signature =
-        validate_commit_reveal_signature(re_tx.hash(), &re_tx.signatures, signatures_to_verify)?;
+    let reveal_signature = validate_commit_reveal_signature(
+        re_tx.hash(),
+        &re_tx.signatures,
+        signatures_to_verify,
+        dr_state.pkh,
+    )?;
     let pkh = reveal_signature.public_key.pkh();
     let pkh2 = re_tx.body.pkh;
     if pkh != pkh2 {
@@ -932,6 +940,7 @@ pub fn validate_commit_reveal_signature<'a>(
     tx_hash: Hash,
     signatures: &'a [KeyedSignature],
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    dr_pkh: PublicKeyHash,
 ) -> Result<&'a KeyedSignature, failure::Error> {
     if let Some(tx_keyed_signature) = signatures.get(0) {
         let Hash::SHA256(message) = tx_hash;
@@ -946,15 +955,25 @@ pub fn validate_commit_reveal_signature<'a>(
             .clone()
             .try_into()
             .map_err(fte)?;
+        let pkh_commit = tx_keyed_signature.public_key.pkh();
         let public_key = tx_keyed_signature
             .public_key
             .clone()
             .try_into()
             .map_err(fte)?;
 
-        add_secp_tx_signature_to_verify(signatures_to_verify, &public_key, &message, &signature);
+        if pkh_commit == dr_pkh {
+            Err(TransactionError::DataRequestPkhInCommit.into())
+        } else {
+            add_secp_tx_signature_to_verify(
+                signatures_to_verify,
+                &public_key,
+                &message,
+                &signature,
+            );
 
-        Ok(tx_keyed_signature)
+            Ok(tx_keyed_signature)
+        }
     } else {
         Err(TransactionError::SignatureNotFound.into())
     }

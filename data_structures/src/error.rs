@@ -81,6 +81,11 @@ pub enum TransactionError {
     /// Signature not found
     #[fail(display = "Transaction signature not found")]
     SignatureNotFound,
+    /// Commitment from data requester
+    #[fail(
+        display = "The creator of the Data Request cannot participate in it by sending commits"
+    )]
+    DataRequestPkhInCommit,
     /// Public Key Hash does not match
     #[fail(
         display = "Public key hash mismatch: expected {} got {}",
