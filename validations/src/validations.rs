@@ -1360,14 +1360,15 @@ pub fn validate_new_transaction(
 }
 
 pub fn calculate_randpoe_threshold(total_identities: u32, replication_factor: u32) -> (Hash, f64) {
-    let max = u32::max_value();
-    let target = if total_identities == 0 {
+    let max = u64::max_value();
+    let target = if total_identities == 0 || replication_factor >= total_identities {
         max
     } else {
-        (max / total_identities).saturating_mul(replication_factor)
+        (max / u64::from(total_identities)) * u64::from(replication_factor)
     };
+    let target = (target >> 32) as u32;
 
-    let probability = (target as f64 / max as f64) * 100_f64;
+    let probability = (target as f64 / (max >> 32) as f64) * 100_f64;
     (Hash::with_first_u32(target), probability)
 }
 
@@ -1969,15 +1970,13 @@ mod tests {
         assert_eq!(t03, max_hash);
         assert_eq!(p03.round() as i128, 100);
         let (t04, p04) = calculate_randpoe_threshold(4, rf);
-        // TODO: rounding errors
-        //assert_eq!(t04, max_hash);
-        assert_eq!(t04, Hash::with_first_u32(0xFFFF_FFFC));
+        assert_eq!(t04, max_hash);
         assert_eq!(p04.round() as i128, 100);
         let (t05, p05) = calculate_randpoe_threshold(1024, rf);
-        assert_eq!(t05, Hash::with_first_u32(0x00FF_FFFC));
+        assert_eq!(t05, Hash::with_first_u32(0x00FF_FFFF));
         assert_eq!(p05.round() as i128, 0);
         let (t06, p06) = calculate_randpoe_threshold(1024 * 1024, rf);
-        assert_eq!(t06, Hash::with_first_u32(0x0000_3FFC));
+        assert_eq!(t06, Hash::with_first_u32(0x0000_3FFF));
         assert_eq!(p06.round() as i128, 0);
     }
 

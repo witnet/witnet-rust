@@ -3443,7 +3443,7 @@ fn block_difficult_proof() {
             vrf_hash: "40167423312aad76b13613d822d8fc677b8db84667202c33fbbaeb3008906bdc"
                 .parse()
                 .unwrap(),
-            target_hash: Hash::with_first_u32(0x007f_ffff * mining_bf),
+            target_hash: Hash::with_first_u32(0x03ff_ffff),
         },
     );
 }
