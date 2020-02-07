@@ -59,6 +59,42 @@ pub enum Transaction {
     Mint(MintTransaction),
 }
 
+impl From<VTTransaction> for Transaction {
+    fn from(transaction: VTTransaction) -> Self {
+        Self::ValueTransfer(transaction)
+    }
+}
+
+impl From<DRTransaction> for Transaction {
+    fn from(transaction: DRTransaction) -> Self {
+        Self::DataRequest(transaction)
+    }
+}
+
+impl From<CommitTransaction> for Transaction {
+    fn from(transaction: CommitTransaction) -> Self {
+        Self::Commit(transaction)
+    }
+}
+
+impl From<RevealTransaction> for Transaction {
+    fn from(transaction: RevealTransaction) -> Self {
+        Self::Reveal(transaction)
+    }
+}
+
+impl From<TallyTransaction> for Transaction {
+    fn from(transaction: TallyTransaction) -> Self {
+        Self::Tally(transaction)
+    }
+}
+
+impl From<MintTransaction> for Transaction {
+    fn from(transaction: MintTransaction) -> Self {
+        Self::Mint(transaction)
+    }
+}
+
 impl AsRef<Transaction> for Transaction {
     fn as_ref(&self) -> &Self {
         self
