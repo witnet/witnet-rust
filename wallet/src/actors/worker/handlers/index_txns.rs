@@ -7,7 +7,7 @@ pub struct IndexTxns(
     /// Wallet id
     pub String,
     pub types::SessionWallet,
-    pub Vec<types::VTTransactionBody>,
+    pub Vec<types::Transaction>,
     pub model::BlockInfo,
 );
 
