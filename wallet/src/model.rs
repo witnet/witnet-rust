@@ -1,5 +1,6 @@
 //! Types that are serializable and can be returned as a response.
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
@@ -83,6 +84,22 @@ pub struct Transaction {
 pub enum TransactionType {
     ValueTransfer,
     DataRequest,
+}
+
+pub struct UnsupportedTransactionType(pub String);
+
+impl TryFrom<&types::Transaction> for TransactionType {
+    type Error = UnsupportedTransactionType;
+
+    fn try_from(value: &types::Transaction) -> Result<Self, Self::Error> {
+        use types::Transaction::*;
+
+        match value {
+            ValueTransfer(_) => Ok(TransactionType::ValueTransfer),
+            DataRequest(_) => Ok(TransactionType::DataRequest),
+            _ => Err(UnsupportedTransactionType(format!("{:?}", value))),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

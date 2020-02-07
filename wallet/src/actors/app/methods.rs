@@ -445,32 +445,37 @@ impl App {
         log::trace!("received block notification");
         let block = serde_json::from_value::<types::ChainBlock>(value).map_err(node_error)?;
         // NOTE: Possible enhancement.
-        // Maybe is a good idea to use a shared reference Arc
-        // instead of cloning this vector of txns if this vector
-        // results to be too big, problm is that doing so conflicts
-        // with the internal Cell of the txns type which cannot be
-        // shared between threads.
+        // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns
+        // if this vector results to be too big, problem is that doing so conflicts with the internal
+        // Cell of the txns type which cannot be shared between threads.
         let block_epoch = block.block_header.beacon.checkpoint;
-        // NOTE: We are calculating the hash of the block here (it's
-        // just the hash of the header) since it's not memoized and
-        // not doing it would imply that all threads indexing wallet
-        // UTXOs call this method over and over. If calculating the
-        // hash here degrades performance too much we should consider
-        // to calculate it in a worker thread instead and then proceed
+        // NOTE: We are calculating the hash of the block here (it's just the hash of the header)
+        // since it's not memoized and not doing it would imply that all threads indexing wallet
+        // UTXOs call this method over and over. If calculating the hash here degrades performance
+        // too much we should consider to calculate it in a worker thread instead and then proceed
         // with indexing transactions.
         let block_hash = block.hash().as_ref().to_vec();
-        let txns = block
+
+        // Block transactions to be indexed.
+        // NOTE: only `VttTransaction` and `DRTransaction` are currently supported.
+        let dr_txns = block
+            .txns
+            .data_request_txns
+            .into_iter()
+            .map(types::Transaction::from);
+        let vtt_txns = block
             .txns
             .value_transfer_txns
             .into_iter()
-            .map(|txn| txn.body)
-            .collect::<Vec<_>>();
+            .map(types::Transaction::from);
+        let block_txns = dr_txns.chain(vtt_txns).collect::<Vec<types::Transaction>>();
 
+        // Index block transactions on each wallet
         for (id, wallet) in self.state.wallets() {
             self.params.worker.do_send(worker::IndexTxns(
                 id.to_owned(),
                 wallet.clone(),
-                txns.clone(),
+                block_txns.clone(),
                 model::BlockInfo {
                     epoch: block_epoch,
                     hash: block_hash.clone(),

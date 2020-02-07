@@ -29,6 +29,8 @@ pub enum Error {
     Failure(#[cause] failure::Error),
     #[fail(display = "key derivation failed: {}", _0)]
     KeyDerivation(#[cause] types::KeyDerivationError),
+    #[fail(display = "transaction type not supported: {}", _0)]
+    UnsupportedTransactionType(String),
 }
 
 impl From<failure::Error> for Error {

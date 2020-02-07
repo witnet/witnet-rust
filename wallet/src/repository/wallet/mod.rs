@@ -6,6 +6,7 @@ use crate::{
     db::{Database, WriteBatch as _},
     model,
     params::Params,
+    repository,
     types::{self, Hashable as _},
 };
 
@@ -15,10 +16,14 @@ mod tests;
 
 use state::State;
 use std::convert::TryFrom;
-use witnet_data_structures::{
-    chain::{Environment, Epoch},
-    transaction::VTTransactionBody,
-};
+use witnet_data_structures::chain::{Environment, Epoch};
+
+/// Internal structure used to gather state mutations while indexing block transactions
+struct TransactionMutation {
+    txn_balance: i64,
+    utxo_removals: Vec<model::OutPtr>,
+    utxo_inserts: Vec<(model::OutPtr, model::KeyBalance)>,
+}
 
 pub struct Wallet<T> {
     db: T,
@@ -310,18 +315,19 @@ where
     /// Index transactions in a block received from a node.
     pub fn index_transactions(
         &self,
-        block: &model::BlockInfo,
-        txns: &[types::VTTransactionBody],
+        block_info: &model::BlockInfo,
+        txns: &[types::Transaction],
     ) -> Result<()> {
         let mut state = self.state.write()?;
 
         for txn in txns {
+            // Check if transaction already exists in the database
             let hash = txn.hash().as_ref().to_vec();
             match self
                 .db
                 .get_opt::<_, u32>(&keys::transactions_index(&hash))?
             {
-                None => self._index_transaction(&mut state, &hash, txn, block)?,
+                None => self._index_transaction(&mut state, txn, block_info)?,
                 Some(_) => log::warn!(
                     "The transaction {} already exists in the database",
                     txn.hash()
@@ -514,67 +520,157 @@ where
     fn _index_transaction(
         &self,
         state: &mut State,
-        txn_hash: &[u8],
-        txn: &VTTransactionBody,
-        block: &model::BlockInfo,
+        txn: &types::Transaction,
+        block_info: &model::BlockInfo,
     ) -> Result<()> {
-        let account = 0;
-        let mut db_utxo_set: model::UtxoSet = self
-            .db
-            .get(&keys::account_utxo_set(account))
-            .unwrap_or_default();
+        // For each type of transaction, get mutations and transaction balance
+        let transaction_mutation = match txn {
+            types::Transaction::DataRequest(txn) => self._check_txn_balance(
+                &state.utxo_set,
+                txn.hash().as_ref(),
+                &txn.body.inputs,
+                &txn.body.outputs,
+            )?,
+            types::Transaction::ValueTransfer(txn) => self._check_txn_balance(
+                &state.utxo_set,
+                txn.hash().as_ref(),
+                &txn.body.inputs,
+                &txn.body.outputs,
+            )?,
+            _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
+        };
+
+        // If UTXO set changes, then update memory state and DB
+        if !transaction_mutation.utxo_inserts.is_empty()
+            || !transaction_mutation.utxo_removals.is_empty()
+        {
+            let account = 0;
+            let mut db_utxo_set: model::UtxoSet = self
+                .db
+                .get(&keys::account_utxo_set(account))
+                .unwrap_or_default();
+
+            // New account's balance
+            let new_balance = if transaction_mutation.txn_balance > 0 {
+                state
+                    .balance
+                    .checked_add(transaction_mutation.txn_balance.abs() as u64)
+                    .ok_or_else(|| Error::TransactionBalanceOverflow)?
+            } else {
+                state
+                    .balance
+                    .checked_sub(transaction_mutation.txn_balance.abs() as u64)
+                    .ok_or_else(|| Error::TransactionBalanceUnderflow)?
+            };
+
+            // Next transaction ID
+            let txn_id = state.transaction_next_id;
+            let txn_next_id = txn_id
+                .checked_add(1)
+                .ok_or_else(|| Error::TransactionIdOverflow)?;
+
+            // Update memory state
+            transaction_mutation
+                .utxo_removals
+                .into_iter()
+                .for_each(|out_ptr| {
+                    state.utxo_set.remove(&out_ptr);
+                    db_utxo_set.remove(&out_ptr);
+                });
+            transaction_mutation
+                .utxo_inserts
+                .into_iter()
+                .for_each(|(out_ptr, key_balance)| {
+                    state.utxo_set.insert(out_ptr.clone(), key_balance.clone());
+                    db_utxo_set.insert(out_ptr, key_balance);
+                });
+            state.transaction_next_id = txn_next_id;
+            state.balance = new_balance;
+
+            // DB write batch
+            let mut batch = self.db.batch();
+            let txn_hash = txn.hash();
+
+            // Transaction data
+            batch.put(
+                &keys::transaction_value(account, txn_id),
+                transaction_mutation.txn_balance,
+            )?;
+            batch.put(
+                keys::transaction_type(account, txn_id),
+                model::TransactionType::try_from(txn).map_err(|error| {
+                    repository::error::Error::UnsupportedTransactionType(error.0)
+                })?,
+            )?;
+            batch.put(
+                keys::transaction_timestamp(account, txn_id),
+                convert_block_epoch_to_timestamp(block_info.epoch),
+            )?;
+            batch.put(keys::transaction_block(account, txn_id), block_info)?;
+
+            // Transaction indexes
+            batch.put(keys::transactions_index(txn_hash.as_ref()), txn_id)?;
+            batch.put(keys::transaction_hash(account, txn_id), txn_hash.as_ref())?;
+
+            // Account state
+            batch.put(keys::account_balance(account), new_balance)?;
+            batch.put(keys::account_utxo_set(account), db_utxo_set)?;
+            batch.put(keys::transaction_next_id(account), txn_next_id)?;
+
+            self.db.write(batch)?;
+        }
+
+        Ok(())
+    }
+
+    fn _check_txn_balance(
+        &self,
+        utxo_set: &model::UtxoSet,
+        txn_hash: &[u8],
+        inputs: &[types::TransactionInput],
+        outputs: &[types::VttOutput],
+    ) -> Result<TransactionMutation> {
+        let mut utxo_removals: Vec<model::OutPtr> = vec![];
+        let mut utxo_inserts: Vec<(model::OutPtr, model::KeyBalance)> = vec![];
 
         let mut input_amount: u64 = 0;
-        for input in txn.inputs.iter() {
+        for input in inputs.iter() {
             let out_ptr: model::OutPtr = input.output_pointer().into();
 
-            if let Some(model::KeyBalance { amount, .. }) = state.utxo_set.remove(&out_ptr) {
-                db_utxo_set.remove(&out_ptr);
+            if let Some(model::KeyBalance { amount, .. }) = utxo_set.get(&out_ptr) {
                 input_amount = input_amount
-                    .checked_add(amount)
+                    .checked_add(*amount)
                     .ok_or_else(|| Error::TransactionBalanceOverflow)?;
+                utxo_removals.push(out_ptr);
             }
         }
 
         let mut output_amount: u64 = 0;
-        for (index, output) in txn.outputs.iter().enumerate() {
+        for (index, output) in outputs.iter().enumerate() {
             if let Some(model::Path { .. }) = self.db.get_opt(&keys::pkh(&output.pkh))? {
+                let out_ptr = model::OutPtr {
+                    txn_hash: txn_hash.to_vec(),
+                    output_index: index as u32,
+                };
+                let key_balance = model::KeyBalance {
+                    pkh: output.pkh,
+                    amount: output.value,
+                };
+                output_amount = output_amount
+                    .checked_add(output.value)
+                    .ok_or_else(|| Error::TransactionBalanceOverflow)?;
+
                 let address = output.pkh.bech32(if self.params.testnet {
                     Environment::Testnet1
                 } else {
                     Environment::Mainnet
                 });
-                let key_balance = model::KeyBalance {
-                    pkh: output.pkh,
-                    amount: output.value,
-                };
-
-                let out_ptr = model::OutPtr {
-                    txn_hash: Vec::from(txn_hash),
-                    output_index: index as u32,
-                };
-
-                match db_utxo_set.insert(out_ptr.clone(), key_balance.clone()) {
-                    Some(_) => {
-                        log::warn!(
-                            "Found an already existing transaction to our address {}! Output pointer: {:?}",
-                            address,
-                            out_ptr
-                        );
-                    }
-                    _ => {
-                        log::info!(
-                            "Found transaction to our address {}! Amount: +{} nanowits",
-                            address,
-                            output.value
-                        );
-                    }
-                }
-                state.utxo_set.insert(out_ptr, key_balance);
-
-                output_amount = output_amount
-                    .checked_add(output.value)
-                    .ok_or_else(|| Error::TransactionBalanceOverflow)?;
+                log::warn!(
+                    "Found transaction to our address {}! Amount: +{} nanowits",
+                    address,
+                    output.value
+                );
+                utxo_inserts.push((out_ptr, key_balance));
             }
         }
 
@@ -585,50 +681,11 @@ where
         let txn_balance =
             i64::try_from(txn_balance).map_err(|_| Error::TransactionBalanceOverflow)?;
 
-        if txn_balance != 0 {
-            let new_balance = if txn_balance > 0 {
-                state
-                    .balance
-                    .checked_add(txn_balance.abs() as u64)
-                    .ok_or_else(|| Error::TransactionBalanceOverflow)?
-            } else {
-                state
-                    .balance
-                    .checked_sub(txn_balance.abs() as u64)
-                    .ok_or_else(|| Error::TransactionBalanceUnderflow)?
-            };
-
-            let txn_id = state.transaction_next_id;
-            let txn_next_id = txn_id
-                .checked_add(1)
-                .ok_or_else(|| Error::TransactionIdOverflow)?;
-
-            let mut batch = self.db.batch();
-
-            batch.put(&keys::transaction_value(account, txn_id), txn_balance)?;
-            batch.put(
-                keys::transaction_type(account, txn_id),
-                model::TransactionType::ValueTransfer,
-            )?;
-            batch.put(
-                keys::transaction_timestamp(account, txn_id),
-                convert_block_epoch_to_timestamp(block.epoch),
-            )?;
-            batch.put(keys::transaction_block(account, txn_id), block)?;
-
-            batch.put(keys::account_balance(account), new_balance)?;
-            batch.put(keys::account_utxo_set(account), db_utxo_set)?;
-            batch.put(keys::transaction_next_id(account), txn_next_id)?;
-            batch.put(keys::transactions_index(txn_hash), txn_id)?;
-            batch.put(keys::transaction_hash(account, txn_id), txn_hash)?;
-
-            self.db.write(batch)?;
-
-            state.transaction_next_id = txn_next_id;
-            state.balance = new_balance;
-        }
-
-        Ok(())
+        Ok(TransactionMutation {
+            txn_balance,
+            utxo_removals,
+            utxo_inserts,
+        })
     }
 
     fn _gen_external_address(

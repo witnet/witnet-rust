@@ -221,7 +221,7 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         block: &model::BlockInfo,
-        txns: &[types::VTTransactionBody],
+        txns: &[types::Transaction],
     ) -> Result<()> {
         wallet.index_transactions(block, txns)?;
 
