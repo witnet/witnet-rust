@@ -58,6 +58,13 @@ pub fn transaction_id() -> types::TransactionId {
     types::TransactionId::SHA256(bytes)
 }
 
+pub fn vtt_from_body(body: types::VTTransactionBody) -> types::Transaction {
+    types::Transaction::ValueTransfer(VTTransaction {
+        body,
+        signatures: vec![],
+    })
+}
+
 #[derive(Default)]
 pub struct Input {
     transaction_id: Option<types::TransactionId>,

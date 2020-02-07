@@ -1,8 +1,10 @@
 use std::{collections::HashMap, iter::FromIterator as _, mem};
 
 use super::*;
+use crate::repository::wallet::tests::factories::vtt_from_body;
 use crate::types::Hashable;
 use crate::*;
+use witnet_data_structures::transaction::VTTransaction;
 
 mod factories;
 
@@ -610,9 +612,11 @@ fn test_index_transaction_output_affects_balance() {
         .with_pkh(address.pkh)
         .with_value(value)
         .create()];
-    let txn = types::VTTransactionBody::new(inputs, outputs);
+    let body = types::VTTransactionBody::new(inputs, outputs);
 
-    wallet.index_transactions(&block, &[txn]).unwrap();
+    wallet
+        .index_transactions(&block, &[vtt_from_body(body)])
+        .unwrap();
 
     assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
 }
@@ -652,8 +656,12 @@ fn test_index_transaction_input_affects_balance() {
             .create()],
     );
 
-    wallet.index_transactions(&a_block, &[txn1]).unwrap();
-    wallet.index_transactions(&a_block, &[txn2]).unwrap();
+    wallet
+        .index_transactions(&a_block, &[vtt_from_body(txn1)])
+        .unwrap();
+    wallet
+        .index_transactions(&a_block, &[vtt_from_body(txn2)])
+        .unwrap();
 
     assert_eq!(1, db.get::<_, u64>(&keys::account_balance(0)).unwrap());
 }
@@ -679,8 +687,12 @@ fn test_index_transaction_does_not_duplicate_transactions() {
         .create()];
     let txn = types::VTTransactionBody::new(inputs, outputs);
 
-    wallet.index_transactions(&block, &[txn.clone()]).unwrap();
-    wallet.index_transactions(&block, &[txn]).unwrap();
+    wallet
+        .index_transactions(&block, &[factories::vtt_from_body(txn.clone())])
+        .unwrap();
+    wallet
+        .index_transactions(&block, &[factories::vtt_from_body(txn)])
+        .unwrap();
 
     assert_eq!(
         1,
@@ -708,7 +720,9 @@ fn test_index_transaction_errors_if_balance_overflow() {
     ];
     let txn = types::VTTransactionBody::new(inputs, outputs);
 
-    let err = wallet.index_transactions(&block, &[txn]).unwrap_err();
+    let err = wallet
+        .index_transactions(&block, &[factories::vtt_from_body(txn)])
+        .unwrap_err();
 
     assert_eq!(
         mem::discriminant(&repository::Error::TransactionBalanceOverflow),
@@ -728,13 +742,13 @@ fn test_index_transaction_vtt_created_by_wallet() {
     wallet
         .index_transactions(
             &a_block,
-            &[types::VTTransactionBody::new(
+            &[factories::vtt_from_body(types::VTTransactionBody::new(
                 vec![factories::Input::default().create()],
                 vec![factories::VttOutput::default()
                     .with_pkh(our_address.pkh)
                     .with_value(2)
                     .create()],
-            )],
+            ))],
         )
         .unwrap();
 
@@ -756,7 +770,9 @@ fn test_index_transaction_vtt_created_by_wallet() {
     );
 
     // index another block confirming the previously created vtt
-    wallet.index_transactions(&a_block, &[vtt.body]).unwrap();
+    wallet
+        .index_transactions(&a_block, &[factories::vtt_from_body(vtt.body)])
+        .unwrap();
 
     // check that indeed, the previously created vtt now has a block associated with it
     assert_eq!(
@@ -825,13 +841,13 @@ fn test_get_transaction() {
     wallet
         .index_transactions(
             &a_block,
-            &[types::VTTransactionBody::new(
+            &[factories::vtt_from_body(types::VTTransactionBody::new(
                 vec![factories::Input::default().create()],
                 vec![factories::VttOutput::default()
                     .with_pkh(our_address.pkh)
                     .with_value(2)
                     .create()],
-            )],
+            ))],
         )
         .unwrap();
 
@@ -851,6 +867,8 @@ fn test_get_transaction() {
     assert!(wallet.get_transaction(0, 1).is_err());
 
     // index another block confirming the previously created vtt
-    wallet.index_transactions(&a_block, &[vtt.body]).unwrap();
+    wallet
+        .index_transactions(&a_block, &[factories::vtt_from_body(vtt.body)])
+        .unwrap();
     assert!(wallet.get_transaction(0, 1).is_ok());
 }
