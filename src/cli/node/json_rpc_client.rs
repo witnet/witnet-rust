@@ -20,7 +20,7 @@ use witnet_data_structures::chain::{
 use witnet_data_structures::proto::ProtobufConvert;
 use witnet_node::actors::{json_rpc::json_rpc_methods::GetBlockChainParams, messages::BuildVtt};
 use witnet_rad::types::RadonTypes;
-use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
+use witnet_validations::validations::{validate_data_request_output, validate_rad_request, Wit};
 
 pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
@@ -84,7 +84,7 @@ pub fn get_balance(addr: SocketAddr, pkh: Option<PublicKeyHash>) -> Result<(), f
     log::info!("{}", response);
     let amount = parse_response::<u64>(&response)?;
 
-    println!("{}", amount);
+    println!("{} wits", Wit::from_nanowits(amount));
 
     Ok(())
 }
