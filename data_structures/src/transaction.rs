@@ -29,6 +29,19 @@ impl PartialEq for MemoHash {
     }
 }
 
+/// Forced implementation of `Sync` for `MemoHash`.
+///
+/// This is needed because `MemoHash::hash` is of type `Cell`, which in turn has constraint `!Sync`.
+///
+/// Putting `Cell` here gave us memoization through interior mutability. However, it prevented us
+/// from sharing any structure containing a MemoHash from being shared across threads.
+///
+/// This implementation restores the possibility of sharing this structure across threads with
+/// limited impact to thread safety, as the `Cell` itself is only set through calling
+/// `<T: MemoizedHashable>::hash`, which is a pure method. Therefore the maximum impact is a race
+/// condition in the case that `MemoHash::get` is called concurrently.
+unsafe impl Sync for MemoHash {}
+
 impl MemoHash {
     fn new() -> Self {
         Self {

@@ -468,7 +468,7 @@ impl App {
             .value_transfer_txns
             .into_iter()
             .map(types::Transaction::from);
-        let block_txns = dr_txns.chain(vtt_txns).collect::<Vec<types::Transaction>>();
+        let block_txns = Arc::new(dr_txns.chain(vtt_txns).collect::<Vec<types::Transaction>>());
 
         // Index block transactions on each wallet
         for (id, wallet) in self.state.wallets() {

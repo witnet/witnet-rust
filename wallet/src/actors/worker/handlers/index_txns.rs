@@ -2,12 +2,13 @@ use actix::prelude::*;
 
 use crate::actors::worker;
 use crate::{model, types};
+use std::sync::Arc;
 
 pub struct IndexTxns(
     /// Wallet id
     pub String,
     pub types::SessionWallet,
-    pub Vec<types::Transaction>,
+    pub Arc<Vec<types::Transaction>>,
     pub model::BlockInfo,
 );
 
