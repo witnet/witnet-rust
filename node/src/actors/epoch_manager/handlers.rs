@@ -6,7 +6,7 @@ use witnet_data_structures::chain::Epoch;
 
 use super::EpochManager;
 use crate::actors::{
-    epoch_manager::EpochConstants,
+    epoch_manager::{EpochConstants, EpochManagerError},
     messages::{EpochResult, GetEpoch, GetEpochConstants, SubscribeAll, SubscribeEpoch},
 };
 
@@ -23,11 +23,15 @@ impl Handler<GetEpoch> for EpochManager {
         checkpoint
             .as_ref()
             .map(|checkpoint| debug!("Asked for current epoch (#{})", checkpoint))
-            .unwrap_or_else(|error| {
-                error!(
+            .unwrap_or_else(|error| match error {
+                EpochManagerError::CheckpointZeroInTheFuture(_) => debug!(
                     "Failed to retrieve epoch when asked to. Error was: {:?}",
                     error
-                )
+                ),
+                _ => error!(
+                    "Failed to retrieve epoch when asked to. Error was: {:?}",
+                    error
+                ),
             });
         checkpoint
     }
