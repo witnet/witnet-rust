@@ -96,9 +96,9 @@ fn get_config(path: Option<PathBuf>) -> Result<config::config::Config, failure::
 }
 
 #[derive(Debug, StructOpt)]
-#[structopt(raw(max_term_width = "*TERM_WIDTH"))]
+#[structopt(max_term_width = *TERM_WIDTH)]
 pub struct Cli {
-    #[structopt(short = "c", long = "config", raw(help = "CONFIG_HELP"))]
+    #[structopt(short = "c", long = "config", help = CONFIG_HELP)]
     config: Option<PathBuf>,
     /// Turn on DEBUG logging.
     #[structopt(long = "debug")]

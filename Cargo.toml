@@ -28,14 +28,14 @@ directories = "2.0.2"
 env_logger = "0.7.1"
 failure = "0.1.6"
 futures03 = { package = "futures", version = "0.3.1" }
-hex = "0.4.0"
-itertools = "0.8.0"
+hex = "0.4.1"
+itertools = "0.8.2"
 lazy_static = "1.4.0"
 log = "0.4.8"
-serde_json = "1.0.41"
-structopt = "0.2.14"
-terminal_size = "0.1.8"
-toml = "0.5.3"
+serde_json = "1.0.47"
+structopt = "0.3.9"
+terminal_size = "0.1.10"
+toml = "0.5.6"
 webbrowser = "0.5.2"
 
 witnet_config = { path = "./config" }
@@ -47,7 +47,7 @@ witnet_wallet = { path = "./wallet", optional = true }
 
 [dependencies.serde]
 features = ["derive"]
-version = "1.0.101"
+version = "1.0.104"
 
 [profile.dev]
 opt-level = 0

@@ -11,4 +11,4 @@ with-serde = ["serde"]
 
 [dependencies]
 memzero = "0.1.0"
-serde = { version = "1.0.101", optional = true }
+serde = { version = "1.0.104", optional = true }

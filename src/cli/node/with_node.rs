@@ -227,7 +227,7 @@ pub struct ConfigParams {
     /// Period of the bootstrap peers task (in seconds).
     #[structopt(long = "peers-period")]
     bootstrap_peers_period_seconds: Option<u64>,
-    #[structopt(long = "db", raw(help = "NODE_DB_HELP"))]
+    #[structopt(long = "db", help = NODE_DB_HELP)]
     db: Option<std::path::PathBuf>,
 }
 

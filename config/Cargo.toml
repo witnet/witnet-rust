@@ -15,8 +15,8 @@ failure = "0.1.6"
 log = "0.4.8"
 partial_struct = { path = "../partial_struct" }
 rocksdb = { version = "0.13.0", optional = true }
-serde = { version = "1.0.101", features = ["derive"] }
-toml = "0.5.3"
+serde = { version = "1.0.104", features = ["derive"] }
+toml = "0.5.6"
 
 witnet_crypto = { path = "../crypto", features = ["with-serde"] }
 witnet_data_structures = { path = "../data_structures" }

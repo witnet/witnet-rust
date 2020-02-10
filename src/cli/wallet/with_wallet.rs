@@ -68,7 +68,7 @@ pub struct ConfigParams {
     /// Socket address of the Witnet node to query.
     #[structopt(short = "n", long = "node")]
     node: Option<String>,
-    #[structopt(long = "db", raw(help = "WALLET_DB_HELP"))]
+    #[structopt(long = "db", help = WALLET_DB_HELP)]
     db: Option<std::path::PathBuf>,
     /// Milliseconds after outgoing requests should time out.
     #[structopt(long = "timeout")]
