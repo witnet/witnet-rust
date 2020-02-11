@@ -80,7 +80,7 @@ impl ChainManager {
             .reputation_engine
             .as_ref()
             .unwrap()
-            .ars
+            .ars()
             .active_identities_number() as u32;
 
         let current_epoch = self.current_epoch.unwrap();
@@ -230,14 +230,14 @@ impl ChainManager {
             .get_dr_output_pointers_by_epoch(current_epoch);
 
         let rep_eng = self.chain_state.reputation_engine.as_ref().unwrap();
-        let my_reputation = rep_eng.trs.get(&own_pkh);
-        let total_active_reputation = rep_eng.trs.get_sum(rep_eng.ars.active_identities());
-        let num_active_identities = rep_eng.ars.active_identities_number() as u32;
+        let my_reputation = rep_eng.trs().get(&own_pkh).0 + 1;
+        let total_active_reputation = rep_eng.total_active_reputation();
+        let num_active_identities = rep_eng.ars().active_identities_number() as u32;
         log::debug!("{} data requests for this epoch", dr_pointers.len());
         log::debug!(
             "Reputation: {}, total: {}, active identities: {}",
-            my_reputation.0,
-            total_active_reputation.0,
+            my_reputation,
+            total_active_reputation,
             num_active_identities,
         );
 
@@ -255,6 +255,10 @@ impl ChainManager {
                 checkpoint: current_epoch,
                 ..beacon
             };
+
+            let (target_hash, probability) =
+                calculate_reppoe_threshold(rep_eng, &own_pkh, num_witnesses + num_backup_witnesses);
+
             signature_mngr::vrf_prove(VrfMessage::data_request(dr_beacon, dr_pointer))
                 .map_err(move |e| {
                     log::error!(
@@ -265,12 +269,6 @@ impl ChainManager {
                 })
                 .map(move |(vrf_proof, vrf_proof_hash)| {
                     // invalid: vrf_hash > target_hash
-                    let (target_hash, probability) = calculate_reppoe_threshold(
-                        my_reputation,
-                        total_active_reputation,
-                        num_witnesses + num_backup_witnesses,
-                        num_active_identities,
-                    );
                     let proof_invalid = vrf_proof_hash > target_hash;
 
                     log::debug!(

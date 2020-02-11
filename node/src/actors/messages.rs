@@ -236,7 +236,7 @@ pub struct GetReputationStatusResult {
     /// Number of active identities
     pub num_active_identities: u32,
     /// Total active reputation
-    pub total_active_reputation: Reputation,
+    pub total_active_reputation: u64,
 }
 
 impl Message for GetReputationStatus {

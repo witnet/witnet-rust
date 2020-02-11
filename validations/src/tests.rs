@@ -1766,10 +1766,10 @@ fn test_commit_difficult_proof() {
     let mut rep_eng = ReputationEngine::new(100);
     let rep_pkh = PublicKeyHash::default();
     rep_eng
-        .trs
+        .trs_mut()
         .gain(Alpha(1000), vec![(rep_pkh, Reputation(1_023))])
         .unwrap();
-    rep_eng.ars.push_activity(vec![rep_pkh]);
+    rep_eng.ars_mut().push_activity(vec![rep_pkh]);
 
     let dro = DataRequestOutput {
         witness_reward: 1000,
@@ -3449,7 +3449,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         &b,
         current_epoch,
         &mut signatures_to_verify,
-        rep_eng.ars.active_identities_number() as u32,
+        rep_eng.ars().active_identities_number() as u32,
         mining_bf,
     )?;
     verify_signatures_test(signatures_to_verify)?;
@@ -3620,7 +3620,7 @@ fn block_difficult_proof() {
     // Create a reputation engine with 512 identities
     let mut rep_eng = ReputationEngine::new(100);
     rep_eng
-        .ars
+        .ars_mut()
         .push_activity((0..512).map(|x| PublicKeyHash::from_hex(&format!("{:040}", x)).unwrap()));
     let mut utxo_set = UnspentOutputsPool::default();
     // Insert output to utxo
@@ -3678,7 +3678,7 @@ fn block_difficult_proof() {
                 &b,
                 current_epoch,
                 &mut signatures_to_verify,
-                rep_eng.ars.active_identities_number() as u32,
+                rep_eng.ars().active_identities_number() as u32,
                 mining_bf,
             )?;
             verify_signatures_test(signatures_to_verify)?;
@@ -4195,7 +4195,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &b,
             current_epoch,
             &mut signatures_to_verify,
-            rep_eng.ars.active_identities_number() as u32,
+            rep_eng.ars().active_identities_number() as u32,
             mining_bf,
         )?;
         verify_signatures_test(signatures_to_verify)?;

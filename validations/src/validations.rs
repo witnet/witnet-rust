@@ -654,16 +654,8 @@ pub fn validate_commit_transaction(
     }
 
     let pkh = co_tx.body.proof.proof.pkh();
-    let my_reputation = rep_eng.trs.get(&pkh);
-    let total_active_reputation = rep_eng.trs.get_sum(rep_eng.ars.active_identities());
     let num_witnesses = dr_output.witnesses + dr_output.backup_witnesses;
-    let num_active_identities = rep_eng.ars.active_identities_number() as u32;
-    let (target_hash, _) = calculate_reppoe_threshold(
-        my_reputation,
-        total_active_reputation,
-        num_witnesses,
-        num_active_identities,
-    );
+    let (target_hash, _) = calculate_reppoe_threshold(rep_eng, &pkh, num_witnesses);
     add_dr_vrf_signature_to_verify(
         signatures_to_verify,
         &co_tx.body.proof,
@@ -1274,7 +1266,7 @@ pub fn validate_block(
         }
         .into())
     } else {
-        let total_identities = rep_eng.ars.active_identities_number() as u32;
+        let total_identities = rep_eng.ars().active_identities_number() as u32;
         let (target_hash, _) = calculate_randpoe_threshold(total_identities, mining_bf);
 
         add_block_vrf_signature_to_verify(
@@ -1387,29 +1379,24 @@ pub fn calculate_randpoe_threshold(total_identities: u32, replication_factor: u3
 }
 
 pub fn calculate_reppoe_threshold(
-    my_reputation: Reputation,
-    total_active_reputation: Reputation,
+    rep_eng: &ReputationEngine,
+    pkh: &PublicKeyHash,
     num_witnesses: u16,
-    num_active_identities: u32,
 ) -> (Hash, f64) {
+    let my_reputation = rep_eng.trs().get(pkh);
+    let total_active_rep = rep_eng.total_active_reputation();
+
     // Add 1 to reputation because otherwise a node with 0 reputation would
     // never be eligible for a data request
     let my_reputation = u64::from(my_reputation.0) + 1;
-
-    // Add N to the total active reputation to account for the +1 to my_reputation
-    // This is equivalent to adding 1 reputation to every active identity
-    let total_active_reputation =
-        u64::from(total_active_reputation.0) + u64::from(num_active_identities);
-
-    // The probability of being eligible is `factor / total_active_reputation`
-    let factor = u64::from(num_witnesses) * my_reputation;
+    let factor = u64::from(rep_eng.threshold_factor(num_witnesses));
 
     let max = u64::max_value();
     // Check for overflow: when the probability is more than 100%, cap it to 100%
-    let target = if factor >= total_active_reputation {
+    let target = if my_reputation.saturating_mul(factor) >= total_active_rep {
         max
     } else {
-        (max / total_active_reputation) * factor
+        (max / total_active_rep) * my_reputation.saturating_mul(factor)
     };
     let target = (target >> 32) as u32;
 
@@ -1828,7 +1815,10 @@ pub fn verify_signatures(
 mod tests {
     use super::*;
 
-    use witnet_data_structures::{chain::SecretKey, radon_error::RadonError};
+    use witnet_data_structures::{
+        chain::{Alpha, SecretKey},
+        radon_error::RadonError,
+    };
     use witnet_protected::Protected;
     use witnet_rad::types::{float::RadonFloat, integer::RadonInteger};
 
@@ -2061,102 +2051,223 @@ mod tests {
 
     #[test]
     fn target_reppoe() {
+        let mut rep_engine = ReputationEngine::new(1000);
+        let id1 = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(id1, Reputation(50))])
+            .unwrap();
+        rep_engine.ars_mut().push_activity(vec![id1]);
+
         // 100% when we have all the reputation
-        let (t00, p00) = calculate_reppoe_threshold(Reputation(50), Reputation(50), 1, 1);
+        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id1, 1);
         assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!(p00.round() as i128, 100);
 
+        let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(id2, Reputation(50))])
+            .unwrap();
+        rep_engine.ars_mut().push_activity(vec![id2]);
+
         // 50% when there are 2 nodes with 50% of the reputation each
-        let (t01, p01) = calculate_reppoe_threshold(Reputation(1), Reputation(2), 1, 2);
+        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id1, 1);
         // Since the calculate_reppoe function first divides and later
         // multiplies, we get a rounding error here
         assert_eq!(t01, Hash::with_first_u32(0x7FFF_FFFF));
         assert_eq!(p01.round() as i128, 50);
+    }
 
-        // 10 identities with 100 total reputation but 10 witnesses for the data request:
-        // 10 * (10 + 1) / (100 + 10) = 100%
-        let (t02, p02) = calculate_reppoe_threshold(Reputation(10), Reputation(100), 10, 10);
-        assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
-        assert_eq!(p02.round() as i128, 100);
+    #[test]
+    #[allow(clippy::cognitive_complexity)]
+    fn target_reppoe_specific_example() {
+        let mut rep_engine = ReputationEngine::new(1000);
+        let mut ids = vec![];
+        for i in 0..8 {
+            ids.push(PublicKeyHash::from_bytes(&[i; 20]).unwrap());
+        }
+        rep_engine.ars_mut().push_activity(ids.clone());
 
-        // 10 identities with 100 total reputation but 10 witnesses for the data request:
-        // 1 * (50 + 1) / (100 + 10) ~= 46%
-        let (t03, p03) = calculate_reppoe_threshold(Reputation(50), Reputation(100), 1, 10);
-        assert_eq!(t03, Hash::with_first_u32(0x76B0_DF6B));
-        assert_eq!(p03.round() as i128, 46);
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[0], Reputation(79))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[1], Reputation(9))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[2], Reputation(1))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[3], Reputation(1))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[4], Reputation(1))])
+            .unwrap();
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(ids[5], Reputation(1))])
+            .unwrap();
+
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 1);
+        assert_eq!(p00.round() as i128, 80);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 1);
+        assert_eq!(p00.round() as i128, 10);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 1);
+        assert_eq!(p00.round() as i128, 2);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 1);
+        assert_eq!(p00.round() as i128, 2);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 1);
+        assert_eq!(p00.round() as i128, 2);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 1);
+        assert_eq!(p00.round() as i128, 2);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 1);
+        assert_eq!(p00.round() as i128, 1);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 1);
+        assert_eq!(p00.round() as i128, 1);
+
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 2);
+        assert_eq!(p00.round() as i128, 100);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 2);
+        assert_eq!(p00.round() as i128, 50);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 2);
+        assert_eq!(p00.round() as i128, 10);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 2);
+        assert_eq!(p00.round() as i128, 10);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 2);
+        assert_eq!(p00.round() as i128, 10);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 2);
+        assert_eq!(p00.round() as i128, 10);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 2);
+        assert_eq!(p00.round() as i128, 5);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 2);
+        assert_eq!(p00.round() as i128, 5);
+
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 3);
+        assert_eq!(p00.round() as i128, 100);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 3);
+        assert_eq!(p00.round() as i128, 100);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 3);
+        assert_eq!(p00.round() as i128, 20);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 3);
+        assert_eq!(p00.round() as i128, 20);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 3);
+        assert_eq!(p00.round() as i128, 20);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 3);
+        assert_eq!(p00.round() as i128, 20);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 3);
+        assert_eq!(p00.round() as i128, 10);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 3);
+        assert_eq!(p00.round() as i128, 10);
+
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 4);
+        assert_eq!(p00.round() as i128, 100);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 4);
+        assert_eq!(p00.round() as i128, 100);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 4);
+        assert_eq!(p00.round() as i128, 40);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 4);
+        assert_eq!(p00.round() as i128, 40);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 4);
+        assert_eq!(p00.round() as i128, 40);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 4);
+        assert_eq!(p00.round() as i128, 40);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 4);
+        assert_eq!(p00.round() as i128, 20);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 4);
+        assert_eq!(p00.round() as i128, 20);
+
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[0], 5);
+        assert_eq!(p00.round() as i128, 100);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[1], 5);
+        assert_eq!(p00.round() as i128, 100);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[2], 5);
+        assert_eq!(p00.round() as i128, 60);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[3], 5);
+        assert_eq!(p00.round() as i128, 60);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[4], 5);
+        assert_eq!(p00.round() as i128, 60);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[5], 5);
+        assert_eq!(p00.round() as i128, 60);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[6], 5);
+        assert_eq!(p00.round() as i128, 30);
+        let (_, p00) = calculate_reppoe_threshold(&rep_engine, &ids[7], 5);
+        assert_eq!(p00.round() as i128, 30);
     }
 
     #[test]
     fn target_reppoe_zero_reputation() {
         // Test the behavior of the algorithm when our node has 0 reputation
+        let mut rep_engine = ReputationEngine::new(1000);
+        let id0 = PublicKeyHash::from_bytes(&[0; 20]).unwrap();
 
         // 100% when the total reputation is 0
-        let (t00, p00) = calculate_reppoe_threshold(Reputation(0), Reputation(0), 1, 0);
+        let (t00, p00) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
         assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!(p00.round() as i128, 100);
-        let (t01, p01) = calculate_reppoe_threshold(Reputation(0), Reputation(0), 100, 0);
+        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 100);
         assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!(p01.round() as i128, 100);
-        let (t02, p02) = calculate_reppoe_threshold(Reputation(0), Reputation(0), 1, 1);
+
+        let id1 = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
+        rep_engine.ars_mut().push_activity(vec![id1]);
+        let (t02, p02) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
         assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFF));
         assert_eq!(p02.round() as i128, 100);
 
         // 50% when the total reputation is 1
-        let (t03, p03) = calculate_reppoe_threshold(Reputation(0), Reputation(1), 1, 1);
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(id1, Reputation(1))])
+            .unwrap();
+        let (t03, p03) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
         assert_eq!(t03, Hash::with_first_u32(0x7FFF_FFFF));
         assert_eq!(p03.round() as i128, 50);
 
         // 33% when the total reputation is 1 but there are 2 active identities
-        let (t04, p04) = calculate_reppoe_threshold(Reputation(0), Reputation(1), 1, 2);
+        let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
+        rep_engine.ars_mut().push_activity(vec![id2]);
+        let (t04, p04) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
         assert_eq!(t04, Hash::with_first_u32(0x5555_5555));
         assert_eq!(p04.round() as i128, 33);
 
         // 10 identities with 100 total reputation: 1 / (100 + 10) ~= 0.9%
-        let (t05, p05) = calculate_reppoe_threshold(Reputation(0), Reputation(100), 1, 10);
+        for i in 3..=10 {
+            rep_engine
+                .ars_mut()
+                .push_activity(vec![PublicKeyHash::from_bytes(&[i; 20]).unwrap()]);
+        }
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(id1, Reputation(99))])
+            .unwrap();
+        let (t05, p05) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
         assert_eq!(t05, Hash::with_first_u32(0x0253_C825));
         assert_eq!(p05.round() as i128, 1);
-
-        // 10 identities with 100 total reputation but 10 witnesses for the data request:
-        // 10 * 1 / (100 + 10) ~= 9%
-        let (t06, p06) = calculate_reppoe_threshold(Reputation(0), Reputation(100), 10, 10);
-        assert_eq!(t06, Hash::with_first_u32(0x1745_D174));
-        assert_eq!(p06.round() as i128, 9);
-
-        // 10_000 identities with 10_000 total reputation but 10 witnesses for the data request:
-        // 10 * 1 / (10000 + 100) ~= 0.099%
-        let (t07, p07) = calculate_reppoe_threshold(Reputation(0), Reputation(10_000), 10, 100);
-        assert_eq!(t07, Hash::with_first_u32(0x0040_E31A));
-        assert_eq!(p07.round() as i128, 0);
     }
 
     #[test]
     fn reppoe_overflow() {
-        // 2^16 reputation, 2^17 total reputation, 2^15 witnesses
-        let (t00, p00) =
-            calculate_reppoe_threshold(Reputation(1 << 16), Reputation(1 << 17), 1 << 15, 16);
-        assert_eq!(t00, Hash::with_first_u32(0xFFFF_FFFF));
-        assert_eq!(p00.round() as i128, 100);
-
-        // Test with max value for each argument
-        let (t01, p01) = calculate_reppoe_threshold(
-            Reputation(u32::max_value()),
-            Reputation(u32::max_value()),
-            u16::max_value(),
-            u32::max_value(),
-        );
-        assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFF));
-        assert_eq!(p01.round() as i128, 100);
+        // Test the behavior of the algorithm when our node has 0 reputation
+        let mut rep_engine = ReputationEngine::new(1000);
+        let id0 = PublicKeyHash::from_bytes(&[0; 20]).unwrap();
+        let id1 = PublicKeyHash::from_bytes(&[1; 20]).unwrap();
+        rep_engine.ars_mut().push_activity(vec![id0]);
+        rep_engine.ars_mut().push_activity(vec![id1]);
+        rep_engine
+            .trs_mut()
+            .gain(Alpha(10), vec![(id0, Reputation(u32::max_value() - 2))])
+            .unwrap();
 
         // Test big values that result in < 100%
-        let (t02, p02) = calculate_reppoe_threshold(
-            Reputation(u32::max_value() - 2),
-            Reputation(u32::max_value()),
-            2,
-            u32::max_value(),
-        );
-        assert_eq!(t02, Hash::with_first_u32(0xFFFF_FFFE));
-        // Actually 99.99999997671694%
-        assert_eq!(p02.round() as i128, 100);
+        let (t01, p01) = calculate_reppoe_threshold(&rep_engine, &id0, 1);
+        assert_eq!(t01, Hash::with_first_u32(0xFFFF_FFFE));
+        assert_eq!(p01.round() as i128, 100);
     }
 
     #[test]

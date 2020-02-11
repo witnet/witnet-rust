@@ -140,7 +140,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     }
                     // Decide the best candidate
                     let target_vrf_slots = VrfSlots::from_rf(
-                        rep_engine.ars.active_identities_number() as u32,
+                        rep_engine.ars().active_identities_number() as u32,
                         chain_info.consensus_constants.mining_replication_factor,
                         chain_info.consensus_constants.mining_backup_factor,
                     );
@@ -148,7 +148,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     let mut chosen_candidate = None;
                     for (key, (block_candidate, vrf_proof)) in self.candidates.drain() {
                         let block_pkh = &block_candidate.block_sig.public_key.pkh();
-                        let reputation = rep_engine.trs.get(block_pkh);
+                        let reputation = rep_engine.trs().get(block_pkh);
 
                         if let Some((chosen_key, chosen_reputation, chosen_vrf_proof, _, _)) =
                             chosen_candidate
@@ -183,7 +183,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         ) {
                             Ok(utxo_diff) => {
                                 let block_pkh = &block_candidate.block_sig.public_key.pkh();
-                                let reputation = rep_engine.trs.get(block_pkh);
+                                let reputation = rep_engine.trs().get(block_pkh);
                                 chosen_candidate =
                                     Some((key, reputation, vrf_proof, block_candidate, utxo_diff))
                             }
@@ -203,7 +203,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         );
 
                         // Update ActiveReputationSet in case of epochs without blocks
-                        if let Err(e) = rep_engine.ars.update(vec![], previous_epoch) {
+                        if let Err(e) = rep_engine.ars_mut().update(vec![], previous_epoch) {
                             log::error!("Error updating empty reputation with no blocks: {}", e);
                         }
                     }
@@ -311,7 +311,7 @@ impl Handler<AddBlocks> for ChainManager {
                             let block_epoch = block.block_header.beacon.checkpoint;
 
                             if let Some(ref mut rep_engine) = self.chain_state.reputation_engine {
-                                if let Err(e) = rep_engine.ars.update_empty(block_epoch) {
+                                if let Err(e) = rep_engine.ars_mut().update_empty(block_epoch) {
                                     log::error!(
                                         "Error updating reputation before processing block: {}",
                                         e
@@ -838,7 +838,7 @@ impl Handler<GetReputation> for ChainManager {
             None => return Err(ChainManagerError::ChainNotReady.into()),
         };
 
-        Ok((rep_eng.trs.get(&pkh), rep_eng.ars.contains(&pkh)))
+        Ok((rep_eng.trs().get(&pkh), rep_eng.ars().contains(&pkh)))
     }
 }
 
@@ -856,9 +856,9 @@ impl Handler<GetReputationAll> for ChainManager {
         };
 
         Ok(rep_eng
-            .trs
+            .trs()
             .identities()
-            .map(|(k, v)| (*k, (*v, rep_eng.ars.contains(k))))
+            .map(|(k, v)| (*k, (*v, rep_eng.ars().contains(k))))
             .collect())
     }
 }
@@ -875,8 +875,8 @@ impl Handler<GetReputationStatus> for ChainManager {
             None => return Err(ChainManagerError::ChainNotReady.into()),
         };
 
-        let num_active_identities = rep_eng.ars.active_identities_number() as u32;
-        let total_active_reputation = rep_eng.trs.get_sum(rep_eng.ars.active_identities());
+        let num_active_identities = rep_eng.ars().active_identities_number() as u32;
+        let total_active_reputation = rep_eng.total_active_reputation();
 
         Ok(GetReputationStatusResult {
             num_active_identities,

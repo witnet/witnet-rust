@@ -117,7 +117,7 @@ pub fn get_reputation(
         println!("Total Reputation: {{");
         for (pkh, (rep, active)) in rep_map
             .into_iter()
-            .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
+            .sorted_by_key(|&(_, (r, _))| std::cmp::Reverse(r))
         {
             let active = if active { 'A' } else { ' ' };
             println!("    [{}] {}: {}", active, pkh, rep.0);

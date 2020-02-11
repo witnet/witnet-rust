@@ -15,7 +15,7 @@ use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
 use witnet_data_structures::{
-    chain::{Block, CheckpointBeacon, Hash, PublicKeyHash, Reputation},
+    chain::{Block, CheckpointBeacon, Hash, PublicKeyHash},
     transaction::Transaction,
     vrf::VrfMessage,
 };
@@ -612,7 +612,7 @@ pub struct Status {
     num_peers_inbound: u32,
     num_peers_outbound: u32,
     num_active_identities: u32,
-    total_active_reputation: Reputation,
+    total_active_reputation: u64,
 }
 
 /// Get node status

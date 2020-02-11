@@ -277,7 +277,7 @@ impl ChainManager {
             self.current_epoch,
             self.epoch_constants,
             self.chain_state.chain_info.as_ref(),
-            self.chain_state.reputation_engine.as_mut(),
+            self.chain_state.reputation_engine.as_ref(),
             self.vrf_ctx.as_mut(),
             self.secp.as_ref(),
         ) {
@@ -314,7 +314,7 @@ impl ChainManager {
             self.secp.as_ref(),
         ) {
             let hash_block = block.hash();
-            let total_identities = rep_engine.ars.active_identities_number() as u32;
+            let total_identities = rep_engine.ars().active_identities_number() as u32;
 
             if !self.candidates.contains_key(&hash_block) {
                 let mining_bf = self
@@ -866,7 +866,7 @@ fn update_reputation(
     // Expire in old_alpha to maximize reputation lost in penalizations.
     // Example: we are in old_alpha 10000, new_alpha 5 and some reputation expires in
     // alpha 10002. This reputation will expire in the next epoch.
-    let expired_rep = rep_eng.trs.expire(&old_alpha);
+    let expired_rep = rep_eng.trs_mut().expire(&old_alpha);
     // There is some reputation issued for every witnessing act
     let issued_rep = reputation_issuance(
         Reputation(consensus_constants.reputation_issuance),
@@ -886,7 +886,7 @@ fn update_reputation(
         )
     });
     let penalized_rep = rep_eng
-        .trs
+        .trs_mut()
         .penalize_many(liars_and_penalize_function)
         .unwrap();
 
@@ -914,7 +914,7 @@ fn update_reputation(
         // All the reputation earned in this block will expire at the same time.
         let expire_alpha = Alpha(new_alpha.0 + consensus_constants.reputation_expire_alpha_diff);
         let honest_gain = honest.into_iter().map(|pkh| (pkh, Reputation(rep_reward)));
-        rep_eng.trs.gain(expire_alpha, honest_gain).unwrap();
+        rep_eng.trs_mut().gain(expire_alpha, honest_gain).unwrap();
 
         let gained_rep = Reputation(rep_reward * num_honest);
         reputation_bounty -= gained_rep;
@@ -943,7 +943,7 @@ fn update_reputation(
     // Update active reputation set
     // Add block miner pkh to active identities
     if let Err(e) = rep_eng
-        .ars
+        .ars_mut()
         .update(revealers.chain(vec![miner_pkh]), block_epoch)
     {
         log::error!("Error updating reputation in consolidation: {}", e);
@@ -951,16 +951,20 @@ fn update_reputation(
     log::log!(
         log_level,
         "Active users number: {}",
-        rep_eng.ars.active_identities_number()
+        rep_eng.ars().active_identities_number()
     );
 
     log::log!(log_level, "Total Reputation: {{");
     for (pkh, rep) in rep_eng
-        .trs
+        .trs()
         .identities()
-        .sorted_by(|a, b| a.0.to_string().cmp(&b.0.to_string()))
+        .sorted_by_key(|&(_, &r)| std::cmp::Reverse(r))
     {
-        let active = if rep_eng.ars.contains(pkh) { 'A' } else { ' ' };
+        let active = if rep_eng.ars().contains(pkh) {
+            'A'
+        } else {
+            ' '
+        };
         log::log!(log_level, "    [{}] {}: {}", active, pkh, rep.0);
     }
     log::log!(log_level, "}}");
