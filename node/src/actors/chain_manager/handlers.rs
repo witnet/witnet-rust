@@ -520,10 +520,11 @@ impl Handler<PeersBeacons> for ChainManager {
                     } else {
                         // Review candidates
                         let consensus_block_hash = consensus_beacon.hash_prev_block;
+                        let candidate = self.candidates.remove(&consensus_block_hash);
+                        // Clear candidates, as they are only valid for one epoch
+                        self.candidates.clear();
                         // TODO: Be functional my friend
-                        if let Some((consensus_block, _consensus_block_vrf_hash)) =
-                            self.candidates.remove(&consensus_block_hash)
-                        {
+                        if let Some((consensus_block, _consensus_block_vrf_hash)) = candidate {
                             match self.process_requested_block(ctx, &consensus_block) {
                                 Ok(()) => {
                                     log::info!("Consolidate consensus candidate. Synced state");
