@@ -75,7 +75,7 @@ fn init_logger(opts: LogOptions) {
             None
         })
         .format_module_path(opts.module_path)
-        .filter_level(log::LevelFilter::Info)
+        .filter_level(opts.level)
         .filter_module("witnet", opts.level)
         .init();
 }
