@@ -44,13 +44,13 @@ macro_rules! routes {
 /// Macro to add multiple JSON-RPC methods that forward the request to the Node at once
 macro_rules! forwarded_routes {
     ($io:expr, $api:expr $(,)?) => {};
-    ($io:expr, $api:expr, $method:expr, $($args:tt)*) => {
+    ($io:expr, $api:expr, ($method_wallet:expr, $method_node:expr), $($args:tt)*) => {
         {
             let api_addr = $api.clone();
-            $io.add_method($method, move |params: Params| {
-                log::debug!("Forwarding request for method: {}", $method);
+            $io.add_method($method_wallet, move |params: Params| {
+                log::debug!("Forwarding request for method: {}", $method_wallet);
                 let msg = ForwardRequest {
-                    method: $method.to_string(),
+                    method: $method_node.to_string(),
                     params
                 };
                 api_addr.send(msg)
@@ -75,7 +75,7 @@ pub fn connect_routes<T, S>(
 {
     handler.add_subscription(
         "notifications",
-        ("subscribeNotifications", {
+        ("subscribe_notifications", {
             let addr = api.clone();
             move |params: Params, _meta, subscriber: Subscriber| {
                 let addr_subscription_id = addr.clone();
@@ -124,7 +124,7 @@ pub fn connect_routes<T, S>(
                 system_arbiter.send(f);
             }
         }),
-        ("unsubscribeNotifications", {
+        ("unsubscribe_notifications", {
             let addr = api.clone();
             move |subscription_id, _meta| {
                 addr.send(UnsubscribeRequest(subscription_id))
@@ -138,53 +138,53 @@ pub fn connect_routes<T, S>(
     forwarded_routes!(
         handler,
         api,
-        "getBlock",
-        "getBlockChain",
-        "getOutput",
-        "inventory",
+        ("get_block", "getBlock"),
+        ("get_block_chain", "getBlockChain"),
+        ("get_output", "getOutput"),
+        ("inventory", "inventory"),
     );
 
     routes!(
         handler,
         api,
-        ("Get-Wallet-Infos", "getWalletInfos", WalletInfosRequest),
+        ("Get-Wallet-Infos", "get_wallet_infos", WalletInfosRequest),
         (
             "Create-Mnemonics",
-            "createMnemonics",
+            "create_mnemonics",
             CreateMnemonicsRequest
         ),
-        ("Import-Seed", "importSeed", ImportSeedRequest),
-        ("Create-Wallet", "createWallet", CreateWalletRequest),
-        ("Update-Wallet", "updateWallet", UpdateWalletRequest),
-        ("Lock-Wallet", "lockWallet", LockWalletRequest),
-        ("Unlock-Wallet", "unlockWallet", UnlockWalletRequest),
-        ("Lock-Wallet", "lockWallet", LockWalletRequest),
-        ("Close-Session", "closeSession", CloseSessionRequest),
+        ("Import-Seed", "import_seed", ImportSeedRequest),
+        ("Create-Wallet", "create_wallet", CreateWalletRequest),
+        ("Update-Wallet", "update_wallet", UpdateWalletRequest),
+        ("Lock-Wallet", "lock_wallet", LockWalletRequest),
+        ("Unlock-Wallet", "unlock_wallet", UnlockWalletRequest),
+        ("Lock-Wallet", "lock_wallet", LockWalletRequest),
+        ("Close-Session", "close_session", CloseSessionRequest),
         (
             "Get-Transactions",
-            "getTransactions",
+            "get_transactions",
             GetTransactionsRequest
         ),
         (
             "Send-Transaction",
-            "sendTransaction",
+            "send_transaction",
             SendTransactionRequest
         ),
         (
             "Generate-Address",
-            "generateAddress",
+            "generate_address",
             GenerateAddressRequest
         ),
-        ("Get-Addresses", "getAddresses", GetAddressesRequest),
+        ("Get-Addresses", "get_addresses", GetAddressesRequest),
         (
             "Create-Data-Request",
-            "createDataRequest",
+            "create_data_request",
             CreateDataReqRequest
         ),
-        ("Create-Vtt", "createVtt", CreateVttRequest),
-        ("Run-Rad-Request", "runRadRequest", RunRadReqRequest),
+        ("Create-Vtt", "create_vtt", CreateVttRequest),
+        ("Run-Rad-Request", "run_rad_request", RunRadReqRequest),
         ("Set", "set", SetRequest),
         ("Get", "get", GetRequest),
-        ("Get-Balance", "getBalance", GetBalanceRequest),
+        ("Get-Balance", "get_balance", GetBalanceRequest),
     );
 }
