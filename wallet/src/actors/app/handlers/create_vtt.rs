@@ -9,7 +9,6 @@ use crate::types::{Hashable as _, ProtobufConvert as _};
 use witnet_data_structures::chain::Environment;
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateVttRequest {
     session_id: types::SessionId,
     wallet_id: String,
@@ -21,7 +20,6 @@ pub struct CreateVttRequest {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 /// Part of CreateVttResponse struct, containing additional data to be displayed in clients
 /// (e.g. in a confirmation screen)
 pub struct VttMetadata {
@@ -31,7 +29,6 @@ pub struct VttMetadata {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateVttResponse {
     pub transaction_id: String,
     pub transaction: types::Transaction,

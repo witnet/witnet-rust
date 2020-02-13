@@ -5,7 +5,6 @@ use crate::actors::app;
 use crate::types;
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LockWalletRequest {
     wallet_id: String,
     session_id: types::SessionId,

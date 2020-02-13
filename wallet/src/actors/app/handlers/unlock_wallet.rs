@@ -5,14 +5,12 @@ use crate::actors::app;
 use crate::types;
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UnlockWalletRequest {
     pub wallet_id: String,
     pub password: types::Password,
 }
 
 #[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UnlockWalletResponse {
     session_id: types::SessionId,
     name: Option<String>,

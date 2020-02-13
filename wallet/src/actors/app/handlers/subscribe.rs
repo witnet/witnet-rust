@@ -5,7 +5,6 @@ use crate::actors::app;
 use crate::types;
 
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SubscribeRequest {
     pub session_id: types::SessionId,
 }

@@ -5,7 +5,6 @@ use crate::actors::app;
 use crate::{model, types};
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GenerateAddressRequest {
     session_id: types::SessionId,
     wallet_id: String,

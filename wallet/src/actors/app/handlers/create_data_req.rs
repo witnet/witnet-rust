@@ -6,7 +6,6 @@ use crate::types;
 use crate::types::{Hashable as _, ProtobufConvert as _};
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateDataReqRequest {
     session_id: types::SessionId,
     wallet_id: String,
@@ -15,7 +14,6 @@ pub struct CreateDataReqRequest {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct DataRequestOutput {
     data_request: RADRequest,
     witness_reward: u64,
@@ -30,7 +28,6 @@ struct DataRequestOutput {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct RADRequest {
     time_lock: u64,
     retrieve: Vec<types::RADRetrieve>,
@@ -39,7 +36,6 @@ struct RADRequest {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateDataReqResponse {
     pub transaction_id: String,
     pub transaction: types::Transaction,
