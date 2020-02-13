@@ -243,21 +243,10 @@ impl ChainManager {
 
         for (dr_pointer, data_request_output) in dr_pointers.into_iter().filter_map(|dr_pointer| {
             // Filter data requests that are not in data_request_pool
-            if let Some(dr_state) = self
-                .chain_state
+            self.chain_state
                 .data_request_pool
-                .data_request_pool
-                .get(&dr_pointer)
-            {
-                if dr_state.pkh == own_pkh {
-                    // Skip commits from the creator of the data request, as they cannot be included
-                    None
-                } else {
-                    Some((dr_pointer, dr_state.data_request.clone()))
-                }
-            } else {
-                None
-            }
+                .get_dr_output(&dr_pointer)
+                .map(|data_request_output| (dr_pointer, data_request_output))
         }) {
             let num_witnesses = data_request_output.witnesses;
             let num_backup_witnesses = data_request_output.backup_witnesses;
