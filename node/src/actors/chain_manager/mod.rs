@@ -721,12 +721,10 @@ impl ReputationInfo {
         self.alpha_diff += Alpha(u32::from(replication_factor));
 
         // Set of pkhs which were rewarded in the tally transaction
-        // TODO: Review case of data requester is also a witness
-        let tally_vts: HashSet<_> = tally_transaction.outputs.iter().map(|vt| vt.pkh).collect();
+        let honest_witnesses: HashSet<_> = tally_transaction.rewarded_witnesses.iter().collect();
         for pkh in commits.keys() {
             // If the identity behaved honestly, it must have received a reward.
-            // So we know which identities lied because they do not have a vtt transaction in the tally.
-            let liar = if tally_vts.contains(pkh) { 0 } else { 1 };
+            let liar = if honest_witnesses.contains(pkh) { 0 } else { 1 };
             // Insert all the committers, and increment their lie count by 1 if they fail to reveal or
             // if they lied (withholding a reveal is treated the same as lying)
             // lie_count can contain identities which never lied, with lie_count = 0
@@ -1107,6 +1105,7 @@ mod tests {
             pkh: pk1.pkh(),
             ..Default::default()
         }];
+        ta_tx.rewarded_witnesses = vec![pk1.clone().pkh()];
 
         dr_pool
             .add_data_request(1, dr_tx, &Hash::default())

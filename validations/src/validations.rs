@@ -5,6 +5,7 @@ use std::{
     fmt,
 };
 
+use itertools::Itertools;
 use witnet_crypto::{
     hash::Sha256,
     key::CryptoEngine,
@@ -426,9 +427,9 @@ pub fn validate_consensus(
                 .filter_map(
                     |(reveal, &liar)| {
                         if liar {
-                            Some(reveal.body.pkh)
-                        } else {
                             None
+                        } else {
+                            Some(reveal.body.pkh)
                         }
                     },
                 )
@@ -751,7 +752,7 @@ pub fn validate_tally_transaction<'a>(
     let non_error_min = dr_output.min_consensus_percentage as f64 / 100.0;
     let num_commits = dr_state.info.commits.len();
 
-    let pkh_liars = validate_consensus(
+    let honest_pkhs = validate_consensus(
         reveal_txns,
         &miner_tally,
         tally_stage,
@@ -759,7 +760,23 @@ pub fn validate_tally_transaction<'a>(
         num_commits,
     )?;
 
-    validate_tally_outputs(&dr_state, &ta_tx, reveal_length, pkh_liars)?;
+    let sorted_honest: Vec<PublicKeyHash> = honest_pkhs.clone().into_iter().sorted().collect();
+    let sorted_rewarded: Vec<PublicKeyHash> = ta_tx
+        .rewarded_witnesses
+        .clone()
+        .into_iter()
+        .sorted()
+        .collect();
+
+    if sorted_honest != sorted_rewarded {
+        return Err(TransactionError::MismatchingRewardedWitnesses {
+            expected: sorted_rewarded,
+            found: sorted_honest,
+        }
+        .into());
+    }
+
+    validate_tally_outputs(&dr_state, &ta_tx, reveal_length, honest_pkhs)?;
 
     Ok((ta_tx.outputs.iter().collect(), dr_output.tally_fee))
 }
@@ -768,22 +785,22 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     dr_state: &DataRequestState,
     ta_tx: &TallyTransaction,
     n_reveals: usize,
-    pkh_liars: HashSet<PublicKeyHash, S>,
+    honest_pkhs: HashSet<PublicKeyHash, S>,
 ) -> Result<(), failure::Error> {
     let witnesses = dr_state.data_request.witnesses as usize;
-    let liars_length = pkh_liars.len();
-    let change_required = witnesses > n_reveals || liars_length > 0;
+    let honest_len = honest_pkhs.len();
+    let change_required = witnesses > honest_len;
 
-    if change_required && (ta_tx.outputs.len() != n_reveals + 1 - liars_length) {
+    if change_required && (ta_tx.outputs.len() != honest_len + 1) {
         return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
-            expected_outputs: n_reveals + 1,
+            expected_outputs: honest_len + 1,
         }
         .into());
-    } else if !change_required && (ta_tx.outputs.len() != n_reveals) {
+    } else if !change_required && (ta_tx.outputs.len() != honest_len) {
         return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
-            expected_outputs: n_reveals,
+            expected_outputs: honest_len,
         }
         .into());
     }
@@ -792,11 +809,7 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     let reveal_reward = dr_state.data_request.witness_reward;
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         if change_required && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
-            // Expected honest witnesses is tally outputs - 1, which would be
-            // the value transfer output related to the tally change.
-            let honest_witnesses = ta_tx.outputs.len() - 1;
-
-            let expected_tally_change = reveal_reward * (witnesses - honest_witnesses) as u64
+            let expected_tally_change = reveal_reward * (witnesses - honest_len) as u64
                 + dr_state.data_request.reveal_fee * (witnesses - n_reveals) as u64;
             if expected_tally_change != output.value {
                 return Err(TransactionError::InvalidTallyChange {
@@ -809,7 +822,7 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
             if dr_state.info.reveals.get(&output.pkh).is_none() {
                 return Err(TransactionError::RevealNotFound.into());
             }
-            if pkh_liars.contains(&output.pkh) {
+            if !honest_pkhs.contains(&output.pkh) {
                 return Err(TransactionError::DishonestReward.into());
             }
             if pkh_rewarded.contains(&output.pkh) {

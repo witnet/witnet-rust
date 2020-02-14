@@ -4145,6 +4145,7 @@ name = "witnet_validations"
 version = "0.3.2"
 dependencies = [
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "itertools 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "witnet_crypto 0.3.2",
  "witnet_data_structures 0.3.2",

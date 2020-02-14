@@ -77,7 +77,7 @@ fn example_dr(id: usize) -> DRTransaction {
 fn example_ta(id: usize) -> TallyTransaction {
     let dr_pointer = Hash::with_first_u32(id as u32);
     let tally = vec![id as u8; 32];
-    TallyTransaction::new(dr_pointer, tally, vec![])
+    TallyTransaction::new(dr_pointer, tally, vec![], vec![])
 }
 
 #[test]

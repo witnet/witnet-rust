@@ -361,6 +361,7 @@ where
             .into());
         }
 
+        let mut rewarded_witnesses = vec![];
         let mut outputs: Vec<ValueTransferOutput> = reveals
             .iter()
             .zip(liars.iter())
@@ -372,6 +373,7 @@ where
                         value: reveal_reward,
                         time_lock: 0,
                     };
+                    rewarded_witnesses.push(reveal.body.pkh);
                     Some(vt_output)
                 } else {
                     None
@@ -396,7 +398,12 @@ where
 
         let tally_bytes = Vec::try_from(report)?;
 
-        Ok(TallyTransaction::new(dr_pointer, tally_bytes, outputs))
+        Ok(TallyTransaction::new(
+            dr_pointer,
+            tally_bytes,
+            outputs,
+            rewarded_witnesses,
+        ))
     } else {
         Err(TransactionError::NoTallyStage.into())
     }
@@ -622,7 +629,7 @@ mod tests {
     }
 
     fn from_tally_to_storage(fake_block_hash: Hash, mut p: DataRequestPool, dr_pointer: Hash) {
-        let tally_transaction = TallyTransaction::new(dr_pointer, vec![], vec![]);
+        let tally_transaction = TallyTransaction::new(dr_pointer, vec![], vec![], vec![]);
 
         // There is nothing to be stored yet
         assert_eq!(p.to_be_stored.len(), 0);

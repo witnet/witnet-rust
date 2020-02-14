@@ -8,6 +8,7 @@ workspace = ".."
 
 [dependencies]
 failure = "0.1.6"
+itertools = "0.8.2"
 log = "0.4.8"
 
 witnet_crypto = { path = "../crypto" }

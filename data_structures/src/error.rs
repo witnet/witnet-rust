@@ -184,6 +184,15 @@ pub enum TransactionError {
     /// Zero amount specified
     #[fail(display = "Cannot build transaction with zero value")]
     ZeroAmount,
+    /// Incorrect value of Rewarded witnesses in Tally
+    #[fail(
+        display = "Incorrect value of Rewarded witnesses in Tally. Expected: {:?}, found: {:?}",
+        expected, found
+    )]
+    MismatchingRewardedWitnesses {
+        expected: Vec<PublicKeyHash>,
+        found: Vec<PublicKeyHash>,
+    },
 }
 
 /// The error type for operations on a [`Block`](Block)
