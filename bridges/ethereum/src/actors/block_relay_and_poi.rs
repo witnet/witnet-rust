@@ -34,7 +34,7 @@ pub fn block_relay_and_poi(
             let block_relay_contract = eth_state.block_relay_contract.clone();
             let config2 = config.clone();
 
-            let (block, _is_new_block) = match msg {
+            let (block, is_new_block) = match msg {
                 WitnetBlock::New(block) => (block, true),
                 WitnetBlock::Replay(block) => (block, false),
             };
@@ -51,7 +51,8 @@ pub fn block_relay_and_poi(
             };
 
             // Enable block relay?
-            if config.enable_block_relay {
+
+            if (is_new_block && config.enable_block_relay_new_blocks) || (!is_new_block && config.enable_block_relay_old_blocks) {
                 let block_epoch: U256 = block.block_header.beacon.checkpoint.into();
                 let dr_merkle_root: U256 =
                     match block.block_header.merkle_roots.dr_hash_merkle_root {

@@ -8,8 +8,12 @@ wbi_contract_addr = "0x49824bd89338C26Ea204F20AcbAd404CFeAB3301"
 block_relay_contract_addr = "0x1D774D4D7EC51B111EFE48EB5D53022C3e9CC4Af"
 # Ethereum account used to create the transactions
 eth_account = "0x20E56DAc7582782584c46061F382812D502Dd139"
-# Enable block relay from witnet to ethereum?
-enable_block_relay = true
+# Enable block relay from witnet to ethereum, relay only new blocks
+# (blocks that were recently consolidated)
+enable_block_relay_new_blocks = true
+# Enable block relay from witnet to ethereum, relay only old blocks
+# (old blocks that were never posted to the block relay, but contain a posted tally)
+enable_block_relay_old_blocks = true
 # Enable data request claim + inclusion
 enable_claim_and_inclusion = true
 # Enable data request result reporting

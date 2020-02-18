@@ -21,8 +21,12 @@ pub struct Config {
     pub block_relay_contract_addr: H160,
     /// Ethereum account used to create the transactions
     pub eth_account: H160,
-    /// Enable block relay from witnet to ethereum?
-    pub enable_block_relay: bool,
+    /// Enable block relay from witnet to ethereum, relay only new blocks
+    /// (blocks that were recently consolidated)
+    pub enable_block_relay_new_blocks: bool,
+    /// Enable block relay from witnet to ethereum, relay only old blocks
+    /// (old blocks that were never posted to the block relay)
+    pub enable_block_relay_old_blocks: bool,
     /// Enable data request claim + inclusion
     pub enable_claim_and_inclusion: bool,
     /// Enable data request result reporting
