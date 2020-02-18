@@ -30,3 +30,12 @@ claim_dr_rate_ms = 30_000
 eth_event_polling_rate_ms = 1_000
 # Running in the witnet testnet?
 witnet_testnet = true
+
+# Gas limits for some methods.
+# To let the client estimate, comment out the methods
+[gas_limits]
+claim_data_requests = 500000
+post_data_request = 1000000
+post_new_block = 200000
+report_data_request_inclusion = 200000
+report_result = 200000

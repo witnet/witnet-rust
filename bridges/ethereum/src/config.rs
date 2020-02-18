@@ -43,6 +43,24 @@ pub struct Config {
     pub eth_event_polling_rate_ms: u64,
     /// Running in the witnet testnet?
     pub witnet_testnet: bool,
+    /// Gas limits for some methods. If missing, let the client estimate
+    pub gas_limits: Gas,
+}
+
+/// Gas limits for some methods. If missing, let the client estimate
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Gas {
+    /// claimDataRequests gas limit
+    pub claim_data_requests: Option<u64>,
+    /// postDataRequest gas limit
+    pub post_data_request: Option<u64>,
+    /// postNewBlock gas limit
+    pub post_new_block: Option<u64>,
+    /// reportDataRequestInclusion gas limit
+    pub report_data_request_inclusion: Option<u64>,
+    /// reportResult gas limit
+    pub report_result: Option<u64>,
 }
 
 /// Load configuration from a file written in Toml format.

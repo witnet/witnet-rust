@@ -75,7 +75,7 @@ fn post_example_dr(
                 opt.value = Some(U256::from_dec_str("2500000000000000").unwrap());
                 // The cost of posting a data request is mainly the storage, so
                 // big data requests may need bigger amounts of gas
-                opt.gas = Some(1_000_000.into());
+                opt.gas = config.gas_limits.post_data_request.map(Into::into);
             }),
         )
         .map(|tx| {

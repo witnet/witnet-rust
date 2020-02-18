@@ -32,6 +32,7 @@ pub fn block_relay_and_poi(
             let enable_result_reporting = config.enable_result_reporting;
             let wbi_contract = eth_state.wbi_contract.clone();
             let block_relay_contract = eth_state.block_relay_contract.clone();
+            let config2 = config.clone();
 
             let (block, _is_new_block) = match msg {
                 WitnetBlock::New(block) => (block, true),
@@ -62,6 +63,7 @@ pub fn block_relay_and_poi(
                     };
 
                 let block_relay_contract2 = block_relay_contract.clone();
+                let config2 = config.clone();
 
                 // Post witnet block to BlockRelay wbi_contract
                 tokio::spawn(
@@ -84,7 +86,7 @@ pub fn block_relay_and_poi(
                                     (block_hash, block_epoch, dr_merkle_root, tally_merkle_root),
                                     eth_account,
                                     contract::Options::with(|opt| {
-                                        opt.gas = Some(200_000.into());
+                                        opt.gas = config2.gas_limits.post_new_block.map(Into::into);
                                     }),
                                     1,
                                 )
@@ -204,10 +206,12 @@ pub fn block_relay_and_poi(
                     // Check if we need to acquire a write lock
                     if !including.is_empty() || !resolving.is_empty() {
                         Either::A(eth_state2.wbi_requests.write().map(move |mut wbi_requests| {
+                            let config3 = config2.clone();
                             for (dr_id, poi, poi_index, block_hash) in including {
                                 if wbi_requests.claimed().contains_left(&dr_id) {
                                     wbi_requests.set_including(dr_id, poi.clone(), poi_index, block_hash);
                                     let wbi_requests = eth_state2.wbi_requests.clone();
+                                    let config4 = config3.clone();
                                     let params_str = format!("{:?}", (dr_id, poi.clone(), poi_index, block_hash));
                                     tokio::spawn(
                                         wbi_contract
@@ -216,7 +220,7 @@ pub fn block_relay_and_poi(
                                                 (dr_id, poi, poi_index, block_hash),
                                                 eth_account,
                                                 contract::Options::with(|opt| {
-                                                  opt.gas = Some(200_000.into());
+                                                    opt.gas = config4.gas_limits.report_data_request_inclusion.map(Into::into);
                                                 }),
                                                 1,
                                             )
@@ -240,6 +244,7 @@ pub fn block_relay_and_poi(
                                 if wbi_requests.included().contains_left(&dr_id) {
                                     wbi_requests.set_resolving(dr_id, poi.clone(), poi_index, block_hash, result.clone());
                                     let wbi_requests = eth_state2.wbi_requests.clone();
+                                    let config4 = config3.clone();
                                     let params_str = format!("{:?}", &(dr_id, poi.clone(), poi_index, block_hash, result.clone()));
                                     tokio::spawn(
                                         wbi_contract
@@ -248,7 +253,7 @@ pub fn block_relay_and_poi(
                                                 (dr_id, poi, poi_index, block_hash, result),
                                                 eth_account,
                                                 contract::Options::with(|opt| {
-                                                  opt.gas = Some(200_000.into());
+                                                    opt.gas = config4.gas_limits.report_result.map(Into::into);
                                                 }),
                                                 1,
                                             )

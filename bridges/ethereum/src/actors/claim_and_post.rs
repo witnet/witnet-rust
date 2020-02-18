@@ -31,7 +31,7 @@ type ClaimDataRequestsParams = (Vec<U256>, [U256; 4], [U256; 2], [U256; 2], [U25
 /// without sending any transactions to Ethereum,
 /// and return all the parameters needed for the real transaction
 fn try_to_claim_local_query(
-    config: &Config,
+    config: Arc<Config>,
     eth_state: Arc<EthState>,
     witnet_client: Arc<TcpSocket>,
     dr_id: U256,
@@ -324,11 +324,12 @@ fn try_to_claim_local_query(
 
 /// Try to claim DR in WBI and post it to Witnet
 fn claim_and_post_dr(
-    config: &Config,
+    config: Arc<Config>,
     eth_state: Arc<EthState>,
     witnet_client: Arc<TcpSocket>,
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
+    let config2 = config.clone();
     let eth_account = config.eth_account;
     let post_to_witnet_more_than_once = config.post_to_witnet_more_than_once;
 
@@ -383,7 +384,7 @@ fn claim_and_post_dr(
                             claim_data_requests_params,
                             eth_account,
                             contract::Options::with(|opt| {
-                                opt.gas = Some(500_000.into());
+                                opt.gas = config2.gas_limits.claim_data_requests.map(Into::into);
                             }),
                             1,
                         )
@@ -466,7 +467,7 @@ pub fn claim_and_post(
 
             let fut = match msg {
                 ClaimMsg::NewDr(dr_id) => Either::A(claim_and_post_dr(
-                    &config,
+                    config.clone(),
                     eth_state.clone(),
                     witnet_client.clone(),
                     dr_id,
@@ -493,9 +494,9 @@ pub fn claim_and_post(
                                 std::mem::drop(known_dr_ids);
 
                                 Either::A(claim_and_post_dr(
-                                    &config2,
+                                    config2.clone(),
                                     eth_state2.clone(),
-                                    witnet_client2.clone(),
+                                    witnet_client2,
                                     dr_id,
                                 ))
                             }
@@ -507,9 +508,9 @@ pub fn claim_and_post(
                                 std::mem::drop(known_dr_ids);
 
                                 Either::A(claim_and_post_dr(
-                                    &config2,
+                                    config2.clone(),
                                     eth_state2.clone(),
-                                    witnet_client2.clone(),
+                                    witnet_client2,
                                     dr_id,
                                 ))
                             }
