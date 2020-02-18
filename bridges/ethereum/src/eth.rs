@@ -71,7 +71,7 @@ pub struct WbiRequests {
     including: HashSet<U256>,
     // dr_tx_hash: Hash
     included: BiMap<U256, Hash>,
-    resolving: HashSet<U256>,
+    resolving: HashMap<U256, Hash>,
     resolved: HashSet<U256>,
 }
 
@@ -159,6 +159,16 @@ impl WbiRequests {
         );
         self.including.insert(dr_id);
     }
+    /// If the data request is in including state, undo the claim.
+    /// Otherwise, do nothing.
+    pub fn undo_including(&mut self, dr_id: U256) {
+        if self.including.remove(&dr_id) {
+            // If the proof of inclusion fails, retry this data request from posted state
+            // This will result in extra wits spent
+            self.requests.insert(dr_id, DrState::Posted);
+            self.posted.insert(dr_id);
+        }
+    }
     /// Mark this data request as `Claiming`
     pub fn set_claiming(&mut self, dr_id: U256) {
         self.remove_from_all_helper_maps(dr_id);
@@ -174,6 +184,13 @@ impl WbiRequests {
         block_hash: U256,
         result: Bytes,
     ) {
+        let dr_tx_hash = match self.included.remove_by_left(&dr_id) {
+            Some((_, x)) => x,
+            None => {
+                warn!("No dr to be removed in set_resolving");
+                return;
+            }
+        };
         self.remove_from_all_helper_maps(dr_id);
         self.requests.insert(
             dr_id,
@@ -184,7 +201,16 @@ impl WbiRequests {
                 result,
             },
         );
-        self.resolving.insert(dr_id);
+        self.resolving.insert(dr_id, dr_tx_hash);
+    }
+    /// If the data request is in resolving state, undo the claim.
+    /// Otherwise, do nothing.
+    pub fn undo_resolving(&mut self, dr_id: U256) {
+        if let Some(dr_tx_hash) = self.resolving.remove(&dr_id) {
+            // If the proof of inclusion fails, retry this data request from included state
+            self.requests.insert(dr_id, DrState::Included);
+            self.included.insert(dr_id, dr_tx_hash);
+        }
     }
     /// If the data request is in claiming state, undo the claim.
     /// Otherwise, do nothing.

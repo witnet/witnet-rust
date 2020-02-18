@@ -33,7 +33,7 @@ pub fn block_relay_and_poi(
             let wbi_contract = eth_state.wbi_contract.clone();
             let block_relay_contract = eth_state.block_relay_contract.clone();
 
-            let (block, is_new_block) = match msg {
+            let (block, _is_new_block) = match msg {
                 WitnetBlock::New(block) => (block, true),
                 WitnetBlock::Replay(block) => (block, false),
             };
@@ -50,7 +50,7 @@ pub fn block_relay_and_poi(
             };
 
             // Enable block relay?
-            if is_new_block && config.enable_block_relay {
+            if config.enable_block_relay {
                 let block_epoch: U256 = block.block_header.beacon.checkpoint.into();
                 let dr_merkle_root: U256 =
                     match block.block_header.merkle_roots.dr_hash_merkle_root {
@@ -207,6 +207,7 @@ pub fn block_relay_and_poi(
                             for (dr_id, poi, poi_index, block_hash) in including {
                                 if wbi_requests.claimed().contains_left(&dr_id) {
                                     wbi_requests.set_including(dr_id, poi.clone(), poi_index, block_hash);
+                                    let wbi_requests = eth_state2.wbi_requests.clone();
                                     let params_str = format!("{:?}", (dr_id, poi.clone(), poi_index, block_hash));
                                     tokio::spawn(
                                         wbi_contract
@@ -214,13 +215,23 @@ pub fn block_relay_and_poi(
                                                 "reportDataRequestInclusion",
                                                 (dr_id, poi, poi_index, block_hash),
                                                 eth_account,
-                                                contract::Options::default(),
+                                                contract::Options::with(|opt| {
+                                                  opt.gas = Some(200_000.into());
+                                                }),
                                                 1,
                                             )
-                                            .map_err(move |e| error!("reportDataRequestInclusion{}: {:?}", params_str, e))
-                                            .and_then(move |tx| {
-                                                debug!("reportDataRequestInclusion: {:?}", tx);
-                                                handle_receipt(tx).map_err(|()| error!("handle_receipt: transaction failed"))
+
+                                            .then(move |tx| {
+                                                match tx {
+                                                    Ok(tx) => {
+                                                        debug!("reportDataRequestInclusion: {:?}", tx);
+                                                        Either::A(handle_receipt(tx).map_err(|()| error!("handle_receipt: transaction failed")))
+                                                    }
+                                                    Err(e) => {
+                                                        error!("reportDataRequestInclusion{}: {:?}", params_str, e);
+                                                        Either::B(wbi_requests.write().map(move |mut wbi_requests| wbi_requests.undo_including(dr_id)))
+                                                    }
+                                                }
                                             }),
                                     );
                                 }
@@ -228,6 +239,7 @@ pub fn block_relay_and_poi(
                             for (dr_id, poi, poi_index, block_hash, result) in resolving {
                                 if wbi_requests.included().contains_left(&dr_id) {
                                     wbi_requests.set_resolving(dr_id, poi.clone(), poi_index, block_hash, result.clone());
+                                    let wbi_requests = eth_state2.wbi_requests.clone();
                                     let params_str = format!("{:?}", &(dr_id, poi.clone(), poi_index, block_hash, result.clone()));
                                     tokio::spawn(
                                         wbi_contract
@@ -235,13 +247,22 @@ pub fn block_relay_and_poi(
                                                 "reportResult",
                                                 (dr_id, poi, poi_index, block_hash, result),
                                                 eth_account,
-                                                contract::Options::default(),
+                                                contract::Options::with(|opt| {
+                                                  opt.gas = Some(200_000.into());
+                                                }),
                                                 1,
                                             )
-                                            .map_err(move |e| error!("reportResult{}: {:?}", params_str, e))
-                                            .and_then(|tx| {
-                                                debug!("reportResult: {:?}", tx);
-                                                handle_receipt(tx).map_err(|()| error!("handle_receipt: transaction failed"))
+                                            .then(move |tx| {
+                                                match tx {
+                                                    Ok(tx) => {
+                                                        debug!("reportResult: {:?}", tx);
+                                                        Either::A(handle_receipt(tx).map_err(|()| error!("handle_receipt: transaction failed")))
+                                                    }
+                                                    Err(e) => {
+                                                        error!("reportResult{}: {:?}", params_str, e);
+                                                        Either::B(wbi_requests.write().map(move |mut wbi_requests| wbi_requests.undo_resolving(dr_id)))
+                                                    }
+                                                }
                                             }),
                                     );
                                 }
