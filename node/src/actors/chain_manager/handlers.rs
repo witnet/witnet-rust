@@ -31,6 +31,7 @@ use crate::{
     storage_mngr,
     utils::mode_consensus,
 };
+use itertools::Itertools;
 use std::collections::BTreeMap;
 use witnet_util::timestamp::get_timestamp;
 
@@ -146,7 +147,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     );
                     // TODO: replace for loop with a try_fold
                     let mut chosen_candidate = None;
-                    for (key, (block_candidate, vrf_proof)) in self.candidates.drain() {
+                    for (key, (block_candidate, vrf_proof)) in self
+                        .candidates
+                        .drain()
+                        .sorted_by_key(|(_key, (_block_candidate, vrf_proof))| *vrf_proof)
+                    {
                         let block_pkh = &block_candidate.block_sig.public_key.pkh();
                         let reputation = rep_engine.trs().get(block_pkh);
 
