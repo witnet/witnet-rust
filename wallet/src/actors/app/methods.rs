@@ -3,8 +3,8 @@ use futures::future;
 
 use super::*;
 use crate::actors::*;
-use crate::{crypto, model, repository, types::Hashable as _};
-use witnet_data_structures::chain::InventoryItem;
+use crate::{crypto, model, repository, types::BuildVtt, types::Hashable as _};
+use witnet_data_structures::chain::{InventoryItem, ValueTransferOutput};
 
 impl App {
     pub fn start(params: Params) -> Addr<Self> {
@@ -263,6 +263,7 @@ impl App {
         &self,
         wallet_id: String,
         password: types::Password,
+        prefill: Vec<u64>,
     ) -> ResponseActFuture<types::UnlockedWallet> {
         let f = self
             .params
@@ -279,7 +280,7 @@ impl App {
                 err => From::from(err),
             })
             .into_actor(self)
-            .and_then(move |res, slf: &mut Self, _| {
+            .and_then(move |res, slf: &mut Self, ctx| {
                 let types::UnlockedSessionWallet {
                     wallet,
                     session_id,
@@ -287,7 +288,26 @@ impl App {
                 } = res;
 
                 slf.state
-                    .create_session(session_id.clone(), wallet_id, Arc::new(wallet));
+                    .create_session(session_id.clone(), wallet_id.clone(), Arc::new(wallet));
+
+                for amount in prefill {
+                    slf.generate_address(session_id.clone(), wallet_id.clone(), None)
+                        .map_err(|e, _, _| {
+                            log::error!("Failed to generate address to add funds: {}", e)
+                        })
+                        .and_then(move |res, slf, _ctx| {
+                            // send amount to address
+                            slf.fund_addresses(&[(res.pkh, amount)])
+                                .map(move |x, _, _| {
+                                    log::debug!("Funding address {}: {}", res.pkh, x)
+                                })
+                                .map_err(|e, _, _| {
+                                    log::error!("Failed to add funds to wallet: {}", e)
+                                })
+                        })
+                        .then(|_, _, _| fut::ok(()))
+                        .spawn(ctx);
+                }
 
                 fut::ok(types::UnlockedWallet { data, session_id })
             });
@@ -541,5 +561,50 @@ impl App {
         );
 
         Box::new(f)
+    }
+
+    /// Use the node to send value to the given addresses
+    fn fund_addresses(
+        &self,
+        pkh_value: &[(types::PublicKeyHash, u64)],
+    ) -> ResponseActFuture<serde_json::Value> {
+        let method = "sendValue".to_string();
+        let vto = pkh_value
+            .iter()
+            .map(|&(pkh, value)| ValueTransferOutput {
+                pkh,
+                value,
+                time_lock: 0,
+            })
+            .collect();
+        let params = BuildVtt { vto, fee: 2020 };
+
+        match &self.params.client {
+            Some(client) => {
+                let req = types::RpcRequest::method(method)
+                    .timeout(self.params.requests_timeout)
+                    .params(params)
+                    .expect("params failed serialization");
+                let f = client
+                    .send(req)
+                    .flatten()
+                    .map_err(From::from)
+                    .inspect(|res| {
+                        log::debug!("sendValue request result: {:?}", res);
+                    })
+                    .map_err(|err| {
+                        log::warn!("sendValue request failed: {}", &err);
+                        err
+                    })
+                    .into_actor(self);
+
+                Box::new(f)
+            }
+            None => {
+                let f = fut::err(Error::NodeNotConnected);
+
+                Box::new(f)
+            }
+        }
     }
 }

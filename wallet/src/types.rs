@@ -136,3 +136,12 @@ pub struct TransactionComponents {
     pub sign_keys: Vec<SK>,
     pub used_utxos: Vec<model::OutPtr>,
 }
+
+/// Builds a `ValueTransferTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildVtt {
+    /// List of `ValueTransferOutput`s
+    pub vto: Vec<VttOutput>,
+    /// Fee
+    pub fee: u64,
+}

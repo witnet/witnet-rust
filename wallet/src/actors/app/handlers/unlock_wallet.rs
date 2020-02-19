@@ -8,6 +8,11 @@ use crate::types;
 pub struct UnlockWalletRequest {
     pub wallet_id: String,
     pub password: types::Password,
+    /// Use the node send method to send a vtt to the generated addresses.
+    /// The amount that each address gets is defined in this vector.
+    /// If the node does not have enough funds or enough UTXOs, the behaviour is undefined.
+    #[serde(default)]
+    pub prefill: Vec<u64>,
 }
 
 #[derive(Serialize)]
@@ -29,8 +34,9 @@ impl Handler<UnlockWalletRequest> for app::App {
     type Result = app::ResponseActFuture<UnlockWalletResponse>;
 
     fn handle(&mut self, msg: UnlockWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
-        let f = self.unlock_wallet(msg.wallet_id, msg.password).map(
-            |types::UnlockedWallet { data, session_id }, slf, ctx| {
+        let f = self
+            .unlock_wallet(msg.wallet_id, msg.password, msg.prefill)
+            .map(|types::UnlockedWallet { data, session_id }, slf, ctx| {
                 slf.set_session_to_expire(session_id.clone()).spawn(ctx);
 
                 UnlockWalletResponse {
@@ -42,8 +48,7 @@ impl Handler<UnlockWalletRequest> for app::App {
                     account_balance: data.balance,
                     session_expiration_secs: slf.params.session_expires_in.as_secs(),
                 }
-            },
-        );
+            });
 
         Box::new(f)
     }
