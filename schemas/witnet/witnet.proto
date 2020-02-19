@@ -264,7 +264,7 @@ message InventoryEntry {
 message ConsensusConstants {
     int64 checkpoint_zero_timestamp = 1;
     uint32 checkpoints_period = 2;
-    Hash genesis_hash = 3;
+    Hash bootstrap_hash = 3;
     uint32 max_block_weight = 4;
     uint32 activity_period = 5;
     uint32 reputation_expire_alpha_diff = 6;

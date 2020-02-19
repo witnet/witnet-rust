@@ -291,7 +291,7 @@ impl Handler<AddBlocks> for ChainManager {
                         batch_succeeded = false;
                         log::debug!("Received an empty AddBlocks message");
                     // FIXME(#684): this condition would be modified when genesis block exist
-                    } else if chain_beacon.hash_prev_block != self.genesis_block_hash
+                    } else if chain_beacon.hash_prev_block != self.bootstrap_block_hash
                         && msg.blocks[0].hash() != chain_beacon.hash_prev_block
                         && msg.blocks[0].block_header.beacon.checkpoint == chain_beacon.checkpoint
                     {
@@ -302,7 +302,7 @@ impl Handler<AddBlocks> for ChainManager {
                         log::info!("Restored chain state from storage");
                     } else {
                         // FIXME(#684): this condition would be deleted when genesis block exist
-                        let blocks = if chain_beacon.hash_prev_block == self.genesis_block_hash
+                        let blocks = if chain_beacon.hash_prev_block == self.bootstrap_block_hash
                             || msg.blocks[0].block_header.beacon.checkpoint
                                 > chain_beacon.checkpoint
                         {

@@ -107,10 +107,10 @@ pub struct ConsensusConstants {
     /// Seconds between the start of an epoch and the start of the next one
     pub checkpoints_period: u16,
 
-    /// Genesis block hash value
+    /// Auxiliary bootstrap block hash value
     // TODO Change to a specific fixed-length hash function's output's digest type once Issue #164
     // is solved
-    pub genesis_hash: Hash,
+    pub bootstrap_hash: Hash,
 
     /// Maximum weight a block can have, this affects the number of
     /// transactions a block can contain: there will be as many

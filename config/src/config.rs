@@ -386,10 +386,10 @@ pub fn consensus_constants_from_partial(
             .checkpoints_period
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_checkpoints_period()),
-        genesis_hash: config
-            .genesis_hash
+        bootstrap_hash: config
+            .bootstrap_hash
             .to_owned()
-            .unwrap_or_else(|| defaults.consensus_constants_genesis_hash()),
+            .unwrap_or_else(|| defaults.consensus_constants_bootstrap_hash()),
         max_block_weight: config
             .max_block_weight
             .to_owned()
