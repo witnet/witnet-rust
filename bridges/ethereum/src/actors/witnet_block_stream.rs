@@ -48,7 +48,7 @@ pub fn witnet_block_stream(
                     e.into_inner()
                 );
             } else {
-                error!("{:?}", e);
+                error!("Unhandled timeout error: {:?}", e);
             }
         })
         .then(|witnet_subscription_id_value| {

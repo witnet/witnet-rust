@@ -365,7 +365,7 @@ fn claim_and_post_dr(
 
                         Either::B(witnet_client2
                             .execute("sendRequest", bdr_params)
-                            .map_err(|e| error!("{:?}", e))
+                            .map_err(|e| error!("sendRequest: {:?}", e))
                             .map(move |bdr_res| {
                                 debug!("sendRequest: {:?}", bdr_res);
                             }).then(|_| futures::failed(())))
@@ -426,7 +426,7 @@ fn claim_and_post_dr(
 
                     witnet_client
                         .execute("sendRequest", bdr_params)
-                        .map_err(|e| error!("{:?}", e))
+                        .map_err(|e| error!("sendRequest: {:?}", e))
                         .map(move |bdr_res| {
                             debug!("sendRequest: {:?}", bdr_res);
                         })

@@ -133,7 +133,7 @@ pub fn eth_event_stream(
                                             contract::Options::default(),
                                             None,
                                         )
-                                        .map_err(|e| error!("{:?}", e))
+                                        .map_err(|e| error!("readDrHash: {:?}", e))
                                         .and_then(move |dr_tx_hash: U256| {
                                             let dr_tx_hash = Hash::SHA256(dr_tx_hash.into());
                                             info!(
