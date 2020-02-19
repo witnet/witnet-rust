@@ -20,6 +20,7 @@ use witnet_data_structures::{
 
 use witnet_util::timestamp::pretty_print;
 
+use crate::actors::chain_manager::get_genesis_block_info;
 use log::{debug, error, info, warn};
 use std::time::Duration;
 use witnet_crypto::key::CryptoEngine;
@@ -160,7 +161,11 @@ impl ChainManager {
             // Store the bootstrap, genesis block hash and genesis mining flag
             act.bootstrap_block_hash = config.consensus_constants.bootstrap_hash;
             act.genesis_block_hash = config.consensus_constants.genesis_hash;
-            act.genesis_mining_flag = config.mining.genesis_mining;
+
+            let info_genesis = get_genesis_block_info(&config.mining.genesis_url);
+            if let Some(info_genesis) = info_genesis{
+            log::error!("Investors: {:?}", info_genesis.investors);
+            log::error!("Devs: {:?}", info_genesis.devs);}
 
             // Do not start the MiningManager if the configuration disables it
             act.mining_enabled = config.mining.enabled;

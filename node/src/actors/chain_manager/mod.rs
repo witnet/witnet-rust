@@ -60,6 +60,7 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
+use witnet_data_structures::chain::ValueTransferOutput;
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
@@ -68,6 +69,7 @@ use witnet_data_structures::{
         TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
+    get_environment,
     radon_report::{RadonReport, ReportContext},
     transaction::{TallyTransaction, Transaction},
     vrf::VrfCtx,
@@ -1055,6 +1057,139 @@ fn show_sync_progress(
         target_beacon.checkpoint,
         human_age
     );
+}
+/// TODO doc
+pub struct GenesisBlockInfo {
+    /// TODO doc
+    pub investors: Vec<ValueTransferOutput>,
+    /// TODO doc
+    pub devs: Vec<ValueTransferOutput>,
+}
+/// TODO doc
+pub fn get_genesis_block_info(url: &str) -> Option<GenesisBlockInfo> {
+    if url::Url::parse(url).is_err() {
+
+        log::error!("7");
+        return None;
+    }
+
+    let response = futures03::executor::block_on(surf::get(url));
+    if response.is_err() {
+
+        log::error!("8");
+        return None;
+    }
+
+    let mut response = response.unwrap();
+    if !response.status().is_success() {
+
+        log::error!("9");
+        return None;
+    }
+
+    let response = futures03::executor::block_on(response.body_string());
+    if response.is_err() {
+
+        log::error!("10");
+        return None;
+    }
+    let response = response.unwrap();
+
+    log::error!("{}", response);
+    let json = json::parse(&response);
+
+    match json {
+        Err(e) => {
+            error!("{}", e);
+            return None;
+        },
+        Ok(json) => {
+            if let json::JsonValue::Object(object) = json {
+                let mut investors = vec![];
+                let mut devs = vec![];
+                for (key, json_array) in object.iter() {
+                    if let json::JsonValue::Array(array) = json_array {
+                        for map in array {
+                            let mut pkh = PublicKeyHash::default();
+                            let mut value: u64 = 0;
+                            let mut time_lock: u64 = 0;
+
+                            if let json::JsonValue::Object(map2) = map {
+                                for (key2, item) in map2.iter() {
+                                    log::error!("{:?}", item);
+                                        match key2 {
+                                            "address" => {
+                                                if let json::JsonValue::String(string_item) = item {
+                                                match PublicKeyHash::from_bech32(
+                                                    get_environment(),
+                                                    string_item,
+                                                ) {
+                                                    Ok(pkh_address) => pkh = pkh_address,
+                                                    Err(_) => break,
+                                                }} else {
+                                                    return None;
+                                                }
+                                            }
+                                            "value" => {
+                                                if let json::JsonValue::Short(string_item) = item {
+                                                match string_item.as_str().parse() {
+                                                    Ok(n) => value = n,
+                                                    Err(_) => break,
+                                                }}else {
+                                                    return None;
+                                                }
+                                            },
+                                            "time_lock" => {
+                                                if let json::JsonValue::Short(string_item) = item {
+                                                match string_item.as_str().parse() {
+                                                    Ok(n) => time_lock = n,
+                                                    Err(_) => break,
+                                                }}else {
+                                                    return None;
+                                                }
+                                            },
+                                            _ => {
+                                                log::error!("1");
+                                                return None;
+                                            }
+                                        }
+                                }
+                            } else {
+                                log::error!("3");
+                                return None;
+                            }
+
+                            match key {
+                                "investors" => investors.push(ValueTransferOutput {
+                                    pkh,
+                                    value,
+                                    time_lock,
+                                }),
+                                "devs" => devs.push(ValueTransferOutput {
+                                    pkh,
+                                    value,
+                                    time_lock,
+                                }),
+
+                                _ => {
+                                    log::error!("4");
+                                    return None;
+                                }
+                            }
+                        }
+                    } else {
+                        log::error!("5");
+                        return None;
+                    }
+                }
+
+                Some(GenesisBlockInfo { investors, devs })
+            } else {
+                log::error!("6");
+                None
+            }
+        },
+    }
 }
 
 #[cfg(test)]
