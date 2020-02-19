@@ -139,6 +139,8 @@ pub struct ChainManager {
     mining_enabled: bool,
     /// Auxiliary hash to sync before genesis block
     bootstrap_block_hash: Hash,
+    /// Genesis block hash
+    genesis_block_hash: Hash,
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up

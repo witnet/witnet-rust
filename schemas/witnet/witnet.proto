@@ -265,14 +265,15 @@ message ConsensusConstants {
     int64 checkpoint_zero_timestamp = 1;
     uint32 checkpoints_period = 2;
     Hash bootstrap_hash = 3;
-    uint32 max_block_weight = 4;
-    uint32 activity_period = 5;
-    uint32 reputation_expire_alpha_diff = 6;
-    uint32 reputation_issuance = 7;
-    uint32 reputation_issuance_stop = 8;
-    double reputation_penalization_factor = 9;
-    uint32 mining_backup_factor = 10;
-    uint32 mining_replication_factor = 11;
+    Hash genesis_hash = 4;
+    uint32 max_block_weight = 5;
+    uint32 activity_period = 6;
+    uint32 reputation_expire_alpha_diff = 7;
+    uint32 reputation_issuance = 8;
+    uint32 reputation_issuance_stop = 9;
+    double reputation_penalization_factor = 10;
+    uint32 mining_backup_factor = 11;
+    uint32 mining_replication_factor = 12;
 }
 
 message VrfProof {

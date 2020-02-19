@@ -95,6 +95,12 @@ pub trait Defaults {
         Hash::SHA256([0; 32])
     }
 
+    /// Default Hash value for the genesis block
+    // TODO Decide an appropriate default value
+    fn consensus_constants_genesis_hash(&self) -> Hash {
+        Hash::SHA256([1; 32])
+    }
+
     /// JSON-RPC server enabled by default
     fn jsonrpc_enabled(&self) -> bool {
         true

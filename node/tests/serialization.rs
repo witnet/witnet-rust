@@ -15,12 +15,14 @@ where
 #[test]
 fn chain_state() {
     let bootstrap_hash = Hash::SHA256([3; 32]);
+    let genesis_hash = Hash::SHA256([4; 32]);
     let chain_info = ChainInfo {
         environment: Environment::Mainnet,
         consensus_constants: ConsensusConstants {
             checkpoint_zero_timestamp: 0,
             checkpoints_period: 0,
             bootstrap_hash,
+            genesis_hash,
             max_block_weight: 0,
             activity_period: 0,
             reputation_expire_alpha_diff: 0,
