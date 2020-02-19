@@ -137,8 +137,8 @@ pub struct ChainManager {
     max_block_weight: u32,
     /// Mining enabled
     mining_enabled: bool,
-    /// Hash of the genesis block
-    genesis_block_hash: Hash,
+    /// Auxiliary hash to sync before genesis block
+    bootstrap_block_hash: Hash,
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up

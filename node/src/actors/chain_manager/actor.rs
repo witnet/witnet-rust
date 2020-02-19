@@ -129,14 +129,14 @@ impl ChainManager {
                                 );
                             }
                             // Create a new ChainInfo
-                            let genesis_hash = consensus_constants.genesis_hash;
+                            let bootstrap_hash = consensus_constants.bootstrap_hash;
                             let reputation_engine = ReputationEngine::new(consensus_constants.activity_period as usize);
                             let chain_info = ChainInfo {
                                 environment,
                                 consensus_constants,
                                 highest_block_checkpoint: CheckpointBeacon {
                                     checkpoint: 0,
-                                    hash_prev_block: genesis_hash,
+                                    hash_prev_block: bootstrap_hash,
                                 },
                             };
                             act.chain_state = ChainState {
@@ -157,8 +157,8 @@ impl ChainManager {
                 })
                 .spawn(ctx);
 
-            // Store the genesis block hash
-            act.genesis_block_hash = config.consensus_constants.genesis_hash;
+            // Store the bootstrap block hash
+            act.bootstrap_block_hash = config.consensus_constants.bootstrap_hash;
 
             // Do not start the MiningManager if the configuration disables it
             act.mining_enabled = config.mining.enabled;

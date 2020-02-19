@@ -89,9 +89,9 @@ pub trait Defaults {
         90
     }
 
-    /// Default Hash value for the genesis block
+    /// Default Hash value for the auxiliary bootstrap block
     // TODO Decide an appropriate default value
-    fn consensus_constants_genesis_hash(&self) -> Hash {
+    fn consensus_constants_bootstrap_hash(&self) -> Hash {
         Hash::SHA256([0; 32])
     }
 
