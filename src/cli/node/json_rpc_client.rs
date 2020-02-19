@@ -1,25 +1,27 @@
-use std::net::SocketAddr;
-use std::str::FromStr;
 use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
     fmt,
     io::{self, BufRead, BufReader, Read, Write},
-    net::TcpStream,
+    net::{SocketAddr, TcpStream},
+    path::Path,
+    str::FromStr,
 };
 
 use failure::{bail, Fail};
-use serde::Deserialize;
-use serde_json::json;
-
 use itertools::Itertools;
 use log::*;
-use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
+use serde::Deserialize;
+use serde_json::json;
+use witnet_crypto::key::{CryptoEngine, ExtendedPK, ExtendedSK};
 use witnet_data_structures::chain::{
-    DataRequestOutput, Environment, OutputPointer, PublicKeyHash, Reputation, ValueTransferOutput,
+    DataRequestOutput, Environment, OutputPointer, PublicKey, PublicKeyHash, Reputation,
+    ValueTransferOutput,
 };
 use witnet_data_structures::proto::ProtobufConvert;
 use witnet_node::actors::{json_rpc::json_rpc_methods::GetBlockChainParams, messages::BuildVtt};
 use witnet_rad::types::RadonTypes;
+use witnet_util::credentials::create_credentials_file;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request, Wit};
 
 pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
@@ -304,6 +306,41 @@ pub fn send_dr(
     let response = send_request(&mut stream, &request)?;
 
     println!("{}", response);
+
+    Ok(())
+}
+
+pub fn master_key_export(
+    addr: SocketAddr,
+    write_to_path: Option<&Path>,
+) -> Result<(), failure::Error> {
+    let request = r#"{"jsonrpc": "2.0","method":"masterKeyExport","id": "1"}"#;
+    let mut stream = start_client(addr)?;
+    let response = send_request(&mut stream, &request)?;
+
+    match parse_response(&response) {
+        Ok(private_key_slip32) => {
+            let private_key_slip32: String = private_key_slip32;
+            let private_key = ExtendedSK::from_slip32(&private_key_slip32).unwrap().0;
+            let public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &private_key);
+            let pkh = PublicKey::from(public_key.key).pkh();
+            if let Some(base_path) = write_to_path {
+                let path = base_path.join(format!("private_key_{}.txt", pkh));
+                let mut file = create_credentials_file(&path)?;
+                file.write_all(format!("{}\n", private_key_slip32).as_bytes())?;
+                let full_path = Path::new(&path);
+                println!(
+                    "Private key written to {}",
+                    full_path.canonicalize()?.as_path().display()
+                );
+            } else {
+                println!("Private key for pkh {}:\n{}", pkh, private_key_slip32);
+            }
+        }
+        Err(error) => {
+            println!("{}", error);
+        }
+    }
 
     Ok(())
 }

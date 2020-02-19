@@ -3919,9 +3919,11 @@ dependencies = [
  "toml 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "webbrowser 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "witnet_config 0.3.2",
+ "witnet_crypto 0.3.2",
  "witnet_data_structures 0.3.2",
  "witnet_node 0.4.0",
  "witnet_rad 0.3.2",
+ "witnet_util 0.3.2",
  "witnet_validations 0.3.2",
  "witnet_wallet 0.3.2",
 ]

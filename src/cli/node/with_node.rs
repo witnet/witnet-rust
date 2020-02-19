@@ -1,5 +1,4 @@
-use std::net::SocketAddr;
-use std::time::Duration;
+use std::{net::SocketAddr, path::PathBuf, time::Duration};
 
 use structopt::StructOpt;
 
@@ -81,6 +80,24 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
                 })
                 .expect("Error setting handler for both SIGINT (Ctrl+C) and SIGTERM (kill)");
             })
+        }
+        Command::MasterKeyExport {
+            node,
+            write,
+            write_to,
+        } => {
+            let write_to_path = match (write, write_to) {
+                // Don't write
+                (false, None) => None,
+                // Write to default storage path
+                (true, None) => Some(config.storage.db_path),
+                // Write to custom path
+                (_, Some(path)) => Some(path),
+            };
+            rpc::master_key_export(
+                node.unwrap_or(config.jsonrpc.server_address),
+                write_to_path.as_ref().map(|x| x.as_path()),
+            )
         }
     }
 }
@@ -211,6 +228,18 @@ pub enum Command {
         about = "Dump the loaded config in Toml format to stdout."
     )]
     ShowConfig,
+    #[structopt(name = "masterKeyExport", about = "Export the node master key.")]
+    MasterKeyExport {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Write the private key to "storage_path/private_key_pkh.txt"
+        #[structopt(long = "write")]
+        write: bool,
+        /// Change the path where to write storage_path/private_key_pkh.txt". Implies --write
+        #[structopt(long = "write-to")]
+        write_to: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, StructOpt)]
@@ -228,7 +257,7 @@ pub struct ConfigParams {
     #[structopt(long = "peers-period")]
     bootstrap_peers_period_seconds: Option<u64>,
     #[structopt(long = "db", help = NODE_DB_HELP)]
-    db: Option<std::path::PathBuf>,
+    db: Option<PathBuf>,
 }
 
 static NODE_DB_HELP: &str = r#"Path to the node database. If not specified will use '.witnet-rust-mainnet' for mainnet, or '.witnet-rust-testnet-N' for testnet number N."#;

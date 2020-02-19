@@ -39,9 +39,11 @@ toml = "0.5.6"
 webbrowser = "0.5.2"
 
 witnet_config = { path = "./config" }
+witnet_crypto = { path = "./crypto" }
 witnet_data_structures = { path = "./data_structures" }
 witnet_node = { path = "./node", optional = true }
 witnet_rad = { path = "./rad" }
+witnet_util = { path = "./util" }
 witnet_validations = { path = "./validations" }
 witnet_wallet = { path = "./wallet", optional = true }
 

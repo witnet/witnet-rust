@@ -8,6 +8,9 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
+/// Utilities to securely store secrets in files
+pub mod credentials;
+
 /// Parse utilities
 pub mod parser;
 
