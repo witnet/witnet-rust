@@ -297,6 +297,10 @@ pub struct Mining {
         rename = "data_request_timeout_seconds"
     ))]
     pub data_request_timeout: Duration,
+    /// Binary flag whether to mine genesis block or not
+    pub genesis_mining: bool,
+    /// Genesis block path
+    pub genesis_path: String,
 }
 
 /// NTP-related configuration
@@ -544,6 +548,14 @@ impl Mining {
                 .data_request_timeout
                 .to_owned()
                 .unwrap_or_else(|| defaults.mining_data_request_timeout()),
+            genesis_mining: config
+                .genesis_mining
+                .to_owned()
+                .unwrap_or_else(|| defaults.mining_genesis_mining()),
+            genesis_path: config
+                .genesis_path
+                .clone()
+                .unwrap_or_else(|| defaults.mining_genesis_path()),
         }
     }
 }
