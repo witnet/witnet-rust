@@ -141,6 +141,8 @@ pub struct ChainManager {
     bootstrap_block_hash: Hash,
     /// Genesis block hash
     genesis_block_hash: Hash,
+    /// Genesis mining flag
+    genesis_mining_flag: bool,
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up

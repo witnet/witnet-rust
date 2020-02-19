@@ -157,9 +157,10 @@ impl ChainManager {
                 })
                 .spawn(ctx);
 
-            // Store the bootstrap and genesis block hash
+            // Store the bootstrap, genesis block hash and genesis mining flag
             act.bootstrap_block_hash = config.consensus_constants.bootstrap_hash;
             act.genesis_block_hash = config.consensus_constants.genesis_hash;
+            act.genesis_mining_flag = config.mining.genesis_mining;
 
             // Do not start the MiningManager if the configuration disables it
             act.mining_enabled = config.mining.enabled;

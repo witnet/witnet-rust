@@ -122,6 +122,16 @@ pub trait Defaults {
         ))
     }
 
+    /// Genesis mining, disabled by default
+    fn mining_genesis_mining(&self) -> bool {
+        false
+    }
+
+    /// Genesis block url, empty by default
+    fn mining_genesis_url(&self) -> String {
+        "".to_string()
+    }
+
     fn consensus_constants_max_block_weight(&self) -> u32 {
         // TODO: Replace  with real max_block_weight value used in mainnet
         10_000
