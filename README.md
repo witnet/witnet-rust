@@ -64,11 +64,11 @@ Witnet-rust is published under the [GNU General Public License v3.0][license].
 [protobuf-convert]: https://github.com/witnet/protobuf-convert
 [async-jsonrpc-client]: https://github.com/witnet/async-jsonrpc-client
 [roadmap]: https://medium.com/witnet/an-updated-witnet-roadmap-to-mainnet-cb8543c534a4
-[how to run a node]: https://medium.com/witnet/how-to-run-a-full-node-on-the-witnet-testnet-911986b8add3
+[how to run a node]: https://docs.witnet.io/try/run-a-node/
 [docs]: https://docs.witnet.io
-[install]: https://docs.witnet.io/get-started/install
-[Contributing]: https://docs.witnet.io/contributing
-[development]: https://docs.witnet.io/development
+[create a new Witnet-enabled project]: https://docs.witnet.io/tutorials/bitcoin-price-feed/create-project/
+[contributing]: https://docs.witnet.io/community/contributing/
 [RADON]: https://docs.witnet.io/protocol/data-requests/overview/#the-rad-engine
 [Discord]: https://discord.gg/FDPPv7H
+[Telegram]: https://t.me/witnet_io
 [license]: https://github.com/witnet/witnet-rust/blob/master/LICENSE
