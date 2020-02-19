@@ -390,6 +390,10 @@ pub fn consensus_constants_from_partial(
             .bootstrap_hash
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_bootstrap_hash()),
+        genesis_hash: config
+            .genesis_hash
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_genesis_hash()),
         max_block_weight: config
             .max_block_weight
             .to_owned()
