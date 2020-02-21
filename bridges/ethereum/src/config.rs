@@ -47,6 +47,8 @@ pub struct Config {
     pub eth_event_polling_rate_ms: u64,
     /// Running in the witnet testnet?
     pub witnet_testnet: bool,
+    /// If readDrHash returns 0, try again later
+    pub read_dr_hash_interval_ms: u64,
     /// Gas limits for some methods. If missing, let the client estimate
     pub gas_limits: Gas,
 }

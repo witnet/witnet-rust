@@ -8,8 +8,11 @@ use crate::{
 use async_jsonrpc_client::futures::Stream;
 use futures::{future::Either, sink::Sink};
 use log::*;
-use std::{sync::Arc, time};
-use tokio::sync::mpsc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio::{sync::mpsc, timer::Interval};
 use web3::{
     contract,
     futures::Future,
@@ -39,6 +42,7 @@ pub fn eth_event_stream(
     let contract_address = config.wbi_contract_addr;
     let eth_event_polling_rate_ms = config.eth_event_polling_rate_ms;
     let eth_account = config.eth_account;
+    let interval_ms = config.read_dr_hash_interval_ms;
 
     let post_dr_event_sig = eth_state.post_dr_event_sig;
     let inclusion_dr_event_sig = eth_state.inclusion_dr_event_sig;
@@ -90,7 +94,7 @@ pub fn eth_event_stream(
             filter
                 // This poll interval was set to 0 in the example, which resulted in the
                 // bridge having 100% cpu usage...
-                .stream(time::Duration::from_millis(eth_event_polling_rate_ms))
+                .stream(Duration::from_millis(eth_event_polling_rate_ms))
                 .then(move |res| match res {
                     Ok(value) => {
                         debug!("Got ethereum event: {:?}", value);
@@ -122,28 +126,51 @@ pub fn eth_event_stream(
                                 )
                             }
                             Ok(WbiEvent::IncludedRequest(dr_id)) => {
-                                let contract = &eth_state.wbi_contract;
-                                debug!("[{}] Reading dr_tx_hash for id", dr_id);
+                                let mut retries = 0;
                                 Box::new(
-                                    contract
-                                        .query(
-                                            "readDrHash",
-                                            (dr_id,),
-                                            eth_account,
-                                            contract::Options::default(),
-                                            None,
-                                        )
-                                        .map_err(|e| error!("readDrHash: {:?}", e))
-                                        .and_then(move |dr_tx_hash: U256| {
-                                            let dr_tx_hash = Hash::SHA256(dr_tx_hash.into());
-                                            info!(
-                                                "[{}] Data request included in witnet with dr_tx_hash: {}",
-                                                dr_id, dr_tx_hash
-                                            );
+                                    Interval::new(Instant::now(), Duration::from_millis(interval_ms))
+                                        .map_err(|e| error!("Error creating interval: {:?}", e))
+                                        .map(move |i| (i, eth_state2.clone()))
+                                        .and_then(move |(_, eth_state2)| {
+                                            debug!("[{}] Reading dr_tx_hash for id, try {}", dr_id, retries);
+                                            retries += 1;
 
-                                            eth_state2.wbi_requests.write().map(move |mut wbi_requests| {
-                                                wbi_requests.insert_included(dr_id, dr_tx_hash);
-                                            })
+                                            eth_state2.wbi_contract
+                                                .query(
+                                                    "readDrHash",
+                                                    (dr_id, ),
+                                                    eth_account,
+                                                    contract::Options::default(),
+                                                    None,
+                                                )
+                                                .then(move |dr_tx_hash: Result<U256, _>| {
+                                                    match dr_tx_hash {
+                                                        Ok(dr_tx_hash) if dr_tx_hash == U256::zero() => {
+                                                            warn!("readDrHash: returned null hash for data request id {}, retrying in {} ms", dr_id, interval_ms);
+                                                            Either::A(futures::finished(()))
+                                                        }
+                                                        Ok(dr_tx_hash) => {
+                                                            let dr_tx_hash = Hash::SHA256(dr_tx_hash.into());
+                                                            info!(
+                                                                "[{}] Data request included in witnet with dr_tx_hash: {}",
+                                                                dr_id, dr_tx_hash
+                                                            );
+                                                            Either::B(eth_state2.wbi_requests.write().map(move |mut wbi_requests| {
+                                                                wbi_requests.insert_included(dr_id, dr_tx_hash);
+                                                            }).then(|_| {
+                                                                // Exit interval loop
+                                                                futures::failed(())
+                                                            }))
+                                                        }
+                                                        Err(e) => {
+                                                            warn!("readDrHash: {}, for data request id {}, retrying in {} ms", e, dr_id, interval_ms);
+                                                            Either::A(futures::finished(()))
+                                                        }
+                                                    }
+                                                })
+                                        })
+                                        .for_each(|_| {
+                                            Ok(())
                                         })
                                 )
                             }
