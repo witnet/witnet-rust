@@ -1,13 +1,14 @@
 use actix::prelude::*;
 
 use super::{
+    get_genesis_block_info,
     handlers::{EpochPayload, EveryEpochPayload},
     ChainManager,
 };
 use crate::{
     actors::{
         epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
-        messages::{GetEpoch, GetEpochConstants, Subscribe},
+        messages::{AddBlocks, GetEpoch, GetEpochConstants, Subscribe},
         storage_keys,
     },
     config_mngr, signature_mngr, storage_mngr,
@@ -22,6 +23,7 @@ use witnet_util::timestamp::pretty_print;
 use log::{debug, error, info, warn};
 use std::time::Duration;
 use witnet_crypto::key::CryptoEngine;
+use witnet_data_structures::chain::Hashable;
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -76,7 +78,24 @@ impl ChainManager {
                 // Store the bootstrap, genesis block hash and genesis mining flag
                 act.bootstrap_block_hash = config.consensus_constants.bootstrap_hash;
                 act.genesis_block_hash = config.consensus_constants.genesis_hash;
-                act.genesis_mining_flag = config.mining.genesis_mining;
+
+                let info_genesis = act.info_genesis.take().or_else(|| if config.mining.genesis_mining {
+                    get_genesis_block_info(&config.mining.genesis_path)
+                } else {
+                    None
+                });
+                if let Some(info_genesis) = info_genesis.clone() {
+                    // TODO: the genesis block should only be created once
+                    let built_genesis_block_hash = info_genesis.build_genesis_block(act.bootstrap_block_hash).hash();
+
+                    if built_genesis_block_hash != act.genesis_block_hash {
+                        // Stop node on genesis hash mismatch
+                        panic!("GENESIS BLOCK HASH MISMATCH\nEXPECTED: {}\nFOUND:    {}", act.genesis_block_hash, built_genesis_block_hash);
+                    } else {
+                        log::info!("GENESIS BLOCK SUCCESSFULLY CREATED. HASH: {}", built_genesis_block_hash);
+                    }
+                }
+                act.info_genesis = info_genesis;
 
                 // Do not start the MiningManager if the configuration disables it
                 act.mining_enabled = config.mining.enabled;
@@ -89,7 +108,7 @@ impl ChainManager {
                     .map_err(|e, _, _| error!("Error while getting chain state from storage: {}", e))
                     .map(|chain_state_from_storage, _, _| (chain_state_from_storage, config))
             })
-            .map(move |(chain_state_from_storage, config), act, _ctx| {
+            .map(move |(chain_state_from_storage, config), act, ctx| {
                 // Get environment and consensus_constants parameters from config
                 let environment = config.environment;
                 let consensus_constants = &config.consensus_constants;
@@ -146,12 +165,14 @@ impl ChainManager {
                         // Create a new ChainInfo
                         let bootstrap_hash = consensus_constants.bootstrap_hash;
                         let reputation_engine = ReputationEngine::new(consensus_constants.activity_period as usize);
+                        let hash_prev_block = bootstrap_hash;
+
                         let chain_info = ChainInfo {
                             environment,
                             consensus_constants: consensus_constants.clone(),
                             highest_block_checkpoint: CheckpointBeacon {
                                 checkpoint: 0,
-                                hash_prev_block: bootstrap_hash,
+                                hash_prev_block,
                             },
                         };
 
@@ -169,6 +190,16 @@ impl ChainManager {
                     chain_info.highest_block_checkpoint.checkpoint,
                     chain_info.highest_block_checkpoint.hash_prev_block
                 );
+
+                // If hash_prev_block is the bootstrap hash, create and consolidate genesis block
+                if chain_info.highest_block_checkpoint.hash_prev_block == consensus_constants.bootstrap_hash {
+                    if let Some(ig) = act.info_genesis.clone() {
+                        let genesis_block = ig.build_genesis_block(consensus_constants.bootstrap_hash);
+                        ctx.notify(AddBlocks {
+                            blocks: vec![genesis_block],
+                        });
+                    }
+                }
 
                 act.chain_state = chain_state;
                 act.last_chain_state = act.chain_state.clone();

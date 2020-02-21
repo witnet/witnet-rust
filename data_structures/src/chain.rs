@@ -37,6 +37,7 @@ use crate::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
 };
 use bech32::{FromBase32, ToBase32};
+use witnet_crypto::merkle::merkle_tree_root as crypto_merkle_tree_root;
 
 pub trait Hashable {
     fn hash(&self) -> Hash;
@@ -153,6 +154,47 @@ impl ConsensusConstants {
     }
 }
 
+/// Information needed to create the genesis block.
+///
+/// To prevent deserialization issues, the JSON file only contains string types: all integers
+/// must be surrounded by quotes.
+///
+/// This is the format of `genesis_block.json`:
+///
+/// ```norun
+/// {
+///     "alloc":[
+///         [
+///             {
+///                 "address": "twit1adgt8t2h3xnu358f76zxlph0urf2ev7cd78ggc",
+///                 "value": "500000000000",
+///                 "timelock": "0"
+///             },
+///         ]
+///     ]
+/// }
+/// ```
+///
+/// The `alloc` field has two levels of arrays: the outer array is the list of transactions,
+/// and the inner arrays are lists of `ValueTransferOutput` inside that transaction.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(from = "crate::serialization_helpers::GenesisBlock")]
+pub struct GenesisBlockInfo {
+    /// The outer array is the list of transactions
+    /// and the inner arrays are lists of `ValueTransferOutput` inside that transaction.
+    pub alloc: Vec<Vec<ValueTransferOutput>>,
+}
+
+impl GenesisBlockInfo {
+    /// Create a genesis block with the transactions from `self.alloc`.
+    pub fn build_genesis_block(self, bootstrap_hash: Hash) -> Block {
+        Block::genesis(
+            bootstrap_hash,
+            self.alloc.into_iter().map(VTTransaction::genesis).collect(),
+        )
+    }
+}
+
 /// Checkpoint beacon structure
 #[derive(
     Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize, ProtobufConvert,
@@ -197,6 +239,57 @@ pub struct BlockTransactions {
     pub reveal_txns: Vec<RevealTransaction>,
     /// A list of signed tally transactions
     pub tally_txns: Vec<TallyTransaction>,
+}
+
+impl Block {
+    pub fn genesis(bootstrap_hash: Hash, value_transfer_txns: Vec<VTTransaction>) -> Block {
+        let txns = BlockTransactions {
+            mint: MintTransaction::default(),
+            value_transfer_txns,
+            data_request_txns: vec![],
+            commit_txns: vec![],
+            reveal_txns: vec![],
+            tally_txns: vec![],
+        };
+
+        /// Function to calculate a merkle tree from a transaction vector
+        pub fn merkle_tree_root<T>(transactions: &[T]) -> Hash
+        where
+            T: Hashable,
+        {
+            let transactions_hashes: Vec<Sha256> = transactions
+                .iter()
+                .map(|x| match x.hash() {
+                    Hash::SHA256(x) => Sha256(x),
+                })
+                .collect();
+
+            Hash::from(crypto_merkle_tree_root(&transactions_hashes))
+        }
+
+        let merkle_roots = BlockMerkleRoots {
+            mint_hash: txns.mint.hash(),
+            vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns),
+            dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns),
+            commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
+            reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
+            tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+        };
+
+        Block {
+            block_header: BlockHeader {
+                version: 1,
+                beacon: CheckpointBeacon {
+                    checkpoint: 0,
+                    hash_prev_block: bootstrap_hash,
+                },
+                merkle_roots,
+                proof: Default::default(),
+            },
+            block_sig: Default::default(),
+            txns,
+        }
+    }
 }
 
 impl BlockTransactions {

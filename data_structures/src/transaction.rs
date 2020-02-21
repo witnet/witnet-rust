@@ -132,6 +132,12 @@ impl VTTransaction {
     pub fn size(&self) -> u32 {
         self.to_pb().write_to_bytes().unwrap().len() as u32
     }
+
+    /// Create a special value transfer transaction that is only valid inside the genesis block,
+    /// because it is used to create value.
+    pub fn genesis(outputs: Vec<ValueTransferOutput>) -> Self {
+        Self::new(VTTransactionBody::new(vec![], outputs), vec![])
+    }
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]

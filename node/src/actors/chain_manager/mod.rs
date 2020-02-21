@@ -39,7 +39,6 @@ use ansi_term::Color::{Purple, White, Yellow};
 use failure::Fail;
 use itertools::Itertools;
 use log::{error, info, trace, warn};
-
 use witnet_crypto::key::CryptoEngine;
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
@@ -63,8 +62,8 @@ use crate::{
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
-        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash, Hashable,
-        InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
+        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, GenesisBlockInfo, Hash,
+        Hashable, InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
         TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
@@ -143,6 +142,8 @@ pub struct ChainManager {
     genesis_block_hash: Hash,
     /// Genesis mining flag
     genesis_mining_flag: bool,
+    /// Data needed to create the genesis block
+    info_genesis: Option<GenesisBlockInfo>,
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up
@@ -420,14 +421,17 @@ impl ChainManager {
 
                 let miner_pkh = block.txns.mint.output.pkh;
 
-                update_reputation(
-                    reputation_engine,
-                    &chain_info.consensus_constants,
-                    miner_pkh,
-                    rep_info,
-                    log_level,
-                    block_epoch,
-                );
+                // Do not update reputation when consolidating genesis block
+                if block_hash != self.genesis_block_hash {
+                    update_reputation(
+                        reputation_engine,
+                        &chain_info.consensus_constants,
+                        miner_pkh,
+                        rep_info,
+                        log_level,
+                        block_epoch,
+                    );
+                }
 
                 // Insert candidate block into `block_chain` state
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
@@ -1055,6 +1059,15 @@ fn show_sync_progress(
         target_beacon.checkpoint,
         human_age
     );
+}
+
+/// TODO doc
+pub fn get_genesis_block_info(path: &str) -> Option<GenesisBlockInfo> {
+    let response = std::fs::read_to_string(path).unwrap();
+
+    let genesis_block: Result<GenesisBlockInfo, _> = serde_json::from_str(&response);
+
+    Some(genesis_block.unwrap())
 }
 
 #[cfg(test)]

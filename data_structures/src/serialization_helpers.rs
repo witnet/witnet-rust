@@ -6,9 +6,12 @@
 
 // Ideally all this code would be generated with a `#[serde(human_readable_string)]` macro.
 
-use crate::chain::{Hash, OutputPointer, PublicKeyHash, SHA256};
+use crate::chain::{
+    GenesisBlockInfo, Hash, OutputPointer, PublicKeyHash, ValueTransferOutput, SHA256,
+};
 use crate::get_environment;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use std::{fmt::Display, str::FromStr};
 
 #[derive(Deserialize, Serialize)]
 enum HashSerializationHelper {
@@ -143,6 +146,58 @@ impl<'de> Deserialize<'de> for OutputPointer {
                 .map_err(de::Error::custom)
         } else {
             OutputPointerSerializationHelper::deserialize(deserializer).map(Into::into)
+        }
+    }
+}
+
+/// Serialization helper for `GenesisBlockInfo`.
+#[derive(Deserialize)]
+pub struct GenesisBlock {
+    alloc: Vec<Vec<GenesisValueTransferOutput>>,
+}
+
+#[derive(Deserialize)]
+struct GenesisValueTransferOutput {
+    #[serde(deserialize_with = "deserialize_from_str")]
+    address: PublicKeyHash,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    value: u64,
+    #[serde(deserialize_with = "deserialize_from_str")]
+    timelock: u64,
+}
+
+// https://serde.rs/attr-bound.html
+/// Deserialize a type `S` by deserializing a string, then using the `FromStr`
+/// impl of `S` to create the result. The generic type `S` is not required to
+/// implement `Deserialize`.
+fn deserialize_from_str<'de, S, D>(deserializer: D) -> Result<S, D::Error>
+where
+    S: FromStr,
+    S::Err: Display,
+    D: Deserializer<'de>,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+    S::from_str(s).map_err(de::Error::custom)
+}
+
+impl From<GenesisValueTransferOutput> for ValueTransferOutput {
+    fn from(x: GenesisValueTransferOutput) -> Self {
+        Self {
+            pkh: x.address,
+            value: x.value,
+            time_lock: x.timelock,
+        }
+    }
+}
+
+impl From<GenesisBlock> for GenesisBlockInfo {
+    fn from(x: GenesisBlock) -> Self {
+        Self {
+            alloc: x
+                .alloc
+                .into_iter()
+                .map(|alloc| alloc.into_iter().map(ValueTransferOutput::from).collect())
+                .collect(),
         }
     }
 }

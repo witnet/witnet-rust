@@ -276,13 +276,23 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
 impl Handler<AddBlocks> for ChainManager {
     type Result = SessionUnitResult;
 
+    #[allow(clippy::cognitive_complexity)]
     fn handle(&mut self, msg: AddBlocks, ctx: &mut Context<Self>) {
         log::debug!(
             "AddBlocks received while StateMachine is in state {:?}",
             self.sm_state
         );
         match self.sm_state {
-            StateMachine::WaitingConsensus => {}
+            StateMachine::WaitingConsensus => {
+                // In WaitingConsensus state, only allow AddBlocks when the argument is
+                // the genesis block
+                if msg.blocks.len() == 1 && msg.blocks[0].hash() == self.genesis_block_hash {
+                    match self.process_requested_block(ctx, &msg.blocks[0]) {
+                        Ok(()) => log::debug!("Successfully consolidated genesis block"),
+                        Err(e) => log::error!("Failed to consolidate genesis block: {}", e),
+                    }
+                }
+            }
             StateMachine::Synchronizing => {
                 if let Some(target_beacon) = self.target_beacon {
                     let mut batch_succeeded = true;
