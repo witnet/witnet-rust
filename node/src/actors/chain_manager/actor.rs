@@ -1,4 +1,3 @@
-// use actix::{Actor, ActorFuture, AsyncContext, Context, ContextFutureSpawner, System, WrapFuture};
 use actix::prelude::*;
 
 use super::{
@@ -54,122 +53,125 @@ impl Actor for ChainManager {
 impl ChainManager {
     /// Get configuration from ConfigManager and try to initialize ChainManager state from Storage
     /// (initialize to Default values if empty)
-    // FIXME: Remove all `unwrap()`s
     pub fn initialize_from_storage(&mut self, ctx: &mut Context<ChainManager>) {
-        config_mngr::get().into_actor(self).and_then(|config, act, ctx| {
-            // Get environment and consensus_constants parameters from config
-            let environment = config.environment;
+        config_mngr::get()
+            .into_actor(self)
+            .map_err(|err, _act, _ctx| {
+                log::error!("Couldn't get config: {}", err);
+            })
+            .and_then(|config, act, _ctx| {
+                let consensus_constants = config.consensus_constants.clone();
+                act.max_block_weight = consensus_constants.max_block_weight;
+                if config.mining.data_request_timeout == Duration::new(0, 0) {
+                    act.data_request_timeout = None;
+                } else {
+                    act.data_request_timeout = Some(config.mining.data_request_timeout);
+                }
 
-            let consensus_constants = config.consensus_constants.clone();
-            act.max_block_weight = consensus_constants.max_block_weight;
-            if config.mining.data_request_timeout == Duration::new(0, 0) {
-                act.data_request_timeout = None;
-            } else {
-                act.data_request_timeout = Some(config.mining.data_request_timeout);
-            }
+                act.tx_pending_timeout = config.mempool.tx_pending_timeout;
 
-            act.tx_pending_timeout = config.mempool.tx_pending_timeout;
+                let magic = consensus_constants.get_magic();
+                act.set_magic(magic);
 
-            let magic = consensus_constants.get_magic();
-            act.set_magic(magic);
+                // Store the genesis block hash
+                act.genesis_block_hash = config.consensus_constants.genesis_hash;
 
-            storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
-                .into_actor(act)
-                .map_err(|e, _, _| error!("Error while getting chain state from storage: {}", e))
-                .and_then(move |chain_state_from_storage, act, _ctx| {
-                    // chain_info_from_storage can be None if the storage does not contain that key
-                    match chain_state_from_storage {
-                        Some(
-                            ChainState {
-                                chain_info: Some(..),
-                                reputation_engine: Some(..),
-                                ..
-                            }
-                        ) => {
-                            let chain_state_from_storage = chain_state_from_storage.unwrap();
-                            let chain_info_from_storage =
-                                chain_state_from_storage.chain_info.as_ref().unwrap();
+                // Do not start the MiningManager if the configuration disables it
+                act.mining_enabled = config.mining.enabled;
 
-                            if environment == chain_info_from_storage.environment {
-                                if consensus_constants == chain_info_from_storage.consensus_constants {
-                                    // Update Chain Info from storage
-                                    act.chain_state = chain_state_from_storage;
-                                    act.last_chain_state = act.chain_state.clone();
-                                    debug!("ChainInfo successfully obtained from storage");
-                                } else {
-                                    // Mismatching consensus constants between config and storage
-                                    panic!(
-                                        "Mismatching consensus constants: tried to run a node using \
-                                         different consensus constants than the ones that were used when \
-                                         the local chain was initialized.\nNode constants: {:#?}\nChain \
-                                         constants: {:#?}",
-                                        consensus_constants, chain_info_from_storage.consensus_constants
-                                    );
-                                }
-                            } else {
-                                // Mismatching environment names between config and storage
-                                panic!(
-                                    "Mismatching environments: tried to run a node on environment \
-                                    \"{:?}\" with a chain that was initialized with environment \
-                                    \"{:?}\".",
-                                    environment, chain_info_from_storage.environment
-                                );
-                            }
+                // Get consensus parameter from config
+                act.consensus_c = config.connections.consensus_c;
+
+                storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
+                    .into_actor(act)
+                    .map_err(|e, _, _| error!("Error while getting chain state from storage: {}", e))
+                    .map(|chain_state_from_storage, _, _| (chain_state_from_storage, config))
+            })
+            .map(move |(chain_state_from_storage, config), act, _ctx| {
+                // Get environment and consensus_constants parameters from config
+                let environment = config.environment;
+                let consensus_constants = &config.consensus_constants;
+                // chain_info_from_storage can be None if the storage does not contain that key
+
+                let chain_state = match chain_state_from_storage {
+                    Some(
+                        chain_state_from_storage @ ChainState {
+                            chain_info: Some(..),
+                            reputation_engine: Some(..),
+                            ..
                         }
-                        x => {
-                            if x.is_some() {
-                                debug!(
-                                    "Uninitialized local chain the ChainInfo in storage is incomplete. Proceeding to \
-                                     initialize and store a new chain."
-                                );
+                    ) => {
+                        let chain_info_from_storage =
+                            chain_state_from_storage.chain_info.as_ref().unwrap();
+
+                        if environment == chain_info_from_storage.environment {
+                            if consensus_constants == &chain_info_from_storage.consensus_constants {
+                                debug!("ChainInfo successfully obtained from storage");
+
+                                chain_state_from_storage
                             } else {
-                                debug!(
-                                    "Uninitialized local chain (no ChainInfo in storage). Proceeding to \
-                                     initialize and store a new chain."
+                                // Mismatching consensus constants between config and storage
+                                panic!(
+                                    "Mismatching consensus constants: tried to run a node using \
+                                     different consensus constants than the ones that were used when \
+                                     the local chain was initialized.\nNode constants: {:#?}\nChain \
+                                     constants: {:#?}",
+                                    consensus_constants, chain_info_from_storage.consensus_constants
                                 );
                             }
-                            // Create a new ChainInfo
-                            let genesis_hash = consensus_constants.genesis_hash;
-                            let reputation_engine = ReputationEngine::new(consensus_constants.activity_period as usize);
-                            let chain_info = ChainInfo {
-                                environment,
-                                consensus_constants,
-                                highest_block_checkpoint: CheckpointBeacon {
-                                    checkpoint: 0,
-                                    hash_prev_block: genesis_hash,
-                                },
-                            };
-                            act.chain_state = ChainState {
-                                chain_info: Some(chain_info),
-                                reputation_engine: Some(reputation_engine),
-                                ..ChainState::default()
-                            };
-                            act.last_chain_state = act.chain_state.clone();
+                        } else {
+                            // Mismatching environment names between config and storage
+                            panic!(
+                                "Mismatching environments: tried to run a node on environment \
+                                \"{:?}\" with a chain that was initialized with environment \
+                                \"{:?}\".",
+                                environment, chain_info_from_storage.environment
+                            );
                         }
                     }
+                    x => {
+                        if x.is_some() {
+                            debug!(
+                                "Uninitialized local chain the ChainInfo in storage is incomplete. Proceeding to \
+                                 initialize and store a new chain."
+                            );
+                        } else {
+                            debug!(
+                                "Uninitialized local chain (no ChainInfo in storage). Proceeding to \
+                                 initialize and store a new chain."
+                            );
+                        }
+                        // Create a new ChainInfo
+                        let genesis_hash = consensus_constants.genesis_hash;
+                        let reputation_engine =
+                            ReputationEngine::new(consensus_constants.activity_period as usize);
+                        let chain_info = ChainInfo {
+                            environment,
+                            consensus_constants: consensus_constants.clone(),
+                            highest_block_checkpoint: CheckpointBeacon {
+                                checkpoint: 0,
+                                hash_prev_block: genesis_hash,
+                            },
+                        };
 
-                    let chain_info = act.chain_state.chain_info.as_ref().unwrap();
-                    info!("Actual ChainState CheckpointBeacon: epoch ({}), hash_block ({})",
-                          chain_info.highest_block_checkpoint.checkpoint,
-                          chain_info.highest_block_checkpoint.hash_prev_block);
+                        ChainState {
+                            chain_info: Some(chain_info),
+                            reputation_engine: Some(reputation_engine),
+                            ..ChainState::default()
+                        }
+                    }
+                };
 
-                    fut::ok(())
-                })
-                .spawn(ctx);
+                let chain_info = chain_state.chain_info.as_ref().unwrap();
+                info!(
+                    "Actual ChainState CheckpointBeacon: epoch ({}), hash_block ({})",
+                    chain_info.highest_block_checkpoint.checkpoint,
+                    chain_info.highest_block_checkpoint.hash_prev_block
+                );
 
-            // Store the genesis block hash
-            act.genesis_block_hash = config.consensus_constants.genesis_hash;
-
-            // Do not start the MiningManager if the configuration disables it
-            act.mining_enabled = config.mining.enabled;
-
-            // Get consensus parameter from config
-            act.consensus_c = config.connections.consensus_c;
-
-            fut::ok(())
-        }).map_err(|err,_,_| {
-            log::error!("Couldn't initialize from storage: {}", err);
-        }).wait(ctx);
+                act.chain_state = chain_state;
+                act.last_chain_state = act.chain_state.clone();
+            }).wait(ctx);
     }
 
     /// Get epoch constants and current epoch from EpochManager, and subscribe to future epochs

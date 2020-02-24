@@ -501,7 +501,7 @@ impl ChainManager {
         self.chain_state
             .chain_info
             .as_ref()
-            .unwrap()
+            .expect("ChainInfo is None")
             .highest_block_checkpoint
     }
 
