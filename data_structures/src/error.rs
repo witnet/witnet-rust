@@ -104,6 +104,11 @@ pub enum TransactionError {
     /// No inputs when the transaction must have at least one
     #[fail(display = "Transaction {} cannot have zero inputs", tx_hash)]
     NoInputs { tx_hash: Hash },
+    #[fail(
+        display = "Genesis transaction should have 0 inputs, but has {} inputs",
+        inputs_n
+    )]
+    InputsInGenesis { inputs_n: usize },
     /// An output with zero value does not make sense
     #[fail(
         display = "Transaction {} has a zero value output at index {}",
@@ -251,6 +256,11 @@ pub enum BlockError {
         block_hash, our_hash
     )]
     PreviousHashMismatch { block_hash: Hash, our_hash: Hash },
+    #[fail(
+        display = "Ignoring genesis block because it is different from our expected genesis block:\nBlock:    `{}`\nExpected: `{}`",
+        block, expected
+    )]
+    GenesisBlockMismatch { block: String, expected: String },
     #[fail(
         display = "Block candidate's epoch differs from current epoch ({} != {})",
         block_epoch, current_epoch

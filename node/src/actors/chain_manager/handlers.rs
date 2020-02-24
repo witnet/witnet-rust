@@ -185,6 +185,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             self.vrf_ctx.as_mut().unwrap(),
                             self.secp.as_ref().unwrap(),
                             chain_info.consensus_constants.mining_backup_factor,
+                            self.genesis_block_hash,
                         ) {
                             Ok(utxo_diff) => {
                                 let block_pkh = &block_candidate.block_sig.public_key.pkh();

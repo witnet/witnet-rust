@@ -14,10 +14,10 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
-        DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature,
-        OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine,
-        SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon,
+        DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash,
+        Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally,
+        Reputation, ReputationEngine, SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::DataRequestPool,
     error::{BlockError, DataRequestError, TransactionError},
@@ -539,6 +539,41 @@ pub fn validate_vt_transaction<'a>(
         vt_tx.body.outputs.iter().collect(),
         fee,
     ))
+}
+
+/// Function to validate a value transfer transaction from the genesis block
+/// These are special because they can create value
+pub fn validate_genesis_vt_transaction<'a>(
+    vt_tx: &'a VTTransaction,
+) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), TransactionError> {
+    // Genesis VTTs should have 0 inputs
+    if !vt_tx.body.inputs.is_empty() {
+        return Err(TransactionError::InputsInGenesis {
+            inputs_n: vt_tx.body.inputs.len(),
+        });
+    }
+    // Genesis VTTs should have 0 signatures
+    if !vt_tx.signatures.is_empty() {
+        return Err(TransactionError::MismatchingSignaturesNumber {
+            signatures_n: vt_tx.signatures.len() as u8,
+            inputs_n: 0,
+        });
+    }
+    for (idx, output) in vt_tx.body.outputs.iter().enumerate() {
+        // Genesis VTT outputs must have some value
+        if output.value == 0 {
+            return Err(TransactionError::ZeroValueOutput {
+                tx_hash: vt_tx.hash(),
+                output_id: idx,
+            });
+        }
+    }
+
+    let inputs = vec![];
+    let outputs = vt_tx.body.outputs.iter().collect();
+    let fee = 0;
+
+    Ok((inputs, outputs, fee))
 }
 
 /// Function to validate a data request transaction
@@ -1067,9 +1102,11 @@ pub fn validate_block_transactions(
     block: &Block,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
+    genesis_block_hash: Hash,
     epoch_constants: EpochConstants,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
+    let is_genesis = block.hash() == genesis_block_hash;
     let mut utxo_diff = UtxoDiff::new(utxo_set);
 
     // Init total fee
@@ -1079,13 +1116,17 @@ pub fn validate_block_transactions(
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
     for transaction in &block.txns.value_transfer_txns {
-        let (inputs, outputs, fee) = validate_vt_transaction(
-            transaction,
-            &utxo_diff,
-            epoch,
-            epoch_constants,
-            signatures_to_verify,
-        )?;
+        let (inputs, outputs, fee) = if is_genesis {
+            validate_genesis_vt_transaction(transaction)?
+        } else {
+            validate_vt_transaction(
+                transaction,
+                &utxo_diff,
+                epoch,
+                epoch_constants,
+                signatures_to_verify,
+            )?
+        };
         total_fee += fee;
 
         update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
@@ -1207,16 +1248,18 @@ pub fn validate_block_transactions(
     }
     let ta_hash_merkle_root = ta_mt.root();
 
-    // Validate mint
-    validate_mint_transaction(&block.txns.mint, total_fee, block_beacon.checkpoint)?;
+    if !is_genesis {
+        // Validate mint
+        validate_mint_transaction(&block.txns.mint, total_fee, block_beacon.checkpoint)?;
 
-    // Insert mint in utxo
-    update_utxo_diff(
-        &mut utxo_diff,
-        vec![],
-        vec![&block.txns.mint.output],
-        block.txns.mint.hash(),
-    );
+        // Insert mint in utxo
+        update_utxo_diff(
+            &mut utxo_diff,
+            vec![],
+            vec![&block.txns.mint.output],
+            block.txns.mint.hash(),
+        );
+    }
 
     // Validate Merkle Root
     let merkle_roots = BlockMerkleRoots {
@@ -1243,6 +1286,7 @@ pub fn validate_block(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
     mining_bf: u32,
+    genesis_block_hash: Hash,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -1265,6 +1309,10 @@ pub fn validate_block(
             our_hash: chain_beacon.hash_prev_block,
         }
         .into())
+    } else if block.hash() == genesis_block_hash {
+        // This is the genesis block
+
+        validate_genesis_block(block).map_err(Into::into)
     } else {
         let total_identities = rep_eng.ars().active_identities_number() as u32;
         let (target_hash, _) = calculate_randpoe_threshold(total_identities, mining_bf);
@@ -1277,6 +1325,53 @@ pub fn validate_block(
         );
 
         validate_block_signature(&block, signatures_to_verify)
+    }
+}
+
+/// Validate a genesis block: a block with hash_prev_block = bootstrap_hash
+pub fn validate_genesis_block(genesis_block: &Block) -> Result<(), BlockError> {
+    // Do not check VRF proof or signatures, the hash is enough proof
+    // But check that there is no extra information in the unused fields
+    let txns = BlockTransactions {
+        mint: MintTransaction::default(),
+        value_transfer_txns: genesis_block.txns.value_transfer_txns.clone(),
+        data_request_txns: vec![],
+        commit_txns: vec![],
+        reveal_txns: vec![],
+        tally_txns: vec![],
+    };
+
+    let merkle_roots = BlockMerkleRoots {
+        mint_hash: txns.mint.hash(),
+        vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns),
+        dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns),
+        commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
+        reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
+        tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
+    };
+    let empty_block = Block {
+        block_header: BlockHeader {
+            version: 1,
+            beacon: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: genesis_block.block_header.beacon.hash_prev_block,
+            },
+            merkle_roots,
+            proof: Default::default(),
+        },
+        block_sig: Default::default(),
+        txns,
+    };
+
+    // Verify that the genesis block to validate has the same fields as the
+    // empty block we just created
+    if &empty_block == genesis_block {
+        Ok(())
+    } else {
+        Err(BlockError::GenesisBlockMismatch {
+            block: format!("{:?}", genesis_block),
+            expected: format!("{:?}", empty_block),
+        })
     }
 }
 

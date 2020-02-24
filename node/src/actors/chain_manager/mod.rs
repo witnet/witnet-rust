@@ -300,6 +300,7 @@ impl ChainManager {
                 vrf_ctx,
                 secp_ctx,
                 mining_bf,
+                self.genesis_block_hash,
             )?;
 
             // Persist block and update ChainState
@@ -639,6 +640,7 @@ impl ChainManager {
             &mut signatures_to_verify,
             self.chain_state.reputation_engine.as_ref().unwrap(),
             mining_bf,
+            self.genesis_block_hash,
         ))
         .and_then(|()| signature_mngr::verify_signatures(signatures_to_verify))
         .into_actor(self)
@@ -650,6 +652,7 @@ impl ChainManager {
                 &block,
                 &mut signatures_to_verify,
                 act.chain_state.reputation_engine.as_ref().unwrap(),
+                act.genesis_block_hash,
                 epoch_constants,
             ))
             .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
@@ -673,6 +676,7 @@ pub fn process_validations(
     vrf_ctx: &mut VrfCtx,
     secp_ctx: &CryptoEngine,
     mining_bf: u32,
+    genesis_block_hash: Hash,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -682,6 +686,7 @@ pub fn process_validations(
         &mut signatures_to_verify,
         rep_eng,
         mining_bf,
+        genesis_block_hash,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 
@@ -692,6 +697,7 @@ pub fn process_validations(
         block,
         &mut signatures_to_verify,
         rep_eng,
+        genesis_block_hash,
         epoch_constants,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;

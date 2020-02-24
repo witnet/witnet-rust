@@ -3415,6 +3415,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
     };
     let my_pkh = PublicKeyHash::default();
     let mining_bf = 8;
+    let genesis_block_hash = Hash::default();
 
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
@@ -3462,6 +3463,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         &mut signatures_to_verify,
         &rep_eng,
         mining_bf,
+        genesis_block_hash,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -3472,6 +3474,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         &b,
         &mut signatures_to_verify,
         &rep_eng,
+        genesis_block_hash,
         EpochConstants::default(),
     )?;
     verify_signatures_test(signatures_to_verify)?;
@@ -3649,6 +3652,7 @@ fn block_difficult_proof() {
     };
     let my_pkh = PublicKeyHash::default();
     let mining_bf = 8;
+    let genesis_block_hash = Hash::default();
 
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
@@ -3691,6 +3695,7 @@ fn block_difficult_proof() {
                 &mut signatures_to_verify,
                 &rep_eng,
                 mining_bf,
+                genesis_block_hash,
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -3701,6 +3706,7 @@ fn block_difficult_proof() {
                 &b,
                 &mut signatures_to_verify,
                 &rep_eng,
+                genesis_block_hash,
                 EpochConstants::default(),
             )?;
             verify_signatures_test(signatures_to_verify)?;
@@ -4189,6 +4195,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
         b.block_sig = sign_t(&b.block_header);
 
         let mining_bf = 1;
+        let genesis_block_hash = Hash::default();
         // First, validate candidate block (can return false positives)
         let mut signatures_to_verify = vec![];
         validate_candidate(
@@ -4209,6 +4216,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &mut signatures_to_verify,
             &rep_eng,
             mining_bf,
+            genesis_block_hash,
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -4220,6 +4228,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &b,
             &mut signatures_to_verify,
             &rep_eng,
+            genesis_block_hash,
             EpochConstants::default(),
         )?;
         verify_signatures_test(signatures_to_verify)?;
