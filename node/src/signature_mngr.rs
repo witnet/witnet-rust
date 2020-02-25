@@ -12,7 +12,7 @@ use log;
 use crate::{actors::storage_keys::MASTER_KEY, storage_mngr};
 
 use witnet_crypto::{
-    key::{CryptoEngine, ExtendedSK, MasterKeyGen, SignEngine, PK, SK},
+    key::{CryptoEngine, ExtendedPK, ExtendedSK, MasterKeyGen, SignEngine},
     mnemonic::MnemonicGen,
     signature,
 };
@@ -87,7 +87,7 @@ pub fn verify_signatures(
 #[derive(Debug, Default)]
 struct SignatureManager {
     /// Secret and public key
-    keypair: Option<(SK, PK)>,
+    keypair: Option<(ExtendedSK, ExtendedPK)>,
     /// VRF context
     vrf_ctx: Option<VrfCtx>,
     /// Secp256k1 context
@@ -95,14 +95,14 @@ struct SignatureManager {
 }
 
 impl SignatureManager {
-    fn set_key(&mut self, key: SK) {
-        let public_key = PK::from_secret_key(&SignEngine::signing_only(), &key);
+    fn set_key(&mut self, key: ExtendedSK) {
+        let public_key = ExtendedPK::from_secret_key(&SignEngine::signing_only(), &key);
         self.keypair = Some((key, public_key));
         log::debug!("Signature Manager received a key and is ready to sign");
     }
 }
 
-struct SetKey(SK);
+struct SetKey(ExtendedSK);
 
 struct Sign(Vec<u8>);
 
@@ -122,7 +122,7 @@ fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = 
     })
 }
 
-fn create_master_key() -> Box<dyn Future<Item = SK, Error = failure::Error>> {
+fn create_master_key() -> Box<dyn Future<Item = ExtendedSK, Error = failure::Error>> {
     log::info!("Generating and persisting a new master key for this node");
 
     // Create a new master key
@@ -130,7 +130,7 @@ fn create_master_key() -> Box<dyn Future<Item = SK, Error = failure::Error>> {
     let seed = mnemonic.seed(&ProtectedString::new(""));
     match MasterKeyGen::new(seed).generate() {
         Ok(master_key) => {
-            let fut = persist_master_key(master_key.clone()).map(move |_| master_key.into());
+            let fut = persist_master_key(master_key.clone()).map(move |_| master_key);
 
             Box::new(fut)
         }
@@ -198,12 +198,13 @@ impl Handler<Sign> for SignatureManager {
     type Result = <Sign as Message>::Result;
 
     fn handle(&mut self, Sign(data): Sign, _ctx: &mut Self::Context) -> Self::Result {
-        match self.keypair {
+        match &self.keypair {
             Some((secret, public)) => {
-                let signature = signature::sign(self.secp.as_ref().unwrap(), secret, &data);
+                let signature =
+                    signature::sign(self.secp.as_ref().unwrap(), secret.secret_key, &data);
                 let keyed_signature = KeyedSignature {
                     signature: Signature::from(signature),
-                    public_key: PublicKey::from(public),
+                    public_key: PublicKey::from(public.key),
                 };
 
                 Ok(keyed_signature)
@@ -217,8 +218,8 @@ impl Handler<GetPkh> for SignatureManager {
     type Result = <GetPkh as Message>::Result;
 
     fn handle(&mut self, _msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
-        match self.keypair {
-            Some((_secret, public)) => Ok(PublicKeyHash::from_public_key(&public.into())),
+        match &self.keypair {
+            Some((_secret, public)) => Ok(PublicKeyHash::from_public_key(&public.key.into())),
             None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
         }
     }
@@ -228,8 +229,8 @@ impl Handler<GetPublicKey> for SignatureManager {
     type Result = <GetPublicKey as Message>::Result;
 
     fn handle(&mut self, _msg: GetPublicKey, _ctx: &mut Self::Context) -> Self::Result {
-        match self.keypair {
-            Some((_secret, public)) => Ok(public.into()),
+        match &self.keypair {
+            Some((_secret, public)) => Ok(public.key.into()),
             None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
         }
     }
@@ -246,7 +247,7 @@ impl Handler<VrfProve> for SignatureManager {
                 ..
             } => {
                 // This conversion is cheap, it's just a memcpy
-                let sk = SecretKey::from(*secret);
+                let sk = SecretKey::from(secret.secret_key);
                 VrfProof::create(vrf, &sk, &message)
             }
             Self {
@@ -300,7 +301,7 @@ impl Actor for SignatureManagerAdapter {
             .and_then(move |master_key_from_storage| {
                 master_key_from_storage.map_or_else(create_master_key, |master_key| {
                     let master_key: ExtendedSK = master_key.into();
-                    let fut = futures::future::ok(master_key.into());
+                    let fut = futures::future::ok(master_key);
 
                     Box::new(fut)
                 })

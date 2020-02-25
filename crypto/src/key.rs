@@ -182,7 +182,7 @@ pub type CryptoEngine = Secp256k1<secp256k1::All>;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExtendedSK {
     /// Secret key
-    secret_key: SK,
+    pub secret_key: SK,
     /// Chain code
     chain_code: Protected,
 }
