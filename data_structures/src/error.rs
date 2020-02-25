@@ -264,6 +264,11 @@ pub enum BlockError {
     )]
     GenesisBlockMismatch { block: String, expected: String },
     #[fail(
+        display = "Ignoring genesis block because its hash (\"{}\") is different from our expected genesis block hash (\"{}\")",
+        block_hash, our_hash
+    )]
+    GenesisBlockHashMismatch { block_hash: Hash, our_hash: Hash },
+    #[fail(
         display = "Block candidate's epoch differs from current epoch ({} != {})",
         block_epoch, current_epoch
     )]

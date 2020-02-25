@@ -3376,6 +3376,9 @@ fn block_signatures() {
 static MILLION_TX_OUTPUT: &str =
     "0f0f000000000000000000000000000000000000000000000000000000000000:0";
 
+static BOOTSTRAP_HASH: &str = "4404291750b0cff95068e9894040e84e27cfdab1cb14f8c59928c3480a155b68";
+static GENESIS_BLOCK_HASH: &str =
+    "0000000000000000000000000000000000000000000000000000000000000000";
 static LAST_BLOCK_HASH: &str = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41";
 
 fn test_block<F: FnMut(&mut Block) -> bool>(mut_block: F) -> Result<(), failure::Error> {
@@ -3415,7 +3418,8 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
     };
     let my_pkh = PublicKeyHash::default();
     let mining_bf = 8;
-    let genesis_block_hash = Hash::default();
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let genesis_block_hash = GENESIS_BLOCK_HASH.parse().unwrap();
 
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
@@ -3463,6 +3467,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         &mut signatures_to_verify,
         &rep_eng,
         mining_bf,
+        bootstrap_hash,
         genesis_block_hash,
     )?;
     verify_signatures_test(signatures_to_verify)?;
@@ -3652,7 +3657,8 @@ fn block_difficult_proof() {
     };
     let my_pkh = PublicKeyHash::default();
     let mining_bf = 8;
-    let genesis_block_hash = Hash::default();
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let genesis_block_hash = GENESIS_BLOCK_HASH.parse().unwrap();
 
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
@@ -3695,6 +3701,7 @@ fn block_difficult_proof() {
                 &mut signatures_to_verify,
                 &rep_eng,
                 mining_bf,
+                bootstrap_hash,
                 genesis_block_hash,
             )?;
             verify_signatures_test(signatures_to_verify)?;
@@ -4195,7 +4202,8 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
         b.block_sig = sign_t(&b.block_header);
 
         let mining_bf = 1;
-        let genesis_block_hash = Hash::default();
+        let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+        let genesis_block_hash = GENESIS_BLOCK_HASH.parse().unwrap();
         // First, validate candidate block (can return false positives)
         let mut signatures_to_verify = vec![];
         validate_candidate(
@@ -4216,6 +4224,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &mut signatures_to_verify,
             &rep_eng,
             mining_bf,
+            bootstrap_hash,
             genesis_block_hash,
         )?;
         verify_signatures_test(signatures_to_verify)?;

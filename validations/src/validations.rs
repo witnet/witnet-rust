@@ -1283,6 +1283,7 @@ pub fn validate_block_transactions(
 }
 
 /// Function to validate a block
+#[allow(clippy::too_many_arguments)]
 pub fn validate_block(
     block: &Block,
     current_epoch: Epoch,
@@ -1290,6 +1291,7 @@ pub fn validate_block(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
     mining_bf: u32,
+    bootstrap_hash: Hash,
     genesis_block_hash: Hash,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
@@ -1313,10 +1315,20 @@ pub fn validate_block(
             our_hash: chain_beacon.hash_prev_block,
         }
         .into())
-    } else if block.hash() == genesis_block_hash {
-        // This is the genesis block
+    } else if chain_beacon.hash_prev_block == bootstrap_hash {
+        // If the chain_beacon hash_prev_block is the bootstrap hash, only accept blocks
+        // with the genesis_block_hash
+        if block.hash() == genesis_block_hash {
+            // This is the genesis block
 
-        validate_genesis_block(block).map_err(Into::into)
+            validate_genesis_block(block).map_err(Into::into)
+        } else {
+            Err(BlockError::GenesisBlockHashMismatch {
+                block_hash: block.hash(),
+                our_hash: genesis_block_hash,
+            }
+            .into())
+        }
     } else {
         let total_identities = rep_eng.ars().active_identities_number() as u32;
         let (target_hash, _) = calculate_randpoe_threshold(total_identities, mining_bf);

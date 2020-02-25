@@ -185,6 +185,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             self.vrf_ctx.as_mut().unwrap(),
                             self.secp.as_ref().unwrap(),
                             chain_info.consensus_constants.mining_backup_factor,
+                            self.bootstrap_block_hash,
                             self.genesis_block_hash,
                         ) {
                             Ok(utxo_diff) => {
@@ -516,7 +517,12 @@ impl Handler<PeersBeacons> for ChainManager {
                     let our_beacon = self.get_chain_beacon();
 
                     // Check if we are already synchronized
-                    self.sm_state = if our_beacon == consensus_beacon {
+                    self.sm_state = if consensus_beacon.hash_prev_block == self.bootstrap_block_hash
+                    {
+                        log::debug!("The consensus is that there is no genesis block yet");
+
+                        StateMachine::WaitingConsensus
+                    } else if our_beacon == consensus_beacon {
                         log::info!("{}", SYNCED_BANNER);
                         StateMachine::Synced
                     } else if our_beacon.checkpoint == consensus_beacon.checkpoint
