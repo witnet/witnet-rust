@@ -272,26 +272,27 @@ impl ChainManager {
         block: &Block,
     ) -> Result<(), failure::Error> {
         if let (
-            Some(current_epoch),
             Some(epoch_constants),
             Some(chain_info),
             Some(rep_engine),
             Some(vrf_ctx),
             Some(secp_ctx),
         ) = (
-            self.current_epoch,
             self.epoch_constants,
             self.chain_state.chain_info.as_ref(),
             self.chain_state.reputation_engine.as_ref(),
             self.vrf_ctx.as_mut(),
             self.secp.as_ref(),
         ) {
+            if self.current_epoch.is_none() {
+                trace!("Called process_requested_block when current_epoch is None");
+            }
             let chain_beacon = chain_info.highest_block_checkpoint;
             let mining_bf = chain_info.consensus_constants.mining_backup_factor;
 
             let utxo_diff = process_validations(
                 block,
-                current_epoch,
+                self.current_epoch.unwrap_or_default(),
                 chain_beacon,
                 rep_engine,
                 epoch_constants,
