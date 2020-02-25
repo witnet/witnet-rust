@@ -68,6 +68,14 @@ pub fn public_key() -> impl Future<Item = PublicKey, Error = failure::Error> {
     addr.send(GetPublicKey).flatten()
 }
 
+/// Get the public key and secret key.
+///
+/// This might fail if the manager has not been initialized with a key
+pub fn key_pair() -> impl Future<Item = (ExtendedPK, ExtendedSK), Error = failure::Error> {
+    let addr = SignatureManagerAdapter::from_registry();
+    addr.send(GetKeyPair).flatten()
+}
+
 /// Create a VRF proof for the provided message with the stored key
 pub fn vrf_prove(
     message: VrfMessage,
@@ -109,6 +117,8 @@ struct Sign(Vec<u8>);
 struct GetPkh;
 
 struct GetPublicKey;
+
+struct GetKeyPair;
 
 struct VrfProve(VrfMessage);
 
@@ -176,6 +186,10 @@ impl Message for GetPublicKey {
     type Result = Result<PublicKey, failure::Error>;
 }
 
+impl Message for GetKeyPair {
+    type Result = Result<(ExtendedPK, ExtendedSK), failure::Error>;
+}
+
 impl Message for VrfProve {
     type Result = Result<(VrfProof, Hash), failure::Error>;
 }
@@ -231,6 +245,19 @@ impl Handler<GetPublicKey> for SignatureManager {
     fn handle(&mut self, _msg: GetPublicKey, _ctx: &mut Self::Context) -> Self::Result {
         match &self.keypair {
             Some((_secret, public)) => Ok(public.key.into()),
+            None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+        }
+    }
+}
+
+impl Handler<GetKeyPair> for SignatureManager {
+    type Result = <GetKeyPair as Message>::Result;
+
+    fn handle(&mut self, _msg: GetKeyPair, _ctx: &mut Self::Context) -> Self::Result {
+        match &self.keypair {
+            Some((secret, public)) => {
+                Ok((public.clone(), secret.clone()))
+            },
             None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
         }
     }
@@ -344,6 +371,14 @@ impl Handler<GetPublicKey> for SignatureManagerAdapter {
     type Result = ResponseFuture<PublicKey, failure::Error>;
 
     fn handle(&mut self, msg: GetPublicKey, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
+impl Handler<GetKeyPair> for SignatureManagerAdapter {
+    type Result = ResponseFuture<(ExtendedPK, ExtendedSK), failure::Error>;
+
+    fn handle(&mut self, msg: GetKeyPair, _ctx: &mut Self::Context) -> Self::Result {
         Box::new(self.crypto.send(msg).flatten())
     }
 }

@@ -14,6 +14,7 @@ use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
+use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
     chain::{Block, CheckpointBeacon, Hash, PublicKeyHash},
     transaction::Transaction,
@@ -75,6 +76,7 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
         get_reputation(params.parse())
     });
     io.add_method("getReputationAll", |_params: Params| get_reputation_all());
+    io.add_method("masterKeyExport", |_params: Params| master_key_export());
 
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
@@ -835,6 +837,28 @@ pub fn get_reputation_all() -> JsonRpcResultAsync {
             Err(e) => futures::failed(internal_error_s(e)),
         });
 
+    Box::new(fut)
+}
+
+/// Export private key associated with the node identity
+pub fn master_key_export() -> JsonRpcResultAsync {
+    let fut = signature_mngr::key_pair().map_err(internal_error).and_then(
+        move |(_extended_pk, extended_sk)| {
+            let master_path = KeyPath::default();
+            let secret_key_hex = extended_sk.to_slip32(&master_path);
+            let secret_key_hex = match secret_key_hex {
+                Ok(x) => x,
+                Err(e) => return futures::failed(internal_error_s(e)),
+            };
+            match serde_json::to_value(secret_key_hex) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            }
+        },
+    );
     Box::new(fut)
 }
 
