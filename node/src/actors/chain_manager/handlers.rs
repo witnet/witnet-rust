@@ -327,12 +327,16 @@ impl Handler<AddBlocks> for ChainManager {
                             // Update reputation before checking Proof-of-Eligibility
                             let block_epoch = block.block_header.beacon.checkpoint;
 
-                            if let Some(ref mut rep_engine) = self.chain_state.reputation_engine {
-                                if let Err(e) = rep_engine.ars_mut().update_empty(block_epoch) {
-                                    log::error!(
-                                        "Error updating reputation before processing block: {}",
-                                        e
-                                    );
+                            // Do not update reputation when consolidating genesis block
+                            if block.hash() != self.genesis_block_hash {
+                                if let Some(ref mut rep_engine) = self.chain_state.reputation_engine
+                                {
+                                    if let Err(e) = rep_engine.ars_mut().update_empty(block_epoch) {
+                                        log::error!(
+                                            "Error updating reputation before processing block: {}",
+                                            e
+                                        );
+                                    }
                                 }
                             }
 
