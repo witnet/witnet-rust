@@ -185,7 +185,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             self.vrf_ctx.as_mut().unwrap(),
                             self.secp.as_ref().unwrap(),
                             chain_info.consensus_constants.mining_backup_factor,
-                            self.bootstrap_block_hash,
+                            self.bootstrap_hash,
                             self.genesis_block_hash,
                         ) {
                             Ok(utxo_diff) => {
@@ -303,7 +303,7 @@ impl Handler<AddBlocks> for ChainManager {
                         batch_succeeded = false;
                         log::debug!("Received an empty AddBlocks message");
                     // FIXME(#684): this condition would be modified when genesis block exist
-                    } else if chain_beacon.hash_prev_block != self.bootstrap_block_hash
+                    } else if chain_beacon.hash_prev_block != self.bootstrap_hash
                         && msg.blocks[0].hash() != chain_beacon.hash_prev_block
                         && msg.blocks[0].block_header.beacon.checkpoint == chain_beacon.checkpoint
                     {
@@ -314,7 +314,7 @@ impl Handler<AddBlocks> for ChainManager {
                         log::info!("Restored chain state from storage");
                     } else {
                         // FIXME(#684): this condition would be deleted when genesis block exist
-                        let blocks = if chain_beacon.hash_prev_block == self.bootstrap_block_hash
+                        let blocks = if chain_beacon.hash_prev_block == self.bootstrap_hash
                             || msg.blocks[0].block_header.beacon.checkpoint
                                 > chain_beacon.checkpoint
                         {
@@ -521,8 +521,7 @@ impl Handler<PeersBeacons> for ChainManager {
                     let our_beacon = self.get_chain_beacon();
 
                     // Check if we are already synchronized
-                    self.sm_state = if consensus_beacon.hash_prev_block == self.bootstrap_block_hash
-                    {
+                    self.sm_state = if consensus_beacon.hash_prev_block == self.bootstrap_hash {
                         log::debug!("The consensus is that there is no genesis block yet");
 
                         StateMachine::WaitingConsensus

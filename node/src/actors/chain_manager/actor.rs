@@ -75,8 +75,8 @@ impl ChainManager {
                 let magic = consensus_constants.get_magic();
                 act.set_magic(magic);
 
-                // Store the bootstrap, genesis block hash and genesis mining flag
-                act.bootstrap_block_hash = config.consensus_constants.bootstrap_hash;
+                // Store the bootstrap hash, genesis block hash and genesis mining flag
+                act.bootstrap_hash = config.consensus_constants.bootstrap_hash;
                 act.genesis_block_hash = config.consensus_constants.genesis_hash;
 
                 let info_genesis = act.info_genesis.take().or_else(|| if config.mining.genesis_mining {
@@ -86,7 +86,7 @@ impl ChainManager {
                 });
                 if let Some(info_genesis) = info_genesis.clone() {
                     // TODO: the genesis block should only be created once
-                    let built_genesis_block_hash = info_genesis.build_genesis_block(act.bootstrap_block_hash).hash();
+                    let built_genesis_block_hash = info_genesis.build_genesis_block(act.bootstrap_hash).hash();
 
                     if built_genesis_block_hash != act.genesis_block_hash {
                         // Stop node on genesis hash mismatch

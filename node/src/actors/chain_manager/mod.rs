@@ -137,7 +137,7 @@ pub struct ChainManager {
     /// Mining enabled
     mining_enabled: bool,
     /// Auxiliary hash to sync before genesis block
-    bootstrap_block_hash: Hash,
+    bootstrap_hash: Hash,
     /// Genesis block hash
     genesis_block_hash: Hash,
     /// Genesis mining flag
@@ -301,7 +301,7 @@ impl ChainManager {
                 vrf_ctx,
                 secp_ctx,
                 mining_bf,
-                self.bootstrap_block_hash,
+                self.bootstrap_hash,
                 self.genesis_block_hash,
             )?;
 
@@ -642,7 +642,7 @@ impl ChainManager {
             &mut signatures_to_verify,
             self.chain_state.reputation_engine.as_ref().unwrap(),
             mining_bf,
-            self.bootstrap_block_hash,
+            self.bootstrap_hash,
             self.genesis_block_hash,
         ))
         .and_then(|()| signature_mngr::verify_signatures(signatures_to_verify))
@@ -679,7 +679,7 @@ pub fn process_validations(
     vrf_ctx: &mut VrfCtx,
     secp_ctx: &CryptoEngine,
     mining_bf: u32,
-    bootstrap_block_hash: Hash,
+    bootstrap_hash: Hash,
     genesis_block_hash: Hash,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
@@ -690,7 +690,7 @@ pub fn process_validations(
         &mut signatures_to_verify,
         rep_eng,
         mining_bf,
-        bootstrap_block_hash,
+        bootstrap_hash,
         genesis_block_hash,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
