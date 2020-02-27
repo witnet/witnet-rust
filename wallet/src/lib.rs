@@ -22,6 +22,7 @@ use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
 
 use witnet_config::config::Config;
+use witnet_data_structures::chain::EpochConstants;
 use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
 
 mod account;
@@ -44,6 +45,10 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let db_file_name = conf.wallet.db_file_name;
     let node_url = conf.wallet.node_url;
     let rocksdb_opts = conf.rocksdb.to_rocksdb_options();
+    let epoch_constants = EpochConstants {
+        checkpoint_zero_timestamp: conf.consensus_constants.checkpoint_zero_timestamp,
+        checkpoints_period: conf.consensus_constants.checkpoints_period,
+    };
 
     // Db-encryption params
     let db_hash_iterations = conf.wallet.db_encrypt_hash_iterations;
@@ -93,6 +98,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         db_hash_iterations,
         db_iv_length,
         db_salt_length,
+        epoch_constants,
     };
 
     let worker = actors::Worker::start(concurrency, db.clone(), params);

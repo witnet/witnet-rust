@@ -1,4 +1,5 @@
 use crate::types;
+use witnet_data_structures::chain::EpochConstants;
 
 /// Cryptographic params that can be changed for each wallet.
 #[derive(Clone)]
@@ -11,6 +12,7 @@ pub struct Params {
     pub db_hash_iterations: u32,
     pub db_iv_length: usize,
     pub db_salt_length: usize,
+    pub epoch_constants: EpochConstants,
 }
 
 impl Default for Params {
@@ -24,6 +26,7 @@ impl Default for Params {
             db_hash_iterations: 10_000,
             db_iv_length: 16,
             db_salt_length: 32,
+            epoch_constants: EpochConstants::default(),
         }
     }
 }

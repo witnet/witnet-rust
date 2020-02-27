@@ -1,4 +1,5 @@
 use super::*;
+use witnet_data_structures::chain::EpochConstants;
 
 pub struct State {
     pub name: Option<String>,
@@ -11,4 +12,5 @@ pub struct State {
     pub balance: u64,
     pub transaction_next_id: u32,
     pub utxo_set: model::UtxoSet,
+    pub epoch_constants: EpochConstants,
 }

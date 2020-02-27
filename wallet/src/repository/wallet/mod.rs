@@ -16,7 +16,7 @@ mod tests;
 
 use state::State;
 use std::convert::TryFrom;
-use witnet_data_structures::chain::{Environment, Epoch};
+use witnet_data_structures::chain::{Environment, Epoch, EpochConstants};
 
 /// Internal structure used to gather state mutations while indexing block transactions
 struct TransactionMutation {
@@ -70,6 +70,7 @@ where
             constants::INTERNAL_KEYCHAIN,
         ))?;
         let keychains = [external_key, internal_key];
+        let epoch_constants = params.epoch_constants;
 
         let state = RwLock::new(State {
             name,
@@ -82,6 +83,7 @@ where
             balance,
             transaction_next_id,
             utxo_set,
+            epoch_constants,
         });
 
         Ok(Self {
@@ -604,7 +606,7 @@ where
             )?;
             batch.put(
                 keys::transaction_timestamp(account, txn_id),
-                convert_block_epoch_to_timestamp(block_info.epoch),
+                convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
             )?;
             batch.put(keys::transaction_block(account, txn_id), block_info)?;
 
@@ -714,10 +716,9 @@ where
     }
 }
 
-fn convert_block_epoch_to_timestamp(epoch: Epoch) -> i64 {
-    // FIXME: we need EpochConstants to convert between epochs and timestamps
-    // In the meanwhile, just return the epoch as the timestamp
-    i64::from(epoch)
+fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> i64 {
+    // In case of error, return timestamp 0
+    epoch_constants.epoch_timestamp(epoch).unwrap_or(0)
 }
 
 #[cfg(test)]
