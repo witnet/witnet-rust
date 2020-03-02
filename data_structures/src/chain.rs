@@ -204,6 +204,11 @@ pub enum GenesisBlockInfoError {
 ///
 /// The `alloc` field has two levels of arrays: the outer array is the list of transactions,
 /// and the inner arrays are lists of `ValueTransferOutput` inside that transaction.
+///
+/// Note that in order to be valid:
+/// * All transactions must have at least one output (but there can be 0 transactions)
+/// * All the outputs must have some value (value cannot be 0)
+/// * The sum of the value of all the outputs and the total block reward must be below 2^64
 #[derive(Clone, Debug, Deserialize)]
 #[serde(from = "crate::serialization_helpers::GenesisBlock")]
 pub struct GenesisBlockInfo {

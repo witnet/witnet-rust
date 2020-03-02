@@ -135,6 +135,10 @@ impl VTTransaction {
 
     /// Create a special value transfer transaction that is only valid inside the genesis block,
     /// because it is used to create value.
+    ///
+    /// Note that in order to be valid:
+    /// * The transaction must have at least one output
+    /// * All the outputs must have some value (value cannot be 0)
     pub fn genesis(outputs: Vec<ValueTransferOutput>) -> Self {
         Self::new(VTTransactionBody::new(vec![], outputs), vec![])
     }

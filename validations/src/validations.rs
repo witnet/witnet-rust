@@ -14,10 +14,10 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon,
-        DataRequestOutput, DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash,
-        Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally,
-        Reputation, ReputationEngine, SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
+        DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature,
+        OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine,
+        SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::DataRequestPool,
     error::{BlockError, DataRequestError, TransactionError},
@@ -1318,17 +1318,7 @@ pub fn validate_block(
     } else if chain_beacon.hash_prev_block == bootstrap_hash {
         // If the chain_beacon hash_prev_block is the bootstrap hash, only accept blocks
         // with the genesis_block_hash
-        if block.hash() == genesis_block_hash {
-            // This is the genesis block
-
-            validate_genesis_block(block).map_err(Into::into)
-        } else {
-            Err(BlockError::GenesisBlockHashMismatch {
-                block_hash: block.hash(),
-                our_hash: genesis_block_hash,
-            }
-            .into())
-        }
+        validate_genesis_block(block, genesis_block_hash).map_err(Into::into)
     } else {
         let total_identities = rep_eng.ars().active_identities_number() as u32;
         let (target_hash, _) = calculate_randpoe_threshold(total_identities, mining_bf);
@@ -1345,48 +1335,33 @@ pub fn validate_block(
 }
 
 /// Validate a genesis block: a block with hash_prev_block = bootstrap_hash
-pub fn validate_genesis_block(genesis_block: &Block) -> Result<(), BlockError> {
-    // Do not check VRF proof or signatures, the hash is enough proof
-    // But check that there is no extra information in the unused fields
-    let txns = BlockTransactions {
-        mint: MintTransaction::default(),
-        value_transfer_txns: genesis_block.txns.value_transfer_txns.clone(),
-        data_request_txns: vec![],
-        commit_txns: vec![],
-        reveal_txns: vec![],
-        tally_txns: vec![],
-    };
+pub fn validate_genesis_block(
+    genesis_block: &Block,
+    expected_genesis_hash: Hash,
+) -> Result<(), BlockError> {
+    // Compare the hash first
+    if genesis_block.hash() != expected_genesis_hash {
+        return Err(BlockError::GenesisBlockHashMismatch {
+            block_hash: genesis_block.hash(),
+            expected_hash: expected_genesis_hash,
+        });
+    }
 
-    let merkle_roots = BlockMerkleRoots {
-        mint_hash: txns.mint.hash(),
-        vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns),
-        dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns),
-        commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
-        reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
-        tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
-    };
-    let empty_block = Block {
-        block_header: BlockHeader {
-            version: 1,
-            beacon: CheckpointBeacon {
-                checkpoint: 0,
-                hash_prev_block: genesis_block.block_header.beacon.hash_prev_block,
-            },
-            merkle_roots,
-            proof: Default::default(),
-        },
-        block_sig: Default::default(),
-        txns,
-    };
+    // Create a new genesis block with the same fields, and compare that they are equal
+    // This ensure that there is no extra information in the unused fields, for example
+    // in the signature as it does not affect the block hash
+    let bootstrap_hash = genesis_block.block_header.beacon.hash_prev_block;
+    let vtts = genesis_block.txns.value_transfer_txns.clone();
+    let new_genesis = Block::genesis(bootstrap_hash, vtts);
 
     // Verify that the genesis block to validate has the same fields as the
     // empty block we just created
-    if &empty_block == genesis_block {
+    if &new_genesis == genesis_block {
         Ok(())
     } else {
         Err(BlockError::GenesisBlockMismatch {
             block: format!("{:?}", genesis_block),
-            expected: format!("{:?}", empty_block),
+            expected: format!("{:?}", new_genesis),
         })
     }
 }
