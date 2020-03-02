@@ -1072,15 +1072,6 @@ fn show_sync_progress(
     );
 }
 
-/// TODO doc
-pub fn get_genesis_block_info(path: &str) -> Option<GenesisBlockInfo> {
-    let response = std::fs::read_to_string(path).unwrap();
-
-    let genesis_block: Result<GenesisBlockInfo, _> = serde_json::from_str(&response);
-
-    Some(genesis_block.unwrap())
-}
-
 #[cfg(test)]
 mod tests {
     use witnet_data_structures::{

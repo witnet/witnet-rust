@@ -1,7 +1,6 @@
 use actix::prelude::*;
 
 use super::{
-    get_genesis_block_info,
     handlers::{EpochPayload, EveryEpochPayload},
     ChainManager,
 };
@@ -14,7 +13,7 @@ use crate::{
     config_mngr, signature_mngr, storage_mngr,
 };
 use witnet_data_structures::{
-    chain::{ChainInfo, ChainState, CheckpointBeacon, ReputationEngine},
+    chain::{ChainInfo, ChainState, CheckpointBeacon, GenesisBlockInfo, ReputationEngine},
     vrf::VrfCtx,
 };
 
@@ -23,7 +22,6 @@ use witnet_util::timestamp::pretty_print;
 use log::{debug, error, info, warn};
 use std::time::Duration;
 use witnet_crypto::key::CryptoEngine;
-use witnet_data_structures::chain::Hashable;
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -80,20 +78,17 @@ impl ChainManager {
                 act.genesis_block_hash = config.consensus_constants.genesis_hash;
 
                 let info_genesis = act.info_genesis.take().or_else(|| if config.mining.genesis_mining {
-                    get_genesis_block_info(&config.mining.genesis_path)
+                    Some(
+                        GenesisBlockInfo::from_path(&config.mining.genesis_path, act.bootstrap_hash, act.genesis_block_hash)
+                            .map_err(|e| log::error!("Failed to create genesis block: {}", e))
+                            // TODO: gracefully stop node
+                            .unwrap()
+                    )
                 } else {
                     None
                 });
-                if let Some(info_genesis) = info_genesis.clone() {
-                    // TODO: the genesis block should only be created once
-                    let built_genesis_block_hash = info_genesis.build_genesis_block(act.bootstrap_hash).hash();
-
-                    if built_genesis_block_hash != act.genesis_block_hash {
-                        // Stop node on genesis hash mismatch
-                        panic!("GENESIS BLOCK HASH MISMATCH\nEXPECTED: {}\nFOUND:    {}", act.genesis_block_hash, built_genesis_block_hash);
-                    } else {
-                        log::info!("GENESIS BLOCK SUCCESSFULLY CREATED. HASH: {}", built_genesis_block_hash);
-                    }
+                if info_genesis.is_some() {
+                    log::info!("Genesis block successfully created. Hash: {}", act.genesis_block_hash);
                 }
                 act.info_genesis = info_genesis;
 

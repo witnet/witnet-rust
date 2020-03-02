@@ -154,6 +154,33 @@ impl ConsensusConstants {
     }
 }
 
+#[derive(Debug, Fail)]
+/// The various reasons creating a genesis block can fail
+pub enum GenesisBlockInfoError {
+    /// Failed to read file
+    #[fail(display = "Failed to read file `{}`: {}", path, inner)]
+    Read {
+        /// Path of the `genesis_block.json` file
+        path: String,
+        /// Inner io error
+        inner: std::io::Error,
+    },
+    /// Failed to deserialize
+    #[fail(display = "Failed to deserialize `GenesisBlockInfo`: {}", _0)]
+    Deserialize(serde_json::Error),
+    /// The hash of the created genesis block does not match the hash set in the configuration
+    #[fail(
+        display = "Genesis block hash mismatch\nExpected: {}\nFound:    {}",
+        expected, created
+    )]
+    HashMismatch {
+        /// Hash of the genesis block as created by reading the `genesis_block.json` file
+        created: Hash,
+        /// Hash of the genesis block specified in the configuration
+        expected: Hash,
+    },
+}
+
 /// Information needed to create the genesis block.
 ///
 /// To prevent deserialization issues, the JSON file only contains string types: all integers
@@ -192,6 +219,36 @@ impl GenesisBlockInfo {
             bootstrap_hash,
             self.alloc.into_iter().map(VTTransaction::genesis).collect(),
         )
+    }
+
+    /// Read `GenesisBlockInfo` from `genesis_block.json` file
+    pub fn from_path(
+        path: &str,
+        bootstrap_hash: Hash,
+        genesis_block_hash: Hash,
+    ) -> Result<Self, GenesisBlockInfoError> {
+        let response = std::fs::read_to_string(path).map_err(|e| GenesisBlockInfoError::Read {
+            path: path.to_string(),
+            inner: e,
+        })?;
+
+        let genesis_block: GenesisBlockInfo =
+            serde_json::from_str(&response).map_err(GenesisBlockInfoError::Deserialize)?;
+
+        // TODO: the genesis block should only be created once
+        let built_genesis_block_hash = genesis_block
+            .clone()
+            .build_genesis_block(bootstrap_hash)
+            .hash();
+
+        if built_genesis_block_hash != genesis_block_hash {
+            Err(GenesisBlockInfoError::HashMismatch {
+                created: built_genesis_block_hash,
+                expected: genesis_block_hash,
+            })
+        } else {
+            Ok(genesis_block)
+        }
     }
 }
 
