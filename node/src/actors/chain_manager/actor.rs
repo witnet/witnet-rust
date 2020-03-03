@@ -77,16 +77,18 @@ impl ChainManager {
                 act.bootstrap_hash = config.consensus_constants.bootstrap_hash;
                 act.genesis_block_hash = config.consensus_constants.genesis_hash;
 
-                let info_genesis = act.info_genesis.take().or_else(|| if config.mining.genesis_mining {
-                    Some(
-                        GenesisBlockInfo::from_path(&config.mining.genesis_path, act.bootstrap_hash, act.genesis_block_hash)
-                            .map_err(|e| log::error!("Failed to create genesis block: {}", e))
-                            // TODO: gracefully stop node
-                            .unwrap()
+                let info_genesis = if config.mining.genesis_mining {
+                    act.info_genesis.take().or_else(||
+                         GenesisBlockInfo::from_path(&config.mining.genesis_path, act.bootstrap_hash, act.genesis_block_hash)
+                            .map_err(|e| {
+                                log::error!("Failed to create genesis block: {}", e);
+                                System::current().stop_with_code(1);
+                            })
+                            .ok()
                     )
                 } else {
                     None
-                });
+                };
                 if info_genesis.is_some() {
                     log::info!("Genesis block successfully created. Hash: {}", act.genesis_block_hash);
                 }
