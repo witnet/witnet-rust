@@ -4,13 +4,13 @@
 //! initialized with a key, can be used repeatedly to sign data with
 //! that key.
 use actix::prelude::*;
-use failure;
-use failure::bail;
+use failure::{bail, format_err};
 use futures::future::Future;
 use log;
 
-use crate::{actors::storage_keys::MASTER_KEY, storage_mngr};
+use crate::{actors::storage_keys::MASTER_KEY, config_mngr, storage_mngr};
 
+use std::path::PathBuf;
 use witnet_crypto::{
     key::{CryptoEngine, ExtendedPK, ExtendedSK, MasterKeyGen, SignEngine},
     mnemonic::MnemonicGen,
@@ -324,14 +324,54 @@ impl Actor for SignatureManagerAdapter {
         log::debug!("Signature Manager Adapter actor has been started!");
         let crypto = self.crypto.clone();
 
-        storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY)
-            .and_then(move |master_key_from_storage| {
-                master_key_from_storage.map_or_else(create_master_key, |master_key| {
-                    let master_key: ExtendedSK = master_key.into();
-                    let fut = futures::future::ok(master_key);
-
-                    Box::new(fut)
+        config_mngr::get()
+            .and_then(move |config| {
+                if let Some(master_key_path) = &config.storage.master_key_import_path {
+                    futures::done(master_key_import_from_file(master_key_path).map(Some))
+                } else {
+                    futures::finished(None)
+                }
+            })
+            .and_then(|master_key_from_file| {
+                storage_mngr::get::<_, ExtendedSecretKey>(&MASTER_KEY).map(|master_key| {
+                    let master_key_from_storage: Option<ExtendedSK> = master_key.map(Into::into);
+                    (master_key_from_file, master_key_from_storage)
                 })
+            })
+            .and_then(move |(master_key_from_file, master_key_from_storage)| {
+                match (master_key_from_file, master_key_from_storage) {
+                    // Didn't ask to import master key and no master key in storage:
+                    // Create new master key
+                    (None, None) => create_master_key(),
+                    // There is a master key in storage or imported, but not both:
+                    // Use that master key
+                    (None, Some(from_storage)) => Box::new(futures::finished(from_storage)),
+                    (Some(from_file), None) => Box::new(futures::finished(from_file)),
+                    // There is a master key in storage and imported:
+                    (Some(from_file), Some(from_storage)) => {
+                        if from_file == from_storage {
+                            // If they are equal, use that master key
+                            Box::new(futures::finished(from_file))
+                        } else {
+                            // Else, throw error to avoid overwriting the old master key in storage
+                            let node_public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &from_storage);
+                            let node_pkh = PublicKey::from(node_public_key.key).pkh();
+
+                            let imported_public_key = ExtendedPK::from_secret_key(&CryptoEngine::new(), &from_file);
+                            let imported_pkh = PublicKey::from(imported_public_key.key).pkh();
+
+                            Box::new(futures::failed(format_err!(
+                                "Tried to overwrite node master key with a different one.\n\
+                                 Node pkh:     {}\n\
+                                 Imported pkh: {}\n\
+                                 \n\
+                                 In order to import a different master key, you first need to export the current master key and delete the storage",
+                                 node_pkh,
+                                 imported_pkh,
+                            )))
+                        }
+                    }
+                }
             })
             .and_then(move |master_key| crypto.send(SetKey(master_key)).flatten())
             .map_err(|err| {
@@ -396,5 +436,36 @@ impl Handler<VerifySignatures> for SignatureManagerAdapter {
 
     fn handle(&mut self, msg: VerifySignatures, _ctx: &mut Self::Context) -> Self::Result {
         Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
+fn master_key_import_from_file(master_key_path: &PathBuf) -> Result<ExtendedSK, failure::Error> {
+    let master_key_path_str = master_key_path.display();
+    let ser = match std::fs::read_to_string(master_key_path) {
+        Ok(x) => x,
+        Err(e) => {
+            bail!("Failed to read `{}`: {}", master_key_path_str, e);
+        }
+    };
+
+    match ExtendedSK::from_slip32(ser.trim()) {
+        Ok((extended_master_key, key_path)) => {
+            if key_path.is_master() {
+                log::info!("Successfully imported master key from file");
+                Ok(extended_master_key)
+            } else {
+                bail!(
+                    "The private key stored in `{}` is not a master key",
+                    master_key_path_str
+                );
+            }
+        }
+        Err(e) => {
+            bail!(
+                "Failed to deserialize SLIP32 master key from file `{}`: {}",
+                master_key_path_str,
+                e
+            );
+        }
     }
 }

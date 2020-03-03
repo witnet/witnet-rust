@@ -71,6 +71,10 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
                 config.storage.db_path = db;
             }
 
+            if let Some(master_key_import_path) = params.master_key_import {
+                config.storage.master_key_import_path = Some(master_key_import_path);
+            }
+
             config.connections.known_peers.extend(params.known_peers);
 
             node::actors::node::run(config, || {
@@ -258,6 +262,9 @@ pub struct ConfigParams {
     bootstrap_peers_period_seconds: Option<u64>,
     #[structopt(long = "db", help = NODE_DB_HELP)]
     db: Option<PathBuf>,
+    /// Path to file that contains the master key to import
+    #[structopt(long = "master-key-import")]
+    master_key_import: Option<PathBuf>,
 }
 
 static NODE_DB_HELP: &str = r#"Path to the node database. If not specified will use '.witnet-rust-mainnet' for mainnet, or '.witnet-rust-testnet-N' for testnet number N."#;

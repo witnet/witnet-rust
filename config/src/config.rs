@@ -261,6 +261,10 @@ pub struct Storage {
     /// Path to the directory that will contain the database. Used
     /// only if backend is RocksDB.
     pub db_path: PathBuf,
+    /// Path to the master key to import when initializing the node
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub master_key_import_path: Option<PathBuf>,
 }
 
 fn as_protected_string<'de, D>(deserializer: D) -> Result<Option<Protected>, D::Error>
@@ -518,6 +522,7 @@ impl Storage {
                 .db_path
                 .to_owned()
                 .unwrap_or_else(|| defaults.storage_db_path()),
+            master_key_import_path: config.master_key_import_path.clone(),
         }
     }
 }
@@ -755,6 +760,7 @@ mod tests {
             backend: StorageBackend::RocksDB,
             password: None,
             db_path: Some(PathBuf::from("other")),
+            master_key_import_path: None,
         };
         let config = Storage::from_partial(&partial_config, &Testnet1);
 
