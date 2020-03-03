@@ -272,6 +272,11 @@ pub enum BlockError {
         expected_hash: Hash,
     },
     #[fail(
+        display = "Genesis block creates more value than allowed. Value cannot be greater than {}",
+        max_total_value
+    )]
+    GenesisValueOverflow { max_total_value: u64 },
+    #[fail(
         display = "Block candidate's epoch differs from current epoch ({} != {})",
         block_epoch, current_epoch
     )]

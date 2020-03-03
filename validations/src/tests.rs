@@ -1087,11 +1087,35 @@ fn genesis_vtt_no_outputs() {
 }
 
 #[test]
+fn genesis_vtt_value_overflow() {
+    let pkh = PublicKeyHash::default();
+    let outputs = vec![
+        ValueTransferOutput {
+            pkh,
+            value: u64::max_value(),
+            time_lock: 0,
+        },
+        ValueTransferOutput {
+            pkh,
+            value: u64::max_value(),
+            time_lock: 0,
+        },
+    ];
+    let vt_body = VTTransactionBody::new(vec![], outputs);
+    let vt_tx = VTTransaction::new(vt_body, vec![]);
+
+    let x = validate_genesis_vt_transaction(&vt_tx);
+
+    assert_eq!(x.unwrap_err(), TransactionError::OutputValueOverflow);
+}
+
+#[test]
 fn genesis_vtt_valid() {
     let pkh = PublicKeyHash::default();
+    let value = 1000;
     let vto0 = ValueTransferOutput {
         pkh,
-        value: 1000,
+        value,
         time_lock: 0,
     };
     let outputs = vec![vto0.clone()];
@@ -1100,7 +1124,7 @@ fn genesis_vtt_valid() {
 
     let x = validate_genesis_vt_transaction(&vt_tx);
 
-    assert_eq!(x.unwrap(), (vec![], vec![&vto0], 0),);
+    assert_eq!(x.unwrap(), (vec![&vto0], value));
 
     assert_eq!(vt_tx, VTTransaction::genesis(outputs));
 }
@@ -4788,6 +4812,72 @@ fn genesis_block_after_not_bootstrap_hash() {
             block_hash: b.block_header.beacon.hash_prev_block,
             our_hash: last_block_hash,
         }
+    );
+}
+
+#[test]
+fn genesis_block_value_overflow() {
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let outputs = vec![ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: u64::max_value(),
+        time_lock: 0,
+    }];
+    let b = Block::genesis(
+        bootstrap_hash,
+        vec![
+            VTTransaction::genesis(outputs.clone()),
+            VTTransaction::genesis(outputs),
+        ],
+    );
+
+    let dr_pool = DataRequestPool::default();
+    let rep_eng = ReputationEngine::new(100);
+    let utxo_set = UnspentOutputsPool::default();
+
+    let current_epoch = 0;
+    let last_block_hash = bootstrap_hash;
+    let chain_beacon = CheckpointBeacon {
+        checkpoint: current_epoch,
+        hash_prev_block: last_block_hash,
+    };
+
+    let mining_bf = 1;
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let genesis_block_hash = b.hash();
+    let mut signatures_to_verify = vec![];
+
+    // Validate block
+    validate_block(
+        &b,
+        current_epoch,
+        chain_beacon,
+        &mut signatures_to_verify,
+        &rep_eng,
+        mining_bf,
+        bootstrap_hash,
+        genesis_block_hash,
+    )
+    .unwrap();
+    assert_eq!(signatures_to_verify, vec![]);
+    let mut signatures_to_verify = vec![];
+
+    // Do the expensive validation
+    let x = validate_block_transactions(
+        &utxo_set,
+        &dr_pool,
+        &b,
+        &mut signatures_to_verify,
+        &rep_eng,
+        genesis_block_hash,
+        EpochConstants::default(),
+    );
+    assert_eq!(signatures_to_verify, vec![]);
+    assert_eq!(
+        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        BlockError::GenesisValueOverflow {
+            max_total_value: u64::max_value() - total_block_reward(),
+        },
     );
 }
 

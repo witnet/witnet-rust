@@ -545,7 +545,7 @@ pub fn validate_vt_transaction<'a>(
 /// These are special because they can create value
 pub fn validate_genesis_vt_transaction(
     vt_tx: &VTTransaction,
-) -> Result<(Vec<&Input>, Vec<&ValueTransferOutput>, u64), TransactionError> {
+) -> Result<(Vec<&ValueTransferOutput>, u64), TransactionError> {
     // Genesis VTTs should have 0 inputs
     if !vt_tx.body.inputs.is_empty() {
         return Err(TransactionError::InputsInGenesis {
@@ -573,11 +573,10 @@ pub fn validate_genesis_vt_transaction(
         }
     }
 
-    let inputs = vec![];
     let outputs = vt_tx.body.outputs.iter().collect();
-    let fee = 0;
+    let value_created = transaction_outputs_sum(&vt_tx.body.outputs)?;
 
-    Ok((inputs, outputs, fee))
+    Ok((outputs, value_created))
 }
 
 /// Function to validate a data request transaction
@@ -1115,13 +1114,26 @@ pub fn validate_block_transactions(
 
     // Init total fee
     let mut total_fee = 0;
+    // When validating genesis block, keep track of total value created
+    // The value created in the genesis block cannot be greater than 2^64 - the total block reward,
+    // So the total amount is always representable by a u64
+    let max_total_value_genesis = u64::max_value() - total_block_reward();
+    let mut genesis_value_available = max_total_value_genesis;
 
     // TODO: replace for loop with a try_fold
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
     for transaction in &block.txns.value_transfer_txns {
         let (inputs, outputs, fee) = if is_genesis {
-            validate_genesis_vt_transaction(transaction)?
+            let (outputs, value_created) = validate_genesis_vt_transaction(transaction)?;
+            // Update value available, and return error on overflow
+            genesis_value_available = genesis_value_available.checked_sub(value_created).ok_or(
+                BlockError::GenesisValueOverflow {
+                    max_total_value: max_total_value_genesis,
+                },
+            )?;
+
+            (vec![], outputs, 0)
         } else {
             validate_vt_transaction(
                 transaction,
@@ -1617,17 +1629,31 @@ impl fmt::Display for Wit {
     }
 }
 
+const INITIAL_BLOCK_REWARD: u64 = 500 * NANOWITS_PER_WIT;
+const HALVING_PERIOD: Epoch = 1_750_000;
+
 /// Calculate the block mining reward.
 /// Returns nanowits.
 pub fn block_reward(epoch: Epoch) -> u64 {
-    // Initial reward: 500 wits
-    let initial_reward: u64 = 500 * NANOWITS_PER_WIT;
-    let halvings = epoch / 1_750_000;
+    let initial_reward: u64 = INITIAL_BLOCK_REWARD;
+    let halvings = epoch / HALVING_PERIOD;
     if halvings < 64 {
         initial_reward >> halvings
     } else {
         0
     }
+}
+
+/// Calculate the total amount of wits that will be rewarded to miners.
+pub fn total_block_reward() -> u64 {
+    let mut total_reward = 0;
+    let mut base_reward = INITIAL_BLOCK_REWARD;
+    while base_reward != 0 {
+        total_reward += base_reward * u64::from(HALVING_PERIOD);
+        base_reward >>= 1;
+    }
+
+    total_reward
 }
 
 /// Function to check poe validation for blocks
