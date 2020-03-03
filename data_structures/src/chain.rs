@@ -2343,6 +2343,7 @@ impl EpochConstants {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum SignaturesToVerify {
     VrfDr {
         proof: DataRequestEligibilityClaim,

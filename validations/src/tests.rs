@@ -999,6 +999,113 @@ fn vtt_valid() {
 }
 
 #[test]
+fn genesis_vtt_unexpected_input() {
+    // Genesis VTTs should not have any inputs
+    let pkh = PublicKeyHash::default();
+    let vti0 = Input::new(OutputPointer::default());
+    let inputs = vec![vti0];
+    let inputs_len = inputs.len();
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
+    let outputs = vec![vto0];
+    let vt_body = VTTransactionBody::new(inputs, outputs);
+    let vts = sign_t(&vt_body);
+    let vt_tx = VTTransaction::new(vt_body, vec![vts]);
+
+    let x = validate_genesis_vt_transaction(&vt_tx);
+
+    assert_eq!(
+        x.unwrap_err(),
+        TransactionError::InputsInGenesis {
+            inputs_n: inputs_len,
+        }
+    );
+}
+
+#[test]
+fn genesis_vtt_unexpected_signature() {
+    // Genesis VTTs should not have any signatures
+    let pkh = PublicKeyHash::default();
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
+    let outputs = vec![vto0];
+    let vt_body = VTTransactionBody::new(vec![], outputs);
+    let vts = sign_t(&vt_body);
+    let vt_tx = VTTransaction::new(vt_body, vec![vts]);
+
+    let x = validate_genesis_vt_transaction(&vt_tx);
+
+    assert_eq!(
+        x.unwrap_err(),
+        TransactionError::MismatchingSignaturesNumber {
+            signatures_n: 1,
+            inputs_n: 0,
+        }
+    );
+}
+
+#[test]
+fn genesis_vtt_zero_value() {
+    // Genesis VTT outputs cannot have value 0
+    let pkh = PublicKeyHash::default();
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 0,
+        time_lock: 0,
+    };
+    let outputs = vec![vto0];
+    let vt_body = VTTransactionBody::new(vec![], outputs);
+    let vt_tx = VTTransaction::new(vt_body, vec![]);
+
+    let x = validate_genesis_vt_transaction(&vt_tx);
+
+    assert_eq!(
+        x.unwrap_err(),
+        TransactionError::ZeroValueOutput {
+            tx_hash: vt_tx.hash(),
+            output_id: 0,
+        }
+    );
+}
+
+#[test]
+fn genesis_vtt_no_outputs() {
+    // Genesis VTTs must have at least one output
+    let outputs = vec![];
+    let vt_body = VTTransactionBody::new(vec![], outputs);
+    let vt_tx = VTTransaction::new(vt_body, vec![]);
+
+    let x = validate_genesis_vt_transaction(&vt_tx);
+
+    assert_eq!(x.unwrap_err(), TransactionError::NoOutputsInGenesis,);
+}
+
+#[test]
+fn genesis_vtt_valid() {
+    let pkh = PublicKeyHash::default();
+    let vto0 = ValueTransferOutput {
+        pkh,
+        value: 1000,
+        time_lock: 0,
+    };
+    let outputs = vec![vto0.clone()];
+    let vt_body = VTTransactionBody::new(vec![], outputs.clone());
+    let vt_tx = VTTransaction::new(vt_body, vec![]);
+
+    let x = validate_genesis_vt_transaction(&vt_tx);
+
+    assert_eq!(x.unwrap(), (vec![], vec![&vto0], 0),);
+
+    assert_eq!(vt_tx, VTTransaction::genesis(outputs));
+}
+
+#[test]
 fn data_request_no_inputs() {
     let mut signatures_to_verify = vec![];
     let utxo_pool = UnspentOutputsPool::default();
@@ -4573,4 +4680,163 @@ fn block_add_1_drt_and_1_vtt_same_input() {
             output: MILLION_TX_OUTPUT.parse().unwrap(),
         },
     );
+}
+
+#[test]
+fn genesis_block_empty() {
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let b = Block::genesis(bootstrap_hash, vec![]);
+
+    validate_genesis_block(&b, b.hash()).unwrap();
+}
+
+#[test]
+fn genesis_block_bootstrap_hash_mismatch() {
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let expected_genesis_hash = Hash::default();
+    let b = Block::genesis(bootstrap_hash, vec![]);
+
+    let x = validate_genesis_block(&b, expected_genesis_hash);
+    assert_eq!(
+        x.unwrap_err(),
+        BlockError::GenesisBlockHashMismatch {
+            block_hash: b.hash(),
+            expected_hash: expected_genesis_hash,
+        }
+    );
+}
+
+#[test]
+fn genesis_block_add_vtt() {
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let mut b = Block::genesis(bootstrap_hash, vec![]);
+    // Add an extra VTT without updating the merkle root, not changing the block hash
+    b.txns
+        .value_transfer_txns
+        .push(VTTransaction::genesis(vec![ValueTransferOutput {
+            pkh: MY_PKH.parse().unwrap(),
+            value: 1000,
+            time_lock: 0,
+        }]));
+
+    let x = validate_genesis_block(&b, b.hash());
+    // Compare only enum variant
+    assert_eq!(
+        std::mem::discriminant(&x.unwrap_err()),
+        std::mem::discriminant(&BlockError::GenesisBlockMismatch {
+            block: "".to_string(),
+            expected: "".to_string(),
+        })
+    );
+}
+
+#[test]
+fn genesis_block_add_signature() {
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let mut b = Block::genesis(bootstrap_hash, vec![]);
+    // Add an extra signature, not changing the block hash
+    b.block_sig = sign_t(&b);
+
+    let x = validate_genesis_block(&b, b.hash());
+    // Compare only enum variant
+    assert_eq!(
+        std::mem::discriminant(&x.unwrap_err()),
+        std::mem::discriminant(&BlockError::GenesisBlockMismatch {
+            block: "".to_string(),
+            expected: "".to_string(),
+        })
+    );
+}
+#[test]
+fn genesis_block_after_not_bootstrap_hash() {
+    // Try to consolidate genesis block when chain beacon hash_prev_block
+    // is different from bootstrap hash
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let b = Block::genesis(bootstrap_hash, vec![]);
+
+    let rep_eng = ReputationEngine::new(100);
+
+    let current_epoch = 0;
+    // If this was bootstrap hash, the validation would pass:
+    let last_block_hash = b.hash();
+    let chain_beacon = CheckpointBeacon {
+        checkpoint: current_epoch,
+        hash_prev_block: last_block_hash,
+    };
+
+    let mining_bf = 1;
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let genesis_block_hash = b.hash();
+    let mut signatures_to_verify = vec![];
+
+    // Validate block
+    let x = validate_block(
+        &b,
+        current_epoch,
+        chain_beacon,
+        &mut signatures_to_verify,
+        &rep_eng,
+        mining_bf,
+        bootstrap_hash,
+        genesis_block_hash,
+    );
+    assert_eq!(signatures_to_verify, vec![]);
+
+    assert_eq!(
+        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        BlockError::PreviousHashMismatch {
+            block_hash: b.block_header.beacon.hash_prev_block,
+            our_hash: last_block_hash,
+        }
+    );
+}
+
+#[test]
+fn genesis_block_full_validate() {
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let b = Block::genesis(bootstrap_hash, vec![]);
+
+    let dr_pool = DataRequestPool::default();
+    let rep_eng = ReputationEngine::new(100);
+    let utxo_set = UnspentOutputsPool::default();
+
+    let current_epoch = 0;
+    let last_block_hash = bootstrap_hash;
+    let chain_beacon = CheckpointBeacon {
+        checkpoint: current_epoch,
+        hash_prev_block: last_block_hash,
+    };
+
+    let mining_bf = 1;
+    let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
+    let genesis_block_hash = b.hash();
+    let mut signatures_to_verify = vec![];
+
+    // Validate block
+    validate_block(
+        &b,
+        current_epoch,
+        chain_beacon,
+        &mut signatures_to_verify,
+        &rep_eng,
+        mining_bf,
+        bootstrap_hash,
+        genesis_block_hash,
+    )
+    .unwrap();
+    assert_eq!(signatures_to_verify, vec![]);
+    let mut signatures_to_verify = vec![];
+
+    // Do the expensive validation
+    validate_block_transactions(
+        &utxo_set,
+        &dr_pool,
+        &b,
+        &mut signatures_to_verify,
+        &rep_eng,
+        genesis_block_hash,
+        EpochConstants::default(),
+    )
+    .unwrap();
+    assert_eq!(signatures_to_verify, vec![]);
 }
