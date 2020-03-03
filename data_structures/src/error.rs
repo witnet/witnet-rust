@@ -109,6 +109,8 @@ pub enum TransactionError {
         inputs_n
     )]
     InputsInGenesis { inputs_n: usize },
+    #[fail(display = "Genesis transactions cannot have 0 outputs")]
+    NoOutputsInGenesis,
     /// An output with zero value does not make sense
     #[fail(
         display = "Transaction {} has a zero value output at index {}",

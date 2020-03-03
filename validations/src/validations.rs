@@ -543,9 +543,9 @@ pub fn validate_vt_transaction<'a>(
 
 /// Function to validate a value transfer transaction from the genesis block
 /// These are special because they can create value
-pub fn validate_genesis_vt_transaction<'a>(
-    vt_tx: &'a VTTransaction,
-) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), TransactionError> {
+pub fn validate_genesis_vt_transaction(
+    vt_tx: &VTTransaction,
+) -> Result<(Vec<&Input>, Vec<&ValueTransferOutput>, u64), TransactionError> {
     // Genesis VTTs should have 0 inputs
     if !vt_tx.body.inputs.is_empty() {
         return Err(TransactionError::InputsInGenesis {
@@ -558,6 +558,10 @@ pub fn validate_genesis_vt_transaction<'a>(
             signatures_n: vt_tx.signatures.len() as u8,
             inputs_n: 0,
         });
+    }
+    // Genesis VTTs must have at least one output
+    if vt_tx.body.outputs.is_empty() {
+        return Err(TransactionError::NoOutputsInGenesis);
     }
     for (idx, output) in vt_tx.body.outputs.iter().enumerate() {
         // Genesis VTT outputs must have some value
