@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{cmp::Ordering, convert::TryFrom};
 
 use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture,
@@ -9,7 +9,8 @@ use futures::future::{join_all, Future};
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, EpochConstants,
-        Hashable, PublicKeyHash, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        Hashable, PublicKeyHash, ReputationEngine, TransactionsPool, UnspentOutputsPool,
+        ValueTransferOutput,
     },
     data_request::{create_tally, DataRequestPool},
     radon_report::{RadonReport, ReportContext},
@@ -75,13 +76,8 @@ impl ChainManager {
             return;
         }
         let epoch_constants = self.epoch_constants.unwrap();
-        let total_identities = self
-            .chain_state
-            .reputation_engine
-            .as_ref()
-            .unwrap()
-            .ars()
-            .active_identities_number() as u32;
+        let rep_engine = self.chain_state.reputation_engine.as_ref().unwrap().clone();
+        let total_identities = rep_engine.ars().active_identities_number() as u32;
 
         let current_epoch = self.current_epoch.unwrap();
         let mining_bf = self
@@ -91,6 +87,14 @@ impl ChainManager {
             .unwrap()
             .consensus_constants
             .mining_backup_factor;
+
+        let mining_rf = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .consensus_constants
+            .mining_replication_factor;
 
         // Check eligibility
         // S(H(beacon))
@@ -115,6 +119,8 @@ impl ChainManager {
         // The highest checkpoint beacon should contain the current epoch
         beacon.checkpoint = current_epoch;
 
+        let own_pkh = self.own_pkh.unwrap_or_default();
+
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(beacon))
             .map_err(|e| log::error!("Failed to create block eligibility proof: {}", e))
@@ -124,7 +130,10 @@ impl ChainManager {
                     calculate_randpoe_threshold(total_identities, mining_bf);
                 let proof_invalid = vrf_proof_hash > target_hash;
 
-                log::debug!("Probability to mine a block: {:.6}%", probability);
+                log::info!(
+                    "Probability to create a valid mining proof: {:.6}%",
+                    probability * 100_f64
+                );
                 log::trace!("Target hash: {}", target_hash);
                 log::trace!("Our proof:   {}", vrf_proof_hash);
                 if proof_invalid {
@@ -135,6 +144,14 @@ impl ChainManager {
                         "{} Discovered eligibility for mining a block for epoch #{}",
                         Yellow.bold().paint("[Mining]"),
                         Yellow.bold().paint(beacon.checkpoint.to_string())
+                    );
+                    let mining_prob =
+                        calculate_mining_probability(&rep_engine, own_pkh, mining_rf, mining_bf);
+                    // Discount the already reached probability
+                    let mining_prob = mining_prob / probability * 100.0;
+                    log::info!(
+                        "Probability that the mined block will be selected: {:.6}%",
+                        mining_prob
                     );
                     Ok(vrf_proof)
                 }
@@ -160,7 +177,7 @@ impl ChainManager {
                     beacon,
                     eligibility_claim,
                     &tally_transactions,
-                    act.own_pkh.unwrap_or_default(),
+                    own_pkh,
                     epoch_constants,
                 );
 
@@ -278,7 +295,7 @@ impl ChainManager {
                     );
                     log::debug!(
                         "Probability to be eligible for this data request: {:.6}%",
-                        probability
+                        probability * 100.0
                     );
                     log::trace!("[DR] Target hash: {}", target_hash);
                     log::trace!("[DR] Our proof:   {}", vrf_proof_hash);
@@ -625,6 +642,90 @@ fn build_block(
     (block_header, txns)
 }
 
+#[allow(clippy::many_single_char_names)]
+fn internal_calculate_mining_probability(
+    rf: u32,
+    n: f64,
+    k: u32, // k: iterative rf until reach bf
+    m: i32, // M: nodes with reputation greater than me
+    l: i32, // L: nodes with reputation equal than me
+    r: i32, // R: nodes with reputation less than me
+) -> f64 {
+    if k == rf {
+        let rf = rf as f64;
+        // Prob to mine is the probability that a node with the same reputation than me mine,
+        // divided by all the nodes with the same reputation:
+        // 1/L * (1 - ((N-RF)/N)^L)
+        let prob_to_mine = (1.0 / l as f64) * (1.0 - ((n - rf) / n).powi(l));
+        // Prob that a node with more reputation than me mine is:
+        // ((N-RF)/N)^M
+        let prob_greater_neg = ((n - rf) / n).powi(m);
+
+        prob_to_mine * prob_greater_neg
+    } else {
+        let k = k as f64;
+        // Here we take into account that rf = 1 because is only a new slot
+        let prob_to_mine = (1.0 / l as f64) * (1.0 - ((n - 1.0) / n).powi(l));
+        // The same equation than before
+        let prob_bigger_neg = ((n - k) / n).powi(m);
+        // Prob that a node with less or equal reputation than me mine with a lower slot is:
+        // ((N+1-RF)/N)^(L+R-1)
+        let prob_lower_slot_neg = ((n + 1.0 - k) / n).powi(l + r - 1);
+
+        prob_to_mine * prob_bigger_neg * prob_lower_slot_neg
+    }
+}
+
+fn calculate_mining_probability(
+    rep_engine: &ReputationEngine,
+    own_pkh: PublicKeyHash,
+    rf: u32,
+    bf: u32,
+) -> f64 {
+    let n = rep_engine.ars().active_identities_number() as u32;
+
+    // In case of any active node, the probability is maximum
+    if n == 0 {
+        return 1.0;
+    }
+
+    // First we need to know how many nodes have more or equal reputation than us
+    let own_rep = rep_engine.trs().get(&own_pkh);
+    let is_active_node = rep_engine.ars().contains(&own_pkh);
+    let mut greater = 0;
+    let mut equal = 0;
+    let mut less = 0;
+    for &active_id in rep_engine.ars().active_identities() {
+        match rep_engine.trs().get(&active_id).cmp(&own_rep) {
+            Ordering::Greater => greater += 1,
+            Ordering::Equal => equal += 1,
+            Ordering::Less => less += 1,
+        }
+    }
+    // In case of not being active, the equal value is plus 1.
+    if !is_active_node {
+        equal += 1;
+    }
+
+    if rf > n && greater == 0 {
+        // In case of replication factor exceed the active node number and being the most reputed
+        // we obtain the maximum probability divided in the nodes we share the same reputation
+        1.0 / (equal as f64)
+    } else if rf > n && greater > 0 {
+        // In case of replication factor exceed the active node number and not being the most reputed
+        // we obtain the minimum probability
+        0.0
+    } else {
+        let mut aux = internal_calculate_mining_probability(rf, n as f64, rf, greater, equal, less);
+        let mut k = rf + 1;
+        while k <= bf && k <= n {
+            aux += internal_calculate_mining_probability(rf, n as f64, k, greater, equal, less);
+            k += 1;
+        }
+        aux
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::convert::TryInto;
@@ -914,5 +1015,355 @@ mod tests {
         assert_eq!(public_key, public_key2);
 
         assert!(verify(secp, &public_key2, &data, &signature2).is_ok());
+    }
+
+    fn init_rep_engine(v_rep: Vec<u32>) -> (ReputationEngine, Vec<PublicKeyHash>) {
+        let mut rep_engine = ReputationEngine::new(1000);
+
+        let mut ids = vec![];
+        for (i, &rep) in v_rep.iter().enumerate() {
+            let pkh = PublicKeyHash::from_bytes(&[i as u8; 20]).unwrap();
+            rep_engine
+                .trs_mut()
+                .gain(Alpha(10), vec![(pkh, Reputation(rep))])
+                .unwrap();
+            ids.push(pkh);
+        }
+        rep_engine.ars_mut().push_activity(ids.clone());
+
+        (rep_engine, ids)
+    }
+
+    fn calculate_mining_probs(v_rep: Vec<u32>, rf: u32, bf: u32) -> (Vec<f64>, f64) {
+        let v_rep_len = v_rep.len();
+        let (rep_engine, ids) = init_rep_engine(v_rep);
+        let n = rep_engine.ars().active_identities_number();
+        assert_eq!(n, v_rep_len);
+        assert_eq!(ids.len(), v_rep_len);
+
+        let mut probs = vec![];
+        for id in ids {
+            probs.push(calculate_mining_probability(&rep_engine, id, rf, bf))
+        }
+
+        let new_pkh = PublicKeyHash::from_bytes(&[0xFF as u8; 20]).unwrap();
+        let new_prob = calculate_mining_probability(&rep_engine, new_pkh, rf, bf);
+
+        (probs, new_prob)
+    }
+
+    #[test]
+    fn calculate_mining_probabilities_rf1_bf1() {
+        let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
+        let (probs, new_prob) = calculate_mining_probs(v_rep, 1, 1);
+
+        assert_eq!(
+            (probs[0] * 10_000.0).round() as u32,
+            (10.0 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[1] * 10_000.0).round() as u32,
+            (8.13 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[2] * 10_000.0).round() as u32,
+            (8.13 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[3] * 10_000.0).round() as u32,
+            (8.13 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[4] * 10_000.0).round() as u32,
+            (5.64 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[5] * 10_000.0).round() as u32,
+            (5.64 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[6] * 10_000.0).round() as u32,
+            (5.64 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[7] * 10_000.0).round() as u32,
+            (5.64 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[8] * 10_000.0).round() as u32,
+            (4.09 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[9] * 10_000.0).round() as u32,
+            (4.09 as f64 * 100.0).round() as u32
+        );
+
+        assert_eq!(
+            (new_prob * 10_000.0).round() as u32,
+            (3.49 as f64 * 100.0).round() as u32
+        );
+    }
+
+    #[test]
+    fn calculate_mining_probabilities_rf1_bf2() {
+        let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
+        let (probs, new_prob) = calculate_mining_probs(v_rep, 1, 2);
+
+        assert_eq!(
+            (probs[0] * 10_000.0).round() as u32,
+            (13.87 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[1] * 10_000.0).round() as u32,
+            (11.24 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[2] * 10_000.0).round() as u32,
+            (11.24 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[3] * 10_000.0).round() as u32,
+            (11.24 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[4] * 10_000.0).round() as u32,
+            (7.72 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[5] * 10_000.0).round() as u32,
+            (7.72 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[6] * 10_000.0).round() as u32,
+            (7.72 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[7] * 10_000.0).round() as u32,
+            (7.72 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[8] * 10_000.0).round() as u32,
+            (5.52 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[9] * 10_000.0).round() as u32,
+            (5.52 as f64 * 100.0).round() as u32
+        );
+
+        assert_eq!(
+            (new_prob * 10_000.0).round() as u32,
+            (4.56 as f64 * 100.0).round() as u32
+        );
+    }
+
+    #[test]
+    fn calculate_mining_probabilities_rf2_bf2() {
+        let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
+        let (probs, new_prob) = calculate_mining_probs(v_rep, 2, 2);
+
+        assert_eq!(
+            (probs[0] * 10_000.0).round() as u32,
+            (20.0 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[1] * 10_000.0).round() as u32,
+            (13.01 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[2] * 10_000.0).round() as u32,
+            (13.01 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[3] * 10_000.0).round() as u32,
+            (13.01 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[4] * 10_000.0).round() as u32,
+            (6.05 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[5] * 10_000.0).round() as u32,
+            (6.05 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[6] * 10_000.0).round() as u32,
+            (6.05 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[7] * 10_000.0).round() as u32,
+            (6.05 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[8] * 10_000.0).round() as u32,
+            (3.02 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[9] * 10_000.0).round() as u32,
+            (3.02 as f64 * 100.0).round() as u32
+        );
+
+        assert_eq!(
+            (new_prob * 10_000.0).round() as u32,
+            (2.15 as f64 * 100.0).round() as u32
+        );
+    }
+
+    #[test]
+    fn calculate_mining_probabilities_rf4_bf8() {
+        let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
+        let (probs, new_prob) = calculate_mining_probs(v_rep, 4, 8);
+
+        assert_eq!(
+            (probs[0] * 10_000.0).round() as u32,
+            (40.12 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[1] * 10_000.0).round() as u32,
+            (15.77 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[2] * 10_000.0).round() as u32,
+            (15.77 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[3] * 10_000.0).round() as u32,
+            (15.77 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[4] * 10_000.0).round() as u32,
+            (2.87 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[5] * 10_000.0).round() as u32,
+            (2.87 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[6] * 10_000.0).round() as u32,
+            (2.87 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[7] * 10_000.0).round() as u32,
+            (2.87 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[8] * 10_000.0).round() as u32,
+            (0.56 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[9] * 10_000.0).round() as u32,
+            (0.56 as f64 * 100.0).round() as u32
+        );
+
+        assert_eq!(
+            (new_prob * 10_000.0).round() as u32,
+            (0.25 as f64 * 100.0).round() as u32
+        );
+    }
+
+    #[test]
+    fn calculate_mining_probabilities_rf1_bf1_10() {
+        let v_rep = vec![10; 10];
+        let (probs, new_prob) = calculate_mining_probs(v_rep, 1, 1);
+
+        assert_eq!(
+            (probs[0] * 10_000.0).round() as u32,
+            (6.51 as f64 * 100.0).round() as u32
+        );
+
+        assert_eq!(
+            (new_prob * 10_000.0).round() as u32,
+            (3.49 as f64 * 100.0).round() as u32
+        );
+    }
+
+    #[test]
+    fn calculate_mining_probabilities_rf1_bf1_100() {
+        let v_rep = vec![10; 100];
+        let (probs, new_prob) = calculate_mining_probs(v_rep, 1, 1);
+
+        assert_eq!(
+            (probs[0] * 10_000.0).round() as u32,
+            (0.63 as f64 * 100.0).round() as u32
+        );
+
+        assert_eq!(
+            (new_prob * 10_000.0).round() as u32,
+            (0.37 as f64 * 100.0).round() as u32
+        );
+    }
+
+    #[test]
+    fn calculate_mining_probabilities_rf4_bf8_100() {
+        let v_rep = vec![10; 100];
+        let (probs, new_prob) = calculate_mining_probs(v_rep, 4, 8);
+
+        assert_eq!(
+            (probs[0] * 10_000.0).round() as u32,
+            (1.0 as f64 * 100.0).round() as u32
+        );
+
+        assert_eq!(
+            (new_prob * 10_000.0).round() as u32,
+            (0.08 as f64 * 100.0).round() as u32
+        );
+    }
+
+    #[test]
+    fn calculate_mining_probabilities_rf4_bf8_100_diff() {
+        let mut v_rep = vec![10; 25];
+        v_rep.extend(vec![8; 25]);
+        v_rep.extend(vec![6; 25]);
+        v_rep.extend(vec![4; 25]);
+        let (probs, new_prob) = calculate_mining_probs(v_rep, 4, 8);
+
+        assert_eq!(
+            (probs[0] * 10_000.0).round() as u32,
+            (2.58 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[25] * 10_000.0).round() as u32,
+            (0.94 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[50] * 10_000.0).round() as u32,
+            (0.35 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[75] * 10_000.0).round() as u32,
+            (0.13 as f64 * 100.0).round() as u32
+        );
+
+        assert_eq!(
+            (new_prob * 10_000.0).round() as u32,
+            (0.08 as f64 * 100.0).round() as u32
+        );
+    }
+
+    #[test]
+    fn calculate_mining_probabilities_rf_high() {
+        let v_rep = vec![10, 8, 8, 2];
+        let (probs, new_prob) = calculate_mining_probs(v_rep, 4, 8);
+
+        assert_eq!(
+            (probs[0] * 10_000.0).round() as u32,
+            (100.0 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[1] * 10_000.0).round() as u32,
+            (0.0 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[2] * 10_000.0).round() as u32,
+            (0.0 as f64 * 100.0).round() as u32
+        );
+        assert_eq!(
+            (probs[3] * 10_000.0).round() as u32,
+            (0.0 as f64 * 100.0).round() as u32
+        );
+
+        assert_eq!(
+            (new_prob * 10_000.0).round() as u32,
+            (0.0 as f64 * 100.0).round() as u32
+        );
     }
 }
