@@ -9,13 +9,28 @@ bootstrap_peers_period_seconds = 1
 [storage]
 db_path = ".witnet-rust-testnet-6"
 
+[jsonrpc]
+enabled = true
+server_address = "127.0.0.1:21338"
+
 [consensus_constants]
 checkpoints_period = 30
-checkpoint_zero_timestamp = 1580817600
-genesis_hash = "00000000000000000000000000000000000000007769746e65742d302e362e32"
+checkpoint_zero_timestamp = 1583496000
+bootstrap_hash = "00000000000000000000000000000000000000007769746e65742d302e372e30"
+genesis_hash = "030b7c7cd76bc8d90bbcd179921412480751823124858ca0ff1901e66c5e3dbe"
 
 [ntp]
 update_period_seconds = 8000000
 
+[mining]
+enabled = true
+data_request_timeout_seconds = 5
+genesis_path = "genesis_block.json"
+genesis_mining = false
+
 [log]
 level = "debug"
+
+[wallet]
+testnet = true
+node_url = "127.0.0.1:21338"
