@@ -7,7 +7,7 @@ outbound_limit = 4
 bootstrap_peers_period_seconds = 1
 
 [storage]
-db_path = ".witnet-rust-testnet-6"
+db_path = ".witnet"
 
 [jsonrpc]
 enabled = true
