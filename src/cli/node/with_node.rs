@@ -124,12 +124,15 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// First epoch for which to show block hashes. If negative, show blocks from the last n epochs.
-        #[structopt(long = "epoch", default_value = "-50")]
+        /// First epoch for which to return block hashes.
+        /// If negative, return block hashes from the last n epochs.
+        #[structopt(long = "epoch", allow_hyphen_values = true, default_value = "0")]
         epoch: i64,
-        /// Number of epochs for which to show block hashes. If zero, unlimited.
-        #[structopt(long = "limit", default_value = "0")]
-        limit: u32,
+        /// Number of block hashes to return.
+        /// If negative, return the last n block hashes from this epoch range.
+        /// If zero, unlimited.
+        #[structopt(long = "limit", allow_hyphen_values = true, default_value = "-50")]
+        limit: i64,
     },
     #[structopt(
         name = "getBlock",

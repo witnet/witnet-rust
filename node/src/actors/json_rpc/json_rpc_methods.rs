@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     convert::TryFrom,
-    ops::RangeInclusive,
     sync::atomic::{AtomicUsize, Ordering},
     sync::Arc,
 };
@@ -278,12 +277,15 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
 /// Params of getBlockChain method
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct GetBlockChainParams {
-    /// First epoch for which to return block hashes. If negative, return blocks from the last n epochs.
+    /// First epoch for which to return block hashes.
+    /// If negative, return block hashes from the last n epochs.
     #[serde(default)] // default to 0
     pub epoch: i64,
-    /// Number of epochs for which to return block hashes. If zero, unlimited.
+    /// Number of block hashes to return.
+    /// If negative, return the last n block hashes from this epoch range.
+    /// If zero, unlimited.
     #[serde(default)] // default to 0
-    pub limit: u32,
+    pub limit: i64,
 }
 
 /// Get the list of all the known block hashes.
@@ -328,13 +330,25 @@ pub fn get_block_chain(
         }
     }
 
-    // If limit is 0, unlimited. Otherwise, from epoch to epoch + limit
-    fn epoch_range(epoch: u32, limit: u32) -> RangeInclusive<u32> {
-        if limit == 0 {
-            epoch..=u32::max_value()
+    fn epoch_range(start_epoch: u32, limit: u32, limit_negative: bool) -> GetBlocksEpochRange {
+        if limit_negative {
+            GetBlocksEpochRange::new_with_limit_from_end(start_epoch.., limit as usize)
         } else {
-            epoch..=epoch.saturating_add(limit - 1)
+            GetBlocksEpochRange::new_with_limit(start_epoch.., limit as usize)
         }
+    }
+
+    fn convert_negative_to_positive_with_negative_flag(x: i64) -> Result<(u32, bool), String> {
+        let positive_x = u32::try_from(x.abs()).map_err(|_e| {
+            format!(
+                "out of bounds: {} must be between -{} and {} inclusive",
+                x,
+                u32::max_value(),
+                u32::max_value()
+            )
+        })?;
+
+        Ok((positive_x, x.is_negative()))
     }
 
     let GetBlockChainParams { epoch, limit } = match params {
@@ -342,30 +356,33 @@ pub fn get_block_chain(
         Err(e) => return Box::new(futures::failed(e)),
     };
 
+    let (epoch, epoch_negative) = match convert_negative_to_positive_with_negative_flag(epoch) {
+        Ok(x) => x,
+        Err(mut err_str) => {
+            err_str.insert_str(0, "Epoch ");
+            return Box::new(futures::failed(internal_error_s(err_str)));
+        }
+    };
+
+    let (limit, limit_negative) = match convert_negative_to_positive_with_negative_flag(limit) {
+        Ok(x) => x,
+        Err(mut err_str) => {
+            err_str.insert_str(0, "Limit ");
+            return Box::new(futures::failed(internal_error_s(err_str)));
+        }
+    };
+
     let chain_manager_addr = ChainManager::from_registry();
-    if epoch > i64::from(u32::max_value()) {
-        Box::new(futures::failed(internal_error_s(format!(
-            "Epoch too large: {} > {}",
-            epoch,
-            u32::max_value()
-        ))))
-    } else if epoch >= 0 {
-        let epoch = u32::try_from(epoch).unwrap();
-        let fut = chain_manager_addr
-            .send(GetBlocksEpochRange::new(epoch_range(epoch, limit)))
-            .then(process_get_block_chain);
-        Box::new(fut)
-    } else {
+    if epoch_negative {
         // On negative epoch, get blocks from last n epochs
         // But, what is the current epoch?
         let fut = EpochManager::from_registry()
             .send(GetEpoch)
             .then(move |res| match res {
                 Ok(Ok(current_epoch)) => {
-                    let epoch = u32::try_from(i64::from(current_epoch).saturating_add(epoch))
-                        .map_err(internal_error_s);
+                    let epoch = current_epoch.saturating_sub(epoch);
 
-                    futures::done(epoch)
+                    futures::finished(epoch)
                 }
                 Ok(Err(e)) => {
                     let err = internal_error(e);
@@ -378,9 +395,14 @@ pub fn get_block_chain(
             })
             .and_then(move |epoch| {
                 chain_manager_addr
-                    .send(GetBlocksEpochRange::new(epoch_range(epoch, limit)))
+                    .send(epoch_range(epoch, limit, limit_negative))
                     .then(process_get_block_chain)
             });
+        Box::new(fut)
+    } else {
+        let fut = chain_manager_addr
+            .send(epoch_range(epoch, limit, limit_negative))
+            .then(process_get_block_chain);
         Box::new(fut)
     }
 }
