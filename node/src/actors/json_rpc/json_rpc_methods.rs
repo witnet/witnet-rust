@@ -48,7 +48,10 @@ type JsonRpcResultAsync = Box<dyn Future<Item = Value, Error = jsonrpc_core::Err
 
 /// Define the JSON-RPC interface:
 /// All the methods available through JSON-RPC
-pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Session>> {
+pub fn jsonrpc_io_handler(
+    subscriptions: Subscriptions,
+    enable_sensitive_methods: bool,
+) -> PubSubHandler<Arc<Session>> {
     let mut io = PubSubHandler::new(MetaIoHandler::default());
 
     io.add_method("inventory", |params: Params| inventory(params.parse()));
@@ -60,13 +63,7 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
         get_transaction(params.parse())
     });
     //io.add_method("getOutput", |params: Params| get_output(params.parse()));
-    io.add_method("sendRequest", |params: Params| send_request(params.parse()));
-    io.add_method("sendValue", |params: Params| send_value(params.parse()));
     io.add_method("status", |_params: Params| status());
-    io.add_method("getPublicKey", |_params: Params| get_public_key());
-    io.add_method("getPkh", |_params: Params| get_pkh());
-    io.add_method("sign", |params: Params| sign_data(params.parse()));
-    io.add_method("createVRF", |params: Params| create_vrf(params.parse()));
     io.add_method("dataRequestReport", |params: Params| {
         data_request_report(params.parse())
     });
@@ -75,8 +72,67 @@ pub fn jsonrpc_io_handler(subscriptions: Subscriptions) -> PubSubHandler<Arc<Ses
         get_reputation(params.parse())
     });
     io.add_method("getReputationAll", |_params: Params| get_reputation_all());
-    io.add_method("masterKeyExport", |_params: Params| master_key_export());
 
+    // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
+    // A method is sensitive if it touches in some way the master key of the node.
+    // For example: methods that can be used to create transactions (spending value from this node),
+    // sign arbitrary messages with the node master key, and even export the master key.
+    let unauthorized_method = |method_name| {
+        Box::new(futures::failed(internal_error_s(unauthorized_message(
+            method_name,
+        ))))
+    };
+    io.add_method("sendRequest", move |params: Params| {
+        if enable_sensitive_methods {
+            send_request(params.parse())
+        } else {
+            unauthorized_method("sendRequest")
+        }
+    });
+    io.add_method("sendValue", move |params: Params| {
+        if enable_sensitive_methods {
+            send_value(params.parse())
+        } else {
+            unauthorized_method("sendValue")
+        }
+    });
+    io.add_method("getPublicKey", move |_params: Params| {
+        if enable_sensitive_methods {
+            get_public_key()
+        } else {
+            unauthorized_method("getPublicKey")
+        }
+    });
+    io.add_method("getPkh", move |_params: Params| {
+        if enable_sensitive_methods {
+            get_pkh()
+        } else {
+            unauthorized_method("getPkh")
+        }
+    });
+    io.add_method("sign", move |params: Params| {
+        if enable_sensitive_methods {
+            sign_data(params.parse())
+        } else {
+            unauthorized_method("sign")
+        }
+    });
+    io.add_method("createVRF", move |params: Params| {
+        if enable_sensitive_methods {
+            create_vrf(params.parse())
+        } else {
+            unauthorized_method("createVRF")
+        }
+    });
+    io.add_method("masterKeyExport", move |_params: Params| {
+        if enable_sensitive_methods {
+            master_key_export()
+        } else {
+            unauthorized_method("masterKeyExport")
+        }
+    });
+
+    // Enable subscriptions
     // We need two Arcs, one for subscribe and one for unsuscribe
     let ss = subscriptions.clone();
     let ssu = subscriptions.clone();
@@ -198,6 +254,11 @@ fn internal_error_s<T: std::fmt::Display>(e: T) -> jsonrpc_core::Error {
         message: format!("{}", e),
         data: None,
     }
+}
+
+/// Message that appears when calling a sensitive method when sensitive methods are disabled
+fn unauthorized_message(method_name: &str) -> String {
+    format!("Method {} not allowed while node setting json_rpc.enable_sensitive_methods is set to false", method_name)
 }
 
 /// Inventory element: block, transaction, etc
@@ -915,6 +976,7 @@ mod tests {
     use futures::sync::mpsc;
 
     use super::*;
+    use std::collections::BTreeSet;
     use witnet_data_structures::{chain::RADRequest, transaction::*};
 
     #[test]
@@ -927,7 +989,7 @@ mod tests {
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
-        let io = jsonrpc_io_handler(subscriptions);
+        let io = jsonrpc_io_handler(subscriptions, true);
         let response = io.handle_request_sync(empty_string, meta);
         assert_eq!(response, Some(parse_error));
     }
@@ -950,7 +1012,7 @@ mod tests {
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
-        let io = jsonrpc_io_handler(subscriptions);
+        let io = jsonrpc_io_handler(subscriptions, true);
         let response = io.handle_request_sync(&msg, meta);
         assert_eq!(response, Some(expected));
     }
@@ -963,7 +1025,7 @@ mod tests {
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
-        let io = jsonrpc_io_handler(subscriptions);
+        let io = jsonrpc_io_handler(subscriptions, true);
         let response = io.handle_request_sync(&msg, meta);
         // Compare only the first N characters
         let response =
@@ -981,7 +1043,7 @@ mod tests {
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
-        let io = jsonrpc_io_handler(subscriptions);
+        let io = jsonrpc_io_handler(subscriptions, true);
         let response = io.handle_request_sync(&msg, meta);
         assert_eq!(response, Some(expected));
     }
@@ -1000,7 +1062,7 @@ mod tests {
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
-        let io = jsonrpc_io_handler(subscriptions);
+        let io = jsonrpc_io_handler(subscriptions, true);
         let response = io.handle_request_sync(&msg, meta);
         assert_eq!(response, Some(expected));
     }
@@ -1015,7 +1077,7 @@ mod tests {
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
-        let io = jsonrpc_io_handler(subscriptions);
+        let io = jsonrpc_io_handler(subscriptions, true);
         let response = io.handle_request_sync(&msg, meta);
         assert_eq!(response, Some(expected));
     }
@@ -1028,7 +1090,7 @@ mod tests {
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
-        let io = jsonrpc_io_handler(subscriptions);
+        let io = jsonrpc_io_handler(subscriptions, true);
         let response = io.handle_request_sync(&msg, meta);
         assert_eq!(response, Some(expected));
     }
@@ -1041,7 +1103,7 @@ mod tests {
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
-        let io = jsonrpc_io_handler(subscriptions);
+        let io = jsonrpc_io_handler(subscriptions, true);
         // But first, subscribe to newBlocks
         let msg1 = r#"{"jsonrpc":"2.0","method":"witnet_subscribe","params":["newBlocks"],"id":1}"#;
         let _response1 = io.handle_request_sync(&msg1, meta.clone());
@@ -1057,7 +1119,7 @@ mod tests {
         let subscriptions = Subscriptions::default();
         let (transport_sender, _transport_receiver) = mpsc::channel(0);
         let meta = Arc::new(Session::new(transport_sender));
-        let io = jsonrpc_io_handler(subscriptions);
+        let io = jsonrpc_io_handler(subscriptions, true);
         let response = io.handle_request_sync(&msg, meta);
         assert_eq!(response, Some(expected));
     }
@@ -1151,5 +1213,78 @@ mod tests {
         let s = serde_json::to_string(&build_drt).unwrap();
         let expected = r#"{"dro":{"data_request":{"time_lock":0,"retrieve":[],"aggregate":{"filters":[],"reducer":0},"tally":{"filters":[],"reducer":0}},"witness_reward":0,"witnesses":0,"backup_witnesses":0,"commit_fee":0,"reveal_fee":0,"tally_fee":0,"extra_commit_rounds":0,"extra_reveal_rounds":0,"min_consensus_percentage":0},"fee":0}"#;
         assert_eq!(s, expected, "\n{}\n", s);
+    }
+
+    #[test]
+    fn list_jsonrpc_methods() {
+        // This test will break when adding or removing JSON-RPC methods.
+        // When adding a new method, please make sure to mark it as sensitive if that's the case.
+        // Removing a method means breaking the API and should be avoided.
+        let subscriptions = Subscriptions::default();
+        let io = jsonrpc_io_handler(subscriptions, true);
+        let all_methods: BTreeSet<_> = io
+            .iter()
+            .map(|(method_name, _method)| method_name)
+            .collect();
+
+        let all_methods_vec: Vec<_> = all_methods.iter().copied().collect();
+        assert_eq!(
+            all_methods_vec,
+            vec![
+                "createVRF",
+                "dataRequestReport",
+                "getBalance",
+                "getBlock",
+                "getBlockChain",
+                "getPkh",
+                "getPublicKey",
+                "getReputation",
+                "getReputationAll",
+                "getTransaction",
+                "inventory",
+                "masterKeyExport",
+                "sendRequest",
+                "sendValue",
+                "sign",
+                "status",
+                "witnet_subscribe",
+                "witnet_unsubscribe",
+            ]
+        );
+
+        let subscriptions = Subscriptions::default();
+        let (transport_sender, _transport_receiver) = mpsc::channel(0);
+        let meta = Arc::new(Session::new(transport_sender));
+        let io = jsonrpc_io_handler(subscriptions, false);
+        let non_sensitive_methods: BTreeSet<_> = io
+            .iter()
+            .map(|(method_name, _method)| method_name)
+            .collect();
+
+        // Disabling sensistive methods does not unregister them, the methods still exist but
+        // they return a custom error message
+        assert_eq!(all_methods.difference(&non_sensitive_methods).count(), 0);
+
+        let expected_sensitive_methods = vec![
+            "createVRF",
+            "getPkh",
+            "getPublicKey",
+            "masterKeyExport",
+            "sendRequest",
+            "sendValue",
+            "sign",
+        ];
+
+        for method_name in expected_sensitive_methods {
+            let msg = format!(r#"{{"jsonrpc":"2.0","method":"{}","id":1}}"#, method_name);
+            let error_msg = format!(
+                r#"{{"jsonrpc":"2.0","error":{{"code":-32603,"message":{:?}}},"id":1}}"#,
+                unauthorized_message(method_name)
+            );
+
+            let response = io.handle_request_sync(&msg, meta.clone());
+
+            assert_eq!(response.unwrap(), error_msg);
+        }
     }
 }

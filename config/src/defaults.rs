@@ -109,6 +109,11 @@ pub trait Defaults {
     /// Default JSON-RPC server addr
     fn jsonrpc_server_address(&self) -> SocketAddr;
 
+    /// JSON-RPC sensitive methods enabled by default
+    fn jsonrpc_enable_sensitive_methods(&self) -> bool {
+        true
+    }
+
     /// MiningManager, enabled by default
     fn mining_enabled(&self) -> bool {
         true

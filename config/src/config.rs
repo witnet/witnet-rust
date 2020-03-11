@@ -284,6 +284,8 @@ pub struct JsonRPC {
     /// JSON-RPC server address, that is, the socket address (interface ip and
     /// port) for the JSON-RPC server
     pub server_address: SocketAddr,
+    /// Enable methods not suitable for shared nodes
+    pub enable_sensitive_methods: bool,
 }
 
 /// Mining-related configuration
@@ -532,6 +534,10 @@ impl JsonRPC {
                 .server_address
                 .to_owned()
                 .unwrap_or_else(|| defaults.jsonrpc_server_address()),
+            enable_sensitive_methods: config
+                .enable_sensitive_methods
+                .to_owned()
+                .unwrap_or_else(|| defaults.jsonrpc_enable_sensitive_methods()),
         }
     }
 }
@@ -834,6 +840,7 @@ mod tests {
         let partial_config = PartialJsonRPC {
             enabled: None,
             server_address: Some(addr),
+            enable_sensitive_methods: None,
         };
         let config = JsonRPC::from_partial(&partial_config, &Testnet);
 

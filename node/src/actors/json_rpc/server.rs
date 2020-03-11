@@ -60,7 +60,10 @@ impl JsonRpcServer {
                 let server_addr = config.jsonrpc.server_address;
                 act.server_addr = Some(server_addr);
                 // Create and store the JSON-RPC method handler
-                let jsonrpc_io = jsonrpc_io_handler(act.subscriptions.clone());
+                let jsonrpc_io = jsonrpc_io_handler(
+                    act.subscriptions.clone(),
+                    config.jsonrpc.enable_sensitive_methods,
+                );
                 act.jsonrpc_io = Some(Rc::new(jsonrpc_io));
 
                 // Bind TCP listener to this address
