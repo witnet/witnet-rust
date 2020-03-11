@@ -99,8 +99,10 @@ impl Message for GetBlock {
 pub struct GetBlocksEpochRange {
     /// Range of Epochs (prefer using the new method to create a range)
     pub range: (Bound<Epoch>, Bound<Epoch>),
-    /// Maximum blocks limit
+    /// Maximum blocks limit. 0 means unlimited
     pub limit: usize,
+    /// Whether to apply the limit from the end: return the last n blocks
+    pub limit_from_end: bool,
 }
 
 impl GetBlocksEpochRange {
@@ -133,7 +135,15 @@ impl GetBlocksEpochRange {
         Self {
             range: (cloned(r.start_bound()), cloned(r.end_bound())),
             limit,
+            limit_from_end: false,
         }
+    }
+    /// new method with a specified limit, returning the last `limit` items
+    pub fn new_with_limit_from_end<R: RangeBounds<Epoch>>(r: R, limit: usize) -> Self {
+        let mut rb = Self::new_with_limit(r, limit);
+        rb.limit_from_end = true;
+
+        rb
     }
 }
 

@@ -433,7 +433,11 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
 
     fn handle(
         &mut self,
-        GetBlocksEpochRange { range, limit }: GetBlocksEpochRange,
+        GetBlocksEpochRange {
+            range,
+            limit,
+            limit_from_end,
+        }: GetBlocksEpochRange,
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
         log::debug!("GetBlocksEpochRange received {:?}", range);
@@ -442,19 +446,37 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
         // TODO: we should only accept this message in Synced state, but that breaks the
         // JSON-RPC getBlockChain method
 
-        let mut hashes: Vec<(Epoch, Hash)> = self
+        // Iterator over all the blocks in the given range
+        let block_chain_range = self
             .chain_state
             .block_chain
             .range(range)
-            .map(|(k, v)| (*k, *v))
-            .collect();
+            .map(|(k, v)| (*k, *v));
 
-        // Hashes Vec has not to be bigger than MAX_BLOCKS_SYNC
-        if limit != 0 {
-            hashes.truncate(limit);
+        if limit == 0 {
+            // Return all the blocks from this epoch range
+            let hashes: Vec<(Epoch, Hash)> = block_chain_range.collect();
+
+            Ok(hashes)
+        } else if limit_from_end {
+            let mut hashes: Vec<(Epoch, Hash)> = block_chain_range
+                // Take the last "limit" blocks
+                .rev()
+                .take(limit)
+                .collect();
+
+            // Reverse again to return them in non-reversed order
+            hashes.reverse();
+
+            Ok(hashes)
+        } else {
+            let hashes: Vec<(Epoch, Hash)> = block_chain_range
+                // Take the first "limit" blocks
+                .take(limit)
+                .collect();
+
+            Ok(hashes)
         }
-
-        Ok(hashes)
     }
 }
 
