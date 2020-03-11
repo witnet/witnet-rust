@@ -26,7 +26,6 @@ update_period_seconds = 8000000
 enabled = true
 data_request_timeout_seconds = 5
 genesis_path = "genesis_block.json"
-genesis_mining = false
 
 [log]
 level = "debug"

@@ -62,8 +62,8 @@ use crate::{
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
-        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, GenesisBlockInfo, Hash,
-        Hashable, InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
+        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash, Hashable,
+        InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
         TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
@@ -142,8 +142,6 @@ pub struct ChainManager {
     genesis_block_hash: Hash,
     /// Genesis mining flag
     genesis_mining_flag: bool,
-    /// Data needed to create the genesis block
-    info_genesis: Option<GenesisBlockInfo>,
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up

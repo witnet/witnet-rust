@@ -122,11 +122,6 @@ pub trait Defaults {
         ))
     }
 
-    /// Genesis mining, disabled by default
-    fn mining_genesis_mining(&self) -> bool {
-        false
-    }
-
     /// Genesis block path, "./genesis_block.json" by default
     fn mining_genesis_path(&self) -> String {
         "genesis_block.json".to_string()

@@ -77,23 +77,6 @@ impl ChainManager {
                 act.bootstrap_hash = config.consensus_constants.bootstrap_hash;
                 act.genesis_block_hash = config.consensus_constants.genesis_hash;
 
-                let info_genesis = if config.mining.genesis_mining {
-                    act.info_genesis.take().or_else(||
-                         GenesisBlockInfo::from_path(&config.mining.genesis_path, act.bootstrap_hash, act.genesis_block_hash)
-                            .map_err(|e| {
-                                log::error!("Failed to create genesis block: {}", e);
-                                System::current().stop_with_code(1);
-                            })
-                            .ok()
-                    )
-                } else {
-                    None
-                };
-                if info_genesis.is_some() {
-                    log::info!("Genesis block successfully created. Hash: {}", act.genesis_block_hash);
-                }
-                act.info_genesis = info_genesis;
-
                 // Do not start the MiningManager if the configuration disables it
                 act.mining_enabled = config.mining.enabled;
 
@@ -190,7 +173,18 @@ impl ChainManager {
 
                 // If hash_prev_block is the bootstrap hash, create and consolidate genesis block
                 if chain_info.highest_block_checkpoint.hash_prev_block == consensus_constants.bootstrap_hash {
-                    if let Some(ig) = act.info_genesis.clone() {
+                    // Create genesis block
+                    let info_genesis =
+                        GenesisBlockInfo::from_path(&config.mining.genesis_path, act.bootstrap_hash, act.genesis_block_hash)
+                            .map_err(|e| {
+                                log::error!("Failed to create genesis block: {}", e);
+                                log::error!("Genesis block could be downloaded in: https://github.com/witnet/genesis_block");
+                                System::current().stop_with_code(1);
+                            }).ok();
+
+                    if let Some(ig) = info_genesis {
+                        log::info!("Genesis block successfully created. Hash: {}", act.genesis_block_hash);
+
                         let genesis_block = ig.build_genesis_block(consensus_constants.bootstrap_hash);
                         ctx.notify(AddBlocks {
                             blocks: vec![genesis_block],
