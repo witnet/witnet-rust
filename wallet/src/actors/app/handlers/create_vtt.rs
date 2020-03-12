@@ -95,7 +95,7 @@ fn validate_address(
 ) -> Result<types::PublicKeyHash, app::ValidationErrors> {
     types::PublicKeyHash::from_bech32(
         if testnet {
-            Environment::Testnet1
+            Environment::Testnet
         } else {
             Environment::Mainnet
         },

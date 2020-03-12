@@ -269,11 +269,8 @@ pub trait Defaults {
 /// Struct that will implement all the mainnet defaults
 pub struct Mainnet;
 
-/// Struct that will implement all the testnet-1 defaults
-pub struct Testnet1;
-
-/// Struct that will implement all the testnet-3 defaults
-pub struct Testnet3;
+/// Struct that will implement all the testnet defaults
+pub struct Testnet;
 
 impl Defaults for Mainnet {
     fn connections_server_addr(&self) -> SocketAddr {
@@ -285,7 +282,7 @@ impl Defaults for Mainnet {
     }
 
     fn storage_db_path(&self) -> PathBuf {
-        PathBuf::from(".witnet-rust-mainnet")
+        PathBuf::from(".witnet")
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
@@ -295,7 +292,7 @@ impl Defaults for Mainnet {
     }
 }
 
-impl Defaults for Testnet1 {
+impl Defaults for Testnet {
     fn connections_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21337)
     }
@@ -305,29 +302,7 @@ impl Defaults for Testnet1 {
     }
 
     fn storage_db_path(&self) -> PathBuf {
-        PathBuf::from(".witnet-rust-testnet-1")
-    }
-
-    fn connections_bootstrap_peers_period(&self) -> Duration {
-        Duration::from_secs(15)
-    }
-
-    fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        1_548_855_420
-    }
-}
-
-impl Defaults for Testnet3 {
-    fn connections_server_addr(&self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21337)
-    }
-
-    fn jsonrpc_server_address(&self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 21338)
-    }
-
-    fn storage_db_path(&self) -> PathBuf {
-        PathBuf::from(".witnet-rust-testnet-3")
+        PathBuf::from(".witnet")
     }
 
     fn connections_bootstrap_peers_period(&self) -> Duration {

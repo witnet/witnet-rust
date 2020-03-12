@@ -87,7 +87,7 @@ mod tests {
         super::FILE_CONTENTS.with(|cell| {
             cell.set(
                 r"
-environment = 'testnet-1'
+environment = 'testnet'
 [connections]
 inbound_limit = 999
     ",
@@ -96,7 +96,7 @@ inbound_limit = 999
         let filename = Path::new("config.toml");
         let config = super::from_file(&filename).unwrap();
 
-        assert_eq!(config.environment, Environment::Testnet1);
+        assert_eq!(config.environment, Environment::Testnet);
         assert_eq!(config.connections.inbound_limit, Some(999));
     }
 

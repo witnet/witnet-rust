@@ -84,7 +84,7 @@ pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, Box<dyn std::error::
     let c: Config = toml::from_str(&contents)?;
     // Set environment: must be the same as the witnet node
     witnet_data_structures::set_environment(if c.witnet_testnet {
-        Environment::Testnet1
+        Environment::Testnet
     } else {
         Environment::Mainnet
     });

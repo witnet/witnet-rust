@@ -99,7 +99,7 @@ pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
     let pkh = parse_response::<PublicKeyHash>(&response)?;
 
     println!("{}", pkh);
-    println!("Testnet address: {}", pkh.bech32(Environment::Testnet1));
+    println!("Testnet address: {}", pkh.bech32(Environment::Testnet));
     println!("Mainnet address: {}", pkh.bech32(Environment::Mainnet));
 
     Ok(())

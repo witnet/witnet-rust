@@ -18,7 +18,7 @@
 //!
 //! * By creating the instance manually:
 //! ```text
-//! Config { environment: Environment::Testnet1, ... }
+//! Config { environment: Environment::Testnet, ... }
 //! ```
 //! * By using the [Default](std::default::Default) instance
 //! ```
@@ -46,7 +46,7 @@ use std::time::Duration;
 use log::warn;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::defaults::{Defaults, Testnet1, Testnet3};
+use crate::defaults::{Defaults, Testnet};
 use crate::dirs;
 use partial_struct::PartialStruct;
 use witnet_crypto::hash::HashFunction;
@@ -340,8 +340,7 @@ impl Config {
             Environment::Mainnet => {
                 panic!("Config with mainnet environment is currently not allowed");
             }
-            Environment::Testnet1 => &Testnet1,
-            Environment::Testnet3 => &Testnet3,
+            Environment::Testnet => &Testnet,
         };
 
         let consensus_constants = match config.environment {
@@ -357,10 +356,7 @@ impl Config {
                 consensus_constants_from_partial(&consensus_constants_no_changes, defaults)
             }
             // In testnet, allow to override the consensus constants
-            Environment::Testnet1 => {
-                consensus_constants_from_partial(&config.consensus_constants, defaults)
-            }
-            Environment::Testnet3 => {
+            Environment::Testnet => {
                 consensus_constants_from_partial(&config.consensus_constants, defaults)
             }
         };
@@ -749,9 +745,9 @@ mod tests {
     #[test]
     fn test_storage_default_from_partial() {
         let partial_config = PartialStorage::default();
-        let config = Storage::from_partial(&partial_config, &Testnet1);
+        let config = Storage::from_partial(&partial_config, &Testnet);
 
-        assert_eq!(config.db_path.to_str(), Testnet1.storage_db_path().to_str());
+        assert_eq!(config.db_path.to_str(), Testnet.storage_db_path().to_str());
     }
 
     #[test]
@@ -762,7 +758,7 @@ mod tests {
             db_path: Some(PathBuf::from("other")),
             master_key_import_path: None,
         };
-        let config = Storage::from_partial(&partial_config, &Testnet1);
+        let config = Storage::from_partial(&partial_config, &Testnet);
 
         assert_eq!(config.db_path.to_str(), Some("other"));
     }
@@ -770,29 +766,29 @@ mod tests {
     #[test]
     fn test_connections_default_from_partial() {
         let partial_config = PartialConnections::default();
-        let config = Connections::from_partial(&partial_config, &Testnet1);
+        let config = Connections::from_partial(&partial_config, &Testnet);
 
-        assert_eq!(config.server_addr, Testnet1.connections_server_addr());
-        assert_eq!(config.inbound_limit, Testnet1.connections_inbound_limit());
-        assert_eq!(config.outbound_limit, Testnet1.connections_outbound_limit());
-        assert_eq!(config.known_peers, Testnet1.connections_known_peers());
+        assert_eq!(config.server_addr, Testnet.connections_server_addr());
+        assert_eq!(config.inbound_limit, Testnet.connections_inbound_limit());
+        assert_eq!(config.outbound_limit, Testnet.connections_outbound_limit());
+        assert_eq!(config.known_peers, Testnet.connections_known_peers());
         assert_eq!(
             config.bootstrap_peers_period,
-            Testnet1.connections_bootstrap_peers_period()
+            Testnet.connections_bootstrap_peers_period()
         );
         assert_eq!(
             config.storage_peers_period,
-            Testnet1.connections_storage_peers_period()
+            Testnet.connections_storage_peers_period()
         );
         assert_eq!(
             config.discovery_peers_period,
-            Testnet1.connections_discovery_peers_period()
+            Testnet.connections_discovery_peers_period()
         );
         assert_eq!(
             config.handshake_timeout,
-            Testnet1.connections_handshake_timeout()
+            Testnet.connections_handshake_timeout()
         );
-        assert_eq!(config.blocks_timeout, Testnet1.connections_blocks_timeout());
+        assert_eq!(config.blocks_timeout, Testnet.connections_blocks_timeout());
     }
 
     #[test]
@@ -813,7 +809,7 @@ mod tests {
             consensus_c: Some(51),
             bucketing_update_period: Some(200),
         };
-        let config = Connections::from_partial(&partial_config, &Testnet1);
+        let config = Connections::from_partial(&partial_config, &Testnet);
 
         assert_eq!(config.server_addr, addr);
         assert_eq!(config.inbound_limit, 3);
@@ -833,9 +829,9 @@ mod tests {
     #[test]
     fn test_jsonrpc_default_from_partial() {
         let partial_config = PartialJsonRPC::default();
-        let config = JsonRPC::from_partial(&partial_config, &Testnet1);
+        let config = JsonRPC::from_partial(&partial_config, &Testnet);
 
-        assert_eq!(config.server_address, Testnet1.jsonrpc_server_address());
+        assert_eq!(config.server_address, Testnet.jsonrpc_server_address());
     }
 
     #[test]
@@ -845,7 +841,7 @@ mod tests {
             enabled: None,
             server_address: Some(addr),
         };
-        let config = JsonRPC::from_partial(&partial_config, &Testnet1);
+        let config = JsonRPC::from_partial(&partial_config, &Testnet);
 
         assert_eq!(config.server_address, addr);
     }
@@ -855,59 +851,59 @@ mod tests {
         let partial_config = PartialConfig::default();
         let config = Config::from_partial(&partial_config);
 
-        assert_eq!(config.environment, Environment::Testnet3);
+        assert_eq!(config.environment, Environment::Testnet);
         assert_eq!(
             config.connections.server_addr,
-            Testnet3.connections_server_addr()
+            Testnet.connections_server_addr()
         );
         assert_eq!(
             config.connections.inbound_limit,
-            Testnet3.connections_inbound_limit()
+            Testnet.connections_inbound_limit()
         );
         assert_eq!(
             config.connections.outbound_limit,
-            Testnet3.connections_outbound_limit()
+            Testnet.connections_outbound_limit()
         );
         assert_eq!(
             config.connections.known_peers,
-            Testnet3.connections_known_peers()
+            Testnet.connections_known_peers()
         );
         assert_eq!(
             config.connections.bootstrap_peers_period,
-            Testnet3.connections_bootstrap_peers_period()
+            Testnet.connections_bootstrap_peers_period()
         );
         assert_eq!(
             config.connections.storage_peers_period,
-            Testnet3.connections_storage_peers_period()
+            Testnet.connections_storage_peers_period()
         );
         assert_eq!(
             config.connections.discovery_peers_period,
-            Testnet3.connections_discovery_peers_period()
+            Testnet.connections_discovery_peers_period()
         );
         assert_eq!(
             config.connections.feeler_peers_period,
-            Testnet3.connections_feeler_peers_period()
+            Testnet.connections_feeler_peers_period()
         );
         assert_eq!(
             config.connections.handshake_timeout,
-            Testnet3.connections_handshake_timeout()
+            Testnet.connections_handshake_timeout()
         );
-        assert_eq!(config.storage.db_path, Testnet3.storage_db_path());
+        assert_eq!(config.storage.db_path, Testnet.storage_db_path());
         assert_eq!(
             config.jsonrpc.server_address,
-            Testnet3.jsonrpc_server_address()
+            Testnet.jsonrpc_server_address()
         );
         assert_eq!(
             config.connections.blocks_timeout,
-            Testnet3.connections_blocks_timeout()
+            Testnet.connections_blocks_timeout()
         );
         assert_eq!(
             config.connections.consensus_c,
-            Testnet3.connections_consensus_c()
+            Testnet.connections_consensus_c()
         );
         assert_eq!(
             config.connections.bucketing_update_period,
-            Testnet3.connections_bucketing_update_period()
+            Testnet.connections_bucketing_update_period()
         );
     }
 }

@@ -129,7 +129,7 @@ where
 
         let pkh = witnet_data_structures::chain::PublicKey::from(key).pkh();
         let address = pkh.bech32(if self.params.testnet {
-            Environment::Testnet1
+            Environment::Testnet
         } else {
             Environment::Mainnet
         });
@@ -663,7 +663,7 @@ where
                     .ok_or_else(|| Error::TransactionBalanceOverflow)?;
 
                 let address = output.pkh.bech32(if self.params.testnet {
-                    Environment::Testnet1
+                    Environment::Testnet
                 } else {
                     Environment::Mainnet
                 });

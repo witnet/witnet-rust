@@ -63,16 +63,13 @@ pub enum Environment {
     #[serde(rename = "mainnet")]
     Mainnet,
     /// "testnet" environment
-    #[serde(rename = "testnet-1")]
-    Testnet1,
-    /// "testnet" environment
-    #[serde(rename = "testnet-3")]
-    Testnet3,
+    #[serde(rename = "testnet")]
+    Testnet,
 }
 
 impl Default for Environment {
     fn default() -> Environment {
-        Environment::Testnet3
+        Environment::Testnet
     }
 }
 
@@ -80,8 +77,7 @@ impl fmt::Display for Environment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self {
             Environment::Mainnet => "mainnet",
-            Environment::Testnet1 => "testnet1",
-            Environment::Testnet3 => "testnet3",
+            Environment::Testnet => "testnet",
         };
 
         f.write_str(s)
@@ -2596,10 +2592,10 @@ mod tests {
 
         // If we change the environment, the prefix and the checksum change
         let addr_testnet = "twit1gdm8mqlz8lxtj05w05mw63jvecyenvuasgmfk9";
-        assert_eq!(pkh.bech32(Environment::Testnet1), addr_testnet);
+        assert_eq!(pkh.bech32(Environment::Testnet), addr_testnet);
         // But the PKH is the same as mainnet
         assert_eq!(
-            PublicKeyHash::from_bech32(Environment::Testnet1, addr_testnet).unwrap(),
+            PublicKeyHash::from_bech32(Environment::Testnet, addr_testnet).unwrap(),
             pkh
         );
         // Although if we try to deserialize this as a mainnet address, it will fail
