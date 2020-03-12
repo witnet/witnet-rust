@@ -346,7 +346,10 @@ impl Actor for SignatureManagerAdapter {
                     // There is a master key in storage or imported, but not both:
                     // Use that master key
                     (None, Some(from_storage)) => Box::new(futures::finished(from_storage)),
-                    (Some(from_file), None) => Box::new(futures::finished(from_file)),
+                    (Some(from_file), None) => {
+                        // Save the key into the storage
+                        Box::new(persist_master_key(from_file.clone()).map(|()| from_file))
+                    },
                     // There is a master key in storage and imported:
                     (Some(from_file), Some(from_storage)) => {
                         if from_file == from_storage {
