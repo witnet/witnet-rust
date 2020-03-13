@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  node:
+    image: witnet/witnet-rust
+    restart: unless-stopped
+    command: ["latest", "--config", "/.witnet.toml", "--debug", "node", "server"]
+    network_mode: host
+    ports:
+      - "21337:21337"
+    volumes:
+      - "$HOME/.witnet:/.witnet:rw"
+      - "$HOME/.witnet.toml:/.witnet.toml:ro"
