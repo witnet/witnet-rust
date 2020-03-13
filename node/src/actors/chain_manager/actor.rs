@@ -85,8 +85,17 @@ impl ChainManager {
 
                 storage_mngr::get::<_, ChainState>(&storage_keys::chain_state_key(magic))
                     .into_actor(act)
-                    .map_err(|e, _, _| error!("Error while getting chain state from storage: {}", e))
-                    .map(|chain_state_from_storage, _, _| (chain_state_from_storage, config))
+                    .then(|chain_state_from_storage, _, _| {
+                        let result = match chain_state_from_storage {
+                            Ok(x) => (x, config),
+                            Err(e) => {
+                                error!("Error while getting chain state from storage: {}", e);
+                                (None, config)
+                            }
+                        };
+
+                        actix::fut::ok(result)
+                    })
             })
             .map(move |(chain_state_from_storage, config), act, ctx| {
                 // Get environment and consensus_constants parameters from config
@@ -194,6 +203,8 @@ impl ChainManager {
 
                 act.chain_state = chain_state;
                 act.last_chain_state = act.chain_state.clone();
+
+                act.persist_chain_state(ctx);
             }).wait(ctx);
     }
 
