@@ -186,5 +186,10 @@ pub fn connect_routes<T, S>(
         ("Set", "set", SetRequest),
         ("Get", "get", GetRequest),
         ("Get-Balance", "get_balance", GetBalanceRequest),
+        (
+            "Validate-Mnemonics",
+            "validate_mnemonics",
+            ValidateMnemonicsRequest
+        ),
     );
 }
