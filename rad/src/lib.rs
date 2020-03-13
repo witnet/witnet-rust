@@ -92,7 +92,7 @@ pub async fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<
             let mut response = surf::get(&retrieve.url)
                 .await
                 .map_err(|x| RadError::HttpOther {
-                    message: x.description().to_string(),
+                    message: x.to_string(),
                 })?;
 
             if !response.status().is_success() {
@@ -106,7 +106,7 @@ pub async fn run_retrieval_report(retrieve: &RADRetrieve) -> Result<RadonReport<
                 .body_string()
                 .await
                 .map_err(|x| RadError::HttpOther {
-                    message: x.description().to_string(),
+                    message: x.to_string(),
                 })?;
 
             let result = run_retrieval_with_data_report(retrieve, response_string, context);

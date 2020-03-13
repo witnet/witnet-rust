@@ -649,7 +649,7 @@ fn vtt_two_inputs_one_signature() {
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
-    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
     let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
@@ -692,7 +692,7 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
-    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
     let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
@@ -740,7 +740,7 @@ fn vtt_two_inputs_three_signatures() {
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
-    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
     let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
@@ -783,7 +783,7 @@ fn vtt_two_inputs_two_outputs() {
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
-    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
     let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
@@ -826,7 +826,7 @@ fn vtt_input_value_overflow() {
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
-    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
     let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
 
     // The total output value should not overflow
@@ -873,7 +873,7 @@ fn vtt_output_value_overflow() {
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
-    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
     let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
 
     // The total output value should overflow
@@ -1359,7 +1359,7 @@ fn data_request_output_value_overflow() {
     };
     let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let utxo_diff = UtxoDiff::new(&utxo_pool);
-    let vti0 = Input::new(utxo_pool.iter().nth(0).unwrap().0.clone());
+    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
     let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {

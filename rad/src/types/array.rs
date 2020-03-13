@@ -40,7 +40,7 @@ impl RadonType<Vec<RadonTypes>> for RadonArray {
 impl From<Vec<RadonTypes>> for RadonArray {
     fn from(value: Vec<RadonTypes>) -> Self {
         let mut iter = value.iter();
-        let first_type = iter.nth(0).map(|rad_types| rad_types.discriminant());
+        let first_type = iter.next().map(|rad_types| rad_types.discriminant());
 
         let is_homogeneous = first_type
             .map_or(first_type, |first_type| {

@@ -2,7 +2,6 @@ use json;
 use serde_cbor::value::{from_value, Value};
 use std::{
     convert::{TryFrom, TryInto},
-    error::Error,
     str::FromStr,
 };
 
@@ -22,7 +21,7 @@ pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
             RadonTypes::try_from(value)
         }
         Err(json_error) => Err(RadError::JsonParse {
-            description: json_error.description().to_owned(),
+            description: json_error.to_string(),
         }),
     }
 }
@@ -160,7 +159,7 @@ mod tests {
         let output = parse_json_map(&invalid_json).unwrap_err();
 
         let expected_err = RadError::JsonParse {
-            description: "Unexpected character".to_string(),
+            description: "Unexpected character: } at (1:13)".to_string(),
         };
         assert_eq!(output, expected_err);
 
@@ -193,7 +192,7 @@ mod tests {
         let output = parse_json_array(&invalid_json).unwrap_err();
 
         let expected_err = RadError::JsonParse {
-            description: "Unexpected character".to_string(),
+            description: "Unexpected character: } at (1:13)".to_string(),
         };
         assert_eq!(output, expected_err);
 

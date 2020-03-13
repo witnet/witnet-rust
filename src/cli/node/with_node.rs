@@ -100,7 +100,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             };
             rpc::master_key_export(
                 node.unwrap_or(config.jsonrpc.server_address),
-                write_to_path.as_ref().map(|x| x.as_path()),
+                write_to_path.as_deref(),
             )
         }
     }

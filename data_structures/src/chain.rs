@@ -2148,9 +2148,9 @@ where
             remaining_rep -= u64::from(top_rep);
         } else {
             let factor = if (total_rep % remaining_rep) > 0 {
-                ((total_rep * n / remaining_rep) + 1)
+                (total_rep * n / remaining_rep) + 1
             } else {
-                (total_rep * n / remaining_rep)
+                total_rep * n / remaining_rep
             };
 
             return u32::try_from(factor).unwrap_or(u32::max_value());
