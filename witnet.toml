@@ -15,9 +15,11 @@ server_address = "127.0.0.1:21338"
 
 [consensus_constants]
 checkpoints_period = 30
-checkpoint_zero_timestamp = 1583496000
+checkpoint_zero_timestamp = 1584111600
 bootstrap_hash = "00000000000000000000000000000000000000007769746e65742d302e372e30"
 genesis_hash = "7a7a438b857e8a50fb3281df32b34f8acd930da8f0d51f308903c8a55e6ff7a9"
+mining_replication_factor = 1
+activity_period = 240
 
 [ntp]
 update_period_seconds = 8000000
