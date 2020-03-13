@@ -25,10 +25,20 @@ versions:
     cargo fmt -- --version
     cargo clippy -- --version
 
+# additional clippy lints
+export CLIPPY_LINTS := '-D warnings
+    -D clippy::cast-lossless
+    -D clippy::cast-possible-truncation
+    -D clippy::cast-possible-wrap
+    -D clippy::cast-precision-loss
+    -D clippy::cast-sign-loss
+    -D clippy::checked-conversions
+'
+
 # run clippy
 clippy +flags="":
-    cargo clippy --all --all-features -- -D warnings {{flags}}
-    cargo clippy --all --all-targets --all-features -- -D warnings {{flags}}
+    cargo clippy --all --all-features -- $CLIPPY_LINTS {{flags}}
+    cargo clippy --all --all-targets --all-features -- $CLIPPY_LINTS {{flags}}
 
 # run formatter
 fmt +flags="":

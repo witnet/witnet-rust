@@ -744,8 +744,8 @@ pub fn status() -> JsonRpcResultAsync {
     .map(
         |(synchronized, num_peers, chain_beacon, reputation_status)| Status {
             synchronized,
-            num_peers_inbound: num_peers.inbound as u32,
-            num_peers_outbound: num_peers.outbound as u32,
+            num_peers_inbound: u32::try_from(num_peers.inbound).unwrap(),
+            num_peers_outbound: u32::try_from(num_peers.outbound).unwrap(),
             chain_beacon,
             num_active_identities: reputation_status.num_active_identities,
             total_active_reputation: reputation_status.total_active_reputation,

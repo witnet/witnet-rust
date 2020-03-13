@@ -654,7 +654,7 @@ where
             if let Some(model::Path { .. }) = self.db.get_opt(&keys::pkh(&output.pkh))? {
                 let out_ptr = model::OutPtr {
                     txn_hash: txn_hash.to_vec(),
-                    output_index: index as u32,
+                    output_index: u32::try_from(index).unwrap(),
                 };
                 let key_balance = model::KeyBalance {
                     pkh: output.pkh,
@@ -678,8 +678,8 @@ where
             }
         }
 
-        let txn_balance = (output_amount as i128)
-            .checked_sub(input_amount as i128)
+        let txn_balance = i128::from(output_amount)
+            .checked_sub(i128::from(input_amount))
             .ok_or_else(|| Error::TransactionBalanceUnderflow)?;
 
         let txn_balance =

@@ -1,7 +1,7 @@
 use actix::{fut::WrapFuture, prelude::*};
 use futures::Future;
 use log;
-use std::{cmp::Ordering, collections::HashMap};
+use std::{cmp::Ordering, collections::HashMap, convert::TryFrom};
 
 use witnet_data_structures::{
     chain::{
@@ -141,7 +141,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                     }
                     // Decide the best candidate
                     let target_vrf_slots = VrfSlots::from_rf(
-                        rep_engine.ars().active_identities_number() as u32,
+                        u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
                         chain_info.consensus_constants.mining_replication_factor,
                         chain_info.consensus_constants.mining_backup_factor,
                     );
@@ -726,7 +726,7 @@ impl Handler<BuildVtt> for ChainManager {
         if self.sm_state != StateMachine::Synced {
             return Box::new(actix::fut::err(ChainManagerError::NotSynced.into()));
         }
-        let timestamp = get_timestamp() as u64;
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
         match transaction_factory::build_vtt(
             msg.vto,
             msg.fee,
@@ -775,7 +775,7 @@ impl Handler<BuildDrt> for ChainManager {
         if let Err(e) = validate_rad_request(&msg.dro.data_request) {
             return Box::new(actix::fut::err(e));
         }
-        let timestamp = get_timestamp() as u64;
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
         match transaction_factory::build_drt(
             msg.dro,
             msg.fee,
@@ -922,7 +922,7 @@ impl Handler<GetReputationStatus> for ChainManager {
             None => return Err(ChainManagerError::ChainNotReady.into()),
         };
 
-        let num_active_identities = rep_eng.ars().active_identities_number() as u32;
+        let num_active_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
         let total_active_reputation = rep_eng.total_active_reputation();
 
         Ok(GetReputationStatusResult {

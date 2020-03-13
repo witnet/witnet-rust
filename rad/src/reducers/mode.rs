@@ -2,7 +2,7 @@ use crate::{
     error::RadError,
     types::{array::RadonArray, RadonType, RadonTypes},
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryFrom};
 
 pub fn mode(input: &RadonArray) -> Result<RadonTypes, RadError> {
     let value = input.value();
@@ -33,7 +33,7 @@ pub fn mode(input: &RadonArray) -> Result<RadonTypes, RadError> {
     if mode_vector.len() > 1 {
         Err(RadError::ModeTie {
             values: input.clone(),
-            max_count: *max_count as u16,
+            max_count: u16::try_from(*max_count).unwrap(),
         })
     } else {
         Ok(mode_vector[0].clone())

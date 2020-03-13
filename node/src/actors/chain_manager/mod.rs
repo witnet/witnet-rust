@@ -320,7 +320,8 @@ impl ChainManager {
             self.secp.as_ref(),
         ) {
             let hash_block = block.hash();
-            let total_identities = rep_engine.ars().active_identities_number() as u32;
+            let total_identities =
+                u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
 
             if !self.candidates.contains_key(&hash_block) {
                 let mining_bf = self
@@ -912,7 +913,7 @@ fn update_reputation(
     reputation_bounty += issued_rep;
     reputation_bounty += penalized_rep;
 
-    let num_honest = honest.len() as u32;
+    let num_honest = u32::try_from(honest.len()).unwrap();
 
     log::log!(
         log_level,
@@ -1047,7 +1048,8 @@ fn show_sync_progress(
     epoch_constants: EpochConstants,
 ) {
     // Show progress log
-    let mut percent_done_float = beacon.checkpoint as f64 / target_beacon.checkpoint as f64 * 100.0;
+    let mut percent_done_float =
+        f64::from(beacon.checkpoint) / f64::from(target_beacon.checkpoint) * 100.0;
 
     // Never show 100% unless it's actually done
     if beacon.checkpoint != target_beacon.checkpoint && percent_done_float > 99.99 {

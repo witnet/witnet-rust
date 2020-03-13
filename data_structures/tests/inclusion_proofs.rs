@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use witnet_crypto::{
     hash::Sha256,
     merkle::{merkle_tree_root as crypto_merkle_tree_root, sha256_concat, InclusionProof},
@@ -75,8 +76,8 @@ fn example_dr(id: usize) -> DRTransaction {
 }
 
 fn example_ta(id: usize) -> TallyTransaction {
-    let dr_pointer = Hash::with_first_u32(id as u32);
-    let tally = vec![id as u8; 32];
+    let dr_pointer = Hash::with_first_u32(u32::try_from(id).unwrap());
+    let tally = vec![u8::try_from(id).unwrap(); 32];
     TallyTransaction::new(dr_pointer, tally, vec![], vec![])
 }
 

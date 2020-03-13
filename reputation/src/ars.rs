@@ -7,6 +7,7 @@ use crate::error::ReputationError;
 use crate::trs::{decrement_cache, increment_cache};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    convert::TryFrom,
     hash::Hash,
 };
 
@@ -140,7 +141,7 @@ where
             // That it will be where new active users will be added
             let no_updated_epochs = new_time - self.last_update - 1;
 
-            if no_updated_epochs > (self.buffer_capacity() as u32) {
+            if no_updated_epochs > u32::try_from(self.buffer_capacity())? {
                 self.clear()
             } else {
                 for _i in 0..no_updated_epochs {
@@ -168,7 +169,7 @@ where
             // That it will be where new active users will be added
             let no_updated_epochs = new_time - self.last_update - 1;
 
-            if no_updated_epochs > (self.buffer_capacity() as u32) {
+            if no_updated_epochs > u32::try_from(self.buffer_capacity())? {
                 self.clear()
             } else {
                 for _i in 0..no_updated_epochs {

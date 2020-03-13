@@ -56,6 +56,8 @@ pub enum MeanReturnPolicy {
 /// assert_eq!(mean(&integer_values, MeanReturnPolicy::RoundToInteger), Ok(integer_mean));
 /// assert_eq!(mean(&integer_values, MeanReturnPolicy::ReturnFloat), Ok(float_mean));
 /// ```
+// FIXME: Allow for now, since there is no safe cast function from a usize to float yet
+#[allow(clippy::cast_precision_loss)]
 pub fn mean(input: &RadonArray, return_policy: MeanReturnPolicy) -> Result<RadonTypes, RadError> {
     let value = input.value();
     let value_len = value.len();

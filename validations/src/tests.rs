@@ -1,4 +1,7 @@
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::{
+    convert::TryFrom,
+    sync::atomic::{AtomicU32, Ordering},
+};
 use witnet_crypto::{
     key::CryptoEngine,
     secp256k1::{PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey},
@@ -3585,7 +3588,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         &b,
         current_epoch,
         &mut signatures_to_verify,
-        rep_eng.ars().active_identities_number() as u32,
+        u32::try_from(rep_eng.ars().active_identities_number())?,
         mining_bf,
     )?;
     verify_signatures_test(signatures_to_verify)?;
@@ -3819,7 +3822,7 @@ fn block_difficult_proof() {
                 &b,
                 current_epoch,
                 &mut signatures_to_verify,
-                rep_eng.ars().active_identities_number() as u32,
+                u32::try_from(rep_eng.ars().active_identities_number())?,
                 mining_bf,
             )?;
             verify_signatures_test(signatures_to_verify)?;
@@ -4341,7 +4344,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             &b,
             current_epoch,
             &mut signatures_to_verify,
-            rep_eng.ars().active_identities_number() as u32,
+            u32::try_from(rep_eng.ars().active_identities_number())?,
             mining_bf,
         )?;
         verify_signatures_test(signatures_to_verify)?;

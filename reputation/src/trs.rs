@@ -448,6 +448,8 @@ mod tests {
 
     // Example demurrage functions used in tests:
     // Factor: lose half of the reputation for each lie
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     fn fctr(num_lies: u32) -> impl Fn(Reputation) -> Reputation {
         const PENALIZATION_FACTOR: f64 = 0.5;
         move |Reputation(r)| {

@@ -4,6 +4,7 @@ use crate::{chain, types};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use failure::{ensure, format_err, Error};
 use protobuf::Message;
+use std::convert::TryFrom;
 
 pub mod schema;
 
@@ -243,7 +244,7 @@ impl ProtobufConvert for i8 {
             pb <= Self::ProtoStruct::from(Self::max_value()),
             "Integer out of range"
         );
-        Ok(pb as Self)
+        Ok(Self::try_from(pb)?)
     }
 }
 
@@ -257,7 +258,7 @@ impl ProtobufConvert for u16 {
             pb <= Self::ProtoStruct::from(Self::max_value()),
             "Integer out of range"
         );
-        Ok(pb as Self)
+        Ok(Self::try_from(pb)?)
     }
 }
 
@@ -271,6 +272,6 @@ impl ProtobufConvert for i16 {
             pb <= Self::ProtoStruct::from(Self::max_value()),
             "Integer out of range"
         );
-        Ok(pb as Self)
+        Ok(Self::try_from(pb)?)
     }
 }

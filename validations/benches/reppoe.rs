@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate bencher;
 use bencher::Bencher;
-use std::iter;
+use std::{convert::TryFrom, iter};
 use witnet_data_structures::chain::{Alpha, PublicKeyHash, Reputation, ReputationEngine};
 
 // To benchmark the old algorithm, comment out this import:
@@ -45,10 +45,11 @@ mod validations {
 
 fn pkh_i(id: u32) -> PublicKeyHash {
     let mut bytes = [0xFF; 20];
-    bytes[0] = id as u8;
-    bytes[1] = (id >> 8) as u8;
-    bytes[2] = (id >> 16) as u8;
-    bytes[3] = (id >> 24) as u8;
+    let [b0, b1, b2, b3] = id.to_le_bytes();
+    bytes[0] = b0;
+    bytes[1] = b1;
+    bytes[2] = b2;
+    bytes[3] = b3;
     PublicKeyHash::from_bytes(&bytes).unwrap()
 }
 
@@ -64,7 +65,7 @@ fn be<I>(
     let mut rep_eng = ReputationEngine::new(1000);
     let my_pkh = PublicKeyHash::from_bytes(&[0x01; 20]).unwrap();
     for (i, rep) in reps.into_iter().enumerate() {
-        let pkh = pkh_i(i as u32);
+        let pkh = pkh_i(u32::try_from(i).unwrap());
         rep_eng.ars_mut().push_activity(vec![pkh]);
         rep_eng
             .trs_mut()

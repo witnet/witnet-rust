@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io;
 use std::io::Cursor;
 
@@ -75,7 +76,7 @@ impl Encoder for P2PCodec {
                 format!("Message size {} bytes too big for u32", bytes.len()),
             ));
         }
-        let header: u32 = bytes.len() as u32;
+        let header: u32 = u32::try_from(bytes.len()).unwrap();
         // push header with msg len
         encoded_msg.write_u32::<BigEndian>(header).unwrap();
         // push message

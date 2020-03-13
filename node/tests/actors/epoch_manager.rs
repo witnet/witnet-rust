@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use witnet_node::actors::epoch_manager::{EpochManager, EpochManagerError};
 
 #[test]
@@ -5,7 +6,7 @@ fn epoch_zero_range() {
     let zero = 1000;
     let period = 90;
     let mut em = EpochManager::default();
-    em.set_checkpoint_zero_and_period(zero, period as u16);
+    em.set_checkpoint_zero_and_period(zero, u16::try_from(period).unwrap());
 
     // [1000, 1089] are in epoch 0
     for now in zero..zero + period {
@@ -26,9 +27,9 @@ fn epoch_zero_range() {
 fn epoch_zero_in_the_future() {
     let zero = 1000;
     let now = 999;
-    let period = 90;
+    let period = 90u16;
     let mut em = EpochManager::default();
-    em.set_checkpoint_zero_and_period(zero, period as u16);
+    em.set_checkpoint_zero_and_period(zero, period);
 
     assert_eq!(
         em.epoch_at(now),

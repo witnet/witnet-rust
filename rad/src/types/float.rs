@@ -34,6 +34,8 @@ impl RadonType<f64> for RadonFloat {
 impl TryFrom<Value> for RadonFloat {
     type Error = RadError;
 
+    // FIXME: Allow for now, since there is no safe cast function from an i128 to float yet
+    #[allow(clippy::cast_precision_loss)]
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let error = || RadError::Decode {
             from: "cbor::value::Value".to_string(),
@@ -79,7 +81,7 @@ impl From<f64> for RadonFloat {
 impl From<i32> for RadonFloat {
     fn from(value: i32) -> Self {
         RadonFloat {
-            value: value as f64,
+            value: f64::from(value),
         }
     }
 }

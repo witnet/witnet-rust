@@ -18,6 +18,8 @@ pub fn to_string(input: RadonFloat) -> Result<RadonString, RadError> {
     RadonString::try_from(Value::Text(input.value().to_string()))
 }
 
+// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+#[allow(clippy::cast_possible_truncation)]
 pub fn ceiling(input: &RadonFloat) -> RadonInteger {
     RadonInteger::from(input.value().ceil() as i128)
 }
@@ -87,14 +89,20 @@ pub fn power(input: &RadonFloat, args: &[Value]) -> Result<RadonFloat, RadError>
     Ok(RadonFloat::from(input.value().powf(exp)))
 }
 
+// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+#[allow(clippy::cast_possible_truncation)]
 pub fn floor(input: &RadonFloat) -> RadonInteger {
     RadonInteger::from(input.value().floor() as i128)
 }
 
+// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+#[allow(clippy::cast_possible_truncation)]
 pub fn round(input: &RadonFloat) -> RadonInteger {
     RadonInteger::from(input.value().round() as i128)
 }
 
+// No safe cast function from a float to integer yet, but this may just be fine since we are truncating anyway
+#[allow(clippy::cast_possible_truncation)]
 pub fn truncate(input: &RadonFloat) -> RadonInteger {
     RadonInteger::from(input.value().trunc() as i128)
 }

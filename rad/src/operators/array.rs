@@ -49,14 +49,17 @@ pub fn get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError> {
         return Err(wrong_args());
     }
 
-    let not_found = |index: i32| RadError::ArrayIndexNotFound { index };
+    let not_found = |index: usize| RadError::ArrayIndexNotFound {
+        index: i32::try_from(index).unwrap(),
+    };
 
     let arg = args[0].to_owned();
     let index = from_value::<i32>(arg).map_err(|_| wrong_args())?;
+    let index = usize::try_from(index).map_err(|_| RadError::ArrayIndexNotFound { index })?;
 
     input
         .value()
-        .get(index as usize)
+        .get(index)
         .map(Clone::clone)
         .ok_or_else(|| not_found(index))
 }

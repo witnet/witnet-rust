@@ -9,6 +9,8 @@ use serde_cbor::Value;
 use std::convert::TryFrom;
 use witnet_data_structures::radon_report::{ReportContext, Stage};
 
+// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+#[allow(clippy::cast_precision_loss)]
 pub fn standard_filter(
     input: &RadonArray,
     extra_args: &[Value],
@@ -118,6 +120,8 @@ fn keep_rows(
 
 // Return an array with the same dimensions as the input, with a boolean indicating
 // whether to keep a value or not
+// FIXME: Allow for now, since there is no safe cast function from an i128 to float yet
+#[allow(clippy::cast_precision_loss)]
 fn boolean_standard_filter(input: &RadonArray, sigmas_float: f64) -> Result<RadonArray, RadError> {
     // if input is empty, return the array
     if input.value().is_empty() {

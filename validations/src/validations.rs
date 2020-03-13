@@ -58,7 +58,7 @@ pub fn transaction_inputs_sum(
 
         // Verify that commits are only accepted after the time lock expired
         let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
-        let vt_time_lock = vt_output.time_lock as i64;
+        let vt_time_lock = i64::try_from(vt_output.time_lock)?;
         if vt_time_lock > epoch_timestamp {
             return Err(TransactionError::TimeLock {
                 expected: vt_time_lock,
@@ -255,6 +255,8 @@ pub enum TallyPreconditionClauseResult {
 
 /// Run a precondition clause on an array of `RadonTypes` so as to check if the mode is a value or
 /// an error, which has clear consequences in regards to consensus, rewards and punishments.
+// FIXME: Allow for now, since there is no safe cast function from a usize to float yet
+#[allow(clippy::cast_precision_loss)]
 pub fn evaluate_tally_precondition_clause(
     reveals: Vec<RadonReport<RadonTypes>>,
     minimum_consensus: f64,
@@ -271,7 +273,7 @@ pub fn evaluate_tally_precondition_clause(
 
     // Count how many times is each RADON type featured in `reveals`, but count `RadonError` items
     // separately as they need to be handled differently.
-    let reveals_len = reveals.len() as u32;
+    let reveals_len = u32::try_from(reveals.len()).unwrap();
     let mut counter = Counter::new(RadonTypes::num_types());
     for reveal in &reveals {
         counter.increment(reveal.result.discriminant());
@@ -279,7 +281,7 @@ pub fn evaluate_tally_precondition_clause(
 
     // Compute ratio of type consensus amongst reveals (percentage of reveals that have same type
     // as the frequent type).
-    let achieved_consensus = counter.max_val as f64 / reveals_len as f64;
+    let achieved_consensus = f64::from(counter.max_val) / f64::from(reveals_len);
 
     // If the achieved consensus is over the user-defined threshold, continue.
     // Otherwise, return `RadError::InsufficientConsensus`.
@@ -298,7 +300,7 @@ pub fn evaluate_tally_precondition_clause(
                         .map(RadonReport::into_inner)
                         .collect::<Vec<RadonTypes>>(),
                 ),
-                max_count: counter.max_val as u16,
+                max_count: u16::try_from(counter.max_val).unwrap(),
             }),
             // Majority of errors, return errors mode.
             Some(most_frequent_type) if most_frequent_type == error_type_discriminant => {
@@ -322,7 +324,7 @@ pub fn evaluate_tally_precondition_clause(
                 match most_common_error_array {
                     Ok(RadonTypes::Array(x)) => {
                         let x_value = x.value();
-                        let achieved_consensus = x_value.len() as f64 / reveals_len as f64;
+                        let achieved_consensus = x_value.len() as f64 / f64::from(reveals_len);
                         if achieved_consensus >= minimum_consensus {
                             match mode(&errors_array)? {
                                 RadonTypes::RadonError(errors_mode) => {
@@ -341,7 +343,7 @@ pub fn evaluate_tally_precondition_clause(
                         unreachable!("Mode filter should always return a `RadonArray`");
                     }
                     Err(RadError::ModeTie { values, max_count }) => {
-                        let achieved_consensus = max_count as f64 / reveals_len as f64;
+                        let achieved_consensus = f64::from(max_count) / f64::from(reveals_len);
                         if achieved_consensus < minimum_consensus {
                             Err(RadError::InsufficientConsensus {
                                 achieved: achieved_consensus,
@@ -555,7 +557,7 @@ pub fn validate_genesis_vt_transaction(
     // Genesis VTTs should have 0 signatures
     if !vt_tx.signatures.is_empty() {
         return Err(TransactionError::MismatchingSignaturesNumber {
-            signatures_n: vt_tx.signatures.len() as u8,
+            signatures_n: u8::try_from(vt_tx.signatures.len()).unwrap(),
             inputs_n: 0,
         });
     }
@@ -669,7 +671,7 @@ pub fn validate_commit_transaction(
 
     // Verify that commits are only accepted after the time lock expired
     let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
-    let dr_time_lock = dr_output.data_request.time_lock as i64;
+    let dr_time_lock = i64::try_from(dr_output.data_request.time_lock)?;
     if dr_time_lock > epoch_timestamp {
         return Err(TransactionError::TimeLock {
             expected: dr_time_lock,
@@ -779,7 +781,7 @@ pub fn validate_tally_transaction<'a>(
     // Validate tally result
     let miner_tally = ta_tx.tally.clone();
     let tally_stage = &dr_output.data_request.tally;
-    let non_error_min = dr_output.min_consensus_percentage as f64 / 100.0;
+    let non_error_min = f64::from(dr_output.min_consensus_percentage) / 100.0;
     let num_commits = dr_state.info.commits.len();
 
     let honest_pkhs = validate_consensus(
@@ -1014,8 +1016,8 @@ pub fn validate_transaction_signature(
 ) -> Result<(), failure::Error> {
     if signatures.len() != inputs.len() {
         return Err(TransactionError::MismatchingSignaturesNumber {
-            signatures_n: signatures.len() as u8,
-            inputs_n: inputs.len() as u8,
+            signatures_n: u8::try_from(signatures.len())?,
+            inputs_n: u8::try_from(inputs.len())?,
         }
         .into());
     }
@@ -1091,7 +1093,7 @@ pub fn update_utxo_diff(
         // Add the new outputs to the utxo_diff
         let output_pointer = OutputPointer {
             transaction_id: tx_hash,
-            output_index: index as u32,
+            output_index: u32::try_from(index).unwrap(),
         };
 
         utxo_diff.insert_utxo(output_pointer, output.clone());
@@ -1332,7 +1334,7 @@ pub fn validate_block(
         // with the genesis_block_hash
         validate_genesis_block(block, genesis_block_hash).map_err(Into::into)
     } else {
-        let total_identities = rep_eng.ars().active_identities_number() as u32;
+        let total_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
         let (target_hash, _) = calculate_randpoe_threshold(total_identities, mining_bf);
 
         add_block_vrf_signature_to_verify(
@@ -1470,9 +1472,9 @@ pub fn calculate_randpoe_threshold(total_identities: u32, replication_factor: u3
     } else {
         (max / u64::from(total_identities)) * u64::from(replication_factor)
     };
-    let target = (target >> 32) as u32;
+    let target = u32::try_from(target >> 32).unwrap();
 
-    let probability = target as f64 / (max >> 32) as f64;
+    let probability = f64::from(target) / f64::from(u32::try_from(max >> 32).unwrap());
     (Hash::with_first_u32(target), probability)
 }
 
@@ -1496,9 +1498,9 @@ pub fn calculate_reppoe_threshold(
     } else {
         (max / total_active_rep) * my_reputation.saturating_mul(factor)
     };
-    let target = (target >> 32) as u32;
+    let target = u32::try_from(target >> 32).unwrap();
 
-    let probability = target as f64 / (max >> 32) as f64;
+    let probability = f64::from(target) / f64::from(u32::try_from(max >> 32).unwrap());
     (Hash::with_first_u32(target), probability)
 }
 
@@ -1534,14 +1536,17 @@ impl VrfSlots {
 
     pub fn slot(&self, hash: &Hash) -> u32 {
         let num_sections = self.target_hashes.len();
-        self.target_hashes
-            .iter()
-            // The section is the index of the first section hash that is less
-            // than or equal to the provided hash
-            .position(|th| hash <= th)
-            // If the provided hash is greater than all of the section hashes,
-            // return the number of sections
-            .unwrap_or(num_sections) as u32
+        u32::try_from(
+            self.target_hashes
+                .iter()
+                // The section is the index of the first section hash that is less
+                // than or equal to the provided hash
+                .position(|th| hash <= th)
+                // If the provided hash is greater than all of the section hashes,
+                // return the number of sections
+                .unwrap_or(num_sections),
+        )
+        .unwrap()
     }
 }
 
@@ -2107,6 +2112,8 @@ mod tests {
         assert_eq!(block_reward(1_750_000 * 100), 0);
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn target_randpoe() {
         let rf = 1;
@@ -2137,6 +2144,8 @@ mod tests {
         assert_eq!((p06 * 100_f64).round() as i128, 0);
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn target_randpoe_rf_4() {
         let rf = 4;
@@ -2164,6 +2173,8 @@ mod tests {
         assert_eq!((p06 * 100_f64).round() as i128, 0);
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn target_reppoe() {
         let mut rep_engine = ReputationEngine::new(1000);
@@ -2195,7 +2206,8 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::cognitive_complexity)]
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cognitive_complexity)]
     fn target_reppoe_specific_example() {
         let mut rep_engine = ReputationEngine::new(1000);
         let mut ids = vec![];
@@ -2315,6 +2327,8 @@ mod tests {
         assert_eq!((p00 * 100_f64).round() as i128, 30);
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn target_reppoe_zero_reputation() {
         // Test the behavior of the algorithm when our node has 0 reputation
@@ -2366,6 +2380,8 @@ mod tests {
         assert_eq!((p05 * 100_f64).round() as i128, 1);
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation)]
     #[test]
     fn reppoe_overflow() {
         // Test the behavior of the algorithm when our node has 0 reputation

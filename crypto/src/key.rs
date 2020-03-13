@@ -9,6 +9,7 @@
 //! let ext_key = key::MasterKeyGen::new(seed).generate();
 //! ```
 use std::{
+    convert::TryFrom,
     fmt,
     io::{self, Read as _, Write as _},
     slice,
@@ -245,23 +246,22 @@ impl ExtendedSK {
     /// See https://github.com/satoshilabs/slips/blob/master/slip-0032.md#serialization-format
     pub fn to_slip32(&self, path: &KeyPath) -> Result<String, KeyError> {
         let depth = path.depth();
-
-        if depth > 255 {
-            return Err(KeyError::Serialization(failure::format_err!(
+        let depth = u8::try_from(depth).map_err(|_| {
+            KeyError::Serialization(failure::format_err!(
                 "path depth '{}' is greater than 255",
-                depth
-            )));
-        }
+                depth,
+            ))
+        })?;
 
         let capacity = 1     // 1 byte for depth
             + 4 * depth      // 4 * depth bytes for path
             + 32             // 32 bytes for chain code
             + 33             // 33 bytes for 0x00 || private key
             ;
-        let mut bytes = Protected::new(vec![0; capacity]);
+        let mut bytes = Protected::new(vec![0; usize::from(capacity)]);
         let mut slice = bytes.as_mut();
 
-        slice.write_all(&[depth as u8])?;
+        slice.write_all(&[depth])?;
         for index in path.iter() {
             slice.write_all(&index.as_ref().to_be_bytes())?;
         }

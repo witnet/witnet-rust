@@ -9,7 +9,7 @@ use crate::{
     vrf::DataRequestEligibilityClaim,
 };
 use protobuf::Message;
-use std::cell::Cell;
+use std::{cell::Cell, convert::TryFrom};
 use witnet_crypto::{hash::calculate_sha256, merkle::FullMerkleTree};
 
 pub trait MemoizedHashable {
@@ -104,7 +104,7 @@ impl AsRef<Transaction> for Transaction {
 impl Transaction {
     /// Returns the byte size that a transaction will have on the wire
     pub fn size(&self) -> u32 {
-        self.to_pb().write_to_bytes().unwrap().len() as u32
+        u32::try_from(self.to_pb().write_to_bytes().unwrap().len()).unwrap()
     }
 }
 
@@ -130,7 +130,7 @@ impl VTTransaction {
 
     /// Returns the byte size that a transaction will have on the wire
     pub fn size(&self) -> u32 {
-        self.to_pb().write_to_bytes().unwrap().len() as u32
+        u32::try_from(self.to_pb().write_to_bytes().unwrap().len()).unwrap()
     }
 
     /// Create a special value transfer transaction that is only valid inside the genesis block,

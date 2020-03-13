@@ -412,23 +412,28 @@ impl BlockTransactions {
             items_to_add.push((tx_hash, pointer_to_block.clone()));
         }
         for (i, tx) in self.value_transfer_txns.iter().enumerate() {
-            pointer_to_block.transaction_index = TransactionPointer::ValueTransfer(i as u32);
+            pointer_to_block.transaction_index =
+                TransactionPointer::ValueTransfer(u32::try_from(i).unwrap());
             items_to_add.push((tx.hash(), pointer_to_block.clone()));
         }
         for (i, tx) in self.data_request_txns.iter().enumerate() {
-            pointer_to_block.transaction_index = TransactionPointer::DataRequest(i as u32);
+            pointer_to_block.transaction_index =
+                TransactionPointer::DataRequest(u32::try_from(i).unwrap());
             items_to_add.push((tx.hash(), pointer_to_block.clone()));
         }
         for (i, tx) in self.commit_txns.iter().enumerate() {
-            pointer_to_block.transaction_index = TransactionPointer::Commit(i as u32);
+            pointer_to_block.transaction_index =
+                TransactionPointer::Commit(u32::try_from(i).unwrap());
             items_to_add.push((tx.hash(), pointer_to_block.clone()));
         }
         for (i, tx) in self.reveal_txns.iter().enumerate() {
-            pointer_to_block.transaction_index = TransactionPointer::Reveal(i as u32);
+            pointer_to_block.transaction_index =
+                TransactionPointer::Reveal(u32::try_from(i).unwrap());
             items_to_add.push((tx.hash(), pointer_to_block.clone()));
         }
         for (i, tx) in self.tally_txns.iter().enumerate() {
-            pointer_to_block.transaction_index = TransactionPointer::Tally(i as u32);
+            pointer_to_block.transaction_index =
+                TransactionPointer::Tally(u32::try_from(i).unwrap());
             items_to_add.push((tx.hash(), pointer_to_block.clone()));
         }
 
@@ -685,10 +690,11 @@ impl Hash {
     /// which correspond to the bytes of `x` in big endian
     pub fn with_first_u32(x: u32) -> Hash {
         let mut h: [u8; 32] = [0xFF; 32];
-        h[0] = (x >> 24) as u8;
-        h[1] = (x >> 16) as u8;
-        h[2] = (x >> 8) as u8;
-        h[3] = x as u8;
+        let [h0, h1, h2, h3] = x.to_be_bytes();
+        h[0] = h0;
+        h[1] = h1;
+        h[2] = h2;
+        h[3] = h3;
 
         Hash::SHA256(h)
     }
@@ -2112,7 +2118,7 @@ impl ReputationThresholdCache {
 
         *threshold.entry(n).or_insert_with(|| {
             internal_threshold_factor(
-                n as u64,
+                u64::from(n),
                 *total_active_rep,
                 sorted_active_rep.iter().copied(),
             )
@@ -2205,6 +2211,8 @@ pub fn reputation_issuance(
 
 /// Penalization function.
 /// Multiply total reputation by `penalization_factor` for each lie.
+// FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub fn penalize_factor(
     penalization_factor: f64,
     num_lies: u32,
@@ -2233,7 +2241,7 @@ fn update_utxo_outputs(
         // Add the new outputs to the utxo_set
         let output_pointer = OutputPointer {
             transaction_id: txn_hash,
-            output_index: index as u32,
+            output_index: u32::try_from(index).unwrap(),
         };
 
         utxo.insert(output_pointer, output.clone());
@@ -2304,12 +2312,9 @@ impl EpochConstants {
         let period = self.checkpoints_period;
         let elapsed = timestamp - zero;
 
-        if elapsed < 0 {
-            Err(EpochCalculationError::CheckpointZeroInTheFuture(zero))
-        } else {
-            let epoch = elapsed as Epoch / Epoch::from(period);
-            Ok(epoch)
-        }
+        Epoch::try_from(elapsed)
+            .map(|epoch| epoch / Epoch::from(period))
+            .map_err(|_| EpochCalculationError::CheckpointZeroInTheFuture(zero))
     }
 
     /// Calculate the timestamp for a checkpoint (the start of an epoch)

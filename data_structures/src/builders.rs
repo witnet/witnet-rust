@@ -1,5 +1,4 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::u32::MAX as U32_MAX;
 
 use rand::{thread_rng, Rng};
 
@@ -168,6 +167,17 @@ fn random_nonce() -> u64 {
     thread_rng().gen()
 }
 
+fn u128_to_be_u32(x: u128) -> [u32; 4] {
+    let ip = x.to_be_bytes();
+
+    [
+        u32::from_be_bytes([ip[0], ip[1], ip[2], ip[3]]),
+        u32::from_be_bytes([ip[4], ip[5], ip[6], ip[7]]),
+        u32::from_be_bytes([ip[8], ip[9], ip[10], ip[11]]),
+        u32::from_be_bytes([ip[12], ip[13], ip[14], ip[15]]),
+    ]
+}
+
 /// Function to build address witnet type from socket addr
 fn to_address(socket_addr: SocketAddr) -> Address {
     match socket_addr {
@@ -180,13 +190,8 @@ fn to_address(socket_addr: SocketAddr) -> Address {
         },
         SocketAddr::V6(addr) => Address {
             ip: {
-                let ip = u128::from(addr.ip().to_owned());
-                IpAddress::Ipv6 {
-                    ip0: ((ip >> 96) & u128::from(U32_MAX)) as u32,
-                    ip1: ((ip >> 64) & u128::from(U32_MAX)) as u32,
-                    ip2: ((ip >> 32) & u128::from(U32_MAX)) as u32,
-                    ip3: (ip & u128::from(U32_MAX)) as u32,
-                }
+                let [ip0, ip1, ip2, ip3] = u128_to_be_u32(u128::from(addr.ip().to_owned()));
+                IpAddress::Ipv6 { ip0, ip1, ip2, ip3 }
             },
             port: addr.port(),
         },

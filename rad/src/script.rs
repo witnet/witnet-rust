@@ -34,7 +34,7 @@ pub fn execute_radon_script(
         .iter()
         .enumerate()
         .try_fold(input, |input, (i, call)| {
-            context.call_index = Some(i as u8);
+            context.call_index = Some(u8::try_from(i).unwrap());
             operate_in_context(input, call, context)
         });
     // Set the completion timestamp
@@ -72,7 +72,9 @@ pub fn unpack_radon_call(packed_call: &Value) -> Result<RadonCall, RadError> {
         Value::Array(array) => unpack_compound_call(array),
         Value::Integer(integer) => {
             if *integer >= 0i128 {
-                RadonOpCodes::try_from(*integer as u8)
+                let [raw_op_code, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _] =
+                    integer.to_le_bytes();
+                RadonOpCodes::try_from(raw_op_code)
                     .map(|op_code| (op_code, None))
                     .map_err(|_| errorify(RadError::UnknownOperator { code: *integer }))
             } else {
@@ -123,7 +125,7 @@ pub fn create_radon_script_from_filters_and_reducer(
 
     let mut radoncall_vec = vec![];
     for filter in filters {
-        let filter_op = filter.op as i128;
+        let filter_op = i128::from(filter.op);
         let rad_filter =
             RadonFilters::try_from(u8::try_from(filter_op).map_err(|_| unknown_filter(filter_op))?)
                 .map_err(|_| unknown_filter(filter_op))?;
@@ -154,9 +156,9 @@ pub fn create_radon_script_from_filters_and_reducer(
     }
 
     let rad_reducer = RadonReducers::try_from(
-        u8::try_from(reducer).map_err(|_| unknown_reducer(reducer as i128))?,
+        u8::try_from(reducer).map_err(|_| unknown_reducer(i128::from(reducer)))?,
     )
-    .map_err(|_| unknown_reducer(reducer as i128))?;
+    .map_err(|_| unknown_reducer(i128::from(reducer)))?;
     match rad_reducer {
         RadonReducers::AverageMean | RadonReducers::Mode => {}
         _ => {
@@ -166,7 +168,7 @@ pub fn create_radon_script_from_filters_and_reducer(
         }
     };
 
-    let args = Some(vec![Value::Integer(reducer as i128)]);
+    let args = Some(vec![Value::Integer(i128::from(reducer))]);
     radoncall_vec.push((RadonOpCodes::ArrayReduce, args));
 
     Ok(radoncall_vec)

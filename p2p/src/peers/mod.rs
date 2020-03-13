@@ -3,7 +3,7 @@
 use log;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use std::{cmp, collections::HashMap, fmt, net::SocketAddr};
+use std::{cmp, collections::HashMap, convert::TryFrom, fmt, net::SocketAddr};
 
 use rand::seq::IteratorRandom;
 use witnet_crypto::hash::calculate_sha256;
@@ -231,7 +231,7 @@ impl Peers {
         }
         // In case of not enough tried peers to complete the request
         // A minimum of new peers is required
-        let min_new_required = cmp::max(0, n_peers as i32 - tried_len as i32) as usize;
+        let min_new_required = cmp::max(0, usize::try_from(n_peers)? - usize::try_from(tried_len)?);
 
         // Run n experiments with probability of success 50% to obtain
         // the peers number required from the new bucket
@@ -321,16 +321,14 @@ fn split_socket_addresses(socket_addr: &SocketAddr) -> (Vec<u8>, Vec<u8>, Vec<u8
     match socket_addr {
         SocketAddr::V4(addr) => {
             let ip = addr.ip().octets();
-            let port_a = (addr.port() >> 8) as u8;
-            let port_b = addr.port() as u8;
+            let [port_a, port_b] = addr.port().to_be_bytes();
             let (left, right) = ip.split_at(ip.len() / 2);
             let data = [right, &[port_a], &[port_b]].concat();
             (ip.to_vec(), left.to_vec(), data)
         }
         SocketAddr::V6(addr) => {
             let ip = addr.ip().octets();
-            let port_a = (addr.port() >> 8) as u8;
-            let port_b = addr.port() as u8;
+            let [port_a, port_b] = addr.port().to_be_bytes();
             let (left, right) = ip.split_at(ip.len() / 2);
             let data = [right, &[port_a], &[port_b]].concat();
             (ip.to_vec(), left.to_vec(), data)

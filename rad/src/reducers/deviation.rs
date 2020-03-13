@@ -10,6 +10,8 @@ use crate::{
 use std::ops::Div;
 
 /// Population standard deviation
+// FIXME: Allow for now, since there is no safe cast function from a usize to float yet
+#[allow(clippy::cast_precision_loss)]
 pub fn standard(input: &RadonArray) -> Result<RadonTypes, RadError> {
     let value = input.value();
     let value_len = value.len();
@@ -112,6 +114,8 @@ mod tests {
         assert_eq!(output, expected);
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn test_reduce_deviation_standard_float2() {
         let input = &RadonArray::from(vec![

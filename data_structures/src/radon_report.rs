@@ -156,6 +156,8 @@ pub struct TallyMetaData {
 impl TallyMetaData {
     /// Update liars vector
     /// new_liars length has to be less than false elements in liars
+    // FIXME: Allow for now, since there is no safe cast function from a usize to float yet
+    #[allow(clippy::cast_precision_loss)]
     pub fn update_liars(&mut self, new_liars: Vec<bool>) {
         if self.liars.is_empty() {
             self.liars = new_liars;

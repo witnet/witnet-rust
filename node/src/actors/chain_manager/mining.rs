@@ -77,7 +77,7 @@ impl ChainManager {
         }
         let epoch_constants = self.epoch_constants.unwrap();
         let rep_engine = self.chain_state.reputation_engine.as_ref().unwrap().clone();
-        let total_identities = rep_engine.ars().active_identities_number() as u32;
+        let total_identities = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
 
         let current_epoch = self.current_epoch.unwrap();
         let mining_bf = self
@@ -249,7 +249,8 @@ impl ChainManager {
         let rep_eng = self.chain_state.reputation_engine.as_ref().unwrap();
         let my_reputation = rep_eng.trs().get(&own_pkh).0 + 1;
         let total_active_reputation = rep_eng.total_active_reputation();
-        let num_active_identities = rep_eng.ars().active_identities_number() as u32;
+        let num_active_identities =
+            u32::try_from(rep_eng.ars().active_identities_number()).unwrap();
         log::debug!("{} data requests for this epoch", dr_pointers.len());
         log::debug!(
             "Reputation: {}, total: {}, active identities: {}",
@@ -426,7 +427,7 @@ impl ChainManager {
                     );
 
                     let min_consensus_ratio =
-                        dr_state.data_request.min_consensus_percentage as f64 / 100.0;
+                        f64::from(dr_state.data_request.min_consensus_percentage) / 100.0;
 
                     let num_commits = dr_state.info.commits.len();
 
@@ -652,20 +653,20 @@ fn internal_calculate_mining_probability(
     r: i32, // R: nodes with reputation less than me
 ) -> f64 {
     if k == rf {
-        let rf = rf as f64;
+        let rf = f64::from(rf);
         // Prob to mine is the probability that a node with the same reputation than me mine,
         // divided by all the nodes with the same reputation:
         // 1/L * (1 - ((N-RF)/N)^L)
-        let prob_to_mine = (1.0 / l as f64) * (1.0 - ((n - rf) / n).powi(l));
+        let prob_to_mine = (1.0 / f64::from(l)) * (1.0 - ((n - rf) / n).powi(l));
         // Prob that a node with more reputation than me mine is:
         // ((N-RF)/N)^M
         let prob_greater_neg = ((n - rf) / n).powi(m);
 
         prob_to_mine * prob_greater_neg
     } else {
-        let k = k as f64;
+        let k = f64::from(k);
         // Here we take into account that rf = 1 because is only a new slot
-        let prob_to_mine = (1.0 / l as f64) * (1.0 - ((n - 1.0) / n).powi(l));
+        let prob_to_mine = (1.0 / f64::from(l)) * (1.0 - ((n - 1.0) / n).powi(l));
         // The same equation than before
         let prob_bigger_neg = ((n - k) / n).powi(m);
         // Prob that a node with less or equal reputation than me mine with a lower slot is:
@@ -682,7 +683,7 @@ fn calculate_mining_probability(
     rf: u32,
     bf: u32,
 ) -> f64 {
-    let n = rep_engine.ars().active_identities_number() as u32;
+    let n = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
 
     // In case of any active node, the probability is maximum
     if n == 0 {
@@ -710,16 +711,17 @@ fn calculate_mining_probability(
     if rf > n && greater == 0 {
         // In case of replication factor exceed the active node number and being the most reputed
         // we obtain the maximum probability divided in the nodes we share the same reputation
-        1.0 / (equal as f64)
+        1.0 / f64::from(equal)
     } else if rf > n && greater > 0 {
         // In case of replication factor exceed the active node number and not being the most reputed
         // we obtain the minimum probability
         0.0
     } else {
-        let mut aux = internal_calculate_mining_probability(rf, n as f64, rf, greater, equal, less);
+        let mut aux =
+            internal_calculate_mining_probability(rf, f64::from(n), rf, greater, equal, less);
         let mut k = rf + 1;
         while k <= bf && k <= n {
-            aux += internal_calculate_mining_probability(rf, n as f64, k, greater, equal, less);
+            aux += internal_calculate_mining_probability(rf, f64::from(n), k, greater, equal, less);
             k += 1;
         }
         aux
@@ -728,7 +730,7 @@ fn calculate_mining_probability(
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
+    use std::convert::{TryFrom, TryInto};
 
     use secp256k1::{
         PublicKey as Secp256k1_PublicKey, Secp256k1, SecretKey as Secp256k1_SecretKey,
@@ -1022,7 +1024,7 @@ mod tests {
 
         let mut ids = vec![];
         for (i, &rep) in v_rep.iter().enumerate() {
-            let pkh = PublicKeyHash::from_bytes(&[i as u8; 20]).unwrap();
+            let pkh = PublicKeyHash::from_bytes(&[u8::try_from(i).unwrap(); 20]).unwrap();
             rep_engine
                 .trs_mut()
                 .gain(Alpha(10), vec![(pkh, Reputation(rep))])
@@ -1052,6 +1054,8 @@ mod tests {
         (probs, new_prob)
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf1_bf1() {
         let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
@@ -1104,6 +1108,8 @@ mod tests {
         );
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf1_bf2() {
         let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
@@ -1156,6 +1162,8 @@ mod tests {
         );
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf2_bf2() {
         let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
@@ -1208,6 +1216,8 @@ mod tests {
         );
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf4_bf8() {
         let v_rep = vec![10, 8, 8, 8, 5, 5, 5, 5, 2, 2];
@@ -1260,6 +1270,8 @@ mod tests {
         );
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf1_bf1_10() {
         let v_rep = vec![10; 10];
@@ -1276,6 +1288,8 @@ mod tests {
         );
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf1_bf1_100() {
         let v_rep = vec![10; 100];
@@ -1292,6 +1306,8 @@ mod tests {
         );
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf4_bf8_100() {
         let v_rep = vec![10; 100];
@@ -1308,6 +1324,8 @@ mod tests {
         );
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf4_bf8_100_diff() {
         let mut v_rep = vec![10; 25];
@@ -1339,6 +1357,8 @@ mod tests {
         );
     }
 
+    // FIXME: Allow for now, wait for https://github.com/rust-lang/rust/issues/67058 to reach stable
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     #[test]
     fn calculate_mining_probabilities_rf_high() {
         let v_rep = vec![10, 8, 8, 2];

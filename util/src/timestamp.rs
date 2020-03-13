@@ -2,6 +2,7 @@ use chrono::{prelude::*, TimeZone};
 use lazy_static::lazy_static;
 use ntp;
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
 use std::sync::RwLock;
 use std::time::Duration;
 
@@ -66,7 +67,10 @@ pub fn update_global_timestamp(addr: &str) {
 
 fn local_time(timestamp: ntp::protocol::TimestampFormat) -> chrono::DateTime<chrono::Local> {
     let unix_time = ntp::unix_time::Instant::from(timestamp);
-    chrono::Local.timestamp(unix_time.secs(), unix_time.subsec_nanos() as u32)
+    chrono::Local.timestamp(
+        unix_time.secs(),
+        u32::try_from(unix_time.subsec_nanos()).unwrap(),
+    )
 }
 /// Get NTP timestamp from an addr specified
 pub fn get_timestamp_ntp(addr: &str) -> Result<(i64, u32), std::io::Error> {
@@ -87,7 +91,7 @@ pub fn get_timestamp_nanos() -> (i64, u32) {
     let ntp_diff = get_ntp_diff();
 
     // Apply difference respect to NTP timestamp
-    let utc_dur = Duration::new(utc_ts.0 as u64, utc_ts.1);
+    let utc_dur = Duration::new(u64::try_from(utc_ts.0).unwrap(), utc_ts.1);
     let result = if ntp_diff.bigger {
         utc_dur.checked_add(ntp_diff.ntp_diff)
     } else {
@@ -95,7 +99,7 @@ pub fn get_timestamp_nanos() -> (i64, u32) {
     };
 
     match result {
-        Some(x) => (x.as_secs() as i64, x.subsec_nanos()),
+        Some(x) => (i64::try_from(x.as_secs()).unwrap(), x.subsec_nanos()),
         None => panic!(
             "Error: Overflow in timestamp\n\
              UTC timestamp: {} secs, {} nanosecs\n\
@@ -120,7 +124,10 @@ pub fn duration_between_timestamps(
     (now_secs, now_nanos): (i64, u32),
     (target_secs, target_nanos): (i64, u32),
 ) -> Option<Duration> {
-    let (target_secs, now_secs) = (target_secs as u64, now_secs as u64);
+    let (target_secs, now_secs) = (
+        u64::try_from(target_secs).unwrap(),
+        u64::try_from(now_secs).unwrap(),
+    );
 
     Duration::new(target_secs, target_nanos).checked_sub(Duration::new(now_secs, now_nanos))
 }

@@ -213,7 +213,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::{
+        convert::TryFrom,
+        sync::atomic::{AtomicU32, Ordering},
+    };
     use witnet_data_structures::{
         chain::{generate_unspent_outputs_pool, Hashable, PublicKey},
         error::TransactionError,
@@ -344,7 +347,7 @@ mod tests {
                             own_utxos.insert(
                                 OutputPointer {
                                     transaction_id: transaction.hash(),
-                                    output_index: i as u32,
+                                    output_index: u32::try_from(i).unwrap(),
                                 },
                                 0,
                             );
@@ -363,7 +366,7 @@ mod tests {
                             own_utxos.insert(
                                 OutputPointer {
                                     transaction_id: transaction.hash(),
-                                    output_index: i as u32,
+                                    output_index: u32::try_from(i).unwrap(),
                                 },
                                 0,
                             );

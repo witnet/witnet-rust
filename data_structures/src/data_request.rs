@@ -308,7 +308,7 @@ impl DataRequestPool {
         // This is not the epoch which contains the timestamp, but the next one
         let time_lock_epoch = epoch_constants
             .epoch_at(
-                (dr_transaction.body.dr_output.data_request.time_lock as i64)
+                i64::try_from(dr_transaction.body.dr_output.data_request.time_lock)?
                     .saturating_add(i64::from(epoch_constants.checkpoints_period - 1)),
             )
             // Any data request with time lock set to before checkpoint zero
@@ -381,8 +381,8 @@ where
             })
             .collect();
 
-        let n_honest = outputs.len() as u16;
-        let n_reveals = reveals.len() as u16;
+        let n_honest = u16::try_from(outputs.len())?;
+        let n_reveals = u16::try_from(reveals.len())?;
         // Create tally change for the data request creator
         if dr_output.witnesses > n_honest {
             debug!("Created tally change for the data request creator");
