@@ -2579,6 +2579,22 @@ mod tests {
     }
 
     #[test]
+    fn hash_from_str() {
+        // 32 bytes
+        let a = Hash::from_str("1111111111111111111111111111111111111111111111111111111111111111");
+        assert!(a.is_ok());
+
+        // 32.5 bytes
+        let b = Hash::from_str("11111111111111111111111111111111111111111111111111111111111111112");
+        assert!(b.is_err());
+
+        // 33 bytes
+        let c =
+            Hash::from_str("111111111111111111111111111111111111111111111111111111111111111122");
+        assert!(c.is_err());
+    }
+
+    #[test]
     fn bech32_ser_de() {
         let addr = "wit1gdm8mqlz8lxtj05w05mw63jvecyenvua7ajdk5";
         let hex = "43767d83e23fccb93e8e7d36ed464cce0999b39d";
