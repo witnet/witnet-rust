@@ -11,8 +11,5 @@
 /// Utilities to securely store secrets in files
 pub mod credentials;
 
-/// Parse utilities
-pub mod parser;
-
 /// Timestamp as UTC
 pub mod timestamp;

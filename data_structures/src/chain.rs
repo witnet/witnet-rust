@@ -19,7 +19,6 @@ use witnet_crypto::{
 };
 use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
-use witnet_util::parser::parse_hex;
 
 use crate::{
     chain::Signature::Secp256k1,
@@ -698,6 +697,9 @@ impl Hash {
 /// Error when parsing hash from string
 #[derive(Debug, Fail)]
 pub enum HashParseError {
+    #[fail(display = "Failed to parse hex: {}", _0)]
+    Hex(#[cause] hex::FromHexError),
+
     #[fail(display = "Invalid hash length: expected 32 bytes but got {}", _0)]
     InvalidLength(usize),
 }
@@ -706,13 +708,11 @@ impl FromStr for Hash {
     type Err = HashParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut sha256: SHA256 = [0; 32];
-        let sha256_bytes = parse_hex(&s);
-        if sha256_bytes.len() != 32 {
-            Err(HashParseError::InvalidLength(sha256_bytes.len()))
-        } else {
-            sha256.copy_from_slice(&sha256_bytes);
-            Ok(Hash::SHA256(sha256))
+        let mut h = [0; 32];
+
+        match hex::decode_to_slice(s, &mut h) {
+            Err(e) => Err(HashParseError::Hex(e)),
+            Ok(_) => Ok(Hash::SHA256(h)),
         }
     }
 }
@@ -752,6 +752,9 @@ impl fmt::Display for PublicKeyHash {
 /// Error when parsing hash from string
 #[derive(Debug, Fail)]
 pub enum PublicKeyHashParseError {
+    #[fail(display = "Failed to parse hex: {}", _0)]
+    Hex(#[cause] hex::FromHexError),
+
     #[fail(display = "Invalid PKH length: expected 20 bytes but got {}", _0)]
     InvalidLength(usize),
     #[fail(
@@ -809,12 +812,10 @@ impl PublicKeyHash {
     /// Deserialize PKH from hex bytes
     pub fn from_hex(s: &str) -> Result<Self, PublicKeyHashParseError> {
         let mut hash = [0; 20];
-        let h_bytes = parse_hex(&s);
-        if h_bytes.len() != 20 {
-            Err(PublicKeyHashParseError::InvalidLength(h_bytes.len()))
-        } else {
-            hash.copy_from_slice(&h_bytes);
-            Ok(PublicKeyHash { hash })
+
+        match hex::decode_to_slice(s, &mut hash) {
+            Err(e) => Err(PublicKeyHashParseError::Hex(e)),
+            Ok(_) => Ok(PublicKeyHash { hash }),
         }
     }
 
@@ -2576,6 +2577,25 @@ mod tests {
         let b = Hash::from_str("2111111111111111111111111111111111111111111111111111111111111110")
             .unwrap();
         assert!(a < b);
+    }
+
+    #[test]
+    fn hash_from_str() {
+        // 32 bytes
+        let a = Hash::from_str("1111111111111111111111111111111111111111111111111111111111111111");
+        assert!(a.is_ok());
+
+        // 32.5 bytes
+        assert!(matches!(
+            Hash::from_str("11111111111111111111111111111111111111111111111111111111111111112"),
+            Err(HashParseError::Hex(hex::FromHexError::OddLength))
+        ));
+
+        // 33 bytes
+        assert!(matches!(
+            Hash::from_str("111111111111111111111111111111111111111111111111111111111111111122"),
+            Err(HashParseError::Hex(hex::FromHexError::InvalidStringLength))
+        ));
     }
 
     #[test]
