@@ -830,7 +830,7 @@ mod tests {
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = Secp256k1_PublicKey::from_secret_key(secp, &secret_key);
-        let signature = sign(secp, secret_key, &data);
+        let signature = sign(secp, secret_key, &data).unwrap();
         let witnet_pk = PublicKey::from(public_key);
         let witnet_signature = Signature::from(signature);
 
@@ -1001,7 +1001,7 @@ mod tests {
             0x84, 0x9e, 0xc6, 0xb9,
         ];
 
-        let signature = sign(secp, sk, &data);
+        let signature = sign(secp, sk, &data).unwrap();
         assert!(verify(secp, &public_key, &data, &signature).is_ok());
 
         // Conversion step

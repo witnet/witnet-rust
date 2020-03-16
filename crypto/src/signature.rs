@@ -19,15 +19,15 @@ pub enum SignatureError {
 }
 
 /// Sign data with provided secret key
-///
-/// # Panics
-///
-/// Will panic if data is not a 32-byte array
-/// Will panic if data is all zeros
-pub fn sign(secp: &CryptoEngine, secret_key: SecretKey, data: &[u8]) -> Signature {
-    let msg = Message::from_slice(data).unwrap();
+/// - Returns an Error if data is all zeros or is not a 32-byte array
+pub fn sign(
+    secp: &CryptoEngine,
+    secret_key: SecretKey,
+    data: &[u8],
+) -> Result<Signature, failure::Error> {
+    let msg = Message::from_slice(data)?;
 
-    secp.sign(&msg, &secret_key)
+    Ok(secp.sign(&msg, &secret_key))
 }
 /// Verify signature with a provided public key
 pub fn verify(
@@ -55,7 +55,7 @@ mod tests {
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
-        let signature = sign(secp, secret_key, &data);
+        let signature = sign(secp, secret_key, &data).unwrap();
         let signature_expected = "3044\
                                   0220\
                                   3dc4fa74655c21b7ffc0740e29bfd88647e8dfe2b68c507cf96264e4e7439c1f\
@@ -123,7 +123,7 @@ mod tests {
 
         let Sha256(hashed_data) = calculate_sha256(message.as_bytes());
 
-        let signature = sign(secp, secret_key, &hashed_data);
+        let signature = sign(secp, secret_key, &hashed_data).unwrap();
 
         let r_s = signature.serialize_compact();
         let (r, s) = r_s.split_at(32);
