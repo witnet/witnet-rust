@@ -91,7 +91,7 @@ impl StreamHandler<BytesMut, Error> for Session {
 
                 // Consensus constants validation between nodes
                 if msg.magic != self.magic_number {
-                    log::error!(
+                    log::trace!(
                         "Mismatching consensus constants. \
                          Magic number received: {}, Ours: {}",
                         msg.magic,
