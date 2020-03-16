@@ -14,8 +14,10 @@ mod state;
 #[cfg(test)]
 mod tests;
 
+use crate::types::{signature, ExtendedPK};
 use state::State;
 use std::convert::TryFrom;
+use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::chain::{Environment, Epoch, EpochConstants};
 
 /// Internal structure used to gather state mutations while indexing block transactions
@@ -365,7 +367,7 @@ where
 
         let body = types::VTTransactionBody::new(components.inputs, components.outputs);
         let sign_data = body.hash();
-        let signatures = components
+        let signatures: Result<Vec<types::KeyedSignature>> = components
             .sign_keys
             .into_iter()
             .map(|sign_key| {
@@ -374,16 +376,16 @@ where
                     &self.engine,
                     sign_key,
                     sign_data.as_ref(),
-                ));
+                )?);
 
-                types::KeyedSignature {
+                Ok(types::KeyedSignature {
                     signature,
                     public_key,
-                }
+                })
             })
             .collect();
 
-        Ok(types::VTTransaction::new(body, signatures))
+        Ok(types::VTTransaction::new(body, signatures?))
     }
 
     /// Create a new data request transaction using available UTXOs.
@@ -399,7 +401,7 @@ where
 
         let body = types::DRTransactionBody::new(components.inputs, components.outputs, request);
         let sign_data = body.hash();
-        let signatures = components
+        let signatures: Result<Vec<types::KeyedSignature>> = components
             .sign_keys
             .into_iter()
             .map(|sign_key| {
@@ -408,16 +410,16 @@ where
                     &self.engine,
                     sign_key,
                     sign_data.as_ref(),
-                ));
+                )?);
 
-                types::KeyedSignature {
+                Ok(types::KeyedSignature {
                     signature,
                     public_key,
-                }
+                })
             })
             .collect();
 
-        Ok(types::DRTransaction::new(body, signatures))
+        Ok(types::DRTransaction::new(body, signatures?))
     }
 
     fn _create_transaction_components(
@@ -713,6 +715,24 @@ where
         let txn = self.db.get_opt(&keys::transaction(hex_hash))?;
 
         Ok(txn)
+    }
+
+    /// Sign data using the wallet master key.
+    pub fn sign_data(&self, data: &str) -> Result<model::ExtendedKeyedSignature> {
+        let state = self.state.read()?;
+
+        let keychain = constants::EXTERNAL_KEYCHAIN;
+        let parent_key = &state.keychains[keychain as usize];
+        let public_key = ExtendedPK::from_secret_key(&self.engine, &parent_key);
+
+        let hashed_data = calculate_sha256(data.as_bytes());
+        let signature = signature::sign(&self.engine, parent_key.secret_key, hashed_data.as_ref())?;
+
+        Ok(model::ExtendedKeyedSignature {
+            chaincode: hex::encode(parent_key.chain_code()),
+            public_key: public_key.key.to_string(),
+            signature: signature.to_string(),
+        })
     }
 }
 

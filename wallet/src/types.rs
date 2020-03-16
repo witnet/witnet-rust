@@ -15,7 +15,7 @@ pub use witnet_crypto::{
 pub use witnet_data_structures::{
     chain::{
         Block as ChainBlock, DataRequestOutput, Hash as TransactionId, Hashable,
-        Input as TransactionInput, KeyedSignature, OutputPointer, PublicKeyHash,
+        Input as TransactionInput, KeyedSignature, OutputPointer, PublicKey, PublicKeyHash,
         PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve, RADTally,
         ValueTransferOutput as VttOutput,
     },
@@ -32,6 +32,7 @@ pub use witnet_rad::types::RadonTypes;
 use crate::model;
 
 use super::{db, repository};
+use crate::types::signature::Signature;
 
 pub type Password = ProtectedString;
 
@@ -144,4 +145,11 @@ pub struct BuildVtt {
     pub vto: Vec<VttOutput>,
     /// Fee
     pub fee: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExtendedKeyedSignature {
+    pub chaincode: Protected,
+    pub public_key: PublicKey,
+    pub signature: Signature,
 }
