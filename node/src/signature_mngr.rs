@@ -215,7 +215,7 @@ impl Handler<Sign> for SignatureManager {
         match &self.keypair {
             Some((secret, public)) => {
                 let signature =
-                    signature::sign(self.secp.as_ref().unwrap(), secret.secret_key, &data);
+                    signature::sign(self.secp.as_ref().unwrap(), secret.secret_key, &data)?;
                 let keyed_signature = KeyedSignature {
                     signature: Signature::from(signature),
                     public_key: PublicKey::from(public.key),

@@ -40,7 +40,7 @@ fn sign_t<H: Hashable>(tx: &H) -> KeyedSignature {
     let public_key = PublicKey::from(public_key);
     assert_eq!(public_key.pkh(), MY_PKH.parse().unwrap());
 
-    let signature = sign(secp, secret_key, &data);
+    let signature = sign(secp, secret_key, &data).unwrap();
 
     KeyedSignature {
         signature: Signature::from(signature),
@@ -59,7 +59,7 @@ fn sign_t2<H: Hashable>(tx: &H) -> KeyedSignature {
     let public_key = PublicKey::from(public_key);
     assert_eq!(public_key.pkh(), MY_PKH_2.parse().unwrap());
 
-    let signature = sign(secp, secret_key, &data);
+    let signature = sign(secp, secret_key, &data).unwrap();
 
     KeyedSignature {
         signature: Signature::from(signature),
@@ -78,7 +78,7 @@ fn sign_t3<H: Hashable>(tx: &H) -> KeyedSignature {
     let public_key = PublicKey::from(public_key);
     assert_eq!(public_key.pkh(), MY_PKH_3.parse().unwrap());
 
-    let signature = sign(secp, secret_key, &data);
+    let signature = sign(secp, secret_key, &data).unwrap();
 
     KeyedSignature {
         signature: Signature::from(signature),
