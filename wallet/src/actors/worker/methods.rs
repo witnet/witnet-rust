@@ -272,4 +272,14 @@ impl Worker {
 
         Ok(types::Transaction::DataRequest(txn))
     }
+
+    pub fn sign_data(
+        &self,
+        wallet: &types::Wallet,
+        data: &str,
+    ) -> Result<model::ExtendedKeyedSignature> {
+        let signed_data = wallet.sign_data(&data)?;
+
+        Ok(signed_data)
+    }
 }

@@ -607,4 +607,25 @@ impl App {
             }
         }
     }
+
+    /// Use wallet's master key to sign message data
+    pub fn sign_data(
+        &self,
+        session_id: &types::SessionId,
+        wallet_id: &str,
+        data: String,
+    ) -> ResponseActFuture<model::ExtendedKeyedSignature> {
+        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
+            move |wallet, slf: &mut Self, _| {
+                slf.params
+                    .worker
+                    .send(worker::SignData(wallet, data))
+                    .flatten()
+                    .map_err(From::from)
+                    .into_actor(slf)
+            },
+        );
+
+        Box::new(f)
+    }
 }

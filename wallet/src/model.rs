@@ -48,6 +48,13 @@ pub struct Balance {
     pub total: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ExtendedKeyedSignature {
+    pub signature: String,
+    pub public_key: String,
+    pub chaincode: String,
+}
+
 #[cfg(test)]
 impl Addresses {
     /// Number of addresses contained in the internal buffer.

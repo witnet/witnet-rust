@@ -191,5 +191,6 @@ pub fn connect_routes<T, S>(
             "validate_mnemonics",
             ValidateMnemonicsRequest
         ),
+        ("Sign-Data", "sign_data", SignDataRequest),
     );
 }
