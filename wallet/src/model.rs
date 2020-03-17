@@ -52,7 +52,12 @@ pub struct Balance {
 pub struct ExtendedKeyedSignature {
     pub signature: String,
     pub public_key: String,
+    #[serde(skip_serializing_if = "is_default")]
     pub chaincode: String,
+}
+
+fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    t == &T::default()
 }
 
 #[cfg(test)]
