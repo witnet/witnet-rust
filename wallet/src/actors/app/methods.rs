@@ -614,12 +614,13 @@ impl App {
         session_id: &types::SessionId,
         wallet_id: &str,
         data: String,
+        extended_pk: bool,
     ) -> ResponseActFuture<model::ExtendedKeyedSignature> {
         let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
             move |wallet, slf: &mut Self, _| {
                 slf.params
                     .worker
-                    .send(worker::SignData(wallet, data))
+                    .send(worker::SignData(wallet, data, extended_pk))
                     .flatten()
                     .map_err(From::from)
                     .into_actor(slf)
