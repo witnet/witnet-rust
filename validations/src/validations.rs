@@ -2222,8 +2222,14 @@ pub fn compare_block_candidates(
     section1
         .cmp(&section2)
         .reverse()
-        // Bigger reputation implies better block candidate
-        .then(b1_rep.cmp(&b2_rep))
+        // Blocks created with nodes with reputation are better candidates than the others
+        .then({
+            match (b1_rep.0 > 0, b2_rep.0 > 0) {
+                (true, false) => Ordering::Greater,
+                (false, true) => Ordering::Less,
+                _ => Ordering::Equal,
+            }
+        })
         // Bigger vrf hash implies worse block candidate
         .then(b1_vrf_hash.cmp(&b2_vrf_hash).reverse())
         // Bigger block implies worse block candidate
@@ -2337,14 +2343,14 @@ mod tests {
     fn test_compare_candidate_same_section() {
         let bh_1 = Hash::SHA256([10; 32]);
         let bh_2 = Hash::SHA256([20; 32]);
-        let rep_1 = Reputation(1);
+        let rep_1 = Reputation(0);
         let rep_2 = Reputation(2);
         let vrf_1 = Hash::SHA256([1; 32]);
         let vrf_2 = Hash::SHA256([2; 32]);
         // Only one section and all VRFs are valid
         let vrf_sections = VrfSlots::default();
 
-        // The candidate with greater reputation always wins
+        // The candidate with reputation always wins
         for &bh_i in &[bh_1, bh_2] {
             for &bh_j in &[bh_1, bh_2] {
                 for &vrf_i in &[vrf_1, vrf_2] {
@@ -2413,7 +2419,7 @@ mod tests {
     fn test_compare_candidate_different_section() {
         let bh_1 = Hash::SHA256([10; 32]);
         let bh_2 = Hash::SHA256([20; 32]);
-        let rep_1 = Reputation(1);
+        let rep_1 = Reputation(0);
         let rep_2 = Reputation(2);
         // Candidate 1 should always be better than candidate 2
         let vrf_sections = VrfSlots::from_rf(16, 1, 2, 1001, 0, 0);
@@ -2455,6 +2461,29 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_compare_candidate_different_reputation_bigger_than_zero() {
+        let bh_1 = Hash::SHA256([10; 32]);
+        let bh_2 = Hash::SHA256([20; 32]);
+        let rep_1 = Reputation(1);
+        let rep_2 = Reputation(2);
+        let vrf_1 = Hash::SHA256([1; 32]);
+        let vrf_2 = Hash::SHA256([2; 32]);
+        // Only one section and all VRFs are valid
+        let vrf_sections = VrfSlots::default();
+
+        // In case of nodes with reputation, the difference will be the vrf not the reputation
+        assert_eq!(
+            compare_block_candidates(bh_1, rep_1, vrf_1, bh_2, rep_2, vrf_2, &vrf_sections),
+            Ordering::Greater
+        );
+
+        assert_eq!(
+            compare_block_candidates(bh_1, rep_1, vrf_2, bh_2, rep_2, vrf_1, &vrf_sections),
+            Ordering::Less
+        );
     }
 
     #[test]
