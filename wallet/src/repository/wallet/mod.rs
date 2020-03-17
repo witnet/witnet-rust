@@ -718,20 +718,33 @@ where
     }
 
     /// Sign data using the wallet master key.
-    pub fn sign_data(&self, data: &str) -> Result<model::ExtendedKeyedSignature> {
+    pub fn sign_data(
+        &self,
+        data: &str,
+        extended_pk: bool,
+    ) -> Result<model::ExtendedKeyedSignature> {
         let state = self.state.read()?;
 
         let keychain = constants::EXTERNAL_KEYCHAIN;
         let parent_key = &state.keychains[keychain as usize];
-        let public_key = ExtendedPK::from_secret_key(&self.engine, &parent_key);
+
+        let chaincode = if extended_pk {
+            hex::encode(parent_key.chain_code())
+        } else {
+            "".to_string()
+        };
+        let public_key = ExtendedPK::from_secret_key(&self.engine, &parent_key)
+            .key
+            .to_string();
 
         let hashed_data = calculate_sha256(data.as_bytes());
-        let signature = signature::sign(&self.engine, parent_key.secret_key, hashed_data.as_ref())?;
+        let signature =
+            signature::sign(&self.engine, parent_key.secret_key, hashed_data.as_ref())?.to_string();
 
         Ok(model::ExtendedKeyedSignature {
-            chaincode: hex::encode(parent_key.chain_code()),
-            public_key: public_key.key.to_string(),
-            signature: signature.to_string(),
+            chaincode,
+            public_key,
+            signature,
         })
     }
 }

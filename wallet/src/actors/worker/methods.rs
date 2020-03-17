@@ -277,8 +277,9 @@ impl Worker {
         &self,
         wallet: &types::Wallet,
         data: &str,
+        extended_pk: bool,
     ) -> Result<model::ExtendedKeyedSignature> {
-        let signed_data = wallet.sign_data(&data)?;
+        let signed_data = wallet.sign_data(&data, extended_pk)?;
 
         Ok(signed_data)
     }
