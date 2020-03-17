@@ -13,6 +13,7 @@ pub struct SignDataRequest {
     wallet_id: String,
     // Message to be signed
     data: String,
+    #[serde(default)]
     extended_pk: bool,
 }
 
