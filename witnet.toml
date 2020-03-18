@@ -26,6 +26,7 @@ update_period_seconds = 8000000
 
 [mining]
 enabled = true
+data_request_max_retrievals_per_epoch = 30
 data_request_timeout_milliseconds = 2000
 genesis_path = "genesis_block.json"
 
