@@ -161,6 +161,8 @@ pub struct ChainManager {
     consensus_c: u32,
     /// Constants used to convert between epoch and timestamp
     epoch_constants: Option<EpochConstants>,
+    /// Maximum number of sources to retrieve in a single epoch
+    data_request_max_retrievals_per_epoch: u16,
     /// Timeout for data request retrieval and aggregation execution
     data_request_timeout: Option<Duration>,
     /// Pending transaction timeout

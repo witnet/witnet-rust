@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, convert::TryFrom};
+use std::{cmp::Ordering, convert::TryFrom, sync::atomic::Ordering::Relaxed};
 
 use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture,
@@ -259,6 +259,11 @@ impl ChainManager {
             num_active_identities,
         );
 
+        // `current_retrieval_count` keeps track of how many sources are being retrieved in this
+        // epoch by using a reference-counted atomic counter that can be read and updated safely.
+        let current_retrieval_count = std::sync::Arc::new(std::sync::atomic::AtomicU16::new(0u16));
+        let maximum_retrieval_count = self.data_request_max_retrievals_per_epoch;
+
         for (dr_pointer, data_request_output) in dr_pointers.into_iter().filter_map(|dr_pointer| {
             // Filter data requests that are not in data_request_pool
             self.chain_state
@@ -276,6 +281,12 @@ impl ChainManager {
 
             let (target_hash, probability) =
                 calculate_reppoe_threshold(rep_eng, &own_pkh, num_witnesses + num_backup_witnesses);
+
+            // Grab a reference to `current_retrieval_count`
+            let cloned_retrieval_count = std::sync::Arc::clone(&current_retrieval_count);
+            let additional_retrieval_count =
+                u16::try_from(data_request_output.data_request.retrieve.len())
+                    .unwrap_or(core::u16::MAX);
 
             signature_mngr::vrf_prove(VrfMessage::data_request(dr_beacon, dr_pointer))
                 .map_err(move |e| {
@@ -314,6 +325,36 @@ impl ChainManager {
                     }
                 })
                 .flatten()
+                // Refrain from trying to resolve any more requests if we have already hit the limit
+                // of retrievals per epoch.
+                .and_then(move |vrf_proof| {
+                    let local_retrieval_count = cloned_retrieval_count.load(Relaxed);
+
+                    if local_retrieval_count + additional_retrieval_count > maximum_retrieval_count {
+                        log::info!("{} Refrained from resolving data request {} for epoch #{} because it contains {} \
+                        sources, which added to the sources that have already been retrieved ({}) would total {} \
+                        retrievals, which exceed current limit per epoch ({}). This limit exists for performance and \
+                        security reasons. You can increase the limit (AT YOUR OWN RISK) by adjusting the \
+                        `data_request_max_retrievals_per_epoch` inside the `[mining]` section in the `witnet.toml` \
+                        configuration file.",
+                            Yellow.bold().paint("[Mining]"),
+                            Yellow.bold().paint(dr_pointer.to_string()),
+                            Yellow.bold().paint(current_epoch.to_string()),
+                            Yellow.bold().paint(additional_retrieval_count.to_string()),
+                            Yellow.bold().paint(local_retrieval_count.to_string()),
+                            Yellow.bold().paint((local_retrieval_count + additional_retrieval_count).to_string()),
+                            Yellow.bold().paint(maximum_retrieval_count.to_string())
+                        );
+
+                        Err(())
+                    } else {
+                        // Update `current_retrieval_count` thanks to interior mutability of the
+                        // `cloned_retrieval_count` reference.
+                        cloned_retrieval_count.fetch_add(additional_retrieval_count, Relaxed);
+
+                        Ok(vrf_proof)
+                    }
+                })
                 .and_then(move |vrf_proof| {
                     let rad_request = data_request_output.data_request.clone();
 

@@ -68,6 +68,9 @@ impl ChainManager {
                     act.data_request_timeout = Some(config.mining.data_request_timeout);
                 }
 
+                // Set the retrievals limit per epoch, as read from the configuration
+                act.data_request_max_retrievals_per_epoch = config.mining.data_request_max_retrievals_per_epoch;
+
                 act.tx_pending_timeout = config.mempool.tx_pending_timeout;
 
                 let magic = consensus_constants.get_magic();
