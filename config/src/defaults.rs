@@ -133,8 +133,7 @@ pub trait Defaults {
     }
 
     fn consensus_constants_max_block_weight(&self) -> u32 {
-        // TODO: Replace  with real max_block_weight value used in mainnet
-        10_000
+        153_600
     }
 
     /// Default number of seconds before giving up waiting for requested blocks: `400`.
@@ -150,16 +149,14 @@ pub trait Defaults {
 
     /// An identity is considered active if it participated in the witnessing protocol at least once in the last `activity_period` epochs
     fn consensus_constants_activity_period(&self) -> u32 {
-        // 1000 epochs at 90 seconds/epoch = 2 days
-        //1000
-        // 40 epochs = 2 hours
-        40
+        // 2000 epochs = 50 hours with an epoch of 90 secs
+        2000
     }
 
     /// Reputation will expire after N witnessing acts
     fn consensus_constants_reputation_expire_alpha_diff(&self) -> u32 {
-        // 500 witnessing acts
-        500
+        // 20_000 witnessing acts
+        20_000
     }
 
     /// Reputation issuance
