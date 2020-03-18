@@ -304,6 +304,11 @@ pub struct JsonRPC {
 pub struct Mining {
     /// Binary flag telling whether to enable the MiningManager or not
     pub enabled: bool,
+    /// Limits the number of retrievals to perform during a single epoch.
+    /// This tries to prevent nodes from forking out or being left in a
+    /// bad condition if hitting bandwidth or CPU bottlenecks.
+    /// Set to 0 totally disable participation in resolving data requests.
+    pub data_request_max_retrievals_per_epoch: u16,
     /// Timeout for data request retrieval and aggregation execution.
     /// This should usually be slightly below half the checkpoints period.
     /// Set to 0 to disable timeouts.
@@ -563,6 +568,10 @@ impl Mining {
                 .data_request_timeout
                 .to_owned()
                 .unwrap_or_else(|| defaults.mining_data_request_timeout()),
+            data_request_max_retrievals_per_epoch: config
+                .data_request_max_retrievals_per_epoch
+                .to_owned()
+                .unwrap_or_else(|| defaults.mining_data_request_max_retrievals_per_epoch()),
             genesis_path: config
                 .genesis_path
                 .clone()
