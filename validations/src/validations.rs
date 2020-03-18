@@ -392,8 +392,11 @@ pub fn validate_consensus(
     miner_tally: &[u8],
     tally: &RADTally,
     non_error_min: f64,
-    num_commits: usize,
+    commit_pkhs: Vec<&PublicKeyHash>,
 ) -> Result<HashSet<PublicKeyHash>, failure::Error> {
+    let num_commits = commit_pkhs.len();
+    let mut dishonest_hs: HashSet<PublicKeyHash> = commit_pkhs.iter().cloned().cloned().collect();
+
     let results = serial_iter_decode(
         &mut reveals
             .iter()
@@ -423,21 +426,13 @@ pub fn validate_consensus(
         if tally_consensus.as_slice() == miner_tally {
             let liars = tally_metadata.liars;
 
-            let pkh_hs: HashSet<PublicKeyHash> = reveals
-                .iter()
-                .zip(liars.iter())
-                .filter_map(
-                    |(reveal, &liar)| {
-                        if liar {
-                            None
-                        } else {
-                            Some(reveal.body.pkh)
-                        }
-                    },
-                )
-                .collect();
+            for (reveal, &liar) in reveals.iter().zip(liars.iter()) {
+                if !liar {
+                    dishonest_hs.remove(&reveal.body.pkh);
+                }
+            }
 
-            Ok(pkh_hs)
+            Ok(dishonest_hs)
         } else {
             Err(TransactionError::MismatchedConsensus {
                 local_tally: tally_consensus,
@@ -782,33 +777,34 @@ pub fn validate_tally_transaction<'a>(
     let miner_tally = ta_tx.tally.clone();
     let tally_stage = &dr_output.data_request.tally;
     let non_error_min = f64::from(dr_output.min_consensus_percentage) / 100.0;
-    let num_commits = dr_state.info.commits.len();
+    let commit_pkhs: Vec<&PublicKeyHash> = dr_state.info.commits.keys().collect();
 
-    let honest_pkhs = validate_consensus(
+    let dishonest_pkhs = validate_consensus(
         reveal_txns,
         &miner_tally,
         tally_stage,
         non_error_min,
-        num_commits,
+        commit_pkhs,
     )?;
 
-    let sorted_honest: Vec<PublicKeyHash> = honest_pkhs.clone().into_iter().sorted().collect();
-    let sorted_rewarded: Vec<PublicKeyHash> = ta_tx
-        .rewarded_witnesses
+    let sorted_dishonest: Vec<PublicKeyHash> =
+        dishonest_pkhs.clone().into_iter().sorted().collect();
+    let sorted_slashed: Vec<PublicKeyHash> = ta_tx
+        .slashed_witnesses
         .clone()
         .into_iter()
         .sorted()
         .collect();
 
-    if sorted_honest != sorted_rewarded {
-        return Err(TransactionError::MismatchingRewardedWitnesses {
-            expected: sorted_rewarded,
-            found: sorted_honest,
+    if sorted_dishonest != sorted_slashed {
+        return Err(TransactionError::MismatchingSlashedWitnesses {
+            expected: sorted_slashed,
+            found: sorted_dishonest,
         }
         .into());
     }
 
-    validate_tally_outputs(&dr_state, &ta_tx, reveal_length, honest_pkhs)?;
+    validate_tally_outputs(&dr_state, &ta_tx, reveal_length, dishonest_pkhs)?;
 
     Ok((ta_tx.outputs.iter().collect(), dr_output.tally_fee))
 }
@@ -817,22 +813,22 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     dr_state: &DataRequestState,
     ta_tx: &TallyTransaction,
     n_reveals: usize,
-    honest_pkhs: HashSet<PublicKeyHash, S>,
+    dishonest_pkhs: HashSet<PublicKeyHash, S>,
 ) -> Result<(), failure::Error> {
     let witnesses = dr_state.data_request.witnesses as usize;
-    let honest_len = honest_pkhs.len();
-    let change_required = witnesses > honest_len;
+    let dishonest_len = dishonest_pkhs.len();
+    let change_required = dishonest_len > 0;
 
-    if change_required && (ta_tx.outputs.len() != honest_len + 1) {
+    if change_required && (ta_tx.outputs.len() != witnesses - dishonest_len + 1) {
         return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
-            expected_outputs: honest_len + 1,
+            expected_outputs: witnesses - dishonest_len + 1,
         }
         .into());
-    } else if !change_required && (ta_tx.outputs.len() != honest_len) {
+    } else if !change_required && (ta_tx.outputs.len() != witnesses - dishonest_len) {
         return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
-            expected_outputs: honest_len,
+            expected_outputs: witnesses - dishonest_len,
         }
         .into());
     }
@@ -841,7 +837,7 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     let reveal_reward = dr_state.data_request.witness_reward;
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         if change_required && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
-            let expected_tally_change = reveal_reward * (witnesses - honest_len) as u64
+            let expected_tally_change = reveal_reward * dishonest_len as u64
                 + dr_state.data_request.reveal_fee * (witnesses - n_reveals) as u64;
             if expected_tally_change != output.value {
                 return Err(TransactionError::InvalidTallyChange {
@@ -854,7 +850,7 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
             if dr_state.info.reveals.get(&output.pkh).is_none() {
                 return Err(TransactionError::RevealNotFound.into());
             }
-            if !honest_pkhs.contains(&output.pkh) {
+            if dishonest_pkhs.contains(&output.pkh) {
                 return Err(TransactionError::DishonestReward.into());
             }
             if pkh_rewarded.contains(&output.pkh) {

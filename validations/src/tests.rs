@@ -2693,7 +2693,13 @@ fn reveal_valid_commitment() {
 
 fn dr_pool_with_dr_in_tally_stage(
     reveal_value: Vec<u8>,
-) -> (DataRequestPool, Hash, PublicKeyHash, PublicKeyHash) {
+) -> (
+    DataRequestPool,
+    Hash,
+    PublicKeyHash,
+    PublicKeyHash,
+    Vec<PublicKeyHash>,
+) {
     // Create DataRequestPool
     let mut dr_pool = DataRequestPool::default();
 
@@ -2745,11 +2751,50 @@ fn dr_pool_with_dr_in_tally_stage(
             public_key: public_key.clone(),
         }],
     );
+
+    let pk2 = PublicKey {
+        compressed: 0,
+        bytes: [2; 32],
+    };
+    let pk3 = PublicKey {
+        compressed: 0,
+        bytes: [3; 32],
+    };
+    let pk4 = PublicKey {
+        compressed: 0,
+        bytes: [4; 32],
+    };
+    let pk5 = PublicKey {
+        compressed: 0,
+        bytes: [5; 32],
+    };
+
+    let mut commit_transaction2 = commit_transaction.clone();
+    commit_transaction2.signatures[0].public_key = pk2.clone();
+    let mut commit_transaction3 = commit_transaction.clone();
+    commit_transaction3.signatures[0].public_key = pk3.clone();
+    let mut commit_transaction4 = commit_transaction.clone();
+    commit_transaction4.signatures[0].public_key = pk4.clone();
+    let mut commit_transaction5 = commit_transaction.clone();
+    commit_transaction5.signatures[0].public_key = pk5.clone();
+
     let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
 
     // Include CommitTransaction in DataRequestPool
     dr_pool
         .process_commit(&commit_transaction, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction2, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction3, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction4, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction5, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages();
 
@@ -2758,7 +2803,13 @@ fn dr_pool_with_dr_in_tally_stage(
         .unwrap();
     dr_pool.update_data_request_stages();
 
-    (dr_pool, dr_pointer, public_key.pkh(), dr_pkh)
+    (
+        dr_pool,
+        dr_pointer,
+        public_key.pkh(),
+        dr_pkh,
+        vec![pk2.pkh(), pk3.pkh(), pk4.pkh(), pk5.pkh()],
+    )
 }
 
 fn dr_pool_with_dr_in_tally_stage_2_reveals(
@@ -3037,6 +3088,33 @@ fn tally_dr_not_tally_stage() {
             public_key: public_key.clone(),
         }],
     );
+
+    let pk2 = PublicKey {
+        compressed: 0,
+        bytes: [2; 32],
+    };
+    let pk3 = PublicKey {
+        compressed: 0,
+        bytes: [3; 32],
+    };
+    let pk4 = PublicKey {
+        compressed: 0,
+        bytes: [4; 32],
+    };
+    let pk5 = PublicKey {
+        compressed: 0,
+        bytes: [5; 32],
+    };
+
+    let mut commit_transaction2 = commit_transaction.clone();
+    commit_transaction2.signatures[0].public_key = pk2.clone();
+    let mut commit_transaction3 = commit_transaction.clone();
+    commit_transaction3.signatures[0].public_key = pk3.clone();
+    let mut commit_transaction4 = commit_transaction.clone();
+    commit_transaction4.signatures[0].public_key = pk4.clone();
+    let mut commit_transaction5 = commit_transaction.clone();
+    commit_transaction5.signatures[0].public_key = pk5.clone();
+
     let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -3054,7 +3132,7 @@ fn tally_dr_not_tally_stage() {
         dr_pointer,
         tally_value,
         vec![vt0, vt_change],
-        vec![public_key.pkh()],
+        vec![pk2.pkh(), pk3.pkh(), pk4.pkh(), pk5.pkh()],
     );
 
     let mut dr_pool = DataRequestPool::default();
@@ -3081,6 +3159,18 @@ fn tally_dr_not_tally_stage() {
     dr_pool
         .process_commit(&commit_transaction, &fake_block_hash)
         .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction2, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction3, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction4, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction5, &fake_block_hash)
+        .unwrap();
     dr_pool.update_data_request_stages();
     let x = validate_tally_transaction(&tally_transaction, &dr_pool);
     assert_eq!(
@@ -3100,7 +3190,7 @@ fn tally_dr_not_tally_stage() {
 fn tally_invalid_consensus() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh, _dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh, _dr_pkh, _) = dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -3122,7 +3212,7 @@ fn tally_invalid_consensus() {
         dr_pointer,
         fake_tally_value.clone(),
         vec![vt0, vt_change],
-        vec![pkh],
+        vec![],
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool);
     assert_eq!(
@@ -3138,7 +3228,8 @@ fn tally_invalid_consensus() {
 fn tally_valid() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh, dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh, dr_pkh, slashed_pkhs) =
+        dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -3153,7 +3244,7 @@ fn tally_valid() {
         value: 880,
     };
     let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change], vec![pkh]);
+        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change], slashed_pkhs);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     x.unwrap();
 }
@@ -3162,7 +3253,8 @@ fn tally_valid() {
 fn tally_too_many_outputs() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh, dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh, dr_pkh, slashed_pkhs) =
+        dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -3195,7 +3287,7 @@ fn tally_too_many_outputs() {
         dr_pointer,
         tally_value,
         vec![vt0, vt1, vt2, vt3, vt_change],
-        vec![pkh],
+        slashed_pkhs,
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
@@ -3211,7 +3303,7 @@ fn tally_too_many_outputs() {
 fn tally_too_less_outputs() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh, pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
+    let (dr_pool, dr_pointer, pkh, _pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -3221,8 +3313,7 @@ fn tally_too_less_outputs() {
         value: 500,
     };
 
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0], vec![pkh, pkh2]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0], vec![]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -3237,7 +3328,8 @@ fn tally_too_less_outputs() {
 fn tally_invalid_change() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh, dr_pkh) = dr_pool_with_dr_in_tally_stage(reveal_value);
+    let (dr_pool, dr_pointer, pkh, dr_pkh, slashed_pkhs) =
+        dr_pool_with_dr_in_tally_stage(reveal_value);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -3252,7 +3344,7 @@ fn tally_invalid_change() {
         value: 1000,
     };
     let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change], vec![pkh]);
+        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change], slashed_pkhs);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -3267,7 +3359,7 @@ fn tally_invalid_change() {
 fn tally_double_reward() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh, pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
+    let (dr_pool, dr_pointer, pkh, _pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -3281,8 +3373,7 @@ fn tally_double_reward() {
         pkh,
         value: 500,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], vec![pkh, pkh2]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], vec![]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -3290,13 +3381,11 @@ fn tally_double_reward() {
     );
 }
 
-// TODO: Create a test to check the true_revealer function that will be implemented in FIXME(#640)
-
 #[test]
 fn tally_reveal_not_found() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let (dr_pool, dr_pointer, pkh, pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
+    let (dr_pool, dr_pointer, pkh, _pkh2) = dr_pool_with_dr_in_tally_stage_2_reveals(reveal_value);
 
     // Tally value: integer(0)
     let tally_value = vec![0x00];
@@ -3310,8 +3399,7 @@ fn tally_reveal_not_found() {
         pkh: PublicKeyHash::default(),
         value: 500,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], vec![pkh, pkh2]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], vec![]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -3337,8 +3425,7 @@ fn tally_valid_2_reveals() {
         pkh: pkh2,
         value: 500,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], vec![pkh, pkh2]);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], vec![]);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     x.unwrap();
 }
@@ -3368,9 +3455,9 @@ fn tally_valid_3_reveals_dr_liar() {
         pkh: dr_pkh,
         value: 500,
     };
-    let rewarded_pkh = vec![pkh, pkh2];
+    let slashed_pkh = vec![dr_pkh];
     let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1, vt2], rewarded_pkh);
+        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1, vt2], slashed_pkh);
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     assert!(x.is_ok());
 }
@@ -3400,20 +3487,20 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         pkh: dr_pkh,
         value: 500,
     };
-    let rewarded_witnesses = vec![pkh, pkh2, dr_pkh];
+    let slashed_witnesses = vec![];
     let tally_transaction = TallyTransaction::new(
         dr_pointer,
         tally_value,
         vec![vt0, vt1, vt2],
-        rewarded_witnesses,
+        slashed_witnesses,
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchingRewardedWitnesses {
-            expected: vec![pkh, pkh2, dr_pkh].into_iter().sorted().collect(),
-            found: vec![pkh, pkh2].into_iter().sorted().collect(),
+        TransactionError::MismatchingSlashedWitnesses {
+            expected: vec![].into_iter().sorted().collect(),
+            found: vec![dr_pkh].into_iter().sorted().collect(),
         },
     );
 }
@@ -4169,10 +4256,9 @@ fn block_duplicated_tallies() {
         dr_pointer,
         tally_value.clone(),
         vec![vt0.clone(), vt1.clone()],
-        vec![pkh, pkh2],
+        vec![],
     );
-    let tally_transaction2 =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt1, vt0], vec![pkh, pkh2]);
+    let tally_transaction2 = TallyTransaction::new(dr_pointer, tally_value, vec![vt1, vt0], vec![]);
 
     assert_ne!(tally_transaction.hash(), tally_transaction2.hash());
 

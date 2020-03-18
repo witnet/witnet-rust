@@ -196,7 +196,7 @@ message TallyTransaction {
     Hash dr_pointer = 1;
     bytes tally = 2;
     repeated ValueTransferOutput outputs = 3;
-    repeated PublicKeyHash rewarded_witnesses = 4;
+    repeated PublicKeyHash slashed_witnesses = 4;
 }
 
 message MintTransaction {

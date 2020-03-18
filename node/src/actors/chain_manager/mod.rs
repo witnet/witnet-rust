@@ -738,11 +738,15 @@ impl ReputationInfo {
         let replication_factor = dr_state.data_request.witnesses;
         self.alpha_diff += Alpha(u32::from(replication_factor));
 
-        // Set of pkhs which were rewarded in the tally transaction
-        let honest_witnesses: HashSet<_> = tally_transaction.rewarded_witnesses.iter().collect();
+        // Set of pkhs which were slashed in the tally transaction
+        let slashed_witnesses: HashSet<_> = tally_transaction.slashed_witnesses.iter().collect();
         for pkh in commits.keys() {
-            // If the identity behaved honestly, it must have received a reward.
-            let liar = if honest_witnesses.contains(pkh) { 0 } else { 1 };
+            // If the identity was slashed, it must not receive a reward.
+            let liar = if slashed_witnesses.contains(pkh) {
+                1
+            } else {
+                0
+            };
             // Insert all the committers, and increment their lie count by 1 if they fail to reveal or
             // if they lied (withholding a reveal is treated the same as lying)
             // lie_count can contain identities which never lied, with lie_count = 0
@@ -1082,7 +1086,6 @@ mod tests {
     pub use super::*;
 
     #[test]
-    // TODO: Update test when true_revealer function would be implemented
     fn test_rep_info_update() {
         let mut rep_info = ReputationInfo::default();
         let mut dr_pool = DataRequestPool::default();
@@ -1128,7 +1131,7 @@ mod tests {
             pkh: pk1.pkh(),
             ..Default::default()
         }];
-        ta_tx.rewarded_witnesses = vec![pk1.clone().pkh()];
+        ta_tx.slashed_witnesses = vec![pk2.clone().pkh()];
 
         dr_pool
             .add_data_request(1, dr_tx, &Hash::default())

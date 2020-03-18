@@ -368,7 +368,7 @@ pub struct TallyTransaction {
     // Outputs
     pub tally: Vec<u8>,
     pub outputs: Vec<ValueTransferOutput>, // Witness rewards
-    pub rewarded_witnesses: Vec<PublicKeyHash>,
+    pub slashed_witnesses: Vec<PublicKeyHash>,
 
     #[protobuf_convert(skip)]
     #[serde(skip)]
@@ -381,13 +381,13 @@ impl TallyTransaction {
         dr_pointer: Hash,
         tally: Vec<u8>,
         outputs: Vec<ValueTransferOutput>,
-        rewarded_witnesses: Vec<PublicKeyHash>,
+        slashed_witnesses: Vec<PublicKeyHash>,
     ) -> Self {
         TallyTransaction {
             dr_pointer,
             tally,
             outputs,
-            rewarded_witnesses,
+            slashed_witnesses,
             hash: MemoHash::new(),
         }
     }

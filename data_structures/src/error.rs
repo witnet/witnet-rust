@@ -193,10 +193,10 @@ pub enum TransactionError {
     ZeroAmount,
     /// Incorrect value of Rewarded witnesses in Tally
     #[fail(
-        display = "Incorrect value of Rewarded witnesses in Tally. Expected: {:?}, found: {:?}",
+        display = "Incorrect value of Slashed witnesses in Tally. Expected: {:?}, found: {:?}",
         expected, found
     )]
-    MismatchingRewardedWitnesses {
+    MismatchingSlashedWitnesses {
         expected: Vec<PublicKeyHash>,
         found: Vec<PublicKeyHash>,
     },
