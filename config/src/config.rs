@@ -219,6 +219,16 @@ pub struct Connections {
     pub bucketing_update_period: i64,
 }
 
+fn from_millis<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(match u64::deserialize(deserializer) {
+        Ok(secs) => Some(Duration::from_millis(secs)),
+        Err(_) => None,
+    })
+}
+
 fn from_secs<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
     D: Deserializer<'de>,
@@ -299,8 +309,8 @@ pub struct Mining {
     /// Set to 0 to disable timeouts.
     #[partial_struct(serde(
         default,
-        deserialize_with = "from_secs",
-        rename = "data_request_timeout_seconds"
+        deserialize_with = "from_millis",
+        rename = "data_request_timeout_millis"
     ))]
     pub data_request_timeout: Duration,
     /// Genesis block path
