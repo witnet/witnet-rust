@@ -344,6 +344,7 @@ pub fn create_tally<RT>(
     pkh: PublicKeyHash,
     report: &RadonReport<RT>,
     reveals: Vec<RevealTransaction>,
+    n_commits: usize,
 ) -> Result<TallyTransaction, failure::Error>
 where
     RT: TypeLike,
@@ -383,11 +384,13 @@ where
 
         let n_honest = u16::try_from(outputs.len())?;
         let n_reveals = u16::try_from(reveals.len())?;
+        let n_commits = u16::try_from(n_commits)?;
         // Create tally change for the data request creator
         if dr_output.witnesses > n_honest {
             debug!("Created tally change for the data request creator");
             let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_honest)
-                + dr_output.reveal_fee * u64::from(dr_output.witnesses - n_reveals);
+                + dr_output.reveal_fee * u64::from(dr_output.witnesses - n_reveals)
+                + dr_output.commit_fee * u64::from(dr_output.witnesses - n_commits);
             let vt_output_change = ValueTransferOutput {
                 pkh,
                 value: tally_change,
