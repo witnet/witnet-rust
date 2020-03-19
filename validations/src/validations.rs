@@ -778,6 +778,7 @@ pub fn validate_tally_transaction<'a>(
     let tally_stage = &dr_output.data_request.tally;
     let non_error_min = f64::from(dr_output.min_consensus_percentage) / 100.0;
     let commit_pkhs: Vec<&PublicKeyHash> = dr_state.info.commits.keys().collect();
+    let commit_length = commit_pkhs.len();
 
     let dishonest_pkhs = validate_consensus(
         reveal_txns,
@@ -804,7 +805,13 @@ pub fn validate_tally_transaction<'a>(
         .into());
     }
 
-    validate_tally_outputs(&dr_state, &ta_tx, reveal_length, dishonest_pkhs)?;
+    validate_tally_outputs(
+        &dr_state,
+        &ta_tx,
+        reveal_length,
+        commit_length,
+        dishonest_pkhs,
+    )?;
 
     Ok((ta_tx.outputs.iter().collect(), dr_output.tally_fee))
 }
@@ -813,32 +820,45 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     dr_state: &DataRequestState,
     ta_tx: &TallyTransaction,
     n_reveals: usize,
+    n_commits: usize,
     dishonest_pkhs: HashSet<PublicKeyHash, S>,
 ) -> Result<(), failure::Error> {
     let witnesses = dr_state.data_request.witnesses as usize;
     let dishonest_len = dishonest_pkhs.len();
-    let change_required = dishonest_len > 0;
+    let change_required = dishonest_len > 0 || n_commits == 0;
 
-    if change_required && (ta_tx.outputs.len() != witnesses - dishonest_len + 1) {
+    if n_commits == 0 && (ta_tx.outputs.len() != 1) {
+        return Err(TransactionError::WrongNumberOutputs {
+            outputs: ta_tx.outputs.len(),
+            expected_outputs: 1,
+        }
+        .into());
+    } else if dishonest_len > 0 && (ta_tx.outputs.len() != witnesses - dishonest_len + 1) {
         return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
             expected_outputs: witnesses - dishonest_len + 1,
         }
         .into());
-    } else if !change_required && (ta_tx.outputs.len() != witnesses - dishonest_len) {
+    } else if !change_required && (ta_tx.outputs.len() != witnesses) {
         return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
-            expected_outputs: witnesses - dishonest_len,
+            expected_outputs: witnesses,
         }
         .into());
     }
 
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::default();
-    let reveal_reward = dr_state.data_request.witness_reward;
+    let witness_reward = dr_state.data_request.witness_reward;
+    let reveal_fee = dr_state.data_request.reveal_fee;
+    let commit_fee = dr_state.data_request.commit_fee;
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         if change_required && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
-            let expected_tally_change = reveal_reward * dishonest_len as u64
-                + dr_state.data_request.reveal_fee * (witnesses - n_reveals) as u64;
+            let expected_tally_change = if n_commits == 0 {
+                witnesses as u64 * (witness_reward + reveal_fee + commit_fee)
+            } else {
+                witness_reward * dishonest_len as u64 + reveal_fee * (witnesses - n_reveals) as u64
+            };
+
             if expected_tally_change != output.value {
                 return Err(TransactionError::InvalidTallyChange {
                     change: output.value,

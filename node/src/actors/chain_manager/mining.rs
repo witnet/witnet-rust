@@ -455,6 +455,7 @@ impl ChainManager {
                                 dr_state.pkh,
                                 &tally_result,
                                 reveals,
+                                num_commits,
                             );
 
                             match tally {

@@ -19,6 +19,7 @@ use witnet_rad::{error::RadError, filters::RadonFilters, reducers::RadonReducers
 
 use crate::validations::*;
 use itertools::Itertools;
+use witnet_data_structures::radon_report::TypeLike;
 
 static MY_PKH: &str = "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm";
 static MY_PKH_2: &str = "wit1z8mxkml4a50dyysqczsp7gj5pnvz3jsldras8t";
@@ -2812,6 +2813,172 @@ fn dr_pool_with_dr_in_tally_stage(
     )
 }
 
+fn dr_pool_with_dr_in_tally_stage_no_commits() -> (DataRequestPool, Hash, PublicKeyHash) {
+    // Create DataRequestPool
+    let mut dr_pool = DataRequestPool::default();
+
+    // Create DRTransaction
+    let epoch = 0;
+    let dr_output = DataRequestOutput {
+        witnesses: 5,
+        commit_fee: 20,
+        reveal_fee: 20,
+        tally_fee: 100,
+        witness_reward: 200,
+        min_consensus_percentage: 51,
+        data_request: example_data_request(),
+        ..DataRequestOutput::default()
+    };
+
+    assert_eq!(dr_output.extra_commit_rounds, 0);
+
+    let dr_transaction_body = DRTransactionBody::new(vec![], vec![], dr_output);
+    let dr_transaction_signature = sign_t2(&dr_transaction_body);
+    let dr_pkh = dr_transaction_signature.public_key.pkh();
+    let dr_transaction = DRTransaction::new(dr_transaction_body, vec![dr_transaction_signature]);
+    let dr_pointer = dr_transaction.hash();
+
+    // Include DRTransaction in DataRequestPool
+    dr_pool
+        .process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
+        .unwrap();
+    dr_pool.update_data_request_stages();
+
+    // Zero extra commits rounds and no commits in one round move the data request
+    // from COMMIT stage to TALLY
+    dr_pool.update_data_request_stages();
+    assert_eq!(
+        dr_pool.data_request_pool[&dr_pointer].stage,
+        DataRequestStage::TALLY
+    );
+
+    (dr_pool, dr_pointer, dr_pkh)
+}
+
+fn dr_pool_with_dr_in_tally_stage_no_reveals(
+) -> (DataRequestPool, Hash, PublicKeyHash, Vec<PublicKeyHash>) {
+    // Create DataRequestPool
+    let mut dr_pool = DataRequestPool::default();
+
+    // Create DRTransaction
+    let fake_block_hash = Hash::SHA256([1; 32]);
+    let epoch = 0;
+    let dr_output = DataRequestOutput {
+        witnesses: 5,
+        commit_fee: 20,
+        reveal_fee: 20,
+        tally_fee: 100,
+        witness_reward: 200,
+        min_consensus_percentage: 51,
+        data_request: example_data_request(),
+        ..DataRequestOutput::default()
+    };
+
+    assert_eq!(dr_output.extra_reveal_rounds, 0);
+
+    let dr_transaction_body = DRTransactionBody::new(vec![], vec![], dr_output);
+    let dr_transaction_signature = sign_t2(&dr_transaction_body);
+    let dr_pkh = dr_transaction_signature.public_key.pkh();
+    let dr_transaction = DRTransaction::new(dr_transaction_body, vec![dr_transaction_signature]);
+    let dr_pointer = dr_transaction.hash();
+
+    // Include DRTransaction in DataRequestPool
+    dr_pool
+        .process_data_request(
+            &dr_transaction,
+            epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
+        .unwrap();
+    dr_pool.update_data_request_stages();
+
+    // Hack: get public key by signing an empty transaction
+    let public_key = sign_t(&RevealTransactionBody::default()).public_key;
+
+    // Create Reveal and Commit
+    // Reveal = empty array
+    let reveal_body = RevealTransactionBody::new(dr_pointer, [0x00].to_vec(), public_key.pkh());
+    let reveal_signature = sign_t(&reveal_body);
+    let commitment = reveal_signature.signature.hash();
+
+    let commit_transaction = CommitTransaction::new(
+        CommitTransactionBody::new(
+            dr_pointer,
+            commitment,
+            DataRequestEligibilityClaim::default(),
+        ),
+        vec![KeyedSignature {
+            signature: Signature::default(),
+            public_key: public_key.clone(),
+        }],
+    );
+
+    let pk2 = PublicKey {
+        compressed: 0,
+        bytes: [2; 32],
+    };
+    let pk3 = PublicKey {
+        compressed: 0,
+        bytes: [3; 32],
+    };
+    let pk4 = PublicKey {
+        compressed: 0,
+        bytes: [4; 32],
+    };
+    let pk5 = PublicKey {
+        compressed: 0,
+        bytes: [5; 32],
+    };
+
+    let mut commit_transaction2 = commit_transaction.clone();
+    commit_transaction2.signatures[0].public_key = pk2.clone();
+    let mut commit_transaction3 = commit_transaction.clone();
+    commit_transaction3.signatures[0].public_key = pk3.clone();
+    let mut commit_transaction4 = commit_transaction.clone();
+    commit_transaction4.signatures[0].public_key = pk4.clone();
+    let mut commit_transaction5 = commit_transaction.clone();
+    commit_transaction5.signatures[0].public_key = pk5.clone();
+
+    // Include CommitTransaction in DataRequestPool
+    dr_pool
+        .process_commit(&commit_transaction, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction2, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction3, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction4, &fake_block_hash)
+        .unwrap();
+    dr_pool
+        .process_commit(&commit_transaction5, &fake_block_hash)
+        .unwrap();
+    dr_pool.update_data_request_stages();
+
+    // Zero extra reveal rounds and no reveals in one round move the data request
+    // from REVEAL stage to TALLY
+    dr_pool.update_data_request_stages();
+    assert_eq!(
+        dr_pool.data_request_pool[&dr_pointer].stage,
+        DataRequestStage::TALLY
+    );
+
+    (
+        dr_pool,
+        dr_pointer,
+        dr_pkh,
+        vec![public_key.pkh(), pk2.pkh(), pk3.pkh(), pk4.pkh(), pk5.pkh()],
+    )
+}
+
 fn dr_pool_with_dr_in_tally_stage_2_reveals(
     reveal_value: Vec<u8>,
 ) -> (DataRequestPool, Hash, PublicKeyHash, PublicKeyHash) {
@@ -3503,6 +3670,94 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
             found: vec![dr_pkh].into_iter().sorted().collect(),
         },
     );
+}
+
+#[test]
+fn tally_valid_zero_commits() {
+    let (dr_pool, dr_pointer, dr_pkh) = dr_pool_with_dr_in_tally_stage_no_commits();
+
+    let witnesses = 5;
+    let commit_fee = 20;
+    let reveal_fee = 20;
+    let witness_reward = 200;
+
+    let change = (commit_fee + reveal_fee + witness_reward) * witnesses;
+
+    // Tally value: Insufficient commits Error
+    let clause_result = evaluate_tally_precondition_clause(vec![], 0.0, 0);
+    let script = RADTally::default();
+    let report = construct_report_from_clause_result(clause_result, &script, 0);
+    let tally_value = report.result.encode().unwrap();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0], vec![]);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn tally_invalid_zero_commits() {
+    let (dr_pool, dr_pointer, dr_pkh) = dr_pool_with_dr_in_tally_stage_no_commits();
+
+    let witnesses = 5;
+    let commit_fee = 20;
+    let reveal_fee = 20;
+    let witness_reward = 200;
+
+    let change = (commit_fee + reveal_fee + witness_reward) * (witnesses - 1);
+
+    // Tally value: Insufficient commits Error
+    let clause_result = evaluate_tally_precondition_clause(vec![], 0.0, 0);
+    let script = RADTally::default();
+    let report = construct_report_from_clause_result(clause_result, &script, 0);
+    let tally_value = report.result.encode().unwrap();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: PublicKeyHash::default(),
+        value: witness_reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], vec![]);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::WrongNumberOutputs {
+            outputs: 2,
+            expected_outputs: 1
+        },
+    );
+}
+
+#[test]
+fn tally_valid_zero_reveals() {
+    let (dr_pool, dr_pointer, dr_pkh, slashed_pkhs) = dr_pool_with_dr_in_tally_stage_no_reveals();
+
+    let witnesses = 5;
+    let reveal_fee = 20;
+    let witness_reward = 200;
+
+    let change = (reveal_fee + witness_reward) * witnesses;
+
+    // Tally value: Insufficient commits Error
+    let clause_result = evaluate_tally_precondition_clause(vec![], 0.0, 5);
+    let script = RADTally::default();
+    let report = construct_report_from_clause_result(clause_result, &script, 0);
+    let tally_value = report.result.encode().unwrap();
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed_pkhs);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    x.unwrap();
 }
 
 #[test]
