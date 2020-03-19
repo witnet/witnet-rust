@@ -310,7 +310,7 @@ pub struct Mining {
     #[partial_struct(serde(
         default,
         deserialize_with = "from_millis",
-        rename = "data_request_timeout_millis"
+        rename = "data_request_timeout_milliseconds"
     ))]
     pub data_request_timeout: Duration,
     /// Genesis block path
