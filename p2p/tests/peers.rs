@@ -81,6 +81,25 @@ fn p2p_peers_random() {
 }
 
 #[test]
+fn p2p_peers_random_less_than_in_tried() {
+    // Create peers struct
+    let mut peers = Peers::default();
+    let server = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 2, 20)), 8080);
+    peers.set_server(server);
+
+    // Add addresses
+    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
+    let address2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)), 8080);
+
+    peers.add_to_tried(address).unwrap();
+    peers.add_to_tried(address2).unwrap();
+
+    // Get 1 random address when there are 2 in tried
+    let result = peers.get_random_peers(1).unwrap();
+    assert_eq!(result.len(), 1);
+}
+
+#[test]
 fn p2p_peers_remove_from_tried() {
     // Create peers struct
     let mut peers = Peers::default();
