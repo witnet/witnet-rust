@@ -1,4 +1,11 @@
-use std::{cmp::Ordering, convert::TryFrom, sync::atomic::Ordering::Relaxed};
+use std::{
+    cmp::Ordering,
+    convert::TryFrom,
+    sync::{
+        atomic::{self, AtomicU16},
+        Arc,
+    },
+};
 
 use actix::{
     ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture,
@@ -261,7 +268,7 @@ impl ChainManager {
 
         // `current_retrieval_count` keeps track of how many sources are being retrieved in this
         // epoch by using a reference-counted atomic counter that can be read and updated safely.
-        let current_retrieval_count = std::sync::Arc::new(std::sync::atomic::AtomicU16::new(0u16));
+        let current_retrieval_count = Arc::new(AtomicU16::new(0u16));
         let maximum_retrieval_count = self.data_request_max_retrievals_per_epoch;
 
         for (dr_pointer, data_request_output) in dr_pointers.into_iter().filter_map(|dr_pointer| {
@@ -283,8 +290,8 @@ impl ChainManager {
                 calculate_reppoe_threshold(rep_eng, &own_pkh, num_witnesses + num_backup_witnesses);
 
             // Grab a reference to `current_retrieval_count`
-            let cloned_retrieval_count = std::sync::Arc::clone(&current_retrieval_count);
-            let additional_retrieval_count =
+            let cloned_retrieval_count = Arc::clone(&current_retrieval_count);
+            let added_retrieval_count =
                 u16::try_from(data_request_output.data_request.retrieve.len())
                     .unwrap_or(core::u16::MAX);
 
@@ -328,9 +335,10 @@ impl ChainManager {
                 // Refrain from trying to resolve any more requests if we have already hit the limit
                 // of retrievals per epoch.
                 .and_then(move |vrf_proof| {
-                    let local_retrieval_count = cloned_retrieval_count.load(Relaxed);
+                    let mut start_retrieval_count = cloned_retrieval_count.load(atomic::Ordering::Relaxed);
+                    let mut final_retrieval_count = start_retrieval_count.saturating_add(added_retrieval_count);
 
-                    if local_retrieval_count + additional_retrieval_count > maximum_retrieval_count {
+                    if final_retrieval_count > maximum_retrieval_count {
                         log::info!("{} Refrained from resolving data request {} for epoch #{} because it contains {} \
                         sources, which added to the sources that have already been retrieved ({}) would total {} \
                         retrievals, which exceed current limit per epoch ({}). This limit exists for performance and \
@@ -340,19 +348,35 @@ impl ChainManager {
                             Yellow.bold().paint("[Mining]"),
                             Yellow.bold().paint(dr_pointer.to_string()),
                             Yellow.bold().paint(current_epoch.to_string()),
-                            Yellow.bold().paint(additional_retrieval_count.to_string()),
-                            Yellow.bold().paint(local_retrieval_count.to_string()),
-                            Yellow.bold().paint((local_retrieval_count + additional_retrieval_count).to_string()),
+                            Yellow.bold().paint(added_retrieval_count.to_string()),
+                            Yellow.bold().paint(start_retrieval_count.to_string()),
+                            Yellow.bold().paint(final_retrieval_count.to_string()),
                             Yellow.bold().paint(maximum_retrieval_count.to_string())
                         );
 
                         Err(())
                     } else {
                         // Update `current_retrieval_count` thanks to interior mutability of the
-                        // `cloned_retrieval_count` reference.
-                        cloned_retrieval_count.fetch_add(additional_retrieval_count, Relaxed);
+                        // `cloned_retrieval_count` reference. This is a recursive operation so as
+                        // to guarantee addition and prevent potential race conditions in a concurrent
+                        // scenario.
+                        loop {
+                            let internal_retrieval_count = cloned_retrieval_count.compare_and_swap(start_retrieval_count, final_retrieval_count, atomic::Ordering::Relaxed);
+                            if internal_retrieval_count == start_retrieval_count {
+                                // The counter update was updated successfully, we can move on.
+                                break Ok(vrf_proof);
+                            } else {
+                                // The counter was updated somewhere else, addition must be retried
+                                // after verifying that the limit has not been exceeded since last
+                                // it was checked.
+                                start_retrieval_count = internal_retrieval_count;
+                                final_retrieval_count = start_retrieval_count.saturating_add(added_retrieval_count);
 
-                        Ok(vrf_proof)
+                                if final_retrieval_count > maximum_retrieval_count {
+                                    break Err(())
+                                }
+                            }
+                        }
                     }
                 })
                 .and_then(move |vrf_proof| {
