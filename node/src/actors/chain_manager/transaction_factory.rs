@@ -33,9 +33,9 @@ pub fn take_enough_utxos<S: std::hash::BuildHasher>(
     let mut list = vec![];
 
     for (op, ts) in own_utxos.iter_mut() {
-        let value = all_utxos[op].value;
+        let value = all_utxos.get(op).unwrap().value;
         total += value;
-        if all_utxos[op].time_lock > timestamp {
+        if all_utxos.get(op).unwrap().time_lock > timestamp {
             continue;
         }
 
@@ -713,7 +713,10 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos1, all_utxos1), vec![t1]);
         assert_eq!(own_utxos.len(), 1);
         assert_eq!(
-            all_utxos[own_utxos.iter().next().unwrap().0].value,
+            all_utxos
+                .get(own_utxos.iter().next().unwrap().0)
+                .unwrap()
+                .value,
             1_000_000 - 1_000
         );
         assert_eq!(
@@ -845,7 +848,13 @@ mod tests {
         let (mut own_utxos, all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t5]);
         // Since we are spending everything, the result is merging all the unspent outputs into one
         assert_eq!(own_utxos.len(), 1);
-        assert_eq!(all_utxos[own_utxos.iter().next().unwrap().0].value, 480);
+        assert_eq!(
+            all_utxos
+                .get(own_utxos.iter().next().unwrap().0)
+                .unwrap()
+                .value,
+            480
+        );
         assert_eq!(
             build_vtt_tx(vec![], 480 + 1, &mut own_utxos, own_pkh, &all_utxos)
                 .unwrap_err()
@@ -953,7 +962,10 @@ mod tests {
         // This will create a change output with value 1_000_000 - 3_900
         assert_eq!(own_utxos.len(), 1);
         assert_eq!(
-            all_utxos[own_utxos.iter().next().unwrap().0].value,
+            all_utxos
+                .get(own_utxos.iter().next().unwrap().0)
+                .unwrap()
+                .value,
             1_000_000 - 3_900
         );
         assert_eq!(

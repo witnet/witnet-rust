@@ -1948,7 +1948,55 @@ pub enum DataRequestStage {
     TALLY,
 }
 
-pub type UnspentOutputsPool = HashMap<OutputPointer, ValueTransferOutput>;
+/// Unspent Outputs Pool
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UnspentOutputsPool {
+    map: HashMap<OutputPointer, ValueTransferOutput>,
+}
+
+impl UnspentOutputsPool {
+    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&ValueTransferOutput>
+    where
+        OutputPointer: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq,
+    {
+        self.map.get(k)
+    }
+
+    pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
+    where
+        OutputPointer: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq,
+    {
+        self.map.contains_key(k)
+    }
+
+    pub fn insert(
+        &mut self,
+        k: OutputPointer,
+        v: ValueTransferOutput,
+    ) -> Option<ValueTransferOutput> {
+        self.map.insert(k, v)
+    }
+
+    pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<ValueTransferOutput>
+    where
+        OutputPointer: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq,
+    {
+        self.map.remove(k)
+    }
+
+    pub fn drain(
+        &mut self,
+    ) -> std::collections::hash_map::Drain<OutputPointer, ValueTransferOutput> {
+        self.map.drain()
+    }
+
+    pub fn iter(&self) -> std::collections::hash_map::Iter<OutputPointer, ValueTransferOutput> {
+        self.map.iter()
+    }
+}
 
 pub type Blockchain = BTreeMap<Epoch, Hash>;
 
