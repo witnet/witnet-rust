@@ -1942,7 +1942,12 @@ pub enum DataRequestStage {
 /// Unspent Outputs Pool
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct UnspentOutputsPool {
+    /// Map of output pointer to value transfer output
     map: HashMap<OutputPointer, ValueTransferOutput>,
+    /// Map of transaction hash to a tuple of:
+    /// * The epoch of the block that included the transaction
+    /// * A reference count, used to keep this map clear after removing transactions
+    transaction_epoch: HashMap<Hash, (Epoch, u32)>,
 }
 
 impl UnspentOutputsPool {
@@ -1966,16 +1971,39 @@ impl UnspentOutputsPool {
         &mut self,
         k: OutputPointer,
         v: ValueTransferOutput,
+        block_epoch: Epoch,
     ) -> Option<ValueTransferOutput> {
-        self.map.insert(k, v)
+        let transaction_id = k.transaction_id;
+        let old_vto = self.map.insert(k, v);
+        if old_vto.is_none() {
+            let (transaction_epoch, refcount) = self
+                .transaction_epoch
+                .entry(transaction_id)
+                .or_insert((block_epoch, 0));
+            *refcount += 1;
+            // A transaction can only live inside one block, so the epoch must be equal
+            assert_eq!(block_epoch, *transaction_epoch);
+        } else {
+            // Tried to insert an existing transaction again
+            // TODO: This shouldn't really happen, panic?
+        }
+
+        old_vto
     }
 
-    pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<ValueTransferOutput>
-    where
-        OutputPointer: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + Eq,
-    {
-        self.map.remove(k)
+    pub fn remove(&mut self, k: &OutputPointer) -> Option<ValueTransferOutput> {
+        let vto = self.map.remove(k);
+
+        if vto.is_some() {
+            // Decrease refcount
+            let (_epoch, refcount) = self.transaction_epoch.get_mut(&k.transaction_id).unwrap();
+            *refcount -= 1;
+            if *refcount == 0 {
+                self.transaction_epoch.remove(&k.transaction_id);
+            }
+        }
+
+        vto
     }
 
     pub fn drain<'a>(
@@ -1988,6 +2016,19 @@ impl UnspentOutputsPool {
         &'a self,
     ) -> impl Iterator<Item = (&'a OutputPointer, &'a ValueTransferOutput)> + 'a {
         self.map.iter()
+    }
+
+    /// Returns the epoch of the block that included the transaction referenced
+    /// by this OutputPointer. The difference between that epoch and the
+    /// current epoch is the "coin age".
+    pub fn utxo_epoch(&self, k: &OutputPointer) -> Option<Epoch> {
+        if !self.map.contains_key(k) {
+            None
+        } else {
+            self.transaction_epoch
+                .get(&k.transaction_id)
+                .map(|(epoch, _refcount)| *epoch)
+        }
     }
 }
 
@@ -2286,6 +2327,7 @@ fn update_utxo_outputs(
     utxo: &mut UnspentOutputsPool,
     outputs: &[ValueTransferOutput],
     txn_hash: Hash,
+    block_epoch: Epoch,
 ) {
     for (index, output) in outputs.iter().enumerate() {
         // Add the new outputs to the utxo_set
@@ -2294,7 +2336,7 @@ fn update_utxo_outputs(
             output_index: u32::try_from(index).unwrap(),
         };
 
-        utxo.insert(output_pointer, output.clone());
+        utxo.insert(output_pointer, output.clone(), block_epoch);
     }
 }
 
@@ -2302,6 +2344,7 @@ fn update_utxo_outputs(
 pub fn generate_unspent_outputs_pool(
     unspent_outputs_pool: &UnspentOutputsPool,
     transactions: &[Transaction],
+    block_epoch: Epoch,
 ) -> UnspentOutputsPool {
     // Create a copy of the state "unspent_outputs_pool"
     let mut unspent_outputs = unspent_outputs_pool.clone();
@@ -2311,20 +2354,36 @@ pub fn generate_unspent_outputs_pool(
         match transaction {
             Transaction::ValueTransfer(vt_transaction) => {
                 update_utxo_inputs(&mut unspent_outputs, &vt_transaction.body.inputs);
-                update_utxo_outputs(&mut unspent_outputs, &vt_transaction.body.outputs, txn_hash);
+                update_utxo_outputs(
+                    &mut unspent_outputs,
+                    &vt_transaction.body.outputs,
+                    txn_hash,
+                    block_epoch,
+                );
             }
             Transaction::DataRequest(dr_transaction) => {
                 update_utxo_inputs(&mut unspent_outputs, &dr_transaction.body.inputs);
-                update_utxo_outputs(&mut unspent_outputs, &dr_transaction.body.outputs, txn_hash);
+                update_utxo_outputs(
+                    &mut unspent_outputs,
+                    &dr_transaction.body.outputs,
+                    txn_hash,
+                    block_epoch,
+                );
             }
             Transaction::Tally(tally_transaction) => {
-                update_utxo_outputs(&mut unspent_outputs, &tally_transaction.outputs, txn_hash);
+                update_utxo_outputs(
+                    &mut unspent_outputs,
+                    &tally_transaction.outputs,
+                    txn_hash,
+                    block_epoch,
+                );
             }
             Transaction::Mint(mint_transaction) => {
                 update_utxo_outputs(
                     &mut unspent_outputs,
                     &[mint_transaction.output.clone()],
                     txn_hash,
+                    block_epoch,
                 );
             }
             _ => {}

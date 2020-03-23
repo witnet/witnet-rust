@@ -1128,7 +1128,7 @@ pub fn validate_block_transactions(
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == genesis_block_hash;
-    let mut utxo_diff = UtxoDiff::new(utxo_set);
+    let mut utxo_diff = UtxoDiff::new(utxo_set, epoch);
 
     // Init total fee
     let mut total_fee = 0;
@@ -1436,7 +1436,7 @@ pub fn validate_new_transaction(
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<(), failure::Error> {
-    let utxo_diff = UtxoDiff::new(&unspent_outputs_pool);
+    let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, current_epoch);
 
     match transaction {
         Transaction::ValueTransfer(tx) => validate_vt_transaction(
@@ -1720,17 +1720,27 @@ pub fn verify_poe_data_request(
 
 /// Diffs to apply to an utxo set. This type does not contains a
 /// reference to the original utxo set.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Diff {
     utxos_to_add: UnspentOutputsPool,
     utxos_to_remove: HashSet<OutputPointer>,
     utxos_to_remove_dr: Vec<OutputPointer>,
+    block_epoch: Epoch,
 }
 
 impl Diff {
+    pub fn new(block_epoch: Epoch) -> Self {
+        Self {
+            utxos_to_add: Default::default(),
+            utxos_to_remove: Default::default(),
+            utxos_to_remove_dr: vec![],
+            block_epoch,
+        }
+    }
+
     pub fn apply(mut self, utxo_set: &mut UnspentOutputsPool) {
         for (output_pointer, output) in self.utxos_to_add.drain() {
-            utxo_set.insert(output_pointer, output);
+            utxo_set.insert(output_pointer, output, self.block_epoch);
         }
 
         for output_pointer in self.utxos_to_remove.iter() {
@@ -1749,7 +1759,8 @@ impl Diff {
     /// use std::collections::HashMap;
     /// use witnet_validations::validations::Diff;
     ///
-    /// let diff = Diff::default();
+    /// let block_epoch = 0;
+    /// let diff = Diff::new(block_epoch);
     /// let mut hashmap = HashMap::new();
     /// diff.visit(&mut hashmap, |hashmap, output_pointer, output| {
     ///     hashmap.insert(output_pointer.clone(), output.clone());
@@ -1782,16 +1793,18 @@ pub struct UtxoDiff<'a> {
 
 impl<'a> UtxoDiff<'a> {
     /// Create a new UtxoDiff without additional insertions or deletions
-    pub fn new(utxo_pool: &'a UnspentOutputsPool) -> Self {
+    pub fn new(utxo_pool: &'a UnspentOutputsPool, block_epoch: Epoch) -> Self {
         UtxoDiff {
             utxo_pool,
-            diff: Default::default(),
+            diff: Diff::new(block_epoch),
         }
     }
 
     /// Record an insertion to perform on the utxo set
     pub fn insert_utxo(&mut self, output_pointer: OutputPointer, output: ValueTransferOutput) {
-        self.diff.utxos_to_add.insert(output_pointer, output);
+        self.diff
+            .utxos_to_add
+            .insert(output_pointer, output, self.diff.block_epoch);
     }
 
     /// Record a deletion to perform on the utxo set
