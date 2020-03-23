@@ -550,7 +550,7 @@ pub struct RunTally {
     /// Minimum values vs. errors ratio over which tally is run, otherwise return mode of errors
     pub min_consensus_ratio: f64,
     /// Number of commits
-    pub num_commits: usize,
+    pub commits_count: usize,
 }
 
 impl Message for ResolveRA {

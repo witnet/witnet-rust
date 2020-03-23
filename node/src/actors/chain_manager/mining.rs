@@ -1,5 +1,6 @@
 use std::{
     cmp::Ordering,
+    collections::HashSet,
     convert::TryFrom,
     sync::{
         atomic::{self, AtomicU16},
@@ -494,7 +495,9 @@ impl ChainManager {
                     let min_consensus_ratio =
                         f64::from(dr_state.data_request.min_consensus_percentage) / 100.0;
 
-                    let num_commits = dr_state.info.commits.len();
+                    let committers: HashSet<PublicKeyHash> =
+                        dr_state.info.commits.keys().cloned().collect();
+                    let commits_count = committers.len();
 
                     let rad_manager_addr = RadManager::from_registry();
                     rad_manager_addr
@@ -502,7 +505,7 @@ impl ChainManager {
                             min_consensus_ratio,
                             reports: reports.clone(),
                             script: dr_state.data_request.data_request.tally.clone(),
-                            num_commits,
+                            commits_count,
                         })
                         .then(|result| match result {
                             // The result of `RunTally` will be published as tally
@@ -519,8 +522,8 @@ impl ChainManager {
                                 &dr_state.data_request,
                                 dr_state.pkh,
                                 &tally_result,
-                                reveals,
-                                num_commits,
+                                reveals.iter().map(|r| r.body.pkh).collect(),
+                                committers,
                             );
 
                             match tally {

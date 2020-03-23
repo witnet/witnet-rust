@@ -103,7 +103,7 @@ impl Handler<RunTally> for RadManager {
 
         let reports_len = reports.len();
         let clause_result =
-            evaluate_tally_precondition_clause(reports, msg.min_consensus_ratio, msg.num_commits);
+            evaluate_tally_precondition_clause(reports, msg.min_consensus_ratio, msg.commits_count);
 
         construct_report_from_clause_result(clause_result, &packed_script, reports_len)
     }

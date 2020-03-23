@@ -338,53 +338,55 @@ impl DataRequestPool {
     }
 }
 
-pub fn create_tally<RT>(
+pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
     dr_pointer: Hash,
     dr_output: &DataRequestOutput,
     pkh: PublicKeyHash,
     report: &RadonReport<RT>,
-    reveals: Vec<RevealTransaction>,
-    n_commits: usize,
+    revealers: Vec<PublicKeyHash>,
+    committers: HashSet<PublicKeyHash, S>,
 ) -> Result<TallyTransaction, failure::Error>
 where
     RT: TypeLike,
 {
     if let Stage::Tally(tally_metadata) = &report.metadata {
         let reveal_reward = dr_output.witness_reward;
+        let commits_count = committers.len();
+        let reveals_count = revealers.len();
+        let mut slashed_witnesses = committers;
 
         let liars = &tally_metadata.liars;
 
-        if reveals.len() != liars.len() {
+        if reveals_count != liars.len() {
             return Err(TransactionError::MismatchingLiarsNumber {
-                reveals_n: reveals.len(),
+                reveals_n: reveals_count,
                 inputs_n: liars.len(),
             }
             .into());
         }
 
-        let mut rewarded_witnesses = vec![];
-        let mut outputs: Vec<ValueTransferOutput> = reveals
+        let mut outputs: Vec<ValueTransferOutput> = revealers
             .iter()
             .zip(liars.iter())
-            .filter_map(|(reveal, &liar)| {
+            .filter_map(|(&revealer, &liar)| {
                 // Only reward reveals in consensus
-                if !liar {
+                if liar {
+                    None
+                } else {
                     let vt_output = ValueTransferOutput {
-                        pkh: reveal.body.pkh,
+                        pkh: revealer,
                         value: reveal_reward,
                         time_lock: 0,
                     };
-                    rewarded_witnesses.push(reveal.body.pkh);
+                    slashed_witnesses.remove(&revealer);
                     Some(vt_output)
-                } else {
-                    None
                 }
             })
             .collect();
 
         let n_honest = u16::try_from(outputs.len())?;
-        let n_reveals = u16::try_from(reveals.len())?;
-        let n_commits = u16::try_from(n_commits)?;
+        let n_reveals = u16::try_from(reveals_count)?;
+        let n_commits = u16::try_from(commits_count)?;
         // Create tally change for the data request creator
         if dr_output.witnesses > n_honest {
             debug!("Created tally change for the data request creator");
@@ -400,12 +402,13 @@ where
         }
 
         let tally_bytes = Vec::try_from(report)?;
+        let slashed_witnesses = slashed_witnesses.into_iter().collect();
 
         Ok(TallyTransaction::new(
             dr_pointer,
             tally_bytes,
             outputs,
-            rewarded_witnesses,
+            slashed_witnesses,
         ))
     } else {
         Err(TransactionError::NoTallyStage.into())
