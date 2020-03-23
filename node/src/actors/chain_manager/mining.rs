@@ -580,9 +580,8 @@ fn build_block(
     epoch_constants: EpochConstants,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
-    let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool);
-
     let epoch = beacon.checkpoint;
+    let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool, epoch);
 
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
