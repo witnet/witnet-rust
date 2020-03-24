@@ -1955,8 +1955,10 @@ pub struct UnspentOutputsPool {
     map: HashMap<OutputPointer, ValueTransferOutput>,
     /// Map of transaction hash to a tuple of:
     /// * The number of the block that included the transaction
-    ///   (how many blocks were consolidated before this one)
-    /// * A reference count, used to keep this map clear after removing transactions
+    ///   (how many blocks were consolidated before this one).
+    /// * A reference count, used to keep this map clear after removing transactions.
+    ///   This reference count is the number of output pointers that point to this
+    ///   transaction hash, when it reaches 0 the entry should be removed.
     transaction_block_number: HashMap<Hash, (u32, u32)>,
 }
 
@@ -1984,20 +1986,17 @@ impl UnspentOutputsPool {
         block_number: u32,
     ) -> Option<ValueTransferOutput> {
         let transaction_id = k.transaction_id;
-        let old_vto = self.map.insert(k.clone(), v);
+        let old_vto = self.map.insert(k, v);
         if old_vto.is_none() {
-            let (transaction_epoch, refcount) = self
+            // Store block number for this transaction hash
+            // If the transaction hash already exists, do not update the block number
+            let (_block_number, refcount) = self
                 .transaction_block_number
                 .entry(transaction_id)
                 .or_insert((block_number, 0));
+            // Increase the refcount if this is a new output pointer
+            // Entries should be removed from the map when the refcount reaches 0 again
             *refcount += 1;
-            // A transaction can only live inside one block, so the epoch must be equal
-            // TODO: panic or skip check?
-            assert_eq!(block_number, *transaction_epoch);
-        } else {
-            // Tried to insert an existing transaction again
-            // TODO: This shouldn't really happen, panic?
-            panic!("{} inserted twice to UTXO set", k);
         }
 
         old_vto
@@ -2007,12 +2006,13 @@ impl UnspentOutputsPool {
         let vto = self.map.remove(k);
 
         if vto.is_some() {
-            // Decrease refcount
+            // Decrease refcount if this is a new output pointer
             let (_epoch, refcount) = self
                 .transaction_block_number
                 .get_mut(&k.transaction_id)
                 .unwrap();
             *refcount -= 1;
+            // Entries should be removed from the map when the refcount reaches 0
             if *refcount == 0 {
                 self.transaction_block_number.remove(&k.transaction_id);
             }
@@ -2035,12 +2035,12 @@ impl UnspentOutputsPool {
     /// by this OutputPointer. The difference between that number and the
     /// current number of consolidated blocks is the "coin age".
     pub fn included_in_block_number(&self, k: &OutputPointer) -> Option<Epoch> {
-        if !self.map.contains_key(k) {
-            None
-        } else {
+        if self.map.contains_key(k) {
             self.transaction_block_number
                 .get(&k.transaction_id)
                 .map(|(epoch, _refcount)| *epoch)
+        } else {
+            None
         }
     }
 }
@@ -3252,9 +3252,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn utxo_set_insert_twice() {
-        // Inserting the same input twice into the UTXO set panics
+        // Inserting the same input twice into the UTXO set overwrites the transaction
         let mut p = UnspentOutputsPool::default();
         let v = || ValueTransferOutput::default();
 
@@ -3263,13 +3262,17 @@ mod tests {
                 .parse()
                 .unwrap();
         p.insert(k0.clone(), v(), 0);
-        p.insert(k0, v(), 0);
+        p.insert(k0.clone(), v(), 0);
+        assert_eq!(p.included_in_block_number(&k0), Some(0));
+        // Removing once is enough
+        p.remove(&k0);
+        assert_eq!(p.included_in_block_number(&k0), None);
     }
 
     #[test]
-    #[should_panic]
     fn utxo_set_insert_same_transaction_different_epoch() {
-        // Inserting the same transaction twice with different block number panics
+        // Inserting the same transaction twice with different block number keeps
+        // the old block number but the new transaction
         let mut p = UnspentOutputsPool::default();
         let v = || ValueTransferOutput::default();
 
@@ -3277,12 +3280,14 @@ mod tests {
             "0222222222222222222222222222222222222222222222222222222222222222:0"
                 .parse()
                 .unwrap();
-        p.insert(k0, v(), 0);
+        p.insert(k0.clone(), v(), 0);
+        assert_eq!(p.included_in_block_number(&k0), Some(0));
         let k1: OutputPointer =
             "0222222222222222222222222222222222222222222222222222222222222222:1"
                 .parse()
                 .unwrap();
 
-        p.insert(k1, v(), 1);
+        p.insert(k1.clone(), v(), 1);
+        assert_eq!(p.included_in_block_number(&k1), Some(0));
     }
 }
