@@ -89,6 +89,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         log::debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         let current_epoch = msg.checkpoint;
         self.current_epoch = Some(current_epoch);
+        let block_number = self.chain_state.block_number();
 
         log::debug!(
             "EpochNotification received while StateMachine is in state {:?}",
@@ -187,6 +188,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             chain_info.consensus_constants.mining_backup_factor,
                             self.bootstrap_hash,
                             self.genesis_block_hash,
+                            block_number,
                         ) {
                             Ok(utxo_diff) => {
                                 let block_pkh = &block_candidate.block_sig.public_key.pkh();

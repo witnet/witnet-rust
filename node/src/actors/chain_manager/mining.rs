@@ -187,6 +187,7 @@ impl ChainManager {
                     &tally_transactions,
                     own_pkh,
                     epoch_constants,
+                    act.chain_state.block_number(),
                 );
 
                 // Sign the block hash
@@ -570,6 +571,7 @@ impl ChainManager {
 /// Build a new Block using the supplied leadership proof and by filling transactions from the
 /// `transaction_pool`
 /// Returns an unsigned block!
+#[allow(clippy::too_many_arguments)]
 fn build_block(
     pools_ref: (&mut TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
     max_block_weight: u32,
@@ -578,10 +580,11 @@ fn build_block(
     tally_transactions: &[TallyTransaction],
     own_pkh: PublicKeyHash,
     epoch_constants: EpochConstants,
+    block_number: u32,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
-    let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool, epoch);
+    let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
 
     // Get all the unspent transactions and calculate the sum of their fees
     let mut transaction_fees = 0;
@@ -831,6 +834,7 @@ mod tests {
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
         let block_proof = BlockEligibilityClaim::default();
+        let block_number = 1;
 
         // Build empty block (because max weight is zero)
         let (block_header, txns) = build_block(
@@ -841,6 +845,7 @@ mod tests {
             &[],
             PublicKeyHash::default(),
             EpochConstants::default(),
+            block_number,
         );
         let block = Block {
             block_header,
@@ -881,6 +886,7 @@ mod tests {
             bytes: Protected::from(vec![0xcd; 32]),
         };
         let block_proof = BlockEligibilityClaim::create(vrf, &secret_key, block_beacon).unwrap();
+        let block_number = 1;
 
         // Build empty block (because max weight is zero)
 
@@ -892,6 +898,7 @@ mod tests {
             &[],
             PublicKeyHash::default(),
             EpochConstants::default(),
+            block_number,
         );
 
         // Create a KeyedSignature
@@ -1024,6 +1031,7 @@ mod tests {
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
         let block_proof = BlockEligibilityClaim::default();
+        let block_number = 1;
 
         // Build block with
 
@@ -1035,6 +1043,7 @@ mod tests {
             &[],
             PublicKeyHash::default(),
             EpochConstants::default(),
+            block_number,
         );
         let block = Block {
             block_header,

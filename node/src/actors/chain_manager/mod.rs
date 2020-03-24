@@ -289,6 +289,7 @@ impl ChainManager {
             }
             let chain_beacon = chain_info.highest_block_checkpoint;
             let mining_bf = chain_info.consensus_constants.mining_backup_factor;
+            let block_number = self.chain_state.block_number();
 
             let utxo_diff = process_validations(
                 block,
@@ -303,6 +304,7 @@ impl ChainManager {
                 mining_bf,
                 self.bootstrap_hash,
                 self.genesis_block_hash,
+                block_number,
             )?;
 
             // Persist block and update ChainState
@@ -586,6 +588,7 @@ impl ChainManager {
                 chain_info.highest_block_checkpoint.hash_prev_block,
                 current_epoch,
                 epoch_constants,
+                self.chain_state.block_number(),
                 &mut signatures_to_verify,
             ))
             .into_actor(self)
@@ -635,6 +638,7 @@ impl ChainManager {
         epoch_constants: EpochConstants,
         mining_bf: u32,
     ) -> ResponseActFuture<Self, Diff, failure::Error> {
+        let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
         let fut = futures::future::result(validate_block(
             &block,
@@ -658,6 +662,7 @@ impl ChainManager {
                 act.chain_state.reputation_engine.as_ref().unwrap(),
                 act.genesis_block_hash,
                 epoch_constants,
+                block_number,
             ))
             .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
             .into_actor(act)
@@ -682,6 +687,7 @@ pub fn process_validations(
     mining_bf: u32,
     bootstrap_hash: Hash,
     genesis_block_hash: Hash,
+    block_number: u32,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -705,6 +711,7 @@ pub fn process_validations(
         rep_eng,
         genesis_block_hash,
         epoch_constants,
+        block_number,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 
