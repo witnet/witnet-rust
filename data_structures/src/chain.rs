@@ -140,6 +140,12 @@ pub struct ConsensusConstants {
 
     /// Replication factor for mining: valid VRFs under this factor will have priority
     pub mining_replication_factor: u32,
+
+    /// Minimum value in nanowits for a collateral value
+    pub collateral_minimum: u64,
+
+    /// Minimum input age of an UTXO for being a valid collateral
+    pub collateral_age: u32,
 }
 
 impl ConsensusConstants {

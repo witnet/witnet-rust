@@ -450,6 +450,14 @@ pub fn consensus_constants_from_partial(
             .mining_replication_factor
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_mining_replication_factor()),
+        collateral_minimum: config
+            .collateral_minimum
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_collateral_minimum()),
+        collateral_age: config
+            .collateral_age
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_collateral_age()),
     }
 }
 
