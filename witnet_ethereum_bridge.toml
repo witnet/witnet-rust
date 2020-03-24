@@ -34,6 +34,8 @@ claim_dr_rate_ms = 30_000
 eth_event_polling_rate_ms = 1_000
 # Running in the witnet testnet?
 witnet_testnet = true
+# If readDrHash returns 0, try again later
+read_dr_hash_interval_ms = 10_000
 
 # Gas limits for some methods.
 # To let the client estimate, comment out the methods

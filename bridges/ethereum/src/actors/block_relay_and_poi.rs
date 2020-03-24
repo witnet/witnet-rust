@@ -126,6 +126,7 @@ pub fn block_relay_and_poi(
                     let block_hash: U256 = match block.hash() {
                         Hash::SHA256(x) => x.into(),
                     };
+                    let block_epoch: U256 = block.block_header.beacon.checkpoint.into();
 
                     let mut including = vec![];
                     let mut resolving = vec![];
@@ -164,7 +165,7 @@ pub fn block_relay_and_poi(
                                 info!("[{}] Claimed dr got included in witnet block!", dr_id);
                                 info!("[{}] Sending proof of inclusion to WBI wbi_contract", dr_id);
 
-                                including.push((*dr_id, poi.clone(), poi_index, block_hash));
+                                including.push((*dr_id, poi.clone(), poi_index, block_hash, block_epoch));
                             }
                         }
                     }
@@ -199,7 +200,7 @@ pub fn block_relay_and_poi(
                                     .collect();
                                 let poi_index = U256::from(tally_inclusion_proof.index);
                                 let result: Bytes = tally.tally.clone();
-                                resolving.push((*dr_id, poi.clone(), poi_index, block_hash, result.clone()));
+                                resolving.push((*dr_id, poi.clone(), poi_index, block_hash, block_epoch, result.clone()));
                             }
                         }
                     }
@@ -208,17 +209,17 @@ pub fn block_relay_and_poi(
                     if !including.is_empty() || !resolving.is_empty() {
                         Either::A(eth_state2.wbi_requests.write().map(move |mut wbi_requests| {
                             let config3 = config2.clone();
-                            for (dr_id, poi, poi_index, block_hash) in including {
+                            for (dr_id, poi, poi_index, block_hash, block_epoch) in including {
                                 if wbi_requests.claimed().contains_left(&dr_id) {
-                                    wbi_requests.set_including(dr_id, poi.clone(), poi_index, block_hash);
+                                    wbi_requests.set_including(dr_id, poi.clone(), poi_index, block_hash, block_epoch);
                                     let wbi_requests = eth_state2.wbi_requests.clone();
                                     let config4 = config3.clone();
-                                    let params_str = format!("{:?}", (dr_id, poi.clone(), poi_index, block_hash));
+                                    let params_str = format!("{:?}", (dr_id, poi.clone(), poi_index, block_hash, block_epoch));
                                     tokio::spawn(
                                         wbi_contract
                                             .call_with_confirmations(
                                                 "reportDataRequestInclusion",
-                                                (dr_id, poi, poi_index, block_hash),
+                                                (dr_id, poi, poi_index, block_hash, block_epoch),
                                                 eth_account,
                                                 contract::Options::with(|opt| {
                                                     opt.gas = config4.gas_limits.report_data_request_inclusion.map(Into::into);
@@ -241,17 +242,17 @@ pub fn block_relay_and_poi(
                                     );
                                 }
                             }
-                            for (dr_id, poi, poi_index, block_hash, result) in resolving {
+                            for (dr_id, poi, poi_index, block_hash, block_epoch, result) in resolving {
                                 if wbi_requests.included().contains_left(&dr_id) {
-                                    wbi_requests.set_resolving(dr_id, poi.clone(), poi_index, block_hash, result.clone());
+                                    wbi_requests.set_resolving(dr_id, poi.clone(), poi_index, block_hash, block_epoch, result.clone());
                                     let wbi_requests = eth_state2.wbi_requests.clone();
                                     let config4 = config3.clone();
-                                    let params_str = format!("{:?}", &(dr_id, poi.clone(), poi_index, block_hash, result.clone()));
+                                    let params_str = format!("{:?}", &(dr_id, poi.clone(), poi_index, block_hash, block_epoch, result.clone()));
                                     tokio::spawn(
                                         wbi_contract
                                             .call_with_confirmations(
                                                 "reportResult",
-                                                (dr_id, poi, poi_index, block_hash, result),
+                                                (dr_id, poi, poi_index, block_hash, block_epoch, result),
                                                 eth_account,
                                                 contract::Options::with(|opt| {
                                                     opt.gas = config4.gas_limits.report_result.map(Into::into);

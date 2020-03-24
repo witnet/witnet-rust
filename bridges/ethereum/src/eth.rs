@@ -33,6 +33,8 @@ pub enum DrState {
         poi_index: U256,
         /// Hash of the block containing the data request
         block_hash: U256,
+        /// Epoch of the block containing the data request
+        block_epoch: U256,
     },
     /// The data request was included in a Witnet block, and the reward for doing so
     /// was already paid to the bridge node. The data request is now waiting to be
@@ -47,6 +49,8 @@ pub enum DrState {
         poi_index: U256,
         /// Hash of the block containing the data request
         block_hash: U256,
+        /// Epoch of the block containing the data request
+        block_epoch: U256,
         /// Result of the data request, serialized as CBOR
         result: Bytes,
     },
@@ -147,6 +151,7 @@ impl WbiRequests {
         poi: Vec<U256>,
         poi_index: U256,
         block_hash: U256,
+        block_epoch: U256,
     ) {
         self.remove_from_all_helper_maps(dr_id);
         self.requests.insert(
@@ -155,6 +160,7 @@ impl WbiRequests {
                 poi,
                 poi_index,
                 block_hash,
+                block_epoch,
             },
         );
         self.including.insert(dr_id);
@@ -182,6 +188,7 @@ impl WbiRequests {
         poi: Vec<U256>,
         poi_index: U256,
         block_hash: U256,
+        block_epoch: U256,
         result: Bytes,
     ) {
         let dr_tx_hash = match self.included.remove_by_left(&dr_id) {
@@ -198,6 +205,7 @@ impl WbiRequests {
                 poi,
                 poi_index,
                 block_hash,
+                block_epoch,
                 result,
             },
         );
