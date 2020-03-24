@@ -762,7 +762,7 @@ impl Handler<BuildVtt> for ChainManager {
         ) {
             Err(e) => {
                 log::error!("{}", e);
-                Box::new(actix::fut::err(e))
+                Box::new(actix::fut::err(e.into()))
             }
             Ok(vtt) => {
                 let fut = transaction_factory::sign_transaction(&vtt, vtt.inputs.len())
@@ -811,7 +811,7 @@ impl Handler<BuildDrt> for ChainManager {
         ) {
             Err(e) => {
                 log::error!("{}", e);
-                Box::new(actix::fut::err(e))
+                Box::new(actix::fut::err(e.into()))
             }
             Ok(drt) => {
                 log::debug!("Created drt:\n{:?}", drt);

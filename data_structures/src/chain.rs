@@ -2780,11 +2780,19 @@ mod tests {
         let c1 = Hash::SHA256([1; 32]);
         let c2 = Hash::SHA256([2; 32]);
         let t1 = Transaction::Commit(CommitTransaction {
-            body: CommitTransactionBody::new(Default::default(), c1, Default::default()),
+            body: CommitTransactionBody::without_collateral(
+                Default::default(),
+                c1,
+                Default::default(),
+            ),
             signatures: vec![KeyedSignature::default()],
         });
         let t2 = Transaction::Commit(CommitTransaction {
-            body: CommitTransactionBody::new(Default::default(), c2, Default::default()),
+            body: CommitTransactionBody::without_collateral(
+                Default::default(),
+                c2,
+                Default::default(),
+            ),
             signatures: vec![KeyedSignature::default()],
         });
         let mut transactions_pool = TransactionsPool::default();
@@ -2838,11 +2846,19 @@ mod tests {
         let c1 = Hash::SHA256([1; 32]);
         let c2 = Hash::SHA256([2; 32]);
         let t1 = Transaction::Commit(CommitTransaction {
-            body: CommitTransactionBody::new(Default::default(), c1, Default::default()),
+            body: CommitTransactionBody::without_collateral(
+                Default::default(),
+                c1,
+                Default::default(),
+            ),
             signatures: vec![KeyedSignature::default()],
         });
         let t2 = Transaction::Commit(CommitTransaction {
-            body: CommitTransactionBody::new(Default::default(), c2, Default::default()),
+            body: CommitTransactionBody::without_collateral(
+                Default::default(),
+                c2,
+                Default::default(),
+            ),
             signatures: vec![KeyedSignature::default()],
         });
         let mut transactions_pool = TransactionsPool::default();
@@ -2898,7 +2914,7 @@ mod tests {
 
         let c1 = Hash::SHA256([1; 32]);
         let t1 = Transaction::Commit(CommitTransaction {
-            body: CommitTransactionBody::new(dr_pointer, c1, Default::default()),
+            body: CommitTransactionBody::without_collateral(dr_pointer, c1, Default::default()),
             signatures: vec![KeyedSignature::default()],
         });
         let mut transactions_pool = TransactionsPool::default();
@@ -2935,7 +2951,7 @@ mod tests {
 
         let c1 = Hash::SHA256([1; 32]);
         let t1 = Transaction::Commit(CommitTransaction {
-            body: CommitTransactionBody::new(dr_pointer, c1, Default::default()),
+            body: CommitTransactionBody::without_collateral(dr_pointer, c1, Default::default()),
             signatures: vec![KeyedSignature::default()],
         });
         let mut transactions_pool = TransactionsPool::default();

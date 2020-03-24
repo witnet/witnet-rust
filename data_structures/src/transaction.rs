@@ -293,15 +293,16 @@ impl CommitTransaction {
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::CommitTransactionBody")]
 pub struct CommitTransactionBody {
-    // Inputs
-    // TODO: Discussion about collateral
-    //pub collateral: Vec<Input>, // ValueTransferOutput
     // DRTransaction hash
     pub dr_pointer: Hash,
     // RevealTransaction Signature Hash
     pub commitment: Hash,
     // Proof of elegibility for this pkh, epoch, and data request
     pub proof: DataRequestEligibilityClaim,
+    // Inputs used as collateral
+    pub collateral: Vec<Input>,
+    // Change from collateral
+    pub outputs: Vec<ValueTransferOutput>,
 
     #[protobuf_convert(skip)]
     #[serde(skip)]
@@ -310,11 +311,34 @@ pub struct CommitTransactionBody {
 
 impl CommitTransactionBody {
     /// Creates a new commit transaction body.
-    pub fn new(dr_pointer: Hash, commitment: Hash, proof: DataRequestEligibilityClaim) -> Self {
+    pub fn new(
+        dr_pointer: Hash,
+        commitment: Hash,
+        proof: DataRequestEligibilityClaim,
+        collateral: Vec<Input>,
+        outputs: Vec<ValueTransferOutput>,
+    ) -> Self {
         CommitTransactionBody {
             dr_pointer,
             commitment,
             proof,
+            collateral,
+            outputs,
+            hash: MemoHash::new(),
+        }
+    }
+    /// Old `Self::new` still used in tests
+    pub fn without_collateral(
+        dr_pointer: Hash,
+        commitment: Hash,
+        proof: DataRequestEligibilityClaim,
+    ) -> Self {
+        CommitTransactionBody {
+            dr_pointer,
+            commitment,
+            proof,
+            collateral: vec![],
+            outputs: vec![],
             hash: MemoHash::new(),
         }
     }
