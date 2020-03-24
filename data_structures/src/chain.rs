@@ -1945,9 +1945,10 @@ pub struct UnspentOutputsPool {
     /// Map of output pointer to value transfer output
     map: HashMap<OutputPointer, ValueTransferOutput>,
     /// Map of transaction hash to a tuple of:
-    /// * The epoch of the block that included the transaction
+    /// * The number of the block that included the transaction
+    ///   (how many blocks were consolidated before this one)
     /// * A reference count, used to keep this map clear after removing transactions
-    transaction_epoch: HashMap<Hash, (Epoch, u32)>,
+    transaction_block_number: HashMap<Hash, (u32, u32)>,
 }
 
 impl UnspentOutputsPool {
@@ -1971,18 +1972,19 @@ impl UnspentOutputsPool {
         &mut self,
         k: OutputPointer,
         v: ValueTransferOutput,
-        block_epoch: Epoch,
+        block_number: u32,
     ) -> Option<ValueTransferOutput> {
         let transaction_id = k.transaction_id;
         let old_vto = self.map.insert(k.clone(), v);
         if old_vto.is_none() {
             let (transaction_epoch, refcount) = self
-                .transaction_epoch
+                .transaction_block_number
                 .entry(transaction_id)
-                .or_insert((block_epoch, 0));
+                .or_insert((block_number, 0));
             *refcount += 1;
             // A transaction can only live inside one block, so the epoch must be equal
-            assert_eq!(block_epoch, *transaction_epoch);
+            // TODO: panic or skip check?
+            assert_eq!(block_number, *transaction_epoch);
         } else {
             // Tried to insert an existing transaction again
             // TODO: This shouldn't really happen, panic?
@@ -1997,10 +1999,13 @@ impl UnspentOutputsPool {
 
         if vto.is_some() {
             // Decrease refcount
-            let (_epoch, refcount) = self.transaction_epoch.get_mut(&k.transaction_id).unwrap();
+            let (_epoch, refcount) = self
+                .transaction_block_number
+                .get_mut(&k.transaction_id)
+                .unwrap();
             *refcount -= 1;
             if *refcount == 0 {
-                self.transaction_epoch.remove(&k.transaction_id);
+                self.transaction_block_number.remove(&k.transaction_id);
             }
         }
 
@@ -2017,14 +2022,14 @@ impl UnspentOutputsPool {
         self.map.iter()
     }
 
-    /// Returns the epoch of the block that included the transaction referenced
-    /// by this OutputPointer. The difference between that epoch and the
-    /// current epoch is the "coin age".
-    pub fn utxo_epoch(&self, k: &OutputPointer) -> Option<Epoch> {
+    /// Returns the number of the block that included the transaction referenced
+    /// by this OutputPointer. The difference between that number and the
+    /// current number of consolidated blocks is the "coin age".
+    pub fn included_in_block_number(&self, k: &OutputPointer) -> Option<Epoch> {
         if !self.map.contains_key(k) {
             None
         } else {
-            self.transaction_epoch
+            self.transaction_block_number
                 .get(&k.transaction_id)
                 .map(|(epoch, _refcount)| *epoch)
         }
@@ -2080,6 +2085,11 @@ impl ChainState {
             .collect();
 
         Ok(v)
+    }
+
+    /// Return the number of consolidated blocks
+    pub fn block_number(&self) -> u32 {
+        u32::try_from(self.block_chain.len()).unwrap()
     }
 }
 
@@ -2326,7 +2336,7 @@ fn update_utxo_outputs(
     utxo: &mut UnspentOutputsPool,
     outputs: &[ValueTransferOutput],
     txn_hash: Hash,
-    block_epoch: Epoch,
+    block_number: u32,
 ) {
     for (index, output) in outputs.iter().enumerate() {
         // Add the new outputs to the utxo_set
@@ -2335,7 +2345,7 @@ fn update_utxo_outputs(
             output_index: u32::try_from(index).unwrap(),
         };
 
-        utxo.insert(output_pointer, output.clone(), block_epoch);
+        utxo.insert(output_pointer, output.clone(), block_number);
     }
 }
 
@@ -2343,7 +2353,7 @@ fn update_utxo_outputs(
 pub fn generate_unspent_outputs_pool(
     unspent_outputs_pool: &UnspentOutputsPool,
     transactions: &[Transaction],
-    block_epoch: Epoch,
+    block_number: u32,
 ) -> UnspentOutputsPool {
     // Create a copy of the state "unspent_outputs_pool"
     let mut unspent_outputs = unspent_outputs_pool.clone();
@@ -2357,7 +2367,7 @@ pub fn generate_unspent_outputs_pool(
                     &mut unspent_outputs,
                     &vt_transaction.body.outputs,
                     txn_hash,
-                    block_epoch,
+                    block_number,
                 );
             }
             Transaction::DataRequest(dr_transaction) => {
@@ -2366,7 +2376,7 @@ pub fn generate_unspent_outputs_pool(
                     &mut unspent_outputs,
                     &dr_transaction.body.outputs,
                     txn_hash,
-                    block_epoch,
+                    block_number,
                 );
             }
             Transaction::Tally(tally_transaction) => {
@@ -2374,7 +2384,7 @@ pub fn generate_unspent_outputs_pool(
                     &mut unspent_outputs,
                     &tally_transaction.outputs,
                     txn_hash,
-                    block_epoch,
+                    block_number,
                 );
             }
             Transaction::Mint(mint_transaction) => {
@@ -2382,7 +2392,7 @@ pub fn generate_unspent_outputs_pool(
                     &mut unspent_outputs,
                     &[mint_transaction.output.clone()],
                     txn_hash,
-                    block_epoch,
+                    block_number,
                 );
             }
             _ => {}
@@ -3198,14 +3208,14 @@ mod tests {
                 .parse()
                 .unwrap();
         p.insert(k0.clone(), v(), 0);
-        assert_eq!(p.utxo_epoch(&k0), Some(0));
+        assert_eq!(p.included_in_block_number(&k0), Some(0));
 
         let k1: OutputPointer =
             "1222222222222222222222222222222222222222222222222222222222222222:0"
                 .parse()
                 .unwrap();
         p.insert(k1.clone(), v(), 1);
-        assert_eq!(p.utxo_epoch(&k1), Some(1));
+        assert_eq!(p.included_in_block_number(&k1), Some(1));
 
         // k2 points to the same transaction as k1, so they must have the same coin age
         let k2: OutputPointer =
@@ -3213,21 +3223,21 @@ mod tests {
                 .parse()
                 .unwrap();
         p.insert(k2.clone(), v(), 1);
-        assert_eq!(p.utxo_epoch(&k2), Some(1));
+        assert_eq!(p.included_in_block_number(&k2), Some(1));
 
         // Removing k2 should not affect k1
         p.remove(&k2);
-        assert_eq!(p.utxo_epoch(&k2), None);
-        assert_eq!(p.utxo_epoch(&k1), Some(1));
-        assert_eq!(p.utxo_epoch(&k0), Some(0));
+        assert_eq!(p.included_in_block_number(&k2), None);
+        assert_eq!(p.included_in_block_number(&k1), Some(1));
+        assert_eq!(p.included_in_block_number(&k0), Some(0));
 
         p.remove(&k1);
-        assert_eq!(p.utxo_epoch(&k2), None);
-        assert_eq!(p.utxo_epoch(&k1), None);
-        assert_eq!(p.utxo_epoch(&k0), Some(0));
+        assert_eq!(p.included_in_block_number(&k2), None);
+        assert_eq!(p.included_in_block_number(&k1), None);
+        assert_eq!(p.included_in_block_number(&k0), Some(0));
 
         p.remove(&k0);
-        assert_eq!(p.utxo_epoch(&k0), None);
+        assert_eq!(p.included_in_block_number(&k0), None);
 
         assert_eq!(p, UnspentOutputsPool::default());
     }
@@ -3250,7 +3260,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn utxo_set_insert_same_transaction_different_epoch() {
-        // Inserting the same transaction twice with different block epoch number panics
+        // Inserting the same transaction twice with different block number panics
         let mut p = UnspentOutputsPool::default();
         let v = || ValueTransferOutput::default();
 

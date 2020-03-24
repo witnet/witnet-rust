@@ -1117,6 +1117,7 @@ pub fn update_utxo_diff(
 }
 
 /// Function to validate transactions in a block and update a utxo_set and a `TransactionsPool`
+#[allow(clippy::too_many_arguments)]
 pub fn validate_block_transactions(
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
@@ -1125,10 +1126,11 @@ pub fn validate_block_transactions(
     rep_eng: &ReputationEngine,
     genesis_block_hash: Hash,
     epoch_constants: EpochConstants,
+    block_number: u32,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == genesis_block_hash;
-    let mut utxo_diff = UtxoDiff::new(utxo_set, epoch);
+    let mut utxo_diff = UtxoDiff::new(utxo_set, block_number);
 
     // Init total fee
     let mut total_fee = 0;
@@ -1434,9 +1436,10 @@ pub fn validate_new_transaction(
     current_block_hash: Hash,
     current_epoch: Epoch,
     epoch_constants: EpochConstants,
+    block_number: u32,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
 ) -> Result<(), failure::Error> {
-    let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, current_epoch);
+    let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, block_number);
 
     match transaction {
         Transaction::ValueTransfer(tx) => validate_vt_transaction(
@@ -1725,22 +1728,22 @@ pub struct Diff {
     utxos_to_add: UnspentOutputsPool,
     utxos_to_remove: HashSet<OutputPointer>,
     utxos_to_remove_dr: Vec<OutputPointer>,
-    block_epoch: Epoch,
+    block_number: u32,
 }
 
 impl Diff {
-    pub fn new(block_epoch: Epoch) -> Self {
+    pub fn new(block_number: u32) -> Self {
         Self {
             utxos_to_add: Default::default(),
             utxos_to_remove: Default::default(),
             utxos_to_remove_dr: vec![],
-            block_epoch,
+            block_number,
         }
     }
 
     pub fn apply(mut self, utxo_set: &mut UnspentOutputsPool) {
         for (output_pointer, output) in self.utxos_to_add.drain() {
-            utxo_set.insert(output_pointer, output, self.block_epoch);
+            utxo_set.insert(output_pointer, output, self.block_number);
         }
 
         for output_pointer in self.utxos_to_remove.iter() {
@@ -1759,8 +1762,8 @@ impl Diff {
     /// use std::collections::HashMap;
     /// use witnet_validations::validations::Diff;
     ///
-    /// let block_epoch = 0;
-    /// let diff = Diff::new(block_epoch);
+    /// let block_number = 0;
+    /// let diff = Diff::new(block_number);
     /// let mut hashmap = HashMap::new();
     /// diff.visit(&mut hashmap, |hashmap, output_pointer, output| {
     ///     hashmap.insert(output_pointer.clone(), output.clone());
@@ -1804,7 +1807,7 @@ impl<'a> UtxoDiff<'a> {
     pub fn insert_utxo(&mut self, output_pointer: OutputPointer, output: ValueTransferOutput) {
         self.diff
             .utxos_to_add
-            .insert(output_pointer, output, self.diff.block_epoch);
+            .insert(output_pointer, output, self.diff.block_number);
     }
 
     /// Record a deletion to perform on the utxo set
