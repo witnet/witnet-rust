@@ -546,7 +546,7 @@ mod tests {
         dr_pointer: Hash,
     ) -> (Hash, DataRequestPool, Hash) {
         let commit_transaction = CommitTransaction::new(
-            CommitTransactionBody::new(
+            CommitTransactionBody::without_collateral(
                 dr_pointer,
                 Hash::default(),
                 DataRequestEligibilityClaim::default(),
@@ -685,7 +685,7 @@ mod tests {
         let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
 
         let commit_transaction = CommitTransaction::new(
-            CommitTransactionBody::new(
+            CommitTransactionBody::without_collateral(
                 dr_pointer,
                 Hash::default(),
                 DataRequestEligibilityClaim::default(),
@@ -698,7 +698,7 @@ mod tests {
             bytes: [1; 32],
         };
         let commit_transaction2 = CommitTransaction::new(
-            CommitTransactionBody::new(
+            CommitTransactionBody::without_collateral(
                 dr_pointer,
                 Hash::default(),
                 DataRequestEligibilityClaim::default(),
@@ -773,7 +773,7 @@ mod tests {
         let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
 
         let commit_transaction = CommitTransaction::new(
-            CommitTransactionBody::new(
+            CommitTransactionBody::without_collateral(
                 dr_pointer,
                 Hash::default(),
                 DataRequestEligibilityClaim::default(),
@@ -786,7 +786,7 @@ mod tests {
             bytes: [1; 32],
         };
         let commit_transaction2 = CommitTransaction::new(
-            CommitTransactionBody::new(
+            CommitTransactionBody::without_collateral(
                 dr_pointer,
                 Hash::default(),
                 DataRequestEligibilityClaim::default(),
@@ -859,7 +859,7 @@ mod tests {
         let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
 
         let commit_transaction = CommitTransaction::new(
-            CommitTransactionBody::new(
+            CommitTransactionBody::without_collateral(
                 dr_pointer,
                 Hash::default(),
                 DataRequestEligibilityClaim::default(),
@@ -872,7 +872,7 @@ mod tests {
             bytes: [1; 32],
         };
         let commit_transaction2 = CommitTransaction::new(
-            CommitTransactionBody::new(
+            CommitTransactionBody::without_collateral(
                 dr_pointer,
                 Hash::default(),
                 DataRequestEligibilityClaim::default(),
@@ -949,7 +949,7 @@ mod tests {
         let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
 
         let commit_transaction = CommitTransaction::new(
-            CommitTransactionBody::new(
+            CommitTransactionBody::without_collateral(
                 dr_pointer,
                 Hash::default(),
                 DataRequestEligibilityClaim::default(),

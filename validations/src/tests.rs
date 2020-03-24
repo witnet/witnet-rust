@@ -2734,7 +2734,7 @@ fn reveal_valid_commitment() {
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment,
             DataRequestEligibilityClaim::default(),
@@ -2844,7 +2844,7 @@ fn dr_pool_with_dr_in_tally_stage(
 
     let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
     let commit_transaction = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment,
             DataRequestEligibilityClaim::default(),
@@ -3023,7 +3023,7 @@ fn dr_pool_with_dr_in_tally_stage_no_reveals() -> (
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment,
             DataRequestEligibilityClaim::default(),
@@ -3147,7 +3147,7 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment,
             DataRequestEligibilityClaim::default(),
@@ -3164,7 +3164,7 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
     let commitment2 = reveal_signature2.signature.hash();
 
     let commit_transaction2 = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment2,
             DataRequestEligibilityClaim::default(),
@@ -3260,7 +3260,7 @@ fn dr_pool_with_dr_in_tally_stage_3_reveals_data_requester_lie(
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment,
             DataRequestEligibilityClaim::default(),
@@ -3277,7 +3277,7 @@ fn dr_pool_with_dr_in_tally_stage_3_reveals_data_requester_lie(
     let commitment2 = reveal_signature2.signature.hash();
 
     let commit_transaction2 = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment2,
             DataRequestEligibilityClaim::default(),
@@ -3295,7 +3295,7 @@ fn dr_pool_with_dr_in_tally_stage_3_reveals_data_requester_lie(
     let commitment3 = reveal_signature3.signature.hash();
 
     let commit_transaction3 = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment3,
             DataRequestEligibilityClaim::default(),
@@ -3374,7 +3374,7 @@ fn tally_dr_not_tally_stage() {
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment,
             DataRequestEligibilityClaim::default(),
@@ -4646,7 +4646,7 @@ fn block_duplicated_reveals() {
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment,
             DataRequestEligibilityClaim::default(),
@@ -4663,7 +4663,7 @@ fn block_duplicated_reveals() {
     let commitment2 = reveal_signature2.signature.hash();
 
     let commit_transaction2 = CommitTransaction::new(
-        CommitTransactionBody::new(
+        CommitTransactionBody::without_collateral(
             dr_pointer,
             commitment2,
             DataRequestEligibilityClaim::default(),

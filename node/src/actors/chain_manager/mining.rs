@@ -29,6 +29,7 @@ use witnet_data_structures::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
 };
 use witnet_rad::{error::RadError, types::serial_iter_decode};
+use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
     merkle_tree_root, update_utxo_diff, vt_transaction_fee, UtxoDiff,
@@ -36,7 +37,10 @@ use witnet_validations::validations::{
 
 use crate::{
     actors::{
-        chain_manager::{transaction_factory::sign_transaction, ChainManager, StateMachine},
+        chain_manager::{
+            transaction_factory::{build_commit_collateral, sign_transaction},
+            ChainManager, StateMachine,
+        },
         messages::{
             AddCandidates, AddCommitReveal, GetHighestCheckpointBeacon, ResolveRA, RunTally,
         },
@@ -44,6 +48,7 @@ use crate::{
     },
     signature_mngr,
 };
+use witnet_data_structures::error::TransactionError;
 
 impl ChainManager {
     /// Try to mine a block
@@ -242,6 +247,8 @@ impl ChainManager {
         let own_pkh = self.own_pkh.unwrap();
         let current_epoch = self.current_epoch.unwrap();
         let data_request_timeout = self.data_request_timeout;
+        let tx_pending_timeout = self.tx_pending_timeout;
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
 
         // Data Request mining
         let dr_pointers = self
@@ -287,9 +294,12 @@ impl ChainManager {
 
             // Grab a reference to `current_retrieval_count`
             let cloned_retrieval_count = Arc::clone(&current_retrieval_count);
+            let cloned_retrieval_count2 = Arc::clone(&current_retrieval_count);
             let added_retrieval_count =
                 u16::try_from(data_request_output.data_request.retrieve.len())
                     .unwrap_or(core::u16::MAX);
+
+            let collateral_amount = data_request_output.collateral;
 
             signature_mngr::vrf_prove(VrfMessage::data_request(dr_beacon, dr_pointer))
                 .map_err(move |e| {
@@ -375,7 +385,44 @@ impl ChainManager {
                         }
                     }
                 })
-                .and_then(move |vrf_proof| {
+                .into_actor(self)
+                // Get collateral
+                .and_then(move |vrf_proof, act, _| {
+                    let coinage = act.chain_state.chain_info.as_ref().unwrap().consensus_constants.collateral_age;
+                    let block_number_limit = act.chain_state.block_number().saturating_sub(coinage);
+                    // Check if we have enough collateral before starting retrieval
+                    match build_commit_collateral(
+                        collateral_amount,
+                        &mut act.chain_state.own_utxos,
+                        own_pkh,
+                        &act.chain_state.unspent_outputs_pool,
+                        timestamp,
+                        tx_pending_timeout,
+                        // The block number must be lower than this limit
+                        block_number_limit
+                    ) {
+                        Ok(collateral) => actix::fut::ok((vrf_proof, collateral)),
+                        Err(TransactionError::NoMoney {
+                                available_balance, transaction_value, ..
+                        }) => {
+                            let required_collateral = transaction_value;
+                            log::warn!("Not enough mature UTXOs for collateral for data request {}: Available balance: {}, Required collateral: {}",
+                                Yellow.bold().paint(dr_pointer.to_string()),
+                                available_balance,
+                                required_collateral,
+                            );
+                            // Decrease the retrieval limit hoping that some other, cheaper,
+                            // data request can be resolved instead
+                            cloned_retrieval_count2.fetch_sub(added_retrieval_count, atomic::Ordering::Relaxed);
+                            actix::fut::err(())
+                        }
+                        Err(e) => {
+                            log::error!("Unexpected error when trying to select UTXOs to be used for collateral in data request {}: {}", dr_pointer, e);
+                            actix::fut::err(())
+                        }
+                    }
+                })
+                .and_then(move |(vrf_proof, collateral), act, _| {
                     let rad_request = data_request_output.data_request.clone();
 
                     // Send ResolveRA message to RADManager
@@ -386,7 +433,7 @@ impl ChainManager {
                             timeout: data_request_timeout,
                         })
                         .map(move |result| match result {
-                            Ok(value) => Ok((vrf_proof, value)),
+                            Ok(value) => Ok((vrf_proof, collateral, value)),
                             Err(e) => {
                                 log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e);
                                 Err(())
@@ -395,16 +442,28 @@ impl ChainManager {
                         .map_err(move |e| {
                             log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e)
                         })
+                        .into_actor(act)
                 })
-                .flatten()
-                .and_then(move |(vrf_proof, reveal_value)| {
+                .then(|res, _, _| {
+                    // This is .flatten()
+                    match res {
+                        Ok(Ok(x)) => actix::fut::ok(x),
+                        Ok(Err(())) => actix::fut::err(()),
+                        Err(()) => actix::fut::err(()),
+                    }
+                })
+                .and_then(move |(vrf_proof, collateral, reveal_value), _, _| {
                     let vrf_proof_dr = DataRequestEligibilityClaim { proof: vrf_proof };
 
-                    Vec::<u8>::try_from(&reveal_value)
-                        .map(|reveal_bytes| (reveal_bytes, vrf_proof_dr))
-                        .map_err(|e| log::error!("Couldn't decode tally value from bytes: {}", e))
+                    match Vec::<u8>::try_from(&reveal_value) {
+                        Ok(reveal_bytes) => actix::fut::ok((reveal_bytes, vrf_proof_dr, collateral)),
+                        Err(e) => {
+                            log::error!("Couldn't decode tally value from bytes: {}", e);
+                            actix::fut::err(())
+                        },
+                    }
                 })
-                .and_then(move |(reveal_bytes, vrf_proof_dr)| {
+                .and_then(move |(reveal_bytes, vrf_proof_dr, collateral), act, _| {
                     let reveal_body = RevealTransactionBody::new(dr_pointer, reveal_bytes, own_pkh);
 
                     sign_transaction(&reveal_body, 1)
@@ -413,8 +472,9 @@ impl ChainManager {
                             // Commitment is the hash of the RevealTransaction signature
                             // that will be published later
                             let commitment = reveal_signatures[0].signature.hash();
+                            let (inputs, outputs) = collateral;
                             let commit_body =
-                                CommitTransactionBody::new(dr_pointer, commitment, vrf_proof_dr);
+                                CommitTransactionBody::new(dr_pointer, commitment, vrf_proof_dr, inputs, outputs);
 
                             sign_transaction(&commit_body, 1)
                                 .map(|commit_signatures| {
@@ -426,8 +486,8 @@ impl ChainManager {
                                 })
                                 .map_err(|e| log::error!("Couldn't sign commit body: {}", e))
                         })
+                        .into_actor(act)
                 })
-                .into_actor(self)
                 .and_then(move |(commit_transaction, reveal_transaction), _act, ctx| {
                     ctx.notify(AddCommitReveal {
                         commit_transaction,
