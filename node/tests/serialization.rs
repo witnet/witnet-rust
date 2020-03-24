@@ -31,6 +31,8 @@ fn chain_state() {
             reputation_penalization_factor: 0.0,
             mining_backup_factor: 0,
             mining_replication_factor: 0,
+            collateral_minimum: 0,
+            collateral_age: 0,
         },
         highest_block_checkpoint: CheckpointBeacon {
             checkpoint: 0,

@@ -190,6 +190,19 @@ pub trait Defaults {
         4
     }
 
+    /// Minimum value in nanowits for a collateral value
+    fn consensus_constants_collateral_minimum(&self) -> u64 {
+        // 1 wit = 1_000_000_000 nanowits
+        1_000_000_000
+    }
+
+    /// Minimum input age of an UTXO for being a valid collateral
+    fn consensus_constants_collateral_age(&self) -> u32 {
+        // FIXME(#1112): Choose a properly value
+        // 2000 blocks
+        2000
+    }
+
     /// Wallet server address
     fn wallet_server_addr(&self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 11212)
