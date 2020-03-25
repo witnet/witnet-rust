@@ -334,9 +334,7 @@ impl Handler<PeerBeacon> for SessionsManager {
     type Result = ();
 
     fn handle(&mut self, msg: PeerBeacon, ctx: &mut Context<Self>) {
-        if !self.beacons.insert(msg.address, msg.beacon) {
-            log::debug!("Unexpected beacon from {}", msg.address);
-        }
+        self.beacons.insert(msg.address, msg.beacon);
 
         // Check if we have all the beacons, and sent PeersBeacons message to ChainManager
         match self.try_send_peers_beacons(ctx) {

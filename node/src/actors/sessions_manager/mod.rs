@@ -216,7 +216,7 @@ impl SessionsManager {
             .outbound_consolidated
             .limit
             .map(|x| x as usize);
-        if Some(self.beacons.total_count()) != expected_peers {
+        if Some(self.beacons.total_count()) < expected_peers {
             return Err(NotSendingPeersBeaconsBecause::BootstrapNeeded);
         }
 

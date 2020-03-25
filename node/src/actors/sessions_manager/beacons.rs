@@ -1,4 +1,3 @@
-use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use witnet_data_structures::chain::CheckpointBeacon;
@@ -50,28 +49,17 @@ impl Beacons {
     }
 
     /// Insert a beacon. Overwrites already existing entries.
-    /// Returns true if the element was inserted correctly, and false if it a
-    /// beacon from this peer was not expected
-    pub fn insert(&mut self, k: SocketAddr, v: CheckpointBeacon) -> bool {
-        if self.peers_not_beacon.remove(&k) {
-            // If we were waiting for a beacon from this peer, remove it from
-            // peers_not_beacon and insert it to peers_with_beacon
-            self.peers_with_beacon.insert(k, v);
+    pub fn insert(&mut self, k: SocketAddr, v: CheckpointBeacon) {
+        // Remove the peer from the waiting list
+        // If we were not expecting a beacon from this peer, it doesn't matter,
+        // act as if we had been expecting it
+        self.peers_not_beacon.remove(&k);
 
-            true
-        } else if let Entry::Occupied(mut e) = self.peers_with_beacon.entry(k) {
-            // If we already have a beacon from this peers, overwrite it
-            // So if a peer sends us more than one beacon, we use the last one
-            // Except if we already have sent the peers beacons message, then
-            // we will just ignore this beacon
-            e.insert(v);
-
-            true
-        } else {
-            // We got an unexpected beacon
-
-            false
-        }
+        // If we already have a beacon from this peers, overwrite it
+        // So if a peer sends us more than one beacon, we use the last one
+        // Except if we already have sent the peers beacons message, then
+        // we will just ignore this beacon
+        self.peers_with_beacon.insert(k, v);
     }
 
     /// Get all the beacons in order to send a PeersBeacons message.
