@@ -56,6 +56,9 @@ pub struct ExtendedKeyedSignature {
     pub chaincode: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct Block {}
+
 fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     t == &T::default()
 }

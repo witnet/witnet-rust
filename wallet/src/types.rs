@@ -148,9 +148,26 @@ pub struct BuildVtt {
     pub fee: u64,
 }
 
+/// Params of getBlockChain method
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct GetBlockChainParams {
+    /// First epoch for which to return block hashes.
+    /// If negative, return block hashes from the last n epochs.
+    #[serde(default)] // default to 0
+    pub epoch: i64,
+    /// Number of block hashes to return.
+    /// If negative, return the last n block hashes from this epoch range.
+    /// If zero, unlimited.
+    #[serde(default)] // default to 0
+    pub limit: i64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct ExtendedKeyedSignature {
     pub chaincode: Protected,
     pub public_key: PublicKey,
     pub signature: Signature,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ChainEntry(pub u32, pub String);

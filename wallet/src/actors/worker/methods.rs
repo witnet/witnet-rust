@@ -223,6 +223,7 @@ impl Worker {
         block: &model::BlockInfo,
         txns: &[types::Transaction],
     ) -> Result<()> {
+        log::debug!("trying to index txns from epoch {}", block.epoch);
         wallet.index_transactions(block, txns)?;
 
         Ok(())
