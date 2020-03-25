@@ -61,7 +61,13 @@ impl ChainManager {
             })
             .and_then(|config, act, _ctx| {
                 let consensus_constants = config.consensus_constants.clone();
+
+                // Set ChainManager parameters related with the consensus constants
+                act.bootstrap_hash = consensus_constants.bootstrap_hash;
+                act.genesis_block_hash = consensus_constants.genesis_hash;
                 act.max_block_weight = consensus_constants.max_block_weight;
+                act.collateral_minimum = consensus_constants.collateral_minimum;
+
                 if config.mining.data_request_timeout == Duration::new(0, 0) {
                     act.data_request_timeout = None;
                 } else {
@@ -75,10 +81,6 @@ impl ChainManager {
 
                 let magic = consensus_constants.get_magic();
                 act.set_magic(magic);
-
-                // Store the bootstrap hash, genesis block hash and genesis mining flag
-                act.bootstrap_hash = config.consensus_constants.bootstrap_hash;
-                act.genesis_block_hash = config.consensus_constants.genesis_hash;
 
                 // Do not start the MiningManager if the configuration disables it
                 act.mining_enabled = config.mining.enabled;

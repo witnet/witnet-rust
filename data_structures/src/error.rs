@@ -200,6 +200,12 @@ pub enum TransactionError {
         expected: Vec<PublicKeyHash>,
         found: Vec<PublicKeyHash>,
     },
+    /// Invalid collateral
+    #[fail(
+        display = "The specified collateral ({} nwits), is less than the minimum required ({} nwits)",
+        value, min
+    )]
+    InvalidCollateral { value: u64, min: u64 },
 }
 
 /// The error type for operations on a [`Block`](Block)

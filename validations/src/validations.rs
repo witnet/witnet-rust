@@ -583,6 +583,7 @@ pub fn validate_dr_transaction<'a>(
     epoch: Epoch,
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    collateral_minimum: u64,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     validate_transaction_signature(
         &dr_tx.signatures,
@@ -606,6 +607,18 @@ pub fn validate_dr_transaction<'a>(
     let fee = dr_transaction_fee(dr_tx, utxo_diff, epoch, epoch_constants)?;
 
     validate_data_request_output(&dr_tx.body.dr_output)?;
+
+    // Collateral value validation
+    // If collateral is equal to 0 means that is equal to collateral_minimum value
+    if (dr_tx.body.dr_output.collateral != 0)
+        && (dr_tx.body.dr_output.collateral < collateral_minimum)
+    {
+        return Err(TransactionError::InvalidCollateral {
+            value: dr_tx.body.dr_output.collateral,
+            min: collateral_minimum,
+        }
+        .into());
+    }
 
     validate_rad_request(&dr_tx.body.dr_output.data_request)?;
 
@@ -1127,6 +1140,7 @@ pub fn validate_block_transactions(
     genesis_block_hash: Hash,
     epoch_constants: EpochConstants,
     block_number: u32,
+    collateral_minimum: u64,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == genesis_block_hash;
@@ -1183,6 +1197,7 @@ pub fn validate_block_transactions(
             epoch,
             epoch_constants,
             signatures_to_verify,
+            collateral_minimum,
         )?;
         total_fee += fee;
 
@@ -1426,6 +1441,7 @@ pub fn validate_candidate(
 }
 
 /// Validate a standalone transaction received from the network
+#[allow(clippy::too_many_arguments)]
 pub fn validate_new_transaction(
     transaction: Transaction,
     (reputation_engine, unspent_outputs_pool, data_request_pool): (
@@ -1438,6 +1454,7 @@ pub fn validate_new_transaction(
     epoch_constants: EpochConstants,
     block_number: u32,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    collateral_minimum: u64,
 ) -> Result<(), failure::Error> {
     let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, block_number);
 
@@ -1457,6 +1474,7 @@ pub fn validate_new_transaction(
             current_epoch,
             epoch_constants,
             signatures_to_verify,
+            collateral_minimum,
         )
         .map(|_| ()),
         Transaction::Commit(tx) => {

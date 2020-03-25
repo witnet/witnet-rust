@@ -30,6 +30,7 @@ use witnet_rad::{
 static MY_PKH: &str = "wit18cfejmk3305y9kw5xqa59rwnpjzahr57us48vm";
 static MY_PKH_2: &str = "wit1z8mxkml4a50dyysqczsp7gj5pnvz3jsldras8t";
 static MY_PKH_3: &str = "wit164gu2l8p7suvc7zq5xvc27h63td75g6uspwpn5";
+static ONE_WIT: u64 = 1_000_000_000;
 
 fn verify_signatures_test(
     signatures_to_verify: Vec<SignaturesToVerify>,
@@ -1172,6 +1173,7 @@ fn data_request_no_inputs() {
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
 
@@ -1183,6 +1185,7 @@ fn data_request_no_inputs() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1203,6 +1206,7 @@ fn data_request_no_inputs_but_one_signature() {
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
 
@@ -1215,6 +1219,7 @@ fn data_request_no_inputs_but_one_signature() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1243,6 +1248,7 @@ fn data_request_one_input_but_no_signature() {
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
 
@@ -1256,6 +1262,7 @@ fn data_request_one_input_but_no_signature() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1283,6 +1290,7 @@ fn data_request_one_input_signatures() {
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
 
@@ -1298,6 +1306,7 @@ fn data_request_one_input_signatures() {
             Epoch::default(),
             EpochConstants::default(),
             &mut signatures_to_verify,
+            ONE_WIT,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -1321,6 +1330,7 @@ fn data_request_input_not_in_utxo() {
         witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
 
@@ -1333,6 +1343,7 @@ fn data_request_input_not_in_utxo() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1361,6 +1372,7 @@ fn data_request_input_not_enough_value() {
         witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
 
@@ -1373,6 +1385,7 @@ fn data_request_input_not_enough_value() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1421,6 +1434,7 @@ fn data_request_output_value_overflow() {
         witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
 
@@ -1433,6 +1447,7 @@ fn data_request_output_value_overflow() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1463,6 +1478,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     )
     .map(|_| ())
 }
@@ -1472,6 +1488,7 @@ fn test_rad_request(data_request: RADRequest) -> Result<(), failure::Error> {
         witness_reward: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     })
@@ -1554,6 +1571,7 @@ fn data_request_witnesses_0() {
         witness_reward: 500,
         witnesses: 0,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1572,6 +1590,7 @@ fn data_request_witnesses_1() {
         witness_reward: 1000,
         witnesses: 1,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1585,12 +1604,33 @@ fn data_request_no_value() {
         witness_reward: 0,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     });
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoReward,
+    );
+}
+
+#[test]
+fn data_request_insufficient_collateral() {
+    let data_request = example_data_request();
+    let x = test_drtx(DataRequestOutput {
+        witness_reward: 10,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: 1000,
+        data_request,
+        ..DataRequestOutput::default()
+    });
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::InvalidCollateral {
+            value: 1000,
+            min: ONE_WIT
+        },
     );
 }
 
@@ -1602,6 +1642,7 @@ fn data_request_minimum_value() {
         witness_reward: 1,
         witnesses: 1,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1621,6 +1662,7 @@ fn data_request_no_reward() {
         tally_fee: 500,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     });
@@ -1640,6 +1682,7 @@ fn data_request_value_overflow() {
         tally_fee: 1,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1696,6 +1739,7 @@ fn data_request_miner_fee() {
         witness_reward: 750 / 2,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1719,6 +1763,7 @@ fn data_request_miner_fee() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -1734,6 +1779,7 @@ fn data_request_miner_fee_with_change() {
         witness_reward: 750 / 2,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1762,6 +1808,7 @@ fn data_request_miner_fee_with_change() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -1777,6 +1824,7 @@ fn data_request_miner_fee_with_too_much_change() {
         witness_reward: 750 / 2,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1805,6 +1853,7 @@ fn data_request_miner_fee_with_too_much_change() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1821,6 +1870,7 @@ fn data_request_zero_value_output() {
         witness_reward: 750 / 2,
         witnesses: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         data_request,
         ..DataRequestOutput::default()
     };
@@ -1849,6 +1899,7 @@ fn data_request_zero_value_output() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        ONE_WIT,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1878,7 +1929,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     .map(|_| ())
 }
 
-static DR_HASH: &str = "0a866ced5ca378e3e01a75f755384972868e99f838dec4ddb06adc465f5e481c";
+static DR_HASH: &str = "2b3e5252d9266d5bc62666052e9a6a8b00167c04a2339c3929acd62aee5aa4f4";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
@@ -1891,6 +1942,7 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -1949,6 +2001,7 @@ fn test_commit_difficult_proof() {
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -2010,6 +2063,7 @@ fn test_commit() -> Result<(), failure::Error> {
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -2191,6 +2245,7 @@ fn commitment_invalid_proof() {
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -2249,6 +2304,7 @@ fn commitment_dr_in_reveal_stage() {
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -2324,6 +2380,7 @@ fn commitment_timelock() {
             witnesses: 1,
             min_consensus_percentage: 51,
             data_request: rad_request,
+            collateral: ONE_WIT,
             ..DataRequestOutput::default()
         };
         let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -2393,6 +2450,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -2516,6 +2574,7 @@ fn reveal_dr_in_commit_stage() {
         witnesses: 1,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -2646,6 +2705,7 @@ fn reveal_valid_commitment() {
         reveal_fee: 20,
         extra_reveal_rounds: 2,
         min_consensus_percentage: 51,
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_transaction = DRTransaction {
@@ -2753,6 +2813,7 @@ fn dr_pool_with_dr_in_tally_stage(
         witness_reward: 1000 / 5,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_transaction_body = DRTransactionBody::new(vec![], vec![], dr_output);
@@ -2871,6 +2932,7 @@ fn dr_pool_with_dr_in_tally_stage_no_commits(
         witness_reward: 200,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
 
@@ -2928,6 +2990,7 @@ fn dr_pool_with_dr_in_tally_stage_no_reveals() -> (
         witness_reward: 200,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
 
@@ -3052,6 +3115,7 @@ fn dr_pool_with_dr_in_tally_stage_2_reveals(
         witness_reward: 1300 / 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_transaction = DRTransaction {
@@ -3165,6 +3229,7 @@ fn dr_pool_with_dr_in_tally_stage_3_reveals_data_requester_lie(
         witness_reward: 500,
         min_consensus_percentage: 51,
         data_request: example_data_request_with_mode_filter(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_transaction = DRTransaction {
@@ -3289,6 +3354,7 @@ fn tally_dr_not_tally_stage() {
         witness_reward: 1000 / 5,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_transaction_body = DRTransactionBody::new(vec![], vec![], dr_output);
@@ -4108,6 +4174,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         genesis_block_hash,
         EpochConstants::default(),
         block_number,
+        ONE_WIT,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -4344,6 +4411,7 @@ fn block_difficult_proof() {
                 genesis_block_hash,
                 EpochConstants::default(),
                 block_number,
+                ONE_WIT,
             )?;
             verify_signatures_test(signatures_to_verify)?;
 
@@ -4468,6 +4536,7 @@ fn block_duplicated_commits() {
         witnesses: 2,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -4545,6 +4614,7 @@ fn block_duplicated_reveals() {
         reveal_fee: 50,
         min_consensus_percentage: 51,
         data_request: example_data_request(),
+        collateral: ONE_WIT,
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], vec![], dro);
@@ -4869,6 +4939,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             genesis_block_hash,
             EpochConstants::default(),
             block_number,
+            ONE_WIT,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -5068,6 +5139,7 @@ fn block_add_drt() {
             witness_reward: 750 / 2,
             witnesses: 2,
             min_consensus_percentage: 51,
+            collateral: ONE_WIT,
             data_request,
             ..DataRequestOutput::default()
         };
@@ -5103,6 +5175,7 @@ fn block_add_2_drt_same_input() {
             witness_reward: 750 / 2,
             witnesses: 2,
             min_consensus_percentage: 51,
+            collateral: ONE_WIT,
             data_request,
             ..DataRequestOutput::default()
         };
@@ -5122,6 +5195,7 @@ fn block_add_2_drt_same_input() {
         let dr_output = DataRequestOutput {
             witness_reward: 750 / 2,
             witnesses: 2,
+            collateral: ONE_WIT,
             data_request,
             ..DataRequestOutput::default()
         };
@@ -5163,6 +5237,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
             witnesses: 2,
             min_consensus_percentage: 51,
             data_request,
+            collateral: ONE_WIT,
             ..DataRequestOutput::default()
         };
 
@@ -5372,6 +5447,7 @@ fn genesis_block_value_overflow() {
         genesis_block_hash,
         EpochConstants::default(),
         block_number,
+        ONE_WIT,
     );
     assert_eq!(signatures_to_verify, vec![]);
     assert_eq!(
@@ -5429,6 +5505,7 @@ fn genesis_block_full_validate() {
         genesis_block_hash,
         EpochConstants::default(),
         block_number,
+        ONE_WIT,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -5489,6 +5566,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             genesis_block_hash,
             EpochConstants::default(),
             block_number,
+            ONE_WIT,
         )
         .unwrap()
     };

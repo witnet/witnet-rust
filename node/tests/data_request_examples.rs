@@ -228,6 +228,7 @@ mod examples {
                 extra_commit_rounds: 3,
                 extra_reveal_rounds: 3,
                 min_consensus_percentage: 51,
+                collateral: 1_000_000_000,
             },
             fee: 10,
         }
@@ -278,6 +279,7 @@ mod examples {
                 extra_commit_rounds: 1,
                 extra_reveal_rounds: 1,
                 min_consensus_percentage: 51,
+                collateral: 1_000_000_000,
             },
             fee: 0,
         }
@@ -326,6 +328,7 @@ mod examples {
                 extra_commit_rounds: 2,
                 extra_reveal_rounds: 2,
                 min_consensus_percentage: 51,
+                collateral: 1_000_000_000,
             },
             fee: 0,
         }
@@ -401,6 +404,7 @@ mod examples {
                 extra_commit_rounds: 1,
                 extra_reveal_rounds: 1,
                 min_consensus_percentage: 51,
+                collateral: 1_000_000_000,
             },
             fee: 0,
         }

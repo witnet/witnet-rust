@@ -189,6 +189,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             self.bootstrap_hash,
                             self.genesis_block_hash,
                             block_number,
+                            self.collateral_minimum,
                         ) {
                             Ok(utxo_diff) => {
                                 let block_pkh = &block_candidate.block_sig.public_key.pkh();

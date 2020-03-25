@@ -169,6 +169,8 @@ pub struct ChainManager {
     tx_pending_timeout: u64,
     /// Magic number from ConsensusConstants
     magic: u16,
+    /// Minimum collateral
+    collateral_minimum: u64,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -305,6 +307,7 @@ impl ChainManager {
                 self.bootstrap_hash,
                 self.genesis_block_hash,
                 block_number,
+                self.collateral_minimum,
             )?;
 
             // Persist block and update ChainState
@@ -590,6 +593,7 @@ impl ChainManager {
                 epoch_constants,
                 self.chain_state.block_number(),
                 &mut signatures_to_verify,
+                self.collateral_minimum,
             ))
             .into_actor(self)
             .and_then(|_, act, _ctx| {
@@ -663,6 +667,7 @@ impl ChainManager {
                 act.genesis_block_hash,
                 epoch_constants,
                 block_number,
+                act.collateral_minimum,
             ))
             .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
             .into_actor(act)
@@ -688,6 +693,7 @@ pub fn process_validations(
     bootstrap_hash: Hash,
     genesis_block_hash: Hash,
     block_number: u32,
+    minimum_collateral: u64,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -712,6 +718,7 @@ pub fn process_validations(
         genesis_block_hash,
         epoch_constants,
         block_number,
+        minimum_collateral,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 
