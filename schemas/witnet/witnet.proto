@@ -140,6 +140,7 @@ message DataRequestOutput {
     uint32 extra_commit_rounds = 8;
     uint32 extra_reveal_rounds = 9;
     uint32 min_consensus_percentage = 10;
+    uint64 collateral = 11;
 }
 
 message Input {

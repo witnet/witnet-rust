@@ -25,6 +25,7 @@ struct DataRequestOutput {
     extra_commit_rounds: u16,
     extra_reveal_rounds: u16,
     min_consensus_percentage: u32,
+    collateral: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,6 +104,7 @@ fn validate(request: DataRequestOutput) -> Result<types::DataRequestOutput, app:
         extra_commit_rounds: request.extra_commit_rounds,
         extra_reveal_rounds: request.extra_reveal_rounds,
         min_consensus_percentage: request.min_consensus_percentage,
+        collateral: request.collateral,
     };
 
     let request = witnet_validations::validations::validate_data_request_output(&req)

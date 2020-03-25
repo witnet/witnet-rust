@@ -919,6 +919,8 @@ pub struct DataRequestOutput {
     // >50 because simple majority
     // <100 because a 100% consensus encourages to commit a RadError for free
     pub min_consensus_percentage: u32,
+    // This field must be >= collateral_minimum
+    pub collateral: u64,
 }
 
 impl DataRequestOutput {
