@@ -1,0 +1,16 @@
+[Unit]
+Description=Witnet Node
+After=network.target auditd.service
+Wants=network.target
+[Service]
+WorkingDirectory=/home/witnet/node
+ExecStart=/home/witnet/node/witnet node server
+User=witnet
+Group=witnet
+Restart=always
+RestartSec=5s
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
+Alias=witnet.service
