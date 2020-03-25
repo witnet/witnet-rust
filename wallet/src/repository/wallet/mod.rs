@@ -73,6 +73,7 @@ where
         ))?;
         let keychains = [external_key, internal_key];
         let epoch_constants = params.epoch_constants;
+        let last_sync = params.last_sync;
 
         let state = RwLock::new(State {
             name,
@@ -86,6 +87,7 @@ where
             transaction_next_id,
             utxo_set,
             epoch_constants,
+            last_sync,
         });
 
         Ok(Self {
@@ -100,6 +102,7 @@ where
         let state = self.state.read()?;
         let current_account = state.account;
         let balance = state.balance;
+        let last_sync = state.last_sync;
 
         Ok(types::WalletData {
             name: state.name.clone(),
@@ -107,6 +110,7 @@ where
             balance,
             current_account,
             available_accounts: state.available_accounts.clone(),
+            last_sync,
         })
     }
 

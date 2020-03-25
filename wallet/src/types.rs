@@ -99,6 +99,7 @@ pub struct WalletData {
     pub balance: u64,
     pub current_account: u32,
     pub available_accounts: Vec<u32>,
+    pub last_sync: u32,
 }
 
 pub struct CreateWalletData<'a> {

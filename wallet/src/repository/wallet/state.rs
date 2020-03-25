@@ -13,4 +13,5 @@ pub struct State {
     pub transaction_next_id: u32,
     pub utxo_set: model::UtxoSet,
     pub epoch_constants: EpochConstants,
+    pub last_sync: u32,
 }

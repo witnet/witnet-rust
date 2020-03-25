@@ -99,6 +99,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         db_iv_length,
         db_salt_length,
         epoch_constants,
+        last_sync: 0,
     };
 
     let worker = actors::Worker::start(concurrency, db.clone(), params);
