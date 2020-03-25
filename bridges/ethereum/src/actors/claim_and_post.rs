@@ -1,4 +1,4 @@
-//! Actor which tries to claim data requests from WBI and posts them to Witnet
+//! Actor which tries to claim data requests from WRB and posts them to Witnet
 
 use crate::{actors::handle_receipt, actors::ClaimMsg, config::Config, eth::EthState};
 use async_jsonrpc_client::{futures::Stream, transports::tcp::TcpSocket, Transport};
@@ -27,7 +27,7 @@ fn convert_json_array_to_eth_bytes(value: Value) -> Result<Bytes, serde_json::Er
 
 type ClaimDataRequestsParams = (Vec<U256>, [U256; 4], [U256; 2], [U256; 2], [U256; 4], Bytes);
 
-/// Check if we can claim a DR from the WBI locally,
+/// Check if we can claim a DR from the WRB locally,
 /// without sending any transactions to Ethereum,
 /// and return all the parameters needed for the real transaction
 fn try_to_claim_local_query(
@@ -38,18 +38,18 @@ fn try_to_claim_local_query(
 ) -> impl Future<Item = (DataRequestOutput, ClaimDataRequestsParams), Error = ()> {
     let eth_account = config.eth_account;
 
-    let wbi_contract = eth_state.wbi_contract.clone();
-    let wbi_contract2 = wbi_contract.clone();
-    let wbi_contract3 = wbi_contract.clone();
-    let wbi_contract5 = wbi_contract.clone();
-    let wbi_contract6 = wbi_contract.clone();
-    let wbi_contract7 = wbi_contract.clone();
+    let wrb_contract = eth_state.wrb_contract.clone();
+    let wrb_contract2 = wrb_contract.clone();
+    let wrb_contract3 = wrb_contract.clone();
+    let wrb_contract5 = wrb_contract.clone();
+    let wrb_contract6 = wrb_contract.clone();
+    let wrb_contract7 = wrb_contract.clone();
     let witnet_client = Arc::clone(&witnet_client);
     let witnet_client2 = Arc::clone(&witnet_client);
     let witnet_client3 = Arc::clone(&witnet_client);
     let witnet_client4 = Arc::clone(&witnet_client);
 
-    wbi_contract
+    wrb_contract
         .query(
             "checkDataRequestsClaimability",
             (vec![dr_id],),
@@ -61,7 +61,7 @@ fn try_to_claim_local_query(
         .and_then(move |claimable: Vec<bool>| {
             match claimable.get(0) {
                 Some(true) => {
-                    Either::A(wbi_contract
+                    Either::A(wrb_contract
                         .query(
                             "readDataRequest",
                             (dr_id,),
@@ -126,7 +126,7 @@ fn try_to_claim_local_query(
                 };
 
             Either::A(
-                wbi_contract2
+                wrb_contract2
                     .query(
                         "getLastBeacon",
                         (),
@@ -206,7 +206,7 @@ fn try_to_claim_local_query(
             info!("[{}] Checking eligibility for claiming dr", dr_id);
 
             Box::new(
-                wbi_contract5
+                wrb_contract5
                     .query(
                         "decodePoint",
                         witnet_pk,
@@ -229,7 +229,7 @@ fn try_to_claim_local_query(
         .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
 
             Box::new(
-                wbi_contract6
+                wrb_contract6
                     .query(
                         "decodeProof",
                         poe,
@@ -252,7 +252,7 @@ fn try_to_claim_local_query(
         .and_then(move |(poe, sign_addr, witnet_pk, dr_output, last_beacon)| {
 
             Box::new(
-                wbi_contract7
+                wrb_contract7
                     .query(
                         "computeFastVerifyParams",
                         (witnet_pk, poe, last_beacon),
@@ -279,7 +279,7 @@ fn try_to_claim_local_query(
             // we can bruteforce the v value by setting it to 0, and if it
             // fails, setting it to 1.
             sign_addr2.push(0);
-            let fut1 = wbi_contract3
+            let fut1 = wrb_contract3
                 .query(
                     "claimDataRequests",
                     (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr.clone()),
@@ -290,7 +290,7 @@ fn try_to_claim_local_query(
                 .map(|_: Token| sign_addr);
             // If the query fails, we want to retry it with the signature "v" value flipped.
             *sign_addr2.last_mut().unwrap() ^= 0x01;
-            let fut2 = wbi_contract3
+            let fut2 = wrb_contract3
                 .query(
                     "claimDataRequests",
                     (vec![dr_id], poe, witnet_pk, u_point, v_point, sign_addr2.clone()),
@@ -322,7 +322,7 @@ fn try_to_claim_local_query(
         })
 }
 
-/// Try to claim DR in WBI and post it to Witnet
+/// Try to claim DR in WRB and post it to Witnet
 fn claim_and_post_dr(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
@@ -333,7 +333,7 @@ fn claim_and_post_dr(
     let eth_account = config.eth_account;
     let post_to_witnet_more_than_once = config.post_to_witnet_more_than_once;
 
-    let wbi_contract = eth_state.wbi_contract.clone();
+    let wrb_contract = eth_state.wrb_contract.clone();
     let witnet_client = Arc::clone(&witnet_client);
 
     try_to_claim_local_query(config, Arc::clone(&eth_state), Arc::clone(&witnet_client), dr_id)
@@ -346,12 +346,12 @@ fn claim_and_post_dr(
             let witnet_client2 = witnet_client.clone();
 
             // Mark the data request as claimed to prevent double claims by other threads
-            eth_state.wbi_requests.write()
-                .and_then(move |mut wbi_requests| {
-                    if wbi_requests.posted().contains(&dr_id) {
-                        wbi_requests.set_claiming(dr_id);
+            eth_state.wrb_requests.write()
+                .and_then(move |mut wrb_requests| {
+                    if wrb_requests.posted().contains(&dr_id) {
+                        wrb_requests.set_claiming(dr_id);
                         Either::A(futures::finished(()))
-                    } else if post_to_witnet_more_than_once && wbi_requests.claimed().contains_left(&dr_id) {
+                    } else if post_to_witnet_more_than_once && wrb_requests.claimed().contains_left(&dr_id) {
                         // Post dr in witnet again.
                         // This may lead to double spending wits.
                         // This can be useful in the following scenarios:
@@ -378,7 +378,7 @@ fn claim_and_post_dr(
                 .and_then(move |()| {
                     let eth_state2 = eth_state.clone();
 
-                    wbi_contract
+                    wrb_contract
                         .call_with_confirmations(
                             "claimDataRequests",
                             claim_data_requests_params,
@@ -404,14 +404,14 @@ fn claim_and_post_dr(
                             })
                         })
                         .and_then(move |()| {
-                            eth_state.wbi_requests.write().map(move |mut wbi_requests| {
-                                wbi_requests.confirm_claim(dr_id, dr_output_hash);
+                            eth_state.wrb_requests.write().map(move |mut wrb_requests| {
+                                wrb_requests.confirm_claim(dr_id, dr_output_hash);
                             })
                         })
                         .or_else(move |()| {
                             // Undo the claim
-                            eth_state2.wbi_requests.write().map(move |mut wbi_requests| {
-                                wbi_requests.undo_claim(dr_id);
+                            eth_state2.wrb_requests.write().map(move |mut wrb_requests| {
+                                wrb_requests.undo_claim(dr_id);
                             }).then(|_| {
                                 // Short-circuit the and_then cascade
                                 Err(())
@@ -435,7 +435,7 @@ fn claim_and_post_dr(
         })
 }
 
-/// Actor which tries to claim data requests from WBI and posts them to Witnet
+/// Actor which tries to claim data requests from WRB and posts them to Witnet
 pub fn claim_and_post(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
@@ -473,11 +473,11 @@ pub fn claim_and_post(
                     dr_id,
                 )),
                 ClaimMsg::Tick => {
-                    Either::B(eth_state.wbi_requests.read().and_then(move |known_dr_ids| {
+                    Either::B(eth_state.wrb_requests.read().and_then(move |known_dr_ids| {
                         let known_dr_ids_posted = known_dr_ids.posted();
                         let known_dr_ids_claimed = known_dr_ids.claimed();
                         debug!(
-                            "Known data requests in WBI: {:?}{:?}",
+                            "Known data requests in WRB: {:?}{:?}",
                             known_dr_ids_posted, known_dr_ids_claimed
                         );
 

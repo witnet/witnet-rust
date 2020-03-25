@@ -32,11 +32,11 @@ pub fn tally_finder(
 
     (handle, Interval::new(Instant::now(), Duration::from_millis(config.witnet_dr_report_polling_rate_ms))
         .map_err(|e| error!("Error creating interval: {:?}", e))
-        .and_then(move |x| eth_state.wbi_requests.read().map(move |wbi_requests| (wbi_requests, x)))
-        .and_then(move |(wbi_requests, _instant)| {
+        .and_then(move |x| eth_state.wrb_requests.read().map(move |wrb_requests| (wrb_requests, x)))
+        .and_then(move |(wrb_requests, _instant)| {
             debug!("Report tick");
             // Try to get the report of a random data request, maybe it already was resolved
-            let included = wbi_requests.included();
+            let included = wrb_requests.included();
             debug!("Included data requests: {:?}", included);
             if included.is_empty() {
                 return Either::A(futures::failed(()));

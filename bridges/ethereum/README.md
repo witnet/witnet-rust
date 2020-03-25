@@ -32,7 +32,7 @@ If the command results in an error complaining about "network local does not exi
 
 
 Copy BlockRelay contract address to witnet-rust/witnet_ethereum_bridge.toml
-Copy WBI contract address to witnet-rust/witnet_ethereum_bridge.toml
+Copy WRB contract address to witnet-rust/witnet_ethereum_bridge.toml
 
 If the api of the contracts was modified recently, you have to manually copy
 the ABI from
@@ -45,13 +45,13 @@ the ABI from
 
 (the contents of block_relay_abi.json should be a JSON array)
 
-Same for the WBI: copy
+Same for the WRB: copy
 
     witnet-ethereum-bridge/build/contracts/WitnetBridgeInterface.json
 
 to
 
-    witnet-rust/bridges/ethereum/wbi_abi.json
+    witnet-rust/bridges/ethereum/wrb_abi.json
 
 ## Ethereum (Ropsten)
 
@@ -89,7 +89,7 @@ If the command results in an error complaining about "network local does not exi
 
 
 Copy BlockRelay contract address to witnet-rust/witnet_ethereum_bridge.toml
-Copy WBI contract address to witnet-rust/witnet_ethereum_bridge.toml
+Copy wrb contract address to witnet-rust/witnet_ethereum_bridge.toml
 
 If the api of the contracts was modified recently, you have to manually copy
 the ABI from
@@ -102,13 +102,13 @@ the ABI from
 
 (the contents of block_relay_abi.json should be a JSON array)
 
-Same for the WBI: copy
+Same for the WRB: copy
 
     witnet-ethereum-bridge/build/contracts/WitnetBridgeInterface.json
 
 to
 
-    witnet-rust/bridges/ethereum/wbi_abi.json
+    witnet-rust/bridges/ethereum/wrb_abi.json
 ## Witnet
 
 Run the node:
@@ -127,28 +127,28 @@ Start the bridge:
 
     RUST_LOG=witnet_ethereum_bridge=debug cargo run -p witnet-ethereum-bridge
 
-It will try to subscribe to blocks from Witnet and WBI events from Ethereum.
+It will try to subscribe to blocks from Witnet and WRB events from Ethereum.
 
-If that's successful, we can post a data request to the WBI:
+If that's successful, we can post a data request to the WRB:
 
     cargo run -p witnet-ethereum-bridge -- --post-dr
 
 This will send a data request querying the price of bitcoin.
 
-* The bridge will be listening to events from the WBI, so when the transaction
-gets accepted into a block, the WBI contract will emit a `PostDataRequest` event.
+* The bridge will be listening to events from the WRB, so when the transaction
+gets accepted into a block, the WRB contract will emit a `PostDataRequest` event.
 
 * The bridge will call `claimDataRequests` in order to claim the data request,
 and when that transaction is accepted, the bridge will post the data request to
 Witnet.
 
 * When this data request is included in a Witnet block, the bridge will send the
-proof of inclusion to the WBI contract. This will emit an `InclusionDataRequest`
+proof of inclusion to the WRB contract. This will emit an `InclusionDataRequest`
 event, which indicates to all the bridge nodes that they should start checking
 all the new Witnet blocks for a tally which resolves that data request.
 
 * Once a tally has been included in a block, any bridge node can sent the proof
-of inclusion. If that proof is valid, the WBI contract will emit a `PostResult`
+of inclusion. If that proof is valid, the WRB contract will emit a `PostResult`
 event indicating that the data request has been resolved.
 
 ## Block Relay

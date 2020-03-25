@@ -15,8 +15,8 @@ pub struct Config {
     pub witnet_jsonrpc_addr: SocketAddr,
     /// Url of the ethereum client
     pub eth_client_url: String,
-    /// Address of the WitnetBridgeInterface deployed contract
-    pub wbi_contract_addr: H160,
+    /// Address of the WitnetRequestsBoard deployed contract
+    pub wrb_contract_addr: H160,
     /// Address of the BlockRelay deployed contract
     pub block_relay_contract_addr: H160,
     /// Ethereum account used to create the transactions

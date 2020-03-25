@@ -2,8 +2,8 @@
 witnet_jsonrpc_addr = "127.0.0.1:1234"
 # Url of the ethereum client
 eth_client_url = "http://127.0.0.1:8545"
-# Address of the WitnetBridgeInterface deployed contract
-wbi_contract_addr = "0x49824bd89338C26Ea204F20AcbAd404CFeAB3301"
+# Address of the WitnetRequestsBoard deployed contract
+wrb_contract_addr = "0x49824bd89338C26Ea204F20AcbAd404CFeAB3301"
 # Address of the BlockRelay deployed contract
 block_relay_contract_addr = "0x1D774D4D7EC51B111EFE48EB5D53022C3e9CC4Af"
 # Ethereum account used to create the transactions

@@ -3,7 +3,8 @@
     "inputs": [],
     "payable": false,
     "stateMutability": "nonpayable",
-    "type": "constructor"
+    "type": "constructor",
+    "signature": "constructor"
   },
   {
     "anonymous": false,
@@ -22,7 +23,8 @@
       }
     ],
     "name": "NewBlock",
-    "type": "event"
+    "type": "event",
+    "signature": "0xe1c9ac156359e117ba0744ca389de158e27192cd006ad58e099f4beb0b568e17"
   },
   {
     "constant": true,
@@ -48,43 +50,8 @@
     ],
     "payable": false,
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "constant": true,
-    "inputs": [],
-    "name": "getLastBeacon",
-    "outputs": [
-      {
-        "internalType": "bytes",
-        "name": "",
-        "type": "bytes"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "constant": true,
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_address",
-        "type": "address"
-      }
-    ],
-    "name": "isUpgradable",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "signature": "0xf25b3f99"
   },
   {
     "constant": true,
@@ -104,79 +71,56 @@
     ],
     "payable": false,
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "constant": false,
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_blockHash",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_epoch",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_drMerkleRoot",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_tallyMerkleRoot",
-        "type": "uint256"
-      }
-    ],
-    "name": "postNewBlock",
-    "outputs": [],
-    "payable": false,
-    "stateMutability": "nonpayable",
-    "type": "function"
+    "type": "function",
+    "signature": "0x806b984f"
   },
   {
     "constant": true,
-    "inputs": [
+    "inputs": [],
+    "name": "getLastBeacon",
+    "outputs": [
       {
-        "internalType": "uint256",
-        "name": "_blockHash",
-        "type": "uint256"
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
       }
     ],
-    "name": "readDrMerkleRoot",
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function",
+    "signature": "0xe987ed58"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "getLastEpoch",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "drMerkleRoot",
+        "name": "",
         "type": "uint256"
       }
     ],
     "payable": false,
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "signature": "0x398bac63"
   },
   {
     "constant": true,
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_blockHash",
-        "type": "uint256"
-      }
-    ],
-    "name": "readTallyMerkleRoot",
+    "inputs": [],
+    "name": "getLastHash",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "tallyMerkleRoot",
+        "name": "",
         "type": "uint256"
       }
     ],
     "payable": false,
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "signature": "0x4a910046"
   },
   {
     "constant": true,
@@ -212,7 +156,8 @@
     ],
     "payable": false,
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "signature": "0x1b58f9c7"
   },
   {
     "constant": true,
@@ -248,6 +193,104 @@
     ],
     "payable": false,
     "stateMutability": "view",
-    "type": "function"
+    "type": "function",
+    "signature": "0x9806e62b"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_address",
+        "type": "address"
+      }
+    ],
+    "name": "isUpgradable",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function",
+    "signature": "0xbe2adb35"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_blockHash",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_epoch",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_drMerkleRoot",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_tallyMerkleRoot",
+        "type": "uint256"
+      }
+    ],
+    "name": "postNewBlock",
+    "outputs": [],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "signature": "0xd2afe01a"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_blockHash",
+        "type": "uint256"
+      }
+    ],
+    "name": "readDrMerkleRoot",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "drMerkleRoot",
+        "type": "uint256"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function",
+    "signature": "0x98276535"
+  },
+  {
+    "constant": true,
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_blockHash",
+        "type": "uint256"
+      }
+    ],
+    "name": "readTallyMerkleRoot",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "tallyMerkleRoot",
+        "type": "uint256"
+      }
+    ],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function",
+    "signature": "0xfcc770ee"
   }
 ]

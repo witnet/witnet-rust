@@ -8,11 +8,11 @@ pub mod block_relay_check;
 pub mod claim_and_post;
 pub mod eth_event_stream;
 pub mod tally_finder;
-pub mod wbi_requests_initial_sync;
 pub mod witnet_block_stream;
+pub mod wrb_requests_initial_sync;
 
 /// Message to the claim_and_post actor, which will try to claim data requests from the
-/// WBI and post them on Witnet on success
+/// WRB and post them on Witnet on success
 #[derive(Debug)]
 pub enum ClaimMsg {
     /// A new data request was just posted, try to claim it
@@ -28,7 +28,7 @@ pub enum WitnetBlock {
     /// Post it to the block relay, and process data requests and tallies.
     New(Block),
     /// This old block may have tallies for data requests whose inclusion can
-    /// be reported to the WBI.
+    /// be reported to the WRB.
     /// Process data requests and tallies.
     Replay(Block),
 }

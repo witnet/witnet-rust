@@ -1,4 +1,4 @@
-//! Read all the existing data requests from the WBI
+//! Read all the existing data requests from the WRB
 
 use crate::{config::Config, eth::EthState};
 use async_jsonrpc_client::futures::Stream;
@@ -9,16 +9,16 @@ use std::sync::Arc;
 use web3::{contract, futures::Future, types::U256};
 use witnet_data_structures::chain::Hash;
 
-/// Read all the existing data requests from the WBI
-pub fn wbi_requests_initial_sync(
+/// Read all the existing data requests from the WRB
+pub fn wrb_requests_initial_sync(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
 ) -> impl Future<Item = (), Error = ()> {
-    // On startup, read all the existing data requests in the wbi in order to
+    // On startup, read all the existing data requests in the wrb in order to
     // build a local copy and use it for faster queries.
     // This should be able to run in parallel with the other actors.
-    let wbi_contract = eth_state.wbi_contract.clone();
-    wbi_contract
+    let wrb_contract = eth_state.wrb_contract.clone();
+    wrb_contract
         .query(
             "requestsCount",
             (),
@@ -28,7 +28,7 @@ pub fn wbi_requests_initial_sync(
         )
         .map_err(|e| error!("requestsCount: {:?}", e))
         .and_then(move |num_requests: U256| {
-            debug!("{} requests in WBI", num_requests);
+            debug!("{} requests in WRB", num_requests);
             let eth_account = config.eth_account;
             futures::stream::unfold(U256::from(0), move |dr_id| {
                 if dr_id >= num_requests {
@@ -38,7 +38,7 @@ pub fn wbi_requests_initial_sync(
                     let eth_state = eth_state.clone();
                     Some(
                         eth_state
-                            .wbi_contract
+                            .wrb_contract
                             .query(
                                 "readResult",
                                 (dr_id,),
@@ -52,16 +52,16 @@ pub fn wbi_requests_initial_sync(
                                 if !result.is_empty() {
                                     // In resolved state
                                     debug!("[{}] Request has already been resolved", dr_id);
-                                    Either::A(eth_state.wbi_requests.write().map(
-                                        move |mut wbi_requests| {
-                                            wbi_requests.insert_result(dr_id, result);
+                                    Either::A(eth_state.wrb_requests.write().map(
+                                        move |mut wrb_requests| {
+                                            wrb_requests.insert_result(dr_id, result);
                                         },
                                     ))
                                 } else {
                                     // Not in Resolved state
                                     Either::B(
                                         eth_state
-                                            .wbi_contract
+                                            .wrb_contract
                                             .query(
                                                 "readDrHash",
                                                 (dr_id,),
@@ -78,11 +78,11 @@ pub fn wbi_requests_initial_sync(
                                                         "[{}] Request has already been included",
                                                         dr_id
                                                     );
-                                                    Either::A(eth_state.wbi_requests.write().map(
-                                                        move |mut wbi_requests| {
+                                                    Either::A(eth_state.wrb_requests.write().map(
+                                                        move |mut wrb_requests| {
                                                             let dr_tx_hash =
                                                                 Hash::SHA256(dr_tx_hash.into());
-                                                            wbi_requests
+                                                            wrb_requests
                                                                 .insert_included(dr_id, dr_tx_hash);
                                                         },
                                                     ))
@@ -92,9 +92,9 @@ pub fn wbi_requests_initial_sync(
                                                         dr_id
                                                     );
                                                     // Not in included state, must be in posted state
-                                                    Either::B(eth_state.wbi_requests.write().map(
-                                                        move |mut wbi_requests| {
-                                                            wbi_requests.insert_posted(dr_id);
+                                                    Either::B(eth_state.wrb_requests.write().map(
+                                                        move |mut wrb_requests| {
+                                                            wrb_requests.insert_posted(dr_id);
                                                         },
                                                     ))
                                                 }
@@ -113,7 +113,7 @@ pub fn wbi_requests_initial_sync(
             .for_each(|_| Ok(()))
         })
         .then(|_| {
-            info!("Initial WBI Requests synchronization finished!");
+            info!("Initial WRB Requests synchronization finished!");
             Ok(())
         })
 }

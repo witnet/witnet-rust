@@ -11,7 +11,7 @@ use web3::{
 };
 use witnet_data_structures::chain::Hash;
 
-/// State of a data request in the WBI contract, including local intermediate states
+/// State of a data request in the WRB contract, including local intermediate states
 #[derive(Debug)]
 pub enum DrState {
     /// The data request was just posted, and may be available for claiming
@@ -62,10 +62,10 @@ pub enum DrState {
     },
 }
 
-/// List of all the data requests posted to the WBI, categorized by state.
+/// List of all the data requests posted to the WRB, categorized by state.
 /// This allows for an efficient functionality of the bridge.
 #[derive(Debug, Default)]
-pub struct WbiRequests {
+pub struct WrbRequests {
     requests: HashMap<U256, DrState>,
     posted: HashSet<U256>,
     claiming: HashSet<U256>,
@@ -79,7 +79,7 @@ pub struct WbiRequests {
     resolved: HashSet<U256>,
 }
 
-impl WbiRequests {
+impl WrbRequests {
     fn remove_from_all_helper_maps(&mut self, dr_id: U256) {
         self.posted.remove(&dr_id);
         self.claiming.remove(&dr_id);
@@ -99,11 +99,11 @@ impl WbiRequests {
                 self.posted.insert(dr_id);
             }
             Some(DrState::Posted) => {
-                debug!("Invalid state in WbiRequests: [{}] was being set to Posted, but it is already Posted", dr_id);
+                debug!("Invalid state in WrbRequests: [{}] was being set to Posted, but it is already Posted", dr_id);
             }
             _ => {
                 warn!(
-                    "Invalid state in WbiRequests: [{}] was being set to Posted, but it is: {:?}",
+                    "Invalid state in WrbRequests: [{}] was being set to Posted, but it is: {:?}",
                     dr_id, self.requests[&dr_id]
                 );
             }
@@ -111,7 +111,7 @@ impl WbiRequests {
     }
     /// Insert a data request in `Included` state, with the data request
     /// transaction hash from Witnet stored to allow a map
-    /// from WBI_dr_id to Witnet_dr_tx_hash
+    /// from WRB_dr_id to Witnet_dr_tx_hash
     pub fn insert_included(&mut self, dr_id: U256, dr_tx_hash: Hash) {
         // This is only safe if the data request was
         // in a state "before" Included
@@ -126,11 +126,11 @@ impl WbiRequests {
                 self.included.insert(dr_id, dr_tx_hash);
             }
             Some(DrState::Included) => {
-                debug!("Invalid state in WbiRequests: [{}] was being set to Included, but it is already Included", dr_id);
+                debug!("Invalid state in WrbRequests: [{}] was being set to Included, but it is already Included", dr_id);
             }
             _ => {
                 warn!(
-                    "Invalid state in WbiRequests: [{}] was being set to Included, but it is: {:?}",
+                    "Invalid state in WrbRequests: [{}] was being set to Included, but it is: {:?}",
                     dr_id, self.requests[&dr_id]
                 );
             }
@@ -267,8 +267,8 @@ pub struct EthState {
     pub web3: web3::Web3<web3::transports::Http>,
     /// Accounts
     pub accounts: Vec<H160>,
-    /// WBI contract
-    pub wbi_contract: Contract<web3::transports::Http>,
+    /// WRB contract
+    pub wrb_contract: Contract<web3::transports::Http>,
     /// PostDataRequest event signature
     pub post_dr_event_sig: H256,
     /// InclusionDataRequest event signature
@@ -277,8 +277,8 @@ pub struct EthState {
     pub post_tally_event_sig: H256,
     /// BlockRelay contract
     pub block_relay_contract: Contract<web3::transports::Http>,
-    /// Internal state of the WBI
-    pub wbi_requests: RwLock<WbiRequests>,
+    /// Internal state of the WRB
+    pub wrb_requests: RwLock<WrbRequests>,
 }
 
 impl EthState {
@@ -299,12 +299,12 @@ impl EthState {
         debug!("Web3 accounts: {:?}", accounts);
 
         // Why read files at runtime when you can read files at compile time
-        let wbi_contract_abi_json: &[u8] = include_bytes!("../wbi_abi.json");
-        let wbi_contract_abi = ethabi::Contract::load(wbi_contract_abi_json)
-            .map_err(|e| format!("Unable to load WBI contract from ABI: {:?}", e))?;
-        let wbi_contract_address = config.wbi_contract_addr;
-        let wbi_contract =
-            Contract::new(web3.eth(), wbi_contract_address, wbi_contract_abi.clone());
+        let wrb_contract_abi_json: &[u8] = include_bytes!("../wrb_abi.json");
+        let wrb_contract_abi = ethabi::Contract::load(wrb_contract_abi_json)
+            .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))?;
+        let wrb_contract_address = config.wrb_contract_addr;
+        let wrb_contract =
+            Contract::new(web3.eth(), wrb_contract_address, wrb_contract_abi.clone());
 
         let block_relay_contract_abi_json: &[u8] = include_bytes!("../block_relay_abi.json");
         let block_relay_contract_abi = ethabi::Contract::load(block_relay_contract_abi_json)
@@ -316,16 +316,16 @@ impl EthState {
             block_relay_contract_abi,
         );
 
-        debug!("WBI events: {:?}", wbi_contract_abi.events);
-        let post_dr_event = wbi_contract_abi
+        debug!("WRB events: {:?}", wrb_contract_abi.events);
+        let post_dr_event = wrb_contract_abi
             .event("PostedRequest")
             .map_err(|e| format!("Unable to get PostedRequest event: {:?}", e))?
             .clone();
-        let inclusion_dr_event = wbi_contract_abi
+        let inclusion_dr_event = wrb_contract_abi
             .event("IncludedRequest")
             .map_err(|e| format!("Unable to get IncludedRequest event: {:?}", e))?
             .clone();
-        let post_tally_event = wbi_contract_abi
+        let post_tally_event = wrb_contract_abi
             .event("PostedResult")
             .map_err(|e| format!("Unable to get PostedResult event: {:?}", e))?
             .clone();
@@ -334,18 +334,18 @@ impl EthState {
         let inclusion_dr_event_sig = inclusion_dr_event.signature();
         let post_tally_event_sig = post_tally_event.signature();
 
-        let wbi_requests = RwLock::new(Default::default());
+        let wrb_requests = RwLock::new(Default::default());
 
         Ok(Self {
             eloop,
             web3,
             accounts,
-            wbi_contract,
+            wrb_contract,
             block_relay_contract,
             post_dr_event_sig,
             inclusion_dr_event_sig,
             post_tally_event_sig,
-            wbi_requests,
+            wrb_requests,
         })
     }
 }
@@ -363,8 +363,8 @@ pub fn read_u256_from_event_log(value: &web3::types::Log) -> Result<U256, ()> {
     }
 }
 
-/// Possible ethereum events emited by the WBI ethereum contract
-pub enum WbiEvent {
+/// Possible ethereum events emited by the WRB ethereum contract
+pub enum WrbEvent {
     /// A new data request has been posted to ethereum
     PostedRequest(U256),
     /// A data request from ethereum has been posted to witnet with a proof of

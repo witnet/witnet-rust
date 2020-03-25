@@ -3,7 +3,7 @@
 use crate::{
     actors::ClaimMsg,
     config::Config,
-    eth::{read_u256_from_event_log, EthState, WbiEvent},
+    eth::{read_u256_from_event_log, EthState, WrbEvent},
 };
 use async_jsonrpc_client::futures::Stream;
 use futures::{future::Either, sink::Sink};
@@ -39,7 +39,7 @@ pub fn eth_event_stream(
         )));
     }
 
-    let contract_address = config.wbi_contract_addr;
+    let contract_address = config.wrb_contract_addr;
     let eth_event_polling_rate_ms = config.eth_event_polling_rate_ms;
     let eth_account = config.eth_account;
     let interval_ms = config.read_dr_hash_interval_ms;
@@ -67,17 +67,17 @@ pub fn eth_event_stream(
         )
         .build();
 
-    // Helper function to parse an ethereum event log as one of the possible WBI events
-    let parse_as_wbi_event = move |value: &web3::types::Log| -> Result<WbiEvent, ()> {
+    // Helper function to parse an ethereum event log as one of the possible WRB events
+    let parse_as_wrb_event = move |value: &web3::types::Log| -> Result<WrbEvent, ()> {
         match &value.topics[0] {
             x if x == &post_dr_event_sig => {
-                Ok(WbiEvent::PostedRequest(read_u256_from_event_log(&value)?))
+                Ok(WrbEvent::PostedRequest(read_u256_from_event_log(&value)?))
             }
             x if x == &inclusion_dr_event_sig => {
-                Ok(WbiEvent::IncludedRequest(read_u256_from_event_log(&value)?))
+                Ok(WrbEvent::IncludedRequest(read_u256_from_event_log(&value)?))
             }
             x if x == &post_tally_event_sig => {
-                Ok(WbiEvent::PostedResult(read_u256_from_event_log(&value)?))
+                Ok(WrbEvent::PostedResult(read_u256_from_event_log(&value)?))
             }
             _ => Err(()),
         }
@@ -99,7 +99,7 @@ pub fn eth_event_stream(
                     Ok(value) => {
                         debug!("Got ethereum event: {:?}", value);
 
-                        Ok(parse_as_wbi_event(&value))
+                        Ok(parse_as_wrb_event(&value))
                     }
                     Err(e) => {
                         error!("ethereum event error = {:?}", e);
@@ -112,12 +112,12 @@ pub fn eth_event_stream(
                     let eth_state2 = eth_state.clone();
                     let fut: Box<dyn Future<Item = (), Error = ()> + Send> =
                         match value {
-                            Ok(WbiEvent::PostedRequest(dr_id)) => {
-                                info!("[{}] New data request posted to WBI", dr_id);
+                            Ok(WrbEvent::PostedRequest(dr_id)) => {
+                                info!("[{}] New data request posted to WRB", dr_id);
 
                                 Box::new(
-                                    eth_state.wbi_requests.write().map(move |mut wbi_requests| {
-                                        wbi_requests.insert_posted(dr_id);
+                                    eth_state.wrb_requests.write().map(move |mut wrb_requests| {
+                                        wrb_requests.insert_posted(dr_id);
                                     }).and_then(move |()| {
                                         tx4.send(ClaimMsg::NewDr(dr_id))
                                             .map(|_| ())
@@ -125,7 +125,7 @@ pub fn eth_event_stream(
                                     })
                                 )
                             }
-                            Ok(WbiEvent::IncludedRequest(dr_id)) => {
+                            Ok(WrbEvent::IncludedRequest(dr_id)) => {
                                 let mut retries = 0;
                                 Box::new(
                                     Interval::new(Instant::now(), Duration::from_millis(interval_ms))
@@ -135,7 +135,7 @@ pub fn eth_event_stream(
                                             debug!("[{}] Reading dr_tx_hash for id, try {}", dr_id, retries);
                                             retries += 1;
 
-                                            eth_state2.wbi_contract
+                                            eth_state2.wrb_contract
                                                 .query(
                                                     "readDrHash",
                                                     (dr_id, ),
@@ -155,8 +155,8 @@ pub fn eth_event_stream(
                                                                 "[{}] Data request included in witnet with dr_tx_hash: {}",
                                                                 dr_id, dr_tx_hash
                                                             );
-                                                            Either::B(eth_state2.wbi_requests.write().map(move |mut wbi_requests| {
-                                                                wbi_requests.insert_included(dr_id, dr_tx_hash);
+                                                            Either::B(eth_state2.wrb_requests.write().map(move |mut wrb_requests| {
+                                                                wrb_requests.insert_included(dr_id, dr_tx_hash);
                                                             }).then(|_| {
                                                                 // Exit interval loop
                                                                 futures::failed(())
@@ -174,13 +174,13 @@ pub fn eth_event_stream(
                                         })
                                 )
                             }
-                            Ok(WbiEvent::PostedResult(dr_id)) => {
+                            Ok(WrbEvent::PostedResult(dr_id)) => {
                                 info!("[{}] Data request has been resolved!", dr_id);
 
                                 // TODO: actually get result?
                                 let result = vec![];
-                                Box::new(eth_state.wbi_requests.write().map(move |mut wbi_requests| {
-                                    wbi_requests.insert_result(dr_id, result);
+                                Box::new(eth_state.wrb_requests.write().map(move |mut wrb_requests| {
+                                    wrb_requests.insert_result(dr_id, result);
                                 }))
                             }
                             _ => {

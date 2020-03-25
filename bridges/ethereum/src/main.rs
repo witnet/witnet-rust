@@ -19,8 +19,8 @@ use witnet_ethereum_bridge::{
         claim_and_post::{claim_and_post, claim_ticker},
         eth_event_stream::eth_event_stream,
         tally_finder::tally_finder,
-        wbi_requests_initial_sync::wbi_requests_initial_sync,
         witnet_block_stream::witnet_block_stream,
+        wrb_requests_initial_sync::wrb_requests_initial_sync,
     },
     config::Config,
     eth::EthState,
@@ -59,14 +59,14 @@ fn post_example_dr(
     config: Arc<Config>,
     eth_state: Arc<EthState>,
 ) -> impl Future<Item = (), Error = ()> {
-    let wbi_contract = eth_state.wbi_contract.clone();
+    let wrb_contract = eth_state.wrb_contract.clone();
 
     let data_request_output = data_request_example();
 
     let tally_value = U256::from_dec_str("500000000000000").unwrap();
     let data_request_bytes = data_request_output.to_pb_bytes().unwrap();
 
-    wbi_contract
+    wrb_contract
         .call(
             "postDataRequest",
             (data_request_bytes, tally_value),
@@ -79,9 +79,9 @@ fn post_example_dr(
             }),
         )
         .map(|tx| {
-            info!("posted dr to wbi: {:?}", tx);
+            info!("posted dr to wrb: {:?}", tx);
         })
-        .map_err(|e| error!("Error posting dr to wbi: {}", e))
+        .map_err(|e| error!("Error posting dr to wrb: {}", e))
 }
 
 /// Command line usage and flags
@@ -120,18 +120,18 @@ fn run() -> Result<(), String> {
     let eth_state = EthState::create(&config).map(Arc::new)?;
 
     if app.post_dr {
-        // Post example data request to WBI and exit
+        // Post example data request to WRB and exit
         let fut = post_example_dr(Arc::clone(&config), Arc::clone(&eth_state));
         tokio::run(future::ok(()).map(move |_| {
             tokio::spawn(fut);
         }));
     } else {
-        let wbi_requests_initial_sync_fut =
-            wbi_requests_initial_sync(Arc::clone(&config), Arc::clone(&eth_state));
+        let wrb_requests_initial_sync_fut =
+            wrb_requests_initial_sync(Arc::clone(&config), Arc::clone(&eth_state));
         if app.read_requests {
-            // Read all the requests from WBI and exit
+            // Read all the requests from WRB and exit
             tokio::run(future::ok(()).map(move |_| {
-                tokio::spawn(wbi_requests_initial_sync_fut);
+                tokio::spawn(wrb_requests_initial_sync_fut);
             }));
         } else {
             let (block_relay_check_tx, block_relay_check_fut) =
@@ -176,7 +176,7 @@ fn run() -> Result<(), String> {
                     }
                 };
 
-                tokio::spawn(wbi_requests_initial_sync_fut);
+                tokio::spawn(wrb_requests_initial_sync_fut);
                 if config.subscribe_to_witnet_blocks {
                     tokio::spawn(witnet_event_fut);
                 }
