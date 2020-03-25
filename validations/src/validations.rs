@@ -1137,13 +1137,13 @@ pub fn validate_block_transactions(
     block: &Block,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
-    genesis_block_hash: Hash,
+    genesis_hash: Hash,
     epoch_constants: EpochConstants,
     block_number: u32,
     collateral_minimum: u64,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
-    let is_genesis = block.hash() == genesis_block_hash;
+    let is_genesis = block.hash() == genesis_hash;
     let mut utxo_diff = UtxoDiff::new(utxo_set, block_number);
 
     // Init total fee
@@ -1339,7 +1339,7 @@ pub fn validate_block(
     rep_eng: &ReputationEngine,
     mining_bf: u32,
     bootstrap_hash: Hash,
-    genesis_block_hash: Hash,
+    genesis_hash: Hash,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -1365,7 +1365,7 @@ pub fn validate_block(
     } else if chain_beacon.hash_prev_block == bootstrap_hash {
         // If the chain_beacon hash_prev_block is the bootstrap hash, only accept blocks
         // with the genesis_block_hash
-        validate_genesis_block(block, genesis_block_hash).map_err(Into::into)
+        validate_genesis_block(block, genesis_hash).map_err(Into::into)
     } else {
         let total_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
         let (target_hash, _) = calculate_randpoe_threshold(total_identities, mining_bf);

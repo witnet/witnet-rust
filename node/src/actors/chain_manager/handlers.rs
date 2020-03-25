@@ -186,10 +186,10 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             self.vrf_ctx.as_mut().unwrap(),
                             self.secp.as_ref().unwrap(),
                             chain_info.consensus_constants.mining_backup_factor,
-                            self.bootstrap_hash,
-                            self.genesis_block_hash,
+                            chain_info.consensus_constants.bootstrap_hash,
+                            chain_info.consensus_constants.genesis_hash,
                             block_number,
-                            self.collateral_minimum,
+                            chain_info.consensus_constants.collateral_minimum,
                         ) {
                             Ok(utxo_diff) => {
                                 let block_pkh = &block_candidate.block_sig.public_key.pkh();
@@ -287,11 +287,21 @@ impl Handler<AddBlocks> for ChainManager {
             "AddBlocks received while StateMachine is in state {:?}",
             self.sm_state
         );
+
+        let consensus_constants = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .consensus_constants
+            .clone();
+
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // In WaitingConsensus state, only allow AddBlocks when the argument is
                 // the genesis block
-                if msg.blocks.len() == 1 && msg.blocks[0].hash() == self.genesis_block_hash {
+                if msg.blocks.len() == 1 && msg.blocks[0].hash() == consensus_constants.genesis_hash
+                {
                     match self.process_requested_block(ctx, &msg.blocks[0]) {
                         Ok(()) => log::debug!("Successfully consolidated genesis block"),
                         Err(e) => log::error!("Failed to consolidate genesis block: {}", e),
@@ -306,7 +316,7 @@ impl Handler<AddBlocks> for ChainManager {
                         batch_succeeded = false;
                         log::debug!("Received an empty AddBlocks message");
                     // FIXME(#684): this condition would be modified when genesis block exist
-                    } else if chain_beacon.hash_prev_block != self.bootstrap_hash
+                    } else if chain_beacon.hash_prev_block != consensus_constants.bootstrap_hash
                         && msg.blocks[0].hash() != chain_beacon.hash_prev_block
                         && msg.blocks[0].block_header.beacon.checkpoint == chain_beacon.checkpoint
                     {
@@ -317,7 +327,8 @@ impl Handler<AddBlocks> for ChainManager {
                         log::info!("Restored chain state from storage");
                     } else {
                         // FIXME(#684): this condition would be deleted when genesis block exist
-                        let blocks = if chain_beacon.hash_prev_block == self.bootstrap_hash
+                        let blocks = if chain_beacon.hash_prev_block
+                            == consensus_constants.bootstrap_hash
                             || msg.blocks[0].block_header.beacon.checkpoint
                                 > chain_beacon.checkpoint
                         {
@@ -331,7 +342,7 @@ impl Handler<AddBlocks> for ChainManager {
                             let block_epoch = block.block_header.beacon.checkpoint;
 
                             // Do not update reputation when consolidating genesis block
-                            if block.hash() != self.genesis_block_hash {
+                            if block.hash() != consensus_constants.genesis_hash {
                                 if let Some(ref mut rep_engine) = self.chain_state.reputation_engine
                                 {
                                     if let Err(e) = rep_engine.ars_mut().update_empty(block_epoch) {
@@ -545,8 +556,18 @@ impl Handler<PeersBeacons> for ChainManager {
 
                     let our_beacon = self.get_chain_beacon();
 
+                    let consensus_constants = self
+                        .chain_state
+                        .chain_info
+                        .as_ref()
+                        .unwrap()
+                        .consensus_constants
+                        .clone();
+
                     // Check if we are already synchronized
-                    self.sm_state = if consensus_beacon.hash_prev_block == self.bootstrap_hash {
+                    self.sm_state = if consensus_beacon.hash_prev_block
+                        == consensus_constants.bootstrap_hash
+                    {
                         log::debug!("The consensus is that there is no genesis block yet");
 
                         StateMachine::WaitingConsensus

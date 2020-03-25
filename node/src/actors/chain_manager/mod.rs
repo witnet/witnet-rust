@@ -132,16 +132,8 @@ pub struct ChainManager {
     current_epoch: Option<Epoch>,
     /// Transactions Pool (_mempool_)
     transactions_pool: TransactionsPool,
-    /// Maximum weight each block can have
-    max_block_weight: u32,
     /// Mining enabled
     mining_enabled: bool,
-    /// Auxiliary hash to sync before genesis block
-    bootstrap_hash: Hash,
-    /// Genesis block hash
-    genesis_block_hash: Hash,
-    /// Genesis mining flag
-    genesis_mining_flag: bool,
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up
@@ -169,8 +161,6 @@ pub struct ChainManager {
     tx_pending_timeout: u64,
     /// Magic number from ConsensusConstants
     magic: u16,
-    /// Minimum collateral
-    collateral_minimum: u64,
 }
 
 /// Required trait for being able to retrieve ChainManager address from registry
@@ -289,25 +279,23 @@ impl ChainManager {
             if self.current_epoch.is_none() {
                 trace!("Called process_requested_block when current_epoch is None");
             }
-            let chain_beacon = chain_info.highest_block_checkpoint;
-            let mining_bf = chain_info.consensus_constants.mining_backup_factor;
             let block_number = self.chain_state.block_number();
 
             let utxo_diff = process_validations(
                 block,
                 self.current_epoch.unwrap_or_default(),
-                chain_beacon,
+                chain_info.highest_block_checkpoint,
                 rep_engine,
                 epoch_constants,
                 &self.chain_state.unspent_outputs_pool,
                 &self.chain_state.data_request_pool,
                 vrf_ctx,
                 secp_ctx,
-                mining_bf,
-                self.bootstrap_hash,
-                self.genesis_block_hash,
+                chain_info.consensus_constants.mining_backup_factor,
+                chain_info.consensus_constants.bootstrap_hash,
+                chain_info.consensus_constants.genesis_hash,
                 block_number,
-                self.collateral_minimum,
+                chain_info.consensus_constants.collateral_minimum,
             )?;
 
             // Persist block and update ChainState
@@ -431,7 +419,7 @@ impl ChainManager {
                 let miner_pkh = block.txns.mint.output.pkh;
 
                 // Do not update reputation when consolidating genesis block
-                if block_hash != self.genesis_block_hash {
+                if block_hash != chain_info.consensus_constants.genesis_hash {
                     update_reputation(
                         reputation_engine,
                         &chain_info.consensus_constants,
@@ -593,7 +581,7 @@ impl ChainManager {
                 epoch_constants,
                 self.chain_state.block_number(),
                 &mut signatures_to_verify,
-                self.collateral_minimum,
+                chain_info.consensus_constants.collateral_minimum,
             ))
             .into_actor(self)
             .and_then(|_, act, _ctx| {
@@ -644,6 +632,14 @@ impl ChainManager {
     ) -> ResponseActFuture<Self, Diff, failure::Error> {
         let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
+        let consensus_constants = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .consensus_constants
+            .clone();
+
         let fut = futures::future::result(validate_block(
             &block,
             current_epoch,
@@ -651,8 +647,8 @@ impl ChainManager {
             &mut signatures_to_verify,
             self.chain_state.reputation_engine.as_ref().unwrap(),
             mining_bf,
-            self.bootstrap_hash,
-            self.genesis_block_hash,
+            consensus_constants.bootstrap_hash,
+            consensus_constants.genesis_hash,
         ))
         .and_then(|()| signature_mngr::verify_signatures(signatures_to_verify))
         .into_actor(self)
@@ -664,10 +660,10 @@ impl ChainManager {
                 &block,
                 &mut signatures_to_verify,
                 act.chain_state.reputation_engine.as_ref().unwrap(),
-                act.genesis_block_hash,
+                consensus_constants.genesis_hash,
                 epoch_constants,
                 block_number,
-                act.collateral_minimum,
+                consensus_constants.collateral_minimum,
             ))
             .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
             .into_actor(act)
@@ -691,9 +687,9 @@ pub fn process_validations(
     secp_ctx: &CryptoEngine,
     mining_bf: u32,
     bootstrap_hash: Hash,
-    genesis_block_hash: Hash,
+    genesis_hash: Hash,
     block_number: u32,
-    minimum_collateral: u64,
+    collateral_minimum: u64,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -704,7 +700,7 @@ pub fn process_validations(
         rep_eng,
         mining_bf,
         bootstrap_hash,
-        genesis_block_hash,
+        genesis_hash,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 
@@ -715,10 +711,10 @@ pub fn process_validations(
         block,
         &mut signatures_to_verify,
         rep_eng,
-        genesis_block_hash,
+        genesis_hash,
         epoch_constants,
         block_number,
-        minimum_collateral,
+        collateral_minimum,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 

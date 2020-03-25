@@ -62,12 +62,6 @@ impl ChainManager {
             .and_then(|config, act, _ctx| {
                 let consensus_constants = config.consensus_constants.clone();
 
-                // Set ChainManager parameters related with the consensus constants
-                act.bootstrap_hash = consensus_constants.bootstrap_hash;
-                act.genesis_block_hash = consensus_constants.genesis_hash;
-                act.max_block_weight = consensus_constants.max_block_weight;
-                act.collateral_minimum = consensus_constants.collateral_minimum;
-
                 if config.mining.data_request_timeout == Duration::new(0, 0) {
                     act.data_request_timeout = None;
                 } else {
@@ -189,7 +183,7 @@ impl ChainManager {
                 if chain_info.highest_block_checkpoint.hash_prev_block == consensus_constants.bootstrap_hash {
                     // Create genesis block
                     let info_genesis =
-                        GenesisBlockInfo::from_path(&config.mining.genesis_path, act.bootstrap_hash, act.genesis_block_hash)
+                        GenesisBlockInfo::from_path(&config.mining.genesis_path, consensus_constants.bootstrap_hash, consensus_constants.genesis_hash)
                             .map_err(|e| {
                                 log::error!("Failed to create genesis block: {}", e);
                                 log::error!("Genesis block could be downloaded in: https://github.com/witnet/genesis_block");
@@ -197,7 +191,7 @@ impl ChainManager {
                             }).ok();
 
                     if let Some(ig) = info_genesis {
-                        log::info!("Genesis block successfully created. Hash: {}", act.genesis_block_hash);
+                        log::info!("Genesis block successfully created. Hash: {}", consensus_constants.genesis_hash);
 
                         let genesis_block = ig.build_genesis_block(consensus_constants.bootstrap_hash);
                         ctx.notify(AddBlocks {

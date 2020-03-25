@@ -88,21 +88,15 @@ impl ChainManager {
         let total_identities = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
 
         let current_epoch = self.current_epoch.unwrap();
-        let mining_bf = self
+        let consensus_constants = self
             .chain_state
             .chain_info
             .as_ref()
             .unwrap()
             .consensus_constants
-            .mining_backup_factor;
-
-        let mining_rf = self
-            .chain_state
-            .chain_info
-            .as_ref()
-            .unwrap()
-            .consensus_constants
-            .mining_replication_factor;
+            .clone();
+        let mining_bf = consensus_constants.mining_backup_factor;
+        let mining_rf = consensus_constants.mining_replication_factor;
 
         // Check eligibility
         // S(H(beacon))
@@ -181,7 +175,7 @@ impl ChainManager {
                         &act.chain_state.unspent_outputs_pool,
                         &act.chain_state.data_request_pool,
                     ),
-                    act.max_block_weight,
+                    consensus_constants.max_block_weight,
                     beacon,
                     eligibility_claim,
                     &tally_transactions,
