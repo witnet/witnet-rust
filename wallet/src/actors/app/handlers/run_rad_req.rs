@@ -6,7 +6,6 @@ use crate::types;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RunRadReqRequest {
-    #[serde(rename = "radRequest")]
     pub rad_request: types::RADRequest,
 }
 
