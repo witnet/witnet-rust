@@ -133,6 +133,91 @@ pub fn dr_transaction_fee(
     }
 }
 
+/// Returns the fee of a data request transaction.
+///
+/// The fee is the difference between the outputs (with the data request value)
+/// and the inputs of the transaction. The pool parameter is used to find the
+/// outputs pointed by the inputs and that contain the actual
+/// their value.
+pub fn co_collateral(
+    co_tx: &CommitTransaction,
+    utxo_diff: &UtxoDiff,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
+    required_collateral: u64,
+    block_number_limit: u32,
+) -> Result<(), failure::Error> {
+    let commit_pkh = co_tx.body.proof.proof.pkh();
+    let mut in_value: u64 = 0;
+
+    for input in &co_tx.body.collateral {
+        let vt_output = utxo_diff.get(&input.output_pointer()).ok_or_else(|| {
+            TransactionError::OutputNotFound {
+                output: input.output_pointer().clone(),
+            }
+        })?;
+
+        // The inputs used as collateral do not need any additional signatures
+        // as long as the commit transaction is signed by the same public key
+        // So check that the public key matches
+        if vt_output.pkh != commit_pkh {
+            return Err(TransactionError::CollateralPkhMismatch {
+                output: input.output_pointer().clone(),
+                output_pkh: vt_output.pkh,
+                proof_pkh: commit_pkh,
+            }
+            .into());
+        }
+
+        // Verify that commits are only accepted after the time lock expired
+        let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+        let vt_time_lock = i64::try_from(vt_output.time_lock)?;
+        if vt_time_lock > epoch_timestamp {
+            return Err(TransactionError::TimeLock {
+                expected: vt_time_lock,
+                current: epoch_timestamp,
+            }
+            .into());
+        } else {
+            in_value = in_value
+                .checked_add(vt_output.value)
+                .ok_or(TransactionError::InputValueOverflow)?;
+        }
+
+        // Inputs must be mature enough
+        let included_in_block_number = utxo_diff
+            .included_in_block_number(input.output_pointer())
+            .unwrap();
+        if included_in_block_number >= block_number_limit {
+            return Err(TransactionError::CollateralNotMature {
+                output: input.output_pointer().clone(),
+                expected: block_number_limit,
+                found: included_in_block_number,
+            }
+            .into());
+        }
+    }
+
+    let out_value = transaction_outputs_sum(&co_tx.body.outputs)?;
+
+    if out_value > in_value {
+        Err(TransactionError::NegativeCollateral {
+            input_value: in_value,
+            output_value: out_value,
+        }
+        .into())
+    } else if in_value - out_value != required_collateral {
+        let found_collateral = in_value - out_value;
+        Err(TransactionError::NotEnoughCollateral {
+            expected: required_collateral,
+            found: found_collateral,
+        }
+        .into())
+    } else {
+        Ok(())
+    }
+}
+
 /// Function to validate a mint transaction
 pub fn validate_mint_transaction(
     mint_tx: &MintTransaction,
@@ -664,6 +749,10 @@ pub fn validate_commit_transaction(
     rep_eng: &ReputationEngine,
     epoch: Epoch,
     epoch_constants: EpochConstants,
+    utxo_diff: &UtxoDiff,
+    collateral_minimum: u64,
+    collateral_age: u32,
+    block_number: u32,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -676,6 +765,32 @@ pub fn validate_commit_transaction(
     }
 
     let dr_output = &dr_state.data_request;
+
+    // A value transfer output cannot have zero value
+    for (idx, output) in co_tx.body.outputs.iter().enumerate() {
+        if output.value == 0 {
+            return Err(TransactionError::ZeroValueOutput {
+                tx_hash: co_tx.hash(),
+                output_id: idx,
+            }
+            .into());
+        }
+    }
+
+    // Check that collateral has correct amount and age
+    let mut required_collateral = dr_output.collateral;
+    if required_collateral == 0 {
+        required_collateral = collateral_minimum;
+    }
+    let minimum_block_number = block_number.saturating_sub(collateral_age);
+    co_collateral(
+        co_tx,
+        utxo_diff,
+        epoch,
+        epoch_constants,
+        required_collateral,
+        minimum_block_number,
+    )?;
 
     // Verify that commits are only accepted after the time lock expired
     let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
@@ -1141,6 +1256,7 @@ pub fn validate_block_transactions(
     epoch_constants: EpochConstants,
     block_number: u32,
     collateral_minimum: u64,
+    collateral_age: u32,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.hash() == genesis_hash;
@@ -1224,6 +1340,10 @@ pub fn validate_block_transactions(
             rep_eng,
             epoch,
             epoch_constants,
+            &utxo_diff,
+            collateral_minimum,
+            collateral_age,
+            block_number,
         )?;
 
         // Validation for only one commit for pkh/data request in a block
@@ -1455,6 +1575,7 @@ pub fn validate_new_transaction(
     block_number: u32,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     collateral_minimum: u64,
+    collateral_age: u32,
 ) -> Result<(), failure::Error> {
     let utxo_diff = UtxoDiff::new(&unspent_outputs_pool, block_number);
 
@@ -1492,6 +1613,10 @@ pub fn validate_new_transaction(
                 &reputation_engine,
                 current_epoch,
                 epoch_constants,
+                &utxo_diff,
+                collateral_minimum,
+                collateral_age,
+                block_number,
             )
             .map(|_| ())
         }
@@ -1814,10 +1939,10 @@ pub struct UtxoDiff<'a> {
 
 impl<'a> UtxoDiff<'a> {
     /// Create a new UtxoDiff without additional insertions or deletions
-    pub fn new(utxo_pool: &'a UnspentOutputsPool, block_epoch: Epoch) -> Self {
+    pub fn new(utxo_pool: &'a UnspentOutputsPool, block_number: u32) -> Self {
         UtxoDiff {
             utxo_pool,
-            diff: Diff::new(block_epoch),
+            diff: Diff::new(block_number),
         }
     }
 
@@ -1861,6 +1986,21 @@ impl<'a> UtxoDiff<'a> {
     /// reference to the utxo set.
     pub fn take_diff(self) -> Diff {
         self.diff
+    }
+
+    /// Returns the number of the block that included the transaction referenced
+    /// by this OutputPointer. The difference between that number and the
+    /// current number of consolidated blocks is the "coin age".
+    pub fn included_in_block_number(&self, output_pointer: &OutputPointer) -> Option<Epoch> {
+        self.utxo_pool
+            .included_in_block_number(output_pointer)
+            .and_then(|output| {
+                if self.diff.utxos_to_remove.contains(output_pointer) {
+                    None
+                } else {
+                    Some(output)
+                }
+            })
     }
 }
 
