@@ -13,7 +13,7 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::*,
-    data_request::{create_tally, DataRequestPool},
+    data_request::{calculate_tally_change, create_tally, DataRequestPool},
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
     radon_report::{RadonReport, ReportContext, TypeLike},
     transaction::*,
@@ -4389,6 +4389,44 @@ fn create_tally_validation_zero_reveals() {
     .unwrap();
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
     x.unwrap();
+}
+
+#[test]
+fn validate_calculate_tally_change() {
+    let dr_output = DataRequestOutput {
+        witnesses: 5,
+        commit_fee: 10,
+        reveal_fee: 15,
+        tally_fee: 200,
+        witness_reward: 1000,
+        ..DataRequestOutput::default()
+    };
+
+    // Case 0 commits
+    let expected_change = (10 + 15 + 1000) * 5;
+    assert_eq!(expected_change, calculate_tally_change(0, 0, 0, &dr_output));
+
+    // Case 0 reveals
+    let expected_change = (15 + 1000) * 5;
+    assert_eq!(expected_change, calculate_tally_change(5, 0, 0, &dr_output));
+
+    // Case all honests
+    let expected_change = 0;
+    assert_eq!(expected_change, calculate_tally_change(5, 5, 5, &dr_output));
+
+    // Case 2 liars
+    let expected_change = 1000 * 2;
+    assert_eq!(
+        expected_change,
+        calculate_tally_change(5, 5, 5 - 2, &dr_output)
+    );
+
+    // Case 1 liar and 1 non-revealer
+    let expected_change = 1000 * 2 + 15;
+    assert_eq!(
+        expected_change,
+        calculate_tally_change(5, 4, 4 - 1, &dr_output)
+    );
 }
 
 #[test]

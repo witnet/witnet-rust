@@ -338,6 +338,25 @@ impl DataRequestPool {
     }
 }
 
+/// Return the change that should be returned to the creator of the data request if
+/// some witness fails to commit, fails to reveal, or reports a value out of consensus.
+/// If the change is 0, the change `ValueTransferOutput` should not be created
+pub fn calculate_tally_change(
+    commits_count: usize,
+    reveals_count: usize,
+    honests_count: usize,
+    dr_output: &DataRequestOutput,
+) -> u64 {
+    let commits_count = commits_count as u64;
+    let reveals_count = reveals_count as u64;
+    let honests_count = honests_count as u64;
+    let witnesses = u64::from(dr_output.witnesses);
+
+    dr_output.witness_reward * (witnesses - honests_count)
+        + dr_output.reveal_fee * (witnesses - reveals_count)
+        + dr_output.commit_fee * (witnesses - commits_count)
+}
+
 pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
     dr_pointer: Hash,
     dr_output: &DataRequestOutput,
@@ -384,15 +403,12 @@ where
             })
             .collect();
 
-        let n_honest = u16::try_from(outputs.len())?;
-        let n_reveals = u16::try_from(reveals_count)?;
-        let n_commits = u16::try_from(commits_count)?;
+        let honests_count = outputs.len();
         // Create tally change for the data request creator
-        if dr_output.witnesses > n_honest {
+        if dr_output.witnesses as usize > honests_count {
             debug!("Created tally change for the data request creator");
-            let tally_change = reveal_reward * u64::from(dr_output.witnesses - n_honest)
-                + dr_output.reveal_fee * u64::from(dr_output.witnesses - n_reveals)
-                + dr_output.commit_fee * u64::from(dr_output.witnesses - n_commits);
+            let tally_change =
+                calculate_tally_change(commits_count, reveals_count, honests_count, &dr_output);
             let vt_output_change = ValueTransferOutput {
                 pkh,
                 value: tally_change,
