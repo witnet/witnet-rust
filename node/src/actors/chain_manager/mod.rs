@@ -296,6 +296,7 @@ impl ChainManager {
                 chain_info.consensus_constants.genesis_hash,
                 block_number,
                 chain_info.consensus_constants.collateral_minimum,
+                chain_info.consensus_constants.collateral_age,
             )?;
 
             // Persist block and update ChainState
@@ -582,6 +583,7 @@ impl ChainManager {
                 self.chain_state.block_number(),
                 &mut signatures_to_verify,
                 chain_info.consensus_constants.collateral_minimum,
+                chain_info.consensus_constants.collateral_age,
             ))
             .into_actor(self)
             .and_then(|_, act, _ctx| {
@@ -664,6 +666,7 @@ impl ChainManager {
                 epoch_constants,
                 block_number,
                 consensus_constants.collateral_minimum,
+                consensus_constants.collateral_age,
             ))
             .and_then(|diff| signature_mngr::verify_signatures(signatures_to_verify).map(|_| diff))
             .into_actor(act)
@@ -690,6 +693,7 @@ pub fn process_validations(
     genesis_hash: Hash,
     block_number: u32,
     collateral_minimum: u64,
+    collateral_age: u32,
 ) -> Result<Diff, failure::Error> {
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -715,6 +719,7 @@ pub fn process_validations(
         epoch_constants,
         block_number,
         collateral_minimum,
+        collateral_age,
     )?;
     verify_signatures(signatures_to_verify, vrf_ctx, secp_ctx)?;
 

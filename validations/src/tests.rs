@@ -1916,6 +1916,11 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let dr_pool = DataRequestPool::default();
     let beacon = CheckpointBeacon::default();
     let rep_eng = ReputationEngine::new(100);
+    let utxo_pool = UnspentOutputsPool::default();
+    let collateral_minimum = 1;
+    let collateral_age = 1;
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
 
     validate_commit_transaction(
         &c_tx,
@@ -1925,6 +1930,10 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         &rep_eng,
         0,
         EpochConstants::default(),
+        &utxo_diff,
+        collateral_minimum,
+        collateral_age,
+        block_number,
     )
     .map(|_| ())
 }
@@ -1932,7 +1941,15 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
 static DR_HASH: &str = "2b3e5252d9266d5bc62666052e9a6a8b00167c04a2339c3929acd62aee5aa4f4";
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
-fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
+fn test_commit_with_dr_and_utxo_set(
+    c_tx: &CommitTransaction,
+    utxo_pool: &UnspentOutputsPool,
+) -> Result<(), failure::Error> {
+    let block_number = 100_000;
+    let utxo_diff = UtxoDiff::new(utxo_pool, 0);
+    let collateral_minimum = 1;
+    let collateral_age = 1;
+
     let mut dr_pool = DataRequestPool::default();
     let commit_beacon = CheckpointBeacon::default();
     let rep_eng = ReputationEngine::new(100);
@@ -1969,6 +1986,10 @@ fn test_commit_with_dr(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         &rep_eng,
         0,
         EpochConstants::default(),
+        &utxo_diff,
+        collateral_minimum,
+        collateral_age,
+        block_number,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -2024,6 +2045,22 @@ fn test_commit_difficult_proof() {
     cb.dr_pointer = dr_hash;
     cb.proof =
         DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+
+    let vto = ValueTransferOutput {
+        pkh: cb.proof.proof.pkh(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let block_number = 100_000;
+    let collateral_minimum = 1;
+    let collateral_age = 1;
+    let utxo_diff = UtxoDiff::new(&utxo_pool, 0);
+    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+
+    cb.collateral = vec![vti];
+    cb.outputs = vec![];
+
     // Sign commitment
     let cs = sign_t(&cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
@@ -2037,6 +2074,10 @@ fn test_commit_difficult_proof() {
         &rep_eng,
         0,
         EpochConstants::default(),
+        &utxo_diff,
+        collateral_minimum,
+        collateral_age,
+        block_number,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -2086,6 +2127,22 @@ fn test_commit() -> Result<(), failure::Error> {
     cb.dr_pointer = dr_hash;
     cb.proof =
         DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+
+    let vto = ValueTransferOutput {
+        pkh: cb.proof.proof.pkh(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let block_number = 100_000;
+    let collateral_minimum = 1;
+    let collateral_age = 1;
+    let utxo_diff = UtxoDiff::new(&utxo_pool, 0);
+    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+
+    cb.collateral = vec![vti];
+    cb.outputs = vec![];
+
     // Sign commitment
     let cs = sign_t(&cb);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
@@ -2098,6 +2155,10 @@ fn test_commit() -> Result<(), failure::Error> {
         &rep_eng,
         0,
         EpochConstants::default(),
+        &utxo_diff,
+        collateral_minimum,
+        collateral_age,
+        block_number,
     )
     .map(|_| ())
 }
@@ -2115,10 +2176,22 @@ fn commitment_signatures() {
     cb.dr_pointer = dr_hash;
     cb.proof =
         DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+
+    let vto = ValueTransferOutput {
+        pkh: cb.proof.proof.pkh(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+
+    cb.collateral = vec![vti];
+    cb.outputs = vec![];
+
     let f = |cb, cs| {
         let c_tx = CommitTransaction::new(cb, vec![cs]);
 
-        test_commit_with_dr(&c_tx)
+        test_commit_with_dr_and_utxo_set(&c_tx, &utxo_pool)
     };
 
     let hashable = cb;
@@ -2193,11 +2266,57 @@ fn commitment_signatures() {
 
 #[test]
 fn commitment_no_signature() {
+    let mut dr_pool = DataRequestPool::default();
+    let commit_beacon = CheckpointBeacon::default();
+    let vrf = &mut VrfCtx::secp256k1().unwrap();
+    let secret_key = SecretKey {
+        bytes: Protected::from(vec![0xcd; 32]),
+    };
+
+    let dro = DataRequestOutput {
+        witness_reward: 1000,
+        witnesses: 1,
+        min_consensus_percentage: 51,
+        data_request: example_data_request(),
+        collateral: ONE_WIT,
+        ..DataRequestOutput::default()
+    };
+    let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+    let drs = sign_t(&dr_body);
+    let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
+    let dr_hash = dr_transaction.hash();
+    assert_eq!(dr_hash, DR_HASH.parse().unwrap());
+    let dr_epoch = 0;
+    dr_pool
+        .process_data_request(
+            &dr_transaction,
+            dr_epoch,
+            EpochConstants::default(),
+            &Hash::default(),
+        )
+        .unwrap();
+
+    // Insert valid proof
     let mut cb = CommitTransactionBody::default();
-    cb.dr_pointer = DR_HASH.parse().unwrap();
+    cb.dr_pointer = dr_hash;
+    cb.proof =
+        DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+
+    let vto = ValueTransferOutput {
+        pkh: cb.proof.proof.pkh(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+
+    cb.collateral = vec![vti];
+    cb.outputs = vec![];
+
+    // Do not sign commitment
     let c_tx = CommitTransaction::new(cb, vec![]);
 
-    let x = test_commit_with_dr(&c_tx);
+    let x = test_commit_with_dr_and_utxo_set(&c_tx, &utxo_pool);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::SignatureNotFound,
@@ -2240,6 +2359,21 @@ fn commitment_invalid_proof() {
     cb.proof = DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, bad_dr_pointer)
         .unwrap();
 
+    let vto = ValueTransferOutput {
+        pkh: cb.proof.proof.pkh(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let block_number = 100_000;
+    let collateral_minimum = 1;
+    let collateral_age = 1;
+    let utxo_diff = UtxoDiff::new(&utxo_pool, 0);
+    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+
+    cb.collateral = vec![vti];
+    cb.outputs = vec![];
+
     let dro = DataRequestOutput {
         witness_reward: 1000,
         witnesses: 1,
@@ -2274,6 +2408,10 @@ fn commitment_invalid_proof() {
         &rep_eng,
         0,
         EpochConstants::default(),
+        &utxo_diff,
+        collateral_minimum,
+        collateral_age,
+        block_number,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -2290,6 +2428,12 @@ fn commitment_proof_lower_than_target() {
 
 #[test]
 fn commitment_dr_in_reveal_stage() {
+    let utxo_pool = UnspentOutputsPool::default();
+    let block_number = 0;
+    let collateral_minimum = 1;
+    let collateral_age = 1;
+    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+
     let mut dr_pool = DataRequestPool::default();
     let block_hash = Hash::default();
     let commit_beacon = CheckpointBeacon::default();
@@ -2343,6 +2487,10 @@ fn commitment_dr_in_reveal_stage() {
         &rep_eng,
         0,
         EpochConstants::default(),
+        &utxo_diff,
+        collateral_minimum,
+        collateral_age,
+        block_number,
     );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
@@ -2402,6 +2550,22 @@ fn commitment_timelock() {
         cb.dr_pointer = dr_hash;
         cb.proof =
             DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+
+        let vto = ValueTransferOutput {
+            pkh: cb.proof.proof.pkh(),
+            value: ONE_WIT,
+            time_lock: 0,
+        };
+        let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+        let block_number = 100_000;
+        let collateral_minimum = 1;
+        let collateral_age = 1;
+        let utxo_diff = UtxoDiff::new(&utxo_pool, 0);
+        let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+
+        cb.collateral = vec![vti];
+        cb.outputs = vec![];
+
         // Sign commitment
         let cs = sign_t(&cb);
         let c_tx = CommitTransaction::new(cb, vec![cs]);
@@ -2415,6 +2579,10 @@ fn commitment_timelock() {
             &rep_eng,
             epoch,
             epoch_constants,
+            &utxo_diff,
+            collateral_minimum,
+            collateral_age,
+            block_number,
         )
         .map(|_| ())?;
 
@@ -4077,13 +4245,22 @@ fn test_block<F: FnMut(&mut Block) -> bool>(mut_block: F) -> Result<(), failure:
 }
 
 fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
+    mut_block: F,
+    dr_pool: DataRequestPool,
+) -> Result<(), failure::Error> {
+    test_block_with_drpool_and_utxo_set(mut_block, dr_pool, UnspentOutputsPool::default())
+}
+
+fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     mut mut_block: F,
     dr_pool: DataRequestPool,
+    mut utxo_set: UnspentOutputsPool,
 ) -> Result<(), failure::Error> {
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
-    let mut utxo_set = UnspentOutputsPool::default();
-    let block_number = 0;
+    let block_number = 100_000;
+    let collateral_minimum = 1;
+    let collateral_age = 1;
     // Insert output to utxo
     let output1 = ValueTransferOutput {
         time_lock: 0,
@@ -4093,7 +4270,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
     //let tx_output1 = VTTransactionBody::new(vec![], vec![output1.clone()]);
     //let output1_pointer = OutputPointer { transaction_id: tx_output1.hash(), output_index: 0 };
     let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
-    utxo_set.insert(output1_pointer, output1, block_number);
+    utxo_set.insert(output1_pointer, output1, 0);
 
     let secret_key = SecretKey {
         bytes: Protected::from(vec![0xcd; 32]),
@@ -4174,7 +4351,8 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
         genesis_block_hash,
         EpochConstants::default(),
         block_number,
-        ONE_WIT,
+        collateral_minimum,
+        collateral_age,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -4326,6 +4504,8 @@ fn block_difficult_proof() {
         .push_activity((0..512).map(|x| PublicKeyHash::from_hex(&format!("{:040}", x)).unwrap()));
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
+    let collateral_minimum = 1;
+    let collateral_age = 1;
     // Insert output to utxo
     let output1 = ValueTransferOutput {
         time_lock: 0,
@@ -4411,7 +4591,8 @@ fn block_difficult_proof() {
                 genesis_block_hash,
                 EpochConstants::default(),
                 block_number,
-                ONE_WIT,
+                collateral_minimum,
+                collateral_age,
             )?;
             verify_signatures_test(signatures_to_verify)?;
 
@@ -4558,6 +4739,24 @@ fn block_duplicated_commits() {
     cb.dr_pointer = dr_hash;
     cb.proof =
         DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+
+    let vto1 = ValueTransferOutput {
+        pkh: cb.proof.proof.pkh(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let vto2 = ValueTransferOutput {
+        pkh: cb.proof.proof.pkh(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_pool = build_utxo_set_with_mint(vec![vto1, vto2], None, vec![]);
+    let vti1 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let vti2 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+
+    cb.collateral = vec![vti1];
+    cb.outputs = vec![];
+
     // Sign commitment
     let cs = sign_t(&cb);
     let c_tx = CommitTransaction::new(cb.clone(), vec![cs]);
@@ -4566,12 +4765,15 @@ fn block_duplicated_commits() {
     cb2.dr_pointer = cb.dr_pointer;
     cb2.proof = cb.proof;
     cb2.commitment = Hash::SHA256([1; 32]);
+    cb2.collateral = vec![vti2];
+    cb2.outputs = vec![];
+
     let cs2 = sign_t(&cb2);
     let c2_tx = CommitTransaction::new(cb2, vec![cs2]);
 
     assert_ne!(c_tx.hash(), c2_tx.hash());
 
-    let x = test_block_with_drpool(
+    let x = test_block_with_drpool_and_utxo_set(
         |b| {
             // We include two commits with same pkh and dr_pointer
             b.txns.commit_txns.push(c_tx.clone());
@@ -4591,6 +4793,7 @@ fn block_duplicated_commits() {
             true
         },
         dr_pool,
+        utxo_pool,
     );
 
     assert_eq!(
@@ -4849,6 +5052,8 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
     let rep_eng = ReputationEngine::new(100);
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
+    let collateral_minimum = 1;
+    let collateral_age = 1;
     // Insert output to utxo
     let output1 = ValueTransferOutput {
         time_lock: 0,
@@ -4939,7 +5144,8 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
             genesis_block_hash,
             EpochConstants::default(),
             block_number,
-            ONE_WIT,
+            collateral_minimum,
+            collateral_age,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -5411,6 +5617,8 @@ fn genesis_block_value_overflow() {
 
     let current_epoch = 0;
     let block_number = 0;
+    let collateral_minimum = 1;
+    let collateral_age = 1;
     let last_block_hash = bootstrap_hash;
     let chain_beacon = CheckpointBeacon {
         checkpoint: current_epoch,
@@ -5447,7 +5655,8 @@ fn genesis_block_value_overflow() {
         genesis_block_hash,
         EpochConstants::default(),
         block_number,
-        ONE_WIT,
+        collateral_minimum,
+        collateral_age,
     );
     assert_eq!(signatures_to_verify, vec![]);
     assert_eq!(
@@ -5469,6 +5678,8 @@ fn genesis_block_full_validate() {
 
     let current_epoch = 0;
     let block_number = 0;
+    let collateral_minimum = 1;
+    let collateral_age = 1;
     let last_block_hash = bootstrap_hash;
     let chain_beacon = CheckpointBeacon {
         checkpoint: current_epoch,
@@ -5505,7 +5716,8 @@ fn genesis_block_full_validate() {
         genesis_block_hash,
         EpochConstants::default(),
         block_number,
-        ONE_WIT,
+        collateral_minimum,
+        collateral_age,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -5517,6 +5729,8 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
     let block_number = 1234;
 
     let utxo_diff = {
+        let collateral_minimum = 1;
+        let collateral_age = 1;
         let dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
@@ -5566,7 +5780,8 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             genesis_block_hash,
             EpochConstants::default(),
             block_number,
-            ONE_WIT,
+            collateral_minimum,
+            collateral_age,
         )
         .unwrap()
     };

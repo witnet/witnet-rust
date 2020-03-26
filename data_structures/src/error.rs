@@ -200,12 +200,44 @@ pub enum TransactionError {
         expected: Vec<PublicKeyHash>,
         found: Vec<PublicKeyHash>,
     },
-    /// Invalid collateral
+    /// Invalid collateral in data request
     #[fail(
         display = "The specified collateral ({} nwits), is less than the minimum required ({} nwits)",
         value, min
     )]
     InvalidCollateral { value: u64, min: u64 },
+    /// Negative collateral in commit transaction
+    #[fail(
+        display = "Tried to create value in commit collateral. Input value: {}, output value: {}",
+        input_value, output_value
+    )]
+    NegativeCollateral { input_value: u64, output_value: u64 },
+    /// Not enough collateral in commit transaction
+    #[fail(
+        display = "Not enough collateral. Expected: {}, found: {}",
+        expected, found
+    )]
+    NotEnoughCollateral { expected: u64, found: u64 },
+    /// Collateral in commit transaction is not mature enough
+    #[fail(
+        display = "Output {} used as collateral is not mature enough. Expected age: {} blocks, found: {} blocks",
+        output, expected, found
+    )]
+    CollateralNotMature {
+        expected: u32,
+        found: u32,
+        output: OutputPointer,
+    },
+    /// Collateral in commit transaction uses a different PKH than the commit VRF Proof
+    #[fail(
+        display = "Output {} used in collateral has pkh {} when the commit proof has pkh {}",
+        output, output_pkh, proof_pkh
+    )]
+    CollateralPkhMismatch {
+        output: OutputPointer,
+        output_pkh: PublicKeyHash,
+        proof_pkh: PublicKeyHash,
+    },
 }
 
 /// The error type for operations on a [`Block`](Block)
