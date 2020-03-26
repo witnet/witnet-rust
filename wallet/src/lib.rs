@@ -71,6 +71,9 @@ pub fn run(conf: Config) -> Result<(), Error> {
     // Wallet concurrency
     let concurrency = conf.wallet.concurrency.unwrap_or_else(num_cpus::get);
 
+    // How many blocks to ask a Witnet node for when synchronizing
+    let node_sync_batch_size = conf.wallet.node_sync_batch_size;
+
     let system = System::new("witnet-wallet");
 
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
@@ -103,7 +106,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         db_iv_length,
         db_salt_length,
         epoch_constants,
-        last_sync: 0,
+        node_sync_batch_size,
     };
     let node_params = params::NodeParams {
         address: client.clone(),

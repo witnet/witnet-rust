@@ -61,6 +61,8 @@ where
                         acc.checked_add(amount).expect("balance overflow")
                     })
             });
+
+        let last_sync = db.get(&keys::wallet_last_sync()).unwrap_or(0);
         let external_key = db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
         let next_external_index = db.get_or_default(&keys::account_next_index(
             account,
@@ -73,7 +75,6 @@ where
         ))?;
         let keychains = [external_key, internal_key];
         let epoch_constants = params.epoch_constants;
-        let last_sync = params.last_sync;
 
         let state = RwLock::new(State {
             name,
@@ -750,6 +751,13 @@ where
             public_key,
             signature,
         })
+    }
+
+    /// Update which was the epoch of the last block that was processed by this wallet.
+    pub fn update_last_sync(&self, epoch: u32) -> Result<()> {
+        self.db
+            .put(&keys::wallet_last_sync(), epoch)
+            .map_err(Error::from)
     }
 }
 

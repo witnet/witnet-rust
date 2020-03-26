@@ -54,6 +54,12 @@ pub fn wallet_default_account() -> &'static str {
     "default-account"
 }
 
+/// The epoch of the latest block that was processed by the wallet
+#[inline]
+pub fn wallet_last_sync() -> &'static str {
+    "last-sync"
+}
+
 /// An account's external key.
 #[inline]
 pub fn account_key(account_index: u32, keychain: u32) -> String {

@@ -19,7 +19,7 @@ pub struct Params {
     pub db_iv_length: usize,
     pub db_salt_length: usize,
     pub epoch_constants: EpochConstants,
-    pub last_sync: u32,
+    pub node_sync_batch_size: u32,
 }
 
 impl Default for Params {
@@ -34,7 +34,7 @@ impl Default for Params {
             db_iv_length: 16,
             db_salt_length: 32,
             epoch_constants: EpochConstants::default(),
-            last_sync: 0,
+            node_sync_batch_size: 100,
         }
     }
 }

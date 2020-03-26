@@ -630,6 +630,8 @@ pub struct Wallet {
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
     pub node_url: Option<String>,
+    /// How many blocks to ask a Witnet node for when synchronizing.
+    pub node_sync_batch_size: u32,
     /// How many worker threads the wallet uses.
     #[partial_struct(skip)]
     #[partial_struct(serde(default))]
@@ -668,6 +670,7 @@ impl Wallet {
                 .server_addr
                 .unwrap_or_else(|| defaults.wallet_server_addr()),
             node_url: config.node_url.clone(),
+            node_sync_batch_size: config.node_sync_batch_size.unwrap_or(100),
             concurrency: config.concurrency,
             db_path: config.db_path.clone().unwrap_or_else(dirs::data_dir),
             db_file_name: config

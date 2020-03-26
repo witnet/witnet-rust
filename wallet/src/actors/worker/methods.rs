@@ -309,8 +309,8 @@ impl Worker {
         log::info!("Trying to start wallet synchronization");
         // TODO: read the limit from configuration
         let limit = 100i64;
-        let mut since_epoch = i64::from(since_epoch);
         let mut latest_epoch = since_epoch;
+        let mut since_epoch = i64::from(since_epoch);
 
         loop {
             // Ask a Witnet node for epochs and ids for all the blocks that we have been missing
@@ -326,8 +326,13 @@ impl Worker {
 
                 // Process each block
                 futures03::executor::block_on(self.handle_block(block, wallet_id, wallet.clone()))?;
-                latest_epoch = i64::from(epoch);
+                latest_epoch = epoch;
             }
+
+            // Persist the epoch of the last synced block. Doing this by batches instead of by block
+            // should be safe under the assumption that the same transaction cannot be processed
+            // twice by a single wallet.
+            wallet.update_last_sync(latest_epoch)?;
 
             // Keep asking for new batches of blocks until we get less than expected, which signals
             // that there are no more blocks to process.
@@ -339,7 +344,7 @@ impl Worker {
                     wallet_id,
                     latest_epoch
                 );
-                since_epoch = latest_epoch;
+                since_epoch = i64::from(latest_epoch);
             }
         }
 
