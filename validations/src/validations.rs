@@ -966,15 +966,15 @@ pub fn validate_tally_transaction<'a>(
 pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     dr_state: &DataRequestState,
     ta_tx: &TallyTransaction,
-    n_reveals: usize,
-    n_commits: usize,
+    reveals_count: usize,
+    commits_count: usize,
     dishonest_pkhs: HashSet<PublicKeyHash, S>,
 ) -> Result<(), failure::Error> {
     let witnesses = dr_state.data_request.witnesses as usize;
     let dishonest_len = dishonest_pkhs.len();
-    let change_required = dishonest_len > 0 || n_commits == 0;
+    let change_required = dishonest_len > 0 || commits_count == 0;
 
-    if n_commits == 0 && (ta_tx.outputs.len() != 1) {
+    if commits_count == 0 && (ta_tx.outputs.len() != 1) {
         return Err(TransactionError::WrongNumberOutputs {
             outputs: ta_tx.outputs.len(),
             expected_outputs: 1,
@@ -1000,10 +1000,11 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
     let commit_fee = dr_state.data_request.commit_fee;
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         if change_required && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
-            let expected_tally_change = if n_commits == 0 {
+            let expected_tally_change = if commits_count == 0 {
                 witnesses as u64 * (witness_reward + reveal_fee + commit_fee)
             } else {
-                witness_reward * dishonest_len as u64 + reveal_fee * (witnesses - n_reveals) as u64
+                witness_reward * dishonest_len as u64
+                    + reveal_fee * (witnesses - reveals_count) as u64
             };
 
             if expected_tally_change != output.value {
