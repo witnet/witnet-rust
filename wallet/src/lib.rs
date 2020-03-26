@@ -13,6 +13,7 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 #![deny(missing_docs)]
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -24,6 +25,9 @@ use jsonrpc_pubsub as pubsub;
 use witnet_config::config::Config;
 use witnet_data_structures::chain::EpochConstants;
 use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
+
+use crate::actors::app;
+use crate::actors::worker::WorkerAddress;
 
 mod account;
 mod actors;
@@ -72,16 +76,16 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
     let client = node_url.map_or_else(
         || {
-            log::warn!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
+            log::error!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
                         [wallet]\n\
                         node_url = \"{}\"\n", node_jsonrpc_server_address);
-            Ok(None)
+            Err(app::Error::NodeNotConnected)
         },
         |url| {
             if url != node_jsonrpc_server_address.to_string() {
                 log::warn!("The local Witnet node JSON-RPC server is configured to listen at {} but the wallet will connect to {}", node_jsonrpc_server_address, url);
             }
-            JsonRpcClient::start(url.as_ref()).map(Some)
+            JsonRpcClient::start(url.as_ref()).map_err(|_| app::Error::NodeNotConnected)
         },
     )?;
 
@@ -101,8 +105,13 @@ pub fn run(conf: Config) -> Result<(), Error> {
         epoch_constants,
         last_sync: 0,
     };
+    let node_params = params::NodeParams {
+        address: client.clone(),
+        requests_timeout,
+    };
 
-    let worker = actors::Worker::start(concurrency, db.clone(), params);
+    let worker = actors::Worker::start(concurrency, db.clone(), node_params, params);
+    worker.do_send(WorkerAddress(worker.clone()));
 
     let app = actors::App::start(actors::app::Params {
         testnet,

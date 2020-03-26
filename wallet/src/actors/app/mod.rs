@@ -34,14 +34,14 @@ impl Actor for App {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        // Subscribe to node if there's one configured.
-        if let Some(ref client) = self.params.client {
-            let recipient = ctx.address().recipient();
-            let request = types::RpcRequest::method("witnet_subscribe")
-                .timeout(self.params.requests_timeout)
-                .value(json!(["newBlocks"]));
+        // Subscribe to receive new blocks from a Witnet node
+        let recipient = ctx.address().recipient();
+        let request = types::RpcRequest::method("witnet_subscribe")
+            .timeout(self.params.requests_timeout)
+            .value(json!(["newBlocks"]));
 
-            client.do_send(jsonrpc::SetSubscriber(recipient, request));
-        }
+        self.params
+            .client
+            .do_send(jsonrpc::SetSubscriber(recipient, request));
     }
 }

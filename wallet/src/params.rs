@@ -1,5 +1,11 @@
-use crate::types;
+use std::time::Duration;
+
+use actix::Addr;
+
 use witnet_data_structures::chain::EpochConstants;
+use witnet_net::client::tcp::JsonRpcClient;
+
+use crate::types;
 
 /// Initialization parameters that can be specific for each wallet.
 #[derive(Clone)]
@@ -31,4 +37,10 @@ impl Default for Params {
             last_sync: 0,
         }
     }
+}
+
+#[derive(Clone)]
+pub struct NodeParams {
+    pub address: Addr<JsonRpcClient>,
+    pub requests_timeout: Duration,
 }

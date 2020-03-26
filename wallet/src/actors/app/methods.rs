@@ -3,7 +3,6 @@ use futures::future;
 
 use super::*;
 use crate::actors::*;
-use crate::types::{ChainEntry, GetBlockChainParams};
 use crate::{crypto, model, repository, types::BuildVtt, types::Hashable as _};
 use witnet_data_structures::chain::{InventoryItem, ValueTransferOutput};
 
@@ -166,22 +165,13 @@ impl App {
         method: String,
         params: types::RpcParams,
     ) -> ResponseFuture<types::Json> {
-        match &self.params.client {
-            Some(addr) => {
-                let req = types::RpcRequest::method(method)
-                    .timeout(self.params.requests_timeout)
-                    .params(params)
-                    .expect("params failed serialization");
-                let f = addr.send(req).flatten().map_err(From::from);
+        let req = types::RpcRequest::method(method)
+            .timeout(self.params.requests_timeout)
+            .params(params)
+            .expect("params failed serialization");
+        let f = self.params.client.send(req).flatten().map_err(From::from);
 
-                Box::new(f)
-            }
-            None => {
-                let f = future::err(Error::NodeNotConnected);
-
-                Box::new(f)
-            }
-        }
+        Box::new(f)
     }
 
     /// Get public info of all the wallets stored in the database.
@@ -288,8 +278,9 @@ impl App {
                     data,
                 } = res;
 
+                let wallet_arc = Arc::new(wallet);
                 slf.state
-                    .create_session(session_id.clone(), wallet_id.clone(), Arc::new(wallet));
+                    .create_session(session_id.clone(), wallet_id.clone(), wallet_arc.clone());
 
                 for amount in prefill {
                     slf.generate_address(session_id.clone(), wallet_id.clone(), None)
@@ -310,14 +301,12 @@ impl App {
                         .spawn(ctx);
                 }
 
-                // This is the perfect time for triggering synchronization of the wallet
-                slf.sync(
-                    &session_id.clone(),
-                    &wallet_id.clone(),
-                    data.last_sync.clone(),
-                )
-                .then(|_, _, _| fut::ok(()))
-                .spawn(ctx);
+                // Start synchronization for this wallet
+                slf.params.worker.do_send(worker::SyncRequest {
+                    wallet_id,
+                    wallet: wallet_arc,
+                    since_epoch: data.last_sync,
+                });
 
                 fut::ok(types::UnlockedWallet { data, session_id })
             });
@@ -537,33 +526,26 @@ impl App {
         let method = "inventory".to_string();
         let params = InventoryItem::Transaction(txn);
 
-        match &self.params.client {
-            Some(client) => {
-                let req = types::RpcRequest::method(method)
-                    .timeout(self.params.requests_timeout)
-                    .params(params)
-                    .expect("params failed serialization");
-                let f = client
-                    .send(req)
-                    .flatten()
-                    .map_err(From::from)
-                    .inspect(|res| {
-                        log::debug!("Inventory request result: {:?}", res);
-                    })
-                    .map_err(|err| {
-                        log::warn!("Inventory request failed: {}", &err);
-                        err
-                    })
-                    .into_actor(self);
+        let req = types::RpcRequest::method(method)
+            .timeout(self.params.requests_timeout)
+            .params(params)
+            .expect("params failed serialization");
+        let f = self
+            .params
+            .client
+            .send(req)
+            .flatten()
+            .map_err(From::from)
+            .inspect(|res| {
+                log::debug!("Inventory request result: {:?}", res);
+            })
+            .map_err(|err| {
+                log::warn!("Inventory request failed: {}", &err);
+                err
+            })
+            .into_actor(self);
 
-                Box::new(f)
-            }
-            None => {
-                let f = fut::err(Error::NodeNotConnected);
-
-                Box::new(f)
-            }
-        }
+        Box::new(f)
     }
 
     pub fn send_transaction(
@@ -577,116 +559,6 @@ impl App {
         );
 
         Box::new(f)
-    }
-
-    pub fn sync(
-        &self,
-        _session_id: &types::SessionId,
-        _wallet_id: &str,
-        epoch: u32,
-    ) -> ResponseActFuture<()> {
-        log::info!("Trying to start wallet synchronization");
-        // TODO: read the limit from configuration
-        let limit = -1000;
-
-        let f = self
-            .get_block_chain(i64::from(epoch), limit)
-            .map(|blocks, slf, ctx| {
-                for ChainEntry(_, block_id) in blocks {
-                    log::debug!("Discovered block_id {:?}", block_id);
-                    slf.get_block(block_id)
-                        .map(|block, slf, _| {
-                            log::debug!("Received block: {:?}", block);
-                            slf.handle_block(block)
-                        })
-                        .then(|_, _, _| fut::ok(()))
-                        .spawn(ctx);
-                }
-            });
-
-        Box::new(f)
-    }
-
-    pub fn get_block(&self, block_id: String) -> ResponseActFuture<types::ChainBlock> {
-        log::debug!("Getting block with id {} ", block_id);
-        let method = String::from("getBlock");
-        let params = block_id;
-
-        match &self.params.client {
-            Some(client) => {
-                let req = types::RpcRequest::method(method)
-                    .timeout(self.params.requests_timeout)
-                    .params(params)
-                    .expect("params failed serialization");
-                let f = client
-                    .send(req)
-                    .flatten()
-                    .map(|json| {
-                        log::debug!("getBlock request result: {:?}", json);
-                        serde_json::from_value::<types::ChainBlock>(json).map_err(node_error)
-                    })
-                    .flatten()
-                    .map_err(|err| {
-                        log::warn!("getBlock request failed: {}", &err);
-                        err
-                    })
-                    .into_actor(self);
-
-                Box::new(f)
-            }
-            None => Box::new(fut::err(Error::NodeNotConnected)),
-        }
-    }
-
-    /// Ask a Witnet node for every block that have been written into the chain after a certain
-    /// epoch.
-    /// The node is free to choose not to deliver all existing blocks but to do it in chunks. Thus
-    /// when syncing it is important that this method is called repeatedly until the response is
-    /// empty.
-    /// A limit can be required on this side, but take into account that the node is not forced to
-    /// honor it.
-    pub fn get_block_chain(
-        &self,
-        epoch: i64,
-        limit: i64,
-    ) -> ResponseActFuture<Vec<types::ChainEntry>> {
-        log::debug!(
-            "Getting block chain from epoch {} (limit = {})",
-            epoch,
-            limit
-        );
-        let method = String::from("getBlockChain");
-        let params = GetBlockChainParams { epoch, limit };
-
-        match &self.params.client {
-            Some(client) => {
-                let req = types::RpcRequest::method(method)
-                    .timeout(self.params.requests_timeout)
-                    .params(params)
-                    .expect("params failed serialization");
-                let f = client
-                    .send(req)
-                    .flatten()
-                    .map(|json| {
-                        log::debug!("getBlockchain request result: {:?}", json);
-                        match serde_json::from_value::<Vec<types::ChainEntry>>(json)
-                            .map_err(node_error)
-                        {
-                            Ok(blocks) => Ok(blocks),
-                            Err(e) => Err(e),
-                        }
-                    })
-                    .flatten()
-                    .map_err(|err| {
-                        log::warn!("getBlockchain request failed: {}", &err);
-                        err
-                    })
-                    .into_actor(self);
-
-                Box::new(f)
-            }
-            None => Box::new(fut::err(Error::NodeNotConnected)),
-        }
     }
 
     /// Use the node to send value to the given addresses
@@ -705,33 +577,26 @@ impl App {
             .collect();
         let params = BuildVtt { vto, fee: 2020 };
 
-        match &self.params.client {
-            Some(client) => {
-                let req = types::RpcRequest::method(method)
-                    .timeout(self.params.requests_timeout)
-                    .params(params)
-                    .expect("params failed serialization");
-                let f = client
-                    .send(req)
-                    .flatten()
-                    .map_err(From::from)
-                    .inspect(|res| {
-                        log::debug!("sendValue request result: {:?}", res);
-                    })
-                    .map_err(|err| {
-                        log::warn!("sendValue request failed: {}", &err);
-                        err
-                    })
-                    .into_actor(self);
+        let req = types::RpcRequest::method(method)
+            .timeout(self.params.requests_timeout)
+            .params(params)
+            .expect("params failed serialization");
+        let f = self
+            .params
+            .client
+            .send(req)
+            .flatten()
+            .map_err(From::from)
+            .inspect(|res| {
+                log::debug!("sendValue request result: {:?}", res);
+            })
+            .map_err(|err| {
+                log::warn!("sendValue request failed: {}", &err);
+                err
+            })
+            .into_actor(self);
 
-                Box::new(f)
-            }
-            None => {
-                let f = fut::err(Error::NodeNotConnected);
-
-                Box::new(f)
-            }
-        }
+        Box::new(f)
     }
 
     /// Use wallet's master key to sign message data

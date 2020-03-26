@@ -2,20 +2,33 @@ use jsonrpc_core as rpc;
 use serde_json::json;
 
 use super::*;
+use crate::actors::worker;
+use crate::types::{ChainEntry, GetBlockChainParams};
 use crate::{account, constants, crypto, db::Database as _, model, params};
+use futures_util::compat::Compat01As03;
+use witnet_data_structures::chain::Hashable;
 
 impl Worker {
-    pub fn start(concurrency: usize, db: Arc<rocksdb::DB>, params: params::Params) -> Addr<Self> {
+    pub fn start(
+        concurrency: usize,
+        db: Arc<rocksdb::DB>,
+        node: params::NodeParams,
+        params: params::Params,
+    ) -> Addr<Self> {
         let engine = types::CryptoEngine::new();
         let wallets = Arc::new(repository::Wallets::new(db::PlainDb::new(db.clone())));
 
-        SyncArbiter::start(concurrency, move || Self {
+        let addr = SyncArbiter::start(concurrency, move || Self {
             db: db.clone(),
             wallets: wallets.clone(),
+            node: node.clone(),
             params: params.clone(),
             rng: rand::rngs::OsRng,
             engine: engine.clone(),
-        })
+            own_address: None,
+        });
+
+        addr
     }
 
     pub fn run_rad_request(
@@ -283,5 +296,171 @@ impl Worker {
         let signed_data = wallet.sign_data(&data, extended_pk)?;
 
         Ok(signed_data)
+    }
+
+    /// Try to synchronize the information for a wallet to whatever the world state is in a Witnet
+    /// chain.
+    pub fn sync(
+        &self,
+        wallet_id: &str,
+        wallet: types::SessionWallet,
+        since_epoch: u32,
+    ) -> Result<()> {
+        log::info!("Trying to start wallet synchronization");
+        // TODO: read the limit from configuration
+        let limit = 100i64;
+        let mut since_epoch = i64::from(since_epoch);
+        let mut latest_epoch = since_epoch;
+
+        loop {
+            // Ask a Witnet node for epochs and ids for all the blocks that we have been missing
+            let get_block_chain_future = self.get_block_chain(since_epoch, limit);
+            let block_chain = futures03::executor::block_on(get_block_chain_future)?;
+            log::debug!("Received chain: {:?}", block_chain);
+
+            // For each of the blocks we have been informed about, ask a Witnet node for its contents
+            for ChainEntry(epoch, id) in block_chain {
+                let get_block_future = self.get_block(id);
+                let block = futures03::executor::block_on(get_block_future)?;
+                log::debug!("For epoch {}, got block: {:?}", epoch, block);
+
+                // Process each block
+                futures03::executor::block_on(self.handle_block(block, wallet_id, wallet.clone()))?;
+                latest_epoch = i64::from(epoch);
+            }
+
+            // Keep asking for new batches of blocks until we get less than expected, which signals
+            // that there are no more blocks to process.
+            if i64::from(latest_epoch) < since_epoch + limit {
+                break;
+            } else {
+                log::info!(
+                    "Wallet {} is now synced up to epoch #{}, looking for more blocks...",
+                    wallet_id,
+                    latest_epoch
+                );
+                since_epoch = latest_epoch;
+            }
+        }
+
+        log::info!(
+            "Wallet {} is now synced up to latest epoch (#{})",
+            wallet_id,
+            latest_epoch
+        );
+
+        Ok(())
+    }
+
+    /// Ask a Witnet node for every block that have been written into the chain after a certain
+    /// epoch.
+    /// The node is free to choose not to deliver all existing blocks but to do it in chunks. Thus
+    /// when syncing it is important that this method is called repeatedly until the response is
+    /// empty.
+    /// A limit can be required on this side, but take into account that the node is not forced to
+    /// honor it.
+    pub async fn get_block_chain(&self, epoch: i64, limit: i64) -> Result<Vec<types::ChainEntry>> {
+        log::debug!(
+            "Getting block chain from epoch {} (limit = {})",
+            epoch,
+            limit
+        );
+
+        let method = String::from("getBlockChain");
+        let params = GetBlockChainParams { epoch, limit };
+        let req = types::RpcRequest::method(method)
+            .timeout(self.node.requests_timeout)
+            .params(params)
+            .expect("params failed serialization");
+
+        let f = self
+            .node
+            .address
+            .send(req)
+            .flatten()
+            .map(|json| {
+                log::debug!("getBlockChain request result: {:?}", json);
+                match serde_json::from_value::<Vec<types::ChainEntry>>(json).map_err(node_error) {
+                    Ok(blocks) => Ok(blocks),
+                    Err(e) => Err(e),
+                }
+            })
+            .flatten()
+            .map_err(|err| {
+                log::warn!("getBlockChain request failed: {}", &err);
+                err
+            });
+
+        Compat01As03::new(f).await
+    }
+
+    /// Ask a Witnet node for the contents of a single block.
+    pub async fn get_block(&self, block_id: String) -> Result<types::ChainBlock> {
+        log::debug!("Getting block with id {} ", block_id);
+        let method = String::from("getBlock");
+        let params = block_id;
+
+        let req = types::RpcRequest::method(method)
+            .timeout(self.node.requests_timeout)
+            .params(params)
+            .expect("params failed serialization");
+        let f = self
+            .node
+            .address
+            .send(req)
+            .flatten()
+            .map(|json| {
+                log::debug!("getBlock request result: {:?}", json);
+                serde_json::from_value::<types::ChainBlock>(json).map_err(node_error)
+            })
+            .flatten()
+            .map_err(|err| {
+                log::warn!("getBlock request failed: {}", &err);
+                err
+            });
+
+        Compat01As03::new(f).await
+    }
+
+    pub async fn handle_block(
+        &self,
+        block: types::ChainBlock,
+        wallet_id: &str,
+        wallet: types::SessionWallet,
+    ) -> Result<()> {
+        // NOTE: Possible enhancement.
+        // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns
+        // if this vector results to be too big, problem is that doing so conflicts with the internal
+        // Cell of the txns type which cannot be shared between threads.
+        let block_epoch = block.block_header.beacon.checkpoint;
+        let block_hash = block.hash().as_ref().to_vec();
+
+        // Block transactions to be indexed.
+        // NOTE: only `VttTransaction` and `DRTransaction` are currently supported.
+        let dr_txns = block
+            .txns
+            .data_request_txns
+            .into_iter()
+            .map(types::Transaction::from);
+        let vtt_txns = block
+            .txns
+            .value_transfer_txns
+            .into_iter()
+            .map(types::Transaction::from);
+        let block_txns = dr_txns.chain(vtt_txns).collect::<Vec<types::Transaction>>();
+
+        for slf in &self.own_address {
+            slf.do_send(worker::IndexTxns(
+                wallet_id.to_owned(),
+                wallet.clone(),
+                block_txns.clone(),
+                model::BlockInfo {
+                    epoch: block_epoch,
+                    hash: block_hash.clone(),
+                },
+            ));
+        }
+
+        Ok(())
     }
 }

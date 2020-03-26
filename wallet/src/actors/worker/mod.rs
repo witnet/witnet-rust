@@ -17,9 +17,11 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Worker {
     db: Arc<rocksdb::DB>,
     wallets: Arc<repository::Wallets<db::PlainDb>>,
+    node: params::NodeParams,
     params: params::Params,
     engine: types::CryptoEngine,
     rng: rand::rngs::OsRng,
+    own_address: Option<Addr<Self>>,
 }
 
 impl Actor for Worker {
