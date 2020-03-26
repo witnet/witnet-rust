@@ -184,9 +184,9 @@ fn mint_valid() {
 #[test]
 fn vtt_no_inputs_no_outputs() {
     let mut signatures_to_verify = vec![];
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     let vt_body = VTTransactionBody::new(vec![], vec![]);
     let vt_tx = VTTransaction::new(vt_body, vec![]);
@@ -208,9 +208,9 @@ fn vtt_no_inputs_no_outputs() {
 #[test]
 fn vtt_no_inputs_zero_output() {
     let mut signatures_to_verify = vec![];
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     // Try to create a data request with no inputs
     let pkh = PublicKeyHash::default();
@@ -240,9 +240,9 @@ fn vtt_no_inputs_zero_output() {
 #[test]
 fn vtt_no_inputs() {
     let mut signatures_to_verify = vec![];
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     // Try to create a data request with no inputs
     let pkh = PublicKeyHash::default();
@@ -272,9 +272,9 @@ fn vtt_no_inputs() {
 #[test]
 fn vtt_no_inputs_but_one_signature() {
     let mut signatures_to_verify = vec![];
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     // No inputs but 1 signature
     let pkh = PublicKeyHash::default();
@@ -306,9 +306,9 @@ fn vtt_no_inputs_but_one_signature() {
 #[test]
 fn vtt_one_input_but_no_signature() {
     let mut signatures_to_verify = vec![];
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(
         "2222222222222222222222222222222222222222222222222222222222222222:0"
             .parse()
@@ -435,10 +435,10 @@ fn vtt_one_input_signatures() {
         value: 1000,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     let pkh = PublicKeyHash::default();
     let vto0 = ValueTransferOutput {
@@ -469,9 +469,9 @@ fn vtt_one_input_signatures() {
 #[test]
 fn vtt_input_not_in_utxo() {
     let mut signatures_to_verify = vec![];
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(
         "2222222222222222222222222222222222222222222222222222222222222222:0"
             .parse()
@@ -513,10 +513,10 @@ fn vtt_input_not_enough_value() {
         value: 1,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     let pkh = PublicKeyHash::default();
     let vto0 = ValueTransferOutput {
@@ -549,10 +549,10 @@ fn vtt_one_input_zero_value_output() {
         value: 1,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     let zero_output = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
@@ -587,10 +587,10 @@ fn vtt_one_input_two_outputs_negative_fee() {
         value: 2,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
@@ -627,10 +627,10 @@ fn vtt_one_input_two_outputs() {
         value: 21,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
@@ -670,11 +670,11 @@ fn vtt_two_inputs_one_signature() {
         value: 13,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
-    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti0 = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let vti1 = Input::new(utxo_set.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
@@ -714,11 +714,11 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
         value: 13,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
-    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti0 = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let vti1 = Input::new(utxo_set.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
@@ -763,11 +763,11 @@ fn vtt_two_inputs_three_signatures() {
         value: 13,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
-    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti0 = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let vti1 = Input::new(utxo_set.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
@@ -807,11 +807,11 @@ fn vtt_two_inputs_two_outputs() {
         value: 13,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
-    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti0 = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let vti1 = Input::new(utxo_set.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
@@ -851,11 +851,11 @@ fn vtt_input_value_overflow() {
         value: 1_000,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
-    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti0 = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let vti1 = Input::new(utxo_set.iter().nth(1).unwrap().0.clone());
 
     // The total output value should not overflow
     let vto0 = ValueTransferOutput {
@@ -899,11 +899,11 @@ fn vtt_output_value_overflow() {
         value: 1_000,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
-    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti0 = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let vti1 = Input::new(utxo_set.iter().nth(1).unwrap().0.clone());
 
     // The total output value should overflow
     let vto0 = ValueTransferOutput {
@@ -948,10 +948,10 @@ fn vtt_timelock() {
             value: 1000,
             time_lock,
         };
-        let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+        let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
         let block_number = 0;
-        let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-        let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+        let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
         let pkh = PublicKeyHash::default();
         let vto0 = ValueTransferOutput {
@@ -1002,10 +1002,10 @@ fn vtt_valid() {
         value: 1000,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     let pkh = PublicKeyHash::default();
     let vto0 = ValueTransferOutput {
@@ -1163,9 +1163,9 @@ fn genesis_vtt_valid() {
 #[test]
 fn data_request_no_inputs() {
     let mut signatures_to_verify = vec![];
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     // Try to create a data request with no inputs
     let dr_output = DataRequestOutput {
@@ -1196,9 +1196,9 @@ fn data_request_no_inputs() {
 #[test]
 fn data_request_no_inputs_but_one_signature() {
     let mut signatures_to_verify = vec![];
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     // No inputs but 1 signature
     let dr_output = DataRequestOutput {
@@ -1238,10 +1238,10 @@ fn data_request_one_input_but_no_signature() {
         value: 1000,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     let dr_output = DataRequestOutput {
         witness_reward: 500,
@@ -1280,10 +1280,10 @@ fn data_request_one_input_signatures() {
         value: 1000,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     let dr_output = DataRequestOutput {
         witness_reward: 500,
@@ -1315,11 +1315,51 @@ fn data_request_one_input_signatures() {
 }
 
 #[test]
+fn data_request_input_double_spend() {
+    let mut signatures_to_verify = vec![];
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: 1000,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let output = utxo_set.iter().next().unwrap().0.clone();
+    let vti = Input::new(output.clone());
+
+    let dr_output = DataRequestOutput {
+        witness_reward: 500,
+        witnesses: 2,
+        min_consensus_percentage: 51,
+        collateral: ONE_WIT,
+        data_request: example_data_request(),
+        ..DataRequestOutput::default()
+    };
+
+    let dr_tx_body = DRTransactionBody::new(vec![vti; 2], vec![], dr_output);
+    let drs = sign_t(&dr_tx_body);
+    let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs; 2]);
+    let x = validate_dr_transaction(
+        &dr_transaction,
+        &utxo_diff,
+        Epoch::default(),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        ONE_WIT,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::OutputNotFound { output }
+    );
+}
+
+#[test]
 fn data_request_input_not_in_utxo() {
     let mut signatures_to_verify = vec![];
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(
         "2222222222222222222222222222222222222222222222222222222222222222:0"
             .parse()
@@ -1363,10 +1403,10 @@ fn data_request_input_not_enough_value() {
         value: 1,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     let dr_output = DataRequestOutput {
         witness_reward: 500,
@@ -1406,11 +1446,11 @@ fn data_request_output_value_overflow() {
         value: 1_000,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto_21, vto_13], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti0 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
-    let vti1 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti0 = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let vti1 = Input::new(utxo_set.iter().nth(1).unwrap().0.clone());
 
     let vto0 = ValueTransferOutput {
         pkh: MY_PKH.parse().unwrap(),
@@ -1464,10 +1504,10 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
         value: 1000,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
     let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
@@ -1749,10 +1789,10 @@ fn data_request_miner_fee() {
         value: 1000,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
     let dr_tx_body = DRTransactionBody::new(vec![vti], vec![], dr_output);
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
@@ -1794,10 +1834,10 @@ fn data_request_miner_fee_with_change() {
         pkh: PublicKeyHash::default(),
         value: 200,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
     let dr_tx_body = DRTransactionBody::new(vec![vti], vec![change_output], dr_output);
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
@@ -1839,10 +1879,10 @@ fn data_request_miner_fee_with_too_much_change() {
         pkh: PublicKeyHash::default(),
         value: 300,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
     let dr_tx_body = DRTransactionBody::new(vec![vti], vec![change_output], dr_output);
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
@@ -1885,10 +1925,10 @@ fn data_request_zero_value_output() {
         pkh: PublicKeyHash::default(),
         value: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
     let dr_tx_body = DRTransactionBody::new(vec![vti], vec![change_output], dr_output);
     let drs = sign_t(&dr_tx_body);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
@@ -1916,11 +1956,11 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let dr_pool = DataRequestPool::default();
     let beacon = CheckpointBeacon::default();
     let rep_eng = ReputationEngine::new(100);
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let collateral_minimum = 1;
     let collateral_age = 1;
     let block_number = 0;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     validate_commit_transaction(
         &c_tx,
@@ -1943,10 +1983,10 @@ static DR_HASH: &str = "2b3e5252d9266d5bc62666052e9a6a8b00167c04a2339c3929acd62a
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
 fn test_commit_with_dr_and_utxo_set(
     c_tx: &CommitTransaction,
-    utxo_pool: &UnspentOutputsPool,
+    utxo_set: &UnspentOutputsPool,
 ) -> Result<(), failure::Error> {
     let block_number = 100_000;
-    let utxo_diff = UtxoDiff::new(utxo_pool, 0);
+    let utxo_diff = UtxoDiff::new(utxo_set, 0);
     let collateral_minimum = 1;
     let collateral_age = 1;
 
@@ -2051,12 +2091,12 @@ fn test_commit_difficult_proof() {
         value: ONE_WIT,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 100_000;
     let collateral_minimum = 1;
     let collateral_age = 1;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, 0);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, 0);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     cb.collateral = vec![vti];
     cb.outputs = vec![];
@@ -2089,7 +2129,11 @@ fn test_commit_difficult_proof() {
 }
 
 // Helper function to test a commit with an existing data request
-fn test_commit() -> Result<(), failure::Error> {
+// The data requests asks for 1 wit of collateral
+fn test_commit_with_collateral(
+    utxo_set: &UnspentOutputsPool,
+    collateral: (Vec<Input>, Vec<ValueTransferOutput>),
+) -> Result<(), failure::Error> {
     let mut signatures_to_verify = vec![];
     let mut dr_pool = DataRequestPool::default();
     let commit_beacon = CheckpointBeacon::default();
@@ -2128,20 +2172,14 @@ fn test_commit() -> Result<(), failure::Error> {
     cb.proof =
         DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
 
-    let vto = ValueTransferOutput {
-        pkh: cb.proof.proof.pkh(),
-        value: ONE_WIT,
-        time_lock: 0,
-    };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 100_000;
     let collateral_minimum = 1;
     let collateral_age = 1;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, 0);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, 0);
 
-    cb.collateral = vec![vti];
-    cb.outputs = vec![];
+    let (inputs, outputs) = collateral;
+    cb.collateral = inputs;
+    cb.outputs = outputs;
 
     // Sign commitment
     let cs = sign_t(&cb);
@@ -2182,8 +2220,8 @@ fn commitment_signatures() {
         value: ONE_WIT,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     cb.collateral = vec![vti];
     cb.outputs = vec![];
@@ -2191,7 +2229,7 @@ fn commitment_signatures() {
     let f = |cb, cs| {
         let c_tx = CommitTransaction::new(cb, vec![cs]);
 
-        test_commit_with_dr_and_utxo_set(&c_tx, &utxo_pool)
+        test_commit_with_dr_and_utxo_set(&c_tx, &utxo_set)
     };
 
     let hashable = cb;
@@ -2307,8 +2345,8 @@ fn commitment_no_signature() {
         value: ONE_WIT,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     cb.collateral = vec![vti];
     cb.outputs = vec![];
@@ -2316,7 +2354,7 @@ fn commitment_no_signature() {
     // Do not sign commitment
     let c_tx = CommitTransaction::new(cb, vec![]);
 
-    let x = test_commit_with_dr_and_utxo_set(&c_tx, &utxo_pool);
+    let x = test_commit_with_dr_and_utxo_set(&c_tx, &utxo_set);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::SignatureNotFound,
@@ -2364,12 +2402,12 @@ fn commitment_invalid_proof() {
         value: ONE_WIT,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let block_number = 100_000;
     let collateral_minimum = 1;
     let collateral_age = 1;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, 0);
-    let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+    let utxo_diff = UtxoDiff::new(&utxo_set, 0);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
     cb.collateral = vec![vti];
     cb.outputs = vec![];
@@ -2428,11 +2466,11 @@ fn commitment_proof_lower_than_target() {
 
 #[test]
 fn commitment_dr_in_reveal_stage() {
-    let utxo_pool = UnspentOutputsPool::default();
+    let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let collateral_minimum = 1;
     let collateral_age = 1;
-    let utxo_diff = UtxoDiff::new(&utxo_pool, block_number);
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
     let mut dr_pool = DataRequestPool::default();
     let block_hash = Hash::default();
@@ -2500,8 +2538,218 @@ fn commitment_dr_in_reveal_stage() {
 
 #[test]
 fn commitment_valid() {
-    let x = test_commit();
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+
     x.unwrap();
+}
+
+#[test]
+fn commitment_collateral_zero_value_output() {
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let zero_value_output = ValueTransferOutput {
+        pkh: Default::default(),
+        value: 0,
+        time_lock: 0,
+    };
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![zero_value_output]));
+
+    let err = x.unwrap_err().downcast::<TransactionError>().unwrap();
+    assert!(
+        matches!(
+            err,
+            TransactionError::ZeroValueOutput { output_id: 0, .. }
+        ),
+        "assertion failed: `(left == right)`\n  left: `{:?}`,\n right: `ZeroValueOutput`",
+        err
+    );
+}
+
+#[test]
+fn commitment_collateral_output_not_found() {
+    let utxo_set = build_utxo_set_with_mint(vec![], None, vec![]);
+    let non_existing_output = OutputPointer::default();
+    let vti = Input::new(non_existing_output.clone());
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::OutputNotFound {
+            output: non_existing_output
+        }
+    );
+}
+
+#[test]
+fn commitment_collateral_pkh_mismatch() {
+    let fake_pkh = Default::default();
+    let vto = ValueTransferOutput {
+        pkh: fake_pkh,
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let output = utxo_set.iter().next().unwrap().0.clone();
+    let vti = Input::new(output.clone());
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::CollateralPkhMismatch {
+            output,
+            output_pkh: fake_pkh,
+            proof_pkh: MY_PKH.parse().unwrap(),
+        }
+    );
+}
+
+#[test]
+fn commitment_collateral_timelocked() {
+    let time_lock = 1_000_000_000_000;
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: ONE_WIT,
+        time_lock,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let output = utxo_set.iter().next().unwrap().0.clone();
+    let vti = Input::new(output);
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::TimeLock {
+            current: 0,
+            expected: i64::try_from(time_lock).unwrap(),
+        }
+    );
+}
+
+#[test]
+fn commitment_collateral_not_mature() {
+    let mint_txns = vec![Transaction::Mint(MintTransaction::new(
+        TX_COUNTER.fetch_add(1, Ordering::SeqCst),
+        ValueTransferOutput {
+            pkh: MY_PKH.parse().unwrap(),
+            value: ONE_WIT,
+            time_lock: 0,
+        },
+    ))];
+    let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &mint_txns, 99999);
+    let output = utxo_set.iter().next().unwrap().0.clone();
+    let vti = Input::new(output.clone());
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::CollateralNotMature {
+            must_be_older_than: 1,
+            found: 1,
+            output,
+        }
+    );
+}
+
+#[test]
+fn commitment_collateral_double_spend() {
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: ONE_WIT / 2,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let output = utxo_set.iter().next().unwrap().0.clone();
+    let vti = Input::new(output.clone());
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti.clone(), vti], vec![]));
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::OutputNotFound { output }
+    );
+}
+
+#[test]
+fn commitment_collateral_wrong_amount() {
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+    let output = utxo_set.iter().next().unwrap().0.clone();
+    let vti = Input::new(output);
+    let change_output = ValueTransferOutput {
+        pkh: Default::default(),
+        value: 1,
+        time_lock: 0,
+    };
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![change_output]));
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::IncorrectCollateral {
+            expected: ONE_WIT,
+            found: ONE_WIT - 1
+        }
+    );
+}
+
+#[test]
+fn commitment_collateral_negative_amount() {
+    let vto1 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: ONE_WIT / 2,
+        time_lock: 0,
+    };
+    let vto2 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: ONE_WIT / 2,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto1, vto2], None, vec![]);
+    let output1 = utxo_set.iter().next().unwrap().0.clone();
+    let output2 = utxo_set.iter().nth(1).unwrap().0.clone();
+    let inputs = vec![Input::new(output1), Input::new(output2)];
+    let change_output1 = ValueTransferOutput {
+        pkh: Default::default(),
+        value: 1,
+        time_lock: 0,
+    };
+    let change_output2 = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+
+    let x = test_commit_with_collateral(&utxo_set, (inputs, vec![change_output1, change_output2]));
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::NegativeCollateral {
+            input_value: ONE_WIT,
+            output_value: ONE_WIT + 1
+        }
+    );
 }
 
 #[test]
@@ -2556,12 +2804,12 @@ fn commitment_timelock() {
             value: ONE_WIT,
             time_lock: 0,
         };
-        let utxo_pool = build_utxo_set_with_mint(vec![vto], None, vec![]);
+        let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
         let block_number = 100_000;
         let collateral_minimum = 1;
         let collateral_age = 1;
-        let utxo_diff = UtxoDiff::new(&utxo_pool, 0);
-        let vti = Input::new(utxo_pool.iter().next().unwrap().0.clone());
+        let utxo_diff = UtxoDiff::new(&utxo_set, 0);
+        let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
         cb.collateral = vec![vti];
         cb.outputs = vec![];
@@ -4750,9 +4998,9 @@ fn block_duplicated_commits() {
         value: ONE_WIT,
         time_lock: 0,
     };
-    let utxo_pool = build_utxo_set_with_mint(vec![vto1, vto2], None, vec![]);
-    let vti1 = Input::new(utxo_pool.iter().next().unwrap().0.clone());
-    let vti2 = Input::new(utxo_pool.iter().nth(1).unwrap().0.clone());
+    let utxo_set = build_utxo_set_with_mint(vec![vto1, vto2], None, vec![]);
+    let vti1 = Input::new(utxo_set.iter().next().unwrap().0.clone());
+    let vti2 = Input::new(utxo_set.iter().nth(1).unwrap().0.clone());
 
     cb.collateral = vec![vti1];
     cb.outputs = vec![];
@@ -4793,7 +5041,7 @@ fn block_duplicated_commits() {
             true
         },
         dr_pool,
-        utxo_pool,
+        utxo_set,
     );
 
     assert_eq!(
@@ -5264,7 +5512,38 @@ fn block_add_2_vtt_same_input() {
                 value_transfer_txns: vec![vt_tx1, vt_tx2],
                 ..BlockTransactions::default()
             },
-            (1_000_000 - 10) * 2,
+            (1_000_000 - 1) * 2,
+        )
+    };
+
+    let x = test_blocks(vec![t0]);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::OutputNotFound {
+            output: MILLION_TX_OUTPUT.parse().unwrap(),
+        },
+    );
+}
+
+#[test]
+fn block_add_1_vtt_2_same_input() {
+    let t0 = {
+        let vto0 = ValueTransferOutput {
+            time_lock: 0,
+            pkh: Default::default(),
+            value: 1,
+        };
+        let output1_pointer = MILLION_TX_OUTPUT.parse().unwrap();
+        let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer); 2], vec![vto0]);
+        let vts = sign_t(&vt_body);
+        let vt_tx1 = VTTransaction::new(vt_body, vec![vts; 2]);
+
+        (
+            BlockTransactions {
+                value_transfer_txns: vec![vt_tx1],
+                ..BlockTransactions::default()
+            },
+            1_000_000 * 2 - 1,
         )
     };
 

@@ -48,6 +48,7 @@ pub fn transaction_inputs_sum(
     epoch_constants: EpochConstants,
 ) -> Result<u64, failure::Error> {
     let mut total_value: u64 = 0;
+    let mut seen_output_pointers = HashSet::with_capacity(inputs.len());
 
     for input in inputs {
         let vt_output = utxo_diff.get(&input.output_pointer()).ok_or_else(|| {
@@ -66,6 +67,13 @@ pub fn transaction_inputs_sum(
             }
             .into());
         } else {
+            if !seen_output_pointers.insert(input.output_pointer()) {
+                // If the set already contained this output pointer
+                return Err(TransactionError::OutputNotFound {
+                    output: input.output_pointer().clone(),
+                }
+                .into());
+            }
             total_value = total_value
                 .checked_add(vt_output.value)
                 .ok_or(TransactionError::InputValueOverflow)?;
@@ -139,16 +147,19 @@ pub fn dr_transaction_fee(
 /// and the inputs of the transaction. The pool parameter is used to find the
 /// outputs pointed by the inputs and that contain the actual
 /// their value.
-pub fn co_collateral(
+pub fn validate_commit_collateral(
     co_tx: &CommitTransaction,
     utxo_diff: &UtxoDiff,
     epoch: Epoch,
     epoch_constants: EpochConstants,
     required_collateral: u64,
-    block_number_limit: u32,
+    block_number: u32,
+    collateral_age: u32,
 ) -> Result<(), failure::Error> {
+    let block_number_limit = block_number.saturating_sub(collateral_age);
     let commit_pkh = co_tx.body.proof.proof.pkh();
     let mut in_value: u64 = 0;
+    let mut seen_output_pointers = HashSet::with_capacity(co_tx.body.collateral.len());
 
     for input in &co_tx.body.collateral {
         let vt_output = utxo_diff.get(&input.output_pointer()).ok_or_else(|| {
@@ -178,10 +189,6 @@ pub fn co_collateral(
                 current: epoch_timestamp,
             }
             .into());
-        } else {
-            in_value = in_value
-                .checked_add(vt_output.value)
-                .ok_or(TransactionError::InputValueOverflow)?;
         }
 
         // Inputs must be mature enough
@@ -191,11 +198,23 @@ pub fn co_collateral(
         if included_in_block_number >= block_number_limit {
             return Err(TransactionError::CollateralNotMature {
                 output: input.output_pointer().clone(),
-                expected: block_number_limit,
-                found: included_in_block_number,
+                must_be_older_than: collateral_age,
+                found: block_number - included_in_block_number,
             }
             .into());
         }
+
+        if !seen_output_pointers.insert(input.output_pointer()) {
+            // If the set already contained this output pointer
+            return Err(TransactionError::OutputNotFound {
+                output: input.output_pointer().clone(),
+            }
+            .into());
+        }
+
+        in_value = in_value
+            .checked_add(vt_output.value)
+            .ok_or(TransactionError::InputValueOverflow)?;
     }
 
     let out_value = transaction_outputs_sum(&co_tx.body.outputs)?;
@@ -208,7 +227,7 @@ pub fn co_collateral(
         .into())
     } else if in_value - out_value != required_collateral {
         let found_collateral = in_value - out_value;
-        Err(TransactionError::NotEnoughCollateral {
+        Err(TransactionError::IncorrectCollateral {
             expected: required_collateral,
             found: found_collateral,
         }
@@ -782,14 +801,14 @@ pub fn validate_commit_transaction(
     if required_collateral == 0 {
         required_collateral = collateral_minimum;
     }
-    let minimum_block_number = block_number.saturating_sub(collateral_age);
-    co_collateral(
+    validate_commit_collateral(
         co_tx,
         utxo_diff,
         epoch,
         epoch_constants,
         required_collateral,
-        minimum_block_number,
+        block_number,
+        collateral_age,
     )?;
 
     // Verify that commits are only accepted after the time lock expired
@@ -1934,14 +1953,14 @@ impl Diff {
 /// Use `.take_diff()` to obtain an instance of the `Diff` type.
 pub struct UtxoDiff<'a> {
     diff: Diff,
-    utxo_pool: &'a UnspentOutputsPool,
+    utxo_set: &'a UnspentOutputsPool,
 }
 
 impl<'a> UtxoDiff<'a> {
     /// Create a new UtxoDiff without additional insertions or deletions
-    pub fn new(utxo_pool: &'a UnspentOutputsPool, block_number: u32) -> Self {
+    pub fn new(utxo_set: &'a UnspentOutputsPool, block_number: u32) -> Self {
         UtxoDiff {
-            utxo_pool,
+            utxo_set,
             diff: Diff::new(block_number),
         }
     }
@@ -1970,7 +1989,7 @@ impl<'a> UtxoDiff<'a> {
     /// recorded as inserted later. If the same utxo has been recorded
     /// as removed, None will be returned.
     pub fn get(&self, output_pointer: &OutputPointer) -> Option<&ValueTransferOutput> {
-        self.utxo_pool
+        self.utxo_set
             .get(output_pointer)
             .or_else(|| self.diff.utxos_to_add.get(output_pointer))
             .and_then(|output| {
@@ -1992,7 +2011,7 @@ impl<'a> UtxoDiff<'a> {
     /// by this OutputPointer. The difference between that number and the
     /// current number of consolidated blocks is the "coin age".
     pub fn included_in_block_number(&self, output_pointer: &OutputPointer) -> Option<Epoch> {
-        self.utxo_pool
+        self.utxo_set
             .included_in_block_number(output_pointer)
             .and_then(|output| {
                 if self.diff.utxos_to_remove.contains(output_pointer) {

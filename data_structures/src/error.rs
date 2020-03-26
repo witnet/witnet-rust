@@ -212,19 +212,19 @@ pub enum TransactionError {
         input_value, output_value
     )]
     NegativeCollateral { input_value: u64, output_value: u64 },
-    /// Not enough collateral in commit transaction
+    /// Incorrect collateral in commit transaction
     #[fail(
-        display = "Not enough collateral. Expected: {}, found: {}",
+        display = "Incorrect collateral. Expected: {}, found: {}",
         expected, found
     )]
-    NotEnoughCollateral { expected: u64, found: u64 },
+    IncorrectCollateral { expected: u64, found: u64 },
     /// Collateral in commit transaction is not mature enough
     #[fail(
-        display = "Output {} used as collateral is not mature enough. Expected age: {} blocks, found: {} blocks",
-        output, expected, found
+        display = "Output {} used as collateral is not mature enough. Outputs must be older than {} blocks, this one was {} blocks old",
+        output, must_be_older_than, found
     )]
     CollateralNotMature {
-        expected: u32,
+        must_be_older_than: u32,
         found: u32,
         output: OutputPointer,
     },
