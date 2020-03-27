@@ -18,7 +18,7 @@ impl Worker {
         let engine = types::CryptoEngine::new();
         let wallets = Arc::new(repository::Wallets::new(db::PlainDb::new(db.clone())));
 
-        let addr = SyncArbiter::start(concurrency, move || Self {
+        SyncArbiter::start(concurrency, move || Self {
             db: db.clone(),
             wallets: wallets.clone(),
             node: node.clone(),
@@ -26,9 +26,7 @@ impl Worker {
             rng: rand::rngs::OsRng,
             engine: engine.clone(),
             own_address: None,
-        });
-
-        addr
+        })
     }
 
     pub fn run_rad_request(
