@@ -452,7 +452,7 @@ impl Worker {
             .map(types::Transaction::from);
         let block_txns = dr_txns.chain(vtt_txns).collect::<Vec<types::Transaction>>();
 
-        for slf in &self.own_address {
+        if let Some(slf) = self.own_address.as_ref() {
             slf.do_send(worker::IndexTxns(
                 wallet_id.to_owned(),
                 wallet.clone(),
