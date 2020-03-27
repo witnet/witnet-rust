@@ -3647,7 +3647,7 @@ fn tally_invalid_consensus() {
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedConsensus {
-            local_tally: tally_value,
+            expected_tally: tally_value,
             miner_tally: fake_tally_value,
         }
     );
@@ -3848,6 +3848,38 @@ fn tally_reveal_not_found() {
 }
 
 #[test]
+fn tally_invalid_reward() {
+    // Reveal value: integer(0)
+    let reveal_value = vec![0x00];
+    let dr_output = example_data_request_output(2, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, _dr_pkh, change) =
+        dr_pool_with_dr_in_tally_stage(dr_output.clone(), 2, 2, 0, reveal_value, vec![]);
+
+    // Tally value: integer(0)
+    let tally_value = vec![0x00];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[0],
+        value: dr_output.witness_reward + 1000,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: dr_output.witness_reward,
+    };
+    assert_eq!(change, 0);
+    let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::InvalidReward {
+            value: dr_output.witness_reward + 1000,
+            expected_value: dr_output.witness_reward
+        },
+    );
+}
+
+#[test]
 fn tally_valid_2_reveals() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
@@ -3955,16 +3987,61 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         dr_pointer,
         tally_value,
         vec![vt0, vt1, vt2],
-        slashed_witnesses,
+        slashed_witnesses.clone(),
     );
     let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchingSlashedWitnesses {
-            expected: vec![].into_iter().sorted().collect(),
-            found: slashed.into_iter().sorted().collect(),
+            expected: slashed.into_iter().sorted().collect(),
+            found: slashed_witnesses.into_iter().sorted().collect(),
         },
+    );
+}
+
+#[test]
+fn tally_dishonest_reward() {
+    // Reveal value: integer(0)
+    let reveal_value = vec![0x00];
+    let liar_value = vec![0x0a];
+
+    // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
+    let dr_output = example_data_request_output_with_mode_filter(3, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, _change) =
+        dr_pool_with_dr_in_tally_stage_with_dr_liar(
+            dr_output.clone(),
+            3,
+            3,
+            1,
+            reveal_value,
+            liar_value,
+        );
+
+    // Tally value: integer(0)
+    let tally_value = vec![0x00];
+    let vt0 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: dr_output.witness_reward,
+    };
+    let vt1 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: rewarded[1],
+        value: dr_output.witness_reward,
+    };
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: dr_output.witness_reward,
+    };
+    let tally_transaction =
+        TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1, vt2], slashed);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::DishonestReward,
     );
 }
 

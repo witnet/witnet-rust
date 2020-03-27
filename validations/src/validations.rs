@@ -19,7 +19,7 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine,
         SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
     },
-    data_request::DataRequestPool,
+    data_request::{calculate_tally_change, create_tally, DataRequestPool},
     error::{BlockError, DataRequestError, TransactionError},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
@@ -490,65 +490,6 @@ pub fn evaluate_tally_precondition_clause(
     }
 }
 
-/// Function to validate a tally consensus
-pub fn validate_consensus(
-    reveals: Vec<&RevealTransaction>,
-    miner_tally: &[u8],
-    tally: &RADTally,
-    non_error_min: f64,
-    commit_pkhs: Vec<&PublicKeyHash>,
-) -> Result<HashSet<PublicKeyHash>, failure::Error> {
-    let num_commits = commit_pkhs.len();
-    let mut dishonest_hs: HashSet<PublicKeyHash> = commit_pkhs.iter().cloned().cloned().collect();
-
-    let results = serial_iter_decode(
-        &mut reveals
-            .iter()
-            .map(|&reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
-        |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
-            log::warn!(
-                "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
-                reveal_tx,
-                &slice,
-                e
-            );
-            Some(RadonReport::from_result(
-                Err(RadError::MalformedReveal),
-                &ReportContext::default(),
-            ))
-        },
-    );
-
-    let results_len = results.len();
-    let clause_result = evaluate_tally_precondition_clause(results, non_error_min, num_commits);
-    let report = construct_report_from_clause_result(clause_result, &tally, results_len);
-
-    let metadata = report.metadata.clone();
-    let tally_consensus = Vec::<u8>::try_from(&report)?;
-
-    if let Stage::Tally(tally_metadata) = metadata {
-        if tally_consensus.as_slice() == miner_tally {
-            let liars = tally_metadata.liars;
-
-            for (reveal, &liar) in reveals.iter().zip(liars.iter()) {
-                if !liar {
-                    dishonest_hs.remove(&reveal.body.pkh);
-                }
-            }
-
-            Ok(dishonest_hs)
-        } else {
-            Err(TransactionError::MismatchedConsensus {
-                local_tally: tally_consensus,
-                miner_tally: miner_tally.to_vec(),
-            }
-            .into())
-        }
-    } else {
-        Err(TransactionError::NoTallyStage.into())
-    }
-}
-
 /// Construct a `RadonReport` from a `TallyPreconditionClauseResult`
 pub fn construct_report_from_clause_result(
     clause_result: Result<TallyPreconditionClauseResult, RadError>,
@@ -897,12 +838,39 @@ pub fn validate_reveal_transaction(
     Ok(dr_state.data_request.reveal_fee)
 }
 
-/// Function to validate a tally transaction
-/// FIXME(#695): refactor tally validation
-pub fn validate_tally_transaction<'a>(
-    ta_tx: &'a TallyTransaction,
+fn create_expected_report(
+    reveals: &[&RevealTransaction],
+    tally: &RADTally,
+    non_error_min: f64,
+    commits_count: usize,
+) -> RadonReport<RadonTypes> {
+    let results = serial_iter_decode(
+        &mut reveals
+            .iter()
+            .map(|&reveal_tx| (reveal_tx.body.reveal.as_slice(), reveal_tx)),
+        |e: RadError, slice: &[u8], reveal_tx: &RevealTransaction| {
+            log::warn!(
+                "Could not decode reveal from {:?} (revealed bytes were `{:?}`): {:?}",
+                reveal_tx,
+                &slice,
+                e
+            );
+            Some(RadonReport::from_result(
+                Err(RadError::MalformedReveal),
+                &ReportContext::default(),
+            ))
+        },
+    );
+
+    let results_len = results.len();
+    let clause_result = evaluate_tally_precondition_clause(results, non_error_min, commits_count);
+    construct_report_from_clause_result(clause_result, &tally, results_len)
+}
+
+fn create_expected_tally_transaction(
+    ta_tx: &TallyTransaction,
     dr_pool: &DataRequestPool,
-) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+) -> Result<(TallyTransaction, DataRequestState), failure::Error> {
     // Get DataRequestState
     let dr_pointer = ta_tx.dr_pointer;
     let dr_state = dr_pool
@@ -918,96 +886,98 @@ pub fn validate_tally_transaction<'a>(
 
     // The unwrap is safe because we know that the data request exists
     let reveal_txns = dr_pool.get_reveals(&dr_pointer).unwrap();
-    let reveal_length = reveal_txns.len();
-
-    // Validate tally result
-    let miner_tally = ta_tx.tally.clone();
-    let tally_stage = &dr_output.data_request.tally;
     let non_error_min = f64::from(dr_output.min_consensus_percentage) / 100.0;
-    let commit_pkhs: Vec<&PublicKeyHash> = dr_state.info.commits.keys().collect();
-    let commit_length = commit_pkhs.len();
+    let committers = dr_state
+        .info
+        .commits
+        .keys()
+        .cloned()
+        .collect::<HashSet<PublicKeyHash>>();
+    let commit_length = committers.len();
 
-    let dishonest_pkhs = validate_consensus(
-        reveal_txns,
-        &miner_tally,
-        tally_stage,
+    let report = create_expected_report(
+        &reveal_txns,
+        &dr_output.data_request.tally,
         non_error_min,
-        commit_pkhs,
+        commit_length,
+    );
+
+    let ta_tx = create_tally(
+        dr_pointer,
+        &dr_output,
+        dr_state.pkh,
+        &report,
+        reveal_txns.into_iter().map(|tx| tx.body.pkh).collect(),
+        committers,
     )?;
 
-    let sorted_dishonest: Vec<PublicKeyHash> =
-        dishonest_pkhs.clone().into_iter().sorted().collect();
-    let sorted_slashed: Vec<PublicKeyHash> = ta_tx
+    Ok((ta_tx, dr_state.clone()))
+}
+
+/// Function to validate a tally transaction
+pub fn validate_tally_transaction<'a>(
+    ta_tx: &'a TallyTransaction,
+    dr_pool: &DataRequestPool,
+) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    let (expected_ta_tx, dr_state) = create_expected_tally_transaction(ta_tx, dr_pool)?;
+
+    let sorted_slashed = ta_tx.slashed_witnesses.iter().cloned().sorted().collect();
+    let sorted_expected_slashed = expected_ta_tx
         .slashed_witnesses
-        .clone()
         .into_iter()
         .sorted()
         .collect();
 
-    if sorted_dishonest != sorted_slashed {
+    // Validation of slashed witnesses
+    if sorted_expected_slashed != sorted_slashed {
         return Err(TransactionError::MismatchingSlashedWitnesses {
-            expected: sorted_slashed,
-            found: sorted_dishonest,
+            expected: sorted_expected_slashed,
+            found: sorted_slashed,
         }
         .into());
     }
 
-    validate_tally_outputs(
-        &dr_state,
-        &ta_tx,
-        reveal_length,
-        commit_length,
-        dishonest_pkhs,
-    )?;
-
-    Ok((ta_tx.outputs.iter().collect(), dr_output.tally_fee))
-}
-
-pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
-    dr_state: &DataRequestState,
-    ta_tx: &TallyTransaction,
-    reveals_count: usize,
-    commits_count: usize,
-    dishonest_pkhs: HashSet<PublicKeyHash, S>,
-) -> Result<(), failure::Error> {
-    let witnesses = dr_state.data_request.witnesses as usize;
-    let dishonest_len = dishonest_pkhs.len();
-    let change_required = dishonest_len > 0 || commits_count == 0;
-
-    if commits_count == 0 && (ta_tx.outputs.len() != 1) {
+    // Validation of outputs number
+    if expected_ta_tx.outputs.len() != ta_tx.outputs.len() {
         return Err(TransactionError::WrongNumberOutputs {
+            expected_outputs: expected_ta_tx.outputs.len(),
             outputs: ta_tx.outputs.len(),
-            expected_outputs: 1,
-        }
-        .into());
-    } else if dishonest_len > 0 && (ta_tx.outputs.len() != witnesses - dishonest_len + 1) {
-        return Err(TransactionError::WrongNumberOutputs {
-            outputs: ta_tx.outputs.len(),
-            expected_outputs: witnesses - dishonest_len + 1,
-        }
-        .into());
-    } else if !change_required && (ta_tx.outputs.len() != witnesses) {
-        return Err(TransactionError::WrongNumberOutputs {
-            outputs: ta_tx.outputs.len(),
-            expected_outputs: witnesses,
         }
         .into());
     }
+
+    // Validation of tally result
+    if expected_ta_tx.tally != ta_tx.tally {
+        return Err(TransactionError::MismatchedConsensus {
+            expected_tally: expected_ta_tx.tally,
+            miner_tally: ta_tx.tally.clone(),
+        }
+        .into());
+    }
+
+    let slashed_hs = sorted_expected_slashed
+        .into_iter()
+        .collect::<HashSet<PublicKeyHash>>();
+
+    let commits_count = dr_state.info.commits.len();
+    let reveals_count = dr_state.info.reveals.len();
+    let slashed_count = slashed_hs.len();
+    // Slashed are liars plus non revealers
+    let liars_count = slashed_count - (commits_count - reveals_count);
+
+    let expected_tally_change = calculate_tally_change(
+        commits_count,
+        reveals_count,
+        reveals_count - liars_count,
+        &dr_state.data_request,
+    );
 
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::default();
-    let witness_reward = dr_state.data_request.witness_reward;
-    let reveal_fee = dr_state.data_request.reveal_fee;
-    let commit_fee = dr_state.data_request.commit_fee;
+    let mut total_tally_value = 0;
     for (i, output) in ta_tx.outputs.iter().enumerate() {
-        if change_required && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
-            let expected_tally_change = if commits_count == 0 {
-                witnesses as u64 * (witness_reward + reveal_fee + commit_fee)
-            } else {
-                witness_reward * dishonest_len as u64
-                    + reveal_fee * (witnesses - reveals_count) as u64
-            };
-
-            if expected_tally_change != output.value {
+        // Validation of tally change value
+        if expected_tally_change > 0 && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
+            if output.value != expected_tally_change {
                 return Err(TransactionError::InvalidTallyChange {
                     change: output.value,
                     expected_change: expected_tally_change,
@@ -1015,20 +985,53 @@ pub fn validate_tally_outputs<S: ::std::hash::BuildHasher>(
                 .into());
             }
         } else {
+            // Validation of each rewarded address was a revealer
             if dr_state.info.reveals.get(&output.pkh).is_none() {
                 return Err(TransactionError::RevealNotFound.into());
             }
-            if dishonest_pkhs.contains(&output.pkh) {
+
+            // Validation of each rewarded address was not a liar
+            if slashed_hs.contains(&output.pkh) {
                 return Err(TransactionError::DishonestReward.into());
             }
+
+            // Validation of the reward is according to the DataRequestOutput
+            if output.value != dr_state.data_request.witness_reward {
+                return Err(TransactionError::InvalidReward {
+                    value: output.value,
+                    expected_value: dr_state.data_request.witness_reward,
+                }
+                .into());
+            }
+
+            // Validation of a honest witness would not be rewarded more than once
             if pkh_rewarded.contains(&output.pkh) {
                 return Err(TransactionError::MultipleRewards { pkh: output.pkh }.into());
             }
             pkh_rewarded.insert(output.pkh);
         }
+        total_tally_value += output.value;
     }
 
-    Ok(())
+    let expected_dr_value = dr_state.data_request.checked_total_value()?;
+    let found_dr_value = dr_state.info.commits.len() as u64 * dr_state.data_request.commit_fee
+        + dr_state.info.reveals.len() as u64 * dr_state.data_request.reveal_fee
+        + dr_state.data_request.tally_fee
+        + total_tally_value;
+
+    // Validation of the total value of the data request
+    if found_dr_value != expected_dr_value {
+        return Err(TransactionError::InvalidTallyValue {
+            value: found_dr_value,
+            expected_value: expected_dr_value,
+        }
+        .into());
+    }
+
+    Ok((
+        ta_tx.outputs.iter().collect(),
+        dr_state.data_request.tally_fee,
+    ))
 }
 
 /// Function to validate a block signature
