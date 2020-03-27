@@ -6080,3 +6080,155 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         );
     }
 }
+
+#[test]
+fn validate_commit_transactions_included_in_utxo_diff() {
+    // Check that the collateral from commit transactions is removed from the UTXO set,
+    // and the change outputs from commit transactions are included into the UTXO set
+    let block_number = 100_000;
+    let collateral_value = ONE_WIT;
+    let change_value = 250;
+
+    let change_vto = ValueTransferOutput {
+        pkh: Default::default(),
+        value: change_value,
+        time_lock: 0,
+    };
+    let commit_tx_hash;
+    let mint_tx_hash;
+    let mint_vto;
+
+    let vto = ValueTransferOutput {
+        pkh: MY_PKH.parse().unwrap(),
+        value: collateral_value + change_value,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
+
+    let utxo_diff = {
+        let output = utxo_set.iter().next().unwrap().0.clone();
+        let vti = Input::new(output);
+
+        let mut dr_pool = DataRequestPool::default();
+        let commit_beacon = CheckpointBeacon::default();
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let rep_eng = ReputationEngine::new(100);
+
+        let dro = DataRequestOutput {
+            witness_reward: 1000,
+            witnesses: 1,
+            min_consensus_percentage: 51,
+            data_request: example_data_request(),
+            collateral: ONE_WIT,
+            ..DataRequestOutput::default()
+        };
+        let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+        let drs = sign_t(&dr_body);
+        let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
+        let dr_hash = dr_transaction.hash();
+        assert_eq!(dr_hash, DR_HASH.parse().unwrap());
+        let dr_epoch = 0;
+        dr_pool
+            .process_data_request(
+                &dr_transaction,
+                dr_epoch,
+                EpochConstants::default(),
+                &Hash::default(),
+            )
+            .unwrap();
+
+        let secret_key = SecretKey {
+            bytes: Protected::from(vec![0xcd; 32]),
+        };
+        let current_epoch = 1000;
+        let last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
+        let block_beacon = CheckpointBeacon {
+            checkpoint: current_epoch,
+            hash_prev_block: last_block_hash,
+        };
+        let my_pkh = PublicKeyHash::default();
+        let genesis_block_hash = GENESIS_BLOCK_HASH.parse().unwrap();
+
+        let mut txns = BlockTransactions::default();
+        mint_vto = ValueTransferOutput {
+            time_lock: 0,
+            pkh: my_pkh,
+            value: block_reward(current_epoch),
+        };
+        txns.mint = MintTransaction::new(current_epoch, mint_vto.clone());
+        mint_tx_hash = txns.mint.hash();
+
+        // Insert valid proof
+        let mut cb = CommitTransactionBody::default();
+        cb.dr_pointer = dr_hash;
+        cb.proof =
+            DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+
+        let collateral_minimum = 1;
+        let collateral_age = 1;
+
+        let (inputs, outputs) = (vec![vti], vec![change_vto.clone()]);
+        cb.collateral = inputs;
+        cb.outputs = outputs;
+
+        // Sign commitment
+        let cs = sign_t(&cb);
+        let c_tx = CommitTransaction::new(cb, vec![cs]);
+        commit_tx_hash = c_tx.hash();
+
+        txns.commit_txns.push(c_tx);
+
+        let mut block_header = BlockHeader::default();
+        build_merkle_tree(&mut block_header, &txns);
+        block_header.beacon = block_beacon;
+        block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, block_beacon).unwrap();
+
+        let block_sig = sign_t(&block_header);
+        let b = Block {
+            block_header,
+            block_sig,
+            txns,
+        };
+        let mut signatures_to_verify = vec![];
+
+        validate_block_transactions(
+            &utxo_set,
+            &dr_pool,
+            &b,
+            &mut signatures_to_verify,
+            &rep_eng,
+            genesis_block_hash,
+            EpochConstants::default(),
+            block_number,
+            collateral_minimum,
+            collateral_age,
+        )
+        .unwrap()
+    };
+
+    // The original UTXO set contained one mint transaction
+    assert_eq!(utxo_set.iter().len(), 1);
+    // Apply the UTXO diff to the original UTXO set
+    let mut utxo_set = utxo_set;
+    utxo_diff.apply(&mut utxo_set);
+
+    // The expected state of the UTXO set is:
+    // * A new mint transaction for the block miner
+    // * The change output of the collateral used in the commit transaction
+    let mut expected_utxo_set = build_utxo_set_with_mint(vec![], None, vec![]);
+    let mint_output_pointer = OutputPointer {
+        transaction_id: mint_tx_hash,
+        output_index: 0,
+    };
+    expected_utxo_set.insert(mint_output_pointer, mint_vto, block_number);
+    let change_output_pointer = OutputPointer {
+        transaction_id: commit_tx_hash,
+        output_index: 0,
+    };
+    expected_utxo_set.insert(change_output_pointer, change_vto, block_number);
+
+    // In total, 2 outputs
+    assert_eq!(expected_utxo_set.iter().len(), 2);
+
+    assert_eq!(utxo_set, expected_utxo_set);
+}

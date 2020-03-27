@@ -1375,6 +1375,12 @@ pub fn validate_block_transactions(
 
         increment_witnesses_counter(&mut commits_number, &dr_pointer, u32::from(dr_witnesses));
 
+        let (inputs, outputs) = (
+            transaction.body.collateral.iter().collect(),
+            transaction.body.outputs.iter().collect(),
+        );
+        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+
         // Add new hash to merkle tree
         let txn_hash = transaction.hash();
         let Hash::SHA256(sha) = txn_hash;
