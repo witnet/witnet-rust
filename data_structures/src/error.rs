@@ -55,16 +55,26 @@ pub enum TransactionError {
         change, expected_change
     )]
     InvalidTallyChange { change: u64, expected_change: u64 },
+    #[fail(
+        display = "Invalid witness reward found: {}. Expected value: {}",
+        value, expected_value
+    )]
+    InvalidReward { value: u64, expected_value: u64 },
+    #[fail(
+        display = "After complete a DataRequest live process, the total value in nwits is in invalid. Found: {}. Expected value: {}",
+        value, expected_value
+    )]
+    InvalidTallyValue { value: u64, expected_value: u64 },
     #[fail(display = "Data Request witness reward must be greater than zero")]
     NoReward,
     #[fail(display = "Data Request witnesses number must be greater than zero")]
     InsufficientWitnesses,
     #[fail(
-        display = "Mismatching between local tally ({:?}) and miner tally ({:?})",
-        local_tally, miner_tally
+        display = "Mismatching between expected tally ({:?}) and miner tally ({:?})",
+        expected_tally, miner_tally
     )]
     MismatchedConsensus {
-        local_tally: Vec<u8>,
+        expected_tally: Vec<u8>,
         miner_tally: Vec<u8>,
     },
     #[fail(
