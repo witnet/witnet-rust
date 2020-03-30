@@ -1,10 +1,8 @@
 [
   {
     "inputs": [],
-    "payable": false,
     "stateMutability": "nonpayable",
-    "type": "constructor",
-    "signature": "constructor"
+    "type": "constructor"
   },
   {
     "anonymous": false,
@@ -23,11 +21,9 @@
       }
     ],
     "name": "NewBlock",
-    "type": "event",
-    "signature": "0xe1c9ac156359e117ba0744ca389de158e27192cd006ad58e099f4beb0b568e17"
+    "type": "event"
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256",
@@ -48,13 +44,11 @@
         "type": "uint256"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0xf25b3f99"
+    "constant": true
   },
   {
-    "constant": true,
     "inputs": [],
     "name": "lastBlock",
     "outputs": [
@@ -69,13 +63,25 @@
         "type": "uint256"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0x806b984f"
+    "constant": true
   },
   {
-    "constant": true,
+    "inputs": [],
+    "name": "witnet",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "constant": true
+  },
+  {
     "inputs": [],
     "name": "getLastBeacon",
     "outputs": [
@@ -85,13 +91,11 @@
         "type": "bytes"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0xe987ed58"
+    "constant": true
   },
   {
-    "constant": true,
     "inputs": [],
     "name": "getLastEpoch",
     "outputs": [
@@ -101,13 +105,11 @@
         "type": "uint256"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0x398bac63"
+    "constant": true
   },
   {
-    "constant": true,
     "inputs": [],
     "name": "getLastHash",
     "outputs": [
@@ -117,13 +119,11 @@
         "type": "uint256"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0x4a910046"
+    "constant": true
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256[]",
@@ -154,13 +154,11 @@
         "type": "bool"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0x1b58f9c7"
+    "constant": true
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256[]",
@@ -191,13 +189,11 @@
         "type": "bool"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0x9806e62b"
+    "constant": true
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "address",
@@ -213,13 +209,11 @@
         "type": "bool"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0xbe2adb35"
+    "constant": true
   },
   {
-    "constant": false,
     "inputs": [
       {
         "internalType": "uint256",
@@ -244,13 +238,10 @@
     ],
     "name": "postNewBlock",
     "outputs": [],
-    "payable": false,
     "stateMutability": "nonpayable",
-    "type": "function",
-    "signature": "0xd2afe01a"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256",
@@ -262,17 +253,15 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "drMerkleRoot",
+        "name": "",
         "type": "uint256"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0x98276535"
+    "constant": true
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256",
@@ -284,13 +273,12 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "tallyMerkleRoot",
+        "name": "",
         "type": "uint256"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function",
-    "signature": "0xfcc770ee"
+    "constant": true
   }
 ]

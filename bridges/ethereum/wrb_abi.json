@@ -12,10 +12,8 @@
         "type": "uint8"
       }
     ],
-    "payable": false,
     "stateMutability": "nonpayable",
-    "type": "constructor",
-    "signature": "constructor"
+    "type": "constructor"
   },
   {
     "anonymous": false,
@@ -34,8 +32,7 @@
       }
     ],
     "name": "IncludedRequest",
-    "type": "event",
-    "signature": "0x606da8983234a575e6a11bdee69d011116464a48c9fcaa18f1523046ac6b421e"
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -54,8 +51,7 @@
       }
     ],
     "name": "PostedRequest",
-    "type": "event",
-    "signature": "0x512c720a10f3b0e3dcf2b8c1eee461d5e2d0ec63f32ec487d83ea4632c5e9913"
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -74,11 +70,71 @@
       }
     ],
     "name": "PostedResult",
-    "type": "event",
-    "signature": "0x8d8b0475cd196102cef21d842139689bd3544d1bfd4065c8c9ca33e3de5f4a34"
+    "type": "event"
   },
   {
-    "constant": true,
+    "inputs": [],
+    "name": "CLAIM_EXPIRATION",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "abs",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "activeIdentities",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "nextActiveIdentities",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "lastBlockNumber",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "blockRelay",
+    "outputs": [
+      {
+        "internalType": "contract BlockRelayProxy",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "repFactor",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -124,13 +180,23 @@
         "type": "address"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
-    "type": "function",
-    "signature": "0x81d12c58"
+    "type": "function"
   },
   {
-    "constant": false,
+    "inputs": [],
+    "name": "witnet",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes",
@@ -151,13 +217,10 @@
         "type": "uint256"
       }
     ],
-    "payable": true,
     "stateMutability": "payable",
-    "type": "function",
-    "signature": "0xec32e3db"
+    "type": "function"
   },
   {
-    "constant": false,
     "inputs": [
       {
         "internalType": "uint256",
@@ -172,13 +235,10 @@
     ],
     "name": "upgradeDataRequest",
     "outputs": [],
-    "payable": true,
     "stateMutability": "payable",
-    "type": "function",
-    "signature": "0x48ab5b65"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256[]",
@@ -194,13 +254,10 @@
         "type": "bool[]"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
-    "type": "function",
-    "signature": "0x5fb84347"
+    "type": "function"
   },
   {
-    "constant": false,
     "inputs": [
       {
         "internalType": "uint256",
@@ -230,13 +287,10 @@
     ],
     "name": "reportDataRequestInclusion",
     "outputs": [],
-    "payable": false,
     "stateMutability": "nonpayable",
-    "type": "function",
-    "signature": "0xcbfc2a7c"
+    "type": "function"
   },
   {
-    "constant": false,
     "inputs": [
       {
         "internalType": "uint256",
@@ -271,13 +325,10 @@
     ],
     "name": "reportResult",
     "outputs": [],
-    "payable": false,
     "stateMutability": "nonpayable",
-    "type": "function",
-    "signature": "0x8a68f33e"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256",
@@ -293,13 +344,10 @@
         "type": "bytes"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
-    "type": "function",
-    "signature": "0xc6de1d55"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256",
@@ -315,13 +363,10 @@
         "type": "bytes"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
-    "type": "function",
-    "signature": "0x45b3d782"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256",
@@ -337,13 +382,10 @@
         "type": "uint256"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
-    "type": "function",
-    "signature": "0x08ba7342"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [],
     "name": "requestsCount",
     "outputs": [
@@ -353,51 +395,10 @@
         "type": "uint256"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
-    "type": "function",
-    "signature": "0xfbfa4b7f"
+    "type": "function"
   },
   {
-    "constant": true,
-    "inputs": [],
-    "name": "absCount",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function",
-    "signature": "0xd81b563b"
-  },
-  {
-    "constant": true,
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_address",
-        "type": "address"
-      }
-    ],
-    "name": "isABSMember",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "payable": false,
-    "stateMutability": "view",
-    "type": "function",
-    "signature": "0xfdd09acc"
-  },
-  {
-    "constant": true,
     "inputs": [
       {
         "internalType": "bytes",
@@ -413,13 +414,10 @@
         "type": "uint256[4]"
       }
     ],
-    "payable": false,
     "stateMutability": "pure",
-    "type": "function",
-    "signature": "0xc9d4ef1f"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "bytes",
@@ -435,13 +433,10 @@
         "type": "uint256[2]"
       }
     ],
-    "payable": false,
     "stateMutability": "pure",
-    "type": "function",
-    "signature": "0x51cdea5f"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "uint256[2]",
@@ -472,13 +467,10 @@
         "type": "uint256[4]"
       }
     ],
-    "payable": false,
     "stateMutability": "pure",
-    "type": "function",
-    "signature": "0xc95ac47a"
+    "type": "function"
   },
   {
-    "constant": false,
     "inputs": [
       {
         "internalType": "uint256",
@@ -488,13 +480,10 @@
     ],
     "name": "updateAbsActivity",
     "outputs": [],
-    "payable": false,
     "stateMutability": "nonpayable",
-    "type": "function",
-    "signature": "0xa6e7ad2d"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [
       {
         "internalType": "address",
@@ -510,13 +499,10 @@
         "type": "bool"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
-    "type": "function",
-    "signature": "0xbe2adb35"
+    "type": "function"
   },
   {
-    "constant": false,
     "inputs": [
       {
         "internalType": "uint256[]",
@@ -557,13 +543,10 @@
         "type": "bool"
       }
     ],
-    "payable": false,
     "stateMutability": "nonpayable",
-    "type": "function",
-    "signature": "0xc9bcae14"
+    "type": "function"
   },
   {
-    "constant": true,
     "inputs": [],
     "name": "getLastBeacon",
     "outputs": [
@@ -573,9 +556,7 @@
         "type": "bytes"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
-    "type": "function",
-    "signature": "0xe987ed58"
+    "type": "function"
   }
 ]
