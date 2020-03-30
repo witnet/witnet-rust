@@ -284,25 +284,6 @@ impl App {
                 slf.state
                     .create_session(session_id.clone(), wallet_id.clone(), wallet_arc.clone());
 
-                /*for amount in prefill {
-                    slf.generate_address(session_id.clone(), wallet_id.clone(), None)
-                        .map_err(|e, _, _| {
-                            log::error!("Failed to generate address to add funds: {}", e)
-                        })
-                        .and_then(move |res, slf, _ctx| {
-                            // send amount to address
-                            slf.fund_addresses(&[(res.pkh, amount)])
-                                .map(move |x, _, _| {
-                                    log::debug!("Funding address {}: {}", res.pkh, x)
-                                })
-                                .map_err(|e, _, _| {
-                                    log::error!("Failed to add funds to wallet: {}", e)
-                                })
-                        })
-                        .then(|_, _, _| fut::ok(()))
-                        .spawn(ctx);
-                }*/
-
                 // Start synchronization for this wallet
                 let sink = slf.state.get_sink(&session_id);
                 slf.params.worker.do_send(worker::SyncRequest {
