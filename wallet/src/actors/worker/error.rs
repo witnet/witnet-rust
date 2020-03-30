@@ -1,6 +1,7 @@
 use failure::Fail;
 
 use crate::{crypto, db, repository};
+use witnet_data_structures::chain::Hash;
 use witnet_net::client::tcp;
 
 #[derive(Debug, Fail)]
@@ -28,6 +29,19 @@ pub enum Error {
     Node(#[cause] failure::Error),
     #[fail(display = "error processing a block: {}", _0)]
     Block(#[cause] failure::Error),
+}
+
+#[derive(Debug, Fail)]
+#[fail(display = "error")]
+pub enum BlockError {
+    #[fail(
+        display = "block is not connected to our local tip of the chain ({} != {})",
+        block_previous_beacon, local_chain_tip
+    )]
+    NotConnectedToLocalChainTip {
+        block_previous_beacon: Hash,
+        local_chain_tip: Hash,
+    },
 }
 
 /// Helper function to simplify .map_err on node errors.

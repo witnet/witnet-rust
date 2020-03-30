@@ -458,10 +458,14 @@ impl Worker {
         wallet: types::SessionWallet,
     ) -> Result<()> {
         // Stop processing the block if it does not directly build on top of our tip of the chain
-        let prev_block_hash = block.block_header.beacon.hash_prev_block;
-        let last_sync_hash = wallet.public_data()?.last_sync.hash_prev_block;
-        if prev_block_hash != last_sync_hash {
-            return Ok(log::warn!("Tried to process a block that does not build directly on top of our tip of the chain. ({:?} != {:?})", prev_block_hash, last_sync_hash ));
+        let block_previous_beacon = block.block_header.beacon.hash_prev_block;
+        let local_chain_tip = wallet.public_data()?.last_sync.hash_prev_block;
+        if block_previous_beacon != local_chain_tip {
+            log::warn!("Tried to process a block that does not build directly on top of our tip of the chain. ({:?} != {:?})", block_previous_beacon, local_chain_tip );
+            return Err(block_error(BlockError::NotConnectedToLocalChainTip {
+                block_previous_beacon,
+                local_chain_tip,
+            }));
         }
 
         // NOTE: Possible enhancement.
