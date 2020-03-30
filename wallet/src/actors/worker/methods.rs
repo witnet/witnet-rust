@@ -344,7 +344,7 @@ impl Worker {
                 log::debug!("[SU] For epoch {}, got block: {:?}", epoch, block);
 
                 // Process each block
-                futures03::executor::block_on(self.handle_block(block.clone(), wallet.clone()))?;
+                self.handle_block(block.clone(), wallet.clone())?;
                 latest_beacon = CheckpointBeacon {
                     checkpoint: epoch,
                     hash_prev_block: Hash::from_str(&id)?,
@@ -364,7 +364,6 @@ impl Worker {
                     latest_beacon
                 );
                 since_beacon = latest_beacon.clone();
-                break;
             }
         }
 
@@ -454,7 +453,7 @@ impl Worker {
         Compat01As03::new(f).await
     }
 
-    pub async fn handle_block(
+    pub fn handle_block(
         &self,
         block: types::ChainBlock,
         wallet: types::SessionWallet,

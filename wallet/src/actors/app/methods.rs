@@ -463,63 +463,33 @@ impl App {
         Box::new(f)
     }
 
-    /// Handle notifications received from the node.
-    pub fn handle_block_notification(&mut self, value: types::Json) -> Result<()> {
+    /// Handle new block notifications received from the node.
+    pub fn handle_block_notification(&self, value: types::Json) -> Result<()> {
         log::trace!("received block notification");
         let block = serde_json::from_value::<types::ChainBlock>(value).map_err(node_error)?;
 
-        self.handle_block(block)
-    }
-
-    /// Handle notifications received from the node.
-    pub fn handle_block(&mut self, block: types::ChainBlock) -> Result<()> {
-        // NOTE: Possible enhancement.
-        // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns
-        // if this vector results to be too big, problem is that doing so conflicts with the internal
-        // Cell of the txns type which cannot be shared between threads.
-        let block_epoch = block.block_header.beacon.checkpoint;
-        // NOTE: We are calculating the hash of the block here (it's just the hash of the header)
-        // since it's not memoized and not doing it would imply that all threads indexing wallet
-        // UTXOs call this method over and over. If calculating the hash here degrades performance
-        // too much we should consider to calculate it in a worker thread instead and then proceed
-        // with indexing transactions.
-        let block_hash = block.hash();
-
-        // Block transactions to be indexed.
-        // NOTE: only `VttTransaction` and `DRTransaction` are currently supported.
-        let dr_txns = block
-            .txns
-            .data_request_txns
-            .into_iter()
-            .map(types::Transaction::from);
-        let vtt_txns = block
-            .txns
-            .value_transfer_txns
-            .into_iter()
-            .map(types::Transaction::from);
-        let block_txns = dr_txns.chain(vtt_txns).collect::<Vec<types::Transaction>>();
-
-        // Index block transactions on each wallet
-        for (id, wallet) in self.state.wallets() {
-            self.params.worker.do_send(worker::IndexTxns(
-                id.to_owned(),
-                wallet.clone(),
-                block_txns.clone(),
-                model::BlockInfo {
-                    epoch: block_epoch,
-                    hash: block_hash.as_ref().to_vec().clone(),
-                },
-            ));
-        }
-
-        log::trace!("notifying balances to sessions");
-        for (wallet, sink) in self.state.notifiable_wallets() {
-            self.params
-                .worker
-                .do_send(worker::NotifyBalance(wallet, sink));
+        for (_id, wallet) in self
+            .state
+            .wallets()
+            .collect::<Vec<(&String, &types::SessionWallet)>>()
+        {
+            // Send to a worker
+            self.handle_block_in_worker(&block, wallet);
         }
 
         Ok(())
+    }
+
+    /// Offload block processing into a worker that operates on a different Arbiter than the main
+    /// server thread, so as not to lock the rest of the application.
+    pub fn handle_block_in_worker(&self, block: &types::ChainBlock, wallet: &types::SessionWallet) {
+        // NOTE: Possible enhancement.
+        // Maybe is a good idea to use a shared reference Arc instead of cloning `block` altogether,
+        // moreover when this method is called iteratively by `handle_block_notification`.
+        self.params.worker.do_send(HandleBlockRequest {
+            block: block.clone(),
+            wallet: wallet.clone(),
+        });
     }
 
     /// Send a transaction to witnet network using the Inventory method
@@ -561,44 +531,6 @@ impl App {
         let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
             move |_wallet, slf: &mut Self, _| slf.send_inventory_transaction(transaction),
         );
-
-        Box::new(f)
-    }
-
-    /// Use the node to send value to the given addresses
-    fn fund_addresses(
-        &self,
-        pkh_value: &[(types::PublicKeyHash, u64)],
-    ) -> ResponseActFuture<serde_json::Value> {
-        let method = "sendValue".to_string();
-        let vto = pkh_value
-            .iter()
-            .map(|&(pkh, value)| ValueTransferOutput {
-                pkh,
-                value,
-                time_lock: 0,
-            })
-            .collect();
-        let params = BuildVtt { vto, fee: 2020 };
-
-        let req = types::RpcRequest::method(method)
-            .timeout(self.params.requests_timeout)
-            .params(params)
-            .expect("params failed serialization");
-        let f = self
-            .params
-            .client
-            .send(req)
-            .flatten()
-            .map_err(From::from)
-            .inspect(|res| {
-                log::debug!("sendValue request result: {:?}", res);
-            })
-            .map_err(|err| {
-                log::warn!("sendValue request failed: {}", &err);
-                err
-            })
-            .into_actor(self);
 
         Box::new(f)
     }

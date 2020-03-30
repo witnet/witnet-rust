@@ -16,23 +16,6 @@ struct Session {
 }
 
 impl State {
-    /// Get a list of wallets to which notifications can be sent
-    /// through the returned sink.
-    pub fn notifiable_wallets(&self) -> Vec<(types::SessionWallet, types::Sink)> {
-        self.sessions
-            .values()
-            .filter_map(|session| {
-                session.subscription.as_ref().map(|sink| {
-                    session
-                        .wallets
-                        .values()
-                        .map(move |wallet| (wallet.clone(), sink.clone()))
-                })
-            })
-            .flatten()
-            .collect()
-    }
-
     /// Get the sink for a specific session
     pub fn get_sink(&self, session_id: &types::SessionId) -> Option<types::Sink> {
         self.sessions
