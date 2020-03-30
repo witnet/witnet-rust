@@ -317,7 +317,7 @@ impl Worker {
         sink: Option<types::Sink>,
     ) -> Result<()> {
         let limit = i64::from(self.params.node_sync_batch_size);
-        let mut latest_beacon = since_beacon.clone();
+        let mut latest_beacon = since_beacon;
         let mut since_beacon = since_beacon;
 
         log::info!(
@@ -362,7 +362,7 @@ impl Worker {
                     wallet_id,
                     latest_beacon
                 );
-                since_beacon = latest_beacon.clone();
+                since_beacon = latest_beacon;
             }
         }
 
@@ -487,7 +487,7 @@ impl Worker {
 
         let block_info = model::BlockInfo {
             epoch: block_epoch,
-            hash: block_hash.clone(),
+            hash: block_hash,
         };
         self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
 

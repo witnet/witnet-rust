@@ -112,7 +112,7 @@ where
         let state = self.state.read()?;
         let current_account = state.account;
         let balance = state.balance;
-        let last_sync = state.last_sync.clone();
+        let last_sync = state.last_sync;
 
         Ok(types::WalletData {
             name: state.name.clone(),
@@ -771,7 +771,7 @@ where
         );
 
         if let Ok(mut write_guard) = self.state.write() {
-            write_guard.last_sync = beacon.clone();
+            write_guard.last_sync = beacon;
         }
 
         self.db
