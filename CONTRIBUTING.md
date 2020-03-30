@@ -1,55 +1,181 @@
-# Contributing
+# Contributing to Witnet
 
-Find an area you can help with and do it. Open source is about collaboration and open participation. Try to make your code look like what already exists and submit a pull request.
+:tada: Thank you for joining the Witnet community and showing interest
+in making your first contribution! :tada:
 
-The [list of issues](https://github.com/witnet/rust-witnet/issues) is a good place to start, especially the ones tagged as "help wanted" (but don't let that stop you from looking at others). If you're looking for additional ideas, the code includes `TODO` comments for minor to major improvements. Grep is your friend.
+The following is a set of guidelines and helpful pointers for
+contributing to Witnet. The keyword here is _guidelines_, not rules. As
+such, use your best judgement and feel free to propose changes to even
+this document.
 
-Additional tests are rewarded with an immense amount of positive karma.
+## Code of conduct
 
-More documentation or updates/fixes to existing documentation are also very welcome. However, if submitting a PR consisting of documentation changes only, please try to ensure that the change is significantly more substantial than one or two lines. For example, working through an install document and making changes and updates throughout as you find issues is worth a PR. For typos and other small changes, either contact one of the developers, or if you think it's a significant enough error to cause problems for other users, please feel free to open an issue.
+Everyone participating in this project is governed by the
+[Witnet Code of Conduct][code]. By participating, you are expected to
+uphold this code as well.
 
-Find us at the [Witnet community Gitter chat room](https://gitter.im/witnet/rust-witnet).
+## I just have a question
 
-This contribution guide is based on [Grin's](https://github.com/mimblewimble/grin/blob/master/CONTRIBUTING.md). We have lots of respect for that project.
+Please don't file an issue with questions.It's easier for you and for us
+if you go directly to our [Discord server][discord] or
+[Telegram group][telegram], since it will keep our repositories clean
+and you will get a faster response.
 
-## How to write a git-commit message
+## How can I contribute?
 
-The goal of these conventions is keeping a healthy commit history in this project. People interested in the project should be able to get a clear picture of the project status right from our commit history.
+Find an area you can help with and do it. Open source is about
+collaboration and open participation. Try to make your code look like
+what already exists and submit a pull request on [GitHub].
 
-> Re-establishing the context of a piece of code is wasteful. We can’t avoid it completely, so our efforts should go to reducing it [as much] as possible. Commit messages can do exactly that and as a result, a commit message shows whether a developer is a good collaborator.
->
-> -- [Peter Hutterer](http://who-t.blogspot.com/2009/12/on-commit-messages.html)
+The [list of issues][issues] is a good place to start, especially the
+ones tagged as "[good first issue][first-issue]" or "help wanted" (but
+don't let that stop you from looking at others). If you're looking for
+additional ideas, try to search `TODO` comments for suggestions on minor
+to major improvements. `grep` is your friend.
 
-### Conventions
+Pull requests adding more tests or documentation are rewarded with an immense amount of positive karma.
 
-* Separate subject from body with a blank line
-* Limit the subject line to 50 characters
-* Capitalize the subject line
-* Do not end the subject line with a period
-* Use the imperative mood in the subject line
-* Wrap the body at 72 characters
-* Use the body to explain _what_ and _why_ instead of _how_
-* Categorize changes in the body: feature, break(&lt;category&gt;), fix #&lt;issue no&gt;
+### Reporting bugs
 
-Example:
+This section guides you through submitting a bug report. This helps
+contributors and maintainers understand your report, reproduce the
+behavior, and in turn squash the bug.
 
-``` text
-Demonstrate conventions used in commit messages
+Before submitting a bug report, please make sure that you've searched
+through the issues and that there isn't already an issue describing the
+same issue you are having.
 
-This commit is to demonstrate the conventions used in this project 
-when writing commit messages.
+### How do I submit a good bug report?
 
-- feature: *Categorized Changes* Lines that begin with a `- <tag>:` can
-be used to categorize changes.
+Bugs are tracked as [GitHub issues][issues].
 
-- break(P2P): This item is an example of a *scoped* and categorized
-change.
-  - **Why** the breaking change was necessary.
-  - **What** the users should do about it.
+Explain the problem and include additional details to help maintainers
+reproduce the problem:
 
-- fix #123
+* Use a clear and descriptive title for the issue to identify the
+  problem.
+* Describe the exact steps which reproduce the problem in as many
+  details as possible.
+* Provide specific examples to demonstrate the steps. Include links to
+  files or GitHub projects, or copy/pasteable snippets, which you use in
+  those examples. If you're providing snippets in the issue, use
+  Markdown code blocks.
+* Describe the behavior you observed after following the steps and point
+  out what exactly is the problem with that behavior.
+* Explain which behavior you expected to see instead and why.
+* Post a screenshot or a dump of the console when possible and suitable.
+* If the problem wasn't triggered by a specific action, describe what
+  you were doing before the problem happened and share more information
+  using the guidelines below.
 
-You can also put github-flavored markdown code snippets.
+Provide more context by answering these questions:
+
+* Did the problem start happening recently (e.g. after updating to a new
+  version) or was this always a problem?
+* If the problem started happening recently, can you reproduce the
+  problem in an older version of Witnet-rust? What's the most recent
+  version in which the problem doesn't happen?
+* Can you reliably reproduce the issue? If not, provide details about
+  how often the problem happens and under which conditions it normally
+  happens.
+* Are you running `witnet-rust` from a pre-compiled binary or from the
+  source code?
+* What's your operating system and version?
+
+## Suggesting enhancements
+
+This section guides you through submitting an enhancement suggestion,
+including completely new features and minor improvements to existing
+functionality. Following these guidelines helps maintainers and the
+community understand your suggestion.
+
+Before creating enhancement suggestions, please double check that there
+is not already an existing feature suggestion for your feature, as you
+might find out that you don't need to create one. When you are creating
+an enhancement suggestion, please include as many details as possible.
+
+### How Do I Submit A Good Enhancement Suggestion?
+
+Enhancement suggestions are tracked as GitHub issues. Create an issue on
+that repository and provide the following information:
+
+* Use a clear and descriptive title for the issue to identify the
+  suggestion.
+* Provide a step-by-step description of the suggested enhancement in as
+  many details as possible.
+* Provide specific examples to demonstrate the steps. Include
+  copy/pasteable snippets which you use in those examples, as Markdown
+  code blocks.
+* Describe the current behavior and explain which behavior you expected
+  to see instead and why.
+* Explain why this enhancement would be useful to most users and isn't
+  something that can or should be implemented as a community package.
+
+### Your First Code Contribution
+
+Unsure where to begin contributing? You can start by looking through
+these good first issue issues:
+
+* [Good first issue][first-issue] - issues which should only require a
+  few lines of code, and a test or two.
+
+## Sending a Pull Request
+
+### Commit messages convention
+
+We use a [commit message convention][convention] to make our commit
+history easier to understand for everyone and allow for automatic
+generation of changelogs.
+
+These are some examples of good commit messages:
+    
+```
+feat(mining): use a random nonce as input in mint transactions
+
+BREAKING CHANGE: former mint transactions containing no inputs will be rendered invalid 
+```
+```
+refactor(config): make `config` actor return settings as `Option`s
+```
+```
+docs: add RADON `FLOAT_TOSTRING` opcode
+
+this operator converts any floating point number into a UTF8 string
+```
+```
+chore(cargo): upgrade `actix` to version 0.8.1
+
+fix #503
 ```
 
-Our conventions for writing git-commit messages are based on [Chris Beams' post](https://chris.beams.io/posts/git-commit/) and [git-changelog's project](https://github.com/aldrin/git-changelog/blob/master/src/assets/sample-commit.message).
+### PGP-signing your commits
+ 
+All commits in the Witnet project repositories need to be signed by
+their authors using PGP.
+
+To configure your Git client to sign commits by default for a local repository, in Git versions 2.0.0 and above, run `git config commit.gpgsign true`.
+To sign all commits by default in any local repository on your computer, run `git config --global commit.gpgsign true`.
+
+To store your GPG key passphrase so you don't have to enter it every time you sign a commit, we recommend using the following tools:
+
+- For Mac users, the [GPG Suite] allows you to store your GPG key passphrase in the Mac OS Keychain.
+- For Windows users, the [Gpg4win] integrates with other Windows tools.
+
+You can also manually configure [gpg-agent] to save your GPG key passphrase, but this doesn't integrate with Mac OS Keychain like ssh-agent and requires more setup.
+
+If you have multiple keys or are attempting to sign commits or tags with
+a key that doesn't match your committer identity, you should
+[tell Git about your signing key][signing-key].
+
+
+[code]: https://github.com/witnet/witnet-rust/blob/master/CODE_OF_CONDUCT.md
+[issues]: https://github.com/witnet/witnet-rust/issues
+[discord]: https://discord.gg/FDPPv7H
+[telegram]: https://t.me/witnetio
+[GitHub]: https://github.com/witnet/witnet-rust
+[first-issue]: https://github.com/witnet/witnet-rust/labels/good%20first%20issue%20%F0%9F%91%8B
+[convention]: https://www.conventionalcommits.org/en/v1.0.0-beta.2/
+[GPG Suite]: https://gpgtools.org/
+[Gpg4win]: https://www.gpg4win.org/
+[gpg-agent]: http://linux.die.net/man/1/gpg-agent
+[signing-key]: https://help.github.com/en/articles/telling-git-about-your-signing-key
