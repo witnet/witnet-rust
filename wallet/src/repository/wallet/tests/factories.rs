@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use super::*;
 
 pub fn wallet(data: Option<HashMap<Vec<u8>, Vec<u8>>>) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
+    let id = "example-wallet";
     let params = params::Params::default();
     let mnemonic = types::MnemonicGen::new()
         .with_len(types::MnemonicLength::Words12)
@@ -42,7 +43,7 @@ pub fn wallet(data: Option<HashMap<Vec<u8>, Vec<u8>>>) -> (Wallet<db::HashMapDb>
         )
         .unwrap();
 
-    let wallet = Wallet::unlock(db.clone(), params, engine).unwrap();
+    let wallet = Wallet::unlock(id, db.clone(), params, engine).unwrap();
 
     (wallet, db)
 }
