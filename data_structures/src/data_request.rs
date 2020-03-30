@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::TryFrom;
 
-use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -241,7 +240,7 @@ impl DataRequestPool {
                             } else if !dr_state.info.commits.contains_key(&pkh)
                                 && dr_state.info.current_reveal_round == 1
                             {
-                                info!(
+                                log::info!(
                                     "The sent commit transaction has not been \
                                      selected to be part of the data request {:?}",
                                     dr_pointer
@@ -357,6 +356,30 @@ pub fn calculate_tally_change(
         + dr_output.commit_fee * (witnesses - commits_count)
 }
 
+pub fn calculate_witness_reward(
+    commits_count: usize,
+    reveals_count: usize,
+    honests_count: usize,
+    dr_output: &DataRequestOutput,
+) -> (u64, u64) {
+    if commits_count == 0 {
+        (0, 0)
+    } else if reveals_count == 0 {
+        (dr_output.collateral, 0)
+    } else {
+        let liars_count = reveals_count - honests_count;
+        let slashed_count = (commits_count - reveals_count + liars_count) as u64;
+        let honests_count = honests_count as u64;
+        let slashed_collateral_reward = dr_output.collateral * slashed_count / honests_count;
+        let slashed_collateral_remainder = (dr_output.collateral * slashed_count) % honests_count;
+
+        (
+            dr_output.witness_reward + dr_output.collateral + slashed_collateral_reward,
+            slashed_collateral_remainder,
+        )
+    }
+}
+
 pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
     dr_pointer: Hash,
     dr_output: &DataRequestOutput,
@@ -369,7 +392,6 @@ where
     RT: TypeLike,
 {
     if let Stage::Tally(tally_metadata) = &report.metadata {
-        let reveal_reward = dr_output.witness_reward;
         let commits_count = committers.len();
         let reveals_count = revealers.len();
         let mut slashed_witnesses = committers;
@@ -384,31 +406,51 @@ where
             .into());
         }
 
-        let mut outputs: Vec<ValueTransferOutput> = revealers
-            .iter()
-            .zip(liars.iter())
-            .filter_map(|(&revealer, &liar)| {
-                // Only reward reveals in consensus
-                if liar {
-                    None
-                } else {
-                    let vt_output = ValueTransferOutput {
-                        pkh: revealer,
-                        value: reveal_reward,
-                        time_lock: 0,
-                    };
-                    slashed_witnesses.remove(&revealer);
-                    Some(vt_output)
-                }
-            })
-            .collect();
+        let liars_count = liars.iter().fold(0, |count, liar| match liar {
+            true => count + 1,
+            false => count,
+        });
+        let honests_count = reveals_count - liars_count;
+        // Collateral division rest goes for the miner
+        let (reward, _rest) =
+            calculate_witness_reward(commits_count, reveals_count, honests_count, &dr_output);
 
-        let honests_count = outputs.len();
-        // Create tally change for the data request creator
-        if dr_output.witnesses as usize > honests_count {
-            debug!("Created tally change for the data request creator");
-            let tally_change =
-                calculate_tally_change(commits_count, reveals_count, honests_count, &dr_output);
+        let mut outputs: Vec<ValueTransferOutput> = if reveals_count > 0 {
+            revealers
+                .iter()
+                .zip(liars.iter())
+                .filter_map(|(&revealer, &liar)| {
+                    // Only reward reveals in consensus
+                    if liar {
+                        None
+                    } else {
+                        let vt_output = ValueTransferOutput {
+                            pkh: revealer,
+                            value: reward,
+                            time_lock: 0,
+                        };
+                        slashed_witnesses.remove(&revealer);
+                        Some(vt_output)
+                    }
+                })
+                .collect()
+        } else {
+            // In case of no revealers, collateral returns to their owners
+            let reward = dr_output.collateral;
+
+            slashed_witnesses
+                .iter()
+                .map(|&committer| ValueTransferOutput {
+                    pkh: committer,
+                    value: reward,
+                    time_lock: 0,
+                })
+                .collect()
+        };
+
+        let tally_change =
+            calculate_tally_change(commits_count, reveals_count, honests_count, &dr_output);
+        if tally_change > 0 {
             let vt_output_change = ValueTransferOutput {
                 pkh,
                 value: tally_change,
