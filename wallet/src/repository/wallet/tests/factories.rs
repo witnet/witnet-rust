@@ -1,5 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
+use witnet_data_structures::chain::Hash;
+
 use super::*;
 
 pub fn wallet(data: Option<HashMap<Vec<u8>, Vec<u8>>>) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
@@ -132,9 +134,10 @@ pub struct BlockInfo {
 
 impl BlockInfo {
     pub fn create(self) -> model::BlockInfo {
-        let hash = self
-            .hash
-            .unwrap_or_else(|| transaction_id().as_ref().to_vec());
+        let hash = Hash::from(
+            self.hash
+                .unwrap_or_else(|| transaction_id().as_ref().to_vec()),
+        );
         let epoch = self.epoch.unwrap_or_else(rand::random);
 
         model::BlockInfo { hash, epoch }
