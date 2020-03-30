@@ -20,7 +20,6 @@ pub mod unlock_wallet;
 pub mod update_wallet;
 pub mod update_wallet_info;
 pub mod wallet_infos;
-pub mod worker_address;
 
 pub use create_data_req::*;
 pub use create_vtt::*;
@@ -44,4 +43,3 @@ pub use unlock_wallet::*;
 pub use update_wallet::*;
 pub use update_wallet_info::*;
 pub use wallet_infos::*;
-pub use worker_address::*;

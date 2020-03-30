@@ -27,7 +27,6 @@ use witnet_data_structures::chain::EpochConstants;
 use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
 
 use crate::actors::app;
-use crate::actors::worker::WorkerAddress;
 
 mod account;
 mod actors;
@@ -116,7 +115,6 @@ pub fn run(conf: Config) -> Result<(), Error> {
     };
 
     let worker = actors::Worker::start(concurrency, db.clone(), node_params, params);
-    worker.do_send(WorkerAddress(worker.clone()));
 
     let app = actors::App::start(actors::app::Params {
         testnet,

@@ -21,7 +21,6 @@ pub struct Worker {
     params: params::Params,
     engine: types::CryptoEngine,
     rng: rand::rngs::OsRng,
-    own_address: Option<Addr<Self>>,
 }
 
 impl Actor for Worker {

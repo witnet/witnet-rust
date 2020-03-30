@@ -29,7 +29,6 @@ impl Worker {
             params: params.clone(),
             rng: rand::rngs::OsRng,
             engine: engine.clone(),
-            own_address: None,
         })
     }
 
