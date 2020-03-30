@@ -352,8 +352,6 @@ impl Worker {
 
             // Keep asking for new batches of blocks until we get less than expected, which signals
             // that there are no more blocks to process.
-            // The `.unwrap()` here is provably safe given that no value in an `usize` can overflow
-            // or underflow the range of an `i128`.
             if batch_size < i128::from(limit) {
                 break;
             } else {
