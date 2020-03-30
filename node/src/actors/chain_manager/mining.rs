@@ -20,7 +20,8 @@ use witnet_data_structures::{
         Hashable, PublicKeyHash, ReputationEngine, TransactionsPool, UnspentOutputsPool,
         ValueTransferOutput,
     },
-    data_request::{create_tally, DataRequestPool},
+    data_request::{calculate_witness_reward, create_tally, DataRequestPool},
+    error::TransactionError,
     radon_report::{RadonReport, ReportContext},
     transaction::{
         CommitTransaction, CommitTransactionBody, MintTransaction, RevealTransaction,
@@ -48,7 +49,6 @@ use crate::{
     },
     signature_mngr,
 };
-use witnet_data_structures::error::TransactionError;
 
 impl ChainManager {
     /// Try to mine a block
@@ -705,9 +705,19 @@ fn build_block(
     }
 
     for ta_tx in tally_transactions {
-        if let Some(dr_output) = dr_pool.get_dr_output(&ta_tx.dr_pointer) {
+        if let Some(dr_state) = dr_pool.data_request_state(&ta_tx.dr_pointer) {
             tally_txns.push(ta_tx.clone());
-            transaction_fees += dr_output.tally_fee;
+            let commits_count = dr_state.info.commits.len();
+            let reveals_count = dr_state.info.reveals.len();
+            let honests_count = commits_count - ta_tx.slashed_witnesses.len();
+            // Remainder collateral goes to the miner
+            let (_, extra_tally_fee) = calculate_witness_reward(
+                commits_count,
+                reveals_count,
+                honests_count,
+                &dr_state.data_request,
+            );
+            transaction_fees += dr_state.data_request.tally_fee + extra_tally_fee;
         } else {
             log::warn!(
                 "Data Request pointed by tally transaction doesn't exist in DataRequestPool"

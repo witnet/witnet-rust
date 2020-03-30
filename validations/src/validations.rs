@@ -19,7 +19,9 @@ use witnet_data_structures::{
         OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine,
         SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
     },
-    data_request::{calculate_tally_change, create_tally, DataRequestPool},
+    data_request::{
+        calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
+    },
     error::{BlockError, DataRequestError, TransactionError},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
@@ -961,19 +963,23 @@ pub fn validate_tally_transaction<'a>(
 
     let commits_count = dr_state.info.commits.len();
     let reveals_count = dr_state.info.reveals.len();
-    let slashed_count = slashed_hs.len();
-    // Slashed are liars plus non revealers
-    let liars_count = slashed_count - (commits_count - reveals_count);
+    let honests_count = commits_count - slashed_hs.len();
 
     let expected_tally_change = calculate_tally_change(
         commits_count,
         reveals_count,
-        reveals_count - liars_count,
+        honests_count,
         &dr_state.data_request,
     );
 
     let mut pkh_rewarded: HashSet<PublicKeyHash> = HashSet::default();
     let mut total_tally_value = 0;
+    let (reward, tally_extra_fee) = calculate_witness_reward(
+        commits_count,
+        reveals_count,
+        honests_count,
+        &dr_state.data_request,
+    );
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         // Validation of tally change value
         if expected_tally_change > 0 && i == ta_tx.outputs.len() - 1 && output.pkh == dr_state.pkh {
@@ -985,21 +991,22 @@ pub fn validate_tally_transaction<'a>(
                 .into());
             }
         } else {
-            // Validation of each rewarded address was a revealer
-            if dr_state.info.reveals.get(&output.pkh).is_none() {
-                return Err(TransactionError::RevealNotFound.into());
-            }
-
-            // Validation of each rewarded address was not a liar
-            if slashed_hs.contains(&output.pkh) {
-                return Err(TransactionError::DishonestReward.into());
+            if reveals_count > 0 {
+                // Make sure every rewarded address is a revealer
+                if dr_state.info.reveals.get(&output.pkh).is_none() {
+                    return Err(TransactionError::RevealNotFound.into());
+                }
+                // Make sure every rewarded address passed the tally function, a.k.a. "is honest" / "is not a liar"
+                if slashed_hs.contains(&output.pkh) {
+                    return Err(TransactionError::DishonestReward.into());
+                }
             }
 
             // Validation of the reward is according to the DataRequestOutput
-            if output.value != dr_state.data_request.witness_reward {
+            if output.value != reward {
                 return Err(TransactionError::InvalidReward {
                     value: output.value,
-                    expected_value: dr_state.data_request.witness_reward,
+                    expected_value: reward,
                 }
                 .into());
             }
@@ -1013,24 +1020,31 @@ pub fn validate_tally_transaction<'a>(
         total_tally_value += output.value;
     }
 
+    let expected_collateral_value = if commits_count > 0 {
+        dr_state.data_request.collateral * u64::from(dr_state.data_request.witnesses)
+    } else {
+        // In case of no commits, collateral does not affect
+        0
+    };
     let expected_dr_value = dr_state.data_request.checked_total_value()?;
     let found_dr_value = dr_state.info.commits.len() as u64 * dr_state.data_request.commit_fee
         + dr_state.info.reveals.len() as u64 * dr_state.data_request.reveal_fee
         + dr_state.data_request.tally_fee
+        + tally_extra_fee
         + total_tally_value;
 
     // Validation of the total value of the data request
-    if found_dr_value != expected_dr_value {
+    if found_dr_value != expected_dr_value + expected_collateral_value {
         return Err(TransactionError::InvalidTallyValue {
             value: found_dr_value,
-            expected_value: expected_dr_value,
+            expected_value: expected_dr_value + expected_collateral_value,
         }
         .into());
     }
 
     Ok((
         ta_tx.outputs.iter().collect(),
-        dr_state.data_request.tally_fee,
+        dr_state.data_request.tally_fee + tally_extra_fee,
     ))
 }
 
