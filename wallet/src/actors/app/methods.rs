@@ -1,10 +1,13 @@
 use actix::utils::TimerFunc;
 use futures::future;
 
-use super::*;
+use witnet_data_structures::chain::InventoryItem;
+
+use crate::actors::worker::HandleBlockRequest;
 use crate::actors::*;
-use crate::{crypto, model, repository, types::BuildVtt, types::Hashable as _};
-use witnet_data_structures::chain::{InventoryItem, ValueTransferOutput};
+use crate::{crypto, model, repository};
+
+use super::*;
 
 impl App {
     pub fn start(params: Params) -> Addr<Self> {
@@ -254,7 +257,6 @@ impl App {
         &self,
         wallet_id: String,
         password: types::Password,
-        prefill: Vec<u64>,
     ) -> ResponseActFuture<types::UnlockedWallet> {
         let f = self
             .params
