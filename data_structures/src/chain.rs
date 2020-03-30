@@ -655,6 +655,17 @@ impl From<Sha256> for Hash {
     }
 }
 
+impl From<Vec<u8>> for Hash {
+    fn from(x: Vec<u8>) -> Self {
+        let mut hash = [0u8; 32];
+        for i in 0..32 {
+            hash[i] = x[i]
+        }
+
+        Hash::SHA256(hash)
+    }
+}
+
 impl AsRef<[u8]> for Hash {
     fn as_ref(&self) -> &[u8] {
         match self {
