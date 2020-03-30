@@ -245,7 +245,7 @@ impl Worker {
         wallet.index_transactions(block, txns)?;
         wallet.update_last_sync(CheckpointBeacon {
             checkpoint: block.epoch,
-            hash_prev_block: Hash::from(block.hash.clone()),
+            hash_prev_block: block.hash,
         })?;
 
         Ok(())
@@ -471,7 +471,7 @@ impl Worker {
         // if this vector results to be too big, problem is that doing so conflicts with the internal
         // Cell of the txns type which cannot be shared between threads.
         let block_epoch = block.block_header.beacon.checkpoint;
-        let block_hash = block.hash().as_ref().to_vec();
+        let block_hash = block.hash();
 
         // Block transactions to be indexed.
         // NOTE: only `VttTransaction` and `DRTransaction` are currently supported.
