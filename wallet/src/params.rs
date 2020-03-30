@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use actix::Addr;
 
-use witnet_data_structures::chain::EpochConstants;
+use witnet_data_structures::chain::{EpochConstants, Hash};
 use witnet_net::client::tcp::JsonRpcClient;
 
 use crate::types;
@@ -20,6 +20,7 @@ pub struct Params {
     pub db_salt_length: usize,
     pub epoch_constants: EpochConstants,
     pub node_sync_batch_size: u32,
+    pub genesis_hash: Hash,
 }
 
 impl Default for Params {
@@ -35,6 +36,7 @@ impl Default for Params {
             db_salt_length: 32,
             epoch_constants: EpochConstants::default(),
             node_sync_batch_size: 100,
+            genesis_hash: Hash::default(),
         }
     }
 }

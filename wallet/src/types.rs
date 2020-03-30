@@ -33,6 +33,7 @@ use crate::model;
 
 use super::{db, repository};
 use crate::types::signature::Signature;
+use witnet_data_structures::chain::CheckpointBeacon;
 
 pub type Password = ProtectedString;
 
@@ -99,7 +100,7 @@ pub struct WalletData {
     pub balance: u64,
     pub current_account: u32,
     pub available_accounts: Vec<u32>,
-    pub last_sync: u32,
+    pub last_sync: CheckpointBeacon,
 }
 
 pub struct CreateWalletData<'a> {
@@ -169,5 +170,5 @@ pub struct ExtendedKeyedSignature {
     pub signature: Signature,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ChainEntry(pub u32, pub String);

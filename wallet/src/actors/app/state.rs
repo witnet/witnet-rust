@@ -33,6 +33,14 @@ impl State {
             .collect()
     }
 
+    /// Get the sink for a specific session
+    pub fn get_sink(&self, session_id: &types::SessionId) -> Option<types::Sink> {
+        self.sessions
+            .get(session_id)
+            .map(|session| session.subscription.clone())
+            .flatten()
+    }
+
     /// Get a reference to an unlocked wallet.
     pub fn wallet(
         &self,

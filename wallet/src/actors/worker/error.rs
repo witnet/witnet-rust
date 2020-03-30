@@ -26,11 +26,18 @@ pub enum Error {
     Send(#[cause] futures::sync::mpsc::SendError<std::string::String>),
     #[fail(display = "node error: {}", _0)]
     Node(#[cause] failure::Error),
+    #[fail(display = "error processing a block: {}", _0)]
+    Block(#[cause] failure::Error),
 }
 
 /// Helper function to simplify .map_err on node errors.
 pub fn node_error<T: Fail>(err: T) -> Error {
     Error::Node(failure::Error::from(err))
+}
+
+/// Helper function to simplify .map_err on block errors.
+pub fn block_error<T: Fail>(err: T) -> Error {
+    Error::Block(failure::Error::from(err))
 }
 
 impl From<crypto::Error> for Error {
@@ -78,5 +85,11 @@ impl From<futures::sync::mpsc::SendError<std::string::String>> for Error {
 impl From<tcp::Error> for Error {
     fn from(err: tcp::Error) -> Self {
         node_error(err)
+    }
+}
+
+impl From<witnet_data_structures::chain::HashParseError> for Error {
+    fn from(err: witnet_data_structures::chain::HashParseError) -> Self {
+        block_error(err)
     }
 }

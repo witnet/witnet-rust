@@ -18,7 +18,7 @@ use crate::types::{signature, ExtendedPK};
 use state::State;
 use std::convert::TryFrom;
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::{Environment, Epoch, EpochConstants};
+use witnet_data_structures::chain::{CheckpointBeacon, Environment, Epoch, EpochConstants};
 
 /// Internal structure used to gather state mutations while indexing block transactions
 struct TransactionMutation {
@@ -28,6 +28,7 @@ struct TransactionMutation {
 }
 
 pub struct Wallet<T> {
+    id: String,
     db: T,
     params: Params,
     engine: types::CryptoEngine,
@@ -38,7 +39,8 @@ impl<T> Wallet<T>
 where
     T: Database,
 {
-    pub fn unlock(db: T, params: Params, engine: types::CryptoEngine) -> Result<Self> {
+    pub fn unlock(id: &str, db: T, params: Params, engine: types::CryptoEngine) -> Result<Self> {
+        let id = id.to_owned();
         let name = db.get_opt(keys::wallet_name())?;
         let caption = db.get_opt(keys::wallet_caption())?;
         let account = db.get_or_default(keys::wallet_default_account())?;
@@ -62,7 +64,12 @@ where
                     })
             });
 
-        let last_sync = db.get(&keys::wallet_last_sync()).unwrap_or(0);
+        let last_sync = db
+            .get(&keys::wallet_last_sync())
+            .unwrap_or_else(|_| CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: params.genesis_hash,
+            });
         let external_key = db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
         let next_external_index = db.get_or_default(&keys::account_next_index(
             account,
@@ -92,6 +99,7 @@ where
         });
 
         Ok(Self {
+            id,
             db,
             params,
             engine,
@@ -99,11 +107,12 @@ where
         })
     }
 
+    /// Return all non-sensitive data regarding the wallet.
     pub fn public_data(&self) -> Result<types::WalletData> {
         let state = self.state.read()?;
         let current_account = state.account;
         let balance = state.balance;
-        let last_sync = state.last_sync;
+        let last_sync = state.last_sync.clone();
 
         Ok(types::WalletData {
             name: state.name.clone(),
@@ -754,9 +763,19 @@ where
     }
 
     /// Update which was the epoch of the last block that was processed by this wallet.
-    pub fn update_last_sync(&self, epoch: u32) -> Result<()> {
+    pub fn update_last_sync(&self, beacon: CheckpointBeacon) -> Result<()> {
+        log::debug!(
+            "Setting tip of the chain for wallet {} to {:?}",
+            self.id,
+            beacon
+        );
+
+        if let Ok(mut write_guard) = self.state.write() {
+            write_guard.last_sync = beacon.clone();
+        }
+
         self.db
-            .put(&keys::wallet_last_sync(), epoch)
+            .put(&keys::wallet_last_sync(), beacon)
             .map_err(Error::from)
     }
 }

@@ -1,12 +1,16 @@
+use std::convert::TryFrom;
+use std::str::FromStr;
+
+use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::json;
 
-use super::*;
-use crate::actors::worker;
+use witnet_data_structures::chain::{CheckpointBeacon, Hash, Hashable};
+
 use crate::types::{ChainEntry, GetBlockChainParams};
 use crate::{account, constants, crypto, db::Database as _, model, params};
-use futures_util::compat::Compat01As03;
-use witnet_data_structures::chain::Hashable;
+
+use super::*;
 
 impl Worker {
     pub fn start(
@@ -162,8 +166,12 @@ impl Worker {
                 err => Error::Db(err),
             })?;
 
-        let wallet =
-            repository::Wallet::unlock(wallet_db, self.params.clone(), self.engine.clone())?;
+        let wallet = repository::Wallet::unlock(
+            wallet_id,
+            wallet_db,
+            self.params.clone(),
+            self.engine.clone(),
+        )?;
         let data = wallet.public_data()?;
 
         Ok(types::UnlockedSessionWallet {
@@ -236,6 +244,10 @@ impl Worker {
     ) -> Result<()> {
         log::debug!("trying to index txns from epoch {}", block.epoch);
         wallet.index_transactions(block, txns)?;
+        wallet.update_last_sync(CheckpointBeacon {
+            checkpoint: block.epoch,
+            hash_prev_block: Hash::from(block.hash.clone()),
+        })?;
 
         Ok(())
     }
@@ -302,54 +314,71 @@ impl Worker {
         &self,
         wallet_id: &str,
         wallet: types::SessionWallet,
-        since_epoch: u32,
+        since_beacon: CheckpointBeacon,
+        sink: Option<types::Sink>,
     ) -> Result<()> {
-        log::info!("Trying to start wallet synchronization");
-        // TODO: read the limit from configuration
-        let limit = 100i64;
-        let mut latest_epoch = since_epoch;
-        let mut since_epoch = i64::from(since_epoch);
+        let limit = i64::from(self.params.node_sync_batch_size);
+        let mut latest_beacon = since_beacon.clone();
+        let mut since_beacon = since_beacon;
+
+        log::info!(
+            "[SU] Starting synchronization of wallet {}. Last known beacon is {:?}",
+            wallet_id,
+            since_beacon
+        );
 
         loop {
-            // Ask a Witnet node for epochs and ids for all the blocks that we have been missing
-            let get_block_chain_future = self.get_block_chain(since_epoch, limit);
-            let block_chain = futures03::executor::block_on(get_block_chain_future)?;
-            log::debug!("Received chain: {:?}", block_chain);
+            // Ask a Witnet node for epochs and ids for all the blocks that happened AFTER the last
+            // one we processed — hence `since_beacon.checkpoint + 1`
+            let get_block_chain_future =
+                self.get_block_chain(i64::from(since_beacon.checkpoint + 1), limit);
+            let block_chain: Vec<ChainEntry> =
+                futures03::executor::block_on(get_block_chain_future)?;
+            let batch_size = i128::try_from((&block_chain).len()).unwrap();
+            log::debug!("[SU] Received chain: {:?}", block_chain);
 
             // For each of the blocks we have been informed about, ask a Witnet node for its contents
             for ChainEntry(epoch, id) in block_chain {
-                let get_block_future = self.get_block(id);
-                let block = futures03::executor::block_on(get_block_future)?;
-                log::debug!("For epoch {}, got block: {:?}", epoch, block);
+                let get_block_future = self.get_block(id.clone());
+                let block: types::ChainBlock = futures03::executor::block_on(get_block_future)?;
+                log::debug!("[SU] For epoch {}, got block: {:?}", epoch, block);
 
                 // Process each block
-                futures03::executor::block_on(self.handle_block(block, wallet_id, wallet.clone()))?;
-                latest_epoch = epoch;
+                futures03::executor::block_on(self.handle_block(block.clone(), wallet.clone()))?;
+                latest_beacon = CheckpointBeacon {
+                    checkpoint: epoch,
+                    hash_prev_block: Hash::from_str(&id)?,
+                };
             }
-
-            // Persist the epoch of the last synced block. Doing this by batches instead of by block
-            // should be safe under the assumption that the same transaction cannot be processed
-            // twice by a single wallet.
-            wallet.update_last_sync(latest_epoch)?;
 
             // Keep asking for new batches of blocks until we get less than expected, which signals
             // that there are no more blocks to process.
-            if i64::from(latest_epoch) < since_epoch + limit {
+            // The `.unwrap()` here is provably safe given that no value in an `usize` can overflow
+            // or underflow the range of an `i128`.
+            if batch_size < i128::from(limit) {
                 break;
             } else {
                 log::info!(
-                    "Wallet {} is now synced up to epoch #{}, looking for more blocks...",
+                    "[SU] Wallet {} is now synced up to beacon {:?}, looking for more blocks...",
                     wallet_id,
-                    latest_epoch
+                    latest_beacon
                 );
-                since_epoch = i64::from(latest_epoch);
+                since_beacon = latest_beacon.clone();
+                break;
             }
         }
 
+        if let Some(sink) = sink.as_ref() {
+            log::trace!("[SU] Notifying balance of wallet {}", wallet_id,);
+            self.notify_balance(&wallet, sink).ok();
+        } else {
+            log::trace!("[SU] No sinks need to be notified for wallet {}", wallet_id);
+        }
+
         log::info!(
-            "Wallet {} is now synced up to latest epoch (#{})",
+            "[SU] Wallet {} is now synced up to latest beacon ({:?})",
             wallet_id,
-            latest_epoch
+            latest_beacon
         );
 
         Ok(())
@@ -382,7 +411,7 @@ impl Worker {
             .send(req)
             .flatten()
             .map(|json| {
-                log::debug!("getBlockChain request result: {:?}", json);
+                log::trace!("getBlockChain request result: {:?}", json);
                 match serde_json::from_value::<Vec<types::ChainEntry>>(json).map_err(node_error) {
                     Ok(blocks) => Ok(blocks),
                     Err(e) => Err(e),
@@ -413,7 +442,7 @@ impl Worker {
             .send(req)
             .flatten()
             .map(|json| {
-                log::debug!("getBlock request result: {:?}", json);
+                log::trace!("getBlock request result: {:?}", json);
                 serde_json::from_value::<types::ChainBlock>(json).map_err(node_error)
             })
             .flatten()
@@ -428,9 +457,15 @@ impl Worker {
     pub async fn handle_block(
         &self,
         block: types::ChainBlock,
-        wallet_id: &str,
         wallet: types::SessionWallet,
     ) -> Result<()> {
+        // Stop processing the block if it does not directly build on top of our tip of the chain
+        let prev_block_hash = block.block_header.beacon.hash_prev_block;
+        let last_sync_hash = wallet.public_data()?.last_sync.hash_prev_block;
+        if prev_block_hash != last_sync_hash {
+            return Ok(log::warn!("Tried to process a block that does not build directly on top of our tip of the chain. ({:?} != {:?})", prev_block_hash, last_sync_hash ));
+        }
+
         // NOTE: Possible enhancement.
         // Maybe is a good idea to use a shared reference Arc instead of cloning this vector of txns
         // if this vector results to be too big, problem is that doing so conflicts with the internal
@@ -452,17 +487,11 @@ impl Worker {
             .map(types::Transaction::from);
         let block_txns = dr_txns.chain(vtt_txns).collect::<Vec<types::Transaction>>();
 
-        if let Some(slf) = self.own_address.as_ref() {
-            slf.do_send(worker::IndexTxns(
-                wallet_id.to_owned(),
-                wallet.clone(),
-                block_txns.clone(),
-                model::BlockInfo {
-                    epoch: block_epoch,
-                    hash: block_hash.clone(),
-                },
-            ));
-        }
+        let block_info = model::BlockInfo {
+            epoch: block_epoch,
+            hash: block_hash.clone(),
+        };
+        self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
 
         Ok(())
     }

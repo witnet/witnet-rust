@@ -271,7 +271,7 @@ impl App {
                 err => From::from(err),
             })
             .into_actor(self)
-            .and_then(move |res, slf: &mut Self, ctx| {
+            .and_then(move |res, slf: &mut Self, _ctx| {
                 let types::UnlockedSessionWallet {
                     wallet,
                     session_id,
@@ -282,7 +282,7 @@ impl App {
                 slf.state
                     .create_session(session_id.clone(), wallet_id.clone(), wallet_arc.clone());
 
-                for amount in prefill {
+                /*for amount in prefill {
                     slf.generate_address(session_id.clone(), wallet_id.clone(), None)
                         .map_err(|e, _, _| {
                             log::error!("Failed to generate address to add funds: {}", e)
@@ -299,13 +299,15 @@ impl App {
                         })
                         .then(|_, _, _| fut::ok(()))
                         .spawn(ctx);
-                }
+                }*/
 
                 // Start synchronization for this wallet
+                let sink = slf.state.get_sink(&session_id);
                 slf.params.worker.do_send(worker::SyncRequest {
                     wallet_id,
                     wallet: wallet_arc,
-                    since_epoch: data.last_sync,
+                    since_beacon: data.last_sync,
+                    sink,
                 });
 
                 fut::ok(types::UnlockedWallet { data, session_id })
@@ -479,7 +481,7 @@ impl App {
         // UTXOs call this method over and over. If calculating the hash here degrades performance
         // too much we should consider to calculate it in a worker thread instead and then proceed
         // with indexing transactions.
-        let block_hash = block.hash().as_ref().to_vec();
+        let block_hash = block.hash();
 
         // Block transactions to be indexed.
         // NOTE: only `VttTransaction` and `DRTransaction` are currently supported.
@@ -503,7 +505,7 @@ impl App {
                 block_txns.clone(),
                 model::BlockInfo {
                     epoch: block_epoch,
-                    hash: block_hash.clone(),
+                    hash: block_hash.as_ref().to_vec().clone(),
                 },
             ));
         }
