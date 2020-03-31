@@ -124,11 +124,16 @@ impl Handler<Unregister> for SessionsManager {
                     .unregister_session(msg.session_type, msg.status, msg.address);
 
             match &result {
-                Ok(_) => log::debug!(
-                    "Session (type {:?}) unregistered for peer {}",
-                    msg.session_type,
-                    msg.address
-                ),
+                Ok(_) => {
+                    log::debug!(
+                        "Session (type {:?}) unregistered for peer {}",
+                        msg.session_type,
+                        msg.address
+                    );
+                    if msg.session_type == SessionType::Outbound {
+                        self.beacons.remove(&msg.address);
+                    }
+                }
                 Err(error) => log::error!(
                     "Error while unregistering peer {} (session type {:?}): {}",
                     msg.address,

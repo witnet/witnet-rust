@@ -56,6 +56,13 @@ impl Beacons {
         self.peers_with_beacon.insert(k, v);
     }
 
+    /// Remove beacon. Used when a peer disconnects before we reach consensus:
+    /// we do not want to count that beacon
+    pub fn remove(&mut self, k: &SocketAddr) {
+        self.peers_not_beacon.remove(k);
+        self.peers_with_beacon.remove(k);
+    }
+
     /// Get all the beacons in order to send a PeersBeacons message.
     /// Returns a tuple of (peers which have sent us beacons, peers which have not)
     /// or None if a PeersBeacons message was already sent during this epoch
