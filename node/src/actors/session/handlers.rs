@@ -1,9 +1,8 @@
 use std::io::Error;
 
-use actix::io::WriteHandler;
 use actix::{
-    ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler, StreamHandler,
-    SystemService, WrapFuture,
+    io::WriteHandler, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner,
+    Handler, StreamHandler, SystemService, WrapFuture,
 };
 use futures::future;
 use log;
@@ -355,8 +354,10 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
             session.remote_addr
         });
 
+    let session_type = session.session_type;
+
     // First evaluate Feeler case
-    if session.session_type == SessionType::Feeler {
+    if session_type == SessionType::Feeler {
         // Get peer manager address
         let peers_manager_addr = PeersManager::from_registry();
 
@@ -382,7 +383,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                 session_type: session.session_type,
             })
             .into_actor(session)
-            .then(|res, act, ctx| {
+            .then(move |res, act, ctx| {
                 match res {
                     Ok(Ok(_)) => {
                         log::debug!(
@@ -391,6 +392,32 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                         );
                         // Set status to consolidate
                         act.status = SessionStatus::Consolidated;
+
+                        // Send LastBeacon to inbound peers
+                        if session_type == SessionType::Inbound {
+                            let chain_manager_addr = ChainManager::from_registry();
+                            chain_manager_addr
+                                .send(GetHighestCheckpointBeacon)
+                                .into_actor(act)
+                                .then(|res, _act, ctx| {
+                                    match res {
+                                        Ok(Ok(beacon)) => ctx.notify(SendLastBeacon { beacon }),
+                                        // This error can happen when the ChainManager is being initialized and the CheckpointBeacon has not been loaded from storage yet
+                                        Ok(Err(e)) => log::error!(
+                                            "Cannot send beacon to new inbound peer: {}",
+                                            e
+                                        ),
+                                        // This error can happen when the ChainManager actor is not running
+                                        Err(e) => log::error!(
+                                            "Cannot send beacon to new inbound peer: {}",
+                                            e
+                                        ),
+                                    }
+
+                                    actix::fut::ok(())
+                                })
+                                .wait(ctx);
+                        }
 
                         actix::fut::ok(())
                     }
