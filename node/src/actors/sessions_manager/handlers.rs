@@ -176,11 +176,17 @@ impl Handler<Consolidate> for SessionsManager {
         }
 
         match &result {
-            Ok(_) => log::debug!(
-                "Established a consolidated {:?} session with the peer at {}",
-                msg.session_type,
-                msg.address
-            ),
+            Ok(_) => {
+                log::debug!(
+                    "Established a consolidated {:?} session with the peer at {}",
+                    msg.session_type,
+                    msg.address
+                );
+                if msg.session_type == SessionType::Outbound {
+                    // Add outbound peer to the list of peers that should send us a beacon
+                    self.beacons.also_wait_for(msg.address);
+                }
+            }
             Err(error) => log::error!(
                 "Error while consolidating {:?} session with the peer at {}: {:?}",
                 msg.session_type,

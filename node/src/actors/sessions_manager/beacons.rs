@@ -63,6 +63,14 @@ impl Beacons {
         self.peers_with_beacon.remove(k);
     }
 
+    /// When a new peer connects, we add it to the peers_not_beacon map, in order to
+    /// close the connection if the peer is not in consensus
+    pub fn also_wait_for(&mut self, k: SocketAddr) {
+        if !self.peers_with_beacon.contains_key(&k) {
+            self.peers_not_beacon.insert(k);
+        }
+    }
+
     /// Get all the beacons in order to send a PeersBeacons message.
     /// Returns a tuple of (peers which have sent us beacons, peers which have not)
     /// or None if a PeersBeacons message was already sent during this epoch
