@@ -399,8 +399,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                             "Failed to consolidate session {:?} in SessionManager",
                             act.remote_addr
                         );
-                        // FIXME(#72): a full stop of the session is not correct (unregister should
-                        // be skipped)
+
                         ctx.stop();
 
                         actix::fut::err(())
@@ -437,8 +436,6 @@ fn peer_discovery_get_peers(session: &mut Session, ctx: &mut Context<Session>) {
                 }
                 _ => {
                     log::warn!("Failed to receive peer addresses from PeersManager");
-                    // FIXME(#72): a full stop of the session is not correct (unregister should
-                    // be skipped)
                     ctx.stop();
                 }
             }
@@ -689,8 +686,6 @@ fn session_last_beacon_inbound(
                 }
                 _ => {
                     log::warn!("Failed to get highest checkpoint beacon from ChainManager");
-                    // FIXME(#72): a full stop of the session is not correct (unregister should
-                    // be skipped)
                     ctx.stop();
 
                     actix::fut::err(())

@@ -62,24 +62,20 @@ impl Actor for Session {
                     session_type: self.session_type,
                 })
                 .into_actor(self)
-                .then(|res, act, ctx| {
-                    match res {
-                        Ok(Ok(_)) => {
-                            debug!(
-                                "Successfully registered session {:?} into SessionManager",
-                                act.remote_addr
-                            );
+                .then(|res, act, ctx| match res {
+                    Ok(Ok(_)) => {
+                        debug!(
+                            "Successfully registered session {:?} into SessionManager",
+                            act.remote_addr
+                        );
 
-                            actix::fut::ok(())
-                        }
-                        _ => {
-                            error!("Session register into Session Manager failed");
-                            // FIXME(#72): a full stop of the session is not correct (unregister should
-                            // be skipped)
-                            ctx.stop();
+                        actix::fut::ok(())
+                    }
+                    _ => {
+                        error!("Session register into Session Manager failed");
+                        ctx.stop();
 
-                            actix::fut::err(())
-                        }
+                        actix::fut::err(())
                     }
                 })
                 .and_then(|_, act, _ctx| {
