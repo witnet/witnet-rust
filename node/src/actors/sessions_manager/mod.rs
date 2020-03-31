@@ -217,10 +217,6 @@ impl SessionsManager {
             .limit
             .map(|x| x as usize);
         if Some(self.beacons.total_count()) < expected_peers {
-            return Err(NotSendingPeersBeaconsBecause::BootstrapNeeded);
-        }
-
-        if !self.beacons.all() {
             return Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons);
         }
 

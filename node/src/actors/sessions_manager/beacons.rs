@@ -23,15 +23,9 @@ impl Beacons {
         self.beacons_already_sent
     }
 
-    /// Have all the peers sent us a beacon since the last call to clear()?
-    pub fn all(&self) -> bool {
-        self.peers_not_beacon.is_empty()
-    }
-
-    /// Return number of peers which have sent us a beacon, or are expected to
-    /// send it to us
+    /// Return number of peers which have sent us a beacon
     pub fn total_count(&self) -> usize {
-        self.peers_with_beacon.len() + self.peers_not_beacon.len()
+        self.peers_with_beacon.len()
     }
 
     /// Clear the existing lists of peers and start waiting for the new ones
