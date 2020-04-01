@@ -1,7 +1,12 @@
 # You can read more about all the configuration params in
 # https://docs.witnet.io/configuration/toml-file/
 [connections]
+# Server address tells what local interface and port the Witnet node server should bind to.
+# This will probably look like `0.0.0.0:21337` or `192.168.x.x:21337`, but it totally depends on your local network.
 server_addr = "0.0.0.0:21337"
+# Public address needs to match your *public* IP and port, assuming your router is configured to forward incoming
+# connections to the local IP of the device the node is running. Failure to configure this setting will result in your
+# node not receiving inbound connections (see: https://docs.witnet.io/try/run-a-node/#open-your-ports).
 public_addr = "0.0.0.0:21337"
 known_peers = [
     "52.166.178.145:21337",
