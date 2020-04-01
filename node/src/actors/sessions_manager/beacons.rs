@@ -4,14 +4,15 @@ use witnet_data_structures::chain::CheckpointBeacon;
 
 /// Stores the CheckpointBeacons received from our peers, and also keeps track
 /// of the list of peers which have not sent us a beacon yet.
-/// The logic is simple: on every new epoch wait until we have beacons from all
-/// the peers, and then send a PeersBeacons message to ChainManager.
+/// The logic is simple: on every new epoch wait until we have as many beacons
+/// as outbound peers, and then send a PeersBeacons message to ChainManager.
 /// The message-sending logic is implemented in SessionsManager.
 #[derive(Default)]
 pub struct Beacons {
     // Have we already sent a PeersBeacons message to ChainManager during this epoch?
     beacons_already_sent: bool,
-    // Peers which have not sent us their beacon yet and we are waiting for them
+    // Peers which have not sent us their beacon yet
+    // These will be marked as out of consensus and dropped if they do not send a beacon in time
     peers_not_beacon: HashSet<SocketAddr>,
     // Peers which have already sent us their beacon
     peers_with_beacon: HashMap<SocketAddr, CheckpointBeacon>,
@@ -121,25 +122,25 @@ mod tests {
 
         let mut b = Beacons::default();
         assert_eq!(b.already_sent(), false);
-        // Since we are waiting for 0 beacons, b.all() returns true
-        assert_eq!(b.all(), true);
-        // Before calling clear for the first time, insert always returns false
-        // because the list of peers is empty
-        assert_eq!(b.insert(k0, va), false);
-        assert_eq!(b.insert(k1, va), false);
+        // Since we are waiting for 0 beacons
+        assert_eq!(b.total_count(), 0);
+        // Before calling clear for the first time, insert always accepts new beacons
+        // And no peers are penalized
+        b.insert(k0, va);
+        b.insert(k1, va);
         // So we can send an empty message
         let (pb, pnb) = b.send().unwrap();
-        assert!(pb.is_empty());
+        assert_eq!(pb.len(), 2);
         assert!(pnb.is_empty());
         assert_eq!(b.already_sent(), true);
 
         // Wait for two beacons
         b.clear([k0, k1].iter().cloned());
-        assert_eq!(b.all(), false);
+        assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
         assert_eq!(b.already_sent(), false);
-        assert_eq!(b.all(), false);
+        assert_eq!(b.total_count(), 0);
         // Try to send before receiving any beacons
         let (pb, pnb) = b.send().unwrap();
         assert!(pb.is_empty());
@@ -160,25 +161,25 @@ mod tests {
         };
 
         let mut b = Beacons::default();
-        // Test case with only one peer
+        // Test case with only one peer excepted
         b.clear([k0].iter().cloned());
-        assert_eq!(b.all(), false);
+        assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
         assert_eq!(b.already_sent(), false);
-        assert_eq!(b.all(), false);
-        assert_eq!(b.insert(k0, va), true);
-        assert_eq!(b.all(), true);
-        assert_eq!(b.insert(k1, va), false);
-        assert_eq!(b.all(), true);
-        // Inserting again also returns true, and the new beacon overwrites the old one
-        assert_eq!(b.insert(k0, vb), true);
-        assert_eq!(b.all(), true);
-        assert_eq!(b.insert(k1, vb), false);
-        assert_eq!(b.all(), true);
+        assert_eq!(b.total_count(), 0);
+        b.insert(k0, va);
+        assert_eq!(b.total_count(), 1);
+        b.insert(k1, va);
+        assert_eq!(b.total_count(), 2);
+        // Inserting again, the new beacon overwrites the old one
+        b.insert(k0, vb);
+        assert_eq!(b.total_count(), 2);
+        b.insert(k1, vb);
+        assert_eq!(b.total_count(), 2);
 
         let (pb, pnb) = b.send().unwrap();
-        assert_eq!(pb_to_sorted_vec(pb), vec![(k0, vb)]);
+        assert_eq!(pb_to_sorted_vec(pb), vec![(k0, vb), (k1, vb)]);
         assert!(pnb.is_empty());
         assert_eq!(b.already_sent(), true);
     }
@@ -199,20 +200,20 @@ mod tests {
         let mut b = Beacons::default();
         // Test case with two peers
         b.clear([k0, k1].iter().cloned());
-        assert_eq!(b.all(), false);
+        assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
         assert_eq!(b.already_sent(), false);
-        assert_eq!(b.all(), false);
-        assert_eq!(b.insert(k0, va), true);
-        assert_eq!(b.all(), false);
-        assert_eq!(b.insert(k1, va), true);
-        assert_eq!(b.all(), true);
-        // Inserting again also returns true, and the new beacon overwrites the old one
-        assert_eq!(b.insert(k0, vb), true);
-        assert_eq!(b.all(), true);
-        assert_eq!(b.insert(k1, vb), true);
-        assert_eq!(b.all(), true);
+        assert_eq!(b.total_count(), 0);
+        b.insert(k0, va);
+        assert_eq!(b.total_count(), 1);
+        b.insert(k1, va);
+        assert_eq!(b.total_count(), 2);
+        // Inserting again, the new beacon overwrites the old one
+        b.insert(k0, vb);
+        assert_eq!(b.total_count(), 2);
+        b.insert(k1, vb);
+        assert_eq!(b.total_count(), 2);
 
         let (pb, pnb) = b.send().unwrap();
         assert_eq!(pb_to_sorted_vec(pb), vec![(k0, vb), (k1, vb)]);
@@ -232,15 +233,16 @@ mod tests {
         let mut b = Beacons::default();
         // Test case with two peers, one before new_epoch
         b.clear([k0, k1].iter().cloned());
-        assert_eq!(b.all(), false);
-        assert_eq!(b.insert(k0, va), true);
-        assert_eq!(b.all(), false);
+        assert_eq!(b.total_count(), 0);
+        b.insert(k0, va);
+        assert_eq!(b.total_count(), 1);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
         assert_eq!(b.already_sent(), false);
-        assert_eq!(b.all(), false);
-        assert_eq!(b.insert(k1, va), true);
-        assert_eq!(b.all(), true);
+        // But the beacons are only cleared when calling .clear()
+        assert_eq!(b.total_count(), 1);
+        b.insert(k1, va);
+        assert_eq!(b.total_count(), 2);
 
         let (pb, pnb) = b.send().unwrap();
         assert_eq!(pb_to_sorted_vec(pb), vec![(k0, va), (k1, va)]);
@@ -260,22 +262,88 @@ mod tests {
         let mut b = Beacons::default();
         // Test case with two peers, one doesnt send beacon
         b.clear([k0, k1].iter().cloned());
-        assert_eq!(b.all(), false);
+        assert_eq!(b.total_count(), 0);
         // The already_sent flag is cleared on new epoch
         b.new_epoch();
         assert_eq!(b.already_sent(), false);
-        assert_eq!(b.all(), false);
-        assert_eq!(b.insert(k0, va), true);
-        assert_eq!(b.all(), false);
+        assert_eq!(b.total_count(), 0);
+        b.insert(k0, va);
+        assert_eq!(b.total_count(), 1);
 
         let (pb, pnb) = b.send().unwrap();
         assert_eq!(pb_to_sorted_vec(pb), vec![(k0, va)]);
         assert_eq!(pnb_to_sorted_vec(pnb), vec![k1]);
         assert_eq!(b.already_sent(), true);
 
-        assert_eq!(b.insert(k1, va), true);
-        assert_eq!(b.all(), true);
-        // But if we try to send now, it fails
+        b.insert(k1, va);
+        assert_eq!(b.total_count(), 2);
+        // But if we try to send now, it fails because it was already sent
         assert_eq!(b.send(), None);
+    }
+
+    #[test]
+    fn two_peers_one_disconnect() {
+        let k0 = "127.0.0.1:1110".parse().unwrap();
+        let k1 = "127.0.0.1:1111".parse().unwrap();
+        let va = CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: Hash::default(),
+        };
+
+        let mut b = Beacons::default();
+        // Test case with two peers, one disconnects after sending beacon
+        b.clear([k0, k1].iter().cloned());
+        assert_eq!(b.total_count(), 0);
+        // The already_sent flag is cleared on new epoch
+        b.new_epoch();
+        assert_eq!(b.already_sent(), false);
+        assert_eq!(b.total_count(), 0);
+        b.insert(k0, va);
+        assert_eq!(b.total_count(), 1);
+
+        // Now first peer disconnects
+        b.remove(&k0);
+        assert_eq!(b.total_count(), 0);
+
+        // And second peer send beacon
+        b.insert(k1, va);
+        assert_eq!(b.total_count(), 1);
+
+        let (pb, pnb) = b.send().unwrap();
+        assert_eq!(pb_to_sorted_vec(pb), vec![(k1, va)]);
+        // The first peer is not marked as "out of consensus" because it has already disconnected
+        assert_eq!(pnb_to_sorted_vec(pnb), vec![]);
+        assert_eq!(b.already_sent(), true);
+    }
+
+    #[test]
+    fn one_peer_connects_later() {
+        let k0 = "127.0.0.1:1110".parse().unwrap();
+        let k1 = "127.0.0.1:1111".parse().unwrap();
+        let va = CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: Hash::default(),
+        };
+
+        let mut b = Beacons::default();
+        // Test case with one peer connecting after the call to .clear()
+        b.clear([k0].iter().cloned());
+        assert_eq!(b.total_count(), 0);
+        // The already_sent flag is cleared on new epoch
+        b.new_epoch();
+        assert_eq!(b.already_sent(), false);
+        assert_eq!(b.total_count(), 0);
+        b.insert(k0, va);
+        assert_eq!(b.total_count(), 1);
+
+        // Now a new peer connects but doesn't send beacon
+        b.also_wait_for(k1);
+        assert_eq!(b.total_count(), 1);
+
+        let (pb, pnb) = b.send().unwrap();
+        assert_eq!(pb_to_sorted_vec(pb), vec![(k0, va)]);
+        // The second peer is marked as "out of consensus" because it has not sent any beacon
+        assert_eq!(pnb_to_sorted_vec(pnb), vec![k1]);
+        assert_eq!(b.already_sent(), true);
     }
 }
