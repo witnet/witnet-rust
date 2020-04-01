@@ -737,8 +737,9 @@ impl ReputationInfo {
         let dr_pointer = tally_transaction.dr_pointer;
         let dr_state = &data_request_pool.data_request_pool[&dr_pointer];
         let commits = &dr_state.info.commits;
-        let replication_factor = dr_state.data_request.witnesses;
-        self.alpha_diff += Alpha(u32::from(replication_factor));
+        // 1 reveal = 1 witnessing act
+        let reveals_count = u32::try_from(dr_state.info.reveals.len()).unwrap();
+        self.alpha_diff += Alpha(reveals_count);
 
         // Set of pkhs which were slashed in the tally transaction
         let slashed_witnesses: HashSet<_> = tally_transaction.slashed_witnesses.iter().collect();
