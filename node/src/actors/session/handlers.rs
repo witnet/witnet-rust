@@ -586,7 +586,7 @@ fn handshake_version(session: &mut Session, sender_address: &Address) -> Vec<Wit
         flags.version_tx = true;
         let version = WitnetMessage::build_version(
             session.magic_number,
-            session.server_addr,
+            session.public_addr,
             session.remote_addr,
             session.current_epoch,
         );

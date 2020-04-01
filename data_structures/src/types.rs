@@ -139,7 +139,13 @@ pub enum IpAddress {
     },
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+impl Default for IpAddress {
+    fn default() -> Self {
+        Self::Ipv4 { ip: 0 }
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Clone, Copy)]
 pub struct Address {
     pub ip: IpAddress,
     pub port: u16,

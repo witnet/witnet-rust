@@ -38,8 +38,8 @@ pub struct Sessions<T>
 where
     T: Clone,
 {
-    /// Server address listening to incoming connections
-    pub server_address: Option<SocketAddr>,
+    /// Server public address listening to incoming connections
+    pub public_address: Option<SocketAddr>,
     /// Inbound consolidated sessions: __known__ peers sessions that connect to the server
     pub inbound_consolidated: BoundedSessions<T>,
     /// Inbound sessions: __untrusted__ peers that connect to the server
@@ -71,7 +71,7 @@ where
 {
     fn default() -> Self {
         Self {
-            server_address: None,
+            public_address: None,
             inbound_consolidated: BoundedSessions::default(),
             inbound_unconsolidated: BoundedSessions::default(),
             outbound_consolidated: BoundedSessions::default(),
@@ -108,8 +108,8 @@ where
         }
     }
     /// Method to set the server address
-    pub fn set_server_address(&mut self, server_address: SocketAddr) {
-        self.server_address = Some(server_address);
+    pub fn set_public_address(&mut self, public_address: Option<SocketAddr>) {
+        self.public_address = public_address;
     }
     /// Method to set the sessions limits
     pub fn set_limits(&mut self, inbound_limit: u16, outbound_consolidated_limit: u16) {
@@ -149,7 +149,7 @@ where
 
         // Check if address is the server address
         let is_server = self
-            .server_address
+            .public_address
             .map(|address| address == candidate_addr)
             .unwrap_or(false);
 

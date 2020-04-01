@@ -39,7 +39,7 @@ impl Actor for Session {
         if self.session_type == SessionType::Feeler {
             let version_msg = WitnetMessage::build_version(
                 self.magic_number,
-                self.server_addr,
+                self.public_addr,
                 self.remote_addr,
                 self.current_epoch,
             );
@@ -87,7 +87,7 @@ impl Actor for Session {
                     if let SessionType::Outbound = act.session_type {
                         let version_msg = WitnetMessage::build_version(
                             act.magic_number,
-                            act.server_addr,
+                            act.public_addr,
                             act.remote_addr,
                             act.current_epoch,
                         );

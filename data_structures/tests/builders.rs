@@ -133,7 +133,7 @@ fn builders_build_version() {
     let receiver_sock_addr = "192.168.1.2:8001".parse().unwrap();
     let built_msg = Message::build_version(
         0xABCD,
-        sender_sock_addr,
+        Some(sender_sock_addr),
         receiver_sock_addr,
         hardcoded_last_epoch,
     );

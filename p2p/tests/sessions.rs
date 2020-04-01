@@ -10,7 +10,7 @@ fn p2p_sessions_default() {
     let sessions = Sessions::<String>::default();
 
     // Check that sessions server is none
-    assert!(sessions.server_address.is_none());
+    assert!(sessions.public_address.is_none());
 
     // Check that sessions collections are empty
     assert_eq!(sessions.inbound_consolidated.collection.len(), 0);
@@ -26,15 +26,15 @@ fn p2p_sessions_set_server() {
     let mut sessions = Sessions::<String>::default();
 
     // Check server address is none
-    assert!(sessions.server_address.is_none());
+    assert!(sessions.public_address.is_none());
 
     // Set server address
     let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
-    sessions.set_server_address(address);
+    sessions.set_public_address(Some(address));
 
     // Check server address is now set
-    assert!(sessions.server_address.is_some());
-    assert_eq!(sessions.server_address.unwrap(), address);
+    assert!(sessions.public_address.is_some());
+    assert_eq!(sessions.public_address.unwrap(), address);
 }
 
 /// Check setting the sessions limits
@@ -91,7 +91,7 @@ fn p2p_sessions_is_outbound_address_eligible() {
 
     // Set server address
     let server_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8000);
-    sessions.set_server_address(server_address);
+    sessions.set_public_address(Some(server_address));
 
     // Register an outbound session and check if result is Ok(())
     let outbound_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);

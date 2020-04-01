@@ -25,7 +25,7 @@ impl Actor for SessionsManager {
 
                 // Set server address, connections limits and handshake timeout
                 act.sessions
-                    .set_server_address(config.connections.server_addr);
+                    .set_public_address(config.connections.public_addr);
                 act.sessions.set_limits(
                     config.connections.inbound_limit,
                     config.connections.outbound_limit,

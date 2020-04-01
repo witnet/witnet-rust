@@ -45,8 +45,8 @@ impl HandshakeFlags {
 
 /// Session representing a TCP connection
 pub struct Session {
-    /// Server socket address (local peer)
-    server_addr: SocketAddr,
+    /// Public address of the node (the one used by other peers to connect to ours)
+    public_addr: Option<SocketAddr>,
 
     /// Remote socket address (remote server address only if outbound session)
     remote_addr: SocketAddr,
@@ -96,7 +96,7 @@ impl Session {
     /// Method to create a new session
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        server_addr: SocketAddr,
+        public_addr: Option<SocketAddr>,
         remote_addr: SocketAddr,
         session_type: SessionType,
         framed: FramedWrite<WriteHalf<TcpStream>, P2PCodec>,
@@ -107,7 +107,7 @@ impl Session {
         current_epoch: Epoch,
     ) -> Session {
         Session {
-            server_addr,
+            public_addr,
             remote_addr,
             session_type,
             framed,

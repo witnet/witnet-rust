@@ -56,17 +56,18 @@ impl Message {
     /// Function to build Version messages
     pub fn build_version(
         magic: u16,
-        sender_addr: SocketAddr,
+        sender_addr: Option<SocketAddr>,
         receiver_addr: SocketAddr,
         last_epoch: u32,
     ) -> Message {
+        let addr = sender_addr.map(to_address);
         Message::build_message(
             magic,
             Command::Version(Version {
                 version: PROTOCOL_VERSION,
                 timestamp: get_timestamp(),
                 capabilities: CAPABILITIES,
-                sender_address: to_address(sender_addr),
+                sender_address: addr.unwrap_or_default(),
                 receiver_address: to_address(receiver_addr),
                 user_agent: USER_AGENT.to_string(),
                 last_epoch,

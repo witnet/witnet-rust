@@ -36,7 +36,7 @@ impl Handler<Create> for SessionsManager {
         let handshake_timeout = self.sessions.handshake_timeout;
 
         // Get server address
-        let server_addr = self.sessions.server_address;
+        let public_address = self.sessions.public_address;
 
         // Get magic number
         let magic_number = self.sessions.magic_number;
@@ -53,7 +53,7 @@ impl Handler<Create> for SessionsManager {
         // Create a Session actor
         Session::create(move |ctx| {
             // Get server address (if not present, send local address instead)
-            let server_addr = server_addr.unwrap_or_else(|| msg.stream.local_addr().unwrap());
+            let public_addr = public_address;
 
             // Get remote peer address
             let remote_addr = msg.stream.peer_addr().unwrap();
@@ -66,7 +66,7 @@ impl Handler<Create> for SessionsManager {
 
             // Create the session actor and store in its state the write part of the tcp stream
             Session::new(
-                server_addr,
+                public_addr,
                 remote_addr,
                 msg.session_type,
                 FramedWrite::new(w, P2PCodec, ctx),

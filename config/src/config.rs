@@ -150,6 +150,11 @@ pub struct Connections {
     /// peers should bind to
     pub server_addr: SocketAddr,
 
+    /// Public address
+    #[partial_struct(skip)]
+    #[partial_struct(serde(default))]
+    pub public_addr: Option<SocketAddr>,
+
     /// Maximum number of concurrent connections the server should
     /// accept
     pub inbound_limit: u16,
@@ -472,6 +477,7 @@ impl Connections {
                 .server_addr
                 .to_owned()
                 .unwrap_or_else(|| defaults.connections_server_addr()),
+            public_addr: config.public_addr,
             inbound_limit: config
                 .inbound_limit
                 .to_owned()
@@ -813,8 +819,10 @@ mod tests {
     #[test]
     fn test_connections_from_partial() {
         let addr: SocketAddr = "127.0.0.1:3000".parse().unwrap();
+        let public_addr: SocketAddr = "127.0.0.1:3003".parse().unwrap();
         let partial_config = PartialConnections {
             server_addr: Some(addr),
+            public_addr: Some(public_addr),
             inbound_limit: Some(3),
             outbound_limit: Some(4),
             known_peers: [addr].iter().cloned().collect(),
@@ -831,6 +839,7 @@ mod tests {
         let config = Connections::from_partial(&partial_config, &Testnet);
 
         assert_eq!(config.server_addr, addr);
+        assert_eq!(config.public_addr, Some(public_addr));
         assert_eq!(config.inbound_limit, 3);
         assert_eq!(config.outbound_limit, 4);
         assert!(config.known_peers.contains(&addr));
