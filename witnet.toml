@@ -2,6 +2,7 @@
 # https://docs.witnet.io/configuration/toml-file/
 [connections]
 server_addr = "0.0.0.0:21337"
+public_addr = "0.0.0.0:21337"
 known_peers = [
     "52.166.178.145:21337",
     "94.130.108.133:21337",
