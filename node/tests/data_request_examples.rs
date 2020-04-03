@@ -6,7 +6,9 @@ use std::{
 };
 use witnet_data_structures::chain::DataRequestOutput;
 use witnet_node::actors::messages::BuildDrt;
-use witnet_rad::types::{float::RadonFloat, string::RadonString, RadonTypes};
+use witnet_rad::types::{
+    float::RadonFloat, integer::RadonInteger, string::RadonString, RadonTypes,
+};
 
 /// Id. Can be null, a number, or a string
 #[derive(Debug, Serialize, Deserialize)]
@@ -135,8 +137,8 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
         (
             "random_source.json",
             examples::random_source(),
-            &[r#"[{"status":"success","min":0,"max":100,"random":31}]"#],
-            RadonTypes::Float(RadonFloat::from(31.0)),
+            &[r#"{"results":[{"dob":{"age":45}}]}"#],
+            RadonTypes::Integer(RadonInteger::from(45)),
         ),
         (
             "bitcoin_last_hash.json",
@@ -234,17 +236,26 @@ mod examples {
     }
 
     pub fn random_source() -> BuildDrt {
-        let url_0 = "https://csrng.net/csrng/csrng.php?min=0&max=100";
+        let url_0 = "https://randomuser.me/api/";
         let r0_script = cbor_to_vec(&Value::Array(vec![
-            Value::Integer(RadonOpCodes::StringParseJSONArray as i128),
+            Value::Integer(RadonOpCodes::StringParseJSONMap as i128),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetArray as i128),
+                Value::Text(String::from("results")),
+            ]),
             Value::Array(vec![
                 Value::Integer(RadonOpCodes::ArrayGetMap as i128),
                 Value::Integer(0),
             ]),
             Value::Array(vec![
-                Value::Integer(RadonOpCodes::MapGetFloat as i128),
-                Value::Text(String::from("random")),
+                Value::Integer(RadonOpCodes::MapGetMap as i128),
+                Value::Text(String::from("dob")),
             ]),
+            Value::Array(vec![
+                Value::Integer(RadonOpCodes::MapGetFloat as i128),
+                Value::Text(String::from("age")),
+            ]),
+            Value::Integer(RadonOpCodes::FloatRound as i128),
         ]))
         .unwrap();
 
