@@ -1,11 +1,14 @@
 //! Witnet <> Ethereum bridge
+use futures::stream::Stream;
 use log::*;
+use std::time::{Duration, Instant};
 use std::{
     path::PathBuf,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 use structopt::StructOpt;
+use tokio::timer::Interval;
 use web3::{
     contract,
     futures::{future, Future},
@@ -17,10 +20,9 @@ use witnet_ethereum_bridge::{
         block_relay_and_poi::block_relay_and_poi,
         block_relay_check::block_relay_check,
         claim_and_post::{claim_and_post, claim_ticker},
-        eth_event_stream::eth_event_stream,
         tally_finder::tally_finder,
         witnet_block_stream::witnet_block_stream,
-        wrb_requests_initial_sync::wrb_requests_initial_sync,
+        wrb_requests_periodic_sync::{get_new_requests, wrb_requests_periodic_sync},
     },
     config::Config,
     eth::EthState,
@@ -126,8 +128,13 @@ fn run() -> Result<(), String> {
             tokio::spawn(fut);
         }));
     } else {
-        let wrb_requests_initial_sync_fut =
-            wrb_requests_initial_sync(Arc::clone(&config), Arc::clone(&eth_state));
+        let (_handle, claim_and_post_tx, claim_and_post_fut) =
+            claim_and_post(Arc::clone(&config), Arc::clone(&eth_state));
+        let wrb_requests_initial_sync_fut = get_new_requests(
+            Arc::clone(&config),
+            Arc::clone(&eth_state),
+            claim_and_post_tx.clone(),
+        );
         if app.read_requests {
             // Read all the requests from WRB and exit
             tokio::run(future::ok(()).map(move |_| {
@@ -141,13 +148,11 @@ fn run() -> Result<(), String> {
                 Arc::clone(&eth_state),
                 block_relay_check_tx,
             );
-            let (_handle, claim_and_post_tx, claim_and_post_fut) =
-                claim_and_post(Arc::clone(&config), Arc::clone(&eth_state));
-            let eth_event_fut =
-                eth_event_stream(&config, Arc::clone(&eth_state), claim_and_post_tx.clone());
+            //let eth_event_fut =
+            //    eth_event_stream(&config, Arc::clone(&eth_state), claim_and_post_tx.clone());
             let (_handle, witnet_block_fut) =
                 witnet_block_stream(Arc::clone(&config), block_relay_and_poi_tx.clone());
-            let claim_ticker_fut = claim_ticker(Arc::clone(&config), claim_and_post_tx);
+            let claim_ticker_fut = claim_ticker(Arc::clone(&config), claim_and_post_tx.clone());
 
             let (_handle, tally_finder_fut) = tally_finder(
                 Arc::clone(&config),
@@ -156,16 +161,6 @@ fn run() -> Result<(), String> {
             );
 
             tokio::run(future::ok(()).map(move |_| {
-                // Wait here to ensure that the Ethereum client is running before starting
-                // the entire system
-                let eth_event_fut = match eth_event_fut.wait() {
-                    Ok(x) => x,
-                    Err(e) => {
-                        error!("{}", e);
-                        return;
-                    }
-                };
-
                 // Wait here to ensure that the Witnet node is running before starting
                 // the entire system
                 let witnet_event_fut = match witnet_block_fut.wait() {
@@ -176,11 +171,38 @@ fn run() -> Result<(), String> {
                     }
                 };
 
-                tokio::spawn(wrb_requests_initial_sync_fut);
+                let config2 = config.clone();
+                let eth_state2 = eth_state.clone();
+                tokio::spawn(
+                    Interval::new(Instant::now(), Duration::from_millis(10_000))
+                        .map_err(|e| error!("Error creating interval: {:?}", e))
+                        .and_then(move |_| {
+                            get_new_requests(
+                                Arc::clone(&config2),
+                                Arc::clone(&eth_state2),
+                                claim_and_post_tx.clone(),
+                            )
+                        })
+                        .then(|_| Ok(()))
+                        .for_each(|_| Ok(())),
+                );
                 if config.subscribe_to_witnet_blocks {
                     tokio::spawn(witnet_event_fut);
                 }
-                tokio::spawn(eth_event_fut);
+                let config2 = config.clone();
+                let eth_state2 = eth_state.clone();
+                tokio::spawn(
+                    Interval::new(Instant::now(), Duration::from_millis(10_000))
+                        .map_err(|e| error!("Error creating interval: {:?}", e))
+                        .and_then(move |_| {
+                            wrb_requests_periodic_sync(
+                                Arc::clone(&config2),
+                                Arc::clone(&eth_state2),
+                            )
+                        })
+                        .then(|_| Ok(()))
+                        .for_each(|_| Ok(())),
+                );
                 tokio::spawn(claim_and_post_fut);
                 tokio::spawn(block_relay_and_poi_fut);
                 tokio::spawn(claim_ticker_fut);

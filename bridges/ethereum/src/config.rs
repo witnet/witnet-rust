@@ -43,8 +43,10 @@ pub struct Config {
     pub witnet_dr_report_polling_rate_ms: u64,
     /// Period to try to claim old data request whose claim expired
     pub claim_dr_rate_ms: u64,
-    /// Period to check for new Ethereum events
-    pub eth_event_polling_rate_ms: u64,
+    /// Period to check for state updates in existing requests in the WRB
+    pub eth_existing_dr_polling_rate_ms: u64,
+    /// Period to check for new requests in the WRB
+    pub eth_new_dr_polling_rate_ms: u64,
     /// Running in the witnet testnet?
     pub witnet_testnet: bool,
     /// If readDrHash returns 0, try again later

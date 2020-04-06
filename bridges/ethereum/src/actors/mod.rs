@@ -6,10 +6,9 @@ use witnet_data_structures::chain::Block;
 pub mod block_relay_and_poi;
 pub mod block_relay_check;
 pub mod claim_and_post;
-pub mod eth_event_stream;
 pub mod tally_finder;
 pub mod witnet_block_stream;
-pub mod wrb_requests_initial_sync;
+pub mod wrb_requests_periodic_sync;
 
 /// Message to the claim_and_post actor, which will try to claim data requests from the
 /// WRB and post them on Witnet on success

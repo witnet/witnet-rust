@@ -8,6 +8,7 @@ use log::*;
 use rand::{thread_rng, Rng};
 use serde_json::{json, Value};
 use std::{
+    collections::BTreeMap,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -476,6 +477,9 @@ pub fn claim_and_post(
                     Either::B(eth_state.wrb_requests.read().and_then(move |known_dr_ids| {
                         let known_dr_ids_posted = known_dr_ids.posted();
                         let known_dr_ids_claimed = known_dr_ids.claimed();
+                        let sorted_dr_state: BTreeMap<_, _> =
+                            known_dr_ids.requests().iter().collect();
+                        debug!("{:?}", sorted_dr_state);
                         debug!(
                             "Known data requests in WRB: {:?}{:?}",
                             known_dr_ids_posted, known_dr_ids_claimed

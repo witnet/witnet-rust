@@ -25,6 +25,7 @@ pub fn witnet_block_stream(
     let witnet_addr = config.witnet_jsonrpc_addr.to_string();
     let witnet_addr1 = witnet_addr.clone();
     let witnet_addr2 = witnet_addr.clone();
+    info!("Connecting to witnet node at {}", witnet_addr);
     // Important: the handle cannot be dropped, otherwise the client stops
     // processing events
     let (handle, witnet_client) =

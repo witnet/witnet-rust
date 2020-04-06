@@ -128,6 +128,9 @@ impl WrbRequests {
             Some(DrState::Included) => {
                 debug!("Invalid state in WrbRequests: [{}] was being set to Included, but it is already Included", dr_id);
             }
+            Some(DrState::Resolving { .. }) => {
+                debug!("Invalid state in WrbRequests: [{}] was being set to Included, but it is already Resolving", dr_id);
+            }
             _ => {
                 warn!(
                     "Invalid state in WrbRequests: [{}] was being set to Included, but it is: {:?}",
@@ -251,6 +254,10 @@ impl WrbRequests {
     /// `dr_tx_hash`
     pub fn included(&self) -> &BiMap<U256, Hash> {
         &self.included
+    }
+    /// View of all the data requests in `Resolved` state
+    pub fn resolved(&self) -> &HashSet<U256> {
+        &self.resolved
     }
     /// View of all the data requests indexed by id
     pub fn requests(&self) -> &HashMap<U256, DrState> {
