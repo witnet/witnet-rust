@@ -1,5 +1,5 @@
 use crate::config::Config;
-use bimap::BiMap;
+use crate::multibimap::MultiBiMap;
 use ethabi::{Bytes, Token};
 use futures::Future;
 use futures_locks::RwLock;
@@ -73,10 +73,10 @@ pub struct WrbRequests {
     claiming: HashSet<U256>,
     // Claimed by our node, used to reportInclusion
     // dr_output_hash: Hash
-    claimed: BiMap<U256, Hash>,
+    claimed: MultiBiMap<U256, Hash>,
     including: HashSet<U256>,
     // dr_tx_hash: Hash
-    included: BiMap<U256, Hash>,
+    included: MultiBiMap<U256, Hash>,
     resolving: HashMap<U256, Hash>,
     resolved: HashSet<U256>,
 }
@@ -261,12 +261,12 @@ impl WrbRequests {
     }
     /// View of all the data requests in `Claimed` state, with an auxiliar
     /// `dr_output_hash`.
-    pub fn claimed(&self) -> &BiMap<U256, Hash> {
+    pub fn claimed(&self) -> &MultiBiMap<U256, Hash> {
         &self.claimed
     }
     /// View of all the data requests in `Claimed` state, with an auxiliar
     /// `dr_tx_hash`
-    pub fn included(&self) -> &BiMap<U256, Hash> {
+    pub fn included(&self) -> &MultiBiMap<U256, Hash> {
         &self.included
     }
     /// View of all the data requests in `Resolved` state

@@ -136,8 +136,7 @@ pub fn block_relay_and_poi(
 
                     if enable_claim_and_inclusion {
                         for dr in &block.txns.data_request_txns {
-                            if let Some(dr_id) =
-                            claimed_drs.get_by_right(&dr.body.dr_output.hash())
+                            for dr_id in claimed_drs.get_by_right(&dr.body.dr_output.hash())
                             {
                                 let dr_inclusion_proof = match dr.data_proof_of_inclusion(&block) {
                                     Some(x) => x,
@@ -172,7 +171,7 @@ pub fn block_relay_and_poi(
 
                     if enable_result_reporting {
                         for tally in &block.txns.tally_txns {
-                            if let Some(dr_id) = waiting_for_tally.get_by_right(&tally.dr_pointer)
+                            for dr_id in waiting_for_tally.get_by_right(&tally.dr_pointer)
                             {
                                 let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
                                 info!("[{}] Found tally for data request, posting to WRB", dr_id);

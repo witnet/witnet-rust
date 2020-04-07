@@ -12,3 +12,5 @@ pub mod actors;
 pub mod config;
 /// Ethereum related state
 pub mod eth;
+/// Helper bidirectional map
+pub mod multibimap;
