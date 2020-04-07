@@ -8,7 +8,7 @@ pub struct IndexTxns(
     pub String,
     pub types::SessionWallet,
     pub Vec<types::Transaction>,
-    pub model::BlockInfo,
+    pub model::Beacon,
 );
 
 impl Message for IndexTxns {

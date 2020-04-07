@@ -133,13 +133,13 @@ pub struct BlockInfo {
 }
 
 impl BlockInfo {
-    pub fn create(self) -> model::BlockInfo {
-        let hash = Hash::from(
+    pub fn create(self) -> model::Beacon {
+        let block_hash = Hash::from(
             self.hash
                 .unwrap_or_else(|| transaction_id().as_ref().to_vec()),
         );
         let epoch = self.epoch.unwrap_or_else(rand::random);
 
-        model::BlockInfo { hash, epoch }
+        model::Beacon { block_hash, epoch }
     }
 }

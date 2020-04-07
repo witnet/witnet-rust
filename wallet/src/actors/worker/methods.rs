@@ -238,14 +238,14 @@ impl Worker {
     pub fn index_txns(
         &self,
         wallet: &types::Wallet,
-        block: &model::BlockInfo,
+        block: &model::Beacon,
         txns: &[types::Transaction],
     ) -> Result<()> {
         log::debug!("trying to index txns from epoch {}", block.epoch);
         wallet.index_transactions(block, txns)?;
         wallet.update_last_sync(CheckpointBeacon {
             checkpoint: block.epoch,
-            hash_prev_block: block.hash,
+            hash_prev_block: block.block_hash,
         })?;
 
         Ok(())
@@ -487,9 +487,9 @@ impl Worker {
             .map(types::Transaction::from);
         let block_txns = dr_txns.chain(vtt_txns).collect::<Vec<types::Transaction>>();
 
-        let block_info = model::BlockInfo {
+        let block_info = model::Beacon {
             epoch: block_epoch,
-            hash: block_hash,
+            block_hash: block_hash,
         };
         self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
 

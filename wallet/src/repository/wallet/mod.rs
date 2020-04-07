@@ -274,21 +274,31 @@ where
     }
 
     /// Get a transaction if exists.
-    pub fn get_transaction(&self, account: u32, index: u32) -> Result<model::Transaction> {
+    pub fn get_transaction(&self, account: u32, index: u32) -> Result<model::BalanceMovement> {
         let value = self.db.get(&keys::transaction_value(account, index))?;
         let kind = self.db.get(&keys::transaction_type(account, index))?;
         let timestamp = self.db.get(&keys::transaction_timestamp(account, index))?;
         let hash: Vec<u8> = self.db.get(&keys::transaction_hash(account, index))?;
-        let fee = self.db.get_opt(&keys::transaction_fee(account, index))?;
+        let miner_fee = self.db.get_opt(&keys::transaction_fee(account, index))?;
         let block = self.db.get_opt(&keys::transaction_block(account, index))?;
 
-        Ok(model::Transaction {
-            value,
-            kind,
-            hex_hash: hex::encode(hash),
-            fee,
-            block,
-            timestamp,
+        Ok(model::BalanceMovement {
+            sign: "positive".to_string(),
+            amount: value,
+            time_lock: 0,
+            transaction: model::Transaction {
+                hash: hex::encode(hash),
+                timestamp,
+                block,
+                miner_fee: miner_fee.unwrap_or(0),
+                kind,
+                // FIXME: persist transaction data is missing to be included here
+                data: model::TransactionData {
+                    inputs: vec![],
+                    outputs: vec![],
+                    tally: None
+                }
+            }
         })
     }
 
@@ -333,7 +343,7 @@ where
     /// Index transactions in a block received from a node.
     pub fn index_transactions(
         &self,
-        block_info: &model::BlockInfo,
+        block_info: &model::Beacon,
         txns: &[types::Transaction],
     ) -> Result<()> {
         let mut state = self.state.write()?;
@@ -539,7 +549,7 @@ where
         &self,
         state: &mut State,
         txn: &types::Transaction,
-        block_info: &model::BlockInfo,
+        block_info: &model::Beacon,
     ) -> Result<()> {
         // For each type of transaction, get mutations and transaction balance
         let transaction_mutation = match txn {

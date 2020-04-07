@@ -765,7 +765,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
     // check that indeed, the previously created vtt has no block associated with it
     assert_eq!(
         None,
-        db.get_opt::<_, model::BlockInfo>(&keys::transaction_block(0, 1))
+        db.get_opt::<_, model::Beacon>(&keys::transaction_block(0, 1))
             .unwrap()
     );
 
@@ -777,7 +777,7 @@ fn test_index_transaction_vtt_created_by_wallet() {
     // check that indeed, the previously created vtt now has a block associated with it
     assert_eq!(
         Some(a_block),
-        db.get_opt::<_, model::BlockInfo>(&keys::transaction_block(0, 1))
+        db.get_opt::<_, model::Beacon>(&keys::transaction_block(0, 1))
             .unwrap()
     );
 }
