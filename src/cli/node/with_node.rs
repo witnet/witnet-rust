@@ -103,6 +103,17 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
                 write_to_path.as_deref(),
             )
         }
+        Command::DataRequestReport {
+            node,
+            dr_tx_hash,
+            json,
+            print_data_request,
+        } => rpc::data_request_report(
+            node.unwrap_or(config.jsonrpc.server_address),
+            dr_tx_hash,
+            json,
+            print_data_request,
+        ),
     }
 }
 
@@ -246,6 +257,21 @@ pub enum Command {
         /// Change the path where to write storage_path/private_key_pkh.txt". Implies --write
         #[structopt(long = "write-to")]
         write_to: Option<PathBuf>,
+    },
+    #[structopt(
+        name = "dataRequestReport",
+        about = "Show information about a data request"
+    )]
+    DataRequestReport {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        #[structopt(name = "dr-tx-hash", help = "Data request transaction hash")]
+        dr_tx_hash: String,
+        #[structopt(long = "json", help = "Show output in JSON format")]
+        json: bool,
+        #[structopt(long = "show-dr", help = "Print data request")]
+        print_data_request: bool,
     },
 }
 

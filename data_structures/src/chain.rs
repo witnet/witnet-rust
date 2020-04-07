@@ -1741,6 +1741,9 @@ pub enum InventoryItem {
 /// Data request report to be persisted into Storage and
 /// using as index the Data Request OutputPointer
 // FIXME (#792): Review if this struct is needed
+// It is not needed, we just need to store the transaction hash for all the commits, reveals, and
+// tally. All the information can then be retrieved from the database. The data request transaction
+// hash is used as the key.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestReport {
     /// List of commitment output pointers to resolve the data request

@@ -8,18 +8,25 @@ use std::{
     str::FromStr,
 };
 
+use ansi_term::Color::{Purple, Red, White, Yellow};
 use failure::{bail, Fail};
 use itertools::Itertools;
 use log::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use witnet_crypto::key::{CryptoEngine, ExtendedPK, ExtendedSK};
-use witnet_data_structures::chain::{
-    DataRequestOutput, Environment, OutputPointer, PublicKey, PublicKeyHash, Reputation,
-    ValueTransferOutput,
+use witnet_data_structures::{
+    chain::{
+        DataRequestInfo, DataRequestOutput, Environment, OutputPointer, PublicKey, PublicKeyHash,
+        Reputation, ValueTransferOutput,
+    },
+    proto::ProtobufConvert,
+    transaction::Transaction,
 };
-use witnet_data_structures::proto::ProtobufConvert;
-use witnet_node::actors::{json_rpc::json_rpc_methods::GetBlockChainParams, messages::BuildVtt};
+use witnet_node::actors::{
+    json_rpc::json_rpc_methods::{GetBlockChainParams, GetTransactionOutput},
+    messages::BuildVtt,
+};
 use witnet_rad::types::RadonTypes;
 use witnet_util::credentials::create_credentials_file;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request, Wit};
@@ -340,6 +347,304 @@ pub fn master_key_export(
         Err(error) => {
             println!("{}", error);
         }
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+struct DataRequestTransactionInfo {
+    data_request_tx_hash: String,
+    data_request_output: DataRequestOutput,
+    data_request_creator_pkh: String,
+    block_hash_data_request_tx: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    block_hash_tally_tx: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data_request_state: Option<DataRequestState>,
+    // [(pkh, reveal, reward_value)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reveals: Option<Vec<(String, String, String)>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tally: Option<String>,
+    #[serde(skip)]
+    print_data_request: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct DataRequestState {
+    stage: String,
+    current_commit_round: u16,
+    current_reveal_round: u16,
+}
+
+impl fmt::Display for DataRequestTransactionInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(
+            f,
+            "Report for data request {}:",
+            White.bold().paint(&self.data_request_tx_hash)
+        )?;
+
+        if self.print_data_request {
+            writeln!(
+                f,
+                "data_request_output: {}",
+                serde_json::to_string_pretty(&self.data_request_output).unwrap()
+            )?;
+        }
+
+        if self.block_hash_data_request_tx == "pending" {
+            writeln!(
+                f,
+                "Deployed by {}, not yet included in any block",
+                self.data_request_creator_pkh
+            )?;
+        } else {
+            writeln!(
+                f,
+                "Deployed in block {} by {}",
+                Purple.bold().paint(&self.block_hash_data_request_tx),
+                self.data_request_creator_pkh
+            )?;
+            let data_request_state = self.data_request_state.as_ref().unwrap();
+            let num_commits = self.reveals.as_ref().unwrap().len();
+            let num_reveals = self
+                .reveals
+                .as_ref()
+                .unwrap()
+                .iter()
+                .filter_map(
+                    |(_pkh, reveal, _honest)| {
+                        if reveal.is_empty() {
+                            None
+                        } else {
+                            Some(())
+                        }
+                    },
+                )
+                .count();
+            if data_request_state.stage == "FINISHED" {
+                writeln!(
+                    f,
+                    "{} with {} commits and {} reveals",
+                    White.bold().paint(&data_request_state.stage),
+                    num_commits,
+                    num_reveals,
+                )?;
+            } else {
+                writeln!(
+                    f,
+                    "In {} stage with {} commits and {} reveals",
+                    White.bold().paint(&data_request_state.stage),
+                    num_commits,
+                    num_reveals,
+                )?;
+            }
+            writeln!(
+                f,
+                "Commit rounds: {}/{}",
+                data_request_state.current_commit_round,
+                1 + self.data_request_output.extra_commit_rounds
+            )?;
+            writeln!(
+                f,
+                "Reveal rounds: {}/{}",
+                data_request_state.current_reveal_round,
+                1 + self.data_request_output.extra_reveal_rounds
+            )?;
+        }
+
+        if let Some(reveals) = &self.reveals {
+            let data_request_state = self.data_request_state.as_ref().unwrap();
+            if data_request_state.stage == "COMMIT" {
+                writeln!(
+                    f,
+                    "Commits:{}",
+                    if reveals.is_empty() {
+                        " (no commits)"
+                    } else {
+                        ""
+                    }
+                )?;
+            } else {
+                writeln!(
+                    f,
+                    "Reveals:{}",
+                    if reveals.is_empty() {
+                        " (no reveals)"
+                    } else {
+                        ""
+                    }
+                )?;
+            }
+            for (pkh, reveal, reward) in reveals {
+                let reveal_str = if reveal.is_empty() {
+                    "No reveal"
+                } else {
+                    reveal
+                };
+
+                match reward.chars().next() {
+                    Some('+') => {
+                        writeln!(
+                            f,
+                            "    [Rewarded ] {}: {}",
+                            pkh,
+                            Yellow.bold().paint(reveal_str)
+                        )?;
+                    }
+                    Some('-') => {
+                        writeln!(
+                            f,
+                            "    {} {}: {}",
+                            Red.bold().paint("[Penalized]"),
+                            Red.bold().paint(pkh),
+                            Yellow.bold().paint(reveal_str)
+                        )?;
+                    }
+                    _ => {
+                        writeln!(f, "    {}: {}", pkh, Yellow.bold().paint(reveal_str))?;
+                    }
+                }
+            }
+        } else {
+            writeln!(f, "No reveals yet")?;
+        }
+        if let Some(tally) = &self.tally {
+            writeln!(f, "Tally: {}", Yellow.bold().paint(tally))?;
+        }
+
+        Ok(())
+    }
+}
+
+pub fn data_request_report(
+    addr: SocketAddr,
+    hash: String,
+    json: bool,
+    print_data_request: bool,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{:?}], "id": "1"}}"#,
+        hash,
+    );
+    let response = send_request(&mut stream, &request)?;
+    let transaction: GetTransactionOutput = parse_response(&response)?;
+
+    let data_request_transaction_block_hash = transaction.block_hash.clone();
+    let transaction_block_hash = if transaction.block_hash == "pending" {
+        None
+    } else {
+        Some(transaction.block_hash)
+    };
+    let dr_tx = if let Transaction::DataRequest(dr_tx) = transaction.transaction {
+        dr_tx
+    } else {
+        bail!("This is not a data request transaction");
+    };
+
+    let dr_output = dr_tx.body.dr_output;
+    let dr_creator_pkh = dr_tx.signatures[0].public_key.pkh();
+
+    let (data_request_state, reveals, tally, block_hash_tally_tx) = if transaction_block_hash
+        .is_none()
+    {
+        (None, None, None, None)
+    } else {
+        let request = format!(
+            r#"{{"jsonrpc": "2.0","method": "dataRequestReport", "params": [{:?}], "id": "1"}}"#,
+            hash,
+        );
+        let response = send_request(&mut stream, &request)?;
+        let dr_info: DataRequestInfo = parse_response(&response)?;
+
+        let data_request_state = DataRequestState {
+            stage: dr_info
+                .current_stage
+                .map(|x| format!("{:?}", x))
+                .unwrap_or_else(|| "FINISHED".to_string()),
+            current_commit_round: dr_info.current_commit_round,
+            current_reveal_round: dr_info.current_reveal_round,
+        };
+
+        let mut reveals = vec![];
+        for (pkh, reveal_transaction) in &dr_info.reveals {
+            let reveal_radon_types =
+                RadonTypes::try_from(reveal_transaction.body.reveal.as_slice())?;
+            reveals.push((*pkh, Some(reveal_radon_types)));
+        }
+        for pkh in dr_info.commits.keys() {
+            if !reveals.iter().any(|(reveal_pkh, _)| reveal_pkh == pkh) {
+                reveals.push((*pkh, None));
+            }
+        }
+        // Sort reveal list by pkh
+        reveals.sort_unstable_by_key(|(pkh, _)| *pkh);
+        let reveals = reveals;
+
+        let tally = dr_info
+            .tally
+            .as_ref()
+            .map(|t| RadonTypes::try_from(t.tally.as_slice()))
+            .transpose()?;
+
+        (
+            Some(data_request_state),
+            Some(
+                reveals
+                    .into_iter()
+                    .map(|(pkh, reveal)| {
+                        let honest = match dr_info.tally.as_ref() {
+                            None => format!(""),
+                            Some(tally) => {
+                                let collateral = dr_output.collateral;
+                                if tally.slashed_witnesses.contains(&pkh) {
+                                    format!("-{}", collateral)
+                                } else {
+                                    let reward = tally
+                                        .outputs
+                                        .iter()
+                                        .find(|vto| vto.pkh == pkh)
+                                        .map(|vto| vto.value)
+                                        .unwrap();
+
+                                    // Do not count the returned collateral as a reward
+                                    format!("+{}", reward - collateral)
+                                }
+                            }
+                        };
+                        (
+                            pkh.to_string(),
+                            reveal.map(|x| x.to_string()).unwrap_or_default(),
+                            honest,
+                        )
+                    })
+                    .collect(),
+            ),
+            tally.map(|x| x.to_string()),
+            dr_info.block_hash_tally_tx.map(|x| x.to_string()),
+        )
+    };
+
+    let dr_info = DataRequestTransactionInfo {
+        data_request_tx_hash: hash,
+        data_request_output: dr_output,
+        data_request_creator_pkh: dr_creator_pkh.to_string(),
+        block_hash_data_request_tx: data_request_transaction_block_hash,
+        block_hash_tally_tx,
+        data_request_state,
+        reveals,
+        tally,
+        print_data_request,
+    };
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&dr_info)?);
+    } else {
+        // dr_info already ends with a newline, no need to println
+        print!("{}", dr_info);
     }
 
     Ok(())
