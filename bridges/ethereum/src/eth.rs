@@ -16,6 +16,8 @@ use witnet_data_structures::chain::Hash;
 pub enum DrState {
     /// The data request was just posted, and may be available for claiming
     Posted,
+    /// The data request uses an invalid serialization so the bridge will not try to claim it
+    Ignored,
     /// The node sent a transaction to claim this data request, but that transaction
     /// is not yet confirmed. This state prevents the node from double-claiming the
     /// same data request multiple times in parallel.
@@ -101,6 +103,12 @@ impl WrbRequests {
             Some(DrState::Posted) => {
                 debug!("Invalid state in WrbRequests: [{}] was being set to Posted, but it is already Posted", dr_id);
             }
+            Some(DrState::Ignored) => {
+                debug!(
+                    "Invalid state in WrbRequests: [{}] was being set to Posted, but it is Ignored",
+                    dr_id
+                );
+            }
             _ => {
                 warn!(
                     "Invalid state in WrbRequests: [{}] was being set to Posted, but it is: {:?}",
@@ -118,6 +126,7 @@ impl WrbRequests {
         match self.requests.get(&dr_id) {
             None
             | Some(DrState::Posted)
+            | Some(DrState::Ignored)
             | Some(DrState::Claiming)
             | Some(DrState::Claimed)
             | Some(DrState::Including { .. }) => {
@@ -240,6 +249,11 @@ impl WrbRequests {
             self.requests.insert(dr_id, DrState::Claimed);
             self.claimed.insert(dr_id, dr_output_hash);
         }
+    }
+    /// Mark data request as "ignored". The bridge will not try to claim it.
+    pub fn ignore(&mut self, dr_id: U256) {
+        self.remove_from_all_helper_maps(dr_id);
+        self.requests.insert(dr_id, DrState::Ignored);
     }
     /// View of all the data requests in `Posted` state.
     pub fn posted(&self) -> &HashSet<U256> {

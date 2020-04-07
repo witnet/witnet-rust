@@ -81,6 +81,16 @@ fn try_to_claim_local_query(
 
         })
         .and_then(move |dr_bytes: Bytes| {
+            let eth_state2 = eth_state.clone();
+            let ignore_dr = move |dr_id| {
+                eth_state2.wrb_requests.write().and_then(move |mut wrb_requests| {
+                    wrb_requests.ignore(dr_id);
+
+                    futures::finished(())
+                }).then(|_| {
+                    futures::failed(())
+                })
+            };
             let dr_output: DataRequestOutput =
                 match ProtobufConvert::from_pb_bytes(&dr_bytes).and_then(|dr: DataRequestOutput| {
                     validate_rad_request(&dr.data_request)?;
@@ -106,14 +116,14 @@ fn try_to_claim_local_query(
                                 warn!("This usually happens when some fields are set to 0. \
                                        The Rust implementation of ProtocolBuffer skips those fields, \
                                        as missing fields are deserialized with the default value.");
-                                return Either::B(futures::failed(()));
+                                return Either::B(ignore_dr(dr_id));
                             },
                             Err(e) => {
                                 warn!(
                                     "[{}] uses an invalid serialization, will be ignored: {:?}",
                                     dr_id, e
                                 );
-                                return Either::B(futures::failed(()));
+                                return Either::B(ignore_dr(dr_id));
                             }
                         }
                     },
@@ -122,7 +132,7 @@ fn try_to_claim_local_query(
                             "[{}] uses an invalid serialization, will be ignored: {:?}",
                             dr_id, e
                         );
-                        return Either::B(futures::failed(()));
+                        return Either::B(ignore_dr(dr_id));
                     }
                 };
 
