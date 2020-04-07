@@ -76,23 +76,72 @@ where
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct Transaction {
-    pub hex_hash: String,
-    /// Transaction value from the wallet perspective: `value = own_outputs - own_inputs`
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BalanceMovement {
+    /// Balance movement from the wallet perspective: `value = own_outputs - own_inputs`
     /// - A positive value means that the wallet received WITs from others.
     /// - A negative value means that the wallet sent WITs to others.
-    pub value: i64,
-    pub kind: TransactionType,
-    pub fee: Option<u64>,
-    pub block: Option<BlockInfo>,
+    #[serde(rename = "type")]
+    pub sign: String,
+    pub amount: u64,
+    pub time_lock: u64,
+    pub transaction: Transaction,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Transaction {
+    pub hash: String,
+    // FIXME: timestamp should be positive (float comes from return type of `epoch_timestamp(epoch)`)
     pub timestamp: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block: Option<Beacon>,
+    pub miner_fee: u64,
+    #[serde(rename = "type")]
+    pub kind: TransactionType,
+    pub data: TransactionData,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TransactionType {
+    #[serde(rename = "value_transfer")]
     ValueTransfer,
+    #[serde(rename = "data_request")]
     DataRequest,
+    #[serde(rename = "tally")]
+    Tally
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TransactionData {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub inputs: Vec<Input>,
+    pub outputs: Vec<Output>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tally: Option<TallyReport>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Input {
+    pub address: String,
+    pub output_pointer: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Output {
+    pub address: String,
+    pub value: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TallyReport {
+    pub result: String,
+    pub reveals: Vec<Reveal>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Reveal {
+    pub value: String,
+    pub in_consensus: bool,
 }
 
 pub struct UnsupportedTransactionType(pub String);
@@ -119,7 +168,7 @@ pub enum TransactionStatus {
 
 #[derive(Debug, Serialize)]
 pub struct Transactions {
-    pub transactions: Vec<Transaction>,
+    pub transactions: Vec<BalanceMovement>,
     pub total: u32,
 }
 
@@ -160,15 +209,15 @@ pub struct KeyBalance {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct BlockInfo {
-    pub hash: Hash,
+pub struct Beacon {
     pub epoch: u32,
+    pub block_hash: Hash,
 }
 
-impl fmt::Display for BlockInfo {
+impl fmt::Display for Beacon {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "blk {} ({})", hex::encode(&self.hash), self.epoch)
+        write!(f, "blk {} ({})", hex::encode(&self.block_hash), self.epoch)
     }
 }
 
