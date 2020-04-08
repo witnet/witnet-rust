@@ -1782,7 +1782,7 @@ impl TryFrom<DataRequestInfo> for DataRequestReport {
 }
 
 /// List of outputs related to a data request
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DataRequestInfo {
     /// List of commitments to resolve the data request
     pub commits: HashMap<PublicKeyHash, CommitTransaction>,
@@ -1798,6 +1798,23 @@ pub struct DataRequestInfo {
     pub current_commit_round: u16,
     /// Current reveal round
     pub current_reveal_round: u16,
+    /// Current stage, or None if finished
+    pub current_stage: Option<DataRequestStage>,
+}
+
+impl Default for DataRequestInfo {
+    fn default() -> Self {
+        Self {
+            commits: Default::default(),
+            reveals: Default::default(),
+            tally: None,
+            block_hash_dr_tx: None,
+            block_hash_tally_tx: None,
+            current_commit_round: 0,
+            current_reveal_round: 0,
+            current_stage: Some(DataRequestStage::COMMIT),
+        }
+    }
 }
 
 impl From<DataRequestReport> for DataRequestInfo {
@@ -1814,6 +1831,7 @@ impl From<DataRequestReport> for DataRequestInfo {
             block_hash_tally_tx: Some(x.block_hash_tally_tx),
             current_commit_round: x.current_commit_round,
             current_reveal_round: x.current_reveal_round,
+            current_stage: None,
         }
     }
 }
@@ -1842,11 +1860,12 @@ impl DataRequestState {
         epoch: Epoch,
         block_hash_dr_tx: &Hash,
     ) -> Self {
+        let stage = DataRequestStage::COMMIT;
         let mut info = DataRequestInfo {
             ..DataRequestInfo::default()
         };
         info.block_hash_dr_tx = Some(*block_hash_dr_tx);
-        let stage = DataRequestStage::COMMIT;
+        info.current_stage = Some(stage);
 
         Self {
             data_request,
@@ -1942,6 +1961,7 @@ impl DataRequestState {
                 }
             }
         };
+        self.info.current_stage = Some(self.stage);
     }
 }
 
