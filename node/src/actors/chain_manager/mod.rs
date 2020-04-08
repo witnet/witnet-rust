@@ -511,6 +511,15 @@ impl ChainManager {
             .highest_block_checkpoint
     }
 
+    fn consensus_constants(&self) -> ConsensusConstants {
+        self.chain_state
+            .chain_info
+            .as_ref()
+            .expect("ChainInfo is None")
+            .consensus_constants
+            .clone()
+    }
+
     fn add_transaction(
         &mut self,
         msg: AddTransaction,

@@ -289,13 +289,7 @@ impl Handler<AddBlocks> for ChainManager {
             self.sm_state
         );
 
-        let consensus_constants = self
-            .chain_state
-            .chain_info
-            .as_ref()
-            .unwrap()
-            .consensus_constants
-            .clone();
+        let consensus_constants = self.consensus_constants();
 
         match self.sm_state {
             StateMachine::WaitingConsensus => {
@@ -557,13 +551,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                     let our_beacon = self.get_chain_beacon();
 
-                    let consensus_constants = self
-                        .chain_state
-                        .chain_info
-                        .as_ref()
-                        .unwrap()
-                        .consensus_constants
-                        .clone();
+                    let consensus_constants = self.consensus_constants();
 
                     // Check if we are already synchronized
                     self.sm_state = if consensus_beacon.hash_prev_block
