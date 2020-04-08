@@ -77,6 +77,20 @@ impl VrfProof {
     pub fn get_proof(&self) -> Vec<u8> {
         self.proof.clone()
     }
+
+    /// Create a VRF proof for a given message
+    pub fn proof_to_hash(&self, vrf: &mut VrfCtx) -> Result<Hash, failure::Error> {
+        let proof_hash = vrf.0.proof_to_hash(&self.proof)?;
+        if proof_hash.len() != 32 {
+            Err(HashParseError::InvalidLength(proof_hash.len()).into())
+        } else {
+            let mut x = [0; 32];
+            x.copy_from_slice(&proof_hash);
+            let proof_hash = Hash::SHA256(x);
+
+            Ok(proof_hash)
+        }
+    }
 }
 
 /// Wrapper type to prevent creating VRF proofs of arbitrary data
@@ -139,6 +153,11 @@ impl BlockEligibilityClaim {
 
                 Hash::SHA256(sha256)
             })
+    }
+    /// Output the hash of the VRF proof.
+    /// This hash will become the input to future VRF create functions that compute eligibilities.
+    pub fn proof_to_hash(&self, vrf: &mut VrfCtx) -> Result<Hash, failure::Error> {
+        self.proof.proof_to_hash(vrf)
     }
 }
 

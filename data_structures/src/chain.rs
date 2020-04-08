@@ -53,6 +53,9 @@ pub struct ChainInfo {
 
     /// Checkpoint of the last block in the blockchain
     pub highest_block_checkpoint: CheckpointBeacon,
+
+    /// Checkpoint of the last vrf otuput in the blockchain
+    pub highest_vrf_output: CheckpointBeacon,
 }
 
 /// Possible values for the "environment" configuration param.

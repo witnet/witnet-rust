@@ -38,6 +38,10 @@ fn chain_state() {
             checkpoint: 0,
             hash_prev_block: bootstrap_hash,
         },
+        highest_vrf_output: CheckpointBeacon {
+            checkpoint: 0,
+            hash_prev_block: bootstrap_hash,
+        },
     };
     let c = ChainState {
         chain_info: Some(chain_info),
