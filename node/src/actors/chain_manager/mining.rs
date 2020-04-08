@@ -388,8 +388,14 @@ impl ChainManager {
                 .into_actor(self)
                 // Get collateral
                 .and_then(move |vrf_proof, act, _| {
-                    let coinage = act.chain_state.chain_info.as_ref().unwrap().consensus_constants.collateral_age;
-                    let block_number_limit = act.chain_state.block_number().saturating_sub(coinage);
+                    let collateral_age = match &act.chain_state.chain_info {
+                        Some(x) => x.consensus_constants.collateral_age,
+                        None => {
+                            log::error!("ChainInfo is None");
+                            return actix::fut::err(());
+                        },
+                    };
+                    let block_number_limit = act.chain_state.block_number().saturating_sub(collateral_age);
                     // Check if we have enough collateral before starting retrieval
                     match build_commit_collateral(
                         collateral_amount,
