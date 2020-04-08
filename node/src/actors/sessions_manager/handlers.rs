@@ -310,7 +310,7 @@ impl Handler<EpochNotification<()>> for SessionsManager {
             let delay = timestamp_now - timestamp_mining;
             if delay < 0 {
                 log::error!("Time went backwards");
-            } else {
+            } else if msg.checkpoint > 0 {
                 log::warn!(
                     "Block mining was supposed to happen {} {} ago, but it will happen now",
                     delay,
@@ -335,8 +335,9 @@ impl Handler<EpochNotification<()>> for SessionsManager {
             // From this moment, all the received beacons are assumed to be for the next epoch
             // This fixes a race condition where sometimes we receive a beacon just before the epoch checkpoint
             act.clear_beacons();
-
-            ChainManager::from_registry().do_send(TryMineBlock);
+            if msg.checkpoint > 0 {
+                ChainManager::from_registry().do_send(TryMineBlock);
+            }
         });
     }
 }

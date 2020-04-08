@@ -146,14 +146,21 @@ impl EpochManager {
     fn time_to_next_checkpoint(&self) -> EpochResult<Duration> {
         // Get current timestamp and epoch
         let (now_secs, now_nanos) = get_timestamp_nanos();
-        let current_epoch = self.epoch_at(now_secs)?;
+        let current_epoch_res = self.epoch_at(now_secs);
 
-        // Get timestamp for the start of next checkpoint
-        let next_checkpoint = self.epoch_timestamp(
-            current_epoch
-                .checked_add(1)
-                .ok_or(EpochManagerError::Overflow)?,
-        )?;
+        let next_checkpoint = match current_epoch_res {
+            Err(EpochManagerError::CheckpointZeroInTheFuture(zero)) => zero,
+            _ => {
+                let current_epoch = current_epoch_res?;
+
+                // Get timestamp for the start of next checkpoint
+                self.epoch_timestamp(
+                    current_epoch
+                        .checked_add(1)
+                        .ok_or(EpochManagerError::Overflow)?,
+                )?
+            }
+        };
 
         duration_between_timestamps((now_secs, now_nanos), (next_checkpoint, 0))
             .ok_or(EpochManagerError::Overflow)
@@ -168,55 +175,51 @@ impl EpochManager {
                 ))
             }),
             move |act, ctx| {
-                // Get current epoch
-                let current_epoch = match act.current_epoch() {
-                    Ok(epoch) => epoch,
-                    Err(_) => return,
-                };
+                if let Ok(current_epoch) = act.current_epoch() {
+                    let last_checked_epoch = act.last_checked_epoch.unwrap_or(0);
 
-                let last_checked_epoch = act.last_checked_epoch.unwrap_or(0);
-
-                // Send message to actors which subscribed to all epochs
-                if current_epoch > last_checked_epoch {
-                    for subscription in &mut act.subscriptions_all {
-                        // Only send new epoch notification
-                        subscription.send_notification(current_epoch);
-                    }
-                }
-
-                // Get all the checkpoints that had some subscription but were skipped for some
-                // reason (process sent to background, checkpoint monitor process had no
-                // resources to execute in time...)
-                let epoch_checkpoints: Vec<_> = act
-                    .subscriptions_epoch
-                    .range(last_checked_epoch..=current_epoch)
-                    .map(|(k, _v)| *k)
-                    .collect();
-
-                // Send notifications for skipped checkpoints for subscriptions to a particular
-                // epoch
-                // Notifications for skipped checkpoints are not sent for subscriptions to all
-                // epochs
-                for checkpoint in epoch_checkpoints {
-                    // Get the subscriptions to the skipped checkpoint
-                    if let Some(subscriptions) = act.subscriptions_epoch.remove(&checkpoint) {
-                        // Send notifications to subscribers for skipped checkpoints
-                        for mut subscription in subscriptions {
-                            // TODO: should send messages or just drop?
-                            // TODO: send notifications also for subscriptions to all epochs?
-                            subscription.send_notification(checkpoint);
+                    // Send message to actors which subscribed to all epochs
+                    if current_epoch > last_checked_epoch || current_epoch == 0 {
+                        for subscription in &mut act.subscriptions_all {
+                            // Only send new epoch notification
+                            subscription.send_notification(current_epoch);
                         }
                     }
+
+                    // Get all the checkpoints that had some subscription but were skipped for some
+                    // reason (process sent to background, checkpoint monitor process had no
+                    // resources to execute in time...)
+                    let epoch_checkpoints: Vec<_> = act
+                        .subscriptions_epoch
+                        .range(last_checked_epoch..=current_epoch)
+                        .map(|(k, _v)| *k)
+                        .collect();
+
+                    // Send notifications for skipped checkpoints for subscriptions to a particular
+                    // epoch
+                    // Notifications for skipped checkpoints are not sent for subscriptions to all
+                    // epochs
+                    for checkpoint in epoch_checkpoints {
+                        // Get the subscriptions to the skipped checkpoint
+                        if let Some(subscriptions) = act.subscriptions_epoch.remove(&checkpoint) {
+                            // Send notifications to subscribers for skipped checkpoints
+                            for mut subscription in subscriptions {
+                                // TODO: should send messages or just drop?
+                                // TODO: send notifications also for subscriptions to all epochs?
+                                subscription.send_notification(checkpoint);
+                            }
+                        }
+                    }
+
+                    // Update last checked epoch
+                    act.last_checked_epoch = Some(current_epoch);
+
+                    info!(
+                        "{} We are now in epoch #{}",
+                        Purple.bold().paint("[Checkpoints]"),
+                        Purple.bold().paint(current_epoch.to_string())
+                    );
                 }
-
-                // Update last checked epoch
-                act.last_checked_epoch = Some(current_epoch);
-
-                info!(
-                    "{} We are now in epoch #{}",
-                    Purple.bold().paint("[Checkpoints]"),
-                    Purple.bold().paint(current_epoch.to_string())
-                );
 
                 // Reschedule checkpoint monitor process
                 act.checkpoint_monitor(ctx);

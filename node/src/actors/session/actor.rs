@@ -155,9 +155,9 @@ impl Session {
                     Ok(Err(CheckpointZeroInTheFuture(zero))) => {
                         let date = pretty_print(zero, 0);
                         warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
-                        // Subscribe to first epoch
+                        // Subscribe to all epochs with an EveryEpochPayload
                         epoch_manager_addr
-                            .do_send(Subscribe::to_epoch(0, chain_manager_addr, EveryEpochPayload))
+                            .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
                     }
                     error => {
                         error!("Current epoch could not be retrieved from EpochManager: {:?}", error);

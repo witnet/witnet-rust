@@ -58,9 +58,9 @@ impl ChainManager {
             return;
         }
 
-        // We only want to mine in Synced state
-        if self.sm_state != StateMachine::Synced {
-            log::debug!("Not mining because node is not synced");
+        // We only want to mine in Live state
+        if self.sm_state != StateMachine::Live {
+            log::debug!("Not mining because node is not in Live State");
             return;
         }
 

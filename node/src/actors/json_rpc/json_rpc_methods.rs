@@ -709,7 +709,7 @@ pub fn status() -> JsonRpcResultAsync {
         .send(GetState)
         .map_err(internal_error_s)
         .then(|res| match res {
-            Ok(Ok(StateMachine::Synced)) => Ok(true),
+            Ok(Ok(StateMachine::Live)) => Ok(true),
             Ok(Ok(..)) => Ok(false),
             Ok(Err(())) => Err(internal_error(())),
             Err(e) => Err(internal_error(e)),

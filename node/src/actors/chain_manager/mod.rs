@@ -93,9 +93,10 @@ pub enum ChainManagerError {
     /// Optional fields of ChainManager are not properly initialized yet
     #[fail(display = "ChainManager is not ready yet")]
     ChainNotReady,
-    /// The node is not in Synced state
-    #[fail(display = "The node is not yet synchronized")]
-    NotSynced,
+    /// The node attempted to do an action that is only allowed while `ChainManager`
+    /// is in `Live` state.
+    #[fail(display = "The node is not yet in `Live` state")]
+    NotLive,
     /// The node is trying to mine a block so commits are not allowed
     #[fail(display = "Commit received while node is trying to mine a block")]
     TooLateToCommit,
@@ -108,8 +109,12 @@ pub enum StateMachine {
     WaitingConsensus,
     /// Second state, ChainManager synchronization process
     Synchronizing,
-    /// Third state, ChainManager is ready to mine and consolidated blocks
+    /// Third state, `ChainManager` is synced and ready to start consolidating block
+    /// candidates.
     Synced,
+    /// Fourth state, `ChainManager` can consolidate block candidates, propose its own
+    /// candidates (mining) and participate in resolving data requests (witnessing).
+    Live,
 }
 
 impl Default for StateMachine {
@@ -459,7 +464,7 @@ impl ChainManager {
                             .data_request_pool
                             .update_data_request_stages();
                     }
-                    StateMachine::Synced => {
+                    StateMachine::Synced | StateMachine::Live => {
                         // Persist finished data requests into storage
                         let to_be_stored =
                             self.chain_state.data_request_pool.finished_data_requests();
@@ -529,11 +534,11 @@ impl ChainManager {
             "AddTransaction received while StateMachine is in state {:?}",
             self.sm_state
         );
-        // Ignore AddTransaction when not in Synced state
+        // Ignore AddTransaction when not in Live state
         match self.sm_state {
-            StateMachine::Synced => {}
+            StateMachine::Live => {}
             _ => {
-                return Box::new(actix::fut::err(ChainManagerError::NotSynced.into()));
+                return Box::new(actix::fut::err(ChainManagerError::NotLive.into()));
             }
         };
 

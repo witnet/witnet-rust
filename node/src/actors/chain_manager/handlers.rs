@@ -1,6 +1,5 @@
 use actix::{fut::WrapFuture, prelude::*};
 use futures::Future;
-use log;
 use std::{cmp::Ordering, collections::HashMap, convert::TryFrom};
 
 use witnet_data_structures::{
@@ -16,9 +15,9 @@ use witnet_validations::validations::{compare_block_candidates, validate_rad_req
 use super::{
     show_sync_progress, transaction_factory, ChainManager, ChainManagerError, StateMachine,
 };
-use crate::actors::chain_manager::process_validations;
 use crate::{
     actors::{
+        chain_manager::process_validations,
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddTransaction, Anycast, Broadcast,
             BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
@@ -46,40 +45,10 @@ pub const SYNCED_BANNER: &str = r"
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
 ////////////////////////////////////////////////////////////////////////////////////////
-/// Payload for the notification for a specific epoch
-#[derive(Debug)]
-pub struct EpochPayload;
 
 /// Payload for the notification for all epochs
 #[derive(Clone, Debug)]
 pub struct EveryEpochPayload;
-
-/// Handler for EpochNotification<EpochPayload>
-impl Handler<EpochNotification<EpochPayload>> for ChainManager {
-    type Result = ();
-
-    fn handle(&mut self, msg: EpochNotification<EpochPayload>, ctx: &mut Context<Self>) {
-        log::debug!("Epoch notification received {:?}", msg.checkpoint);
-
-        match self.sm_state {
-            StateMachine::WaitingConsensus => {}
-            StateMachine::Synchronizing => {
-                unimplemented!();
-            }
-            StateMachine::Synced => {
-                unimplemented!();
-            }
-        };
-
-        //TODO: Refactor next code in StateMachin branches
-
-        // Genesis checkpoint notification. We need to start building the chain.
-        if msg.checkpoint == 0 {
-            log::warn!("Genesis checkpoint is here! Starting to bootstrap the chain...");
-            self.started(ctx);
-        }
-    }
-}
 
 /// Handler for EpochNotification<EveryEpochPayload>
 impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
@@ -127,132 +96,147 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                 }
             }
             StateMachine::Synchronizing => {}
-            StateMachine::Synced => match self.chain_state {
-                ChainState {
-                    chain_info: Some(ref mut chain_info),
-                    reputation_engine: Some(ref mut rep_engine),
-                    ..
-                } => {
-                    if self.epoch_constants.is_none()
-                        || self.vrf_ctx.is_none()
-                        || self.secp.is_none()
-                    {
-                        log::error!("{}", ChainManagerError::ChainNotReady);
-                        return;
-                    }
-                    // Decide the best candidate
-                    let target_vrf_slots = VrfSlots::from_rf(
-                        u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
-                        chain_info.consensus_constants.mining_replication_factor,
-                        chain_info.consensus_constants.mining_backup_factor,
-                    );
-                    // TODO: replace for loop with a try_fold
-                    let mut chosen_candidate = None;
-                    for (key, (block_candidate, vrf_proof)) in self
-                        .candidates
-                        .drain()
-                        .sorted_by_key(|(_key, (_block_candidate, vrf_proof))| *vrf_proof)
-                    {
-                        let block_pkh = &block_candidate.block_sig.public_key.pkh();
-                        let reputation = rep_engine.trs().get(block_pkh);
-
-                        if let Some((chosen_key, chosen_reputation, chosen_vrf_proof, _, _)) =
-                            chosen_candidate
+            StateMachine::Synced | StateMachine::Live => {
+                if self.sm_state == StateMachine::Synced {
+                    // We only reach Live state after genesis event
+                    log::debug!("Moving from Synced to Live state");
+                    self.sm_state = StateMachine::Live;
+                }
+                match self.chain_state {
+                    ChainState {
+                        chain_info: Some(ref mut chain_info),
+                        reputation_engine: Some(ref mut rep_engine),
+                        ..
+                    } => {
+                        if self.epoch_constants.is_none()
+                            || self.vrf_ctx.is_none()
+                            || self.secp.is_none()
                         {
-                            if compare_block_candidates(
-                                key,
-                                reputation,
-                                vrf_proof,
-                                chosen_key,
-                                chosen_reputation,
-                                chosen_vrf_proof,
-                                &target_vrf_slots,
-                            ) != Ordering::Greater
-                            {
-                                // Ignore candidates that are worse than the current best candidate
-                                continue;
-                            }
+                            log::error!("{}", ChainManagerError::ChainNotReady);
+                            return;
                         }
-                        match process_validations(
-                            &block_candidate,
-                            current_epoch,
-                            chain_info.highest_block_checkpoint,
-                            rep_engine,
-                            self.epoch_constants.unwrap(),
-                            &self.chain_state.unspent_outputs_pool,
-                            &self.chain_state.data_request_pool,
-                            // The unwrap is safe because if there is no VRF context,
-                            // the actor should have stopped execution
-                            self.vrf_ctx.as_mut().unwrap(),
-                            self.secp.as_ref().unwrap(),
+                        // Decide the best candidate
+                        let target_vrf_slots = VrfSlots::from_rf(
+                            u32::try_from(rep_engine.ars().active_identities_number()).unwrap(),
+                            chain_info.consensus_constants.mining_replication_factor,
                             chain_info.consensus_constants.mining_backup_factor,
-                            chain_info.consensus_constants.bootstrap_hash,
-                            chain_info.consensus_constants.genesis_hash,
-                            block_number,
-                            chain_info.consensus_constants.collateral_minimum,
-                            chain_info.consensus_constants.collateral_age,
-                        ) {
-                            Ok(utxo_diff) => {
-                                let block_pkh = &block_candidate.block_sig.public_key.pkh();
-                                let reputation = rep_engine.trs().get(block_pkh);
-                                chosen_candidate =
-                                    Some((key, reputation, vrf_proof, block_candidate, utxo_diff))
-                            }
-                            Err(e) => log::warn!("{}", e),
-                        }
-                    }
-
-                    // Consolidate the best candidate
-                    if let Some((_, _, _, block, utxo_diff)) = chosen_candidate {
-                        // Persist block and update ChainState
-                        self.consolidate_block(ctx, &block, utxo_diff);
-                    } else {
-                        let previous_epoch = msg.checkpoint - 1;
-                        log::warn!(
-                            "There was no valid block candidate to consolidate for epoch {}",
-                            previous_epoch
                         );
+                        // TODO: replace for loop with a try_fold
+                        let mut chosen_candidate = None;
+                        for (key, (block_candidate, vrf_proof)) in self
+                            .candidates
+                            .drain()
+                            .sorted_by_key(|(_key, (_block_candidate, vrf_proof))| *vrf_proof)
+                        {
+                            let block_pkh = &block_candidate.block_sig.public_key.pkh();
+                            let reputation = rep_engine.trs().get(block_pkh);
 
-                        // Update ActiveReputationSet in case of epochs without blocks
-                        if let Err(e) = rep_engine.ars_mut().update(vec![], previous_epoch) {
-                            log::error!("Error updating empty reputation with no blocks: {}", e);
+                            if let Some((chosen_key, chosen_reputation, chosen_vrf_proof, _, _)) =
+                                chosen_candidate
+                            {
+                                if compare_block_candidates(
+                                    key,
+                                    reputation,
+                                    vrf_proof,
+                                    chosen_key,
+                                    chosen_reputation,
+                                    chosen_vrf_proof,
+                                    &target_vrf_slots,
+                                ) != Ordering::Greater
+                                {
+                                    // Ignore candidates that are worse than the current best candidate
+                                    continue;
+                                }
+                            }
+                            match process_validations(
+                                &block_candidate,
+                                current_epoch,
+                                chain_info.highest_block_checkpoint,
+                                rep_engine,
+                                self.epoch_constants.unwrap(),
+                                &self.chain_state.unspent_outputs_pool,
+                                &self.chain_state.data_request_pool,
+                                // The unwrap is safe because if there is no VRF context,
+                                // the actor should have stopped execution
+                                self.vrf_ctx.as_mut().unwrap(),
+                                self.secp.as_ref().unwrap(),
+                                chain_info.consensus_constants.mining_backup_factor,
+                                chain_info.consensus_constants.bootstrap_hash,
+                                chain_info.consensus_constants.genesis_hash,
+                                block_number,
+                                chain_info.consensus_constants.collateral_minimum,
+                                chain_info.consensus_constants.collateral_age,
+                            ) {
+                                Ok(utxo_diff) => {
+                                    let block_pkh = &block_candidate.block_sig.public_key.pkh();
+                                    let reputation = rep_engine.trs().get(block_pkh);
+                                    chosen_candidate = Some((
+                                        key,
+                                        reputation,
+                                        vrf_proof,
+                                        block_candidate,
+                                        utxo_diff,
+                                    ))
+                                }
+                                Err(e) => log::warn!("{}", e),
+                            }
                         }
+
+                        // Consolidate the best candidate
+                        if let Some((_, _, _, block, utxo_diff)) = chosen_candidate {
+                            // Persist block and update ChainState
+                            self.consolidate_block(ctx, &block, utxo_diff);
+                        } else if msg.checkpoint > 0 {
+                            let previous_epoch = msg.checkpoint - 1;
+                            log::warn!(
+                                "There was no valid block candidate to consolidate for epoch {}",
+                                previous_epoch
+                            );
+
+                            // Update ActiveReputationSet in case of epochs without blocks
+                            if let Err(e) = rep_engine.ars_mut().update(vec![], previous_epoch) {
+                                log::error!(
+                                    "Error updating empty reputation with no blocks: {}",
+                                    e
+                                );
+                            }
+                        }
+
+                        // Send last beacon in state 3 on block consolidation
+                        SessionsManager::from_registry().do_send(Broadcast {
+                            command: SendLastBeacon {
+                                beacon: self
+                                    .chain_state
+                                    .chain_info
+                                    .as_ref()
+                                    .unwrap()
+                                    .highest_block_checkpoint,
+                            },
+                            only_inbound: true,
+                        });
+
+                        // TODO: Review time since commits are clear and new ones are received before to mining
+                        // Remove commits because they expire every epoch
+                        self.transactions_pool.clear_commits();
+
+                        // Mining
+                        if self.mining_enabled {
+                            // Block mining is now triggered by SessionsManager on peers beacon timeout
+                            // Data request mining MUST finish BEFORE the block has been mined!!!!
+                            // The transactions must be included into this block, both the transactions from
+                            // our node and the transactions from other nodes
+                            self.try_mine_data_request(ctx);
+                        }
+
+                        // Clear candidates
+                        self.candidates.clear();
                     }
 
-                    // Send last beacon in state 3 on block consolidation
-                    SessionsManager::from_registry().do_send(Broadcast {
-                        command: SendLastBeacon {
-                            beacon: self
-                                .chain_state
-                                .chain_info
-                                .as_ref()
-                                .unwrap()
-                                .highest_block_checkpoint,
-                        },
-                        only_inbound: true,
-                    });
-
-                    // TODO: Review time since commits are clear and new ones are received before to mining
-                    // Remove commits because they expire every epoch
-                    self.transactions_pool.clear_commits();
-
-                    // Mining
-                    if self.mining_enabled {
-                        // Block mining is now triggered by SessionsManager on peers beacon timeout
-                        // Data request mining MUST finish BEFORE the block has been mined!!!!
-                        // The transactions must be included into this block, both the transactions from
-                        // our node and the transactions from other nodes
-                        self.try_mine_data_request(ctx);
+                    _ => {
+                        log::error!("No ChainInfo loaded in ChainManager");
                     }
-
-                    // Clear candidates
-                    self.candidates.clear();
                 }
-
-                _ => {
-                    log::error!("No ChainInfo loaded in ChainManager");
-                }
-            },
+            }
         }
 
         self.peers_beacons_received = false;
@@ -409,7 +393,7 @@ impl Handler<AddBlocks> for ChainManager {
                     log::warn!("Target Beacon is None");
                 }
             }
-            StateMachine::Synced => {}
+            StateMachine::Synced | StateMachine::Live => {}
         };
     }
 }
@@ -672,7 +656,7 @@ impl Handler<PeersBeacons> for ChainManager {
                     Ok(all_peers)
                 }
             }
-            StateMachine::Synced => {
+            StateMachine::Synced | StateMachine::Live => {
                 // If we are synced and the consensus beacon is not the same as our beacon, then
                 // we need to rewind one epoch
                 if pb.is_empty() {
@@ -736,8 +720,8 @@ impl Handler<BuildVtt> for ChainManager {
     type Result = ResponseActFuture<Self, Hash, failure::Error>;
 
     fn handle(&mut self, msg: BuildVtt, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Synced {
-            return Box::new(actix::fut::err(ChainManagerError::NotSynced.into()));
+        if self.sm_state != StateMachine::Live {
+            return Box::new(actix::fut::err(ChainManagerError::NotLive.into()));
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
         match transaction_factory::build_vtt(
@@ -782,8 +766,8 @@ impl Handler<BuildDrt> for ChainManager {
     type Result = ResponseActFuture<Self, Hash, failure::Error>;
 
     fn handle(&mut self, msg: BuildDrt, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Synced {
-            return Box::new(actix::fut::err(ChainManagerError::NotSynced.into()));
+        if self.sm_state != StateMachine::Live {
+            return Box::new(actix::fut::err(ChainManagerError::NotLive.into()));
         }
         if let Err(e) = validate_rad_request(&msg.dro.data_request) {
             return Box::new(actix::fut::err(e));
@@ -870,8 +854,8 @@ impl Handler<GetBalance> for ChainManager {
     type Result = Result<u64, failure::Error>;
 
     fn handle(&mut self, GetBalance { pkh }: GetBalance, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Synced {
-            return Err(ChainManagerError::NotSynced.into());
+        if self.sm_state != StateMachine::Live {
+            return Err(ChainManagerError::NotLive.into());
         }
 
         Ok(transaction_factory::get_total_balance(
@@ -889,8 +873,8 @@ impl Handler<GetReputation> for ChainManager {
         GetReputation { pkh }: GetReputation,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        if self.sm_state != StateMachine::Synced {
-            return Err(ChainManagerError::NotSynced.into());
+        if self.sm_state != StateMachine::Live {
+            return Err(ChainManagerError::NotLive.into());
         }
 
         let rep_eng = match self.chain_state.reputation_engine.as_ref() {
@@ -906,8 +890,8 @@ impl Handler<GetReputationAll> for ChainManager {
     type Result = Result<HashMap<PublicKeyHash, (Reputation, bool)>, failure::Error>;
 
     fn handle(&mut self, _msg: GetReputationAll, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Synced {
-            return Err(ChainManagerError::NotSynced.into());
+        if self.sm_state != StateMachine::Live {
+            return Err(ChainManagerError::NotLive.into());
         }
 
         let rep_eng = match self.chain_state.reputation_engine.as_ref() {
@@ -926,8 +910,8 @@ impl Handler<GetReputationStatus> for ChainManager {
     type Result = Result<GetReputationStatusResult, failure::Error>;
 
     fn handle(&mut self, _msg: GetReputationStatus, _ctx: &mut Self::Context) -> Self::Result {
-        if self.sm_state != StateMachine::Synced {
-            return Err(ChainManagerError::NotSynced.into());
+        if self.sm_state != StateMachine::Live {
+            return Err(ChainManagerError::NotLive.into());
         }
 
         let rep_eng = match self.chain_state.reputation_engine.as_ref() {

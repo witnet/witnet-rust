@@ -153,6 +153,9 @@ where
             self.last_update = new_time;
 
             Ok(())
+        } else if new_time == 0 {
+            // In the epoch 0 (genesis block) there must be no reputation update
+            Ok(())
         } else {
             Err(ReputationError::InvalidUpdateTime {
                 new_time,
