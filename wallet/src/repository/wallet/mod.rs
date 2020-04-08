@@ -456,6 +456,7 @@ where
                 pkh,
                 value,
                 time_lock,
+                multiplier: 1,
             });
         }
 
@@ -502,6 +503,7 @@ where
                     pkh: change_address.pkh,
                     value: change,
                     time_lock: 0,
+                    multiplier: 1,
                 });
             }
 

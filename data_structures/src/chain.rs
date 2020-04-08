@@ -885,7 +885,7 @@ impl Input {
 }
 
 /// Value transfer output transaction data structure
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::ValueTransferOutput")]
 pub struct ValueTransferOutput {
     pub pkh: PublicKeyHash,
@@ -894,6 +894,24 @@ pub struct ValueTransferOutput {
     /// timestamp. That is, they cannot be used as an input in any transaction of a
     /// subsequent block proposed for an epoch whose opening timestamp predates the time lock.
     pub time_lock: u64,
+    /// Indicates how many identical outputs this output actually represents.
+    /// This feature enables a more compact representation of successive outputs that
+    /// have the same value and spending conditions.
+    /// E.g. if `multiplier = 4`, this output will be demultiplexed into 4 identical
+    /// outputs that will be inserted into the UTXO set separately, will have their
+    /// own output pointers and will be independently spendable.
+    pub multiplier: u32,
+}
+
+impl Default for ValueTransferOutput {
+    fn default() -> Self {
+        Self {
+            pkh: PublicKeyHash::default(),
+            value: 0,
+            time_lock: 0,
+            multiplier: 1,
+        }
+    }
 }
 
 /// Data request output transaction data structure
@@ -2246,14 +2264,19 @@ fn update_utxo_outputs(
     outputs: &[ValueTransferOutput],
     txn_hash: Hash,
 ) {
-    for (index, output) in outputs.iter().enumerate() {
-        // Add the new outputs to the utxo_set
-        let output_pointer = OutputPointer {
-            transaction_id: txn_hash,
-            output_index: u32::try_from(index).unwrap(),
-        };
+    let mut index = 0;
+    for output in outputs.iter() {
+        for i in 0..output.multiplier {
+            // Add the new outputs to the utxo_diff
+            let output_pointer = OutputPointer {
+                transaction_id: txn_hash,
+                output_index: u32::try_from(index + i).unwrap(),
+            };
 
-        utxo.insert(output_pointer, output.clone());
+            utxo.insert(output_pointer, output.clone());
+        }
+
+        index += output.multiplier;
     }
 }
 
@@ -2444,7 +2467,7 @@ mod tests {
     #[test]
     fn test_transaction_hashable_trait() {
         let transaction = transaction_example();
-        let expected = "7b4001b4a43b3e3dccec642791031d8094ea52164d89c2a4732d0be79ed1af83";
+        let expected = "e09eb90c68812fc244d66c60ea9691de280ea2837e5f3470805171e1ee1712a3";
 
         // Signatures don't affect the hash of a transaction (SegWit style), thus both must be equal
         assert_eq!(transaction.hash().to_string(), expected);

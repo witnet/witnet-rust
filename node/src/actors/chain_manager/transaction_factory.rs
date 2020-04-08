@@ -95,6 +95,7 @@ pub fn insert_change_output(
             pkh: own_pkh,
             value: change_amount,
             time_lock: 0,
+            multiplier: 1,
         });
     }
 }
@@ -422,6 +423,7 @@ mod tests {
             pkh,
             value,
             time_lock,
+            multiplier: 1,
         }
     }
 

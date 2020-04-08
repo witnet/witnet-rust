@@ -675,6 +675,7 @@ fn build_block(
             pkh: own_pkh,
             value: reward,
             time_lock: 0,
+            multiplier: 1,
         },
     );
 
@@ -945,6 +946,7 @@ mod tests {
                     time_lock: 0,
                     pkh: PublicKeyHash::default(),
                     value: 1,
+                    multiplier: 1,
                 }],
             ),
             vec![],
@@ -967,11 +969,13 @@ mod tests {
                         time_lock: 0,
                         pkh: PublicKeyHash::default(),
                         value: 2,
+                        multiplier: 1,
                     },
                     ValueTransferOutput {
                         time_lock: 0,
                         pkh: PublicKeyHash::default(),
                         value: 3,
+                        multiplier: 1,
                     },
                 ],
             ),
@@ -994,11 +998,13 @@ mod tests {
                         time_lock: 0,
                         pkh: PublicKeyHash::default(),
                         value: 4,
+                        multiplier: 1,
                     },
                     ValueTransferOutput {
                         time_lock: 0,
                         pkh: PublicKeyHash::default(),
                         value: 5,
+                        multiplier: 1,
                     },
                 ],
             ),

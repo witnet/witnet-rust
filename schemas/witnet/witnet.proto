@@ -98,6 +98,7 @@ message ValueTransferOutput {
     PublicKeyHash pkh = 1;
     uint64 value = 2;
     uint64 time_lock = 3;
+    uint32 multiplier = 4;
 }
 
 message DataRequestOutput {

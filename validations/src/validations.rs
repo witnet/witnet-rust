@@ -80,7 +80,12 @@ pub fn transaction_outputs_sum(outputs: &[ValueTransferOutput]) -> Result<u64, T
     let mut total_value: u64 = 0;
     for vt_output in outputs {
         total_value = total_value
-            .checked_add(vt_output.value)
+            .checked_add(
+                vt_output
+                    .value
+                    .checked_mul(vt_output.multiplier.into())
+                    .ok_or(TransactionError::OutputValueOverflow)?,
+            )
             .ok_or(TransactionError::OutputValueOverflow)?
     }
 
@@ -1105,14 +1110,19 @@ pub fn update_utxo_diff(
         utxo_diff.remove_utxo(output_pointer.clone());
     }
 
-    for (index, output) in outputs.into_iter().enumerate() {
-        // Add the new outputs to the utxo_diff
-        let output_pointer = OutputPointer {
-            transaction_id: tx_hash,
-            output_index: u32::try_from(index).unwrap(),
-        };
+    let mut index = 0;
+    for output in outputs.into_iter() {
+        for i in 0..output.multiplier {
+            // Add the new outputs to the utxo_diff
+            let output_pointer = OutputPointer {
+                transaction_id: tx_hash,
+                output_index: u32::try_from(index + i).unwrap(),
+            };
 
-        utxo_diff.insert_utxo(output_pointer, output.clone());
+            utxo_diff.insert_utxo(output_pointer, output.clone());
+        }
+
+        index += output.multiplier;
     }
 }
 

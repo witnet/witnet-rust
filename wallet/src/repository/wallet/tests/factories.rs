@@ -122,6 +122,7 @@ impl VttOutput {
             pkh,
             value,
             time_lock,
+            multiplier: 1,
         }
     }
 }

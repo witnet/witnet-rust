@@ -186,6 +186,7 @@ impl From<GenesisValueTransferOutput> for ValueTransferOutput {
             pkh: x.address,
             value: x.value,
             time_lock: x.timelock,
+            multiplier: 1,
         }
     }
 }

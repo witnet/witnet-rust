@@ -377,6 +377,7 @@ where
                         pkh: revealer,
                         value: reveal_reward,
                         time_lock: 0,
+                        multiplier: 1,
                     };
                     slashed_witnesses.remove(&revealer);
                     Some(vt_output)
@@ -397,6 +398,7 @@ where
                 pkh,
                 value: tally_change,
                 time_lock: 0,
+                multiplier: 1,
             };
             outputs.push(vt_output_change);
         }

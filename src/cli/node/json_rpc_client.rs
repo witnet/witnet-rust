@@ -10,7 +10,6 @@ use std::{
 
 use failure::{bail, Fail};
 use itertools::Itertools;
-use log::*;
 use serde::Deserialize;
 use serde_json::json;
 use witnet_crypto::key::{CryptoEngine, ExtendedPK, ExtendedSK};
@@ -207,6 +206,7 @@ pub fn send_vtt(
     value: u64,
     fee: u64,
     time_lock: u64,
+    multiplier: u32,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let params = BuildVtt {
@@ -214,6 +214,7 @@ pub fn send_vtt(
             pkh,
             value,
             time_lock,
+            multiplier,
         }],
         fee,
     };
@@ -262,7 +263,7 @@ fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutpu
 
     let dr: DataRequestOutput = ProtobufConvert::from_pb_bytes(&dr_bytes)?;
 
-    debug!("{}", serde_json::to_string(&dr)?);
+    log::debug!("{}", serde_json::to_string(&dr)?);
 
     validate_data_request_output(&dr)?;
     validate_rad_request(&dr.data_request)?;
@@ -272,10 +273,10 @@ fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutpu
     let witnet_dr_bytes = dr.to_pb_bytes()?;
 
     if dr_bytes != witnet_dr_bytes {
-        warn!("Data request uses an invalid serialization, will be ignored.\nINPUT BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
+        log::warn!("Data request uses an invalid serialization, will be ignored.\nINPUT BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
               dr_bytes, witnet_dr_bytes
         );
-        warn!(
+        log::warn!(
             "This usually happens when some fields are set to 0. \
              The Rust implementation of ProtocolBuffer skips those fields, \
              as missing fields are deserialized with the default value."

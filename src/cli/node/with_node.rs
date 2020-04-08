@@ -36,12 +36,14 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             value,
             fee,
             time_lock,
+            multiplier,
         } => rpc::send_vtt(
             node.unwrap_or(config.jsonrpc.server_address),
             pkh.parse()?,
             value,
             fee,
             time_lock.unwrap_or(0),
+            multiplier.unwrap_or(1),
         ),
         Command::SendRequest {
             node,
@@ -216,6 +218,9 @@ pub enum Command {
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
+        /// Multiplier
+        #[structopt(long = "multiplier")]
+        multiplier: Option<u32>,
     },
     #[structopt(name = "send-request", about = "Send a serialized data request")]
     SendRequest {
