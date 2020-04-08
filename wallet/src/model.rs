@@ -84,7 +84,6 @@ pub struct BalanceMovement {
     #[serde(rename = "type")]
     pub sign: String,
     pub amount: u64,
-    pub time_lock: u64,
     pub transaction: Transaction,
 }
 
@@ -93,7 +92,7 @@ pub struct Transaction {
     pub hash: String,
     // FIXME: timestamp should be positive (float comes from return type of `epoch_timestamp(epoch)`)
     pub timestamp: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    // #[serde(skip_serializing_if = "Option::is_none")]
     pub block: Option<Beacon>,
     pub miner_fee: u64,
     #[serde(rename = "type")]
@@ -108,15 +107,15 @@ pub enum TransactionType {
     #[serde(rename = "data_request")]
     DataRequest,
     #[serde(rename = "tally")]
-    Tally
+    Tally,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TransactionData {
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    // #[serde(skip_serializing_if = "Vec::is_empty")]
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    // #[serde(skip_serializing_if = "Option::is_none")]
     pub tally: Option<TallyReport>,
 }
 
@@ -129,6 +128,7 @@ pub struct Input {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Output {
     pub address: String,
+    pub time_lock: u64,
     pub value: u64,
 }
 

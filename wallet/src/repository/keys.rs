@@ -203,3 +203,12 @@ pub fn transaction_hash(account_index: u32, transaction_id: u32) -> String {
         account_index, transaction_id
     )
 }
+
+/// Transaction movement.
+#[inline]
+pub fn transaction_movement(account_index: u32, transaction_id: u32) -> String {
+    format!(
+        "account-{}-transaction-{}-movement",
+        account_index, transaction_id
+    )
+}

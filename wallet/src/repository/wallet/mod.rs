@@ -18,7 +18,10 @@ use crate::types::{signature, ExtendedPK};
 use state::State;
 use std::convert::TryFrom;
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::{CheckpointBeacon, Environment, Epoch, EpochConstants};
+use witnet_data_structures::{
+    chain::{CheckpointBeacon, Environment, Epoch, EpochConstants},
+    transaction::Transaction,
+};
 
 /// Internal structure used to gather state mutations while indexing block transactions
 struct TransactionMutation {
@@ -275,31 +278,9 @@ where
 
     /// Get a transaction if exists.
     pub fn get_transaction(&self, account: u32, index: u32) -> Result<model::BalanceMovement> {
-        let value = self.db.get(&keys::transaction_value(account, index))?;
-        let kind = self.db.get(&keys::transaction_type(account, index))?;
-        let timestamp = self.db.get(&keys::transaction_timestamp(account, index))?;
-        let hash: Vec<u8> = self.db.get(&keys::transaction_hash(account, index))?;
-        let miner_fee = self.db.get_opt(&keys::transaction_fee(account, index))?;
-        let block = self.db.get_opt(&keys::transaction_block(account, index))?;
-
-        Ok(model::BalanceMovement {
-            sign: "positive".to_string(),
-            amount: value,
-            time_lock: 0,
-            transaction: model::Transaction {
-                hash: hex::encode(hash),
-                timestamp,
-                block,
-                miner_fee: miner_fee.unwrap_or(0),
-                kind,
-                // FIXME: persist transaction data is missing to be included here
-                data: model::TransactionData {
-                    inputs: vec![],
-                    outputs: vec![],
-                    tally: None
-                }
-            }
-        })
+        Ok(self
+            .db
+            .get::<_, model::BalanceMovement>(&keys::transaction_movement(account, index))?)
     }
 
     /// Get a previously put serialized value.
@@ -644,6 +625,74 @@ where
             batch.put(keys::account_balance(account), new_balance)?;
             batch.put(keys::account_utxo_set(account), db_utxo_set)?;
             batch.put(keys::transaction_next_id(account), txn_next_id)?;
+
+            // FIXME: WIP
+            let sign;
+            if transaction_mutation.txn_balance > 0 {
+                sign = "positive".to_string()
+            } else {
+                sign = "negative".to_string();
+            }
+
+            let txn_type = match txn {
+                Transaction::ValueTransfer(_) => model::TransactionType::ValueTransfer,
+                Transaction::DataRequest(_) => model::TransactionType::DataRequest,
+                Transaction::Tally(_) => model::TransactionType::Tally,
+                _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
+            };
+
+            // FIXME: to add Dr and Tally
+            let transaction_data: model::TransactionData = match txn.clone() {
+                Transaction::ValueTransfer(vtt) => model::TransactionData {
+                    inputs: vtt
+                        .body
+                        .inputs
+                        .iter()
+                        .zip(vtt.signatures)
+                        .into_iter()
+                        .map(|(input, signature)| model::Input {
+                            address: signature.public_key.pkh().to_string(),
+                            output_pointer: input.output_pointer().to_string(),
+                        })
+                        .collect::<Vec<model::Input>>(),
+                    outputs: vtt
+                        .body
+                        .outputs
+                        .clone()
+                        .into_iter()
+                        .map(|output| model::Output {
+                            address: output.pkh.to_string(),
+                            time_lock: output.time_lock,
+                            value: output.value,
+                        })
+                        .collect::<Vec<model::Output>>(),
+                    tally: None,
+                },
+                _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
+            };
+
+            let value = model::BalanceMovement {
+                sign,
+                amount: transaction_mutation.txn_balance.abs() as u64,
+                transaction: model::Transaction {
+                    hash: hex::encode(txn_hash),
+                    timestamp: convert_block_epoch_to_timestamp(
+                        state.epoch_constants,
+                        block_info.epoch,
+                    ),
+                    block: Some(model::Beacon {
+                        epoch: block_info.epoch,
+                        block_hash: block_info.block_hash,
+                    }),
+                    // FIXME: fee?
+                    miner_fee: 0,
+                    // FIXME: type
+                    kind: txn_type,
+                    data: transaction_data,
+                },
+            };
+
+            batch.put(keys::transaction_movement(account, txn_id), value)?;
 
             self.db.write(batch)?;
         }
