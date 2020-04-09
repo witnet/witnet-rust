@@ -61,7 +61,7 @@ pub enum TransactionError {
     )]
     InvalidReward { value: u64, expected_value: u64 },
     #[fail(
-        display = "After complete a DataRequest live process, the total value in nwits is in invalid. Found: {}. Expected value: {}",
+        display = "In tally validation, the total amount is incorrect. Found: {}. Expected value: {}",
         value, expected_value
     )]
     InvalidTallyValue { value: u64, expected_value: u64 },
@@ -70,7 +70,7 @@ pub enum TransactionError {
     #[fail(display = "Data Request witnesses number must be greater than zero")]
     InsufficientWitnesses,
     #[fail(
-        display = "Mismatching between expected tally ({:?}) and miner tally ({:?})",
+        display = "Mismatch between expected tally ({:?}) and miner tally ({:?})",
         expected_tally, miner_tally
     )]
     MismatchedConsensus {
@@ -218,7 +218,7 @@ pub enum TransactionError {
     InvalidCollateral { value: u64, min: u64 },
     /// Negative collateral in commit transaction
     #[fail(
-        display = "Tried to create value in commit collateral. Input value: {}, output value: {}",
+        display = "Negative collateral in commit transaction. Input value: {}, output value: {}",
         input_value, output_value
     )]
     NegativeCollateral { input_value: u64, output_value: u64 },
@@ -230,7 +230,7 @@ pub enum TransactionError {
     IncorrectCollateral { expected: u64, found: u64 },
     /// Collateral in commit transaction is not mature enough
     #[fail(
-        display = "Output {} used as collateral is not mature enough. Outputs must be older than {} blocks, this one was {} blocks old",
+        display = "Output {} used as input for collateralized commitment is not mature enough. Inputs of commitment transactions must be older than {} blocks, but this one was only {} blocks old",
         output, must_be_older_than, found
     )]
     CollateralNotMature {
@@ -240,7 +240,7 @@ pub enum TransactionError {
     },
     /// Collateral in commit transaction uses a different PKH than the commit VRF Proof
     #[fail(
-        display = "Output {} used in collateral has pkh {} when the commit proof has pkh {}",
+        display = "Output {} used as input for collateralized commitment has pkh {} when the commit proof has pkh {}",
         output, output_pkh, proof_pkh
     )]
     CollateralPkhMismatch {

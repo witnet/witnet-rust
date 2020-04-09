@@ -386,7 +386,8 @@ impl ChainManager {
                     }
                 })
                 .into_actor(self)
-                // Get collateral
+                // Collect outputs to be used as input for collateralized commitment,
+                // as well as outputs for change.
                 .and_then(move |vrf_proof, act, _| {
                     let collateral_age = match &act.chain_state.chain_info {
                         Some(x) => x.consensus_constants.collateral_age,
@@ -396,7 +397,8 @@ impl ChainManager {
                         },
                     };
                     let block_number_limit = act.chain_state.block_number().saturating_sub(collateral_age);
-                    // Check if we have enough collateral before starting retrieval
+                    // Check if we have enough collateralizable unspent outputs before starting
+                    // retrieval
                     match build_commit_collateral(
                         collateral_amount,
                         &mut act.chain_state.own_utxos,

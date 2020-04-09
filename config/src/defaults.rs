@@ -198,7 +198,7 @@ pub trait Defaults {
 
     /// Minimum input age of an UTXO for being a valid collateral
     fn consensus_constants_collateral_age(&self) -> u32 {
-        // FIXME(#1112): Choose a properly value
+        // FIXME(#1114): Choose a properly value
         // 2000 blocks
         2000
     }
