@@ -6,7 +6,6 @@ use crate::{
     db::{Database, WriteBatch as _},
     model,
     params::Params,
-    repository,
     types::{self, Hashable as _},
 };
 
@@ -18,14 +17,12 @@ use crate::types::{signature, ExtendedPK};
 use state::State;
 use std::convert::TryFrom;
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::{
-    chain::{CheckpointBeacon, Environment, Epoch, EpochConstants},
-    transaction::Transaction,
-};
+use witnet_data_structures::chain::{CheckpointBeacon, Environment, Epoch, EpochConstants};
 
 /// Internal structure used to gather state mutations while indexing block transactions
-struct TransactionMutation {
-    txn_balance: i64,
+struct AccountMutation {
+    kind: model::MovementType,
+    amount: u64,
     utxo_removals: Vec<model::OutPtr>,
     utxo_inserts: Vec<(model::OutPtr, model::KeyBalance)>,
 }
@@ -532,27 +529,19 @@ where
         txn: &types::Transaction,
         block_info: &model::Beacon,
     ) -> Result<()> {
-        // For each type of transaction, get mutations and transaction balance
-        let transaction_mutation = match txn {
-            types::Transaction::DataRequest(txn) => self._check_txn_balance(
-                &state.utxo_set,
-                txn.hash().as_ref(),
-                &txn.body.inputs,
-                &txn.body.outputs,
-            )?,
-            types::Transaction::ValueTransfer(txn) => self._check_txn_balance(
-                &state.utxo_set,
-                txn.hash().as_ref(),
-                &txn.body.inputs,
-                &txn.body.outputs,
-            )?,
+        // Wallet's account mutation (utxo set + balance changes)
+        let v = vec![];
+        let (inputs, outputs) = match txn {
+            types::Transaction::ValueTransfer(txn) => (&txn.body.inputs, &txn.body.outputs),
+            types::Transaction::DataRequest(txn) => (&txn.body.inputs, &txn.body.outputs),
+            types::Transaction::Tally(tally) => (&v, &tally.outputs),
             _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
         };
+        let account_mutation =
+            self._check_txn_balance(&state.utxo_set, txn.hash().as_ref(), inputs, outputs)?;
 
-        // If UTXO set changes, then update memory state and DB
-        if !transaction_mutation.utxo_inserts.is_empty()
-            || !transaction_mutation.utxo_removals.is_empty()
-        {
+        // If UTXO set has changed, then update memory state and DB
+        if !account_mutation.utxo_inserts.is_empty() || !account_mutation.utxo_removals.is_empty() {
             let account = 0;
             let mut db_utxo_set: model::UtxoSet = self
                 .db
@@ -560,16 +549,15 @@ where
                 .unwrap_or_default();
 
             // New account's balance
-            let new_balance = if transaction_mutation.txn_balance > 0 {
-                state
+            let new_balance = match account_mutation.kind {
+                model::MovementType::Positive => state
                     .balance
-                    .checked_add(transaction_mutation.txn_balance.abs() as u64)
-                    .ok_or_else(|| Error::TransactionBalanceOverflow)?
-            } else {
-                state
+                    .checked_add(account_mutation.amount)
+                    .ok_or_else(|| Error::TransactionBalanceOverflow)?,
+                model::MovementType::Negative => state
                     .balance
-                    .checked_sub(transaction_mutation.txn_balance.abs() as u64)
-                    .ok_or_else(|| Error::TransactionBalanceUnderflow)?
+                    .checked_sub(account_mutation.amount)
+                    .ok_or_else(|| Error::TransactionBalanceUnderflow)?,
             };
 
             // Next transaction ID
@@ -579,14 +567,14 @@ where
                 .ok_or_else(|| Error::TransactionIdOverflow)?;
 
             // Update memory state
-            transaction_mutation
+            account_mutation
                 .utxo_removals
                 .into_iter()
                 .for_each(|out_ptr| {
                     state.utxo_set.remove(&out_ptr);
                     db_utxo_set.remove(&out_ptr);
                 });
-            transaction_mutation
+            account_mutation
                 .utxo_inserts
                 .into_iter()
                 .for_each(|(out_ptr, key_balance)| {
@@ -600,63 +588,66 @@ where
             let mut batch = self.db.batch();
             let txn_hash = txn.hash();
 
-            // Transaction data
-            batch.put(
-                &keys::transaction_value(account, txn_id),
-                transaction_mutation.txn_balance,
-            )?;
-            batch.put(
-                keys::transaction_type(account, txn_id),
-                model::TransactionType::try_from(txn).map_err(|error| {
-                    repository::error::Error::UnsupportedTransactionType(error.0)
-                })?,
-            )?;
-            batch.put(
-                keys::transaction_timestamp(account, txn_id),
-                convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
-            )?;
-            batch.put(keys::transaction_block(account, txn_id), block_info)?;
-
             // Transaction indexes
             batch.put(keys::transactions_index(txn_hash.as_ref()), txn_id)?;
             batch.put(keys::transaction_hash(account, txn_id), txn_hash.as_ref())?;
 
-            // Account state
-            batch.put(keys::account_balance(account), new_balance)?;
-            batch.put(keys::account_utxo_set(account), db_utxo_set)?;
-            batch.put(keys::transaction_next_id(account), txn_next_id)?;
-
-            // FIXME: WIP
-            let sign;
-            if transaction_mutation.txn_balance > 0 {
-                sign = "positive".to_string()
-            } else {
-                sign = "negative".to_string();
-            }
-
-            let txn_type = match txn {
-                Transaction::ValueTransfer(_) => model::TransactionType::ValueTransfer,
-                Transaction::DataRequest(_) => model::TransactionType::DataRequest,
-                Transaction::Tally(_) => model::TransactionType::Tally,
-                _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
-            };
-
-            // FIXME: to add Dr and Tally
-            let transaction_data: model::TransactionData = match txn.clone() {
-                Transaction::ValueTransfer(vtt) => model::TransactionData {
-                    inputs: vtt
-                        .body
-                        .inputs
-                        .iter()
-                        .zip(vtt.signatures)
-                        .into_iter()
-                        .map(|(input, signature)| model::Input {
-                            address: signature.public_key.pkh().to_string(),
-                            output_pointer: input.output_pointer().to_string(),
-                        })
-                        .collect::<Vec<model::Input>>(),
-                    outputs: vtt
-                        .body
+            // Balance movement
+            let transaction_data = match txn {
+                types::Transaction::ValueTransfer(vtt) => {
+                    model::TransactionData::ValueTransfer(model::VtData {
+                        inputs: vtt
+                            .body
+                            .inputs
+                            .iter()
+                            .zip(&vtt.signatures)
+                            .map(|(input, signature)| model::Input {
+                                address: signature.public_key.pkh().to_string(),
+                                output_pointer: input.output_pointer().to_string(),
+                            })
+                            .collect::<Vec<model::Input>>(),
+                        outputs: vtt
+                            .body
+                            .outputs
+                            .clone()
+                            .into_iter()
+                            .map(|output| model::Output {
+                                address: output.pkh.to_string(),
+                                time_lock: output.time_lock,
+                                value: output.value,
+                            })
+                            .collect::<Vec<model::Output>>(),
+                    })
+                }
+                types::Transaction::DataRequest(dr) => {
+                    model::TransactionData::DataRequest(model::DrData {
+                        inputs: dr
+                            .body
+                            .inputs
+                            .iter()
+                            .zip(&dr.signatures)
+                            .map(|(input, signature)| model::Input {
+                                address: signature.public_key.pkh().to_string(),
+                                output_pointer: input.output_pointer().to_string(),
+                            })
+                            .collect::<Vec<model::Input>>(),
+                        outputs: dr
+                            .body
+                            .outputs
+                            .clone()
+                            .into_iter()
+                            .map(|output| model::Output {
+                                address: output.pkh.to_string(),
+                                time_lock: output.time_lock,
+                                value: output.value,
+                            })
+                            .collect::<Vec<model::Output>>(),
+                        tally: None,
+                    })
+                }
+                types::Transaction::Tally(tt) => model::TransactionData::Tally(model::TallyData {
+                    request_transaction_hash: tt.dr_pointer.to_string(),
+                    outputs: tt
                         .outputs
                         .clone()
                         .into_iter()
@@ -666,14 +657,18 @@ where
                             value: output.value,
                         })
                         .collect::<Vec<model::Output>>(),
-                    tally: None,
-                },
+                    // FIXME: fill out tally data from transaction (request data request report to node)
+                    tally: model::TallyReport {
+                        result: "".to_string(),
+                        reveals: vec![],
+                    },
+                }),
                 _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
             };
 
             let value = model::BalanceMovement {
-                sign,
-                amount: transaction_mutation.txn_balance.abs() as u64,
+                kind: account_mutation.kind,
+                amount: account_mutation.amount,
                 transaction: model::Transaction {
                     hash: hex::encode(txn_hash),
                     timestamp: convert_block_epoch_to_timestamp(
@@ -684,15 +679,17 @@ where
                         epoch: block_info.epoch,
                         block_hash: block_info.block_hash,
                     }),
-                    // FIXME: fee?
+                    // FIXME: To extract `miner_fee` Input values are needed (request transactions to node)
                     miner_fee: 0,
-                    // FIXME: type
-                    kind: txn_type,
                     data: transaction_data,
                 },
             };
-
             batch.put(keys::transaction_movement(account, txn_id), value)?;
+
+            // Account state
+            batch.put(keys::account_balance(account), new_balance)?;
+            batch.put(keys::account_utxo_set(account), db_utxo_set)?;
+            batch.put(keys::transaction_next_id(account), txn_next_id)?;
 
             self.db.write(batch)?;
         }
@@ -706,7 +703,7 @@ where
         txn_hash: &[u8],
         inputs: &[types::TransactionInput],
         outputs: &[types::VttOutput],
-    ) -> Result<TransactionMutation> {
+    ) -> Result<AccountMutation> {
         let mut utxo_removals: Vec<model::OutPtr> = vec![];
         let mut utxo_inserts: Vec<(model::OutPtr, model::KeyBalance)> = vec![];
 
@@ -751,15 +748,15 @@ where
             }
         }
 
-        let txn_balance = i128::from(output_amount)
-            .checked_sub(i128::from(input_amount))
-            .ok_or_else(|| Error::TransactionBalanceUnderflow)?;
+        let (amount, kind) = if output_amount >= input_amount {
+            (output_amount - input_amount, model::MovementType::Positive)
+        } else {
+            (input_amount - output_amount, model::MovementType::Negative)
+        };
 
-        let txn_balance =
-            i64::try_from(txn_balance).map_err(|_| Error::TransactionBalanceOverflow)?;
-
-        Ok(TransactionMutation {
-            txn_balance,
+        Ok(AccountMutation {
+            kind,
+            amount,
             utxo_removals,
             utxo_inserts,
         })

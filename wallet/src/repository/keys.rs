@@ -150,51 +150,6 @@ pub fn transaction_next_id(account_index: u32) -> String {
     format!("account-{}-transactions-next-id", account_index)
 }
 
-/// A transaction's value.
-#[inline]
-pub fn transaction_value(account_index: u32, transaction_id: u32) -> String {
-    format!(
-        "account-{}-transaction-{}-value",
-        account_index, transaction_id
-    )
-}
-
-/// A transaction's fee.
-#[inline]
-pub fn transaction_fee(account_index: u32, transaction_id: u32) -> String {
-    format!(
-        "account-{}-transaction-{}-fee",
-        account_index, transaction_id
-    )
-}
-
-/// The type of a transaction: Value Transfer, Data Request, etc.
-#[inline]
-pub fn transaction_type(account_index: u32, transaction_id: u32) -> String {
-    format!(
-        "account-{}-transaction-{}-type",
-        account_index, transaction_id
-    )
-}
-
-/// The block where a transaction is.
-#[inline]
-pub fn transaction_block(account_index: u32, transaction_id: u32) -> String {
-    format!(
-        "account-{}-transaction-{}-block",
-        account_index, transaction_id
-    )
-}
-
-/// Transaction timestamp.
-#[inline]
-pub fn transaction_timestamp(account_index: u32, transaction_id: u32) -> String {
-    format!(
-        "account-{}-transaction-{}-timestamp",
-        account_index, transaction_id
-    )
-}
-
 /// Transaction hash.
 #[inline]
 pub fn transaction_hash(account_index: u32, transaction_id: u32) -> String {

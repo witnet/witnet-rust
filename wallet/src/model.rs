@@ -1,6 +1,5 @@
 //! Types that are serializable and can be returned as a response.
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
@@ -82,9 +81,24 @@ pub struct BalanceMovement {
     /// - A positive value means that the wallet received WITs from others.
     /// - A negative value means that the wallet sent WITs to others.
     #[serde(rename = "type")]
-    pub sign: String,
+    pub kind: MovementType,
     pub amount: u64,
     pub transaction: Transaction,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum MovementType {
+    Positive,
+    Negative,
+}
+
+impl fmt::Display for MovementType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MovementType::Positive => write!(f, "positive"),
+            MovementType::Negative => write!(f, "negative"),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -95,28 +109,39 @@ pub struct Transaction {
     // #[serde(skip_serializing_if = "Option::is_none")]
     pub block: Option<Beacon>,
     pub miner_fee: u64,
-    #[serde(rename = "type")]
-    pub kind: TransactionType,
     pub data: TransactionData,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum TransactionType {
+pub enum TransactionData {
     #[serde(rename = "value_transfer")]
-    ValueTransfer,
+    ValueTransfer(VtData),
     #[serde(rename = "data_request")]
-    DataRequest,
+    DataRequest(DrData),
     #[serde(rename = "tally")]
-    Tally,
+    Tally(TallyData),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TransactionData {
-    // #[serde(skip_serializing_if = "Vec::is_empty")]
+pub struct VtData {
+    pub inputs: Vec<Input>,
+    pub outputs: Vec<Output>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DrData {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     pub tally: Option<TallyReport>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TallyData {
+    pub request_transaction_hash: String,
+    pub outputs: Vec<Output>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    pub tally: TallyReport,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -142,22 +167,6 @@ pub struct TallyReport {
 pub struct Reveal {
     pub value: String,
     pub in_consensus: bool,
-}
-
-pub struct UnsupportedTransactionType(pub String);
-
-impl TryFrom<&types::Transaction> for TransactionType {
-    type Error = UnsupportedTransactionType;
-
-    fn try_from(value: &types::Transaction) -> Result<Self, Self::Error> {
-        use types::Transaction::*;
-
-        match value {
-            ValueTransfer(_) => Ok(TransactionType::ValueTransfer),
-            DataRequest(_) => Ok(TransactionType::DataRequest),
-            _ => Err(UnsupportedTransactionType(format!("{:?}", value))),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

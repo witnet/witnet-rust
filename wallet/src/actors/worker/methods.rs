@@ -489,7 +489,7 @@ impl Worker {
 
         let block_info = model::Beacon {
             epoch: block_epoch,
-            block_hash: block_hash,
+            block_hash,
         };
         self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
 

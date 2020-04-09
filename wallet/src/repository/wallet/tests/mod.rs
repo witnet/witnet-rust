@@ -762,12 +762,11 @@ fn test_index_transaction_vtt_created_by_wallet() {
         })
         .unwrap();
 
-    // check that indeed, the previously created vtt has no block associated with it
-    assert_eq!(
-        None,
-        db.get_opt::<_, model::Beacon>(&keys::transaction_block(0, 1))
-            .unwrap()
-    );
+    // check that indeed, the previously created vtt has not been indexed
+    let db_movement = db
+        .get_opt::<_, model::BalanceMovement>(&keys::transaction_movement(0, 1))
+        .unwrap();
+    assert!(db_movement.is_none());
 
     // index another block confirming the previously created vtt
     wallet
@@ -775,11 +774,12 @@ fn test_index_transaction_vtt_created_by_wallet() {
         .unwrap();
 
     // check that indeed, the previously created vtt now has a block associated with it
-    assert_eq!(
-        Some(a_block),
-        db.get_opt::<_, model::Beacon>(&keys::transaction_block(0, 1))
-            .unwrap()
-    );
+    let block_after = db
+        .get::<_, model::BalanceMovement>(&keys::transaction_movement(0, 1))
+        .unwrap()
+        .transaction
+        .block;
+    assert_eq!(Some(a_block), block_after);
 }
 
 #[test]
