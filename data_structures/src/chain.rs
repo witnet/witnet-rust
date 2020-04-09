@@ -36,6 +36,7 @@ use crate::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
 };
 use bech32::{FromBase32, ToBase32};
+use itertools::Itertools;
 use witnet_crypto::merkle::merkle_tree_root as crypto_merkle_tree_root;
 
 pub trait Hashable {
@@ -2465,6 +2466,27 @@ pub fn generate_unspent_outputs_pool(
     unspent_outputs
 }
 
+/// Method to sort own_utxos by value
+pub fn sort_own_utxos<S: ::std::hash::BuildHasher>(
+    own_utxos: &HashMap<OutputPointer, u64, S>,
+    all_utxos: &UnspentOutputsPool,
+    bigger_first: bool,
+) -> Vec<OutputPointer> {
+    own_utxos
+        .keys()
+        .sorted_by_key(|o| {
+            let value = all_utxos.get(o).map(|vt| i128::from(vt.value)).unwrap_or(0);
+
+            if bigger_first {
+                -value
+            } else {
+                value
+            }
+        })
+        .cloned()
+        .collect()
+}
+
 /// Constants used to convert between epoch and timestamp
 #[derive(Copy, Clone, Debug)]
 pub struct EpochConstants {
@@ -2604,7 +2626,7 @@ pub fn block_example() -> Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transaction::{CommitTransactionBody, RevealTransactionBody};
+    use crate::transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody};
 
     #[test]
     fn test_block_hashable_trait() {
@@ -3359,5 +3381,47 @@ mod tests {
 
         p.insert(k1.clone(), v(), 1);
         assert_eq!(p.included_in_block_number(&k1), Some(0));
+    }
+
+    #[test]
+    fn test_sort_own_utxos() {
+        let mut vto1 = ValueTransferOutput::default();
+        vto1.value = 100;
+        let mut vto2 = ValueTransferOutput::default();
+        vto2.value = 500;
+        let mut vto3 = ValueTransferOutput::default();
+        vto3.value = 200;
+        let mut vto4 = ValueTransferOutput::default();
+        vto4.value = 300;
+
+        let vt = Transaction::ValueTransfer(VTTransaction::new(
+            VTTransactionBody::new(vec![], vec![vto1, vto2, vto3, vto4]),
+            vec![],
+        ));
+
+        let utxo_pool = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &[vt], 0);
+        assert_eq!(utxo_pool.iter().len(), 4);
+
+        let mut own_utxos: HashMap<OutputPointer, u64> = HashMap::new();
+        for (o, _) in utxo_pool.iter() {
+            own_utxos.insert(o.clone(), 0);
+        }
+        assert_eq!(own_utxos.len(), 4);
+
+        let sorted_bigger = sort_own_utxos(&own_utxos, &utxo_pool, true);
+        let mut aux = 1000;
+        for o in sorted_bigger.iter() {
+            let value = utxo_pool.get(o).unwrap().value;
+            assert!(value < aux);
+            aux = value;
+        }
+
+        let sorted_lower = sort_own_utxos(&own_utxos, &utxo_pool, false);
+        let mut aux = 0;
+        for o in sorted_lower.iter() {
+            let value = utxo_pool.get(o).unwrap().value;
+            assert!(value > aux);
+            aux = value;
+        }
     }
 }
