@@ -38,9 +38,9 @@ fn chain_state() {
             checkpoint: 0,
             hash_prev_block: bootstrap_hash,
         },
-        highest_vrf_output: CheckpointBeacon {
+        highest_vrf_output: CheckpointVRF {
             checkpoint: 0,
-            hash_prev_block: bootstrap_hash,
+            hash_prev_vrf: bootstrap_hash,
         },
     };
     let c = ChainState {

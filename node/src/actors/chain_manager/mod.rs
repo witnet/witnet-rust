@@ -62,8 +62,8 @@ use crate::{
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
-        ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash, Hashable,
-        InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
+        CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash,
+        Hashable, InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
         TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
@@ -426,15 +426,15 @@ impl ChainManager {
                 // If the candidate builds right on top of the genesis block, use candidate's own checkpoint and the genesis block hash.
                 // Else, use use candidate's own checkpoint and the hash of the VRF proof from the block it builds on.
                 let vrf_input = match block_epoch {
-                    0 => CheckpointBeacon {
+                    0 => CheckpointVRF {
                         checkpoint: block_epoch,
-                        hash_prev_block: block_hash,
+                        hash_prev_vrf: block_hash,
                     },
                     _ => {
                         let proof_hash = block.block_header.proof.proof_to_hash(vrf_ctx).unwrap();
-                        CheckpointBeacon {
+                        CheckpointVRF {
                             checkpoint: block_epoch,
-                            hash_prev_block: proof_hash,
+                            hash_prev_vrf: proof_hash,
                         }
                     }
                 };
@@ -634,7 +634,6 @@ impl ChainManager {
                     &self.chain_state.data_request_pool,
                 ),
                 vrf_input,
-                chain_info.highest_block_checkpoint.hash_prev_block,
                 current_epoch,
                 epoch_constants,
                 self.chain_state.block_number(),
@@ -685,7 +684,7 @@ impl ChainManager {
         &mut self,
         block: Block,
         current_epoch: Epoch,
-        vrf_input: CheckpointBeacon,
+        vrf_input: CheckpointVRF,
         chain_beacon: CheckpointBeacon,
         epoch_constants: EpochConstants,
         mining_bf: u32,
@@ -741,7 +740,7 @@ impl ChainManager {
 pub fn process_validations(
     block: &Block,
     current_epoch: Epoch,
-    vrf_input: CheckpointBeacon,
+    vrf_input: CheckpointVRF,
     chain_beacon: CheckpointBeacon,
     rep_eng: &ReputationEngine,
     epoch_constants: EpochConstants,

@@ -10,7 +10,9 @@ use crate::{
     config_mngr, signature_mngr, storage_mngr,
 };
 use witnet_data_structures::{
-    chain::{ChainInfo, ChainState, CheckpointBeacon, GenesisBlockInfo, ReputationEngine},
+    chain::{
+        ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo, ReputationEngine,
+    },
     vrf::VrfCtx,
 };
 
@@ -159,9 +161,9 @@ impl ChainManager {
                                 checkpoint: 0,
                                 hash_prev_block,
                             },
-                            highest_vrf_output: CheckpointBeacon {
+                            highest_vrf_output: CheckpointVRF {
                                 checkpoint: 0,
-                                hash_prev_block,
+                                hash_prev_vrf: hash_prev_block,
                             },
                         };
 

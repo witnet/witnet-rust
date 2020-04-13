@@ -14,10 +14,10 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        Block, BlockMerkleRoots, CheckpointBeacon, DataRequestOutput, DataRequestStage,
-        DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature,
-        OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation, ReputationEngine,
-        SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, DataRequestOutput,
+        DataRequestStage, DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input,
+        KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally, Reputation,
+        ReputationEngine, SignaturesToVerify, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
@@ -706,7 +706,7 @@ pub fn validate_data_request_output(request: &DataRequestOutput) -> Result<(), T
 pub fn validate_commit_transaction(
     co_tx: &CommitTransaction,
     dr_pool: &DataRequestPool,
-    vrf_input: CheckpointBeacon,
+    vrf_input: CheckpointVRF,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
     epoch: Epoch,
@@ -1137,13 +1137,13 @@ pub fn add_secp_block_signature_to_verify(
 pub fn add_dr_vrf_signature_to_verify(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     proof: &DataRequestEligibilityClaim,
-    beacon: CheckpointBeacon,
+    vrf_input: CheckpointVRF,
     dr_hash: Hash,
     target_hash: Hash,
 ) {
     signatures_to_verify.push(SignaturesToVerify::VrfDr {
         proof: proof.clone(),
-        beacon,
+        vrf_input,
         dr_hash,
         target_hash,
     })
@@ -1153,12 +1153,12 @@ pub fn add_dr_vrf_signature_to_verify(
 pub fn add_block_vrf_signature_to_verify(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     proof: &BlockEligibilityClaim,
-    beacon: CheckpointBeacon,
+    vrf_input: CheckpointVRF,
     target_hash: Hash,
 ) {
     signatures_to_verify.push(SignaturesToVerify::VrfBlock {
         proof: proof.clone(),
-        beacon,
+        vrf_input,
         target_hash,
     })
 }
@@ -1296,7 +1296,7 @@ pub fn validate_block_transactions(
     utxo_set: &UnspentOutputsPool,
     dr_pool: &DataRequestPool,
     block: &Block,
-    vrf_input: CheckpointBeacon,
+    vrf_input: CheckpointVRF,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
     genesis_hash: Hash,
@@ -1507,7 +1507,7 @@ pub fn validate_block_transactions(
 pub fn validate_block(
     block: &Block,
     current_epoch: Epoch,
-    vrf_input: CheckpointBeacon,
+    vrf_input: CheckpointVRF,
     chain_beacon: CheckpointBeacon,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     rep_eng: &ReputationEngine,
@@ -1591,7 +1591,7 @@ pub fn validate_genesis_block(
 pub fn validate_candidate(
     block: &Block,
     current_epoch: Epoch,
-    vrf_input: CheckpointBeacon,
+    vrf_input: CheckpointVRF,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     total_identities: u32,
     mining_bf: u32,
@@ -1624,8 +1624,7 @@ pub fn validate_new_transaction(
         &UnspentOutputsPool,
         &DataRequestPool,
     ),
-    vrf_input: CheckpointBeacon,
-    current_block_hash: Hash,
+    vrf_input: CheckpointVRF,
     current_epoch: Epoch,
     epoch_constants: EpochConstants,
     block_number: u32,
@@ -1654,23 +1653,20 @@ pub fn validate_new_transaction(
             collateral_minimum,
         )
         .map(|_| ()),
-        Transaction::Commit(tx) => {
-
-            validate_commit_transaction(
-                &tx,
-                &data_request_pool,
-                vrf_input,
-                signatures_to_verify,
-                &reputation_engine,
-                current_epoch,
-                epoch_constants,
-                &utxo_diff,
-                collateral_minimum,
-                collateral_age,
-                block_number,
-            )
-            .map(|_| ())
-        }
+        Transaction::Commit(tx) => validate_commit_transaction(
+            &tx,
+            &data_request_pool,
+            vrf_input,
+            signatures_to_verify,
+            &reputation_engine,
+            current_epoch,
+            epoch_constants,
+            &utxo_diff,
+            collateral_minimum,
+            collateral_age,
+            block_number,
+        )
+        .map(|_| ()),
         Transaction::Reveal(tx) => {
             validate_reveal_transaction(&tx, &data_request_pool, signatures_to_verify).map(|_| ())
         }
@@ -1874,47 +1870,6 @@ pub fn total_block_reward() -> u64 {
     total_reward
 }
 
-/// Function to check poe validation for blocks
-pub fn verify_poe_block(
-    vrf: &mut VrfCtx,
-    proof: &BlockEligibilityClaim,
-    beacon: CheckpointBeacon,
-    target_hash: Hash,
-) -> Result<(), BlockError> {
-    let vrf_hash = proof
-        .verify(vrf, beacon)
-        .map_err(|_| BlockError::NotValidPoe)?;
-    if vrf_hash > target_hash {
-        Err(BlockError::BlockEligibilityDoesNotMeetTarget {
-            vrf_hash,
-            target_hash,
-        })
-    } else {
-        Ok(())
-    }
-}
-
-/// Function to check poe validation for data requests
-pub fn verify_poe_data_request(
-    vrf: &mut VrfCtx,
-    proof: &DataRequestEligibilityClaim,
-    beacon: CheckpointBeacon,
-    dr_hash: Hash,
-    target_hash: Hash,
-) -> Result<(), TransactionError> {
-    let vrf_hash = proof
-        .verify(vrf, beacon, dr_hash)
-        .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
-    if vrf_hash > target_hash {
-        Err(TransactionError::DataRequestEligibilityDoesNotMeetTarget {
-            vrf_hash,
-            target_hash,
-        })
-    } else {
-        Ok(())
-    }
-}
-
 /// Diffs to apply to an utxo set. This type does not contains a
 /// reference to the original utxo set.
 #[derive(Debug)]
@@ -2103,11 +2058,11 @@ pub fn verify_signatures(
         match x {
             SignaturesToVerify::VrfBlock {
                 proof,
-                beacon,
+                vrf_input,
                 target_hash,
             } => {
                 let vrf_hash = proof
-                    .verify(vrf, beacon)
+                    .verify(vrf, vrf_input)
                     .map_err(|_| BlockError::NotValidPoe)?;
                 if vrf_hash > target_hash {
                     return Err(BlockError::BlockEligibilityDoesNotMeetTarget {
@@ -2120,12 +2075,12 @@ pub fn verify_signatures(
             }
             SignaturesToVerify::VrfDr {
                 proof,
-                beacon,
+                vrf_input,
                 dr_hash,
                 target_hash,
             } => {
                 let vrf_hash = proof
-                    .verify(vrf, beacon, dr_hash)
+                    .verify(vrf, vrf_input, dr_hash)
                     .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
                 if vrf_hash > target_hash {
                     return Err(TransactionError::DataRequestEligibilityDoesNotMeetTarget {
@@ -3023,13 +2978,13 @@ mod tests {
         let secret_key = SecretKey {
             bytes: Protected::from(vec![0x44; 32]),
         };
+        let vrf_input = CheckpointVRF {
+            checkpoint: block.block_header.beacon.checkpoint,
+            hash_prev_vrf: block.block_header.beacon.hash_prev_block,
+        };
         block.block_header.proof =
-            BlockEligibilityClaim::create(vrf, &secret_key, block.block_header.beacon).unwrap();
-        let vrf_hash = block
-            .block_header
-            .proof
-            .verify(vrf, block.block_header.beacon)
-            .unwrap();
+            BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
+        let vrf_hash = block.block_header.proof.verify(vrf, vrf_input).unwrap();
 
         let current_epoch = 0;
         let mut signatures_to_verify = vec![];
@@ -3038,7 +2993,7 @@ mod tests {
         let res = validate_candidate(
             &block,
             current_epoch,
-            block.block_header.beacon,
+            vrf_input,
             &mut signatures_to_verify,
             total_identities,
             mining_bf,

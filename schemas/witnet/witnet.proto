@@ -256,6 +256,11 @@ message CheckpointBeacon {
     Hash hash_prev_block = 2;
 }
 
+message CheckpointVRF {
+    fixed32 checkpoint = 1;
+    Hash hash_prev_vrf = 2;
+}
+
 message InventoryEntry {
     oneof kind {
         Hash Block = 1;
@@ -286,7 +291,7 @@ message VrfProof {
 }
 
 message DataRequestVrfMessage {
-    CheckpointBeacon beacon = 1;
+    CheckpointVRF vrf_input = 1;
     Hash dr_hash = 2;
 }
 

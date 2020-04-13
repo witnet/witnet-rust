@@ -54,8 +54,8 @@ pub struct ChainInfo {
     /// Checkpoint of the last block in the blockchain
     pub highest_block_checkpoint: CheckpointBeacon,
 
-    /// Checkpoint of the last vrf otuput in the blockchain
-    pub highest_vrf_output: CheckpointBeacon,
+    /// Checkpoint and VRF hash of the highest block in the blockchain
+    pub highest_vrf_output: CheckpointVRF,
 }
 
 /// Possible values for the "environment" configuration param.
@@ -274,6 +274,19 @@ pub struct CheckpointBeacon {
     pub hash_prev_block: Hash,
 }
 
+/// Checkpoint VRF structure
+#[derive(
+    Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize, ProtobufConvert,
+)]
+#[protobuf_convert(pb = "witnet::CheckpointVRF")]
+#[serde(rename_all = "camelCase")]
+pub struct CheckpointVRF {
+    /// The serial number for an epoch
+    pub checkpoint: Epoch,
+    /// The 256-bit hash of the VRF used in the previous block
+    pub hash_prev_vrf: Hash,
+}
+
 /// Epoch id (starting from 0)
 pub type Epoch = u32;
 
@@ -463,6 +476,12 @@ impl Hashable for Block {
 }
 
 impl Hashable for CheckpointBeacon {
+    fn hash(&self) -> Hash {
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    }
+}
+
+impl Hashable for CheckpointVRF {
     fn hash(&self) -> Hash {
         calculate_sha256(&self.to_pb_bytes().unwrap()).into()
     }
@@ -2511,13 +2530,13 @@ impl EpochConstants {
 pub enum SignaturesToVerify {
     VrfDr {
         proof: DataRequestEligibilityClaim,
-        beacon: CheckpointBeacon,
+        vrf_input: CheckpointVRF,
         dr_hash: Hash,
         target_hash: Hash,
     },
     VrfBlock {
         proof: BlockEligibilityClaim,
-        beacon: CheckpointBeacon,
+        vrf_input: CheckpointVRF,
         target_hash: Hash,
     },
     SecpTx {

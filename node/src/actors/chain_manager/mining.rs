@@ -16,9 +16,9 @@ use futures::future::{join_all, Future};
 
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, EpochConstants,
-        Hashable, PublicKeyHash, ReputationEngine, TransactionsPool, UnspentOutputsPool,
-        ValueTransferOutput,
+        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, CheckpointVRF,
+        EpochConstants, Hashable, PublicKeyHash, ReputationEngine, TransactionsPool,
+        UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
     error::TransactionError,
@@ -42,10 +42,7 @@ use crate::{
             transaction_factory::{build_commit_collateral, sign_transaction},
             ChainManager, StateMachine,
         },
-        messages::{
-            AddCandidates, AddCommitReveal, GetHighestCheckpointBeacon, GetHighestVrfOutput,
-            ResolveRA, RunTally,
-        },
+        messages::{AddCandidates, AddCommitReveal, ResolveRA, RunTally},
         rad_manager::RadManager,
     },
     signature_mngr,
@@ -94,30 +91,19 @@ impl ChainManager {
         let total_identities = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
 
         let current_epoch = self.current_epoch.unwrap();
-        let consensus_constants = self
-            .chain_state
-            .chain_info
-            .as_ref()
-            .unwrap()
-            .consensus_constants
-            .clone();
-        let mining_bf = consensus_constants.mining_backup_factor;
-        let mining_rf = consensus_constants.mining_replication_factor;
-        let collateral_minimum = consensus_constants.collateral_minimum;
 
-        // Check eligibility
-        // S(H(beacon))
-        let mut beacon = match self.handle(GetHighestCheckpointBeacon, ctx) {
-            Ok(b) => b,
-            _ => return,
-        };
+        let chain_info = self.chain_state.chain_info.as_ref().unwrap();
 
-        // Check eligibility
-        // S(H(beacon))
-        let mut vrf_input = match self.handle(GetHighestVrfOutput, ctx) {
-            Ok(b) => b,
-            _ => return,
-        };
+        let max_block_weight = chain_info.consensus_constants.max_block_weight;
+
+        let mining_bf = chain_info.consensus_constants.mining_backup_factor;
+
+        let mining_rf = chain_info.consensus_constants.mining_replication_factor;
+
+        let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
+
+        let mut beacon = chain_info.highest_block_checkpoint;
+        let mut vrf_input = chain_info.highest_vrf_output;
 
         if beacon.checkpoint >= current_epoch {
             // We got a block from the future
@@ -190,7 +176,7 @@ impl ChainManager {
                         &act.chain_state.unspent_outputs_pool,
                         &act.chain_state.data_request_pool,
                     ),
-                    consensus_constants.max_block_weight,
+                    max_block_weight,
                     beacon,
                     eligibility_claim,
                     &tally_transactions,
@@ -296,7 +282,7 @@ impl ChainManager {
             let num_witnesses = data_request_output.witnesses;
             let num_backup_witnesses = data_request_output.backup_witnesses;
             // The vrf_input used to create and verify data requests must be set to the current epoch
-            let dr_vrf_input = CheckpointBeacon {
+            let dr_vrf_input = CheckpointVRF {
                 checkpoint: current_epoch,
                 ..vrf_input
             };
@@ -969,6 +955,8 @@ mod tests {
         assert_ne!(Transaction::Mint(block.txns.mint), transaction);
     }
 
+    static LAST_VRF_INPUT: &str =
+        "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c50386c908f7146d2239";
     #[test]
     fn build_signed_empty_block() {
         // Initialize transaction_pool with 1 transaction
@@ -985,12 +973,15 @@ mod tests {
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
 
+        let mut vrf_input = CheckpointVRF::default();
+        vrf_input.hash_prev_vrf = LAST_VRF_INPUT.parse().unwrap();
+
         // Add valid vrf proof
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let secret_key = SecretKey {
             bytes: Protected::from(vec![0xcd; 32]),
         };
-        let block_proof = BlockEligibilityClaim::create(vrf, &secret_key, block_beacon).unwrap();
+        let block_proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
         let block_number = 1;
         let collateral_minimum = 1_000_000_000;
 

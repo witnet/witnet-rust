@@ -8,7 +8,7 @@ use vrf::{
 };
 
 use crate::{
-    chain::{CheckpointBeacon, Hash, HashParseError, PublicKey, PublicKeyHash, SecretKey},
+    chain::{CheckpointVRF, Hash, HashParseError, PublicKey, PublicKeyHash, SecretKey},
     proto::{schema::witnet, ProtobufConvert},
 };
 
@@ -100,14 +100,14 @@ pub struct VrfMessage(Vec<u8>);
 // Functions to easily construct the vrf messages
 impl VrfMessage {
     /// Create a VRF message used for block eligibility
-    pub fn block_mining(beacon: CheckpointBeacon) -> VrfMessage {
-        VrfMessage(beacon.to_pb_bytes().unwrap())
+    pub fn block_mining(vrf_input: CheckpointVRF) -> VrfMessage {
+        VrfMessage(vrf_input.to_pb_bytes().unwrap())
     }
 
     /// Create a VRF message used for data request commitment eligibility
-    pub fn data_request(beacon: CheckpointBeacon, dr_hash: Hash) -> VrfMessage {
+    pub fn data_request(vrf_input: CheckpointVRF, dr_hash: Hash) -> VrfMessage {
         VrfMessage(
-            DataRequestVrfMessage { beacon, dr_hash }
+            DataRequestVrfMessage { vrf_input, dr_hash }
                 .to_pb_bytes()
                 .unwrap(),
         )
@@ -127,26 +127,26 @@ pub struct BlockEligibilityClaim {
 }
 
 impl BlockEligibilityClaim {
-    /// Create a block eligibility claim for a given beacon
+    /// Create a block eligibility claim for a given vrf message
     pub fn create(
         vrf: &mut VrfCtx,
         secret_key: &SecretKey,
-        beacon: CheckpointBeacon,
+        vrf_input: CheckpointVRF,
     ) -> Result<Self, failure::Error> {
-        let message = VrfMessage::block_mining(beacon);
+        let message = VrfMessage::block_mining(vrf_input);
         Ok(Self {
             proof: VrfProof::create(vrf, secret_key, &message)?.0,
         })
     }
 
-    /// Verify a block eligibility claim for a given beacon
+    /// Verify a block eligibility claim for a given vrf message
     pub fn verify(
         &self,
         vrf: &mut VrfCtx,
-        beacon: CheckpointBeacon,
+        vrf_input: CheckpointVRF,
     ) -> Result<Hash, failure::Error> {
         self.proof
-            .verify(vrf, &VrfMessage::block_mining(beacon))
+            .verify(vrf, &VrfMessage::block_mining(vrf_input))
             .map(|v| {
                 let mut sha256 = [0; 32];
                 sha256.copy_from_slice(&v);
@@ -154,6 +154,7 @@ impl BlockEligibilityClaim {
                 Hash::SHA256(sha256)
             })
     }
+
     /// Output the hash of the VRF proof.
     /// This hash will become the input to future VRF create functions that compute eligibilities.
     pub fn proof_to_hash(&self, vrf: &mut VrfCtx) -> Result<Hash, failure::Error> {
@@ -165,7 +166,7 @@ impl BlockEligibilityClaim {
 #[derive(Debug, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::DataRequestVrfMessage")]
 struct DataRequestVrfMessage {
-    beacon: CheckpointBeacon,
+    vrf_input: CheckpointVRF,
     dr_hash: Hash,
 }
 
@@ -178,28 +179,28 @@ pub struct DataRequestEligibilityClaim {
 }
 
 impl DataRequestEligibilityClaim {
-    /// Create a data request eligibility claim for a given beacon and data request hash
+    /// Create a data request eligibility claim for a given vrf message and data request hash
     pub fn create(
         vrf: &mut VrfCtx,
         secret_key: &SecretKey,
-        beacon: CheckpointBeacon,
+        vrf_input: CheckpointVRF,
         dr_hash: Hash,
     ) -> Result<Self, failure::Error> {
-        let message = VrfMessage::data_request(beacon, dr_hash);
+        let message = VrfMessage::data_request(vrf_input, dr_hash);
         Ok(Self {
             proof: VrfProof::create(vrf, secret_key, &message)?.0,
         })
     }
 
-    /// Verify a data request eligibility claim for a given beacon and data request hash
+    /// Verify a data request eligibility claim for a given vrf message and data request hash
     pub fn verify(
         &self,
         vrf: &mut VrfCtx,
-        beacon: CheckpointBeacon,
+        vrf_input: CheckpointVRF,
         dr_hash: Hash,
     ) -> Result<Hash, failure::Error> {
         self.proof
-            .verify(vrf, &VrfMessage::data_request(beacon, dr_hash))
+            .verify(vrf, &VrfMessage::data_request(vrf_input, dr_hash))
             .map(|v| {
                 let mut sha256 = [0; 32];
                 sha256.copy_from_slice(&v);
@@ -244,21 +245,21 @@ mod tests {
         let secret_key = SecretKey {
             bytes: Protected::from(vec![0x44; 32]),
         };
-        let beacon = CheckpointBeacon {
+        let vrf_input = CheckpointVRF {
             checkpoint: 0,
-            hash_prev_block: Default::default(),
+            hash_prev_vrf: Default::default(),
         };
 
-        let proof = BlockEligibilityClaim::create(vrf, &secret_key, beacon).unwrap();
-        assert!(proof.verify(vrf, beacon).is_ok());
+        let proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
+        assert!(proof.verify(vrf, vrf_input).is_ok());
 
         // Changing the beacon should invalidate the vrf proof
         for checkpoint in 1..=2 {
-            let beacon2 = CheckpointBeacon {
+            let vrf_input2 = CheckpointVRF {
                 checkpoint,
-                ..beacon
+                ..vrf_input
             };
-            assert!(proof.verify(vrf, beacon2).is_err());
+            assert!(proof.verify(vrf, vrf_input2).is_err());
         }
     }
 
@@ -268,28 +269,28 @@ mod tests {
         let secret_key = SecretKey {
             bytes: Protected::from(vec![0x44; 32]),
         };
-        let beacon = CheckpointBeacon {
+        let vrf_input = CheckpointVRF {
             checkpoint: 0,
-            hash_prev_block: Default::default(),
+            hash_prev_vrf: Default::default(),
         };
         let dr_pointer = "2222222222222222222222222222222222222222222222222222222222222222"
             .parse()
             .unwrap();
         let proof =
-            DataRequestEligibilityClaim::create(vrf, &secret_key, beacon, dr_pointer).unwrap();
-        assert!(proof.verify(vrf, beacon, dr_pointer).is_ok());
+            DataRequestEligibilityClaim::create(vrf, &secret_key, vrf_input, dr_pointer).unwrap();
+        assert!(proof.verify(vrf, vrf_input, dr_pointer).is_ok());
 
         // Changing the beacon should invalidate the vrf proof
-        let beacon2 = CheckpointBeacon {
+        let vrf_input2 = CheckpointVRF {
             checkpoint: 1,
-            ..beacon
+            ..vrf_input
         };
-        assert!(proof.verify(vrf, beacon2, dr_pointer).is_err());
+        assert!(proof.verify(vrf, vrf_input2, dr_pointer).is_err());
 
         // Changing the dr_hash should invalidate the vrf proof
         let dr_pointer2 = "2222222222222222222222222222222222222222222222222222222222222223"
             .parse()
             .unwrap();
-        assert!(proof.verify(vrf, beacon, dr_pointer2).is_err());
+        assert!(proof.verify(vrf, vrf_input, dr_pointer2).is_err());
     }
 }
