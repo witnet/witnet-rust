@@ -147,7 +147,7 @@ pub struct TallyData {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Input {
     pub address: String,
-    pub output_pointer: String,
+    pub value: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

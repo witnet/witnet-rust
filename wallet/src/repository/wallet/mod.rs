@@ -318,22 +318,65 @@ where
         Ok(())
     }
 
+    /// Filter transactions in a block (received from a node) if they belong to wallet accounts.
+    pub fn filter_wallet_transactions(
+        &self,
+        txns: &[types::Transaction],
+    ) -> Result<Vec<types::Transaction>> {
+        let state = self.state.read()?;
+
+        let mut filtered_txns = vec![];
+        for txn in txns {
+            // Inputs and outputs from different transaction types
+            let v = vec![];
+            let (inputs, outputs) = match txn {
+                types::Transaction::ValueTransfer(txn) => (&txn.body.inputs, &txn.body.outputs),
+                types::Transaction::DataRequest(txn) => (&txn.body.inputs, &txn.body.outputs),
+                types::Transaction::Tally(tally) => (&v, &tally.outputs),
+                _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
+            };
+
+            //let filtered_inputs: Vec<&witnet_data_structures::chain::Input> = inputs.iter().filter(|&input| state.utxo_set.get(&input.output_pointer().into()).is_some()).collect();
+            //let filtered_outputs: Vec<&witnet_data_structures::chain::ValueTransferOutput> = outputs.iter().filter(|&output| self.db.get::<_, model::Path>(&keys::pkh(&output.pkh)).is_ok()).collect();
+
+            // Find if any input or output is from the wallet
+            if inputs
+                .iter()
+                .find(|&input| state.utxo_set.get(&input.output_pointer().into()).is_some())
+                .is_some()
+                || outputs
+                    .iter()
+                    .find(|&output| {
+                        self.db
+                            .get::<_, model::Path>(&keys::pkh(&output.pkh))
+                            .is_ok()
+                    })
+                    .is_some()
+            {
+                filtered_txns.push(txn.clone());
+            }
+        }
+
+        Ok(filtered_txns)
+    }
+
     /// Index transactions in a block received from a node.
     pub fn index_transactions(
         &self,
         block_info: &model::Beacon,
         txns: &[types::Transaction],
+        input_values: &Vec<Vec<types::VttOutput>>,
     ) -> Result<()> {
         let mut state = self.state.write()?;
 
-        for txn in txns {
+        for (txn, vtt_output) in txns.into_iter().zip(input_values) {
             // Check if transaction already exists in the database
             let hash = txn.hash().as_ref().to_vec();
             match self
                 .db
                 .get_opt::<_, u32>(&keys::transactions_index(&hash))?
             {
-                None => self._index_transaction(&mut state, txn, block_info)?,
+                None => self._index_transaction(&mut state, txn, block_info, vtt_output)?,
                 Some(_) => log::warn!(
                     "The transaction {} already exists in the database",
                     txn.hash()
@@ -528,6 +571,7 @@ where
         state: &mut State,
         txn: &types::Transaction,
         block_info: &model::Beacon,
+        vtt_output: &Vec<types::VttOutput>,
     ) -> Result<()> {
         // Wallet's account mutation (utxo set + balance changes)
         let v = vec![];
@@ -593,19 +637,17 @@ where
             batch.put(keys::transaction_hash(account, txn_id), txn_hash.as_ref())?;
 
             // Balance movement
+            let transaction_inputs = vtt_output.iter()
+                .map(|output| model::Input {
+                    address: output.pkh.to_string(),
+                    value: output.value,
+                })
+                .collect::<Vec<model::Input>>();
+
             let transaction_data = match txn {
                 types::Transaction::ValueTransfer(vtt) => {
                     model::TransactionData::ValueTransfer(model::VtData {
-                        inputs: vtt
-                            .body
-                            .inputs
-                            .iter()
-                            .zip(&vtt.signatures)
-                            .map(|(input, signature)| model::Input {
-                                address: signature.public_key.pkh().to_string(),
-                                output_pointer: input.output_pointer().to_string(),
-                            })
-                            .collect::<Vec<model::Input>>(),
+                        inputs: transaction_inputs,
                         outputs: vtt
                             .body
                             .outputs
@@ -621,16 +663,7 @@ where
                 }
                 types::Transaction::DataRequest(dr) => {
                     model::TransactionData::DataRequest(model::DrData {
-                        inputs: dr
-                            .body
-                            .inputs
-                            .iter()
-                            .zip(&dr.signatures)
-                            .map(|(input, signature)| model::Input {
-                                address: signature.public_key.pkh().to_string(),
-                                output_pointer: input.output_pointer().to_string(),
-                            })
-                            .collect::<Vec<model::Input>>(),
+                        inputs: transaction_inputs,
                         outputs: dr
                             .body
                             .outputs
@@ -665,6 +698,8 @@ where
                 }),
                 _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
             };
+
+            // FIXME: WIP - Miner fee
 
             let value = model::BalanceMovement {
                 kind: account_mutation.kind,
@@ -781,7 +816,7 @@ where
     }
 
     /// Get previously created Transaction by its hash.
-    pub fn get_node_transaction(&self, hex_hash: &str) -> Result<Option<types::Transaction>> {
+    pub fn get_db_transaction(&self, hex_hash: &str) -> Result<Option<types::Transaction>> {
         let txn = self.db.get_opt(&keys::transaction(hex_hash))?;
 
         Ok(txn)

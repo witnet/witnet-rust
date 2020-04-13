@@ -29,6 +29,8 @@ pub enum Error {
     Node(#[cause] failure::Error),
     #[fail(display = "error processing a block: {}", _0)]
     Block(#[cause] failure::Error),
+    #[fail(display = "error processing a transaction: {}", _0)]
+    Transaction(String),
 }
 
 #[derive(Debug, Fail)]

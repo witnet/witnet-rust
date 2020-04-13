@@ -5,7 +5,7 @@ use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::json;
 
-use witnet_data_structures::chain::{CheckpointBeacon, Hash, Hashable};
+use witnet_data_structures::chain::{CheckpointBeacon, Hash, Hashable, ValueTransferOutput};
 
 use crate::types::{ChainEntry, GetBlockChainParams};
 use crate::{account, constants, crypto, db::Database as _, model, params};
@@ -242,7 +242,14 @@ impl Worker {
         txns: &[types::Transaction],
     ) -> Result<()> {
         log::debug!("trying to index txns from epoch {}", block.epoch);
-        wallet.index_transactions(block, txns)?;
+        let filtered_txns = wallet.filter_wallet_transactions(txns)?;
+        let txns_hashes: Vec<String> = filtered_txns
+            .into_iter()
+            .map(|txn| txn.hash().to_string())
+            .collect();
+        let input_values = self.query_input_values(&txns_hashes)?;
+        // FIXME: add input_values to index_transactions
+        wallet.index_transactions(block, &filtered_txns, &input_values)?;
         wallet.update_last_sync(CheckpointBeacon {
             checkpoint: block.epoch,
             hash_prev_block: block.block_hash,
@@ -281,7 +288,7 @@ impl Worker {
         wallet: &types::Wallet,
         transaction_id: String,
     ) -> Result<Option<types::Transaction>> {
-        let vtt = wallet.get_node_transaction(&transaction_id)?;
+        let vtt = wallet.get_db_transaction(&transaction_id)?;
 
         Ok(vtt)
     }
@@ -305,6 +312,68 @@ impl Worker {
         let signed_data = wallet.sign_data(&data, extended_pk)?;
 
         Ok(signed_data)
+    }
+
+    /// Query the node for the transaction input values for a list of transactions
+    pub fn query_input_values(&self, txns: &[String]) -> Result<Vec<Vec<ValueTransferOutput>>> {
+        log::debug!("[B] Querying additional information for encountered wallet transactions");
+
+        // FIXME: Vec<Transactions> -> Vec<Vec<inputs>> -> Vec<vec<trx_hash, index>> -> Vec<vec<VttOutput>>
+
+        // Ask a Witnet node for the input transactions to collect required information
+        let query_transaction_futures = txns.iter().map(|txn| self.query_transaction(txn));
+        let retrieve_responses =
+            async {
+                futures03::future::try_join_all(query_transaction_futures)
+                    .await
+            };
+
+        let transactions: Vec<types::Transaction> =
+            futures03::executor::block_on(retrieve_responses)?;
+        log::debug!("[B] Received transactions: {:?}", transactions);
+
+        let outputs: Result<Vec<Vec<ValueTransferOutput>>> =
+            transactions
+                .into_iter()
+                .map(|txn| {
+                    match txn {
+                        types::Transaction::ValueTransfer(vt) => Ok(vt.body.outputs),
+                        types::Transaction::DataRequest(dr) => Ok(dr.body.outputs),
+                        types::Transaction::Tally(tally) => Ok(tally.outputs),
+                        _ => return Err(Error::Transaction(format!("{:?}", txn.hash()))),
+                    }
+                }).collect();
+
+        Ok(outputs?)
+    }
+
+    /// Ask a Witnet node for the contents of a transaction
+    pub async fn query_transaction(&self, txn_hash: &str) -> Result<types::Transaction> {
+        log::debug!("Getting transaction with hash {} ", txn_hash);
+        let method = String::from("getTransaction");
+        let params = txn_hash;
+
+        let req = types::RpcRequest::method(method)
+            .timeout(self.node.requests_timeout)
+            .params(params)
+            .expect("params failed serialization");
+        let f = self
+            .node
+            .address
+            .send(req)
+            .flatten()
+            .map(|json| {
+                log::debug!("getTransaction request result: {:?}", json);
+                serde_json::from_value::<types::GetTransactionOutput>(json).map_err(node_error)
+            })
+            .flatten()
+            .map(|txn_output| txn_output.transaction)
+            .map_err(|err| {
+                log::warn!("getTransaction request failed: {}", &err);
+                err
+            });
+
+        Compat01As03::new(f).await
     }
 
     /// Try to synchronize the information for a wallet to whatever the world state is in a Witnet

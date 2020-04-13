@@ -172,3 +172,14 @@ pub struct ExtendedKeyedSignature {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct ChainEntry(pub u32, pub String);
+
+/// Format of the output of getTransaction
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetTransactionOutput {
+    /// Transaction
+    pub transaction: Transaction,
+    /// Hash of the block that contains this transaction in hex format,
+    /// or "pending" if the transaction has not been included in any block yet
+    pub block_hash: String,
+}
