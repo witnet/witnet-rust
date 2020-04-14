@@ -88,7 +88,9 @@ pub struct BalanceMovement {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum MovementType {
+    #[serde(rename = "POSITIVE")]
     Positive,
+    #[serde(rename = "NEGATIVE")]
     Negative,
 }
 
@@ -104,7 +106,6 @@ impl fmt::Display for MovementType {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Transaction {
     pub hash: String,
-    // FIXME: timestamp should be positive (float comes from return type of `epoch_timestamp(epoch)`)
     pub timestamp: i64,
     // #[serde(skip_serializing_if = "Option::is_none")]
     pub block: Option<Beacon>,

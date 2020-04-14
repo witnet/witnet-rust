@@ -328,6 +328,7 @@ where
         let mut filtered_txns = vec![];
         for txn in txns {
             // Inputs and outputs from different transaction types
+            // FIXME: refactor duplicated code fragment
             let v = vec![];
             let (inputs, outputs) = match txn {
                 types::Transaction::ValueTransfer(txn) => (&txn.body.inputs, &txn.body.outputs),
@@ -336,22 +337,18 @@ where
                 _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
             };
 
-            //let filtered_inputs: Vec<&witnet_data_structures::chain::Input> = inputs.iter().filter(|&input| state.utxo_set.get(&input.output_pointer().into()).is_some()).collect();
-            //let filtered_outputs: Vec<&witnet_data_structures::chain::ValueTransferOutput> = outputs.iter().filter(|&output| self.db.get::<_, model::Path>(&keys::pkh(&output.pkh)).is_ok()).collect();
-
-            // Find if any input or output is from the wallet
+            let check_db = |output: &types::VttOutput| {
+                self.db
+                    .get::<_, model::Path>(&keys::pkh(&output.pkh))
+                    .is_ok()
+            };
+            // Check if any input or output is from the wallet (input is an UTXO or output points to any wallet's pkh)
             if inputs
                 .iter()
-                .find(|&input| state.utxo_set.get(&input.output_pointer().into()).is_some())
-                .is_some()
+                .any(|input| state.utxo_set.get(&input.output_pointer().into()).is_some())
                 || outputs
                     .iter()
-                    .find(|&output| {
-                        self.db
-                            .get::<_, model::Path>(&keys::pkh(&output.pkh))
-                            .is_ok()
-                    })
-                    .is_some()
+                    .any(check_db)
             {
                 filtered_txns.push(txn.clone());
             }
@@ -365,18 +362,18 @@ where
         &self,
         block_info: &model::Beacon,
         txns: &[types::Transaction],
-        input_values: &Vec<Vec<types::VttOutput>>,
+        input_values: &[Vec<types::VttOutput>],
     ) -> Result<()> {
         let mut state = self.state.write()?;
 
-        for (txn, vtt_output) in txns.into_iter().zip(input_values) {
+        for (txn, vtt_outputs) in txns.iter().zip(input_values) {
             // Check if transaction already exists in the database
             let hash = txn.hash().as_ref().to_vec();
             match self
                 .db
                 .get_opt::<_, u32>(&keys::transactions_index(&hash))?
             {
-                None => self._index_transaction(&mut state, txn, block_info, vtt_output)?,
+                None => self._index_transaction(&mut state, txn, block_info, vtt_outputs)?,
                 Some(_) => log::warn!(
                     "The transaction {} already exists in the database",
                     txn.hash()
@@ -571,7 +568,7 @@ where
         state: &mut State,
         txn: &types::Transaction,
         block_info: &model::Beacon,
-        vtt_output: &Vec<types::VttOutput>,
+        input_values: &[types::VttOutput],
     ) -> Result<()> {
         // Wallet's account mutation (utxo set + balance changes)
         let v = vec![];
@@ -611,20 +608,14 @@ where
                 .ok_or_else(|| Error::TransactionIdOverflow)?;
 
             // Update memory state
-            account_mutation
-                .utxo_removals
-                .into_iter()
-                .for_each(|out_ptr| {
-                    state.utxo_set.remove(&out_ptr);
-                    db_utxo_set.remove(&out_ptr);
-                });
-            account_mutation
-                .utxo_inserts
-                .into_iter()
-                .for_each(|(out_ptr, key_balance)| {
-                    state.utxo_set.insert(out_ptr.clone(), key_balance.clone());
-                    db_utxo_set.insert(out_ptr, key_balance);
-                });
+            for pointer in &account_mutation.utxo_removals {
+                state.utxo_set.remove(pointer);
+                db_utxo_set.remove(pointer);
+            }
+            for (pointer, key_balance) in &account_mutation.utxo_inserts {
+                state.utxo_set.insert(pointer.clone(), key_balance.clone());
+                db_utxo_set.insert(pointer.clone(), key_balance.clone());
+            }
             state.transaction_next_id = txn_next_id;
             state.balance = new_balance;
 
@@ -636,90 +627,20 @@ where
             batch.put(keys::transactions_index(txn_hash.as_ref()), txn_id)?;
             batch.put(keys::transaction_hash(account, txn_id), txn_hash.as_ref())?;
 
-            // Balance movement
-            let transaction_inputs = vtt_output.iter()
-                .map(|output| model::Input {
-                    address: output.pkh.to_string(),
-                    value: output.value,
-                })
-                .collect::<Vec<model::Input>>();
-
-            let transaction_data = match txn {
-                types::Transaction::ValueTransfer(vtt) => {
-                    model::TransactionData::ValueTransfer(model::VtData {
-                        inputs: transaction_inputs,
-                        outputs: vtt
-                            .body
-                            .outputs
-                            .clone()
-                            .into_iter()
-                            .map(|output| model::Output {
-                                address: output.pkh.to_string(),
-                                time_lock: output.time_lock,
-                                value: output.value,
-                            })
-                            .collect::<Vec<model::Output>>(),
-                    })
-                }
-                types::Transaction::DataRequest(dr) => {
-                    model::TransactionData::DataRequest(model::DrData {
-                        inputs: transaction_inputs,
-                        outputs: dr
-                            .body
-                            .outputs
-                            .clone()
-                            .into_iter()
-                            .map(|output| model::Output {
-                                address: output.pkh.to_string(),
-                                time_lock: output.time_lock,
-                                value: output.value,
-                            })
-                            .collect::<Vec<model::Output>>(),
-                        tally: None,
-                    })
-                }
-                types::Transaction::Tally(tt) => model::TransactionData::Tally(model::TallyData {
-                    request_transaction_hash: tt.dr_pointer.to_string(),
-                    outputs: tt
-                        .outputs
-                        .clone()
-                        .into_iter()
-                        .map(|output| model::Output {
-                            address: output.pkh.to_string(),
-                            time_lock: output.time_lock,
-                            value: output.value,
-                        })
-                        .collect::<Vec<model::Output>>(),
-                    // FIXME: fill out tally data from transaction (request data request report to node)
-                    tally: model::TallyReport {
-                        result: "".to_string(),
-                        reveals: vec![],
-                    },
-                }),
-                _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
-            };
-
-            // FIXME: WIP - Miner fee
-
-            let value = model::BalanceMovement {
-                kind: account_mutation.kind,
-                amount: account_mutation.amount,
-                transaction: model::Transaction {
-                    hash: hex::encode(txn_hash),
-                    timestamp: convert_block_epoch_to_timestamp(
-                        state.epoch_constants,
-                        block_info.epoch,
-                    ),
-                    block: Some(model::Beacon {
-                        epoch: block_info.epoch,
-                        block_hash: block_info.block_hash,
-                    }),
-                    // FIXME: To extract `miner_fee` Input values are needed (request transactions to node)
-                    miner_fee: 0,
-                    data: transaction_data,
-                },
-            };
-            batch.put(keys::transaction_movement(account, txn_id), value)?;
+            // Transaction Movement
+            let balance_movement = build_balance_movement(
+                &txn,
+                &input_values,
+                &outputs,
+                account_mutation.kind,
+                account_mutation.amount,
+                &block_info,
+                convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
+            )?;
+            batch.put(
+                keys::transaction_movement(account, txn_id),
+                balance_movement,
+            )?;
 
             // Account state
             batch.put(keys::account_balance(account), new_balance)?;
@@ -874,6 +795,105 @@ where
 fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> i64 {
     // In case of error, return timestamp 0
     epoch_constants.epoch_timestamp(epoch).unwrap_or(0)
+}
+
+// Balance Movement Factory
+fn build_balance_movement(
+    txn: &types::Transaction,
+    input_values: &[types::VttOutput],
+    outputs: &[types::VttOutput],
+    kind: model::MovementType,
+    amount: u64,
+    block_info: &model::Beacon,
+    timestamp: i64,
+) -> Result<model::BalanceMovement> {
+    // Input values with their ValueTransferOutput data
+    let transaction_inputs = input_values
+        .iter()
+        .map(|output| model::Input {
+            address: output.pkh.to_string(),
+            value: output.value,
+        })
+        .collect::<Vec<model::Input>>();
+
+    // Transaction Data
+    let transaction_data = match txn {
+        types::Transaction::ValueTransfer(vtt) => {
+            model::TransactionData::ValueTransfer(model::VtData {
+                inputs: transaction_inputs,
+                outputs: vtt
+                    .body
+                    .outputs
+                    .clone()
+                    .into_iter()
+                    .map(|output| model::Output {
+                        address: output.pkh.to_string(),
+                        time_lock: output.time_lock,
+                        value: output.value,
+                    })
+                    .collect::<Vec<model::Output>>(),
+            })
+        }
+        types::Transaction::DataRequest(dr) => {
+            model::TransactionData::DataRequest(model::DrData {
+                inputs: transaction_inputs,
+                outputs: dr
+                    .body
+                    .outputs
+                    .clone()
+                    .into_iter()
+                    .map(|output| model::Output {
+                        address: output.pkh.to_string(),
+                        time_lock: output.time_lock,
+                        value: output.value,
+                    })
+                    .collect::<Vec<model::Output>>(),
+                tally: None,
+            })
+        }
+        types::Transaction::Tally(tally) => model::TransactionData::Tally(model::TallyData {
+            request_transaction_hash: tally.dr_pointer.to_string(),
+            outputs: tally
+                .outputs
+                .clone()
+                .into_iter()
+                .map(|output| model::Output {
+                    address: output.pkh.to_string(),
+                    time_lock: output.time_lock,
+                    value: output.value,
+                })
+                .collect::<Vec<model::Output>>(),
+            // FIXME: fill out tally data from transaction (request data request report to node)
+            tally: model::TallyReport {
+                result: "".to_string(),
+                reveals: vec![],
+            },
+        }),
+        _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
+    };
+
+    // Miner fee
+    let total_input_amount = input_values.iter().fold(0, |acc, x| acc + x.value);
+    let total_output_amount = outputs.iter().fold(0, |acc, x| acc + x.value);
+    let miner_fee = total_input_amount
+        .checked_sub(total_output_amount)
+        .ok_or_else(|| Error::TransactionBalanceUnderflow)?;
+    let value = model::BalanceMovement {
+        kind,
+        amount,
+        transaction: model::Transaction {
+            hash: hex::encode(txn.hash()),
+            timestamp,
+            block: Some(model::Beacon {
+                epoch: block_info.epoch,
+                block_hash: block_info.block_hash,
+            }),
+            miner_fee,
+            data: transaction_data,
+        },
+    };
+
+    Ok(value)
 }
 
 #[cfg(test)]

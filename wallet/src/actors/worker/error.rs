@@ -29,8 +29,10 @@ pub enum Error {
     Node(#[cause] failure::Error),
     #[fail(display = "error processing a block: {}", _0)]
     Block(#[cause] failure::Error),
-    #[fail(display = "error processing a transaction: {}", _0)]
-    Transaction(String),
+    #[fail(display = "output ({}) not found in transaction: {}", _0, _1)]
+    OutputIndexNotFound(u32, String),
+    #[fail(display = "transaction type not supported")]
+    TransactionTypeNotSupported,
 }
 
 #[derive(Debug, Fail)]

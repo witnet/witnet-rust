@@ -241,14 +241,13 @@ impl Worker {
         block: &model::Beacon,
         txns: &[types::Transaction],
     ) -> Result<()> {
-        log::debug!("trying to index txns from epoch {}", block.epoch);
         let filtered_txns = wallet.filter_wallet_transactions(txns)?;
-        let txns_hashes: Vec<String> = filtered_txns
-            .into_iter()
-            .map(|txn| txn.hash().to_string())
-            .collect();
-        let input_values = self.query_input_values(&txns_hashes)?;
-        // FIXME: add input_values to index_transactions
+        log::info!(
+            "Indexing {} wallet transactions from epoch {}",
+            &filtered_txns.len(),
+            block.epoch
+        );
+        let input_values = self.get_input_values_from_txns(&filtered_txns)?;
         wallet.index_transactions(block, &filtered_txns, &input_values)?;
         wallet.update_last_sync(CheckpointBeacon {
             checkpoint: block.epoch,
@@ -314,41 +313,104 @@ impl Worker {
         Ok(signed_data)
     }
 
-    /// Query the node for the transaction input values for a list of transactions
-    pub fn query_input_values(&self, txns: &[String]) -> Result<Vec<Vec<ValueTransferOutput>>> {
-        log::debug!("[B] Querying additional information for encountered wallet transactions");
+    /// Retrieve the transaction input values (aka Value Transfer Outputs) from a list of transactions
+    pub fn get_input_values_from_txns(
+        &self,
+        txns: &[types::Transaction],
+    ) -> Result<Vec<Vec<ValueTransferOutput>>> {
+        let txns_output_pointers: Vec<Vec<&types::OutputPointer>> = txns
+            .iter()
+            .map(|txn| match txn {
+                types::Transaction::ValueTransfer(vt) => vt
+                    .body
+                    .inputs
+                    .iter()
+                    .map(|input| input.output_pointer())
+                    .collect(),
+                types::Transaction::DataRequest(dr) => dr
+                    .body
+                    .inputs
+                    .iter()
+                    .map(|input| input.output_pointer())
+                    .collect(),
+                _ => vec![],
+            })
+            .collect();
 
-        // FIXME: Vec<Transactions> -> Vec<Vec<inputs>> -> Vec<vec<trx_hash, index>> -> Vec<vec<VttOutput>>
+        let query_vtt_outputs_futures: Result<Vec<Vec<ValueTransferOutput>>> = txns_output_pointers
+            .iter()
+            .map(|output_pointers| self.get_vt_outputs_from_pointers(output_pointers))
+            .collect();
 
-        // Ask a Witnet node for the input transactions to collect required information
-        let query_transaction_futures = txns.iter().map(|txn| self.query_transaction(txn));
-        let retrieve_responses =
-            async {
-                futures03::future::try_join_all(query_transaction_futures)
-                    .await
-            };
+        Ok(query_vtt_outputs_futures?)
+    }
 
+    /// Retrieve Value Transfer Outputs of a list of Output Pointers (aka input fields in transactions)
+    pub fn get_vt_outputs_from_pointers(
+        &self,
+        output_pointers: &[&types::OutputPointer],
+    ) -> Result<Vec<types::VttOutput>> {
+        // Query the node for the required Transactions
+        let txn_futures = output_pointers
+            .iter()
+            .map(|&output| self.query_transaction(output.transaction_id.to_string()));
+        let retrieve_responses = async { futures03::future::try_join_all(txn_futures).await };
         let transactions: Vec<types::Transaction> =
             futures03::executor::block_on(retrieve_responses)?;
-        log::debug!("[B] Received transactions: {:?}", transactions);
+        log::info!(
+            "Received {} wallet transactions from node",
+            transactions.len()
+        );
 
-        let outputs: Result<Vec<Vec<ValueTransferOutput>>> =
-            transactions
-                .into_iter()
-                .map(|txn| {
-                    match txn {
-                        types::Transaction::ValueTransfer(vt) => Ok(vt.body.outputs),
-                        types::Transaction::DataRequest(dr) => Ok(dr.body.outputs),
-                        types::Transaction::Tally(tally) => Ok(tally.outputs),
-                        _ => return Err(Error::Transaction(format!("{:?}", txn.hash()))),
-                    }
-                }).collect();
+        let result: Result<Vec<types::VttOutput>> = transactions
+            .iter()
+            .zip(output_pointers)
+            .map(|(txn, &output)| match txn {
+                types::Transaction::ValueTransfer(vt) => vt
+                    .body
+                    .outputs
+                    .get(output.output_index as usize)
+                    .map(types::VttOutput::clone)
+                    .ok_or_else(|| Error::OutputIndexNotFound(
+                        output.output_index,
+                        format!("{:?}", txn),
+                    )),
+                types::Transaction::DataRequest(dr) => dr
+                    .body
+                    .outputs
+                    .get(output.output_index as usize)
+                    .map(types::VttOutput::clone)
+                    .ok_or_else(|| Error::OutputIndexNotFound(
+                        output.output_index,
+                        format!("{:?}", txn),
+                    )),
+                types::Transaction::Tally(tally) => tally
+                    .outputs
+                    .get(output.output_index as usize)
+                    .map(types::VttOutput::clone)
+                    .ok_or_else(|| Error::OutputIndexNotFound(
+                        output.output_index,
+                        format!("{:?}", txn),
+                    )),
+                types::Transaction::Mint(mint) => Ok(mint.output.clone()),
+                types::Transaction::Commit(commit) => commit
+                    .body
+                    .outputs
+                    .get(output.output_index as usize)
+                    .map(types::VttOutput::clone)
+                    .ok_or_else(|| Error::OutputIndexNotFound(
+                        output.output_index,
+                        format!("{:?}", txn),
+                    )),
+                _ => Err(Error::TransactionTypeNotSupported),
+            })
+            .collect();
 
-        Ok(outputs?)
+        Ok(result?)
     }
 
     /// Ask a Witnet node for the contents of a transaction
-    pub async fn query_transaction(&self, txn_hash: &str) -> Result<types::Transaction> {
+    pub async fn query_transaction(&self, txn_hash: String) -> Result<types::Transaction> {
         log::debug!("Getting transaction with hash {} ", txn_hash);
         let method = String::from("getTransaction");
         let params = txn_hash;
@@ -363,13 +425,12 @@ impl Worker {
             .send(req)
             .flatten()
             .map(|json| {
-                log::debug!("getTransaction request result: {:?}", json);
                 serde_json::from_value::<types::GetTransactionOutput>(json).map_err(node_error)
             })
             .flatten()
             .map(|txn_output| txn_output.transaction)
             .map_err(|err| {
-                log::warn!("getTransaction request failed: {}", &err);
+                log::error!("getTransaction request failed: {}", &err);
                 err
             });
 
