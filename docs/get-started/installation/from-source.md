@@ -13,7 +13,7 @@ rustup default stable
 ### Compilation dependencies
 
 ```console tab="GNU/Linux (apt)"
-apt install -y clang git libssl-dev protobuf-compiler
+apt install -y clang git libssl-dev protobuf-compiler pkg-config
 ```
 
 ```console tab="GNU/Linux (pacman)"
