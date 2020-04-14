@@ -599,15 +599,10 @@ pub fn data_request_report(
                         let honest = match dr_info.tally.as_ref() {
                             None => format!(""),
                             Some(tally) => {
-                                // TODO: how to get collateral_minimum?
-                                let collateral_minimum = 0;
-                                let collateral = if dr_output.collateral == 0 {
-                                    collateral_minimum
-                                } else {
-                                    dr_output.collateral
-                                };
                                 if tally.slashed_witnesses.contains(&pkh) {
-                                    format!("-{}", collateral)
+                                    let reward = 0;
+
+                                    format!("-{}", reward)
                                 } else {
                                     let reward = tally
                                         .outputs
@@ -616,8 +611,8 @@ pub fn data_request_report(
                                         .map(|vto| vto.value)
                                         .unwrap();
 
-                                    // Do not count the returned collateral as a reward
-                                    format!("+{}", reward - collateral)
+                                    // Note: the collateral is included in the reward
+                                    format!("+{}", reward)
                                 }
                             }
                         };
