@@ -599,7 +599,13 @@ pub fn data_request_report(
                         let honest = match dr_info.tally.as_ref() {
                             None => format!(""),
                             Some(tally) => {
-                                let collateral = dr_output.collateral;
+                                // TODO: how to get collateral_minimum?
+                                let collateral_minimum = 0;
+                                let collateral = if dr_output.collateral == 0 {
+                                    collateral_minimum
+                                } else {
+                                    dr_output.collateral
+                                };
                                 if tally.slashed_witnesses.contains(&pkh) {
                                     format!("-{}", collateral)
                                 } else {

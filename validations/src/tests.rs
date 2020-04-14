@@ -3467,6 +3467,7 @@ fn dr_pool_with_dr_in_tally_stage_generic(
         reveals_count,
         reveals_count - liars_count,
         &dr_output,
+        ONE_WIT,
     );
 
     (
@@ -3588,7 +3589,7 @@ fn tally_dr_not_tally_stage() {
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0], vec![]);
 
     let mut dr_pool = DataRequestPool::default();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::DataRequestNotFound { hash: dr_pointer },
@@ -3602,7 +3603,7 @@ fn tally_dr_not_tally_stage() {
         )
         .unwrap();
     dr_pool.update_data_request_stages();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
         DataRequestError::NotTallyStage
@@ -3612,7 +3613,7 @@ fn tally_dr_not_tally_stage() {
         .process_commit(&commit_transaction, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
         DataRequestError::NotTallyStage
@@ -3622,7 +3623,7 @@ fn tally_dr_not_tally_stage() {
         .process_reveal(&reveal_transaction, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
 
@@ -3658,7 +3659,7 @@ fn tally_invalid_consensus() {
         vec![vt0, vt_change],
         slashed,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool);
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT);
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MismatchedConsensus {
@@ -3692,7 +3693,7 @@ fn tally_valid() {
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change], slashed);
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
 
@@ -3738,7 +3739,7 @@ fn tally_too_many_outputs() {
         vec![vt0, vt1, vt2, vt3, vt_change],
         slashed,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -3766,7 +3767,7 @@ fn tally_too_less_outputs() {
     };
 
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -3800,7 +3801,7 @@ fn tally_invalid_change() {
     };
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt_change], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidTallyChange {
@@ -3832,7 +3833,7 @@ fn tally_double_reward() {
         value: reward,
     };
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::MultipleRewards { pkh: rewarded[0] },
@@ -3861,7 +3862,7 @@ fn tally_reveal_not_found() {
         value: reward,
     };
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::RevealNotFound,
@@ -3891,7 +3892,7 @@ fn tally_invalid_reward() {
     };
     assert_eq!(change, 0);
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidReward {
@@ -3924,7 +3925,7 @@ fn tally_valid_2_reveals() {
     };
     assert_eq!(change, 0);
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
 
@@ -3960,7 +3961,7 @@ fn tally_valid_3_reveals_dr_liar() {
     assert_eq!(slashed, vec![dr_pkh]);
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1, vt2], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
 
@@ -4000,7 +4001,7 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         vec![vt0, vt1, vt2],
         slashed_witnesses.clone(),
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4042,7 +4043,7 @@ fn tally_dishonest_reward() {
     };
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1, vt2], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -4100,10 +4101,11 @@ fn create_tally_validation_dr_liar() {
             .iter()
             .cloned()
             .collect::<HashSet<PublicKeyHash>>(),
+        ONE_WIT,
     )
     .unwrap();
 
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
 
@@ -4125,7 +4127,7 @@ fn tally_valid_zero_commits() {
         value: change,
     };
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
 
@@ -4147,9 +4149,10 @@ fn create_tally_validation_zero_commits() {
         &report,
         vec![],
         HashSet::<PublicKeyHash>::default(),
+        ONE_WIT,
     )
     .unwrap();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
 
@@ -4176,7 +4179,7 @@ fn tally_invalid_zero_commits() {
         value: change,
     };
     let tally_transaction = TallyTransaction::new(dr_pointer, tally_value, vec![vt0, vt1], slashed);
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::WrongNumberOutputs {
@@ -4236,7 +4239,7 @@ fn tally_valid_zero_reveals() {
         vec![vt1, vt2, vt3, vt4, vt5, vt0],
         slashed,
     );
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
 
@@ -4264,9 +4267,10 @@ fn create_tally_validation_zero_reveals() {
             .iter()
             .cloned()
             .collect::<HashSet<PublicKeyHash>>(),
+        ONE_WIT,
     )
     .unwrap();
-    let x = validate_tally_transaction(&tally_transaction, &dr_pool).map(|_| ());
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
     x.unwrap();
 }
 
@@ -4325,7 +4329,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(0, 0, 0, &dr_output)
+        calculate_witness_reward(0, 0, 0, &dr_output, ONE_WIT)
     );
 
     // Case 0 reveals
@@ -4333,7 +4337,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 0, 0, &dr_output)
+        calculate_witness_reward(5, 0, 0, &dr_output, ONE_WIT)
     );
 
     // Case all honests
@@ -4341,7 +4345,7 @@ fn validate_calculate_witness_reward() {
     let rest = 0;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 5, 5, &dr_output)
+        calculate_witness_reward(5, 5, 5, &dr_output, ONE_WIT)
     );
 
     // Case 2 liars
@@ -4349,7 +4353,7 @@ fn validate_calculate_witness_reward() {
     let rest = 5000 * 2 % 3;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 5, 5 - 2, &dr_output)
+        calculate_witness_reward(5, 5, 5 - 2, &dr_output, ONE_WIT)
     );
 
     // Case 1 liar and 1 non-revealer
@@ -4357,7 +4361,7 @@ fn validate_calculate_witness_reward() {
     let rest = 5000 * 2 % 3;
     assert_eq!(
         (expected_reward, rest),
-        calculate_witness_reward(5, 4, 4 - 1, &dr_output)
+        calculate_witness_reward(5, 4, 4 - 1, &dr_output, ONE_WIT)
     );
 }
 

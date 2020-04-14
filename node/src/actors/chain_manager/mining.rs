@@ -102,6 +102,7 @@ impl ChainManager {
             .clone();
         let mining_bf = consensus_constants.mining_backup_factor;
         let mining_rf = consensus_constants.mining_replication_factor;
+        let collateral_minimum = consensus_constants.collateral_minimum;
 
         // Check eligibility
         // S(H(beacon))
@@ -187,6 +188,7 @@ impl ChainManager {
                     own_pkh,
                     epoch_constants,
                     act.chain_state.block_number(),
+                    collateral_minimum,
                 );
 
                 // Sign the block hash
@@ -299,7 +301,16 @@ impl ChainManager {
                 u16::try_from(data_request_output.data_request.retrieve.len())
                     .unwrap_or(core::u16::MAX);
 
-            let collateral_amount = data_request_output.collateral;
+            let collateral_amount = if data_request_output.collateral == 0 {
+                self.chain_state
+                    .chain_info
+                    .as_ref()
+                    .unwrap()
+                    .consensus_constants
+                    .collateral_minimum
+            } else {
+                data_request_output.collateral
+            };
 
             signature_mngr::vrf_prove(VrfMessage::data_request(dr_beacon, dr_pointer))
                 .map_err(move |e| {
@@ -512,6 +523,13 @@ impl ChainManager {
         &mut self,
     ) -> impl Future<Item = Vec<TallyTransaction>, Error = ()> {
         let data_request_pool = &self.chain_state.data_request_pool;
+        let collateral_minimum = self
+            .chain_state
+            .chain_info
+            .as_ref()
+            .unwrap()
+            .consensus_constants
+            .collateral_minimum;
 
         let dr_reveals = data_request_pool
             .get_all_reveals()
@@ -529,7 +547,7 @@ impl ChainManager {
         let future_tally_transactions =
             dr_reveals
                 .into_iter()
-                .map(|(dr_pointer, reveals, dr_state)| {
+                .map(move |(dr_pointer, reveals, dr_state)| {
                     log::debug!("Building tally for data request {}", dr_pointer);
 
                     // Use the serial decoder to decode all the reveals in a lossy way, i.e. will
@@ -587,6 +605,7 @@ impl ChainManager {
                                 &tally_result,
                                 reveals.iter().map(|r| r.body.pkh).collect(),
                                 committers,
+                                collateral_minimum,
                             );
 
                             match tally {
@@ -643,6 +662,7 @@ fn build_block(
     own_pkh: PublicKeyHash,
     epoch_constants: EpochConstants,
     block_number: u32,
+    collateral_minimum: u64,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -724,6 +744,7 @@ fn build_block(
                 reveals_count,
                 honests_count,
                 &dr_state.data_request,
+                collateral_minimum,
             );
             transaction_fees += dr_state.data_request.tally_fee + extra_tally_fee;
         } else {
@@ -907,6 +928,7 @@ mod tests {
         let block_beacon = CheckpointBeacon::default();
         let block_proof = BlockEligibilityClaim::default();
         let block_number = 1;
+        let collateral_minimum = 1_000_000_000;
 
         // Build empty block (because max weight is zero)
         let (block_header, txns) = build_block(
@@ -918,6 +940,7 @@ mod tests {
             PublicKeyHash::default(),
             EpochConstants::default(),
             block_number,
+            collateral_minimum,
         );
         let block = Block {
             block_header,
@@ -959,6 +982,7 @@ mod tests {
         };
         let block_proof = BlockEligibilityClaim::create(vrf, &secret_key, block_beacon).unwrap();
         let block_number = 1;
+        let collateral_minimum = 1_000_000_000;
 
         // Build empty block (because max weight is zero)
 
@@ -971,6 +995,7 @@ mod tests {
             PublicKeyHash::default(),
             EpochConstants::default(),
             block_number,
+            collateral_minimum,
         );
 
         // Create a KeyedSignature
@@ -1104,6 +1129,7 @@ mod tests {
         let block_beacon = CheckpointBeacon::default();
         let block_proof = BlockEligibilityClaim::default();
         let block_number = 1;
+        let collateral_minimum = 1_000_000_000;
 
         // Build block with
 
@@ -1116,6 +1142,7 @@ mod tests {
             PublicKeyHash::default(),
             EpochConstants::default(),
             block_number,
+            collateral_minimum,
         );
         let block = Block {
             block_header,

@@ -872,6 +872,7 @@ fn create_expected_report(
 fn create_expected_tally_transaction(
     ta_tx: &TallyTransaction,
     dr_pool: &DataRequestPool,
+    collateral_minimum: u64,
 ) -> Result<(TallyTransaction, DataRequestState), failure::Error> {
     // Get DataRequestState
     let dr_pointer = ta_tx.dr_pointer;
@@ -911,6 +912,7 @@ fn create_expected_tally_transaction(
         &report,
         reveal_txns.into_iter().map(|tx| tx.body.pkh).collect(),
         committers,
+        collateral_minimum,
     )?;
 
     Ok((ta_tx, dr_state.clone()))
@@ -920,8 +922,10 @@ fn create_expected_tally_transaction(
 pub fn validate_tally_transaction<'a>(
     ta_tx: &'a TallyTransaction,
     dr_pool: &DataRequestPool,
+    collateral_minimum: u64,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
-    let (expected_ta_tx, dr_state) = create_expected_tally_transaction(ta_tx, dr_pool)?;
+    let (expected_ta_tx, dr_state) =
+        create_expected_tally_transaction(ta_tx, dr_pool, collateral_minimum)?;
 
     let sorted_slashed = ta_tx.slashed_witnesses.iter().cloned().sorted().collect();
     let sorted_expected_slashed = expected_ta_tx
@@ -979,6 +983,7 @@ pub fn validate_tally_transaction<'a>(
         reveals_count,
         honests_count,
         &dr_state.data_request,
+        collateral_minimum,
     );
     for (i, output) in ta_tx.outputs.iter().enumerate() {
         // Validation of tally change value
@@ -1021,7 +1026,11 @@ pub fn validate_tally_transaction<'a>(
     }
 
     let expected_collateral_value = if commits_count > 0 {
-        dr_state.data_request.collateral * u64::from(dr_state.data_request.witnesses)
+        (if dr_state.data_request.collateral == 0 {
+            collateral_minimum
+        } else {
+            dr_state.data_request.collateral
+        }) * u64::from(dr_state.data_request.witnesses)
     } else {
         // In case of no commits, collateral does not affect
         0
@@ -1443,7 +1452,7 @@ pub fn validate_block_transactions(
     let mut ta_mt = ProgressiveMerkleTree::sha256();
     let mut tally_hs = HashSet::with_capacity(block.txns.tally_txns.len());
     for transaction in &block.txns.tally_txns {
-        let (outputs, fee) = validate_tally_transaction(transaction, dr_pool)?;
+        let (outputs, fee) = validate_tally_transaction(transaction, dr_pool, collateral_minimum)?;
 
         // Validation for only one tally for data request in a block
         let dr_pointer = transaction.dr_pointer;

@@ -361,20 +361,26 @@ pub fn calculate_witness_reward(
     reveals_count: usize,
     honests_count: usize,
     dr_output: &DataRequestOutput,
+    collateral_minimum: u64,
 ) -> (u64, u64) {
+    let collateral = if dr_output.collateral == 0 {
+        collateral_minimum
+    } else {
+        dr_output.collateral
+    };
     if commits_count == 0 {
         (0, 0)
     } else if reveals_count == 0 {
-        (dr_output.collateral, 0)
+        (collateral, 0)
     } else {
         let liars_count = reveals_count - honests_count;
         let slashed_count = (commits_count - reveals_count + liars_count) as u64;
         let honests_count = honests_count as u64;
-        let slashed_collateral_reward = dr_output.collateral * slashed_count / honests_count;
-        let slashed_collateral_remainder = (dr_output.collateral * slashed_count) % honests_count;
+        let slashed_collateral_reward = collateral * slashed_count / honests_count;
+        let slashed_collateral_remainder = (collateral * slashed_count) % honests_count;
 
         (
-            dr_output.witness_reward + dr_output.collateral + slashed_collateral_reward,
+            dr_output.witness_reward + collateral + slashed_collateral_reward,
             slashed_collateral_remainder,
         )
     }
@@ -387,6 +393,7 @@ pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
     report: &RadonReport<RT>,
     revealers: Vec<PublicKeyHash>,
     committers: HashSet<PublicKeyHash, S>,
+    collateral_minimum: u64,
 ) -> Result<TallyTransaction, failure::Error>
 where
     RT: TypeLike,
@@ -412,8 +419,13 @@ where
         });
         let honests_count = reveals_count - liars_count;
         // Collateral division rest goes for the miner
-        let (reward, _rest) =
-            calculate_witness_reward(commits_count, reveals_count, honests_count, &dr_output);
+        let (reward, _rest) = calculate_witness_reward(
+            commits_count,
+            reveals_count,
+            honests_count,
+            &dr_output,
+            collateral_minimum,
+        );
 
         let mut outputs: Vec<ValueTransferOutput> = if reveals_count > 0 {
             revealers
@@ -436,7 +448,11 @@ where
                 .collect()
         } else {
             // In case of no revealers, collateral returns to their owners
-            let reward = dr_output.collateral;
+            let reward = if dr_output.collateral == 0 {
+                collateral_minimum
+            } else {
+                dr_output.collateral
+            };
 
             slashed_witnesses
                 .iter()
