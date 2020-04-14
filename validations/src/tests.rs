@@ -2764,6 +2764,116 @@ fn commitment_collateral_negative_amount() {
 }
 
 #[test]
+fn commitment_collateral_zero_is_minimum() {
+    let vto1 = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: ONE_WIT / 2,
+        time_lock: 0,
+    };
+    let vto2 = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: ONE_WIT / 2,
+        time_lock: 0,
+    };
+    let utxo_set = build_utxo_set_with_mint(vec![vto1, vto2], None, vec![]);
+    let output1 = utxo_set.iter().next().unwrap().0.clone();
+    let output2 = utxo_set.iter().nth(1).unwrap().0.clone();
+    let inputs = vec![Input::new(output1), Input::new(output2)];
+    let change_output1 = ValueTransferOutput {
+        pkh: Default::default(),
+        value: 1,
+        time_lock: 0,
+    };
+    let change_output2 = ValueTransferOutput {
+        pkh: MY_PKH_1.parse().unwrap(),
+        value: ONE_WIT,
+        time_lock: 0,
+    };
+
+    let collateral = (inputs, vec![change_output1, change_output2]);
+    let x = {
+        let mut signatures_to_verify = vec![];
+        let mut dr_pool = DataRequestPool::default();
+        let commit_beacon = CheckpointBeacon::default();
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let rep_eng = ReputationEngine::new(100);
+        let secret_key = SecretKey {
+            bytes: Protected::from(PRIV_KEY_1.to_vec()),
+        };
+
+        let dro = DataRequestOutput {
+            witness_reward: 1000,
+            witnesses: 1,
+            min_consensus_percentage: 51,
+            data_request: example_data_request(),
+            collateral: 0,
+            ..DataRequestOutput::default()
+        };
+        let dr_body = DRTransactionBody::new(vec![], vec![], dro);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
+        let dr_hash = dr_transaction.hash();
+        // dr_hash changed because the collateral is 0
+        assert_eq!(
+            dr_hash,
+            "0a866ced5ca378e3e01a75f755384972868e99f838dec4ddb06adc465f5e481c"
+                .parse()
+                .unwrap()
+        );
+        let dr_epoch = 0;
+        dr_pool
+            .process_data_request(
+                &dr_transaction,
+                dr_epoch,
+                EpochConstants::default(),
+                &Hash::default(),
+            )
+            .unwrap();
+
+        // Insert valid proof
+        let mut cb = CommitTransactionBody::default();
+        cb.dr_pointer = dr_hash;
+        cb.proof =
+            DataRequestEligibilityClaim::create(vrf, &secret_key, commit_beacon, dr_hash).unwrap();
+
+        let block_number = 100_000;
+        let collateral_minimum = 1;
+        let collateral_age = 1;
+        let utxo_diff = UtxoDiff::new(&utxo_set, 0);
+
+        let (inputs, outputs) = collateral;
+        cb.collateral = inputs;
+        cb.outputs = outputs;
+
+        // Sign commitment
+        let cs = sign_tx(PRIV_KEY_1, &cb);
+        let c_tx = CommitTransaction::new(cb, vec![cs]);
+
+        validate_commit_transaction(
+            &c_tx,
+            &dr_pool,
+            commit_beacon,
+            &mut signatures_to_verify,
+            &rep_eng,
+            0,
+            EpochConstants::default(),
+            &utxo_diff,
+            collateral_minimum,
+            collateral_age,
+            block_number,
+        )
+        .map(|_| ())
+    };
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::NegativeCollateral {
+            input_value: ONE_WIT,
+            output_value: ONE_WIT + 1
+        }
+    );
+}
+
+#[test]
 fn commitment_timelock() {
     // 1 epoch = 1000 seconds, for easy testing
     let epoch_constants = EpochConstants {
@@ -4246,6 +4356,38 @@ fn tally_valid_zero_reveals() {
 #[test]
 fn create_tally_validation_zero_reveals() {
     let dr_output = example_data_request_output(5, 200, 20);
+    let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, _change, reward) =
+        dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
+    assert_eq!(reward, ONE_WIT);
+
+    // Tally value: NoReveals commits Error
+    let clause_result = evaluate_tally_precondition_clause(vec![], 0.51, 5);
+    let script = RADTally::default();
+    let report = construct_report_from_clause_result(clause_result, &script, 0);
+
+    let mut committers = rewarded;
+    committers.extend(slashed);
+    let tally_transaction = create_tally(
+        dr_pointer,
+        &dr_output,
+        dr_pkh,
+        &report,
+        vec![],
+        committers
+            .iter()
+            .cloned()
+            .collect::<HashSet<PublicKeyHash>>(),
+        ONE_WIT,
+    )
+    .unwrap();
+    let x = validate_tally_transaction(&tally_transaction, &dr_pool, ONE_WIT).map(|_| ());
+    x.unwrap();
+}
+
+#[test]
+fn create_tally_validation_zero_reveals_zero_collateral() {
+    let mut dr_output = example_data_request_output(5, 200, 20);
+    dr_output.collateral = 0;
     let (dr_pool, dr_pointer, rewarded, slashed, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output.clone(), 5, 0, 0, vec![], vec![]);
     assert_eq!(reward, ONE_WIT);
