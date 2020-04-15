@@ -273,12 +273,9 @@ impl Worker {
                 "balance": balance.amount,
             },
             "node": {
-                "address": "XXX.XXX.XXX.XXX:XXXXX",
-                "network": "TX",
-                "last_block": {
-                    "checkpoint": 1234,
-                    "hashPrevBlock": ""
-                },
+                "address": self.node.address,
+                "network": self.node.get_network(),
+                "last_beacon": self.node.get_last_beacon(),
             },
             "wallet": {
                 "id": wallet_data.id,
@@ -548,10 +545,31 @@ impl Worker {
         let mut latest_beacon = since_beacon;
         let mut since_beacon = since_beacon;
 
+        // Query the node for the latest block in the chain
+        let tip_fut = self.get_block_chain(0, -1);
+        let tip_res: Vec<ChainEntry> = futures03::executor::block_on(tip_fut)?;
+        let tip = CheckpointBeacon::try_from(
+            tip_res
+                .get(0)
+                .expect("A Witnet chain should always have at least one block"),
+        )
+        .expect("A Witnet node should present block hashes as 64 hexadecimal characters");
+
+        // Store the tip into the worker in form of beacon
+        self.node.update_last_beacon(tip);
+
+        if let Some(sink) = sink.as_ref() {
+            log::debug!("[SU] Notifying balance of wallet {}", wallet_id,);
+            self.notify_status(&wallet, sink).ok();
+        } else {
+            log::debug!("[SU] No sinks need to be notified for wallet {}", wallet_id);
+        }
+
         log::info!(
-            "[SU] Starting synchronization of wallet {}. Last known beacon is {:?}",
+            "[SU] Starting synchronization of wallet {}.\n\t[Local beacon] {:?}\n\t[Node beacon ] {:?}",
             wallet_id,
-            since_beacon
+            since_beacon,
+            tip
         );
 
         loop {
@@ -578,6 +596,13 @@ impl Worker {
                 };
             }
 
+            if let Some(sink) = sink.as_ref() {
+                log::debug!("[SU] Notifying balance of wallet {}", wallet_id,);
+                self.notify_status(&wallet, sink).ok();
+            } else {
+                log::debug!("[SU] No sinks need to be notified for wallet {}", wallet_id);
+            }
+
             // Keep asking for new batches of blocks until we get less than expected, which signals
             // that there are no more blocks to process.
             if batch_size < i128::from(limit) {
@@ -590,13 +615,6 @@ impl Worker {
                 );
                 since_beacon = latest_beacon;
             }
-        }
-
-        if let Some(sink) = sink.as_ref() {
-            log::trace!("[SU] Notifying balance of wallet {}", wallet_id,);
-            self.notify_status(&wallet, sink).ok();
-        } else {
-            log::trace!("[SU] No sinks need to be notified for wallet {}", wallet_id);
         }
 
         log::info!(
@@ -631,7 +649,7 @@ impl Worker {
 
         let f = self
             .node
-            .address
+            .client
             .send(req)
             .flatten()
             .map(|json| {
@@ -662,7 +680,7 @@ impl Worker {
             .expect("params failed serialization");
         let f = self
             .node
-            .address
+            .client
             .send(req)
             .flatten()
             .map(|json| {
@@ -684,14 +702,22 @@ impl Worker {
         wallet: types::SessionWallet,
         sink: Option<types::Sink>,
     ) -> Result<()> {
+        let block_previous_beacon = block.block_header.beacon;
+        let local_chain_tip = wallet.public_data()?.last_sync;
+
+        // Immediately update the local reference to the node's last beacon
+        let block_own_beacon = CheckpointBeacon {
+            checkpoint: block.block_header.beacon.checkpoint,
+            hash_prev_block: block.hash(),
+        };
+        self.node.update_last_beacon(block_own_beacon);
+
         // Stop processing the block if it does not directly build on top of our tip of the chain
-        let block_previous_beacon = block.block_header.beacon.hash_prev_block;
-        let local_chain_tip = wallet.public_data()?.last_sync.hash_prev_block;
-        if block_previous_beacon != local_chain_tip {
+        if block_previous_beacon.hash_prev_block != local_chain_tip.hash_prev_block {
             log::warn!("Tried to process a block that does not build directly on top of our tip of the chain. ({:?} != {:?})", block_previous_beacon, local_chain_tip );
             return Err(block_error(BlockError::NotConnectedToLocalChainTip {
-                block_previous_beacon,
-                local_chain_tip,
+                block_previous_beacon: block_previous_beacon.hash_prev_block,
+                local_chain_tip: local_chain_tip.hash_prev_block,
             }));
         }
 
@@ -723,10 +749,10 @@ impl Worker {
         self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
 
         if let Some(sink) = sink.as_ref() {
-            log::trace!("[RT] Notifying balance of wallet {}", wallet.id);
+            log::debug!("[RT] Notifying balance of wallet {}", wallet.id);
             self.notify_status(&wallet, sink).ok();
         } else {
-            log::trace!("[RT] No sinks need to be notified for wallet {}", wallet.id);
+            log::debug!("[RT] No sinks need to be notified for wallet {}", wallet.id);
         }
 
         Ok(())

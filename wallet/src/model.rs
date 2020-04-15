@@ -190,11 +190,11 @@ pub struct OutPtr {
 
 impl OutPtr {
     /// Create a `TransactionId` from a the transaction hash.
-    pub fn transaction_id(&self) -> types::TransactionId {
+    pub fn transaction_id(&self) -> types::Hash {
         let mut array_bytes = [0; 32];
         array_bytes.copy_from_slice(&self.txn_hash);
 
-        types::TransactionId::SHA256(array_bytes)
+        types::Hash::SHA256(array_bytes)
     }
 }
 

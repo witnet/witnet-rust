@@ -1,11 +1,12 @@
-use std::time::Duration;
+use std::{sync::RwLock, time::Duration};
 
 use actix::Addr;
 
-use witnet_data_structures::chain::{EpochConstants, Hash};
+use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants, Hash};
 use witnet_net::client::tcp::JsonRpcClient;
 
 use crate::types;
+use std::sync::Arc;
 
 /// Initialization parameters that can be specific for each wallet.
 #[derive(Clone)]
@@ -43,6 +44,54 @@ impl Default for Params {
 
 #[derive(Clone)]
 pub struct NodeParams {
-    pub address: Addr<JsonRpcClient>,
+    /// The IP address and port of the node we are connecting to.
+    pub address: String,
+    /// Reference to the JSON-RPC client actor.
+    pub client: Addr<JsonRpcClient>,
+    /// A reference to the latest block that the node has consolidated into its block chain.
+    pub last_beacon: Arc<RwLock<CheckpointBeacon>>,
+    /// The name of the network in which the node is operating.
+    pub network: Arc<RwLock<Option<String>>>,
+    /// Timeout for JSON-RPC requests sent to the node.
     pub requests_timeout: Duration,
+}
+
+impl NodeParams {
+    /// Retrieve the `last_beacon` field.
+    /// This panics if the `RwLock` is poisoned.
+    pub fn get_last_beacon(&self) -> CheckpointBeacon {
+        let lock = (*self.last_beacon).read();
+        lock.expect("Read locks should only fail if poisoned.")
+            .clone()
+    }
+
+    /// Retrieve the `network` field.
+    /// This panics if the `RwLock` is poisoned.
+    pub fn get_network(&self) -> Option<String> {
+        let lock = (*self.network).read();
+        lock.expect("Read locks should only fail if poisoned.")
+            .clone()
+    }
+
+    /// Update the `last_beacon` field with the information of the latest block that the node has
+    /// consolidated into its block chain.
+    /// This is a best-effort method. It will silently do nothing if the write lock on `last_beacon`
+    /// cannot be acquired or if the new beacon looks older than the current one.  
+    pub fn update_last_beacon(&self, new_beacon: CheckpointBeacon) {
+        let lock = (*self.last_beacon).write();
+        if let Ok(mut beacon) = lock {
+            if new_beacon.checkpoint > beacon.checkpoint {
+                *beacon = new_beacon
+            }
+        }
+    }
+
+    /// Update the `network` field in runtime, as it is unknown at boot.
+    /// This is a best-effort method. It will silently do nothing if the write lock on `network`.
+    pub fn update_network(&self, new_network: String) {
+        let lock = (*self.network).write();
+        if let Ok(mut network) = lock {
+            *network = Some(new_network)
+        }
+    }
 }

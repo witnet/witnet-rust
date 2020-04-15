@@ -14,7 +14,7 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use actix::prelude::*;
@@ -23,7 +23,7 @@ use jsonrpc_core as rpc;
 use jsonrpc_pubsub as pubsub;
 
 use witnet_config::config::Config;
-use witnet_data_structures::chain::EpochConstants;
+use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants};
 use witnet_net::{client::tcp::JsonRpcClient, server::ws::Server};
 
 use crate::actors::app;
@@ -77,20 +77,24 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let system = System::new("witnet-wallet");
 
     let node_jsonrpc_server_address = conf.jsonrpc.server_address;
-    let client = node_url.map_or_else(
-        || {
-            log::error!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
+
+    // Nicely unwrap the `Option<String>` for `node_url`
+    let node_url = node_url.ok_or_else(|| {
+        log::error!("No node url in config! To connect to a Witnet node, you must manually add the address to the configuration file as follows:\n\
                         [wallet]\n\
                         node_url = \"{}\"\n", node_jsonrpc_server_address);
-            Err(app::Error::NodeNotConnected)
-        },
-        |url| {
-            if url != node_jsonrpc_server_address.to_string() {
-                log::warn!("The local Witnet node JSON-RPC server is configured to listen at {} but the wallet will connect to {}", node_jsonrpc_server_address, url);
-            }
-            JsonRpcClient::start(url.as_ref()).map_err(|_| app::Error::NodeNotConnected)
-        },
-    )?;
+
+        app::Error::NodeNotConnected
+    })?;
+
+    // Connecting to a remote node server that is not configured locally is not a deal breaker,
+    // but still could mean some misconfiguration, so we print a warning with some help.
+    if node_url != node_jsonrpc_server_address.to_string() {
+        log::warn!("The local Witnet node JSON-RPC server is configured to listen at {} but the wallet will connect to {}", node_jsonrpc_server_address, node_url);
+    }
+
+    let client =
+        JsonRpcClient::start(node_url.as_ref()).map_err(|_| app::Error::NodeNotConnected)?;
 
     let db = Arc::new(
         ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
@@ -109,8 +113,17 @@ pub fn run(conf: Config) -> Result<(), Error> {
         node_sync_batch_size,
         genesis_hash,
     };
+
+    let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {
+        checkpoint: 0,
+        hash_prev_block: genesis_hash,
+    }));
+    let network = Arc::new(RwLock::new(None));
     let node_params = params::NodeParams {
-        address: client.clone(),
+        address: node_url,
+        client: client.clone(),
+        last_beacon,
+        network,
         requests_timeout,
     };
 
