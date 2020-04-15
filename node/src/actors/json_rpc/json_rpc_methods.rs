@@ -946,7 +946,7 @@ pub fn master_key_export() -> JsonRpcResultAsync {
 }
 
 /// Named tuple of `(address, type)`
-#[derive(Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct AddrType {
     /// Socket address of the peer
     pub address: String,

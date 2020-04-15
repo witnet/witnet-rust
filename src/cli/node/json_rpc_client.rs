@@ -12,6 +12,7 @@ use ansi_term::Color::{Purple, Red, White, Yellow};
 use failure::{bail, Fail};
 use itertools::Itertools;
 use log::*;
+use prettytable::{cell, row, Table};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use witnet_crypto::key::{CryptoEngine, ExtendedPK, ExtendedSK};
@@ -24,7 +25,9 @@ use witnet_data_structures::{
     transaction::Transaction,
 };
 use witnet_node::actors::{
-    json_rpc::json_rpc_methods::{GetBlockChainParams, GetTransactionOutput},
+    json_rpc::json_rpc_methods::{
+        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult,
+    },
     messages::BuildVtt,
 };
 use witnet_rad::types::RadonTypes;
@@ -647,6 +650,28 @@ pub fn data_request_report(
         // dr_info already ends with a newline, no need to println
         print!("{}", dr_info);
     }
+
+    Ok(())
+}
+
+pub fn get_peers(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = r#"{"jsonrpc": "2.0","method": "peers", "id": "1"}"#;
+    let response = send_request(&mut stream, &request)?;
+    let peers: PeersResult = parse_response(&response)?;
+
+    if peers.is_empty() {
+        println!("No peers connected");
+        return Ok(());
+    }
+
+    let mut table = Table::new();
+    table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    table.set_titles(row!["Address", "Type"]);
+    for AddrType { address, type_ } in peers {
+        table.add_row(row![address, type_]);
+    }
+    table.printstd();
 
     Ok(())
 }
