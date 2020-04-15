@@ -301,6 +301,24 @@ where
         cons_sessions.unregister_session(address).map(|_| ())
     }
 
+    /// Get all the consolidated sessions addresses
+    pub fn get_consolidated_sessions_addr(&self) -> GetConsolidatedPeersResult {
+        GetConsolidatedPeersResult {
+            inbound: self
+                .inbound_consolidated
+                .collection
+                .iter()
+                .map(|(k, _v)| *k)
+                .collect(),
+            outbound: self
+                .outbound_consolidated
+                .collection
+                .iter()
+                .map(|(k, _v)| *k)
+                .collect(),
+        }
+    }
+
     /// Show the addresses of all the sessions
     pub fn show_ips(&self) -> Vec<String> {
         ["Inbound Unconsolidated".to_string()]
@@ -344,4 +362,15 @@ where
             )
             .collect()
     }
+}
+
+/// List of inbound and outbound peers
+#[derive(Clone, Debug)]
+pub struct GetConsolidatedPeersResult {
+    /// List of inbound peers: these opened a connection to us.
+    /// The address shown here is the inbound address, we cannot use it to connect to this peer.
+    pub inbound: Vec<SocketAddr>,
+    /// List of outbound peers: we opened the connection to these ones.
+    /// The address shown here can be used to connect to this peers in the future.
+    pub outbound: Vec<SocketAddr>,
 }

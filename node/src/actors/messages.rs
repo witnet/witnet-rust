@@ -26,7 +26,7 @@ use witnet_data_structures::{
     },
     transaction::{CommitTransaction, RevealTransaction, Transaction},
 };
-use witnet_p2p::sessions::{SessionStatus, SessionType};
+use witnet_p2p::sessions::{GetConsolidatedPeersResult, SessionStatus, SessionType};
 use witnet_rad::error::RadError;
 use witnet_rad::types::RadonTypes;
 
@@ -761,6 +761,14 @@ pub struct NumSessionsResult {
     pub inbound: usize,
     /// Outbound
     pub outbound: usize,
+}
+
+/// Get list of inbound and outbound peers
+#[derive(Clone, Debug)]
+pub struct GetConsolidatedPeers;
+
+impl Message for GetConsolidatedPeers {
+    type Result = Result<GetConsolidatedPeersResult, ()>;
 }
 
 // JsonRpcServer messages (notifications)
