@@ -333,6 +333,12 @@ impl Worker {
                     .iter()
                     .map(|input| input.output_pointer())
                     .collect(),
+                types::Transaction::Commit(commit) => commit
+                    .body
+                    .collateral
+                    .iter()
+                    .map(|input| input.output_pointer())
+                    .collect(),
                 _ => vec![],
             })
             .collect();
@@ -371,37 +377,33 @@ impl Worker {
                     .outputs
                     .get(output.output_index as usize)
                     .map(types::VttOutput::clone)
-                    .ok_or_else(|| Error::OutputIndexNotFound(
-                        output.output_index,
-                        format!("{:?}", txn),
-                    )),
+                    .ok_or_else(|| {
+                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    }),
                 types::Transaction::DataRequest(dr) => dr
                     .body
                     .outputs
                     .get(output.output_index as usize)
                     .map(types::VttOutput::clone)
-                    .ok_or_else(|| Error::OutputIndexNotFound(
-                        output.output_index,
-                        format!("{:?}", txn),
-                    )),
+                    .ok_or_else(|| {
+                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    }),
                 types::Transaction::Tally(tally) => tally
                     .outputs
                     .get(output.output_index as usize)
                     .map(types::VttOutput::clone)
-                    .ok_or_else(|| Error::OutputIndexNotFound(
-                        output.output_index,
-                        format!("{:?}", txn),
-                    )),
+                    .ok_or_else(|| {
+                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    }),
                 types::Transaction::Mint(mint) => Ok(mint.output.clone()),
                 types::Transaction::Commit(commit) => commit
                     .body
                     .outputs
                     .get(output.output_index as usize)
                     .map(types::VttOutput::clone)
-                    .ok_or_else(|| Error::OutputIndexNotFound(
-                        output.output_index,
-                        format!("{:?}", txn),
-                    )),
+                    .ok_or_else(|| {
+                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    }),
                 _ => Err(Error::TransactionTypeNotSupported),
             })
             .collect();

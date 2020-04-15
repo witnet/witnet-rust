@@ -121,6 +121,10 @@ pub enum TransactionData {
     DataRequest(DrData),
     #[serde(rename = "tally")]
     Tally(TallyData),
+    #[serde(rename = "mint")]
+    Mint(MintData),
+    #[serde(rename = "commit")]
+    Commit(VtData),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -143,6 +147,11 @@ pub struct TallyData {
     pub outputs: Vec<Output>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     pub tally: TallyReport,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MintData {
+    pub output: Output,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]

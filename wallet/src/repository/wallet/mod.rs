@@ -36,8 +36,8 @@ pub struct Wallet<T> {
 }
 
 impl<T> Wallet<T>
-where
-    T: Database,
+    where
+        T: Database,
 {
     pub fn unlock(id: &str, db: T, params: Params, engine: types::CryptoEngine) -> Result<Self> {
         let id = id.to_owned();
@@ -328,13 +328,13 @@ where
         let mut filtered_txns = vec![];
         for txn in txns {
             // Inputs and outputs from different transaction types
-            // FIXME: refactor duplicated code fragment
-            let v = vec![];
             let (inputs, outputs) = match txn {
-                types::Transaction::ValueTransfer(txn) => (&txn.body.inputs, &txn.body.outputs),
-                types::Transaction::DataRequest(txn) => (&txn.body.inputs, &txn.body.outputs),
-                types::Transaction::Tally(tally) => (&v, &tally.outputs),
-                _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
+                types::Transaction::ValueTransfer(vt) => (vt.body.inputs.clone(), vt.body.outputs.clone()),
+                types::Transaction::DataRequest(dr) => (dr.body.inputs.clone(), dr.body.outputs.clone()),
+                types::Transaction::Commit(commit) => (commit.body.collateral.clone(), commit.body.outputs.clone()),
+                types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
+                types::Transaction::Mint(mint) => (vec![], vec![mint.output.clone()]),
+                _ => continue,
             };
 
             let check_db = |output: &types::VttOutput| {
@@ -346,9 +346,7 @@ where
             if inputs
                 .iter()
                 .any(|input| state.utxo_set.get(&input.output_pointer().into()).is_some())
-                || outputs
-                    .iter()
-                    .any(check_db)
+                || outputs.iter().any(check_db)
             {
                 filtered_txns.push(txn.clone());
             }
@@ -570,16 +568,19 @@ where
         block_info: &model::Beacon,
         input_values: &[types::VttOutput],
     ) -> Result<()> {
-        // Wallet's account mutation (utxo set + balance changes)
-        let v = vec![];
+        // Inputs and outputs from different transaction types
         let (inputs, outputs) = match txn {
-            types::Transaction::ValueTransfer(txn) => (&txn.body.inputs, &txn.body.outputs),
-            types::Transaction::DataRequest(txn) => (&txn.body.inputs, &txn.body.outputs),
-            types::Transaction::Tally(tally) => (&v, &tally.outputs),
+            types::Transaction::ValueTransfer(vt) => (vt.body.inputs.clone(), vt.body.outputs.clone()),
+            types::Transaction::DataRequest(dr) => (dr.body.inputs.clone(), dr.body.outputs.clone()),
+            types::Transaction::Commit(commit) => (commit.body.collateral.clone(), commit.body.outputs.clone()),
+            types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
+            types::Transaction::Mint(mint) => (vec![], vec![mint.output.clone()]),
             _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
         };
+
+        // Wallet's account mutation (utxo set + balance changes)
         let account_mutation =
-            self._check_txn_balance(&state.utxo_set, txn.hash().as_ref(), inputs, outputs)?;
+            self._check_txn_balance(&state.utxo_set, txn.hash().as_ref(), &inputs, &outputs)?;
 
         // If UTXO set has changed, then update memory state and DB
         if !account_mutation.utxo_inserts.is_empty() || !account_mutation.utxo_removals.is_empty() {
@@ -834,10 +835,25 @@ fn build_balance_movement(
                     .collect::<Vec<model::Output>>(),
             })
         }
-        types::Transaction::DataRequest(dr) => {
-            model::TransactionData::DataRequest(model::DrData {
+        types::Transaction::DataRequest(dr) => model::TransactionData::DataRequest(model::DrData {
+            inputs: transaction_inputs,
+            outputs: dr
+                .body
+                .outputs
+                .clone()
+                .into_iter()
+                .map(|output| model::Output {
+                    address: output.pkh.to_string(),
+                    time_lock: output.time_lock,
+                    value: output.value,
+                })
+                .collect::<Vec<model::Output>>(),
+            tally: None,
+        }),
+        types::Transaction::Commit(commit) => {
+            model::TransactionData::Commit(model::VtData {
                 inputs: transaction_inputs,
-                outputs: dr
+                outputs: commit
                     .body
                     .outputs
                     .clone()
@@ -848,9 +864,15 @@ fn build_balance_movement(
                         value: output.value,
                     })
                     .collect::<Vec<model::Output>>(),
-                tally: None,
             })
         }
+        types::Transaction::Mint(mint) => model::TransactionData::Mint(model::MintData {
+            output: model::Output {
+                address: mint.output.pkh.to_string(),
+                time_lock: mint.output.time_lock,
+                value: mint.output.value,
+            }
+        }),
         types::Transaction::Tally(tally) => model::TransactionData::Tally(model::TallyData {
             request_transaction_hash: tally.dr_pointer.to_string(),
             outputs: tally
@@ -898,8 +920,8 @@ fn build_balance_movement(
 
 #[cfg(test)]
 impl<T> Wallet<T>
-where
-    T: Database,
+    where
+        T: Database,
 {
     pub fn utxo_set(&self) -> Result<model::UtxoSet> {
         let state = self.state.read()?;
