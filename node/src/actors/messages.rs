@@ -17,13 +17,14 @@ use actix::{
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
-use witnet_data_structures::radon_report::RadonReport;
 use witnet_data_structures::{
+    chain::UtxoSelectionStrategy,
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, PointerToBlock, PublicKeyHash, RADRequest, RADTally,
         Reputation, UtxoInfo, ValueTransferOutput,
     },
+    radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
 };
 use witnet_p2p::sessions::{GetConsolidatedPeersResult, SessionStatus, SessionType};
@@ -169,6 +170,9 @@ pub struct BuildVtt {
     pub vto: Vec<ValueTransferOutput>,
     /// Fee
     pub fee: u64,
+    /// Strategy to sort the unspent outputs pool
+    #[serde(default)]
+    pub utxo_strategy: UtxoSelectionStrategy,
 }
 
 impl Message for BuildVtt {

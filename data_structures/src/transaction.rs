@@ -474,6 +474,12 @@ impl MintTransaction {
         }
     }
 
+    /// Try to create a MintTransaction with number of outputs equal to `utxos_required`,
+    /// where every one of those outputs must be equal to or greater than `collateral_minimum`.
+    /// If the reward is too small, the number of outputs may be smaller than `utxos_required`.
+    /// The output value will only be smaller than `collateral_minimum` if the `reward` is smaller
+    /// than `collateral_minimum`, in which case this function will create a MintTransaction with
+    /// exactly one output
     pub fn with_split_utxos(
         epoch: Epoch,
         reward: u64,

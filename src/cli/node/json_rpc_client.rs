@@ -19,7 +19,7 @@ use witnet_crypto::key::{CryptoEngine, ExtendedPK, ExtendedSK};
 use witnet_data_structures::{
     chain::{
         DataRequestInfo, DataRequestOutput, Environment, OutputPointer, PublicKey, PublicKeyHash,
-        Reputation, UtxoInfo, ValueTransferOutput,
+        Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -31,7 +31,7 @@ use witnet_node::actors::{
     messages::BuildVtt,
 };
 use witnet_rad::types::RadonTypes;
-use witnet_util::credentials::create_credentials_file;
+use witnet_util::{credentials::create_credentials_file, timestamp::pretty_print};
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request, Wit};
 
 pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
@@ -115,17 +115,42 @@ pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
+#[allow(clippy::cast_possible_wrap)]
 pub fn get_utxo_info(addr: SocketAddr) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "getUtxoInfo", "id": "1"}"#;
     let response = send_request(&mut stream, &request)?;
     let utxo_info = parse_response::<UtxoInfo>(&response)?;
 
-    println!("List of own utxos:");
     let utxos_len = utxo_info.utxos.len();
-    for (utxo, value) in utxo_info.utxos {
-        println!("{} -> {} wits", utxo, Wit::from_nanowits(value));
+    let mut table = Table::new();
+    table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    table.set_titles(row![
+        "OutputPointer",
+        "Value (in wits)",
+        "Time lock",
+        "Ready for collateral"
+    ]);
+    for utxo_metadata in utxo_info
+        .utxos
+        .into_iter()
+        .sorted_by_key(|um| (um.value, um.output_pointer.clone()))
+    {
+        let value = Wit::from_nanowits(utxo_metadata.value).to_string();
+        let time_lock = if utxo_metadata.timelock == 0 {
+            "Ready".to_string()
+        } else {
+            let date = pretty_print(utxo_metadata.timelock as i64, 0);
+            format!("{:?}", date)
+        };
+        table.add_row(row![
+            utxo_metadata.output_pointer.to_string(),
+            value,
+            time_lock,
+            utxo_metadata.ready_for_collateral.to_string()
+        ]);
     }
+    table.printstd();
     println!("-----------------------");
     println!("Total number of utxos: {}", utxos_len);
     println!(
@@ -236,30 +261,76 @@ pub fn get_output(addr: SocketAddr, pointer: String) -> Result<(), failure::Erro
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn send_vtt(
     addr: SocketAddr,
-    pkh: PublicKeyHash,
+    pkh: Option<PublicKeyHash>,
     value: u64,
+    size: Option<u64>,
     fee: u64,
     time_lock: u64,
+    sorted_bigger: Option<bool>,
+    dry_run: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
-    let params = BuildVtt {
-        vto: vec![ValueTransferOutput {
-            pkh,
-            value,
-            time_lock,
-        }],
-        fee,
+
+    let size = size.unwrap_or(value);
+    if value / size > 1000 {
+        bail!("This transaction is creating more than 1000 outputs and may not be accepted by the miners");
+    }
+
+    let pkh = match pkh {
+        Some(pkh) => pkh,
+        None => {
+            log::info!("No pkh specified, will default to node pkh");
+            let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
+            let response = send_request(&mut stream, &request)?;
+            let node_pkh = parse_response::<PublicKeyHash>(&response)?;
+            log::info!("Node pkh: {}", node_pkh);
+
+            node_pkh
+        }
     };
+
+    let mut vt_outputs = vec![];
+    let mut value = value;
+    while value >= 2 * size {
+        value -= size;
+        vt_outputs.push(ValueTransferOutput {
+            pkh,
+            value: size,
+            time_lock,
+        })
+    }
+
+    vt_outputs.push(ValueTransferOutput {
+        pkh,
+        value,
+        time_lock,
+    });
+
+    let utxo_strategy = match sorted_bigger {
+        Some(true) => UtxoSelectionStrategy::BigFirst,
+        Some(false) => UtxoSelectionStrategy::SmallFirst,
+        None => UtxoSelectionStrategy::Random,
+    };
+
+    let params = BuildVtt {
+        vto: vt_outputs,
+        fee,
+        utxo_strategy,
+    };
+
     let request = format!(
         r#"{{"jsonrpc": "2.0","method": "sendValue", "params": {}, "id": "1"}}"#,
         serde_json::to_string(&params)?
     );
-    let response = send_request(&mut stream, &request)?;
-
-    println!("{}", response);
-
+    if dry_run {
+        println!("{}", request);
+    } else {
+        let response = send_request(&mut stream, &request)?;
+        println!("{}", response);
+    }
     Ok(())
 }
 

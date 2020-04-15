@@ -1,10 +1,9 @@
 use crate::signature_mngr;
 use futures::Future;
-use std::collections::HashMap;
 use witnet_data_structures::{
     chain::{
-        DataRequestOutput, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
-        UnspentOutputsPool, ValueTransferOutput,
+        DataRequestOutput, Hashable, Input, KeyedSignature, OutputPointer, OwnUnspentOutputsPool,
+        PublicKeyHash, UnspentOutputsPool, UtxoSelectionStrategy, ValueTransferOutput,
     },
     error::TransactionError,
     transaction::{DRTransactionBody, MemoizedHashable, VTTransactionBody},
@@ -15,14 +14,15 @@ use witnet_validations::validations::transaction_outputs_sum;
 ///
 /// On success, return a list of output pointers and their sum.
 /// On error, return the total sum of the output pointers in `own_utxos`.
-pub fn take_enough_utxos<S: std::hash::BuildHasher>(
-    own_utxos: &mut HashMap<OutputPointer, u64, S>,
+pub fn take_enough_utxos(
+    own_utxos: &mut OwnUnspentOutputsPool,
     all_utxos: &UnspentOutputsPool,
     amount: u64,
     timestamp: u64,
     tx_pending_timeout: u64,
     // The block number must be lower than this limit
     block_number_limit: Option<u32>,
+    utxo_strategy: UtxoSelectionStrategy,
 ) -> Result<(Vec<OutputPointer>, u64), TransactionError> {
     // FIXME: this is a very naive utxo selection algorithm
     if amount == 0 {
@@ -34,7 +34,14 @@ pub fn take_enough_utxos<S: std::hash::BuildHasher>(
     let mut total = 0;
     let mut list = vec![];
 
-    for (op, ts) in own_utxos.iter_mut() {
+    let utxo_iter: Vec<OutputPointer> = match utxo_strategy {
+        UtxoSelectionStrategy::BigFirst => own_utxos.sort(&all_utxos, true),
+        UtxoSelectionStrategy::SmallFirst => own_utxos.sort(&all_utxos, false),
+        UtxoSelectionStrategy::Random => own_utxos.iter().map(|(o, _ts)| o.clone()).collect(),
+    };
+
+    for op in utxo_iter.iter() {
+        let ts = own_utxos.get_mut(op).unwrap();
         let value = all_utxos.get(op).unwrap().value;
         total += value;
         if all_utxos.get(op).unwrap().time_lock > timestamp {
@@ -107,14 +114,16 @@ pub fn insert_change_output(
 }
 
 /// Build value transfer transaction with the given outputs and fee.
-pub fn build_vtt<S: std::hash::BuildHasher>(
+#[allow(clippy::too_many_arguments)]
+pub fn build_vtt(
     outputs: Vec<ValueTransferOutput>,
     fee: u64,
-    own_utxos: &mut HashMap<OutputPointer, u64, S>,
+    own_utxos: &mut OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
     timestamp: u64,
     tx_pending_timeout: u64,
+    utxo_strategy: UtxoSelectionStrategy,
 ) -> Result<VTTransactionBody, TransactionError> {
     let (inputs, outputs) = build_inputs_outputs_inner(
         outputs,
@@ -126,16 +135,17 @@ pub fn build_vtt<S: std::hash::BuildHasher>(
         timestamp,
         tx_pending_timeout,
         None,
+        utxo_strategy,
     )?;
 
     Ok(VTTransactionBody::new(inputs, outputs))
 }
 
 /// Build data request transaction with the given outputs and fee.
-pub fn build_drt<S: std::hash::BuildHasher>(
+pub fn build_drt(
     dr_output: DataRequestOutput,
     fee: u64,
-    own_utxos: &mut HashMap<OutputPointer, u64, S>,
+    own_utxos: &mut OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
     timestamp: u64,
@@ -151,15 +161,16 @@ pub fn build_drt<S: std::hash::BuildHasher>(
         timestamp,
         tx_pending_timeout,
         None,
+        UtxoSelectionStrategy::Random,
     )?;
 
     Ok(DRTransactionBody::new(inputs, outputs, dr_output))
 }
 
 /// Build inputs and outputs to be used as the collateral in a CommitTransaction
-pub fn build_commit_collateral<S: std::hash::BuildHasher>(
+pub fn build_commit_collateral(
     collateral: u64,
-    own_utxos: &mut HashMap<OutputPointer, u64, S>,
+    own_utxos: &mut OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
     timestamp: u64,
@@ -181,23 +192,25 @@ pub fn build_commit_collateral<S: std::hash::BuildHasher>(
         timestamp,
         tx_pending_timeout,
         Some(block_number_limit),
+        UtxoSelectionStrategy::SmallFirst,
     )
 }
 
 /// Generic inputs/outputs builder: can be used to build
 /// value transfer transactions and data request transactions.
 #[allow(clippy::too_many_arguments)]
-fn build_inputs_outputs_inner<S: std::hash::BuildHasher>(
+fn build_inputs_outputs_inner(
     outputs: Vec<ValueTransferOutput>,
     dr_output: Option<&DataRequestOutput>,
     fee: u64,
-    own_utxos: &mut HashMap<OutputPointer, u64, S>,
+    own_utxos: &mut OwnUnspentOutputsPool,
     own_pkh: PublicKeyHash,
     all_utxos: &UnspentOutputsPool,
     timestamp: u64,
     tx_pending_timeout: u64,
     // The block number must be lower than this limit
     block_number_limit: Option<u32>,
+    utxo_strategy: UtxoSelectionStrategy,
 ) -> Result<(Vec<Input>, Vec<ValueTransferOutput>), TransactionError> {
     // On error just assume the value is u64::max_value(), hoping that it is
     // impossible to pay for this transaction
@@ -216,6 +229,7 @@ fn build_inputs_outputs_inner<S: std::hash::BuildHasher>(
         timestamp,
         tx_pending_timeout,
         block_number_limit,
+        utxo_strategy,
     )?;
     let inputs: Vec<Input> = output_pointers.into_iter().map(Input::new).collect();
     let mut outputs = outputs;
@@ -273,10 +287,10 @@ mod tests {
         })
     }
 
-    fn build_vtt_tx<S: std::hash::BuildHasher>(
+    fn build_vtt_tx(
         outputs: Vec<ValueTransferOutput>,
         fee: u64,
-        own_utxos: &mut HashMap<OutputPointer, u64, S>,
+        own_utxos: &mut OwnUnspentOutputsPool,
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
     ) -> Result<Transaction, TransactionError> {
@@ -290,6 +304,7 @@ mod tests {
             all_utxos,
             timestamp,
             tx_pending_timeout,
+            UtxoSelectionStrategy::Random,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
@@ -298,10 +313,10 @@ mod tests {
         )))
     }
 
-    fn build_vtt_tx_with_timestamp<S: std::hash::BuildHasher>(
+    fn build_vtt_tx_with_timestamp(
         outputs: Vec<ValueTransferOutput>,
         fee: u64,
-        own_utxos: &mut HashMap<OutputPointer, u64, S>,
+        own_utxos: &mut OwnUnspentOutputsPool,
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
         timestamp: u64,
@@ -315,6 +330,7 @@ mod tests {
             all_utxos,
             timestamp,
             tx_pending_timeout,
+            UtxoSelectionStrategy::Random,
         )?;
 
         Ok(Transaction::ValueTransfer(VTTransaction::new(
@@ -323,10 +339,10 @@ mod tests {
         )))
     }
 
-    fn build_drt_tx<S: std::hash::BuildHasher>(
+    fn build_drt_tx(
         dr_output: DataRequestOutput,
         fee: u64,
-        own_utxos: &mut HashMap<OutputPointer, u64, S>,
+        own_utxos: &mut OwnUnspentOutputsPool,
         own_pkh: PublicKeyHash,
         all_utxos: &UnspentOutputsPool,
     ) -> Result<Transaction, TransactionError> {
@@ -345,22 +361,22 @@ mod tests {
         Ok(Transaction::DataRequest(DRTransaction::new(drt_tx, vec![])))
     }
 
-    fn build_utxo_set<T: Into<Option<(HashMap<OutputPointer, u64>, UnspentOutputsPool)>>>(
+    fn build_utxo_set<T: Into<Option<(OwnUnspentOutputsPool, UnspentOutputsPool)>>>(
         outputs: Vec<ValueTransferOutput>,
         own_utxos_all_utxos: T,
         txns: Vec<Transaction>,
-    ) -> (HashMap<OutputPointer, u64>, UnspentOutputsPool) {
+    ) -> (OwnUnspentOutputsPool, UnspentOutputsPool) {
         build_utxo_set_with_block_number(outputs, own_utxos_all_utxos, txns, 0)
     }
 
     fn build_utxo_set_with_block_number<
-        T: Into<Option<(HashMap<OutputPointer, u64>, UnspentOutputsPool)>>,
+        T: Into<Option<(OwnUnspentOutputsPool, UnspentOutputsPool)>>,
     >(
         outputs: Vec<ValueTransferOutput>,
         own_utxos_all_utxos: T,
         txns: Vec<Transaction>,
         block_number: u32,
-    ) -> (HashMap<OutputPointer, u64>, UnspentOutputsPool) {
+    ) -> (OwnUnspentOutputsPool, UnspentOutputsPool) {
         let own_pkh = my_pkh();
         // Add a fake input to avoid hash collisions
         let fake_input = Input::new(OutputPointer {
@@ -380,8 +396,8 @@ mod tests {
         (own_utxos, all_utxos)
     }
 
-    fn update_own_utxos<S: std::hash::BuildHasher>(
-        own_utxos: &mut HashMap<OutputPointer, u64, S>,
+    fn update_own_utxos(
+        own_utxos: &mut OwnUnspentOutputsPool,
         own_pkh: PublicKeyHash,
         txns: &[Transaction],
     ) {
@@ -390,7 +406,7 @@ mod tests {
                 Transaction::ValueTransfer(vt_tx) => {
                     // Remove spent inputs
                     for input in &vt_tx.body.inputs {
-                        own_utxos.remove(&input.output_pointer());
+                        own_utxos.remove(&input.output_pointer(), 0);
                     }
                     // Insert new outputs
                     for (i, output) in vt_tx.body.outputs.iter().enumerate() {
@@ -401,6 +417,7 @@ mod tests {
                                     output_index: u32::try_from(i).unwrap(),
                                 },
                                 0,
+                                0,
                             );
                         }
                     }
@@ -409,7 +426,7 @@ mod tests {
                 Transaction::DataRequest(dr_tx) => {
                     // Remove spent inputs
                     for input in &dr_tx.body.inputs {
-                        own_utxos.remove(&input.output_pointer());
+                        own_utxos.remove(&input.output_pointer(), 0);
                     }
                     // Insert new outputs
                     for (i, output) in dr_tx.body.outputs.iter().enumerate() {
@@ -419,6 +436,7 @@ mod tests {
                                     transaction_id: transaction.hash(),
                                     output_index: u32::try_from(i).unwrap(),
                                 },
+                                0,
                                 0,
                             );
                         }

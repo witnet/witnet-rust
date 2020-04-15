@@ -11,7 +11,8 @@ use crate::{
 };
 use witnet_data_structures::{
     chain::{
-        ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo, ReputationEngine,
+        ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, GenesisBlockInfo,
+        OwnUnspentOutputsPool, ReputationEngine,
     },
     vrf::VrfCtx,
 };
@@ -173,6 +174,7 @@ impl ChainManager {
                         ChainState {
                             chain_info: Some(chain_info),
                             reputation_engine: Some(reputation_engine),
+                            own_utxos: OwnUnspentOutputsPool::new(consensus_constants.collateral_minimum),
                             ..ChainState::default()
                         }
                     }

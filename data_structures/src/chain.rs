@@ -7,6 +7,7 @@ use secp256k1::{
 use serde::{Deserialize, Serialize};
 use std::{
     cell::RefCell,
+    cmp::Ordering,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     convert::{TryFrom, TryInto},
     fmt,
@@ -38,6 +39,7 @@ use crate::{
 use bech32::{FromBase32, ToBase32};
 use itertools::Itertools;
 use witnet_crypto::merkle::merkle_tree_root as crypto_merkle_tree_root;
+use witnet_util::timestamp::get_timestamp;
 
 pub trait Hashable {
     fn hash(&self) -> Hash;
@@ -1727,6 +1729,18 @@ impl FromStr for OutputPointer {
     }
 }
 
+impl Ord for OutputPointer {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.transaction_id, self.output_index).cmp(&(other.transaction_id, other.output_index))
+    }
+}
+
+impl PartialOrd for OutputPointer {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
 /// Inventory entry data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::InventoryEntry")]
@@ -2100,11 +2114,138 @@ impl UnspentOutputsPool {
     }
 }
 
+/// List of unspent outputs that can be spent by this node
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OwnUnspentOutputsPool {
+    /// Map of output pointer to timestamp
+    /// Those UTXOs have a timestamp value to avoid double spending
+    map: HashMap<OutputPointer, u64>,
+    /// Counter of UTXOs bigger than the minimum collateral
+    bigger_than_min_counter: usize,
+    /// Collateral minimum
+    collateral_min: u64,
+}
+
+impl OwnUnspentOutputsPool {
+    pub fn new(collateral_min: u64) -> Self {
+        Self {
+            map: HashMap::default(),
+            bigger_than_min_counter: 0,
+            collateral_min,
+        }
+    }
+    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&u64>
+    where
+        OutputPointer: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq,
+    {
+        self.map.get(k)
+    }
+
+    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut u64>
+    where
+        OutputPointer: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq,
+    {
+        self.map.get_mut(k)
+    }
+
+    pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
+    where
+        OutputPointer: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq,
+    {
+        self.map.contains_key(k)
+    }
+
+    pub fn insert(&mut self, k: OutputPointer, v: u64, value: u64) -> Option<u64> {
+        let old_ts = self.map.insert(k, v);
+        if old_ts.is_none() && value >= self.collateral_min {
+            self.bigger_than_min_counter += 1;
+        }
+
+        old_ts
+    }
+
+    pub fn remove(&mut self, k: &OutputPointer, value: u64) -> Option<u64> {
+        let ts = self.map.remove(k);
+
+        if ts.is_some() && value >= self.collateral_min {
+            self.bigger_than_min_counter -= 1;
+        }
+
+        ts
+    }
+
+    pub fn drain(&mut self) -> std::collections::hash_map::Drain<OutputPointer, u64> {
+        self.bigger_than_min_counter = 0;
+        self.map.drain()
+    }
+
+    pub fn iter(&self) -> std::collections::hash_map::Iter<OutputPointer, u64> {
+        self.map.iter()
+    }
+
+    pub fn keys(&self) -> std::collections::hash_map::Keys<OutputPointer, u64> {
+        self.map.keys()
+    }
+
+    pub fn bigger_than_min_counter(&self) -> usize {
+        self.bigger_than_min_counter
+    }
+
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
+    /// Method to sort own_utxos by value
+    pub fn sort(&self, all_utxos: &UnspentOutputsPool, bigger_first: bool) -> Vec<OutputPointer> {
+        self.keys()
+            .sorted_by_key(|o| {
+                let value = all_utxos.get(o).map(|vt| i128::from(vt.value)).unwrap_or(0);
+
+                if bigger_first {
+                    -value
+                } else {
+                    value
+                }
+            })
+            .cloned()
+            .collect()
+    }
+}
+
+/// Strategy to sort our own unspent outputs pool
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub enum UtxoSelectionStrategy {
+    Random,
+    BigFirst,
+    SmallFirst,
+}
+
+impl Default for UtxoSelectionStrategy {
+    fn default() -> Self {
+        UtxoSelectionStrategy::Random
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UtxoMetadata {
+    pub output_pointer: OutputPointer,
+    pub value: u64,
+    pub timelock: u64,
+    pub ready_for_collateral: bool,
+}
+
 /// Information about our own UTXOs
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UtxoInfo {
-    /// Vector of OutputPointer with their values
-    pub utxos: Vec<(OutputPointer, u64)>,
+    /// Vector of OutputPointer with their values, time_locks and if it is ready for collateral
+    pub utxos: Vec<UtxoMetadata>,
     /// Counter of UTXOs bigger than the minimum collateral
     pub bigger_than_min_counter: usize,
     /// Counter of UTXOs bigger than the minimum collateral and older than collateral coinage
@@ -2112,27 +2253,39 @@ pub struct UtxoInfo {
 }
 
 /// Get Utxo Information
-pub fn get_utxo_info<S: std::hash::BuildHasher>(
-    own_utxos: &HashMap<OutputPointer, u64, S>,
+#[allow(clippy::cast_sign_loss)]
+pub fn get_utxo_info(
+    own_utxos: &OwnUnspentOutputsPool,
     all_utxos: &UnspentOutputsPool,
     collateral_min: u64,
     block_number_limit: u32,
 ) -> UtxoInfo {
-    let mut bigger_than_min_counter = 0;
+    let bigger_than_min_counter = own_utxos.bigger_than_min_counter();
     let mut old_utxos_counter = 0;
 
     let utxos = own_utxos
         .iter()
         .filter_map(|(o, _)| {
             all_utxos.get(o).map(|vto| {
-                if vto.value >= collateral_min {
-                    bigger_than_min_counter += 1;
-
-                    if all_utxos.included_in_block_number(o).unwrap() < block_number_limit {
-                        old_utxos_counter += 1;
-                    }
+                let now = get_timestamp() as u64;
+                let timelock = if vto.time_lock >= now {
+                    vto.time_lock
+                } else {
+                    0
+                };
+                let ready_for_collateral = (vto.value >= collateral_min)
+                    && (all_utxos.included_in_block_number(o).unwrap() <= block_number_limit)
+                    && timelock == 0;
+                if ready_for_collateral {
+                    old_utxos_counter += 1;
                 }
-                (o.clone(), vto.value)
+
+                UtxoMetadata {
+                    output_pointer: o.clone(),
+                    value: vto.value,
+                    timelock,
+                    ready_for_collateral,
+                }
             })
         })
         .collect();
@@ -2159,7 +2312,7 @@ pub struct ChainState {
     pub block_chain: Blockchain,
     /// List of unspent outputs that can be spent by this node
     /// Those UTXOs have a timestamp value to avoid double spending
-    pub own_utxos: HashMap<OutputPointer, u64>,
+    pub own_utxos: OwnUnspentOutputsPool,
     /// Reputation engine
     pub reputation_engine: Option<ReputationEngine>,
 }
@@ -2508,27 +2661,6 @@ pub fn generate_unspent_outputs_pool(
     }
 
     unspent_outputs
-}
-
-/// Method to sort own_utxos by value
-pub fn sort_own_utxos<S: ::std::hash::BuildHasher>(
-    own_utxos: &HashMap<OutputPointer, u64, S>,
-    all_utxos: &UnspentOutputsPool,
-    bigger_first: bool,
-) -> Vec<OutputPointer> {
-    own_utxos
-        .keys()
-        .sorted_by_key(|o| {
-            let value = all_utxos.get(o).map(|vt| i128::from(vt.value)).unwrap_or(0);
-
-            if bigger_first {
-                -value
-            } else {
-                value
-            }
-        })
-        .cloned()
-        .collect()
 }
 
 /// Constants used to convert between epoch and timestamp
@@ -3446,13 +3578,13 @@ mod tests {
         let utxo_pool = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &[vt], 0);
         assert_eq!(utxo_pool.iter().len(), 4);
 
-        let mut own_utxos: HashMap<OutputPointer, u64> = HashMap::new();
+        let mut own_utxos = OwnUnspentOutputsPool::default();
         for (o, _) in utxo_pool.iter() {
-            own_utxos.insert(o.clone(), 0);
+            own_utxos.insert(o.clone(), 0, 0);
         }
         assert_eq!(own_utxos.len(), 4);
 
-        let sorted_bigger = sort_own_utxos(&own_utxos, &utxo_pool, true);
+        let sorted_bigger = own_utxos.sort(&utxo_pool, true);
         let mut aux = 1000;
         for o in sorted_bigger.iter() {
             let value = utxo_pool.get(o).unwrap().value;
@@ -3460,7 +3592,7 @@ mod tests {
             aux = value;
         }
 
-        let sorted_lower = sort_own_utxos(&own_utxos, &utxo_pool, false);
+        let sorted_lower = own_utxos.sort(&utxo_pool, false);
         let mut aux = 0;
         for o in sorted_lower.iter() {
             let value = utxo_pool.get(o).unwrap().value;

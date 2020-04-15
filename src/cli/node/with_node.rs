@@ -39,13 +39,61 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             value,
             fee,
             time_lock,
+            dry_run,
         } => rpc::send_vtt(
             node.unwrap_or(config.jsonrpc.server_address),
-            pkh.parse()?,
+            Some(pkh.parse()?),
             value,
+            None,
             fee,
             time_lock.unwrap_or(0),
+            None,
+            dry_run,
         ),
+        Command::Split {
+            node,
+            pkh,
+            value,
+            size,
+            fee,
+            time_lock,
+            dry_run,
+        } => {
+            let pkh = pkh.map(|x| x.parse()).transpose()?;
+            let size = if size == 0 { None } else { Some(size) };
+            rpc::send_vtt(
+                node.unwrap_or(config.jsonrpc.server_address),
+                pkh,
+                value,
+                size,
+                fee,
+                time_lock.unwrap_or(0),
+                Some(true),
+                dry_run,
+            )
+        }
+        Command::Join {
+            node,
+            pkh,
+            value,
+            size,
+            fee,
+            time_lock,
+            dry_run,
+        } => {
+            let pkh = pkh.map(|x| x.parse()).transpose()?;
+            let size = if size == Some(0) { None } else { size };
+            rpc::send_vtt(
+                node.unwrap_or(config.jsonrpc.server_address),
+                pkh,
+                value,
+                size,
+                fee,
+                time_lock.unwrap_or(0),
+                Some(false),
+                dry_run,
+            )
+        }
         Command::SendRequest {
             node,
             hex,
@@ -243,6 +291,63 @@ pub enum Command {
         /// Time lock
         #[structopt(long = "time-lock")]
         time_lock: Option<u64>,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
+    },
+    #[structopt(
+        name = "splitTransaction",
+        about = "Create a value transfer transaction that split utxos"
+    )]
+    Split {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Public key hash of the destination. If omitted, defaults to the node pkh.
+        #[structopt(long = "pkh")]
+        pkh: Option<String>,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Utxo's size
+        #[structopt(long = "size")]
+        size: u64,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: u64,
+        /// Time lock
+        #[structopt(long = "time-lock")]
+        time_lock: Option<u64>,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
+    },
+    #[structopt(
+        name = "joinTransaction",
+        about = "Create a value transfer transaction that join utxos"
+    )]
+    Join {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Public key hash of the destination. If omitted, defaults to the node pkh.
+        #[structopt(long = "pkh")]
+        pkh: Option<String>,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Utxo's size
+        #[structopt(long = "size")]
+        size: Option<u64>,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: u64,
+        /// Time lock
+        #[structopt(long = "time-lock")]
+        time_lock: Option<u64>,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
     },
     #[structopt(name = "send-request", about = "Send a serialized data request")]
     SendRequest {

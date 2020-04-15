@@ -1,6 +1,6 @@
 use std::{
     cmp::Ordering,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     convert::TryFrom,
     sync::{
         atomic::{self, AtomicU16},
@@ -17,8 +17,8 @@ use futures::future::{join_all, Future};
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, CheckpointVRF,
-        EpochConstants, Hashable, OutputPointer, PublicKeyHash, ReputationEngine, TransactionsPool,
-        UnspentOutputsPool, ValueTransferOutput,
+        EpochConstants, Hashable, OwnUnspentOutputsPool, PublicKeyHash, ReputationEngine,
+        TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
     error::TransactionError,
@@ -47,7 +47,6 @@ use crate::{
     },
     signature_mngr,
 };
-use witnet_data_structures::chain::get_utxo_info;
 
 impl ChainManager {
     /// Try to mine a block
@@ -660,7 +659,7 @@ fn build_block(
         &mut TransactionsPool,
         &UnspentOutputsPool,
         &DataRequestPool,
-        &HashMap<OutputPointer, u64>,
+        &OwnUnspentOutputsPool,
     ),
     max_block_weight: u32,
     beacon: CheckpointBeacon,
@@ -772,12 +771,19 @@ fn build_block(
 
     // Include Mint Transaction by miner
     let reward = block_reward(epoch) + transaction_fees;
-    let utxos_to_achieve =
-        collateral_age.saturating_mul(u32::from(data_request_max_retrievals_per_epoch)) as usize;
-    let utxos_required = utxos_to_achieve.saturating_sub(own_utxos.bigger_than_min_counter());
 
     // Build Mint Transaction
     let mint = if split_mint {
+        // The rewards will be split into multiple outputs of the same value as `collateral_minimum`
+        // until the node's set of outputs available for collateralization outnumbers
+        // `data_request_max_retrievals_per_epoch` multiplied by `collateral_coinage`,
+        // i.e. makes sure it always has spare outputs to collateralize.
+
+        let utxos_to_achieve = collateral_age
+            .saturating_mul(u32::from(data_request_max_retrievals_per_epoch))
+            as usize;
+        let utxos_required = utxos_to_achieve.saturating_sub(own_utxos.bigger_than_min_counter());
+
         MintTransaction::with_split_utxos(
             epoch,
             reward,
@@ -930,7 +936,6 @@ mod tests {
 
     use super::*;
     use crate::actors::chain_manager::verify_signatures;
-    use std::collections::HashMap;
 
     #[test]
     fn build_empty_block() {
@@ -960,7 +965,7 @@ mod tests {
                 &mut transaction_pool,
                 &unspent_outputs_pool,
                 &dr_pool,
-                &HashMap::default(),
+                &OwnUnspentOutputsPool::default(),
             ),
             max_block_weight,
             block_beacon,
@@ -1028,7 +1033,7 @@ mod tests {
                 &mut transaction_pool,
                 &unspent_outputs_pool,
                 &dr_pool,
-                &HashMap::default(),
+                &OwnUnspentOutputsPool::default(),
             ),
             max_block_weight,
             block_beacon,
@@ -1183,7 +1188,7 @@ mod tests {
                 &mut transaction_pool,
                 &unspent_outputs_pool,
                 &dr_pool,
-                &HashMap::default(),
+                &OwnUnspentOutputsPool::default(),
             ),
             max_block_weight,
             block_beacon,

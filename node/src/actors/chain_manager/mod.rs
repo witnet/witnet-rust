@@ -63,8 +63,8 @@ use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
         CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash,
-        Hashable, InventoryItem, OutputPointer, PublicKeyHash, Reputation, ReputationEngine,
-        TransactionsPool, UnspentOutputsPool,
+        Hashable, InventoryItem, OwnUnspentOutputsPool, PublicKeyHash, Reputation,
+        ReputationEngine, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
@@ -846,7 +846,7 @@ fn update_pools(
     transactions_pool: &mut TransactionsPool,
     utxo_diff: Diff,
     own_pkh: Option<PublicKeyHash>,
-    own_utxos: &mut HashMap<OutputPointer, u64>,
+    own_utxos: &mut OwnUnspentOutputsPool,
     epoch_constants: EpochConstants,
 ) -> ReputationInfo {
     let mut rep_info = ReputationInfo::new();
@@ -900,12 +900,16 @@ fn update_pools(
             |own_utxos, output_pointer, output| {
                 // Insert new outputs
                 if output.pkh == own_pkh {
-                    own_utxos.insert(output_pointer.clone(), 0);
+                    own_utxos.insert(output_pointer.clone(), 0, output.value);
                 }
             },
             |own_utxos, output_pointer| {
                 // Remove spent inputs
-                own_utxos.remove(&output_pointer);
+                let value = unspent_outputs_pool
+                    .get(output_pointer)
+                    .map(|vto| vto.value)
+                    .unwrap_or(0);
+                own_utxos.remove(&output_pointer, value);
             },
         );
     }
