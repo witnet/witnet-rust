@@ -78,6 +78,9 @@ impl ChainManager {
                 // Do not start the MiningManager if the configuration disables it
                 act.mining_enabled = config.mining.enabled;
 
+                // Flag to indicate if we want to split the mint transaction
+                act.split_mint = config.mining.split_mint;
+
                 // Get consensus parameter from config
                 act.consensus_c = config.connections.consensus_c;
 

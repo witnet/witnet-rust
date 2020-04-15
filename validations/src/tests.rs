@@ -87,7 +87,7 @@ fn build_utxo_set_with_mint<T: Into<Option<UnspentOutputsPool>>>(
     txns.extend(minted_outputs.into_iter().map(|o| {
         Transaction::Mint(MintTransaction::new(
             TX_COUNTER.fetch_add(1, Ordering::SeqCst),
-            o,
+            vec![o],
         ))
     }));
 
@@ -109,8 +109,8 @@ fn mint_mismatched_reward() {
         value: 100,
         time_lock: 0,
     };
-    let mint_tx = MintTransaction::new(epoch, output);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
+    let mint_tx = MintTransaction::new(epoch, vec![output]);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
     // Error: block reward mismatch
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -133,8 +133,8 @@ fn mint_invalid_epoch() {
         time_lock: 0,
     };
     // Build a mint for the next epoch
-    let mint_tx = MintTransaction::new(epoch + 1, output);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
+    let mint_tx = MintTransaction::new(epoch + 1, vec![output]);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
     // Error: invalid mint epoch
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -143,6 +143,74 @@ fn mint_invalid_epoch() {
             block_epoch: 0,
         }
     );
+}
+
+#[test]
+fn mint_invalid_pkh() {
+    let epoch = 0;
+    let reward = block_reward(epoch);
+    let total_fees = 100;
+    let output1 = ValueTransferOutput {
+        pkh: Default::default(),
+        value: total_fees,
+        time_lock: 0,
+    };
+    let output2 = ValueTransferOutput {
+        pkh: PublicKeyHash::from_bytes(&[1; 20]).unwrap(),
+        value: reward,
+        time_lock: 0,
+    };
+    let mint_tx = MintTransaction::new(epoch, vec![output1, output2]);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
+    // Error: different pkhs in mint transaction
+    assert_eq!(
+        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        BlockError::MultiplePkhsInMint
+    );
+}
+
+#[test]
+fn mint_small_split() {
+    let epoch = 0;
+    let reward = block_reward(epoch);
+    let total_fees = 100;
+    let output1 = ValueTransferOutput {
+        pkh: Default::default(),
+        value: reward + total_fees,
+        time_lock: 0,
+    };
+    let output2 = ValueTransferOutput {
+        pkh: Default::default(),
+        value: 0,
+        time_lock: 0,
+    };
+    let mint_tx = MintTransaction::new(epoch, vec![output1, output2]);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
+    // Error: Mint outputs smaller than collateral minimum
+    assert_eq!(
+        x.unwrap_err().downcast::<BlockError>().unwrap(),
+        BlockError::TooSplitMint
+    );
+}
+
+#[test]
+fn mint_split_valid() {
+    let epoch = 0;
+    let reward = block_reward(epoch);
+    let total_fees = 100;
+    let output1 = ValueTransferOutput {
+        pkh: Default::default(),
+        value: total_fees,
+        time_lock: 0,
+    };
+    let output2 = ValueTransferOutput {
+        pkh: Default::default(),
+        value: reward,
+        time_lock: 0,
+    };
+    let mint_tx = MintTransaction::new(epoch, vec![output1, output2]);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
+    x.unwrap();
 }
 
 #[test]
@@ -155,8 +223,8 @@ fn mint_valid() {
         value: total_fees + reward,
         time_lock: 0,
     };
-    let mint_tx = MintTransaction::new(epoch, output);
-    let x = validate_mint_transaction(&mint_tx, total_fees, epoch);
+    let mint_tx = MintTransaction::new(epoch, vec![output]);
+    let x = validate_mint_transaction(&mint_tx, total_fees, epoch, 1);
     x.unwrap();
 }
 
@@ -2653,11 +2721,11 @@ fn commitment_collateral_timelocked() {
 fn commitment_collateral_not_mature() {
     let mint_txns = vec![Transaction::Mint(MintTransaction::new(
         TX_COUNTER.fetch_add(1, Ordering::SeqCst),
-        ValueTransferOutput {
+        vec![ValueTransferOutput {
             pkh: MY_PKH_1.parse().unwrap(),
             value: ONE_WIT,
             time_lock: 0,
-        },
+        }],
     ))];
     let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &mint_txns, 99999);
     let output = utxo_set.iter().next().unwrap().0.clone();
@@ -4666,11 +4734,11 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
         current_epoch,
-        ValueTransferOutput {
+        vec![ValueTransferOutput {
             time_lock: 0,
             pkh: my_pkh,
             value: block_reward(current_epoch),
-        },
+        }],
     );
 
     let mut block_header = BlockHeader::default();
@@ -4919,11 +4987,11 @@ fn block_difficult_proof() {
     let mut txns = BlockTransactions::default();
     txns.mint = MintTransaction::new(
         current_epoch,
-        ValueTransferOutput {
+        vec![ValueTransferOutput {
             time_lock: 0,
             pkh: my_pkh,
             value: block_reward(current_epoch),
-        },
+        }],
     );
 
     let mut block_header = BlockHeader::default();
@@ -5000,14 +5068,14 @@ fn block_difficult_proof() {
 #[test]
 fn block_change_mint() {
     let x = test_block(|b| {
-        assert_ne!(b.txns.mint.output.pkh, MY_PKH_1.parse().unwrap());
+        assert_ne!(b.txns.mint.outputs[0].pkh, MY_PKH_1.parse().unwrap());
         b.txns.mint = MintTransaction::new(
             b.txns.mint.epoch,
-            ValueTransferOutput {
+            vec![ValueTransferOutput {
                 time_lock: 0,
                 pkh: MY_PKH_1.parse().unwrap(),
-                ..b.txns.mint.output
-            },
+                ..b.txns.mint.outputs[0]
+            }],
         );
 
         true
@@ -5033,7 +5101,7 @@ fn block_add_vtt_but_dont_update_mint() {
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
         b.txns.value_transfer_txns.push(vt_tx);
 
-        old_mint_value = Some(b.txns.mint.output.value);
+        old_mint_value = Some(transaction_outputs_sum(&b.txns.mint.outputs).unwrap());
 
         true
     });
@@ -5063,11 +5131,11 @@ fn block_add_vtt_but_dont_update_merkle_tree() {
 
         b.txns.mint = MintTransaction::new(
             b.txns.mint.epoch,
-            ValueTransferOutput {
+            vec![ValueTransferOutput {
                 time_lock: 0,
-                value: b.txns.mint.output.value + 1_000_000 - 1,
-                ..b.txns.mint.output
-            },
+                value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 1_000_000 - 1,
+                ..b.txns.mint.outputs[0]
+            }],
         );
 
         true
@@ -5162,11 +5230,11 @@ fn block_duplicated_commits() {
 
             b.txns.mint = MintTransaction::new(
                 b.txns.mint.epoch,
-                ValueTransferOutput {
+                vec![ValueTransferOutput {
                     time_lock: 0,
-                    value: b.txns.mint.output.value + 100, // reveal_fee is 50*2
-                    ..b.txns.mint.output
-                },
+                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 100, // reveal_fee is 50*2
+                    ..b.txns.mint.outputs[0]
+                }],
             );
 
             build_merkle_tree(&mut b.block_header, &b.txns);
@@ -5275,11 +5343,11 @@ fn block_duplicated_reveals() {
 
             b.txns.mint = MintTransaction::new(
                 b.txns.mint.epoch,
-                ValueTransferOutput {
+                vec![ValueTransferOutput {
                     time_lock: 0,
-                    value: b.txns.mint.output.value + 100, // reveal_fee is 50*2
-                    ..b.txns.mint.output
-                },
+                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 100, // reveal_fee is 50*2
+                    ..b.txns.mint.outputs[0]
+                }],
             );
 
             build_merkle_tree(&mut b.block_header, &b.txns);
@@ -5336,11 +5404,11 @@ fn block_duplicated_tallies() {
 
             b.txns.mint = MintTransaction::new(
                 b.txns.mint.epoch,
-                ValueTransferOutput {
+                vec![ValueTransferOutput {
                     time_lock: 0,
-                    value: b.txns.mint.output.value + 100, // tally_fee is 100
-                    ..b.txns.mint.output
-                },
+                    value: transaction_outputs_sum(&b.txns.mint.outputs).unwrap() + 100, // tally_fee is 100
+                    ..b.txns.mint.outputs[0]
+                }],
             );
 
             build_merkle_tree(&mut b.block_header, &b.txns);
@@ -5470,11 +5538,11 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
         // Rebuild mint
         txns.mint = MintTransaction::new(
             current_epoch,
-            ValueTransferOutput {
+            vec![ValueTransferOutput {
                 time_lock: 0,
                 pkh: my_pkh,
                 value: block_reward(current_epoch) + fees,
-            },
+            }],
         );
 
         let vrf_input = CheckpointVRF {
@@ -6193,11 +6261,11 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         let mut txns = BlockTransactions::default();
         txns.mint = MintTransaction::new(
             current_epoch,
-            ValueTransferOutput {
+            vec![ValueTransferOutput {
                 time_lock: 0,
                 pkh: my_pkh,
                 value: block_reward(current_epoch),
-            },
+            }],
         );
 
         let mut block_header = BlockHeader::default();
@@ -6326,7 +6394,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             pkh: my_pkh,
             value: block_reward(current_epoch),
         };
-        txns.mint = MintTransaction::new(current_epoch, mint_vto.clone());
+        txns.mint = MintTransaction::new(current_epoch, vec![mint_vto.clone()]);
         mint_tx_hash = txns.mint.hash();
 
         // Insert valid proof

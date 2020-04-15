@@ -148,7 +148,7 @@ pub struct TallyData {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MintData {
-    pub output: Output,
+    pub outputs: Vec<Output>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

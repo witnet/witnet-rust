@@ -338,7 +338,7 @@ where
                     (&commit.body.collateral, &commit.body.outputs)
                 }
                 types::Transaction::Tally(tally) => (&[], &tally.outputs),
-                types::Transaction::Mint(mint) => (&[], std::slice::from_ref(&mint.output)),
+                types::Transaction::Mint(mint) => (&[], &mint.outputs),
                 _ => continue,
             };
 
@@ -583,7 +583,7 @@ where
                 (commit.body.collateral.clone(), commit.body.outputs.clone())
             }
             types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
-            types::Transaction::Mint(mint) => (vec![], vec![mint.output.clone()]),
+            types::Transaction::Mint(mint) => (vec![], mint.outputs.clone()),
             _ => {
                 return Err(Error::UnsupportedTransactionType(format!(
                     "{:?}",
@@ -946,11 +946,16 @@ fn build_balance_movement(
                 .collect::<Vec<model::Output>>(),
         }),
         types::Transaction::Mint(mint) => model::TransactionData::Mint(model::MintData {
-            output: model::Output {
-                address: mint.output.pkh.to_string(),
-                time_lock: mint.output.time_lock,
-                value: mint.output.value,
-            },
+            outputs: mint
+                .outputs
+                .clone()
+                .into_iter()
+                .map(|output| model::Output {
+                    address: output.pkh.to_string(),
+                    time_lock: output.time_lock,
+                    value: output.value,
+                })
+                .collect::<Vec<model::Output>>(),
         }),
         types::Transaction::Tally(tally) => model::TransactionData::Tally(model::TallyData {
             request_transaction_hash: tally.dr_pointer.to_string(),

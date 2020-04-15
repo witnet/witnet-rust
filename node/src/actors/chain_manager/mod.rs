@@ -139,6 +139,8 @@ pub struct ChainManager {
     transactions_pool: TransactionsPool,
     /// Mining enabled
     mining_enabled: bool,
+    /// Binary flag to create a mint with a split reward
+    split_mint: bool,
     /// state of the state machine
     sm_state: StateMachine,
     /// The best beacon known to this node—to which it will try to catch up
@@ -462,7 +464,7 @@ impl ChainManager {
                     epoch_constants,
                 );
 
-                let miner_pkh = block.txns.mint.output.pkh;
+                let miner_pkh = block.block_header.proof.proof.pkh();
 
                 // Do not update reputation when consolidating genesis block
                 if block_hash != chain_info.consensus_constants.genesis_hash {
@@ -1050,6 +1052,7 @@ fn update_reputation(
     {
         log::error!("Error updating reputation in consolidation: {}", e);
     }
+
     log::log!(
         log_level,
         "Active users number: {}",

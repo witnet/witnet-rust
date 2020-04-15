@@ -135,6 +135,11 @@ pub trait Defaults {
         "genesis_block.json".to_string()
     }
 
+    /// Binary flag to create a mint with a split reward
+    fn mining_split_mint(&self) -> bool {
+        true
+    }
+
     fn consensus_constants_max_block_weight(&self) -> u32 {
         153_600
     }

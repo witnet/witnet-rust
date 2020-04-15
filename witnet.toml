@@ -65,6 +65,11 @@ enabled = true
 data_request_max_retrievals_per_epoch = 30
 data_request_timeout_milliseconds = 2000
 genesis_path = "genesis_block.json"
+# Enables or disables automatically splitting block mining rewards.
+# If set to `true`, the rewards will be split into multiple outputs of the same value as `collateral_minimum`
+# until the node's set of outputs available for collateralization outnumbers `data_request_max_retrievals_per_epoch`
+# multiplied by `collateral_coinage`, i.e. makes sure it always has spare outputs to collateralize.
+split_mint = true
 
 [log]
 level = "debug"

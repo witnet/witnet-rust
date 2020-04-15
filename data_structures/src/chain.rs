@@ -2498,7 +2498,7 @@ pub fn generate_unspent_outputs_pool(
             Transaction::Mint(mint_transaction) => {
                 update_utxo_outputs(
                     &mut unspent_outputs,
-                    &[mint_transaction.output.clone()],
+                    &mint_transaction.outputs,
                     txn_hash,
                     block_number,
                 );

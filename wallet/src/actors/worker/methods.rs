@@ -440,7 +440,13 @@ impl Worker {
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
-                types::Transaction::Mint(mint) => Ok(mint.output.clone()),
+                types::Transaction::Mint(mint) => mint
+                    .outputs
+                    .get(output.output_index as usize)
+                    .map(types::VttOutput::clone)
+                    .ok_or_else(|| {
+                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    }),
                 types::Transaction::Commit(commit) => commit
                     .body
                     .outputs

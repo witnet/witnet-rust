@@ -325,6 +325,8 @@ pub struct Mining {
     pub data_request_timeout: Duration,
     /// Genesis block path
     pub genesis_path: String,
+    /// Binary flag to create a mint with a split reward
+    pub split_mint: bool,
 }
 
 /// NTP-related configuration
@@ -590,6 +592,10 @@ impl Mining {
                 .genesis_path
                 .clone()
                 .unwrap_or_else(|| defaults.mining_genesis_path()),
+            split_mint: config
+                .split_mint
+                .to_owned()
+                .unwrap_or_else(|| defaults.mining_split_mint()),
         }
     }
 }

@@ -457,7 +457,7 @@ impl TallyTransaction {
 #[protobuf_convert(pb = "witnet::MintTransaction")]
 pub struct MintTransaction {
     pub epoch: Epoch,
-    pub output: ValueTransferOutput,
+    pub outputs: Vec<ValueTransferOutput>,
 
     #[protobuf_convert(skip)]
     #[serde(skip)]
@@ -466,12 +466,41 @@ pub struct MintTransaction {
 
 impl MintTransaction {
     /// Creates a new mint transaction.
-    pub fn new(epoch: Epoch, output: ValueTransferOutput) -> Self {
+    pub fn new(epoch: Epoch, outputs: Vec<ValueTransferOutput>) -> Self {
         MintTransaction {
             epoch,
-            output,
+            outputs,
             hash: MemoHash::new(),
         }
+    }
+
+    pub fn with_split_utxos(
+        epoch: Epoch,
+        reward: u64,
+        own_pkh: PublicKeyHash,
+        collateral_minimum: u64,
+        utxos_required: usize,
+    ) -> Self {
+        let mut vt_outputs = vec![];
+        let mut reward = reward;
+        let mut utxo_counter = 1;
+        while reward >= 2 * collateral_minimum && utxo_counter < utxos_required {
+            reward -= collateral_minimum;
+            utxo_counter += 1;
+            vt_outputs.push(ValueTransferOutput {
+                pkh: own_pkh,
+                value: collateral_minimum,
+                time_lock: 0,
+            })
+        }
+
+        vt_outputs.push(ValueTransferOutput {
+            pkh: own_pkh,
+            value: reward,
+            time_lock: 0,
+        });
+
+        MintTransaction::new(epoch, vt_outputs)
     }
 
     pub fn len(&self) -> usize {

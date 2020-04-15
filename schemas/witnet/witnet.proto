@@ -203,7 +203,7 @@ message TallyTransaction {
 message MintTransaction {
     // The epoch field is used to ensure that each MintTransaction has a unique hash
     fixed32 epoch = 1;
-    ValueTransferOutput output = 2;
+    repeated ValueTransferOutput outputs = 2;
 }
 
 message Transaction {

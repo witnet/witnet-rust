@@ -244,6 +244,7 @@ pub fn validate_mint_transaction(
     mint_tx: &MintTransaction,
     total_fees: u64,
     block_epoch: Epoch,
+    collateral_minimum: u64,
 ) -> Result<(), failure::Error> {
     // Mint epoch must be equal to block epoch
     if mint_tx.epoch != block_epoch {
@@ -254,7 +255,7 @@ pub fn validate_mint_transaction(
         .into());
     }
 
-    let mint_value = mint_tx.output.value;
+    let mint_value = transaction_outputs_sum(&mint_tx.outputs)?;
     let block_reward_value = block_reward(mint_tx.epoch);
     // Mint value must be equal to block_reward + transaction fees
     if mint_value != total_fees + block_reward_value {
@@ -265,6 +266,19 @@ pub fn validate_mint_transaction(
         }
         .into())
     } else {
+        let outputs_len = mint_tx.outputs.len();
+
+        if !mint_tx.outputs.iter().map(|vto| vto.pkh).all_equal() {
+            return Err(BlockError::MultiplePkhsInMint.into());
+        }
+
+        for output in mint_tx.outputs.iter() {
+            // a MintTransaction valid can not be splitted in utxos smaller than collateral minimum
+            if outputs_len > 1 && output.value < collateral_minimum {
+                return Err(BlockError::TooSplitMint.into());
+            }
+        }
+
         Ok(())
     }
 }
@@ -1474,13 +1488,18 @@ pub fn validate_block_transactions(
 
     if !is_genesis {
         // Validate mint
-        validate_mint_transaction(&block.txns.mint, total_fee, block_beacon.checkpoint)?;
+        validate_mint_transaction(
+            &block.txns.mint,
+            total_fee,
+            block_beacon.checkpoint,
+            collateral_minimum,
+        )?;
 
         // Insert mint in utxo
         update_utxo_diff(
             &mut utxo_diff,
             vec![],
-            vec![&block.txns.mint.output],
+            block.txns.mint.outputs.iter().collect(),
             block.txns.mint.hash(),
         );
     }
