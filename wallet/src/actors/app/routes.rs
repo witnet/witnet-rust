@@ -75,14 +75,16 @@ pub fn connect_routes<T, S>(
 {
     handler.add_subscription(
         "notifications",
-        ("subscribe_notifications", {
+        ("rpc.on", {
             let addr = api.clone();
             move |params: Params, _meta, subscriber: Subscriber| {
                 let addr_subscription_id = addr.clone();
                 let addr_subscribe = addr.clone();
                 let f = future::result(params.parse::<SubscribeRequest>())
                     .then(move |result| match result {
-                        Ok(request) =>
+                        Ok(request) => {
+                            log::info!("New WS notifications subscriber for session {}", request.session_id);
+
                             future::Either::A({
                                 addr_subscription_id.send(NextSubscriptionId(request.session_id.clone()))
                                 .flatten()
@@ -109,7 +111,7 @@ pub fn connect_routes<T, S>(
                                         subscriber.reject_async(err)
                                     )
                                 })
-                        }),
+                        })},
                         Err(mut err) =>
                             future::Either::B(subscriber.reject_async({
                                 log::trace!("invalid subscription params");
@@ -124,7 +126,7 @@ pub fn connect_routes<T, S>(
                 system_arbiter.send(f);
             }
         }),
-        ("unsubscribe_notifications", {
+        ("rpc.off", {
             let addr = api.clone();
             move |subscription_id, _meta| {
                 addr.send(UnsubscribeRequest(subscription_id))

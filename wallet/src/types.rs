@@ -96,6 +96,7 @@ pub struct Account {
 }
 
 pub struct WalletData {
+    pub id: String,
     pub name: Option<String>,
     pub caption: Option<String>,
     pub balance: u64,

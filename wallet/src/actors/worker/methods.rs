@@ -152,7 +152,7 @@ impl Worker {
                 err => Error::Repository(err),
             })?;
         let key = crypto::key_from_password(password, &salt, self.params.db_hash_iterations);
-        let session_id = From::from(crypto::gen_session_id(
+        let session_id: types::SessionId = From::from(crypto::gen_session_id(
             &mut self.rng,
             &self.params.id_hash_function,
             &key,
@@ -172,6 +172,7 @@ impl Worker {
 
         let wallet = repository::Wallet::unlock(
             wallet_id,
+            session_id.clone(),
             wallet_db,
             self.params.clone(),
             self.engine.clone(),
@@ -263,13 +264,26 @@ impl Worker {
         Ok(())
     }
 
-    pub fn notify_balance(&self, wallet: &types::Wallet, sink: &types::Sink) -> Result<()> {
+    pub fn notify_status(&self, wallet: &types::Wallet, sink: &types::Sink) -> Result<()> {
         let balance = wallet.balance()?;
+        let wallet_data = wallet.public_data()?;
         let payload = json!({
-            "accountBalance": {
-                "account": balance.account,
-                "amount": balance.amount,
-            }
+            "account": {
+                "id": balance.account,
+                "balance": balance.amount,
+            },
+            "node": {
+                "address": "XXX.XXX.XXX.XXX:XXXXX",
+                "network": "TX",
+                "last_block": {
+                    "checkpoint": 1234,
+                    "hashPrevBlock": ""
+                },
+            },
+            "wallet": {
+                "id": wallet_data.id,
+                "last_sync": wallet_data.last_sync,
+            },
         });
         let send = sink.notify(rpc::Params::Array(vec![payload]));
 
@@ -557,7 +571,7 @@ impl Worker {
                 log::debug!("[SU] For epoch {}, got block: {:?}", epoch, block);
 
                 // Process each block
-                self.handle_block(block.clone(), wallet.clone())?;
+                self.handle_block(block.clone(), wallet.clone(), None)?;
                 latest_beacon = CheckpointBeacon {
                     checkpoint: epoch,
                     hash_prev_block: Hash::from_str(&id)?,
@@ -580,7 +594,7 @@ impl Worker {
 
         if let Some(sink) = sink.as_ref() {
             log::trace!("[SU] Notifying balance of wallet {}", wallet_id,);
-            self.notify_balance(&wallet, sink).ok();
+            self.notify_status(&wallet, sink).ok();
         } else {
             log::trace!("[SU] No sinks need to be notified for wallet {}", wallet_id);
         }
@@ -668,6 +682,7 @@ impl Worker {
         &self,
         block: types::ChainBlock,
         wallet: types::SessionWallet,
+        sink: Option<types::Sink>,
     ) -> Result<()> {
         // Stop processing the block if it does not directly build on top of our tip of the chain
         let block_previous_beacon = block.block_header.beacon.hash_prev_block;
@@ -706,6 +721,13 @@ impl Worker {
             block_hash,
         };
         self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
+
+        if let Some(sink) = sink.as_ref() {
+            log::trace!("[RT] Notifying balance of wallet {}", wallet.id);
+            self.notify_status(&wallet, sink).ok();
+        } else {
+            log::trace!("[RT] No sinks need to be notified for wallet {}", wallet.id);
+        }
 
         Ok(())
     }

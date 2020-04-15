@@ -464,12 +464,15 @@ impl App {
     /// Offload block processing into a worker that operates on a different Arbiter than the main
     /// server thread, so as not to lock the rest of the application.
     pub fn handle_block_in_worker(&self, block: &types::ChainBlock, wallet: &types::SessionWallet) {
+        let sink = self.state.get_sink(&wallet.session_id);
+
         // NOTE: Possible enhancement.
         // Maybe is a good idea to use a shared reference Arc instead of cloning `block` altogether,
         // moreover when this method is called iteratively by `handle_block_notification`.
         self.params.worker.do_send(HandleBlockRequest {
             block: block.clone(),
             wallet: wallet.clone(),
+            sink,
         });
     }
 

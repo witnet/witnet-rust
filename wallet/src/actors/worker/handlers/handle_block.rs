@@ -6,6 +6,7 @@ use crate::types;
 pub struct HandleBlockRequest {
     pub block: types::ChainBlock,
     pub wallet: types::SessionWallet,
+    pub sink: Option<types::Sink>,
 }
 
 impl Message for HandleBlockRequest {
@@ -16,6 +17,6 @@ impl Handler<HandleBlockRequest> for worker::Worker {
     type Result = <HandleBlockRequest as Message>::Result;
 
     fn handle(&mut self, msg: HandleBlockRequest, _ctx: &mut Self::Context) -> Self::Result {
-        self.handle_block(msg.block, msg.wallet)
+        self.handle_block(msg.block, msg.wallet, msg.sink)
     }
 }

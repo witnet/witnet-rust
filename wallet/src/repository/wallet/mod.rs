@@ -31,7 +31,8 @@ struct AccountMutation {
 }
 
 pub struct Wallet<T> {
-    id: String,
+    pub id: String,
+    pub session_id: types::SessionId,
     db: T,
     params: Params,
     engine: types::CryptoEngine,
@@ -42,7 +43,13 @@ impl<T> Wallet<T>
 where
     T: Database,
 {
-    pub fn unlock(id: &str, db: T, params: Params, engine: types::CryptoEngine) -> Result<Self> {
+    pub fn unlock(
+        id: &str,
+        session_id: types::SessionId,
+        db: T,
+        params: Params,
+        engine: types::CryptoEngine,
+    ) -> Result<Self> {
         let id = id.to_owned();
         let name = db.get_opt(keys::wallet_name())?;
         let caption = db.get_opt(keys::wallet_caption())?;
@@ -103,6 +110,7 @@ where
 
         Ok(Self {
             id,
+            session_id,
             db,
             params,
             engine,
@@ -118,6 +126,7 @@ where
         let last_sync = state.last_sync;
 
         Ok(types::WalletData {
+            id: self.id.clone(),
             name: state.name.clone(),
             caption: state.caption.clone(),
             balance,
