@@ -8,6 +8,7 @@ use std::{
 use actix::MailboxError;
 #[cfg(not(test))]
 use actix::SystemService;
+use itertools::Itertools;
 use jsonrpc_core::{futures, futures::Future, BoxFuture, MetaIoHandler, Params, Value};
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
 use log::{debug, error};
@@ -25,18 +26,16 @@ use super::Subscriptions;
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
-use crate::actors::inventory_manager::InventoryManagerError;
-use crate::actors::messages::GetMemoryTransaction;
 use crate::{
     actors::{
         chain_manager::{ChainManager, ChainManagerError, StateMachine},
         epoch_manager::EpochManager,
-        inventory_manager::InventoryManager,
+        inventory_manager::{InventoryManager, InventoryManagerError},
         messages::{
             AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
-            GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock,
-            GetItemTransaction, GetReputation, GetReputationAll, GetReputationStatus, GetState,
-            NumSessions,
+            GetConsolidatedPeers, GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon,
+            GetItemBlock, GetItemTransaction, GetMemoryTransaction, GetReputation,
+            GetReputationAll, GetReputationStatus, GetState, NumSessions,
         },
         sessions_manager::SessionsManager,
     },
@@ -72,6 +71,7 @@ pub fn jsonrpc_io_handler(
         get_reputation(params.parse())
     });
     io.add_method("getReputationAll", |_params: Params| get_reputation_all());
+    io.add_method("peers", |_params: Params| peers());
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
     // A method is sensitive if it touches in some way the master key of the node.
@@ -945,6 +945,61 @@ pub fn master_key_export() -> JsonRpcResultAsync {
     Box::new(fut)
 }
 
+/// Named tuple of `(address, type)`
+#[derive(Serialize)]
+pub struct AddrType {
+    /// Socket address of the peer
+    pub address: String,
+    /// "inbound" | "outbound"
+    #[serde(rename = "type")]
+    pub type_: String,
+}
+
+/// Result of the `peers` method
+pub type PeersResult = Vec<AddrType>;
+
+/// Get list of consolidated peers
+pub fn peers() -> JsonRpcResultAsync {
+    let sessions_manager_addr = SessionsManager::from_registry();
+
+    let fut = sessions_manager_addr
+        .send(GetConsolidatedPeers)
+        .map_err(internal_error)
+        .and_then(|consolidated_peers| match consolidated_peers {
+            Ok(x) => {
+                let peers: Vec<_> = x
+                    .inbound
+                    .into_iter()
+                    .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
+                    .map(|p| AddrType {
+                        address: p.to_string(),
+                        type_: "inbound".to_string(),
+                    })
+                    .chain(
+                        x.outbound
+                            .into_iter()
+                            .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
+                            .map(|p| AddrType {
+                                address: p.to_string(),
+                                type_: "outbound".to_string(),
+                            }),
+                    )
+                    .collect();
+
+                match serde_json::to_value(&peers) {
+                    Ok(x) => futures::finished(x),
+                    Err(e) => {
+                        let err = internal_error_s(e);
+                        futures::failed(err)
+                    }
+                }
+            }
+            Err(()) => futures::failed(internal_error(())),
+        });
+
+    Box::new(fut)
+}
+
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
@@ -1243,6 +1298,7 @@ mod tests {
                 "getTransaction",
                 "inventory",
                 "masterKeyExport",
+                "peers",
                 "sendRequest",
                 "sendValue",
                 "sign",

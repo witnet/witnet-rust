@@ -18,8 +18,8 @@ use crate::actors::{
     codec::P2PCodec,
     messages::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, EpochNotification,
-        NumSessions, NumSessionsResult, PeerBeacon, Register, SessionsUnitResult, TryMineBlock,
-        Unregister,
+        GetConsolidatedPeers, NumSessions, NumSessionsResult, PeerBeacon, Register,
+        SessionsUnitResult, TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -365,5 +365,13 @@ impl Handler<NumSessions> for SessionsManager {
             inbound: self.sessions.get_num_inbound_sessions(),
             outbound: self.sessions.get_num_outbound_sessions(),
         })
+    }
+}
+
+impl Handler<GetConsolidatedPeers> for SessionsManager {
+    type Result = <GetConsolidatedPeers as Message>::Result;
+
+    fn handle(&mut self, _msg: GetConsolidatedPeers, _ctx: &mut Context<Self>) -> Self::Result {
+        Ok(self.sessions.get_consolidated_sessions_addr())
     }
 }
