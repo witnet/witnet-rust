@@ -43,7 +43,12 @@ impl fmt::Display for Command {
             Command::Peers(_) => f.write_str(&"PEERS".to_string()),
             Command::Verack(_) => f.write_str(&"VERACK".to_string()),
             Command::Version(_) => f.write_str(&"VERSION".to_string()),
-            Command::Block(block) => write!(f, "BLOCK: {}", block.hash()),
+            Command::Block(block) => write!(
+                f,
+                "BLOCK: #{}: {}",
+                block.block_header.beacon.checkpoint,
+                block.hash()
+            ),
             Command::InventoryAnnouncement(_) => f.write_str(&"INVENTORY_ANNOUNCEMENT".to_string()),
             Command::InventoryRequest(_) => f.write_str(&"INVENTORY_REQUEST".to_string()),
             Command::LastBeacon(LastBeacon {
