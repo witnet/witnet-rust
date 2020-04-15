@@ -22,7 +22,7 @@ use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, PointerToBlock, PublicKeyHash, RADRequest, RADTally,
-        Reputation, ValueTransferOutput,
+        Reputation, UtxoInfo, ValueTransferOutput,
     },
     transaction::{CommitTransaction, RevealTransaction, Transaction},
 };
@@ -216,6 +216,14 @@ pub struct GetBalance {
 
 impl Message for GetBalance {
     type Result = Result<u64, failure::Error>;
+}
+
+/// Get Balance
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetUtxoInfo;
+
+impl Message for GetUtxoInfo {
+    type Result = Result<UtxoInfo, failure::Error>;
 }
 
 /// Get Reputation of one pkh

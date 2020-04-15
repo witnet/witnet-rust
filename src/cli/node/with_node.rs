@@ -23,6 +23,9 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), pkh)
         }
         Command::GetPkh { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
+        Command::GetUtxoInfo { node } => {
+            rpc::get_utxo_info(node.unwrap_or(config.jsonrpc.server_address))
+        }
         Command::GetReputation { node, pkh, all } => {
             let pkh = pkh.map(|x| x.parse()).transpose()?;
             rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), pkh, all)
@@ -184,6 +187,15 @@ pub enum Command {
     },
     #[structopt(name = "getPkh", about = "Get the public key hash of the node")]
     GetPkh {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+    },
+    #[structopt(
+        name = "getUtxoInfo",
+        about = "Get the unspent transaction outputs of the node"
+    )]
+    GetUtxoInfo {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,

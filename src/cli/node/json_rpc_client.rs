@@ -19,7 +19,7 @@ use witnet_crypto::key::{CryptoEngine, ExtendedPK, ExtendedSK};
 use witnet_data_structures::{
     chain::{
         DataRequestInfo, DataRequestOutput, Environment, OutputPointer, PublicKey, PublicKeyHash,
-        Reputation, ValueTransferOutput,
+        Reputation, UtxoInfo, ValueTransferOutput,
     },
     proto::ProtobufConvert,
     transaction::Transaction,
@@ -111,6 +111,31 @@ pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
     println!("{}", pkh);
     println!("Testnet address: {}", pkh.bech32(Environment::Testnet));
     println!("Mainnet address: {}", pkh.bech32(Environment::Mainnet));
+
+    Ok(())
+}
+
+pub fn get_utxo_info(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = r#"{"jsonrpc": "2.0","method": "getUtxoInfo", "id": "1"}"#;
+    let response = send_request(&mut stream, &request)?;
+    let utxo_info = parse_response::<UtxoInfo>(&response)?;
+
+    println!("List of own utxos:");
+    let utxos_len = utxo_info.utxos.len();
+    for (utxo, value) in utxo_info.utxos {
+        println!("{} -> {} wits", utxo, Wit::from_nanowits(value));
+    }
+    println!("-----------------------");
+    println!("Total number of utxos: {}", utxos_len);
+    println!(
+        "Total number of utxos bigger than collateral minimum: {}",
+        utxo_info.bigger_than_min_counter
+    );
+    println!(
+        "Total number of utxos older than collateral coinage: {}",
+        utxo_info.old_utxos_counter
+    );
 
     Ok(())
 }

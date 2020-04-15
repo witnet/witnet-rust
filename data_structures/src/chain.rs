@@ -2100,6 +2100,50 @@ impl UnspentOutputsPool {
     }
 }
 
+/// Information about our own UTXOs
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UtxoInfo {
+    /// Vector of OutputPointer with their values
+    pub utxos: Vec<(OutputPointer, u64)>,
+    /// Counter of UTXOs bigger than the minimum collateral
+    pub bigger_than_min_counter: usize,
+    /// Counter of UTXOs bigger than the minimum collateral and older than collateral coinage
+    pub old_utxos_counter: usize,
+}
+
+/// Get Utxo Information
+pub fn get_utxo_info<S: std::hash::BuildHasher>(
+    own_utxos: &HashMap<OutputPointer, u64, S>,
+    all_utxos: &UnspentOutputsPool,
+    collateral_min: u64,
+    block_number_limit: u32,
+) -> UtxoInfo {
+    let mut bigger_than_min_counter = 0;
+    let mut old_utxos_counter = 0;
+
+    let utxos = own_utxos
+        .iter()
+        .filter_map(|(o, _)| {
+            all_utxos.get(o).map(|vto| {
+                if vto.value >= collateral_min {
+                    bigger_than_min_counter += 1;
+
+                    if all_utxos.included_in_block_number(o).unwrap() < block_number_limit {
+                        old_utxos_counter += 1;
+                    }
+                }
+                (o.clone(), vto.value)
+            })
+        })
+        .collect();
+
+    UtxoInfo {
+        utxos,
+        bigger_than_min_counter,
+        old_utxos_counter,
+    }
+}
+
 pub type Blockchain = BTreeMap<Epoch, Hash>;
 
 /// Blockchain state (valid at a certain epoch)

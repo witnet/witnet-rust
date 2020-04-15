@@ -35,7 +35,7 @@ use crate::{
             AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
             GetConsolidatedPeers, GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon,
             GetItemBlock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetReputation,
-            GetReputationAll, GetReputationStatus, GetState, NumSessions,
+            GetReputationAll, GetReputationStatus, GetState, GetUtxoInfo, NumSessions,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -110,6 +110,13 @@ pub fn jsonrpc_io_handler(
             get_pkh()
         } else {
             unauthorized_method("getPkh")
+        }
+    });
+    io.add_method("getUtxoInfo", move |_params: Params| {
+        if enable_sensitive_methods {
+            get_utxo_info()
+        } else {
+            unauthorized_method("getUtxoInfo")
         }
     });
     io.add_method("sign", move |params: Params| {
@@ -878,6 +885,27 @@ pub fn get_balance(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> Jso
     Box::new(fut)
 }
 
+/// Get utxos
+pub fn get_utxo_info() -> JsonRpcResultAsync {
+    let chain_manager_addr = ChainManager::from_registry();
+
+    let fut = chain_manager_addr
+        .send(GetUtxoInfo)
+        .map_err(internal_error)
+        .and_then(|dr_info| match dr_info {
+            Ok(x) => match serde_json::to_value(&x) {
+                Ok(x) => futures::finished(x),
+                Err(e) => {
+                    let err = internal_error_s(e);
+                    futures::failed(err)
+                }
+            },
+            Err(e) => futures::failed(internal_error_s(e)),
+        });
+
+    Box::new(fut)
+}
+
 /// Get Reputation of one pkh
 pub fn get_reputation(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
     let pkh = match params {
@@ -1341,6 +1369,7 @@ mod tests {
                 "getReputation",
                 "getReputationAll",
                 "getTransaction",
+                "getUtxoInfo",
                 "inventory",
                 "knownPeers",
                 "masterKeyExport",
@@ -1371,6 +1400,7 @@ mod tests {
             "createVRF",
             "getPkh",
             "getPublicKey",
+            "getUtxoInfo",
             "masterKeyExport",
             "sendRequest",
             "sendValue",

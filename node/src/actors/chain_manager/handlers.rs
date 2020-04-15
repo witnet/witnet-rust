@@ -4,8 +4,8 @@ use std::{cmp::Ordering, collections::HashMap, convert::TryFrom};
 
 use witnet_data_structures::{
     chain::{
-        ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch, Hash, Hashable,
-        PublicKeyHash, Reputation,
+        get_utxo_info, ChainState, CheckpointBeacon, DataRequestInfo, DataRequestReport, Epoch,
+        Hash, Hashable, PublicKeyHash, Reputation, UtxoInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     transaction::{DRTransaction, Transaction, VTTransaction},
@@ -23,7 +23,7 @@ use crate::{
             BuildDrt, BuildVtt, EpochNotification, GetBalance, GetBlocksEpochRange,
             GetDataRequestReport, GetHighestCheckpointBeacon, GetMemoryTransaction, GetReputation,
             GetReputationAll, GetReputationStatus, GetReputationStatusResult, GetState,
-            PeersBeacons, SendLastBeacon, SessionUnitResult, TryMineBlock,
+            GetUtxoInfo, PeersBeacons, SendLastBeacon, SessionUnitResult, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -864,6 +864,29 @@ impl Handler<GetBalance> for ChainManager {
         Ok(transaction_factory::get_total_balance(
             &self.chain_state.unspent_outputs_pool,
             pkh,
+        ))
+    }
+}
+
+impl Handler<GetUtxoInfo> for ChainManager {
+    type Result = Result<UtxoInfo, failure::Error>;
+
+    fn handle(&mut self, _: GetUtxoInfo, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Live {
+            return Err(ChainManagerError::NotLive.into());
+        }
+
+        let chain_info = self.chain_state.chain_info.as_ref().unwrap();
+        let block_number_limit = self
+            .chain_state
+            .block_number()
+            .saturating_sub(chain_info.consensus_constants.collateral_age);
+
+        Ok(get_utxo_info(
+            &self.chain_state.own_utxos,
+            &self.chain_state.unspent_outputs_pool,
+            chain_info.consensus_constants.collateral_minimum,
+            block_number_limit,
         ))
     }
 }
