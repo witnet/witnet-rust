@@ -1,7 +1,6 @@
 use std::{
     fmt::{Debug, Display},
     marker::Send,
-    time::Duration,
 };
 
 use actix::{
@@ -312,15 +311,11 @@ impl Handler<EpochNotification<()>> for SessionsManager {
                 log::error!("Time went backwards");
             } else if msg.checkpoint > 0 {
                 log::warn!(
-                    "Block mining was supposed to happen {} {} ago, but it will happen now",
-                    delay,
-                    if delay == 1 { "second" } else { "seconds" }
+                    "Epoch notification received too late, not sending beacons to ChainManager and not mining until next epoch"
                 );
             }
 
-            // Schedule mining as soon as possible, assuming that there is still
-            // enough time before the next epoch checkpoint
-            Duration::from_secs(0)
+            return;
         };
 
         ctx.run_later(duration_until_mining, move |act, ctx| {
