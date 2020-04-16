@@ -13,7 +13,7 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-use crate::types::{signature, ExtendedPK};
+use crate::types::{signature, ExtendedPK, RadonError};
 use state::State;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -1011,14 +1011,19 @@ fn build_tally_report(
                 })
                 .collect::<Result<HashMap<PublicKeyHash, model::Reveal>>>()?;
 
-            // Set not in consensus reveals
+            // Set not `in_consensus` reveals
             for pkh in &tally.slashed_witnesses {
-                let liar = reveals.get(&pkh).cloned();
-                if let Some(reveal) = liar {
+                let liar = reveals.get_mut(&pkh).cloned();
+                if let Some(mut reveal) = liar {
+                    reveal.in_consensus = false;
+                } else {
                     reveals.insert(
                         pkh.clone(),
                         model::Reveal {
-                            value: reveal.value,
+                            value: types::RadonTypes::from(
+                                RadonError::try_from(types::RadError::NoReveals).unwrap(),
+                            )
+                            .to_string(),
                             in_consensus: false,
                         },
                     );

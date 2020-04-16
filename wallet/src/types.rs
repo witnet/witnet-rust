@@ -20,6 +20,7 @@ pub use witnet_data_structures::{
         RADTally, ValueTransferOutput as VttOutput,
     },
     proto::ProtobufConvert,
+    radon_error::{RadonError, RadonErrors},
     radon_report::RadonReport,
     transaction::{
         DRTransaction, DRTransactionBody, TallyTransaction, Transaction, VTTransaction,
@@ -28,7 +29,7 @@ pub use witnet_data_structures::{
 };
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
 use witnet_protected::{Protected, ProtectedString};
-pub use witnet_rad::types::RadonTypes;
+pub use witnet_rad::{error::RadError, types::RadonTypes};
 
 use crate::model;
 
