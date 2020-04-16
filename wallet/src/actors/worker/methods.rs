@@ -7,7 +7,7 @@ use serde_json::json;
 
 use witnet_data_structures::chain::{CheckpointBeacon, Hash, Hashable};
 
-use crate::types::{ChainEntry, GetBlockChainParams};
+use crate::types::{ChainEntry, DynamicSink, GetBlockChainParams};
 use crate::{account, constants, crypto, db::Database as _, model, params};
 
 use super::*;
@@ -264,27 +264,47 @@ impl Worker {
         Ok(())
     }
 
-    pub fn notify_status(&self, wallet: &types::Wallet, sink: &types::Sink) -> Result<()> {
-        let balance = wallet.balance()?;
-        let wallet_data = wallet.public_data()?;
-        let payload = json!({
-            "account": {
-                "id": balance.account,
-                "balance": balance.amount,
-            },
-            "node": {
-                "address": self.node.address,
-                "network": self.node.get_network(),
-                "last_beacon": self.node.get_last_beacon(),
-            },
-            "wallet": {
-                "id": wallet_data.id,
-                "last_sync": wallet_data.last_sync,
-            },
-        });
-        let send = sink.notify(rpc::Params::Array(vec![payload]));
+    pub fn notify_client(
+        &self,
+        wallet: &types::Wallet,
+        sink: types::DynamicSink,
+        events: Option<Vec<types::Event>>,
+    ) -> Result<()> {
+        // Make a grab of the sink, cloning immediately so as to drop the read lock ASAP.
+        let sink = sink
+            .read()
+            .expect("Read locks should only fail if poisoned")
+            .clone();
 
-        send.wait()?;
+        if let Some(sink) = sink.as_ref() {
+            log::debug!("Notifying status of wallet {}", wallet.id);
+
+            let balance = wallet.balance()?;
+            let wallet_data = wallet.public_data()?;
+            let payload = json!({
+                "events": events,
+                "status": {
+                    "account": {
+                        "id": balance.account,
+                        "balance": balance.amount,
+                    },
+                    "node": {
+                        "address": self.node.address,
+                        "network": self.node.get_network(),
+                        "last_beacon": self.node.get_last_beacon(),
+                    },
+                    "session": wallet.session_id,
+                    "wallet": {
+                        "id": wallet_data.id,
+                        "last_sync": wallet_data.last_sync,
+                    },
+                },
+            });
+            let send = sink.notify(rpc::Params::Array(vec![payload]));
+            send.wait()?;
+        } else {
+            log::debug!("No sinks need to be notified for wallet {}", wallet.id);
+        }
 
         Ok(())
     }
@@ -539,7 +559,7 @@ impl Worker {
         wallet_id: &str,
         wallet: types::SessionWallet,
         since_beacon: CheckpointBeacon,
-        sink: Option<types::Sink>,
+        sink: types::DynamicSink,
     ) -> Result<()> {
         let limit = i64::from(self.params.node_sync_batch_size);
         let mut latest_beacon = since_beacon;
@@ -558,12 +578,13 @@ impl Worker {
         // Store the tip into the worker in form of beacon
         self.node.update_last_beacon(tip);
 
-        if let Some(sink) = sink.as_ref() {
-            log::debug!("[SU] Notifying balance of wallet {}", wallet_id,);
-            self.notify_status(&wallet, sink).ok();
-        } else {
-            log::debug!("[SU] No sinks need to be notified for wallet {}", wallet_id);
-        }
+        // Notify wallet about initial synchronization status (the wallet most likely has an old
+        // chain tip)
+        let events = Some(vec![types::Event::SyncStart(
+            latest_beacon.checkpoint,
+            tip.checkpoint,
+        )]);
+        self.notify_client(&wallet, sink.clone(), events).ok();
 
         log::info!(
             "[SU] Starting synchronization of wallet {}.\n\t[Local beacon] {:?}\n\t[Node beacon ] {:?}",
@@ -589,19 +610,18 @@ impl Worker {
                 log::debug!("[SU] For epoch {}, got block: {:?}", epoch, block);
 
                 // Process each block
-                self.handle_block(block.clone(), wallet.clone(), None)?;
+                self.handle_block(block.clone(), wallet.clone(), DynamicSink::default())?;
                 latest_beacon = CheckpointBeacon {
                     checkpoint: epoch,
                     hash_prev_block: Hash::from_str(&id)?,
                 };
             }
 
-            if let Some(sink) = sink.as_ref() {
-                log::debug!("[SU] Notifying balance of wallet {}", wallet_id,);
-                self.notify_status(&wallet, sink).ok();
-            } else {
-                log::debug!("[SU] No sinks need to be notified for wallet {}", wallet_id);
-            }
+            let events = Some(vec![types::Event::SyncProgress(
+                latest_beacon.checkpoint,
+                tip.checkpoint,
+            )]);
+            self.notify_client(&wallet, sink.clone(), events).ok();
 
             // Keep asking for new batches of blocks until we get less than expected, which signals
             // that there are no more blocks to process.
@@ -616,6 +636,12 @@ impl Worker {
                 since_beacon = latest_beacon;
             }
         }
+
+        let events = Some(vec![types::Event::SyncFinish(
+            latest_beacon.checkpoint,
+            tip.checkpoint,
+        )]);
+        self.notify_client(&wallet, sink.clone(), events).ok();
 
         log::info!(
             "[SU] Wallet {} is now synced up to latest beacon ({:?})",
@@ -700,7 +726,7 @@ impl Worker {
         &self,
         block: types::ChainBlock,
         wallet: types::SessionWallet,
-        sink: Option<types::Sink>,
+        sink: types::DynamicSink,
     ) -> Result<()> {
         let block_previous_beacon = block.block_header.beacon;
         let local_chain_tip = wallet.public_data()?.last_sync;
@@ -748,12 +774,8 @@ impl Worker {
         };
         self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
 
-        if let Some(sink) = sink.as_ref() {
-            log::debug!("[RT] Notifying balance of wallet {}", wallet.id);
-            self.notify_status(&wallet, sink).ok();
-        } else {
-            log::debug!("[RT] No sinks need to be notified for wallet {}", wallet.id);
-        }
+        let events = vec![types::Event::Block(block_info)];
+        self.notify_client(&wallet, sink, Some(events)).ok();
 
         Ok(())
     }

@@ -1,27 +1,59 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::RwLock};
 
 use super::*;
+use crate::types::SubscriptionId;
+use std::convert::TryFrom;
 
 /// Struct to manage the App actor state and its invariants.
 #[derive(Default)]
 pub struct State {
-    sessions: HashMap<types::SessionId, Session>,
-    wallets: HashMap<String, types::SessionWallet>,
+    pub subscriptions: HashMap<types::SessionId, types::DynamicSink>,
+    pub sessions: HashMap<types::SessionId, Session>,
+    pub wallets: HashMap<String, types::SessionWallet>,
 }
 
 #[derive(Default)]
-struct Session {
+pub struct Session {
     wallets: HashMap<String, types::SessionWallet>,
-    subscription: Option<types::Sink>,
 }
 
 impl State {
-    /// Get the sink for a specific session
-    pub fn get_sink(&self, session_id: &types::SessionId) -> Option<types::Sink> {
-        self.sessions
-            .get(session_id)
-            .map(|session| session.subscription.clone())
-            .flatten()
+    /// Get the subscription sink for a specific session
+    pub fn get_sink(&mut self, session_id: &types::SessionId) -> types::DynamicSink {
+        match self.subscriptions.get(session_id) {
+            Some(sink) => sink.clone(),
+            None => self.set_sink(session_id, None),
+        }
+    }
+
+    /// Set the subscription sink for a specific session
+    fn set_sink(
+        &mut self,
+        session_id: &types::SessionId,
+        new_sink: Option<types::Sink>,
+    ) -> types::DynamicSink {
+        let sink = Arc::new(RwLock::new(new_sink));
+        self.subscriptions.insert(session_id.clone(), sink.clone());
+
+        sink
+    }
+
+    /// Updates the subscription sink for a specific session
+    pub fn update_sink(
+        &mut self,
+        session_id: &types::SessionId,
+        new_sink: Option<types::Sink>,
+    ) -> types::DynamicSink {
+        match self.subscriptions.get(session_id) {
+            Some(sink) => {
+                let mut lock = sink
+                    .write()
+                    .expect("Write locks should only fail if poisoned");
+                *lock = new_sink;
+                sink.clone()
+            }
+            None => self.set_sink(session_id, new_sink),
+        }
     }
 
     /// Get a reference to an unlocked wallet.
@@ -50,12 +82,13 @@ impl State {
     }
 
     /// Add a sink and subscription id to a session.
-    pub fn subscribe(&mut self, session_id: &types::SessionId, sink: types::Sink) -> Result<()> {
+    pub fn subscribe(
+        &mut self,
+        session_id: &types::SessionId,
+        sink: types::Sink,
+    ) -> Result<types::DynamicSink> {
         match self.sessions.get_mut(session_id) {
-            Some(session) => {
-                session.subscription = Some(sink);
-                Ok(())
-            }
+            Some(_) => Ok(self.update_sink(session_id, Some(sink))),
             None => Err(Error::SessionNotFound),
         }
     }
@@ -63,21 +96,22 @@ impl State {
     /// Remove a subscription sink from a session.
     pub fn unsubscribe(&mut self, subscription_id: &types::SubscriptionId) -> Result<()> {
         // Session id and subscription id are currently the same thing.
-        let session_id_opt = match subscription_id {
-            types::SubscriptionId::String(id) => Some(types::SessionId::from(id.clone())),
-            _ => None,
-        };
+        let session_id = types::SessionId::try_from(subscription_id)?;
+        match self.sessions.get_mut(&session_id) {
+            Some(_) => {
+                self.update_sink(&session_id, None);
+                log::debug!("Desubscribed subscription {}", session_id);
 
-        session_id_opt
-            .and_then(|session_id| self.sessions.get_mut(&session_id))
-            .map(|session| {
-                session.subscription = None;
-            })
-            .ok_or_else(|| Error::SessionNotFound)
+                Ok(())
+            }
+            None => Err(Error::SessionNotFound),
+        }
     }
 
     /// Remove a session but keep its wallets.
     pub fn remove_session(&mut self, session_id: &types::SessionId) -> Result<()> {
+        let subscription_id = SubscriptionId::from(session_id);
+        self.unsubscribe(&subscription_id).map(|_| ())?;
         self.sessions
             .remove(session_id)
             .map(|_| ())
@@ -110,10 +144,5 @@ impl State {
         wallets.insert(wallet_id.clone(), wallet.clone());
 
         self.wallets.insert(wallet_id, wallet);
-    }
-
-    /// Return an Iterator over the unlocked wallets.
-    pub fn wallets(&self) -> impl Iterator<Item = (&String, &types::SessionWallet)> {
-        self.wallets.iter()
     }
 }

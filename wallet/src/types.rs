@@ -1,6 +1,8 @@
+use std::convert::TryFrom;
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
+use failure::Fail;
 pub use jsonrpc_core::{Params as RpcParams, Value as RpcValue};
 pub use jsonrpc_pubsub::{Sink, SinkResult, Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
@@ -32,10 +34,10 @@ use witnet_protected::{Protected, ProtectedString};
 pub use witnet_rad::{error::RadError, types::RadonTypes};
 
 use crate::model;
-
-use super::{db, repository};
 use crate::types::signature::Signature;
 use std::convert::TryFrom;
+
+use super::{db, repository};
 
 pub type Password = ProtectedString;
 
@@ -47,6 +49,35 @@ pub type Wallet = repository::Wallet<db::EncryptedDb>;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SessionId(String);
+
+#[derive(Debug, Fail)]
+pub enum Errors {
+    #[fail(
+        display = "Tried to construct a `SessionId` from a `SubscriptionId` that is not a `String`"
+    )]
+    SubscriptionIdIsNotValidSessionId,
+}
+
+/// Convenient conversion from `SessionId` to `SubscriptionId`
+impl From<&SessionId> for SubscriptionId {
+    fn from(id: &SessionId) -> Self {
+        SubscriptionId::String(String::from(id.clone()))
+    }
+}
+
+/// Convenient conversion from `SubscriptionId` to `SessionId`
+impl TryFrom<&SubscriptionId> for SessionId {
+    type Error = crate::actors::app::Error;
+
+    fn try_from(id: &SubscriptionId) -> Result<Self, Self::Error> {
+        match id {
+            SubscriptionId::String(string) => Ok(SessionId::from(string.clone())),
+            _ => Err(crate::actors::app::error::internal_error(
+                Errors::SubscriptionIdIsNotValidSessionId,
+            )),
+        }
+    }
+}
 
 impl fmt::Display for SessionId {
     #[inline]
@@ -62,9 +93,9 @@ impl fmt::Debug for SessionId {
     }
 }
 
-impl Into<String> for SessionId {
-    fn into(self) -> String {
-        self.0
+impl From<SessionId> for String {
+    fn from(id: SessionId) -> Self {
+        id.0
     }
 }
 
@@ -188,6 +219,28 @@ impl TryFrom<&ChainEntry> for CheckpointBeacon {
             hash_prev_block: hash,
         })
     }
+}
+
+/// A reference-counted atomic read/write lock over the `Option` of a `Sink`.
+/// Allows swapping, adding and removing sinks in runtime through interior mutability of any
+/// structures that may include this type.
+pub type DynamicSink = Arc<RwLock<Option<Sink>>>;
+
+/// Friendly events that can be sent to subscribed clients to let them now about significant
+/// activity related to their wallets.
+#[derive(Debug, Serialize)]
+pub enum Event {
+    /// The basic information of a new block that has already been processed
+    Block(model::BlockInfo),
+    // TODO: turn this into `Movement(Movement)`
+    ///// A new movement (transaction) affecting balance.
+    //Movement,
+    /// The end of a synchronization progress.
+    SyncFinish(u32, u32),
+    /// An update on the progress of a the synchronization progress.
+    SyncProgress(u32, u32),
+    /// The start of a synchronization progress.
+    SyncStart(u32, u32),
 }
 
 /// Format of the output of getTransaction

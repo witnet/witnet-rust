@@ -10,8 +10,8 @@ use crate::actors;
 pub enum Error {
     #[fail(display = "validation error")]
     Validation(ValidationErrors),
-    #[fail(display = "internal error")]
-    Internal(failure::Error),
+    #[fail(display = "internal error: {}", _0)]
+    Internal(#[cause] failure::Error),
     #[fail(display = "node error: {}", _0)]
     Node(#[cause] failure::Error),
     #[fail(display = "wallet is not connected to a node")]

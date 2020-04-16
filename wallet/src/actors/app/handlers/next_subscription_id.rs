@@ -17,6 +17,6 @@ impl Handler<NextSubscriptionId> for app::App {
         NextSubscriptionId(session_id): NextSubscriptionId,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.next_subscription_id(session_id)
+        self.next_subscription_id(&session_id)
     }
 }

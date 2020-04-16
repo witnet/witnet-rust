@@ -6,7 +6,7 @@ use crate::types;
 pub struct HandleBlockRequest {
     pub block: types::ChainBlock,
     pub wallet: types::SessionWallet,
-    pub sink: Option<types::Sink>,
+    pub sink: types::DynamicSink,
 }
 
 impl Message for HandleBlockRequest {

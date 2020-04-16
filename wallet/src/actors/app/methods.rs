@@ -8,6 +8,7 @@ use crate::actors::*;
 use crate::{crypto, model, repository};
 
 use super::*;
+use crate::types::SubscriptionId;
 
 impl App {
     pub fn start(params: Params) -> Addr<Self> {
@@ -22,12 +23,12 @@ impl App {
     /// Return a new subscription id for a session.
     pub fn next_subscription_id(
         &mut self,
-        session_id: types::SessionId,
+        session_id: &types::SessionId,
     ) -> Result<types::SubscriptionId> {
-        if self.state.is_session_active(&session_id) {
+        if self.state.is_session_active(session_id) {
             // We are re-using the session id as the subscription id, this is because using a number
             // can let any client call the unsubscribe method for any other session.
-            Ok(types::SubscriptionId::String(session_id.into()))
+            Ok(SubscriptionId::from(session_id))
         } else {
             Err(Error::SessionNotFound)
         }
@@ -41,14 +42,14 @@ impl App {
         _subscription_id: types::SubscriptionId,
         sink: types::Sink,
     ) -> Result<()> {
-        self.state.subscribe(&session_id, sink)
+        self.state.subscribe(&session_id, sink).map(|_| ())
     }
 
     /// Remove a subscription.
     pub fn unsubscribe(&mut self, id: &types::SubscriptionId) -> Result<()> {
         // Session id and subscription id are currently the same thing. See comment in
         // next_subscription_id method.
-        self.state.unsubscribe(id)
+        self.state.unsubscribe(id).map(|_| ())
     }
 
     /// Generate a receive address for the wallet's current account.
@@ -445,17 +446,20 @@ impl App {
     }
 
     /// Handle new block notifications received from the node.
-    pub fn handle_block_notification(&self, value: types::Json) -> Result<()> {
-        log::trace!("received block notification");
+    pub fn handle_block_notification(&mut self, value: types::Json) -> Result<()> {
         let block = serde_json::from_value::<types::ChainBlock>(value).map_err(node_error)?;
 
-        for (_id, wallet) in self
+        // This iterator is collected early so as to free the immutable reference to `self`.
+        let wallets: Vec<types::SessionWallet> = self
             .state
-            .wallets()
-            .collect::<Vec<(&String, &types::SessionWallet)>>()
-        {
-            // Send to a worker
-            self.handle_block_in_worker(&block, wallet);
+            .wallets
+            .iter()
+            .map(|(_, wallet)| wallet.clone())
+            .collect();
+
+        for wallet in wallets.iter() {
+            let sink = self.state.get_sink(&wallet.session_id);
+            self.handle_block_in_worker(&block, &wallet, sink.clone());
         }
 
         Ok(())
@@ -463,9 +467,12 @@ impl App {
 
     /// Offload block processing into a worker that operates on a different Arbiter than the main
     /// server thread, so as not to lock the rest of the application.
-    pub fn handle_block_in_worker(&self, block: &types::ChainBlock, wallet: &types::SessionWallet) {
-        let sink = self.state.get_sink(&wallet.session_id);
-
+    pub fn handle_block_in_worker(
+        &self,
+        block: &types::ChainBlock,
+        wallet: &types::SessionWallet,
+        sink: types::DynamicSink,
+    ) {
         // NOTE: Possible enhancement.
         // Maybe is a good idea to use a shared reference Arc instead of cloning `block` altogether,
         // moreover when this method is called iteratively by `handle_block_notification`.

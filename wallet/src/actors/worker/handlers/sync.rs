@@ -9,7 +9,7 @@ pub struct SyncRequest {
     pub wallet_id: String,
     pub wallet: types::SessionWallet,
     pub since_beacon: CheckpointBeacon,
-    pub sink: Option<types::Sink>,
+    pub sink: types::DynamicSink,
 }
 
 impl Message for SyncRequest {
