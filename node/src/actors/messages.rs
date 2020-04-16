@@ -519,11 +519,26 @@ impl Message for GetRandomPeers {
     type Result = PeersSocketAddrsResult;
 }
 
-/// Message to get all the peer addresses from the list
+/// Message to get all the peer addresses from the tried list
 pub struct RequestPeers;
 
 impl Message for RequestPeers {
     type Result = PeersSocketAddrsResult;
+}
+
+/// Message to get all the peer addresses from the new and tried lists
+pub struct GetKnownPeers;
+
+impl Message for GetKnownPeers {
+    type Result = Result<PeersNewTried, failure::Error>;
+}
+
+/// List of known peers sorted by bucket
+pub struct PeersNewTried {
+    /// Peers in new bucket
+    pub new: Vec<SocketAddr>,
+    /// Peers in tried bucket
+    pub tried: Vec<SocketAddr>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

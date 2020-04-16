@@ -3,8 +3,8 @@ use log;
 
 use super::PeersManager;
 use crate::actors::messages::{
-    AddConsolidatedPeer, AddPeers, GetRandomPeers, PeersSocketAddrResult, PeersSocketAddrsResult,
-    RemovePeers, RequestPeers,
+    AddConsolidatedPeer, AddPeers, GetKnownPeers, GetRandomPeers, PeersNewTried,
+    PeersSocketAddrResult, PeersSocketAddrsResult, RemovePeers, RequestPeers,
 };
 use witnet_util::timestamp::get_timestamp;
 
@@ -80,5 +80,17 @@ impl Handler<RequestPeers> for PeersManager {
     fn handle(&mut self, _msg: RequestPeers, _: &mut Context<Self>) -> Self::Result {
         log::debug!("Get all peers");
         self.peers.get_all_from_tried()
+    }
+}
+
+/// Handler for RequestPeers message
+impl Handler<GetKnownPeers> for PeersManager {
+    type Result = Result<PeersNewTried, failure::Error>;
+
+    fn handle(&mut self, _msg: GetKnownPeers, _: &mut Context<Self>) -> Self::Result {
+        Ok(PeersNewTried {
+            new: self.peers.get_all_from_new()?,
+            tried: self.peers.get_all_from_tried()?,
+        })
     }
 }

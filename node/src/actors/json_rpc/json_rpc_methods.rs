@@ -34,9 +34,10 @@ use crate::{
         messages::{
             AddCandidates, AddTransaction, BuildDrt, BuildVtt, GetBalance, GetBlocksEpochRange,
             GetConsolidatedPeers, GetDataRequestReport, GetEpoch, GetHighestCheckpointBeacon,
-            GetItemBlock, GetItemTransaction, GetMemoryTransaction, GetReputation,
+            GetItemBlock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetReputation,
             GetReputationAll, GetReputationStatus, GetState, NumSessions,
         },
+        peers_manager::PeersManager,
         sessions_manager::SessionsManager,
     },
     signature_mngr,
@@ -72,6 +73,7 @@ pub fn jsonrpc_io_handler(
     });
     io.add_method("getReputationAll", |_params: Params| get_reputation_all());
     io.add_method("peers", |_params: Params| peers());
+    io.add_method("knownPeers", |_params: Params| known_peers());
 
     // Enable methods that assume that JSON-RPC is only accessible by the owner of the node.
     // A method is sensitive if it touches in some way the master key of the node.
@@ -950,7 +952,8 @@ pub fn master_key_export() -> JsonRpcResultAsync {
 pub struct AddrType {
     /// Socket address of the peer
     pub address: String,
-    /// "inbound" | "outbound"
+    /// "inbound" | "outbound" when asking for connected peers, or
+    /// "new" | "tried" when asking for all the known peers
     #[serde(rename = "type")]
     pub type_: String,
 }
@@ -995,6 +998,48 @@ pub fn peers() -> JsonRpcResultAsync {
                 }
             }
             Err(()) => futures::failed(internal_error(())),
+        });
+
+    Box::new(fut)
+}
+
+/// Get list of known peers
+pub fn known_peers() -> JsonRpcResultAsync {
+    let peers_manager_addr = PeersManager::from_registry();
+
+    let fut = peers_manager_addr
+        .send(GetKnownPeers)
+        .map_err(internal_error)
+        .and_then(|knwon_peers| match knwon_peers {
+            Ok(x) => {
+                let peers: Vec<_> = x
+                    .new
+                    .into_iter()
+                    .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
+                    .map(|p| AddrType {
+                        address: p.to_string(),
+                        type_: "new".to_string(),
+                    })
+                    .chain(
+                        x.tried
+                            .into_iter()
+                            .sorted_by_key(|p| (p.is_ipv6(), p.ip(), p.port()))
+                            .map(|p| AddrType {
+                                address: p.to_string(),
+                                type_: "tried".to_string(),
+                            }),
+                    )
+                    .collect();
+
+                match serde_json::to_value(&peers) {
+                    Ok(x) => futures::finished(x),
+                    Err(e) => {
+                        let err = internal_error_s(e);
+                        futures::failed(err)
+                    }
+                }
+            }
+            Err(e) => futures::failed(internal_error_s(e)),
         });
 
     Box::new(fut)
@@ -1297,6 +1342,7 @@ mod tests {
                 "getReputationAll",
                 "getTransaction",
                 "inventory",
+                "knownPeers",
                 "masterKeyExport",
                 "peers",
                 "sendRequest",
