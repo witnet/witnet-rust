@@ -238,7 +238,7 @@ pub enum Event {
     /// The end of a synchronization progress.
     SyncFinish(u32, u32),
     /// An update on the progress of a the synchronization progress.
-    SyncProgress(u32, u32),
+    SyncProgress(u32, u32, u32),
     /// The start of a synchronization progress.
     SyncStart(u32, u32),
 }

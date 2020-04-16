@@ -564,6 +564,7 @@ impl Worker {
         let limit = i64::from(self.params.node_sync_batch_size);
         let mut latest_beacon = since_beacon;
         let mut since_beacon = since_beacon;
+        let first_beacon = since_beacon;
 
         // Query the node for the latest block in the chain
         let tip_fut = self.get_block_chain(0, -1);
@@ -581,7 +582,7 @@ impl Worker {
         // Notify wallet about initial synchronization status (the wallet most likely has an old
         // chain tip)
         let events = Some(vec![types::Event::SyncStart(
-            latest_beacon.checkpoint,
+            first_beacon.checkpoint,
             tip.checkpoint,
         )]);
         self.notify_client(&wallet, sink.clone(), events).ok();
@@ -618,6 +619,7 @@ impl Worker {
             }
 
             let events = Some(vec![types::Event::SyncProgress(
+                first_beacon.checkpoint,
                 latest_beacon.checkpoint,
                 tip.checkpoint,
             )]);
@@ -638,8 +640,8 @@ impl Worker {
         }
 
         let events = Some(vec![types::Event::SyncFinish(
+            first_beacon.checkpoint,
             latest_beacon.checkpoint,
-            tip.checkpoint,
         )]);
         self.notify_client(&wallet, sink, events).ok();
 
