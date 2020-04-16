@@ -37,7 +37,7 @@ pub fn wallet(data: Option<HashMap<Vec<u8>, Vec<u8>>>) -> (Wallet<db::HashMapDb>
             types::CreateWalletData {
                 iv,
                 salt,
-                id: "test-wallet-id",
+                id,
                 name: None,
                 caption: None,
                 account: &default_account,
@@ -45,7 +45,8 @@ pub fn wallet(data: Option<HashMap<Vec<u8>, Vec<u8>>>) -> (Wallet<db::HashMapDb>
         )
         .unwrap();
 
-    let wallet = Wallet::unlock(id, db.clone(), params, engine).unwrap();
+    let session_id = types::SessionId::from(String::from(id));
+    let wallet = Wallet::unlock(id, session_id, db.clone(), params, engine).unwrap();
 
     (wallet, db)
 }
@@ -55,10 +56,10 @@ pub fn pkh() -> types::PublicKeyHash {
     types::PublicKeyHash::from_bytes(&bytes).expect("PKH of 20 bytes failed")
 }
 
-pub fn transaction_id() -> types::TransactionId {
+pub fn transaction_id() -> types::Hash {
     let bytes: [u8; 32] = rand::random();
 
-    types::TransactionId::SHA256(bytes)
+    types::Hash::SHA256(bytes)
 }
 
 pub fn vtt_from_body(body: types::VTTransactionBody) -> model::ExtendedTransaction {
@@ -73,12 +74,12 @@ pub fn vtt_from_body(body: types::VTTransactionBody) -> model::ExtendedTransacti
 
 #[derive(Default)]
 pub struct Input {
-    transaction_id: Option<types::TransactionId>,
+    transaction_id: Option<types::Hash>,
     output_index: Option<u32>,
 }
 
 impl Input {
-    pub fn with_transaction(mut self, transaction_id: types::TransactionId) -> Self {
+    pub fn with_transaction(mut self, transaction_id: types::Hash) -> Self {
         self.transaction_id = Some(transaction_id);
         self
     }

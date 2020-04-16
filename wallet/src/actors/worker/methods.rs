@@ -641,7 +641,7 @@ impl Worker {
             latest_beacon.checkpoint,
             tip.checkpoint,
         )]);
-        self.notify_client(&wallet, sink.clone(), events).ok();
+        self.notify_client(&wallet, sink, events).ok();
 
         log::info!(
             "[SU] Wallet {} is now synced up to latest beacon ({:?})",

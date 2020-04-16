@@ -61,8 +61,7 @@ impl NodeParams {
     /// This panics if the `RwLock` is poisoned.
     pub fn get_last_beacon(&self) -> CheckpointBeacon {
         let lock = (*self.last_beacon).read();
-        lock.expect("Read locks should only fail if poisoned.")
-            .clone()
+        *lock.expect("Read locks should only fail if poisoned.")
     }
 
     /// Retrieve the `network` field.
@@ -86,6 +85,7 @@ impl NodeParams {
         }
     }
 
+    /*
     /// Update the `network` field in runtime, as it is unknown at boot.
     /// This is a best-effort method. It will silently do nothing if the write lock on `network`.
     pub fn update_network(&self, new_network: String) {
@@ -93,5 +93,5 @@ impl NodeParams {
         if let Ok(mut network) = lock {
             *network = Some(new_network)
         }
-    }
+    }*/
 }
