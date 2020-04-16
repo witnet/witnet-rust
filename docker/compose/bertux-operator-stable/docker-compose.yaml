@@ -4,10 +4,9 @@ services:
   node:
     image: witnet/witnet-rust
     restart: unless-stopped
-    command: ["latest", "--config", "/.witnet.toml", "--debug", "node", "server"]
+    command: ["latest", "node", "server"]
     network_mode: host
     ports:
       - "21337:21337"
     volumes:
       - "$HOME/.witnet:/.witnet:rw"
-      - "$HOME/.witnet.toml:/.witnet.toml:ro"
