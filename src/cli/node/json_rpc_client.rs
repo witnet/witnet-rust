@@ -676,6 +676,28 @@ pub fn get_peers(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
+pub fn get_known_peers(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = r#"{"jsonrpc": "2.0","method": "knownPeers", "id": "1"}"#;
+    let response = send_request(&mut stream, &request)?;
+    let peers: PeersResult = parse_response(&response)?;
+
+    if peers.is_empty() {
+        println!("No known peers");
+        return Ok(());
+    }
+
+    let mut table = Table::new();
+    table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    table.set_titles(row!["Address", "Type"]);
+    for AddrType { address, type_ } in peers {
+        table.add_row(row![address, type_]);
+    }
+    table.printstd();
+
+    Ok(())
+}
+
 // Response of the getBlockChain JSON-RPC method
 type ResponseBlockChain<'a> = Vec<(u32, &'a str)>;
 
