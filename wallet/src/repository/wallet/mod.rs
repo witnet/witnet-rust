@@ -677,6 +677,47 @@ where
                 balance_movement,
             )?;
 
+            // Try to update data request tally report if it was previously indexed
+            if let types::Transaction::Tally(tally) = &txn.transaction {
+                log::debug!("Updating data request transaction with report from tally transaction");
+                // Try to retrieve data request balance movement
+                let txn_id_opt = self
+                    .db
+                    .get_opt::<_, u32>(&keys::transactions_index(tally.dr_pointer.as_ref()))
+                    .unwrap_or(None);
+                let dr_movement_opt = txn_id_opt.and_then(|txn_id| {
+                    self.db
+                        .get_opt::<_, model::BalanceMovement>(&keys::transaction_movement(
+                            account, txn_id,
+                        ))
+                        .unwrap_or(None)
+                });
+
+                // Update data request tally report if previously indexed
+                if let Some(dr_movement) = dr_movement_opt {
+                    match &dr_movement.transaction.data {
+                        model::TransactionData::DataRequest(dr_data) => {
+                            let mut new_dr_movement = dr_movement.clone();
+                            new_dr_movement.transaction.data = model::TransactionData::DataRequest(model::DrData {
+                                inputs: dr_data.inputs.clone(),
+                                outputs: dr_data.outputs.clone(),
+                                tally: Some(build_tally_report(tally, &txn.metadata)?)
+                            });
+                            batch.put(
+                                keys::transaction_movement(account, txn_id_opt.unwrap()),
+                                new_dr_movement,
+                            )?;
+                        },
+                        _ => log::warn!("data request tally update failed because wrong stored data type (txn: {})", tally.dr_pointer),
+                    }
+                } else {
+                    log::debug!(
+                        "data request tally update not required it was not indexed (txn: {})",
+                        tally.dr_pointer
+                    )
+                }
+            }
+
             // Account state
             batch.put(keys::account_balance(account), new_balance)?;
             batch.put(keys::account_utxo_set(account), db_utxo_set)?;
