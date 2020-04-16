@@ -5,12 +5,17 @@ use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::json;
 
-use witnet_data_structures::chain::{CheckpointBeacon, Hash, Hashable, ValueTransferOutput};
+use witnet_data_structures::chain::{CheckpointBeacon, Hash, Hashable};
 
 use crate::types::{ChainEntry, GetBlockChainParams};
 use crate::{account, constants, crypto, db::Database as _, model, params};
 
 use super::*;
+
+pub enum IndexTransactionQuery {
+    InputTransactions(Vec<types::OutputPointer>),
+    DataRequestReport(String),
+}
 
 impl Worker {
     pub fn start(
@@ -247,8 +252,9 @@ impl Worker {
             &filtered_txns.len(),
             block.epoch
         );
-        let input_values = self.get_input_values_from_txns(&filtered_txns)?;
-        wallet.index_transactions(block, &filtered_txns, &input_values)?;
+        // Extending transactions with metadata queried from the node
+        let extended_txns = self.extend_transactions_data(filtered_txns)?;
+        wallet.index_transactions(block, &extended_txns)?;
         wallet.update_last_sync(CheckpointBeacon {
             checkpoint: block.epoch,
             hash_prev_block: block.block_hash,
@@ -313,53 +319,92 @@ impl Worker {
         Ok(signed_data)
     }
 
-    /// Retrieve the transaction input values (aka Value Transfer Outputs) from a list of transactions
-    pub fn get_input_values_from_txns(
+    /// Extend transactions with metadata requested to the node through JSON-RPC queries.
+    pub fn extend_transactions_data(
         &self,
-        txns: &[types::Transaction],
-    ) -> Result<Vec<Vec<ValueTransferOutput>>> {
-        let txns_output_pointers: Vec<Vec<&types::OutputPointer>> = txns
+        txns: Vec<types::Transaction>,
+    ) -> Result<Vec<model::ExtendedTransaction>> {
+        let queries: Vec<Option<IndexTransactionQuery>> = txns
             .iter()
             .map(|txn| match txn {
-                types::Transaction::ValueTransfer(vt) => vt
-                    .body
-                    .inputs
-                    .iter()
-                    .map(|input| input.output_pointer())
-                    .collect(),
-                types::Transaction::DataRequest(dr) => dr
-                    .body
-                    .inputs
-                    .iter()
-                    .map(|input| input.output_pointer())
-                    .collect(),
-                types::Transaction::Commit(commit) => commit
-                    .body
-                    .collateral
-                    .iter()
-                    .map(|input| input.output_pointer())
-                    .collect(),
-                _ => vec![],
+                types::Transaction::ValueTransfer(vt) => {
+                    Some(IndexTransactionQuery::InputTransactions(
+                        vt.body
+                            .inputs
+                            .iter()
+                            .map(|input| input.output_pointer().clone())
+                            .collect(),
+                    ))
+                }
+                types::Transaction::DataRequest(dr) => {
+                    Some(IndexTransactionQuery::InputTransactions(
+                        dr.body
+                            .inputs
+                            .iter()
+                            .map(|input| input.output_pointer().clone())
+                            .collect(),
+                    ))
+                }
+                types::Transaction::Commit(commit) => {
+                    Some(IndexTransactionQuery::InputTransactions(
+                        commit
+                            .body
+                            .collateral
+                            .iter()
+                            .map(|input| input.output_pointer().clone())
+                            .collect(),
+                    ))
+                }
+                types::Transaction::Tally(tally) => Some(IndexTransactionQuery::DataRequestReport(
+                    tally.dr_pointer.to_string(),
+                )),
+                _ => None,
             })
             .collect();
 
-        let query_vtt_outputs_futures: Result<Vec<Vec<ValueTransferOutput>>> = txns_output_pointers
-            .iter()
-            .map(|output_pointers| self.get_vt_outputs_from_pointers(output_pointers))
+        let query_results: Result<Vec<model::ExtendedTransaction>> = txns
+            .into_iter()
+            .zip(queries)
+            .map(|(transaction, opt_query)| match opt_query {
+                Some(query) => match query {
+                    IndexTransactionQuery::InputTransactions(pointers) => {
+                        Ok(model::ExtendedTransaction {
+                            transaction,
+                            metadata: Some(model::TransactionMetadata::InputValues(
+                                self.get_vt_outputs_from_pointers(&pointers)?,
+                            )),
+                        })
+                    }
+                    IndexTransactionQuery::DataRequestReport(dr_id) => {
+                        let retrieve_responses =
+                            async { self.query_data_request_report(dr_id).await };
+                        let report = futures03::executor::block_on(retrieve_responses)?;
+
+                        Ok(model::ExtendedTransaction {
+                            transaction,
+                            metadata: Some(model::TransactionMetadata::Tally(Box::new(report))),
+                        })
+                    }
+                },
+                None => Ok(model::ExtendedTransaction {
+                    transaction,
+                    metadata: None,
+                }),
+            })
             .collect();
 
-        Ok(query_vtt_outputs_futures?)
+        Ok(query_results?)
     }
 
-    /// Retrieve Value Transfer Outputs of a list of Output Pointers (aka input fields in transactions)
+    /// Retrieve Value Transfer Outputs of a list of Output Pointers (aka input fields in transactions).
     pub fn get_vt_outputs_from_pointers(
         &self,
-        output_pointers: &[&types::OutputPointer],
+        output_pointers: &[types::OutputPointer],
     ) -> Result<Vec<types::VttOutput>> {
         // Query the node for the required Transactions
         let txn_futures = output_pointers
             .iter()
-            .map(|&output| self.query_transaction(output.transaction_id.to_string()));
+            .map(|output| self.query_transaction(output.transaction_id.to_string()));
         let retrieve_responses = async { futures03::future::try_join_all(txn_futures).await };
         let transactions: Vec<types::Transaction> =
             futures03::executor::block_on(retrieve_responses)?;
@@ -371,7 +416,7 @@ impl Worker {
         let result: Result<Vec<types::VttOutput>> = transactions
             .iter()
             .zip(output_pointers)
-            .map(|(txn, &output)| match txn {
+            .map(|(txn, output)| match txn {
                 types::Transaction::ValueTransfer(vt) => vt
                     .body
                     .outputs
@@ -427,12 +472,43 @@ impl Worker {
             .send(req)
             .flatten()
             .map(|json| {
-                serde_json::from_value::<types::GetTransactionOutput>(json).map_err(node_error)
+                serde_json::from_value::<types::GetTransactionResponse>(json).map_err(node_error)
             })
             .flatten()
             .map(|txn_output| txn_output.transaction)
             .map_err(|err| {
                 log::error!("getTransaction request failed: {}", &err);
+                err
+            });
+
+        Compat01As03::new(f).await
+    }
+
+    /// Ask a Witnet node for the report of a data request.
+    pub async fn query_data_request_report(
+        &self,
+        data_request_id: String,
+    ) -> Result<types::DataRequestInfo> {
+        log::debug!("Getting data request report with id {} ", data_request_id);
+        let method = String::from("dataRequestReport");
+        let params = data_request_id;
+
+        let req = types::RpcRequest::method(method)
+            .timeout(self.node.requests_timeout)
+            .params(params)
+            .expect("params failed serialization");
+        let f = self
+            .node
+            .address
+            .send(req)
+            .flatten()
+            .map(|json| {
+                log::trace!("dataRequestReport request result: {:?}", json);
+                serde_json::from_value::<types::DataRequestInfo>(json).map_err(node_error)
+            })
+            .flatten()
+            .map_err(|err| {
+                log::warn!("dataRequestReport request failed: {}", &err);
                 err
             });
 

@@ -75,7 +75,7 @@ where
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BalanceMovement {
     /// Balance movement from the wallet perspective: `value = own_outputs - own_inputs`
     /// - A positive value means that the wallet received WITs from others.
@@ -86,7 +86,7 @@ pub struct BalanceMovement {
     pub transaction: Transaction,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum MovementType {
     #[serde(rename = "POSITIVE")]
     Positive,
@@ -103,7 +103,7 @@ impl fmt::Display for MovementType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Transaction {
     pub hash: String,
     pub timestamp: i64,
@@ -113,7 +113,7 @@ pub struct Transaction {
     pub data: TransactionData,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TransactionData {
     #[serde(rename = "value_transfer")]
     ValueTransfer(VtData),
@@ -127,13 +127,13 @@ pub enum TransactionData {
     Commit(VtData),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VtData {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DrData {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
@@ -141,7 +141,7 @@ pub struct DrData {
     pub tally: Option<TallyReport>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TallyData {
     pub request_transaction_hash: String,
     pub outputs: Vec<Output>,
@@ -149,40 +149,34 @@ pub struct TallyData {
     pub tally: TallyReport,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MintData {
     pub output: Output,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Input {
     pub address: String,
     pub value: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Output {
     pub address: String,
     pub time_lock: u64,
     pub value: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TallyReport {
     pub result: String,
     pub reveals: Vec<Reveal>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Reveal {
     pub value: String,
     pub in_consensus: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum TransactionStatus {
-    Confirmed,
-    Pending,
 }
 
 #[derive(Debug, Serialize)]
@@ -247,6 +241,16 @@ pub struct Path {
     pub account: u32,
     pub keychain: u32,
     pub index: u32,
+}
+
+pub struct ExtendedTransaction {
+    pub transaction: types::Transaction,
+    pub metadata: Option<TransactionMetadata>,
+}
+
+pub enum TransactionMetadata {
+    InputValues(Vec<types::VttOutput>),
+    Tally(Box<types::DataRequestInfo>),
 }
 
 #[cfg(tests)]

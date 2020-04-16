@@ -15,9 +15,12 @@ mod tests;
 
 use crate::types::{signature, ExtendedPK};
 use state::State;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use witnet_crypto::hash::calculate_sha256;
-use witnet_data_structures::chain::{CheckpointBeacon, Environment, Epoch, EpochConstants};
+use witnet_data_structures::chain::{
+    CheckpointBeacon, Environment, Epoch, EpochConstants, PublicKeyHash,
+};
 
 /// Internal structure used to gather state mutations while indexing block transactions
 struct AccountMutation {
@@ -328,18 +331,14 @@ where
         let mut filtered_txns = vec![];
         for txn in txns {
             // Inputs and outputs from different transaction types
-            let (inputs, outputs) = match txn {
-                types::Transaction::ValueTransfer(vt) => {
-                    (vt.body.inputs.clone(), vt.body.outputs.clone())
-                }
-                types::Transaction::DataRequest(dr) => {
-                    (dr.body.inputs.clone(), dr.body.outputs.clone())
-                }
+            let (inputs, outputs): (&[types::TransactionInput], &[types::VttOutput]) = match txn {
+                types::Transaction::ValueTransfer(vt) => (&vt.body.inputs, &vt.body.outputs),
+                types::Transaction::DataRequest(dr) => (&dr.body.inputs, &dr.body.outputs),
                 types::Transaction::Commit(commit) => {
-                    (commit.body.collateral.clone(), commit.body.outputs.clone())
+                    (&commit.body.collateral, &commit.body.outputs)
                 }
-                types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
-                types::Transaction::Mint(mint) => (vec![], vec![mint.output.clone()]),
+                types::Transaction::Tally(tally) => (&[], &tally.outputs),
+                types::Transaction::Mint(mint) => (&[], std::slice::from_ref(&mint.output)),
                 _ => continue,
             };
 
@@ -365,22 +364,21 @@ where
     pub fn index_transactions(
         &self,
         block_info: &model::Beacon,
-        txns: &[types::Transaction],
-        input_values: &[Vec<types::VttOutput>],
+        txns: &[model::ExtendedTransaction],
     ) -> Result<()> {
         let mut state = self.state.write()?;
 
-        for (txn, vtt_outputs) in txns.iter().zip(input_values) {
+        for txn in txns {
             // Check if transaction already exists in the database
-            let hash = txn.hash().as_ref().to_vec();
+            let hash = txn.transaction.hash().as_ref().to_vec();
             match self
                 .db
                 .get_opt::<_, u32>(&keys::transactions_index(&hash))?
             {
-                None => self._index_transaction(&mut state, txn, block_info, vtt_outputs)?,
+                None => self._index_transaction(&mut state, txn, block_info)?,
                 Some(_) => log::warn!(
                     "The transaction {} already exists in the database",
-                    txn.hash()
+                    txn.transaction.hash()
                 ),
             }
         }
@@ -570,12 +568,11 @@ where
     fn _index_transaction(
         &self,
         state: &mut State,
-        txn: &types::Transaction,
+        txn: &model::ExtendedTransaction,
         block_info: &model::Beacon,
-        input_values: &[types::VttOutput],
     ) -> Result<()> {
         // Inputs and outputs from different transaction types
-        let (inputs, outputs) = match txn {
+        let (inputs, outputs) = match &txn.transaction {
             types::Transaction::ValueTransfer(vt) => {
                 (vt.body.inputs.clone(), vt.body.outputs.clone())
             }
@@ -587,12 +584,21 @@ where
             }
             types::Transaction::Tally(tally) => (vec![], tally.outputs.clone()),
             types::Transaction::Mint(mint) => (vec![], vec![mint.output.clone()]),
-            _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
+            _ => {
+                return Err(Error::UnsupportedTransactionType(format!(
+                    "{:?}",
+                    txn.transaction
+                )));
+            }
         };
 
         // Wallet's account mutation (utxo set + balance changes)
-        let account_mutation =
-            self._get_account_mutation(&state.utxo_set, txn.hash().as_ref(), &inputs, &outputs)?;
+        let account_mutation = self._get_account_mutation(
+            &state.utxo_set,
+            txn.transaction.hash().as_ref(),
+            &inputs,
+            &outputs,
+        )?;
 
         // If UTXO set has changed, then update memory state and DB
         if !account_mutation.utxo_inserts.is_empty() || !account_mutation.utxo_removals.is_empty() {
@@ -634,17 +640,33 @@ where
 
             // DB write batch
             let mut batch = self.db.batch();
-            let txn_hash = txn.hash();
+            let txn_hash = txn.transaction.hash();
 
             // Transaction indexes
             batch.put(keys::transactions_index(txn_hash.as_ref()), txn_id)?;
             batch.put(keys::transaction_hash(account, txn_id), txn_hash.as_ref())?;
 
+            // Miner fee
+            let miner_fee: u64 = match &txn.metadata {
+                Some(model::TransactionMetadata::InputValues(input_values)) => {
+                    let total_input_amount = input_values.iter().fold(0, |acc, x| acc + x.value);
+                    let total_output_amount = outputs.iter().fold(0, |acc, x| acc + x.value);
+
+                    total_input_amount
+                        .checked_sub(total_output_amount)
+                        .unwrap_or_else(|| {
+                            log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {:?}", txn.transaction);
+
+                            0
+                        })
+                }
+                _ => 0,
+            };
+
             // Transaction Movement
             let balance_movement = build_balance_movement(
                 &txn,
-                &input_values,
-                &outputs,
+                miner_fee,
                 account_mutation.kind,
                 account_mutation.amount,
                 &block_info,
@@ -812,25 +834,27 @@ fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoc
 
 // Balance Movement Factory
 fn build_balance_movement(
-    txn: &types::Transaction,
-    input_values: &[types::VttOutput],
-    outputs: &[types::VttOutput],
+    txn: &model::ExtendedTransaction,
+    miner_fee: u64,
     kind: model::MovementType,
     amount: u64,
     block_info: &model::Beacon,
     timestamp: i64,
 ) -> Result<model::BalanceMovement> {
     // Input values with their ValueTransferOutput data
-    let transaction_inputs = input_values
-        .iter()
-        .map(|output| model::Input {
-            address: output.pkh.to_string(),
-            value: output.value,
-        })
-        .collect::<Vec<model::Input>>();
+    let transaction_inputs = match &txn.metadata {
+        Some(model::TransactionMetadata::InputValues(inputs)) => inputs
+            .iter()
+            .map(|output| model::Input {
+                address: output.pkh.to_string(),
+                value: output.value,
+            })
+            .collect::<Vec<model::Input>>(),
+        _ => vec![],
+    };
 
     // Transaction Data
-    let transaction_data = match txn {
+    let transaction_data = match &txn.transaction {
         types::Transaction::ValueTransfer(vtt) => {
             model::TransactionData::ValueTransfer(model::VtData {
                 inputs: transaction_inputs,
@@ -895,37 +919,21 @@ fn build_balance_movement(
                     value: output.value,
                 })
                 .collect::<Vec<model::Output>>(),
-            // FIXME: fill out tally data from transaction (request data request report to node)
-            tally: model::TallyReport {
-                result: "".to_string(),
-                reveals: vec![],
-            },
+            tally: build_tally_report(tally, &txn.metadata)?,
         }),
-        _ => return Err(Error::UnsupportedTransactionType(format!("{:?}", txn))),
-    };
-
-    // Miner fee
-    let miner_fee: u64 = match txn {
-        &types::Transaction::ValueTransfer(_) | &types::Transaction::DataRequest(_) => {
-            let total_input_amount = input_values.iter().fold(0, |acc, x| acc + x.value);
-            let total_output_amount = outputs.iter().fold(0, |acc, x| acc + x.value);
-
-            total_input_amount
-                .checked_sub(total_output_amount)
-                .unwrap_or_else(|| {
-                    log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {:?}", txn);
-
-                    0
-                })
+        _ => {
+            return Err(Error::UnsupportedTransactionType(format!(
+                "{:?}",
+                txn.transaction
+            )));
         }
-        _ => 0,
     };
 
     Ok(model::BalanceMovement {
         kind,
         amount,
         transaction: model::Transaction {
-            hash: hex::encode(txn.hash()),
+            hash: hex::encode(txn.transaction.hash()),
             timestamp,
             block: Some(model::Beacon {
                 epoch: block_info.epoch,
@@ -934,6 +942,58 @@ fn build_balance_movement(
             miner_fee,
             data: transaction_data,
         },
+    })
+}
+
+fn build_tally_report(
+    tally: &types::TallyTransaction,
+    metadata: &Option<model::TransactionMetadata>,
+) -> Result<model::TallyReport> {
+    let reveals = match metadata {
+        Some(model::TransactionMetadata::Tally(report)) => {
+            // List of reveals extracted from Data Request Report
+            let mut reveals: HashMap<PublicKeyHash, model::Reveal> = report
+                .reveals
+                .iter()
+                .map(|(pkh, reveal_txn)| {
+                    types::RadonTypes::try_from(reveal_txn.body.reveal.as_slice())
+                        .map(|x| {
+                            (
+                                *pkh,
+                                model::Reveal {
+                                    value: x.to_string(),
+                                    in_consensus: true,
+                                },
+                            )
+                        })
+                        .map_err(|err| Error::RevealRadDecode(err.to_string()))
+                })
+                .collect::<Result<HashMap<PublicKeyHash, model::Reveal>>>()?;
+
+            // Set not in consensus reveals
+            for pkh in &tally.slashed_witnesses {
+                let liar = reveals.get(&pkh).cloned();
+                if let Some(reveal) = liar {
+                    reveals.insert(
+                        pkh.clone(),
+                        model::Reveal {
+                            value: reveal.value,
+                            in_consensus: false,
+                        },
+                    );
+                }
+            }
+
+            Ok(reveals.values().cloned().collect::<Vec<model::Reveal>>())
+        }
+        _ => Err(Error::WrongMetadataType(format!("{:?}", tally))),
+    }?;
+
+    Ok(model::TallyReport {
+        result: types::RadonTypes::try_from(tally.tally.as_slice())
+            .map_err(|err| Error::TallyRadDecode(err.to_string()))?
+            .to_string(),
+        reveals,
     })
 }
 

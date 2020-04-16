@@ -31,6 +31,12 @@ pub enum Error {
     KeyDerivation(#[cause] types::KeyDerivationError),
     #[fail(display = "transaction type not supported: {}", _0)]
     UnsupportedTransactionType(String),
+    #[fail(display = "tally decode failed: {}", _0)]
+    TallyRadDecode(String),
+    #[fail(display = "reveal decode failed: {}", _0)]
+    RevealRadDecode(String),
+    #[fail(display = "transaction metadata type is wrong: {}", _0)]
+    WrongMetadataType(String),
 }
 
 impl From<failure::Error> for Error {

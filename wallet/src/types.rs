@@ -14,15 +14,16 @@ pub use witnet_crypto::{
 };
 pub use witnet_data_structures::{
     chain::{
-        Block as ChainBlock, DataRequestOutput, Hash as TransactionId, Hashable,
-        Input as TransactionInput, KeyedSignature, OutputPointer, PublicKey, PublicKeyHash,
-        PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve, RADTally,
-        ValueTransferOutput as VttOutput,
+        Block as ChainBlock, CheckpointBeacon, DataRequestInfo, DataRequestOutput,
+        Hash as TransactionId, Hashable, Input as TransactionInput, KeyedSignature, OutputPointer,
+        PublicKey, PublicKeyHash, PublicKeyHashParseError, RADAggregate, RADRequest, RADRetrieve,
+        RADTally, ValueTransferOutput as VttOutput,
     },
     proto::ProtobufConvert,
     radon_report::RadonReport,
     transaction::{
-        DRTransaction, DRTransactionBody, Transaction, VTTransaction, VTTransactionBody,
+        DRTransaction, DRTransactionBody, TallyTransaction, Transaction, VTTransaction,
+        VTTransactionBody,
     },
 };
 pub use witnet_net::client::tcp::jsonrpc::Request as RpcRequest;
@@ -33,7 +34,6 @@ use crate::model;
 
 use super::{db, repository};
 use crate::types::signature::Signature;
-use witnet_data_structures::chain::CheckpointBeacon;
 
 pub type Password = ProtectedString;
 
@@ -176,7 +176,7 @@ pub struct ChainEntry(pub u32, pub String);
 /// Format of the output of getTransaction
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetTransactionOutput {
+pub struct GetTransactionResponse {
     /// Transaction
     pub transaction: Transaction,
     /// Hash of the block that contains this transaction in hex format,
