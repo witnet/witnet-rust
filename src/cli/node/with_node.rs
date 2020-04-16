@@ -115,6 +115,9 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             print_data_request,
         ),
         Command::GetPeers { node } => rpc::get_peers(node.unwrap_or(config.jsonrpc.server_address)),
+        Command::GetKnownPeers { node } => {
+            rpc::get_known_peers(node.unwrap_or(config.jsonrpc.server_address))
+        }
     }
 }
 
@@ -280,6 +283,16 @@ pub enum Command {
         about = "Get the list of peers connected to the node"
     )]
     GetPeers {
+        /// Socket address of the Witnet node to query.
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+    },
+    #[structopt(
+        name = "knownPeers",
+        alias = "getKnownPeers",
+        about = "Get the list of peers known by the node"
+    )]
+    GetKnownPeers {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
