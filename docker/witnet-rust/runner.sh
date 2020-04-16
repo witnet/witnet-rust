@@ -1,7 +1,10 @@
 #!/bin/bash
 
-VERSION=$1
-COMPONENT=$2
+#VERSION=$1
+VERSION="latest"
+#COMPONENT=$2
+COMPONENT="node"
+MODE="server"
 shift
 shift
 
@@ -24,5 +27,6 @@ echo "Downloading 'witnet-$VERSION-$TRIPLET.tar.gz'. It may take a few seconds..
 curl -L $URL -o /tmp/${FILENAME} --cacert /etc/ssl/certs/ca-certificates.crt >/dev/null 2>&1 &&
 tar -zxf /tmp/${FILENAME} --directory ${FOLDERNAME} >/dev/null 2>&1 &&
 chmod +x $FOLDERNAME/witnet &&
-${FOLDERNAME}/witnet ${COMPONENT} $@ ||
-echo "Error downloading and running a witnet-rust $COMPONENT on version $VERSION for $TRIPLET"
+rm -f /tmp/${FILENAME} &&
+${FOLDERNAME}/witnet ${COMPONENT} ${MODE} --version ||
+echo "Error downloading and installing a witnet-rust $COMPONENT on version $VERSION for $TRIPLET"

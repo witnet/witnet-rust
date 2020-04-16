@@ -20,9 +20,12 @@ EXPOSE 21337
 EXPOSE 21338
 EXPOSE 11212
 
-# Set compilation entry point (always gets executed)
+# Run the install script
 RUN ["chmod", "+x", "./runner.sh"]
-ENTRYPOINT ["./runner.sh"]
+RUN ["./runner.sh"]
+
+# Set compilation entry point (always gets executed)
+ENTRYPOINT ["./witnet"]
 
 # Set default command (can be overriden)
-CMD ["latest", "node", "server"]
+CMD ["node", "server"]
