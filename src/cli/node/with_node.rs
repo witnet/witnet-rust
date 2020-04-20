@@ -179,7 +179,7 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Public key hash for which to get balance. If omitted, defaults to the node pkh.
-        #[structopt(long = "pkh")]
+        #[structopt(long = "address")]
         pkh: Option<String>,
     },
     #[structopt(name = "getPkh", about = "Get the public key hash of the node")]
@@ -197,7 +197,7 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Public key hash for which to get reputation. If omitted, defaults to the node pkh.
-        #[structopt(long = "pkh")]
+        #[structopt(long = "address")]
         pkh: Option<String>,
         /// Print all the reputation?
         #[structopt(long = "all", conflicts_with = "pkh")]
@@ -220,7 +220,7 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Public key hash of the destination
-        #[structopt(long = "pkh")]
+        #[structopt(long = "address")]
         pkh: String,
         /// Value
         #[structopt(long = "value")]
