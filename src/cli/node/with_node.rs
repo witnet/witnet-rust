@@ -18,27 +18,27 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
         Command::BlockChain { node, epoch, limit } => {
             rpc::get_blockchain(node.unwrap_or(config.jsonrpc.server_address), epoch, limit)
         }
-        Command::GetBalance { node, pkh } => {
-            let pkh = pkh.map(|x| x.parse()).transpose()?;
-            rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), pkh)
+        Command::GetBalance { node, address } => {
+            let address = address.map(|x| x.parse()).transpose()?;
+            rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), address)
         }
         Command::GetPkh { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
-        Command::GetReputation { node, pkh, all } => {
-            let pkh = pkh.map(|x| x.parse()).transpose()?;
-            rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), pkh, all)
+        Command::GetReputation { node, address, all } => {
+            let address = address.map(|x| x.parse()).transpose()?;
+            rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), address, all)
         }
         Command::Output { node, pointer } => {
             rpc::get_output(node.unwrap_or(config.jsonrpc.server_address), pointer)
         }
         Command::Send {
             node,
-            pkh,
+            address,
             value,
             fee,
             time_lock,
         } => rpc::send_vtt(
             node.unwrap_or(config.jsonrpc.server_address),
-            pkh.parse()?,
+            address.parse()?,
             value,
             fee,
             time_lock.unwrap_or(0),
@@ -178,9 +178,9 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public address for which to get balance. If omitted, defaults to the node pkh.
+        /// Public address for which to get balance. If omitted, defaults to the node address.
         #[structopt(long = "address")]
-        pkh: Option<String>,
+        address: Option<String>,
     },
     #[structopt(name = "getPkh", about = "Get the public address of the node")]
     GetPkh {
@@ -196,11 +196,11 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public address for which to get reputation. If omitted, defaults to the node pkh.
+        /// Public address for which to get reputation. If omitted, defaults to the node address.
         #[structopt(long = "address")]
-        pkh: Option<String>,
+        address: Option<String>,
         /// Print all the reputation?
-        #[structopt(long = "all", conflicts_with = "pkh")]
+        #[structopt(long = "all", conflicts_with = "address")]
         all: bool,
     },
     #[structopt(name = "output", about = "Find an output of a transaction ")]
@@ -221,7 +221,7 @@ pub enum Command {
         node: Option<SocketAddr>,
         /// Public address of the destination
         #[structopt(long = "address")]
-        pkh: String,
+        address: String,
         /// Value
         #[structopt(long = "value")]
         value: u64,
