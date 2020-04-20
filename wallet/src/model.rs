@@ -30,7 +30,7 @@ pub struct Address {
     pub keychain: u32,
     pub account: u32,
     pub path: String,
-    pub label: Option<String>,
+    pub info: AddressInfo,
     pub pkh: types::PublicKeyHash,
 }
 
@@ -38,6 +38,15 @@ pub struct Address {
 pub struct Addresses {
     pub addresses: Vec<Address>,
     pub total: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct AddressInfo {
+    pub label: Option<String>,
+    pub received_payments: Vec<String>,
+    pub received_amount: u64,
+    pub first_payment_date: Option<i64>,
+    pub last_payment_date: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
