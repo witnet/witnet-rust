@@ -22,7 +22,7 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             let address = address.map(|x| x.parse()).transpose()?;
             rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), address)
         }
-        Command::GetPkh { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
+        Command::GetAddress { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
         Command::GetReputation { node, address, all } => {
             let address = address.map(|x| x.parse()).transpose()?;
             rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), address, all)
@@ -179,11 +179,15 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Public address for which to get balance. If omitted, defaults to the node address.
-        #[structopt(long = "address")]
+        #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
     },
-    #[structopt(name = "getPkh", about = "Get the public address of the node")]
-    GetPkh {
+    #[structopt(
+        name = "getAddress",
+        alias = "getPkh",
+        about = "Get the public address of the node"
+    )]
+    GetAddress {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
@@ -197,7 +201,7 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Public address for which to get reputation. If omitted, defaults to the node address.
-        #[structopt(long = "address")]
+        #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
         /// Print all the reputation?
         #[structopt(long = "all", conflicts_with = "address")]
@@ -220,7 +224,7 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Public address of the destination
-        #[structopt(long = "address")]
+        #[structopt(long = "address", alias = "pkh")]
         address: String,
         /// Value
         #[structopt(long = "value")]
