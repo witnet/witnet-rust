@@ -18,32 +18,32 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
         Command::BlockChain { node, epoch, limit } => {
             rpc::get_blockchain(node.unwrap_or(config.jsonrpc.server_address), epoch, limit)
         }
-        Command::GetBalance { node, pkh } => {
-            let pkh = pkh.map(|x| x.parse()).transpose()?;
-            rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), pkh)
+        Command::GetBalance { node, address } => {
+            let address = address.map(|x| x.parse()).transpose()?;
+            rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), address)
         }
-        Command::GetPkh { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
+        Command::GetAddress { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
         Command::GetUtxoInfo { node, long, pkh } => {
             let pkh = pkh.map(|x| x.parse()).transpose()?;
             rpc::get_utxo_info(node.unwrap_or(config.jsonrpc.server_address), long, pkh)
         }
-        Command::GetReputation { node, pkh, all } => {
-            let pkh = pkh.map(|x| x.parse()).transpose()?;
-            rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), pkh, all)
+        Command::GetReputation { node, address, all } => {
+            let address = address.map(|x| x.parse()).transpose()?;
+            rpc::get_reputation(node.unwrap_or(config.jsonrpc.server_address), address, all)
         }
         Command::Output { node, pointer } => {
             rpc::get_output(node.unwrap_or(config.jsonrpc.server_address), pointer)
         }
         Command::Send {
             node,
-            pkh,
+            address,
             value,
             fee,
             time_lock,
             dry_run,
         } => rpc::send_vtt(
             node.unwrap_or(config.jsonrpc.server_address),
-            Some(pkh.parse()?),
+            Some(address.parse()?),
             value,
             None,
             fee,
@@ -53,18 +53,18 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
         ),
         Command::Split {
             node,
-            pkh,
+            address,
             value,
             size,
             fee,
             time_lock,
             dry_run,
         } => {
-            let pkh = pkh.map(|x| x.parse()).transpose()?;
+            let address = address.map(|x| x.parse()).transpose()?;
             let size = if size == 0 { None } else { Some(size) };
             rpc::send_vtt(
                 node.unwrap_or(config.jsonrpc.server_address),
-                pkh,
+                address,
                 value,
                 size,
                 fee,
@@ -75,18 +75,18 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
         }
         Command::Join {
             node,
-            pkh,
+            address,
             value,
             size,
             fee,
             time_lock,
             dry_run,
         } => {
-            let pkh = pkh.map(|x| x.parse()).transpose()?;
+            let address = address.map(|x| x.parse()).transpose()?;
             let size = if size == Some(0) { None } else { size };
             rpc::send_vtt(
                 node.unwrap_or(config.jsonrpc.server_address),
-                pkh,
+                address,
                 value,
                 size,
                 fee,
@@ -230,12 +230,16 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public key hash for which to get balance. If omitted, defaults to the node pkh.
-        #[structopt(long = "pkh")]
-        pkh: Option<String>,
+        /// Address for which to get balance. If omitted, defaults to the node address.
+        #[structopt(long = "address", alias = "pkh")]
+        address: Option<String>,
     },
-    #[structopt(name = "getPkh", about = "Get the public key hash of the node")]
-    GetPkh {
+    #[structopt(
+        name = "getAddress",
+        alias = "getPkh",
+        about = "Get the public address of the node"
+    )]
+    GetAddress {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
@@ -252,7 +256,7 @@ pub enum Command {
         #[structopt(long = "long")]
         long: bool,
         /// Public key hash for which to get UTXO information. If omitted, defaults to the node pkh.
-        #[structopt(long = "pkh")]
+        #[structopt(long = "address", alias = "pkh")]
         pkh: Option<String>,
     },
     #[structopt(
@@ -263,11 +267,11 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public key hash for which to get reputation. If omitted, defaults to the node pkh.
-        #[structopt(long = "pkh")]
-        pkh: Option<String>,
+        /// Address for which to get reputation. If omitted, defaults to the node address.
+        #[structopt(long = "address", alias = "pkh")]
+        address: Option<String>,
         /// Print all the reputation?
-        #[structopt(long = "all", conflicts_with = "pkh")]
+        #[structopt(long = "all", conflicts_with = "address")]
         all: bool,
     },
     #[structopt(name = "output", about = "Find an output of a transaction ")]
@@ -286,9 +290,9 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public key hash of the destination
-        #[structopt(long = "pkh")]
-        pkh: String,
+        /// Address of the destination
+        #[structopt(long = "address", alias = "pkh")]
+        address: String,
         /// Value
         #[structopt(long = "value")]
         value: u64,
@@ -311,8 +315,8 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Public key hash of the destination. If omitted, defaults to the node pkh.
-        #[structopt(long = "pkh")]
-        pkh: Option<String>,
+        #[structopt(long = "address", alias = "pkh")]
+        address: Option<String>,
         /// Value
         #[structopt(long = "value")]
         value: u64,
@@ -338,8 +342,8 @@ pub enum Command {
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
         /// Public key hash of the destination. If omitted, defaults to the node pkh.
-        #[structopt(long = "pkh")]
-        pkh: Option<String>,
+        #[structopt(long = "address", alias = "pkh")]
+        address: Option<String>,
         /// Value
         #[structopt(long = "value")]
         value: u64,
