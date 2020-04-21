@@ -1,0 +1,1 @@
+../bertux-operator-stable/install.sh

@@ -1,1 +1,1 @@
-docker-compose exec node ./witnet node --version
+docker-compose ps | grep node | cut -d' ' -f1 | parallel docker exec {} ./witnet node --version
