@@ -107,7 +107,6 @@ impl fmt::Display for MovementType {
 pub struct Transaction {
     pub hash: String,
     pub timestamp: i64,
-    // #[serde(skip_serializing_if = "Option::is_none")]
     pub block: Option<Beacon>,
     pub miner_fee: u64,
     pub data: TransactionData,
@@ -137,7 +136,6 @@ pub struct VtData {
 pub struct DrData {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
-    // #[serde(skip_serializing_if = "Option::is_none")]
     pub tally: Option<TallyReport>,
 }
 
@@ -145,7 +143,6 @@ pub struct DrData {
 pub struct TallyData {
     pub request_transaction_hash: String,
     pub outputs: Vec<Output>,
-    // #[serde(skip_serializing_if = "Option::is_none")]
     pub tally: TallyReport,
 }
 
