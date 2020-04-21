@@ -219,6 +219,16 @@ impl From<&types::OutputPointer> for OutPtr {
     }
 }
 
+impl fmt::Display for OutPtr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&format!(
+            "{}:{}",
+            &self.transaction_id(),
+            &self.output_index
+        ))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KeyBalance {
     /// PKH receiving this balance

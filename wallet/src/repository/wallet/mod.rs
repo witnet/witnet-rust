@@ -745,6 +745,38 @@ where
                 }
             }
 
+            // Update addresses information if there were payments (new UTXOs)
+            for (output_pointer, key_balance) in account_mutation.utxo_inserts {
+                // Retrieve previous address information
+                let path = self
+                    .db
+                    .get::<_, model::Path>(&keys::pkh(&key_balance.pkh))?;
+                let info = self.db.get::<_, model::AddressInfo>(&keys::address_info(
+                    path.account,
+                    path.keychain,
+                    path.index,
+                ))?;
+
+                // Build the new address information
+                let mut received_payments = info.received_payments;
+                received_payments.push(output_pointer.to_string());
+                let current_timestamp =
+                    convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch);
+                let first_payment_date = Some(info.first_payment_date.unwrap_or(current_timestamp));
+                let updated_info = model::AddressInfo {
+                    label: info.label,
+                    received_payments,
+                    received_amount: info.received_amount + key_balance.amount,
+                    first_payment_date,
+                    last_payment_date: Some(current_timestamp),
+                };
+
+                self.db.put(
+                    &keys::address_info(path.account, path.keychain, path.index),
+                    updated_info,
+                )?;
+            }
+
             // Account state
             batch.put(keys::account_balance(account), new_balance)?;
             batch.put(keys::account_utxo_set(account), db_utxo_set)?;

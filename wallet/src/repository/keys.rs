@@ -120,7 +120,7 @@ pub fn address_info(account_index: u32, keychain: u32, key_index: u32) -> String
     )
 }
 
-/// Info associated to a pkh.
+/// Path information associated to a pkh (account, keychain and index).
 #[inline]
 pub fn pkh(pkh: &PublicKeyHash) -> Vec<u8> {
     [b"pkh-", pkh.as_ref()].concat().to_vec()
