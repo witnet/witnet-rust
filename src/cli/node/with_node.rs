@@ -178,7 +178,7 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public address for which to get balance. If omitted, defaults to the node address.
+        /// Address for which to get balance. If omitted, defaults to the node address.
         #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
     },
@@ -200,7 +200,7 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public address for which to get reputation. If omitted, defaults to the node address.
+        /// Address for which to get reputation. If omitted, defaults to the node address.
         #[structopt(long = "address", alias = "pkh")]
         address: Option<String>,
         /// Print all the reputation?
@@ -223,7 +223,7 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Public address of the destination
+        /// Address of the destination
         #[structopt(long = "address", alias = "pkh")]
         address: String,
         /// Value
