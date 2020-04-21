@@ -679,7 +679,11 @@ where
 
             // Try to update data request tally report if it was previously indexed
             if let types::Transaction::Tally(tally) = &txn.transaction {
-                log::debug!("Updating data request transaction with report from tally transaction");
+                log::debug!(
+                    "Updating data request transaction {} with report from tally transaction {}",
+                    tally.dr_pointer.to_string(),
+                    tally.hash().to_string()
+                );
                 // Try to retrieve data request balance movement
                 let txn_id_opt = self
                     .db
