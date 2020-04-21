@@ -124,6 +124,10 @@ impl JsonRpcServer {
 
     fn remove_connection(&mut self, addr: &Addr<JsonRpc>) {
         self.open_connections.remove(addr);
+        debug!(
+            "Remove session (currently {} open connections)",
+            self.open_connections.len()
+        );
     }
 }
 
@@ -182,11 +186,17 @@ impl Handler<NewBlock> for JsonRpcServer {
                 ctx.spawn(
                     sink.notify(r.into())
                         .into_actor(self)
-                        .then(|_res, _act, _ctx| actix::fut::ok(())),
+                        .then(move |res, _act, _ctx| {
+                            if let Err(e) = res {
+                                error!("Failed to send notification: {:?}", e);
+                            }
+
+                            actix::fut::ok(())
+                        }),
                 );
             }
         } else {
-            error!("Failed to adquire lock in NewBlock handle");
+            error!("Failed to acquire lock in NewBlock handle");
         }
     }
 }

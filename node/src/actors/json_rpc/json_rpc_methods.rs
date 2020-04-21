@@ -185,20 +185,25 @@ pub fn jsonrpc_io_handler(
                         if let Ok(sink) = subscriber.assign_id(id.clone()) {
                             let v = s.entry(method_name).or_insert_with(HashMap::new);
                             v.insert(id, (sink, method_params));
-                            debug!("Subscribed to {}", method_name);
-                            debug!("This session has {} subscriptions to this method", v.len());
+                            debug!(
+                                "Subscribed to {}. There are {} subscriptions to this method",
+                                method_name,
+                                v.len()
+                            );
                         } else {
                             // Session closed before we got a chance to reply
-                            debug!("Failed to assing id: session closed");
+                            debug!("Failed to assign id: session closed");
                         }
                     } else {
-                        error!("Failed to adquire lock in add_subscription");
+                        error!("Failed to acquire lock in add_subscription");
+                        subscriber
+                            .reject(internal_error_s("Failed to acquire lock"))
+                            .ok();
                     }
                 };
 
                 match method_name.as_str() {
                     "newBlocks" => {
-                        debug!("New subscription to newBlocks");
                         add_subscription("newBlocks", subscriber);
                     }
                     e => {
@@ -216,10 +221,13 @@ pub fn jsonrpc_io_handler(
         ),
         (
             "witnet_unsubscribe",
-            move |id: SubscriptionId, meta: Option<Arc<Session>>| -> BoxFuture<Value> {
+            move |id: SubscriptionId, _meta: Option<Arc<Session>>| -> BoxFuture<Value> {
+                // If meta is None it means that the session is now closed
+                // If meta is Some it means that the client called witnet_unsubscribe for this id,
+                // but the session is still open
                 debug!("Closing subscription {:?}", id);
-                match (ssu.lock(), meta) {
-                    (Ok(mut s), Some(_meta)) => {
+                match ssu.lock() {
+                    Ok(mut s) => {
                         let mut found = false;
                         for (_method, v) in s.iter_mut() {
                             if v.remove(&id).is_some() {
@@ -231,14 +239,8 @@ pub fn jsonrpc_io_handler(
 
                         Box::new(futures::future::ok(Value::Bool(found)))
                     }
-                    (Ok(_s), None) => {
-                        // The connection was closed
-                        // No need to remove from hashmap, it is removed in
-                        // impl Handler<Unregister> for JsonRpcServer
-                        Box::new(futures::future::ok(Value::Bool(true)))
-                    }
-                    (Err(e), _meta) => {
-                        error!("Failed to adquire lock in witnet_unsubscribe");
+                    Err(e) => {
+                        error!("Failed to acquire lock in witnet_unsubscribe");
                         Box::new(futures::future::err(internal_error(e)))
                     }
                 }
