@@ -167,6 +167,13 @@ where
             keychain,
             index
         );
+        let info = model::AddressInfo {
+            label,
+            received_payments: vec![],
+            received_amount: 0,
+            first_payment_date: None,
+            last_payment_date: None,
+        };
 
         // Persist changes and new address in database
         let mut batch = self.db.batch();
@@ -174,9 +181,7 @@ where
         batch.put(keys::address(account, keychain, index), &address)?;
         batch.put(keys::address_path(account, keychain, index), &path)?;
         batch.put(keys::address_pkh(account, keychain, index), &pkh)?;
-        if let Some(label) = &label {
-            batch.put(keys::address_label(account, keychain, index), label)?;
-        }
+        batch.put(keys::address_info(account, keychain, index), &info)?;
         batch.put(
             keys::pkh(&pkh),
             model::Path {
@@ -192,7 +197,7 @@ where
         let address = model::Address {
             address,
             path,
-            label,
+            info,
             index,
             account,
             keychain,
@@ -270,9 +275,7 @@ where
         let address = self.db.get(&keys::address(account, keychain, index))?;
         let path = self.db.get(&keys::address_path(account, keychain, index))?;
         let pkh = self.db.get(&keys::address_pkh(account, keychain, index))?;
-        let label = self
-            .db
-            .get_opt(&keys::address_label(account, keychain, index))?;
+        let info = self.db.get(&keys::address_info(account, keychain, index))?;
 
         Ok(model::Address {
             address,
@@ -281,7 +284,7 @@ where
             index,
             account,
             keychain,
-            label,
+            info,
         })
     }
 

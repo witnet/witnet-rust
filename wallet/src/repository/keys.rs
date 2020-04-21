@@ -113,9 +113,9 @@ pub fn address_pkh(account_index: u32, keychain: u32, key_index: u32) -> String 
 
 /// An address's label.
 #[inline]
-pub fn address_label(account_index: u32, keychain: u32, key_index: u32) -> String {
+pub fn address_info(account_index: u32, keychain: u32, key_index: u32) -> String {
     format!(
-        "account-{}-key-{}-{}-address-label",
+        "account-{}-key-{}-{}-address-info",
         account_index, keychain, key_index
     )
 }

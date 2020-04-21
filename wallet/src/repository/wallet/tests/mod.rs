@@ -98,7 +98,7 @@ fn test_gen_external_address_saves_details_in_db() {
     );
     assert_eq!(
         label,
-        db.get::<_, String>(&keys::address_label(account, keychain, index))
+        db.get::<_, String>(&keys::address_info(account, keychain, index))
             .unwrap()
     );
 }
@@ -248,7 +248,7 @@ fn test_gen_internal_address_saves_details_in_db() {
     );
     assert_eq!(
         label,
-        db.get::<_, String>(&keys::address_label(account, keychain, index))
+        db.get::<_, String>(&keys::address_info(account, keychain, index))
             .unwrap()
     );
 }
