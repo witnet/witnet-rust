@@ -439,8 +439,8 @@ impl Worker {
         let retrieve_responses = async { futures03::future::try_join_all(txn_futures).await };
         let transactions: Vec<types::Transaction> =
             futures03::executor::block_on(retrieve_responses)?;
-        log::info!(
-            "Received {} wallet transactions from node",
+        log::debug!(
+            "Retrieved value transfer output information from node (queried {} wallet transactions)",
             transactions.len()
         );
 
