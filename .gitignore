@@ -19,7 +19,7 @@ Cargo.lock
 *.log
 
 # Ignore rocksdb default storage path
-.wit/
+.wit*/
 
 # Ignore generated documentation
 site

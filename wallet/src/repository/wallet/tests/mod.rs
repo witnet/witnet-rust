@@ -28,11 +28,11 @@ fn test_gen_external_address() {
 
     assert!(address.address.starts_with("wit"));
     assert_eq!("m/3'/4919'/0'/0/0", &address.path);
-    assert_eq!(Some(label), address.label);
+    assert_eq!(Some(label), address.info.label);
 
     let address_no_label = wallet.gen_external_address(None).unwrap();
 
-    assert_eq!(None, address_no_label.label);
+    assert_eq!(None, address_no_label.info.label);
 }
 
 #[test]
@@ -96,11 +96,16 @@ fn test_gen_external_address_saves_details_in_db() {
         db.get::<_, types::PublicKeyHash>(&keys::address_pkh(account, keychain, index))
             .unwrap()
     );
-    assert_eq!(
-        label,
-        db.get::<_, String>(&keys::address_info(account, keychain, index))
-            .unwrap()
-    );
+
+    let address_info: model::AddressInfo = db
+        .get(&keys::address_info(account, keychain, index))
+        .unwrap();
+
+    assert_eq!(label, address_info.label.unwrap());
+    assert!(address_info.first_payment_date.is_none());
+    assert!(address_info.last_payment_date.is_none());
+    assert_eq!(0, address_info.received_amount);
+    assert!(address_info.received_payments.is_empty());
 }
 
 #[test]
@@ -179,11 +184,11 @@ fn test_gen_internal_address() {
 
     assert!(address.address.starts_with("wit"));
     assert_eq!("m/3'/4919'/0'/1/0", &address.path);
-    assert_eq!(Some(label), address.label);
+    assert_eq!(Some(label), address.info.label);
 
     let address_no_label = wallet.gen_internal_address(None).unwrap();
 
-    assert_eq!(None, address_no_label.label);
+    assert_eq!(None, address_no_label.info.label);
 }
 
 #[test]
@@ -248,7 +253,9 @@ fn test_gen_internal_address_saves_details_in_db() {
     );
     assert_eq!(
         label,
-        db.get::<_, String>(&keys::address_info(account, keychain, index))
+        db.get::<_, model::AddressInfo>(&keys::address_info(account, keychain, index))
+            .unwrap()
+            .label
             .unwrap()
     );
 }
