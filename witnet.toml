@@ -40,7 +40,7 @@ known_peers = [
     "41.212.58.87:21337",
     "144.202.100.245:21337"
 ]
-outbound_limit = 4
+outbound_limit = 8
 bootstrap_peers_period_seconds = 1
 
 [storage]
@@ -52,10 +52,12 @@ server_address = "127.0.0.1:21338"
 
 [consensus_constants]
 checkpoints_period = 45
-checkpoint_zero_timestamp = 1585742400
-bootstrap_hash = "00000000000000000000000000000000000000007769746e65742d302e372e33"
+# Monday, 27-Apr-2020, 14:00 UTC
+checkpoint_zero_timestamp = 1587996000
+bootstrap_hash = "00000000000000000000000000000000000000007769746e65742d302e382e30"
 genesis_hash = "15493414fde678612be9811777bb26f019af75de23daffd41974fccd784c89b2"
-mining_replication_factor = 1
+activity_period = 1000
+collateral_age = 1000
 
 [ntp]
 update_period_seconds = 8000000
