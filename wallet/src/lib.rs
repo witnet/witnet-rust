@@ -118,7 +118,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         checkpoint: 0,
         hash_prev_block: genesis_hash,
     }));
-    let network = Arc::new(RwLock::new(None));
+    let network = String::from(if testnet { "Testnet" } else { "Mainnet" });
     let node_params = params::NodeParams {
         address: node_url,
         client: client.clone(),

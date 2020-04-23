@@ -51,7 +51,7 @@ pub struct NodeParams {
     /// A reference to the latest block that the node has consolidated into its block chain.
     pub last_beacon: Arc<RwLock<CheckpointBeacon>>,
     /// The name of the network in which the node is operating.
-    pub network: Arc<RwLock<Option<String>>>,
+    pub network: String,
     /// Timeout for JSON-RPC requests sent to the node.
     pub requests_timeout: Duration,
 }
@@ -62,14 +62,6 @@ impl NodeParams {
     pub fn get_last_beacon(&self) -> CheckpointBeacon {
         let lock = (*self.last_beacon).read();
         *lock.expect("Read locks should only fail if poisoned.")
-    }
-
-    /// Retrieve the `network` field.
-    /// This panics if the `RwLock` is poisoned.
-    pub fn get_network(&self) -> Option<String> {
-        let lock = (*self.network).read();
-        lock.expect("Read locks should only fail if poisoned.")
-            .clone()
     }
 
     /// Update the `last_beacon` field with the information of the latest block that the node has
@@ -84,14 +76,4 @@ impl NodeParams {
             }
         }
     }
-
-    /*
-    /// Update the `network` field in runtime, as it is unknown at boot.
-    /// This is a best-effort method. It will silently do nothing if the write lock on `network`.
-    pub fn update_network(&self, new_network: String) {
-        let lock = (*self.network).write();
-        if let Ok(mut network) = lock {
-            *network = Some(new_network)
-        }
-    }*/
 }

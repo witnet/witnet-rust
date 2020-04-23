@@ -375,8 +375,8 @@ where
         block_info: &model::Beacon,
         txns: &[model::ExtendedTransaction],
     ) -> Result<Vec<model::BalanceMovement>> {
-        let mut state = self.state.write()?;
         let mut balance_movements = Vec::new();
+        let mut state = self.state.write()?;
 
         for txn in txns {
             // Check if transaction already exists in the database
@@ -387,7 +387,10 @@ where
             {
                 None => match self._index_transaction(&mut state, txn, block_info) {
                     Ok(Some(balance_movement)) => balance_movements.push(balance_movement),
-                    _ => {}
+                    Ok(None) => {}
+                    e @ Err(_) => {
+                        e?;
+                    }
                 },
                 Some(_) => log::warn!(
                     "The transaction {} already exists in the database",

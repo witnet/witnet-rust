@@ -290,7 +290,7 @@ impl Worker {
                     },
                     "node": {
                         "address": self.node.address,
-                        "network": self.node.get_network(),
+                        "network": self.node.network,
                         "last_beacon": self.node.get_last_beacon(),
                     },
                     "session": wallet.session_id,
