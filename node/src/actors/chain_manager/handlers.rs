@@ -54,6 +54,7 @@ pub struct EveryEpochPayload;
 impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
     type Result = ();
 
+    #[allow(clippy::cognitive_complexity)]
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         log::debug!("Periodic epoch notification received {:?}", msg.checkpoint);
         let current_timestamp = get_timestamp();
@@ -63,6 +64,8 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             msg.timestamp,
             current_timestamp
         );
+
+        let last_checked_epoch = self.current_epoch;
         let current_epoch = msg.checkpoint;
         self.current_epoch = Some(current_epoch);
         let block_number = self.chain_state.block_number();
@@ -83,10 +86,20 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
         // Handle case consensus not achieved
         if !self.peers_beacons_received {
-            log::warn!("No beacon messages received from peers. Moving to WaitingConsensus status");
+            log::warn!("No beacon messages received from peers. Moving to WaitingConsensus state");
             self.sm_state = StateMachine::WaitingConsensus;
             // Clear candidates
             self.candidates.clear();
+        }
+
+        if let Some(last_checked_epoch) = last_checked_epoch {
+            if msg.checkpoint - last_checked_epoch != 1 {
+                log::warn!(
+                    "Missed epoch notification {}. Moving to WaitingConsensus state",
+                    last_checked_epoch + 1
+                );
+                self.sm_state = StateMachine::WaitingConsensus;
+            }
         }
 
         self.peers_beacons_received = false;
