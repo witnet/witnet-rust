@@ -274,6 +274,15 @@ impl Handler<EpochNotification<()>> for SessionsManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<()>, ctx: &mut Context<Self>) {
+        log::debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        let current_timestamp = get_timestamp();
+        log::debug!(
+            "Timestamp diff: {}, Epoch timestamp: {}. Current timestamp: {}",
+            current_timestamp as i64 - msg.timestamp as i64,
+            msg.timestamp,
+            current_timestamp
+        );
+
         log::info!(
             "{} Inbound: {} | Outbound: {}",
             Cyan.bold().paint("[Sessions]"),

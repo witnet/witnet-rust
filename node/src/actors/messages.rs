@@ -405,6 +405,10 @@ pub struct EpochNotification<T: Send> {
     /// Epoch that has just started
     pub checkpoint: Epoch,
 
+    /// Timestamp of the start of the epoch.
+    /// This is used to verify that the messages arrive on time
+    pub timestamp: i64,
+
     /// Payload for the epoch notification
     pub payload: T,
 }

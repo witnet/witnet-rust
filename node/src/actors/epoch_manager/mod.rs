@@ -168,63 +168,72 @@ impl EpochManager {
     /// Method to monitor checkpoints and execute some actions on each
     fn checkpoint_monitor(&self, ctx: &mut Context<Self>) {
         // Wait until next checkpoint to execute the periodic function
-        ctx.run_later(
-            self.time_to_next_checkpoint().unwrap_or_else(|_| {
-                Duration::from_secs(u64::from(
-                    self.constants.as_ref().unwrap().checkpoints_period,
-                ))
-            }),
-            move |act, ctx| {
-                if let Ok(current_epoch) = act.current_epoch() {
-                    let last_checked_epoch = act.last_checked_epoch.unwrap_or(0);
+        let time_to_next_checkpoint = self.time_to_next_checkpoint().unwrap_or_else(|_| {
+            let retry_seconds = self.constants.as_ref().unwrap().checkpoints_period;
+            log::warn!("Failed to calculate time to next checkpoint");
+            Duration::from_secs(u64::from(retry_seconds))
+        });
+        log::debug!(
+            "Checkpoint monitor: time to next checkpoint: {:?}",
+            time_to_next_checkpoint
+        );
+        ctx.run_later(time_to_next_checkpoint, move |act, ctx| {
+            let current_epoch = act.current_epoch();
+            log::debug!(
+                "Current epoch {:?}. Last checked epoch {:?}",
+                current_epoch,
+                act.last_checked_epoch
+            );
+            if let Ok(current_epoch) = current_epoch {
+                let epoch_timestamp = act.epoch_timestamp(current_epoch).unwrap_or(0);
+                let last_checked_epoch = act.last_checked_epoch.unwrap_or(0);
 
-                    // Send message to actors which subscribed to all epochs
-                    if current_epoch > last_checked_epoch || current_epoch == 0 {
-                        for subscription in &mut act.subscriptions_all {
-                            // Only send new epoch notification
-                            subscription.send_notification(current_epoch);
-                        }
+                // Send message to actors which subscribed to all epochs
+                if current_epoch > last_checked_epoch || current_epoch == 0 {
+                    for subscription in &mut act.subscriptions_all {
+                        // Only send new epoch notification
+                        subscription.send_notification(current_epoch, epoch_timestamp);
                     }
-
-                    // Get all the checkpoints that had some subscription but were skipped for some
-                    // reason (process sent to background, checkpoint monitor process had no
-                    // resources to execute in time...)
-                    let epoch_checkpoints: Vec<_> = act
-                        .subscriptions_epoch
-                        .range(last_checked_epoch..=current_epoch)
-                        .map(|(k, _v)| *k)
-                        .collect();
-
-                    // Send notifications for skipped checkpoints for subscriptions to a particular
-                    // epoch
-                    // Notifications for skipped checkpoints are not sent for subscriptions to all
-                    // epochs
-                    for checkpoint in epoch_checkpoints {
-                        // Get the subscriptions to the skipped checkpoint
-                        if let Some(subscriptions) = act.subscriptions_epoch.remove(&checkpoint) {
-                            // Send notifications to subscribers for skipped checkpoints
-                            for mut subscription in subscriptions {
-                                // TODO: should send messages or just drop?
-                                // TODO: send notifications also for subscriptions to all epochs?
-                                subscription.send_notification(checkpoint);
-                            }
-                        }
-                    }
-
-                    // Update last checked epoch
-                    act.last_checked_epoch = Some(current_epoch);
-
-                    info!(
-                        "{} We are now in epoch #{}",
-                        Purple.bold().paint("[Checkpoints]"),
-                        Purple.bold().paint(current_epoch.to_string())
-                    );
                 }
 
-                // Reschedule checkpoint monitor process
-                act.checkpoint_monitor(ctx);
-            },
-        );
+                // Get all the checkpoints that had some subscription but were skipped for some
+                // reason (process sent to background, checkpoint monitor process had no
+                // resources to execute in time...)
+                let epoch_checkpoints: Vec<_> = act
+                    .subscriptions_epoch
+                    .range(last_checked_epoch..=current_epoch)
+                    .map(|(k, _v)| *k)
+                    .collect();
+
+                // Send notifications for skipped checkpoints for subscriptions to a particular
+                // epoch
+                // Notifications for skipped checkpoints are not sent for subscriptions to all
+                // epochs
+                for checkpoint in epoch_checkpoints {
+                    // Get the subscriptions to the skipped checkpoint
+                    if let Some(subscriptions) = act.subscriptions_epoch.remove(&checkpoint) {
+                        // Send notifications to subscribers for skipped checkpoints
+                        for mut subscription in subscriptions {
+                            // TODO: should send messages or just drop?
+                            // TODO: send notifications also for subscriptions to all epochs?
+                            subscription.send_notification(checkpoint, epoch_timestamp);
+                        }
+                    }
+                }
+
+                // Update last checked epoch
+                act.last_checked_epoch = Some(current_epoch);
+
+                info!(
+                    "{} We are now in epoch #{}",
+                    Purple.bold().paint("[Checkpoints]"),
+                    Purple.bold().paint(current_epoch.to_string())
+                );
+            }
+
+            // Reschedule checkpoint monitor process
+            act.checkpoint_monitor(ctx);
+        });
     }
 
     /// Method to monitor checkpoints and execute some actions on each
@@ -242,7 +251,7 @@ impl EpochManager {
 /// Trait that must follow all notifications that will be sent back to subscriber actors
 pub trait SendableNotification: Send {
     /// Send notification back to the subscriber
-    fn send_notification(&mut self, current_epoch: Epoch);
+    fn send_notification(&mut self, current_epoch: Epoch, timestamp: i64);
 }
 
 /// Notification for a particular epoch: instantiated by each actor that subscribes to a particular
@@ -258,12 +267,13 @@ pub struct SingleEpochSubscription<T: Send> {
 /// Implementation of the SendableNotification trait for the SingleEpochSubscription
 impl<T: Send> SendableNotification for SingleEpochSubscription<T> {
     /// Function to send notification back to the subscriber
-    fn send_notification(&mut self, epoch: Epoch) {
+    fn send_notification(&mut self, epoch: Epoch, timestamp: i64) {
         // Get the payload from the notification
         if let Some(payload) = self.payload.take() {
             // Build an EpochNotification message to send back to the subscriber
             let msg = EpochNotification {
                 checkpoint: epoch,
+                timestamp,
                 payload,
             };
 
@@ -296,13 +306,14 @@ pub struct AllEpochSubscription<T: Clone + Send> {
 /// Implementation of the SendableNotification trait for the AllEpochSubscription
 impl<T: Clone + Send> SendableNotification for AllEpochSubscription<T> {
     /// Function to send notification back to the subscriber
-    fn send_notification(&mut self, epoch: Epoch) {
+    fn send_notification(&mut self, epoch: Epoch, timestamp: i64) {
         // Clone the payload to be sent to the subscriber
         let payload = self.payload.clone();
 
         // Build an EpochNotification message to send back to the subscriber
         let msg = EpochNotification {
             checkpoint: epoch,
+            timestamp,
             payload,
         };
 

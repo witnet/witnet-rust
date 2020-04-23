@@ -56,6 +56,13 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         log::debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        let current_timestamp = get_timestamp();
+        log::debug!(
+            "Timestamp diff: {}, Epoch timestamp: {}. Current timestamp: {}",
+            current_timestamp as i64 - msg.timestamp as i64,
+            msg.timestamp,
+            current_timestamp
+        );
         let current_epoch = msg.checkpoint;
         self.current_epoch = Some(current_epoch);
         let block_number = self.chain_state.block_number();

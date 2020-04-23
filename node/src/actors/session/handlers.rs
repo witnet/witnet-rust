@@ -49,25 +49,25 @@ pub struct EpochPayload;
 #[derive(Clone, Debug)]
 pub struct EveryEpochPayload;
 
-/// Handler for EpochNotification<EpochPayload>
-impl Handler<EpochNotification<EpochPayload>> for ChainManager {
-    type Result = ();
-
-    fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
-        log::debug!("Epoch notification received {:?}", msg.checkpoint);
-    }
-}
-
 /// Handler for EpochNotification<EveryEpochPayload>
 impl Handler<EpochNotification<EveryEpochPayload>> for Session {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
         log::debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        let current_timestamp = get_timestamp();
+        log::debug!(
+            "Timestamp diff: {}, Epoch timestamp: {}. Current timestamp: {}",
+            current_timestamp as i64 - msg.timestamp as i64,
+            msg.timestamp,
+            current_timestamp
+        );
+
         self.current_epoch = msg.checkpoint;
 
-        let now = get_timestamp();
-        if self.blocks_timestamp != 0 && now - self.blocks_timestamp > self.blocks_timeout {
+        if self.blocks_timestamp != 0
+            && current_timestamp - self.blocks_timestamp > self.blocks_timeout
+        {
             // Get ChainManager address
             let chain_manager_addr = ChainManager::from_registry();
 
