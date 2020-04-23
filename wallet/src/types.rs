@@ -35,7 +35,6 @@ pub use witnet_rad::{error::RadError, types::RadonTypes};
 
 use crate::model;
 use crate::types::signature::Signature;
-use std::convert::TryFrom;
 
 use super::{db, repository};
 
@@ -231,7 +230,7 @@ pub type DynamicSink = Arc<RwLock<Option<Sink>>>;
 #[derive(Debug, Serialize)]
 pub enum Event {
     /// The basic information of a new block that has already been processed
-    Block(model::BlockInfo),
+    Block(model::Beacon),
     // TODO: turn this into `Movement(Movement)`
     ///// A new movement (transaction) affecting balance.
     //Movement,

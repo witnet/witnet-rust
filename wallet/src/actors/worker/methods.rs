@@ -505,7 +505,7 @@ impl Worker {
             .expect("params failed serialization");
         let f = self
             .node
-            .address
+            .client
             .send(req)
             .flatten()
             .map(|json| {
@@ -536,7 +536,7 @@ impl Worker {
             .expect("params failed serialization");
         let f = self
             .node
-            .address
+            .client
             .send(req)
             .flatten()
             .map(|json| {
