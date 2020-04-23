@@ -2211,6 +2211,7 @@ fn test_commit_difficult_proof() {
 fn test_commit_with_collateral(
     utxo_set: &UnspentOutputsPool,
     collateral: (Vec<Input>, Vec<ValueTransferOutput>),
+    block_number: u32,
 ) -> Result<(), failure::Error> {
     let mut signatures_to_verify = vec![];
     let mut dr_pool = DataRequestPool::default();
@@ -2249,9 +2250,8 @@ fn test_commit_with_collateral(
     cb.dr_pointer = dr_hash;
     cb.proof = DataRequestEligibilityClaim::create(vrf, &secret_key, vrf_input, dr_hash).unwrap();
 
-    let block_number = 100_000;
     let collateral_minimum = 1;
-    let collateral_age = 1;
+    let collateral_age = 10;
     let utxo_diff = UtxoDiff::new(&utxo_set, 0);
 
     let (inputs, outputs) = collateral;
@@ -2621,7 +2621,7 @@ fn commitment_valid() {
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let vti = Input::new(utxo_set.iter().next().unwrap().0.clone());
 
-    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]), 100_000);
 
     x.unwrap();
 }
@@ -2641,7 +2641,7 @@ fn commitment_collateral_zero_value_output() {
         time_lock: 0,
     };
 
-    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![zero_value_output]));
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![zero_value_output]), 100_000);
 
     let err = x.unwrap_err().downcast::<TransactionError>().unwrap();
     assert!(
@@ -2660,7 +2660,7 @@ fn commitment_collateral_output_not_found() {
     let non_existing_output = OutputPointer::default();
     let vti = Input::new(non_existing_output.clone());
 
-    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]), 100_000);
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2682,7 +2682,7 @@ fn commitment_collateral_pkh_mismatch() {
     let output = utxo_set.iter().next().unwrap().0.clone();
     let vti = Input::new(output.clone());
 
-    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]), 100_000);
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2706,7 +2706,7 @@ fn commitment_collateral_timelocked() {
     let output = utxo_set.iter().next().unwrap().0.clone();
     let vti = Input::new(output);
 
-    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]), 100_000);
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2727,20 +2727,39 @@ fn commitment_collateral_not_mature() {
             time_lock: 0,
         }],
     ))];
-    let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &mint_txns, 99999);
+    let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &mint_txns, 1);
     let output = utxo_set.iter().next().unwrap().0.clone();
     let vti = Input::new(output.clone());
 
-    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]));
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]), 6);
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::CollateralNotMature {
-            must_be_older_than: 1,
-            found: 1,
+            must_be_older_than: 10,
+            found: 5,
             output,
         }
     );
+}
+
+#[test]
+fn commitment_collateral_genesis_always_mature() {
+    let mint_txns = vec![Transaction::Mint(MintTransaction::new(
+        TX_COUNTER.fetch_add(1, Ordering::SeqCst),
+        vec![ValueTransferOutput {
+            pkh: MY_PKH_1.parse().unwrap(),
+            value: ONE_WIT,
+            time_lock: 0,
+        }],
+    ))];
+    let utxo_set = generate_unspent_outputs_pool(&UnspentOutputsPool::default(), &mint_txns, 0);
+    let output = utxo_set.iter().next().unwrap().0.clone();
+    let vti = Input::new(output);
+
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![]), 5);
+
+    x.unwrap();
 }
 
 #[test]
@@ -2754,7 +2773,7 @@ fn commitment_collateral_double_spend() {
     let output = utxo_set.iter().next().unwrap().0.clone();
     let vti = Input::new(output.clone());
 
-    let x = test_commit_with_collateral(&utxo_set, (vec![vti.clone(), vti], vec![]));
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti.clone(), vti], vec![]), 100_000);
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2778,7 +2797,7 @@ fn commitment_collateral_wrong_amount() {
         time_lock: 0,
     };
 
-    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![change_output]));
+    let x = test_commit_with_collateral(&utxo_set, (vec![vti], vec![change_output]), 100_000);
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2816,7 +2835,11 @@ fn commitment_collateral_negative_amount() {
         time_lock: 0,
     };
 
-    let x = test_commit_with_collateral(&utxo_set, (inputs, vec![change_output1, change_output2]));
+    let x = test_commit_with_collateral(
+        &utxo_set,
+        (inputs, vec![change_output1, change_output2]),
+        100_000,
+    );
 
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),

@@ -193,11 +193,13 @@ pub fn validate_commit_collateral(
             .into());
         }
 
-        // Inputs must be mature enough
+        // Outputs to be spent in commitment inputs need to be older than `block_number_limit`.
+        // All outputs from the genesis block are fulfill this requirement because
+        // `block_number_limit` can't go lower than `0`.
         let included_in_block_number = utxo_diff
             .included_in_block_number(input.output_pointer())
             .unwrap();
-        if included_in_block_number >= block_number_limit {
+        if included_in_block_number > block_number_limit {
             return Err(TransactionError::CollateralNotMature {
                 output: input.output_pointer().clone(),
                 must_be_older_than: collateral_age,

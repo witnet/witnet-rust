@@ -53,7 +53,10 @@ pub fn take_enough_utxos(
         }
 
         if let Some(block_number_limit) = block_number_limit {
-            if all_utxos.included_in_block_number(op).unwrap() >= block_number_limit {
+            // Ignore all outputs created after `block_number_limit`.
+            // Outputs from the genesis block will never be ignored because `block_number_limit`
+            // can't go lower than `0`.
+            if all_utxos.included_in_block_number(op).unwrap() > block_number_limit {
                 continue;
             }
         }
@@ -1077,52 +1080,8 @@ mod tests {
         assert_eq!(own_utxos.len(), 1);
 
         let collateral = 1000;
-        // A limit of block number 0 means that no UTXOs can be valid (nothing is < than 0)
+        // A limit of block number 0 means that only UTXOs from block 0 can be valid
         let block_number_limit = 0;
-        let t1 = build_commit_collateral(
-            collateral,
-            &mut own_utxos,
-            own_pkh,
-            &all_utxos,
-            timestamp,
-            tx_pending_timeout,
-            block_number_limit,
-        )
-        .unwrap_err();
-        assert_eq!(
-            t1,
-            TransactionError::NoMoney {
-                total_balance: 1000,
-                available_balance: 0,
-                transaction_value: 1000,
-            }
-        );
-
-        let collateral = 1001;
-        // Only allow using UTXOs from block number 0
-        let block_number_limit = 1;
-        let t2 = build_commit_collateral(
-            collateral,
-            &mut own_utxos,
-            own_pkh,
-            &all_utxos,
-            timestamp,
-            tx_pending_timeout,
-            block_number_limit,
-        )
-        .unwrap_err();
-        assert_eq!(
-            t2,
-            TransactionError::NoMoney {
-                total_balance: 1000,
-                available_balance: 1000,
-                transaction_value: 1001,
-            }
-        );
-
-        let collateral = 1000;
-        // Only allow using UTXOs from block number 0
-        let block_number_limit = 1;
         let (inputs, outputs) = build_commit_collateral(
             collateral,
             &mut own_utxos,
@@ -1143,30 +1102,30 @@ mod tests {
         let tx_pending_timeout = 100;
         let own_pkh = my_pkh();
         let outputs = vec![pay_me(500)];
-        // This UTXOs are created in block number 0
-        let (own_utxos, all_utxos) = build_utxo_set_with_block_number(outputs, None, vec![], 0);
+        // This UTXOs are created in block number 1
+        let (own_utxos, all_utxos) = build_utxo_set_with_block_number(outputs, None, vec![], 1);
         assert_eq!(own_utxos.len(), 1);
 
         let outputs = vec![pay_me(400)];
-        // This UTXOs are created in block number 1
-        let (own_utxos, all_utxos) =
-            build_utxo_set_with_block_number(outputs, (own_utxos, all_utxos), vec![], 1);
-        assert_eq!(own_utxos.len(), 2);
-
-        let outputs = vec![pay_me(200)];
         // This UTXOs are created in block number 2
         let (own_utxos, all_utxos) =
             build_utxo_set_with_block_number(outputs, (own_utxos, all_utxos), vec![], 2);
+        assert_eq!(own_utxos.len(), 2);
+
+        let outputs = vec![pay_me(200)];
+        // This UTXOs are created in block number 3
+        let (own_utxos, all_utxos) =
+            build_utxo_set_with_block_number(outputs, (own_utxos, all_utxos), vec![], 3);
         assert_eq!(own_utxos.len(), 3);
 
         let outputs = vec![pay_me(1000)];
-        // This UTXOs are created in block number 3
+        // This UTXOs are created in block number 4
         let (mut own_utxos, all_utxos) =
-            build_utxo_set_with_block_number(outputs, (own_utxos, all_utxos), vec![], 3);
+            build_utxo_set_with_block_number(outputs, (own_utxos, all_utxos), vec![], 4);
         assert_eq!(own_utxos.len(), 4);
 
         let collateral = 1000;
-        // A limit of block number 0 means that no UTXOs can be valid (nothing is < than 0)
+        // A limit of block number 0 means that only UTXOs from block 0 can be valid
         let block_number_limit = 0;
         let t1 = build_commit_collateral(
             collateral,
@@ -1188,7 +1147,7 @@ mod tests {
         );
 
         let collateral = 1000;
-        // Only allow using UTXOs from block number 0
+        // Only allow using UTXOs from block number <= 1
         let block_number_limit = 1;
         let t2 = build_commit_collateral(
             collateral,
