@@ -374,8 +374,9 @@ where
         &self,
         block_info: &model::Beacon,
         txns: &[model::ExtendedTransaction],
-    ) -> Result<()> {
+    ) -> Result<Vec<model::BalanceMovement>> {
         let mut state = self.state.write()?;
+        let mut balance_movements = Vec::new();
 
         for txn in txns {
             // Check if transaction already exists in the database
@@ -384,7 +385,10 @@ where
                 .db
                 .get_opt::<_, u32>(&keys::transactions_index(&hash))?
             {
-                None => self._index_transaction(&mut state, txn, block_info)?,
+                None => match self._index_transaction(&mut state, txn, block_info) {
+                    Ok(Some(balance_movement)) => balance_movements.push(balance_movement),
+                    _ => {}
+                },
                 Some(_) => log::warn!(
                     "The transaction {} already exists in the database",
                     txn.transaction.hash()
@@ -392,7 +396,7 @@ where
             }
         }
 
-        Ok(())
+        Ok(balance_movements)
     }
 
     /// Retrieve the balance for the current wallet account.
@@ -579,7 +583,7 @@ where
         state: &mut State,
         txn: &model::ExtendedTransaction,
         block_info: &model::Beacon,
-    ) -> Result<()> {
+    ) -> Result<Option<model::BalanceMovement>> {
         // Inputs and outputs from different transaction types
         let (inputs, outputs) = match &txn.transaction {
             types::Transaction::ValueTransfer(vt) => {
@@ -608,6 +612,9 @@ where
             &inputs,
             &outputs,
         )?;
+
+        // Option for holding a balance movement potentially derived from the transaction being processed
+        let mut derived_movement = None;
 
         // If UTXO set has changed, then update memory state and DB
         if !account_mutation.utxo_inserts.is_empty() || !account_mutation.utxo_removals.is_empty() {
@@ -683,8 +690,9 @@ where
             )?;
             batch.put(
                 keys::transaction_movement(account, txn_id),
-                balance_movement,
+                balance_movement.clone(),
             )?;
+            derived_movement = Some(balance_movement);
 
             // Try to update data request tally report if it was previously indexed
             if let types::Transaction::Tally(tally) = &txn.transaction {
@@ -739,7 +747,7 @@ where
             self.db.write(batch)?;
         }
 
-        Ok(())
+        Ok(derived_movement)
     }
 
     fn _get_account_mutation(

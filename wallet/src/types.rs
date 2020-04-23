@@ -231,9 +231,8 @@ pub type DynamicSink = Arc<RwLock<Option<Sink>>>;
 pub enum Event {
     /// The basic information of a new block that has already been processed
     Block(model::Beacon),
-    // TODO: turn this into `Movement(Movement)`
-    ///// A new movement (transaction) affecting balance.
-    //Movement,
+    /// A new movement (transaction) affecting balance.
+    Movement(model::BalanceMovement),
     /// The end of a synchronization progress.
     SyncFinish(u32, u32),
     /// An update on the progress of a the synchronization progress.

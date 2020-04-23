@@ -246,7 +246,7 @@ impl Worker {
         wallet: &types::Wallet,
         block: &model::Beacon,
         txns: &[types::Transaction],
-    ) -> Result<()> {
+    ) -> Result<Vec<model::BalanceMovement>> {
         let filtered_txns = wallet.filter_wallet_transactions(txns)?;
         log::info!(
             "Indexing {} wallet transactions from epoch {}",
@@ -255,13 +255,13 @@ impl Worker {
         );
         // Extending transactions with metadata queried from the node
         let extended_txns = self.extend_transactions_data(filtered_txns)?;
-        wallet.index_transactions(block, &extended_txns)?;
+        let balance_movements = wallet.index_transactions(block, &extended_txns)?;
         wallet.update_last_sync(CheckpointBeacon {
             checkpoint: block.epoch,
             hash_prev_block: block.block_hash,
         })?;
 
-        Ok(())
+        Ok(balance_movements)
     }
 
     pub fn notify_client(
@@ -774,9 +774,14 @@ impl Worker {
             epoch: block_epoch,
             block_hash,
         };
-        self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
+        let balance_movements =
+            self.index_txns(wallet.as_ref(), &block_info, block_txns.as_ref())?;
 
-        let events = vec![types::Event::Block(block_info)];
+        // Notify about the new block and every single balance movement found within.
+        let mut events = vec![types::Event::Block(block_info)];
+        for balance_movement in balance_movements {
+            events.push(types::Event::Movement(balance_movement));
+        }
         self.notify_client(&wallet, sink, Some(events)).ok();
 
         Ok(())
