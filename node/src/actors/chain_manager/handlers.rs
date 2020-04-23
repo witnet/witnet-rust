@@ -483,7 +483,7 @@ impl Handler<PeersBeacons> for ChainManager {
     #[allow(clippy::cognitive_complexity)]
     fn handle(
         &mut self,
-        PeersBeacons { pb }: PeersBeacons,
+        PeersBeacons { pb, outbound_limit }: PeersBeacons,
         ctx: &mut Context<Self>,
     ) -> Self::Result {
         log::debug!(
@@ -503,6 +503,19 @@ impl Handler<PeersBeacons> for ChainManager {
 
         // Activate peers beacons index to continue synced
         self.peers_beacons_received = true;
+        // We need to add `num_missing_peers` times NO BEACON, to take into account
+        // missing outbound peers.
+        let num_missing_peers = outbound_limit
+            .map(|outbound_limit| {
+                // TODO: is it possible to receive more than outbound_limit beacons?
+                // (it shouldn't be possible)
+                assert!(pb.len() <= outbound_limit as usize, "Received more beacons than the outbound_limit. Check the code for race conditions.");
+                usize::try_from(outbound_limit).unwrap() - pb.len()
+            })
+            // The outbound limit is set when the SessionsManager actor is initialized, so here it
+            // cannot be None. But if it is None, set num_missing_peers to 0 in order to calculate
+            // consensus with the existing beacons.
+            .unwrap_or(0);
 
         let consensus_threshold = self.consensus_c as usize;
 
@@ -511,12 +524,16 @@ impl Handler<PeersBeacons> for ChainManager {
         // The beacons are Option<CheckpointBeacon>, so peers that have not
         // sent us a beacon are counted as None. Keeping that in mind, we
         // reach consensus as long as consensus_threshold % of peers agree.
-        // In case of tie returns None
-        let consensus = mode_consensus(pb.iter().map(|(_p, b)| b), consensus_threshold)
-            // Flatten result:
-            // None (no consensus) should be treated the same way as
-            // Some(None) (the consensus is that there is no consensus)
-            .and_then(|x| *x);
+        let consensus = mode_consensus(
+            pb.iter()
+                .map(|(_p, b)| b)
+                .chain(std::iter::repeat(&None).take(num_missing_peers)),
+            consensus_threshold,
+        )
+        // Flatten result:
+        // None (consensus % below threshold) should be treated the same way as
+        // Some(None) (most of the peers did not send a beacon)
+        .and_then(|x| *x);
 
         match self.sm_state {
             StateMachine::WaitingConsensus => {

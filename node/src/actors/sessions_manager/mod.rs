@@ -242,9 +242,10 @@ impl SessionsManager {
             .chain(pnb.iter().map(|k| (*k, None)))
             .collect();
         let mut peers_to_keep: HashSet<_> = pb.iter().map(|(k, _v)| *k).collect();
+        let outbound_limit = self.sessions.outbound_consolidated.limit;
 
         ChainManager::from_registry()
-            .send(PeersBeacons { pb })
+            .send(PeersBeacons { pb, outbound_limit })
             .into_actor(self)
             .then(|res, act, _ctx| {
                 match res {

@@ -156,6 +156,8 @@ impl Message for GetBlocksEpochRange {
 pub struct PeersBeacons {
     /// A list of peers and their respective last beacon
     pub pb: Vec<(SocketAddr, Option<CheckpointBeacon>)>,
+    /// Outbound limit: how many beacons did we expect in total
+    pub outbound_limit: Option<u16>,
 }
 
 impl Message for PeersBeacons {

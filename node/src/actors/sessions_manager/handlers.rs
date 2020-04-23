@@ -319,11 +319,18 @@ impl Handler<EpochNotification<()>> for SessionsManager {
 
         ctx.run_later(duration_until_mining, move |act, ctx| {
             // If some peers sent us beacons, but not all of them, the peers beacons message will be sent now
-            if let Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) =
-                act.try_send_peers_beacons(ctx)
-            {
-                // Send it even if it is incomplete, and unregister the peers which have not sent a beacon
-                act.send_peers_beacons(ctx);
+            match act.try_send_peers_beacons(ctx) {
+                Ok(_) => {}
+                Err(NotSendingPeersBeaconsBecause::AlreadySent) => {}
+                Err(NotSendingPeersBeaconsBecause::BootstrapNeeded) => {
+                    // If the number of peers is less than the outbound limit, send the message
+                    // and try to calculate the consensus by counting missing peers as "NO BEACON"
+                    act.send_peers_beacons(ctx);
+                }
+                Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) => {
+                    // Send it even if it is incomplete, and unregister the peers which have not sent a beacon
+                    act.send_peers_beacons(ctx);
+                }
             }
 
             // From this moment, all the received beacons are assumed to be for the next epoch
