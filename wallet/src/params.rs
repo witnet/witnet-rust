@@ -21,7 +21,7 @@ pub struct Params {
     pub db_salt_length: usize,
     pub epoch_constants: EpochConstants,
     pub node_sync_batch_size: u32,
-    pub genesis_hash: Hash,
+    pub genesis_prev_hash: Hash,
 }
 
 impl Default for Params {
@@ -37,7 +37,7 @@ impl Default for Params {
             db_salt_length: 32,
             epoch_constants: EpochConstants::default(),
             node_sync_batch_size: 100,
-            genesis_hash: Hash::default(),
+            genesis_prev_hash: Hash::default(),
         }
     }
 }

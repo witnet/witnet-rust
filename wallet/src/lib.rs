@@ -52,7 +52,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
         checkpoint_zero_timestamp: conf.consensus_constants.checkpoint_zero_timestamp,
         checkpoints_period: conf.consensus_constants.checkpoints_period,
     };
-    let genesis_hash = conf.consensus_constants.genesis_hash;
+    let genesis_prev_hash = conf.consensus_constants.bootstrap_hash;
 
     // Db-encryption params
     let db_hash_iterations = conf.wallet.db_encrypt_hash_iterations;
@@ -111,12 +111,12 @@ pub fn run(conf: Config) -> Result<(), Error> {
         db_salt_length,
         epoch_constants,
         node_sync_batch_size,
-        genesis_hash,
+        genesis_prev_hash,
     };
 
     let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {
         checkpoint: 0,
-        hash_prev_block: genesis_hash,
+        hash_prev_block: genesis_prev_hash,
     }));
     let network = String::from(if testnet { "Testnet" } else { "Mainnet" });
     let node_params = params::NodeParams {

@@ -566,6 +566,22 @@ impl Worker {
         let mut since_beacon = since_beacon;
         let first_beacon = since_beacon;
 
+        // If first initial synchronization (checkpoint == 0), genesis block should be indexed
+        if latest_beacon.checkpoint == 0 {
+            let gen_fut = self.get_block_chain(0, 1);
+            let gen_res: Vec<ChainEntry> = futures03::executor::block_on(gen_fut)?;
+            let gen_entry = gen_res
+                .get(0)
+                .expect("A Witnet chain should always have a genesis block");
+
+            let get_gen_future = self.get_block(gen_entry.1.clone());
+            let block: types::ChainBlock = futures03::executor::block_on(get_gen_future)?;
+            log::debug!("[SU] Got genesis block: {:?}", block);
+
+            // Process genesis block
+            self.handle_block(block, wallet.clone(), DynamicSink::default())?;
+        }
+
         // Query the node for the latest block in the chain
         let tip_fut = self.get_block_chain(0, -1);
         let tip_res: Vec<ChainEntry> = futures03::executor::block_on(tip_fut)?;
@@ -588,10 +604,11 @@ impl Worker {
         self.notify_client(&wallet, sink.clone(), events).ok();
 
         log::info!(
-            "[SU] Starting synchronization of wallet {}.\n\t[Local beacon] {:?}\n\t[Node beacon ] {:?}",
+            "[SU] Starting synchronization of wallet {}.\n\t[Local beacon] {:?}\n\t[Node height ]   BlockInfo {{ checkpoint: {:?}, block_hash: {:?} }}",
             wallet_id,
             since_beacon,
-            tip
+            tip.checkpoint,
+            tip.hash_prev_block
         );
 
         loop {

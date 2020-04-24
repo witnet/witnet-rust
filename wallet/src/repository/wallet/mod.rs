@@ -78,7 +78,7 @@ where
             .get(&keys::wallet_last_sync())
             .unwrap_or_else(|_| CheckpointBeacon {
                 checkpoint: 0,
-                hash_prev_block: params.genesis_hash,
+                hash_prev_block: params.genesis_prev_hash,
             });
         let external_key = db.get(&keys::account_key(account, constants::EXTERNAL_KEYCHAIN))?;
         let next_external_index = db.get_or_default(&keys::account_next_index(
