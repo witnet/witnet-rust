@@ -543,24 +543,45 @@ impl Handler<PeersBeacons> for ChainManager {
         // Calculate the consensus, or None if there is no consensus
         let consensus_threshold = self.consensus_c as usize;
         let consensus = peers_beacons.consensus(consensus_threshold);
-
         let pb = peers_beacons.pb;
+        let outbound_limit = peers_beacons.outbound_limit;
+        let pb_len = pb.len();
+        let peers_needed_for_consensus = outbound_limit
+            .map(|x| {
+                // ceil(x * consensus_threshold / 100)
+                (usize::from(x) * consensus_threshold + 99) / 100
+            })
+            .unwrap_or(1);
+        let peers_to_unregister = if let Some(consensus_beacon) = consensus {
+            // Consensus: unregister peers which have a different beacon
+            pb.into_iter()
+                .filter_map(|(p, b)| {
+                    if b != Some(consensus_beacon) {
+                        Some(p)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        } else if pb_len < peers_needed_for_consensus {
+            // Not enough outbound peers, do not unregister any peers
+            log::debug!(
+                "Got {} peers but need at least {} to calculate the consensus",
+                pb_len,
+                peers_needed_for_consensus
+            );
+            vec![]
+        } else {
+            // No consensus: unregister all peers
+            log::warn!("No consensus: unregister all peers");
+            pb.into_iter().map(|(p, _b)| p).collect()
+        };
+
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // As soon as there is consensus, we set the target beacon to the consensus
                 // and set the state to Synchronizing
                 if let Some(consensus_beacon) = consensus {
-                    // Consensus: unregister peers which have a different beacon
-                    let peers_out_of_consensus = pb
-                        .into_iter()
-                        .filter_map(|(p, b)| {
-                            if b != Some(consensus_beacon) {
-                                Some(p)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
                     self.target_beacon = Some(consensus_beacon);
 
                     let our_beacon = self.get_chain_beacon();
@@ -628,27 +649,13 @@ impl Handler<PeersBeacons> for ChainManager {
                         }
                     };
 
-                    Ok(peers_out_of_consensus)
+                    Ok(peers_to_unregister)
                 } else {
-                    // No consensus: unregister all peers
-                    log::warn!("No consensus: unregister all peers");
-                    let all_peers = pb.into_iter().map(|(p, _b)| p).collect();
-                    Ok(all_peers)
+                    Ok(peers_to_unregister)
                 }
             }
             StateMachine::Synchronizing => {
                 if let Some(consensus_beacon) = consensus {
-                    // List peers that announced a beacon out of consensus
-                    let peers_out_of_consensus = pb
-                        .into_iter()
-                        .filter_map(|(p, b)| {
-                            if b != Some(consensus_beacon) {
-                                Some(p)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
                     self.target_beacon = Some(consensus_beacon);
 
                     let our_beacon = self.get_chain_beacon();
@@ -675,44 +682,29 @@ impl Handler<PeersBeacons> for ChainManager {
                         StateMachine::Synchronizing
                     };
 
-                    Ok(peers_out_of_consensus)
+                    Ok(peers_to_unregister)
                 } else {
-                    // No consensus: unregister all peers
-                    log::warn!("No consensus: unregister all peers");
-                    let all_peers = pb.into_iter().map(|(p, _b)| p).collect();
                     // Move to waiting consensus stage
                     self.sm_state = StateMachine::WaitingConsensus;
 
-                    Ok(all_peers)
+                    Ok(peers_to_unregister)
                 }
             }
             StateMachine::Synced | StateMachine::Live => {
                 // If we are synced and the consensus beacon is not the same as our beacon, then
                 // we need to rewind one epoch
-                if pb.is_empty() {
+                if pb_len == 0 {
                     log::warn!("[CONSENSUS]: We have not received any beacons for this epoch");
                     self.sm_state = StateMachine::WaitingConsensus;
                 }
 
                 let our_beacon = self.get_chain_beacon();
                 match consensus {
-                    Some(a) if a == our_beacon => {
-                        // Consensus: unregister peers which have a different beacon
-                        let peers_out_of_consensus = pb
-                            .into_iter()
-                            .filter_map(|(p, b)| if b != Some(our_beacon) { Some(p) } else { None })
-                            .collect();
-
-                        Ok(peers_out_of_consensus)
+                    Some(consensus_beacon) if consensus_beacon == our_beacon => {
+                        Ok(peers_to_unregister)
                     }
-                    Some(a) => {
+                    Some(_) => {
                         // We are out of consensus!
-                        // Unregister peers that announced a beacon out of consensus
-                        let peers_out_of_consensus = pb
-                            .into_iter()
-                            .filter_map(|(p, b)| if b != Some(a) { Some(p) } else { None })
-                            .collect();
-
                         log::warn!(
                             "[CONSENSUS]: We are on {:?} but the network is on {:?}",
                             our_beacon,
@@ -724,7 +716,7 @@ impl Handler<PeersBeacons> for ChainManager {
 
                         self.sm_state = StateMachine::WaitingConsensus;
 
-                        Ok(peers_out_of_consensus)
+                        Ok(peers_to_unregister)
                     }
                     None => {
                         // There is no consensus because of a tie, do not rewind?
@@ -737,8 +729,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         self.sm_state = StateMachine::WaitingConsensus;
 
                         // Unregister all peers to try to obtain a new set of trustworthy peers
-                        let all_peers = pb.into_iter().map(|(p, _b)| p).collect();
-                        Ok(all_peers)
+                        Ok(peers_to_unregister)
                     }
                 }
             }

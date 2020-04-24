@@ -256,6 +256,12 @@ impl SessionsManager {
                         // Nothing to do, carry on
                     }
                     Ok(Ok(peers_to_unregister)) => {
+                        if !peers_to_unregister.is_empty() {
+                            log::debug!(
+                                "Dropping {} peers that were out of consensus",
+                                peers_to_unregister.len()
+                            );
+                        }
                         // Unregister peers out of consensus
                         for peer in peers_to_unregister {
                             if let Some(a) =
