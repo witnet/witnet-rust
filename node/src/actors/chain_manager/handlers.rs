@@ -476,56 +476,43 @@ impl Handler<GetBlocksEpochRange> for ChainManager {
     }
 }
 
-impl Handler<PeersBeacons> for ChainManager {
-    type Result = <PeersBeacons as Message>::Result;
-
-    // FIXME(#676): Remove clippy skip error
-    #[allow(clippy::cognitive_complexity)]
-    fn handle(
-        &mut self,
-        PeersBeacons { pb, outbound_limit }: PeersBeacons,
-        ctx: &mut Context<Self>,
-    ) -> Self::Result {
-        log::debug!(
-            "PeersBeacons received while StateMachine is in state {:?}",
-            self.sm_state
-        );
-
-        // Pretty-print a map {beacon: [peers]}
+impl PeersBeacons {
+    /// Pretty-print a map {beacon: [peers]}
+    pub fn pretty_format(&self) -> String {
         let mut beacon_peers_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
-        for (k, v) in pb.iter() {
+        for (k, v) in self.pb.iter() {
             let v = v
                 .map(|x| format!("#{} {}", x.checkpoint, x.hash_prev_block))
                 .unwrap_or_else(|| "NO BEACON".to_string());
             beacon_peers_map.entry(v).or_default().push(k.to_string());
         }
-        log::debug!("Received beacons: {:?}", beacon_peers_map);
 
-        // Activate peers beacons index to continue synced
-        self.peers_beacons_received = true;
+        format!("{:?}", beacon_peers_map)
+    }
+
+    /// Run the consensus on the beacons, will return the most common beacon.
+    /// We do not take into account our beacon to calculate the consensus.
+    /// The beacons are `Option<CheckpointBeacon>`, so peers that have not
+    /// sent us a beacon are counted as `None`. Keeping that in mind, we
+    /// reach consensus as long as consensus_threshold % of peers agree.
+    pub fn consensus(&self, consensus_threshold: usize) -> Option<CheckpointBeacon> {
         // We need to add `num_missing_peers` times NO BEACON, to take into account
         // missing outbound peers.
-        let num_missing_peers = outbound_limit
+        let num_missing_peers = self.outbound_limit
             .map(|outbound_limit| {
                 // TODO: is it possible to receive more than outbound_limit beacons?
                 // (it shouldn't be possible)
-                assert!(pb.len() <= outbound_limit as usize, "Received more beacons than the outbound_limit. Check the code for race conditions.");
-                usize::try_from(outbound_limit).unwrap() - pb.len()
+                assert!(self.pb.len() <= outbound_limit as usize, "Received more beacons than the outbound_limit. Check the code for race conditions.");
+                usize::try_from(outbound_limit).unwrap() - self.pb.len()
             })
             // The outbound limit is set when the SessionsManager actor is initialized, so here it
             // cannot be None. But if it is None, set num_missing_peers to 0 in order to calculate
             // consensus with the existing beacons.
             .unwrap_or(0);
 
-        let consensus_threshold = self.consensus_c as usize;
-
-        // Run the consensus on the beacons, will return the most common beacon.
-        // We do not take into account our beacon to calculate the consensus.
-        // The beacons are Option<CheckpointBeacon>, so peers that have not
-        // sent us a beacon are counted as None. Keeping that in mind, we
-        // reach consensus as long as consensus_threshold % of peers agree.
-        let consensus = mode_consensus(
-            pb.iter()
+        mode_consensus(
+            self.pb
+                .iter()
                 .map(|(_p, b)| b)
                 .chain(std::iter::repeat(&None).take(num_missing_peers)),
             consensus_threshold,
@@ -533,8 +520,31 @@ impl Handler<PeersBeacons> for ChainManager {
         // Flatten result:
         // None (consensus % below threshold) should be treated the same way as
         // Some(None) (most of the peers did not send a beacon)
-        .and_then(|x| *x);
+        .and_then(|x| *x)
+    }
+}
 
+impl Handler<PeersBeacons> for ChainManager {
+    type Result = <PeersBeacons as Message>::Result;
+
+    // FIXME(#676): Remove clippy skip error
+    #[allow(clippy::cognitive_complexity)]
+    fn handle(&mut self, peers_beacons: PeersBeacons, ctx: &mut Context<Self>) -> Self::Result {
+        log::debug!(
+            "PeersBeacons received while StateMachine is in state {:?}",
+            self.sm_state
+        );
+
+        log::debug!("Received beacons: {}", peers_beacons.pretty_format());
+
+        // Activate peers beacons index to continue synced
+        self.peers_beacons_received = true;
+
+        // Calculate the consensus, or None if there is no consensus
+        let consensus_threshold = self.consensus_c as usize;
+        let consensus = peers_beacons.consensus(consensus_threshold);
+
+        let pb = peers_beacons.pb;
         match self.sm_state {
             StateMachine::WaitingConsensus => {
                 // As soon as there is consensus, we set the target beacon to the consensus
@@ -1020,5 +1030,110 @@ impl Handler<GetMemoryTransaction> for ChainManager {
 
     fn handle(&mut self, msg: GetMemoryTransaction, _ctx: &mut Self::Context) -> Self::Result {
         self.transactions_pool.get(&msg.hash).ok_or(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn peers_beacons_consensus_less_peers_than_outbound() {
+        let beacon1 = CheckpointBeacon {
+            checkpoint: 1,
+            hash_prev_block: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+                .parse()
+                .unwrap(),
+        };
+        let beacon2 = CheckpointBeacon {
+            checkpoint: 1,
+            hash_prev_block: "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+                .parse()
+                .unwrap(),
+        };
+
+        // 0 peers
+        let peers_beacons = PeersBeacons {
+            pb: vec![],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(peers_beacons.consensus(60), None);
+
+        // 1 peer
+        let peers_beacons = PeersBeacons {
+            pb: vec![("127.0.0.1:10001".parse().unwrap(), Some(beacon1))],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(peers_beacons.consensus(60), None);
+
+        // 2 peers
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+            ],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(peers_beacons.consensus(60), None);
+
+        // 3 peers and 2 agree
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2)),
+            ],
+            outbound_limit: Some(4),
+        };
+        // Note that the consensus % includes the missing peers,
+        // so in this case it is 2/4 (50%), not 2/3 (66%), so there is no consensus for 60%
+        assert_eq!(peers_beacons.consensus(60), None);
+
+        // 3 peers and 3 agree
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1)),
+            ],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(peers_beacons.consensus(60), Some(beacon1));
+
+        // 4 peers and 2 agree
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon2)),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2)),
+            ],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(peers_beacons.consensus(60), None);
+
+        // 4 peers and 3 agree
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon2)),
+            ],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(peers_beacons.consensus(60), Some(beacon1));
+
+        // 4 peers and 4 agree
+        let peers_beacons = PeersBeacons {
+            pb: vec![
+                ("127.0.0.1:10001".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10002".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10003".parse().unwrap(), Some(beacon1)),
+                ("127.0.0.1:10004".parse().unwrap(), Some(beacon1)),
+            ],
+            outbound_limit: Some(4),
+        };
+        assert_eq!(peers_beacons.consensus(60), Some(beacon1));
     }
 }
