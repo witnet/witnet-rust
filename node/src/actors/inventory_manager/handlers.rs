@@ -1,6 +1,5 @@
 use actix::prelude::*;
 use actix::{ActorFuture, Context, Handler, ResponseActFuture, WrapFuture};
-use log;
 
 use super::{InventoryManager, InventoryManagerError};
 use crate::actors::messages::{

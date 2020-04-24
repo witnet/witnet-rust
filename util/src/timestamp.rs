@@ -1,6 +1,5 @@
 use chrono::{prelude::*, TimeZone};
 use lazy_static::lazy_static;
-use ntp;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::sync::RwLock;

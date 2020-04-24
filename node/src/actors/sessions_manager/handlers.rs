@@ -8,7 +8,6 @@ use actix::{
     Message, StreamHandler, SystemService, WrapFuture,
 };
 use ansi_term::Color::Cyan;
-use log;
 use tokio::{codec::FramedRead, io::AsyncRead};
 
 use super::{NotSendingPeersBeaconsBecause, SessionsManager};

@@ -249,11 +249,9 @@ where
     ) -> Result<(), failure::Error> {
         // If this is an outbound consolidated session, try to remove it from the consensus list
         if let (SessionType::Outbound, SessionStatus::Consolidated) = (session_type, status) {
-            match self.unconsensus_session(address) {
-                // Explicitly ignore the result because we have no guarantees that this session was
-                // inside the consensus map
-                _ => {}
-            }
+            // Explicitly ignore the result because we have no guarantees that this session was
+            // inside the consensus map
+            let _ = self.unconsensus_session(address);
         }
 
         // Get map to insert session to

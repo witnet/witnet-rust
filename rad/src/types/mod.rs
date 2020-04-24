@@ -5,7 +5,6 @@ use std::{
 };
 
 use cbor::value::Value as CborValue;
-use log;
 use serde_cbor::{to_vec, Value};
 
 use witnet_crypto::hash::calculate_sha256;

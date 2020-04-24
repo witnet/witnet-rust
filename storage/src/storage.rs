@@ -4,8 +4,6 @@
 //! specific storage backends.
 use std::result;
 
-use failure;
-
 /// Result with error set to `failure::Error`
 pub type Result<T> = result::Result<T, failure::Error>;
 

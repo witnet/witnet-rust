@@ -1,6 +1,5 @@
 use actix::{Actor, SystemService};
 use futures::future::Future;
-use log;
 use std::default::Default;
 use std::path::PathBuf;
 use std::sync::Arc;

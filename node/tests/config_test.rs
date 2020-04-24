@@ -1,4 +1,3 @@
-use actix;
 use futures::Future;
 use witnet_data_structures::chain::Environment;
 use witnet_node::config_mngr;

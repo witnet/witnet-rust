@@ -1,4 +1,3 @@
-use json;
 use serde_cbor::value::{from_value, Value};
 use std::{
     convert::{TryFrom, TryInto},

@@ -15,7 +15,6 @@
 //! let seed = mnemonic.seed(&passphrase);
 //! ```
 
-use bip39;
 use failure::Error;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

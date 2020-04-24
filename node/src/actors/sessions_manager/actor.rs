@@ -1,7 +1,6 @@
 use super::SessionsManager;
 use crate::config_mngr;
 use actix::prelude::*;
-use log;
 use witnet_data_structures::chain::EpochConstants;
 use witnet_util::timestamp::get_timestamp;
 

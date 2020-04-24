@@ -1,6 +1,5 @@
 use actix::prelude::*;
 use futures::Stream;
-use log;
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::actors::{

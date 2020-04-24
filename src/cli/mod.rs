@@ -14,46 +14,44 @@ pub fn from_args() -> Cli {
     Cli::from_args()
 }
 
-pub fn exec(command: Cli) -> Result<(), failure::Error> {
-    match command {
-        Cli {
-            config,
-            debug,
-            trace,
-            no_timestamp,
-            no_module_path,
-            cmd,
-            ..
-        } => {
-            let mut log_opts = LogOptions::default();
-            let config = get_config(config.or_else(config::dirs::find_config))?;
+pub fn exec(
+    Cli {
+        config,
+        debug,
+        trace,
+        no_timestamp,
+        no_module_path,
+        cmd,
+        ..
+    }: Cli,
+) -> Result<(), failure::Error> {
+    let mut log_opts = LogOptions::default();
+    let config = get_config(config.or_else(config::dirs::find_config))?;
 
-            log_opts.level = config.log.level;
-            log_opts.source = LogOptionsSource::Config;
-            log_opts.timestamp = !no_timestamp;
-            log_opts.module_path = !no_module_path;
+    log_opts.level = config.log.level;
+    log_opts.source = LogOptionsSource::Config;
+    log_opts.timestamp = !no_timestamp;
+    log_opts.module_path = !no_module_path;
 
-            if let Ok(rust_log) = env::var("RUST_LOG") {
-                if rust_log.contains("witnet") {
-                    log_opts.level = env_logger::Logger::from_default_env().filter();
-                    log_opts.source = LogOptionsSource::Env;
-                }
-            }
-
-            if trace {
-                log_opts.level = log::LevelFilter::Trace;
-                log_opts.source = LogOptionsSource::Flag;
-            } else if debug {
-                log_opts.level = log::LevelFilter::Debug;
-                log_opts.source = LogOptionsSource::Flag;
-            }
-
-            init_logger(log_opts);
-            witnet_data_structures::set_environment(config.environment);
-
-            exec_cmd(cmd, config)
+    if let Ok(rust_log) = env::var("RUST_LOG") {
+        if rust_log.contains("witnet") {
+            log_opts.level = env_logger::Logger::from_default_env().filter();
+            log_opts.source = LogOptionsSource::Env;
         }
     }
+
+    if trace {
+        log_opts.level = log::LevelFilter::Trace;
+        log_opts.source = LogOptionsSource::Flag;
+    } else if debug {
+        log_opts.level = log::LevelFilter::Debug;
+        log_opts.source = LogOptionsSource::Flag;
+    }
+
+    init_logger(log_opts);
+    witnet_data_structures::set_environment(config.environment);
+
+    exec_cmd(cmd, config)
 }
 
 fn exec_cmd(command: Command, config: config::config::Config) -> Result<(), failure::Error> {

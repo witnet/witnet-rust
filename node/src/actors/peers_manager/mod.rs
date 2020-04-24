@@ -1,4 +1,3 @@
-use log;
 use std::{net::SocketAddr, time::Duration};
 
 use actix::{

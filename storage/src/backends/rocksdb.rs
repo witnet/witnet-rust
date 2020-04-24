@@ -2,8 +2,6 @@
 //!
 //! Storage backend that persists data in the file system using a RocksDB database.
 use failure::Fail;
-#[cfg(not(test))]
-use rocksdb;
 #[cfg(test)]
 use rocksdb_mock as rocksdb;
 

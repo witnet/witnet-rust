@@ -266,9 +266,7 @@ impl SessionsManager {
                         }
                         // Mark remaining peers as safu
                         for peer in peers_to_keep {
-                            match act.sessions.consensus_session(peer) {
-                                _ => {}
-                            }
+                            let _ = act.sessions.consensus_session(peer);
                         }
                     }
                 }

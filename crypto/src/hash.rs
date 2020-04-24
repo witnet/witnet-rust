@@ -3,7 +3,6 @@
 use digest::Digest;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use sha2;
 
 /// Enumeration of hash-function names
 #[derive(Clone, PartialEq, Eq, Debug)]

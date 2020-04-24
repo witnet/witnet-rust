@@ -24,7 +24,6 @@ use secp256k1::{PublicKey, Secp256k1, SecretKey, SignOnly, VerifyOnly};
 pub use secp256k1::{Signing, Verification};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use sha2;
 
 use witnet_protected::Protected;
 

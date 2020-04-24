@@ -6,8 +6,6 @@ use std::sync::Arc;
 use actix::prelude::*;
 use bincode::{deserialize, serialize};
 use futures::future::{Either, Future};
-use log;
-use serde;
 
 use crate::config_mngr;
 use witnet_config::config;

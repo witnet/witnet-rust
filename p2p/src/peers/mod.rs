@@ -1,6 +1,5 @@
 //! Library for managing a list of available peers
 
-use log;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::{cmp, collections::HashMap, fmt, net::SocketAddr};

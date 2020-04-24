@@ -1,6 +1,5 @@
 use super::RadManager;
 use actix::{Actor, Context, Supervised, SystemService};
-use log;
 
 /// Implement Actor trait for `RadManager`
 impl Actor for RadManager {

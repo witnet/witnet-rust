@@ -1,7 +1,6 @@
 use std::{process::exit, result::Result};
 
 use actix::{Actor, System, SystemRegistry};
-use failure;
 use futures::future::Future;
 use log::info;
 

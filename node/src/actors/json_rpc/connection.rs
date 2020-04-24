@@ -4,7 +4,6 @@ use actix::{
 };
 use tokio::{io::WriteHalf, net::TcpStream};
 
-use bytes;
 use bytes::BytesMut;
 use log::*;
 use std::{io, rc::Rc};

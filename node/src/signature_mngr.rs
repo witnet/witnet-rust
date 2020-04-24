@@ -6,7 +6,6 @@
 use actix::prelude::*;
 use failure::{bail, format_err};
 use futures::future::Future;
-use log;
 
 use crate::{actors::storage_keys::MASTER_KEY, config_mngr, storage_mngr};
 

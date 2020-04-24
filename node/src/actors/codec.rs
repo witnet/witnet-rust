@@ -5,8 +5,6 @@ use std::io::Cursor;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use actix::Message;
-use bytes;
-use log;
 use tokio::codec::{Decoder, Encoder};
 
 const HEADER_SIZE: usize = 4; // bytes

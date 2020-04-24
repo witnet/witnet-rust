@@ -5,7 +5,6 @@ use actix::{
     Handler, StreamHandler, SystemService, WrapFuture,
 };
 use futures::future;
-use log;
 
 use witnet_data_structures::{
     builders::from_address,

@@ -1,5 +1,4 @@
 use actix::{Context, Handler};
-use log;
 
 use super::PeersManager;
 use crate::actors::messages::{
