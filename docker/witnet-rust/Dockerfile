@@ -10,6 +10,7 @@ RUN apt-get clean && apt-get autoremove
 
 # Set needed environment variables
 ENV RUST_BACKTRACE=1
+ARG WITNET_VERSION
 
 # Copy context and cd into it
 COPY / /

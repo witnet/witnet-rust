@@ -1,12 +1,6 @@
 #!/bin/bash
 
-#VERSION=$1
-VERSION="latest"
-#COMPONENT=$2
-COMPONENT="node"
-MODE="server"
-shift
-shift
+VERSION=${WITNET_VERSION:-"latest"}
 
 if [[ "$VERSION" == "latest" ]]; then
     VERSION=`curl https://github.com/witnet/witnet-rust/releases/latest --cacert /etc/ssl/certs/ca-certificates.crt 2>/dev/null | egrep -o "[0-9|\.]{5}(-rc[0-9]+)?"`
@@ -66,5 +60,5 @@ tar -zxf /tmp/${FILENAME} --directory ${FOLDERNAME} >/dev/null 2>&1 &&
 replace_ip_in_config_if_not_set &&
 chmod +x $FOLDERNAME/witnet &&
 rm -f /tmp/${FILENAME} &&
-${FOLDERNAME}/witnet ${COMPONENT} ${MODE} --version ||
-echo "Error downloading and installing a witnet-rust $COMPONENT on version $VERSION for $TRIPLET"
+${FOLDERNAME}/witnet --version ||
+echo "Error downloading and installing witnet-rust on version $VERSION for $TRIPLET"
