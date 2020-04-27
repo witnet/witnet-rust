@@ -10,6 +10,7 @@ server_addr = "0.0.0.0:21337"
 public_addr = "0.0.0.0:21337"
 known_peers = [
     "52.166.178.145:21337",
+    "46.6.7.37:21337",
     "94.130.108.133:21337",
     "46.25.5.131:21337",
     "138.201.173.154:21337",
@@ -52,10 +53,10 @@ server_address = "127.0.0.1:21338"
 
 [consensus_constants]
 checkpoints_period = 45
-# Monday, 27-Apr-2020, 14:00 UTC
-checkpoint_zero_timestamp = 1587996000
+# Tuesday, 28-Apr-2020, 9:00 UTC
+checkpoint_zero_timestamp = 1588064400
 bootstrap_hash = "00000000000000000000000000000000000000007769746e65742d302e382e30"
-genesis_hash = "15493414fde678612be9811777bb26f019af75de23daffd41974fccd784c89b2"
+genesis_hash = "ba167252c24cb9cde7e259a2c2135a5075e922149efe495d0d36a3b63b7013a5"
 activity_period = 1000
 collateral_age = 1000
 
