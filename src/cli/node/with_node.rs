@@ -23,8 +23,8 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), pkh)
         }
         Command::GetPkh { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
-        Command::GetUtxoInfo { node } => {
-            rpc::get_utxo_info(node.unwrap_or(config.jsonrpc.server_address))
+        Command::GetUtxoInfo { node, long } => {
+            rpc::get_utxo_info(node.unwrap_or(config.jsonrpc.server_address), long)
         }
         Command::GetReputation { node, pkh, all } => {
             let pkh = pkh.map(|x| x.parse()).transpose()?;
@@ -247,6 +247,9 @@ pub enum Command {
         /// Socket address of the Witnet node to query.
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
+        /// Show all the information about utxos
+        #[structopt(long = "long")]
+        long: bool,
     },
     #[structopt(
         name = "getReputation",

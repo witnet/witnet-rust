@@ -116,42 +116,45 @@ pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
 }
 
 #[allow(clippy::cast_possible_wrap)]
-pub fn get_utxo_info(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn get_utxo_info(addr: SocketAddr, long: bool) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "getUtxoInfo", "id": "1"}"#;
     let response = send_request(&mut stream, &request)?;
     let utxo_info = parse_response::<UtxoInfo>(&response)?;
 
     let utxos_len = utxo_info.utxos.len();
-    let mut table = Table::new();
-    table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
-    table.set_titles(row![
-        "OutputPointer",
-        "Value (in wits)",
-        "Time lock",
-        "Ready for collateral"
-    ]);
-    for utxo_metadata in utxo_info
-        .utxos
-        .into_iter()
-        .sorted_by_key(|um| (um.value, um.output_pointer.clone()))
-    {
-        let value = Wit::from_nanowits(utxo_metadata.value).to_string();
-        let time_lock = if utxo_metadata.timelock == 0 {
-            "Ready".to_string()
-        } else {
-            let date = pretty_print(utxo_metadata.timelock as i64, 0);
-            format!("{:?}", date)
-        };
-        table.add_row(row![
-            utxo_metadata.output_pointer.to_string(),
-            value,
-            time_lock,
-            utxo_metadata.ready_for_collateral.to_string()
+
+    if long {
+        let mut table = Table::new();
+        table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+        table.set_titles(row![
+            "OutputPointer",
+            "Value (in wits)",
+            "Time lock",
+            "Ready for collateral"
         ]);
+        for utxo_metadata in utxo_info
+            .utxos
+            .into_iter()
+            .sorted_by_key(|um| (um.value, um.output_pointer.clone()))
+        {
+            let value = Wit::from_nanowits(utxo_metadata.value).to_string();
+            let time_lock = if utxo_metadata.timelock == 0 {
+                "Ready".to_string()
+            } else {
+                let date = pretty_print(utxo_metadata.timelock as i64, 0);
+                format!("{:?}", date)
+            };
+            table.add_row(row![
+                utxo_metadata.output_pointer.to_string(),
+                value,
+                time_lock,
+                utxo_metadata.ready_for_collateral.to_string()
+            ]);
+        }
+        table.printstd();
+        println!("-----------------------");
     }
-    table.printstd();
-    println!("-----------------------");
     println!("Total number of utxos: {}", utxos_len);
     println!(
         "Total number of utxos bigger than collateral minimum: {}",
