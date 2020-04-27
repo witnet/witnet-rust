@@ -155,7 +155,6 @@ pub fn connect_routes<T, S>(
             "create_mnemonics",
             CreateMnemonicsRequest
         ),
-        ("Import-Seed", "import_seed", ImportSeedRequest),
         ("Create-Wallet", "create_wallet", CreateWalletRequest),
         ("Update-Wallet", "update_wallet", UpdateWalletRequest),
         ("Lock-Wallet", "lock_wallet", LockWalletRequest),
