@@ -226,7 +226,10 @@ impl Message for GetBalance {
 
 /// Get Balance
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct GetUtxoInfo;
+pub struct GetUtxoInfo {
+    /// Public key hash
+    pub pkh: PublicKeyHash,
+}
 
 impl Message for GetUtxoInfo {
     type Result = Result<UtxoInfo, failure::Error>;

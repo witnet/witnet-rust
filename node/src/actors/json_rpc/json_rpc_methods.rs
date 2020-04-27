@@ -112,9 +112,9 @@ pub fn jsonrpc_io_handler(
             unauthorized_method("getPkh")
         }
     });
-    io.add_method("getUtxoInfo", move |_params: Params| {
+    io.add_method("getUtxoInfo", move |params: Params| {
         if enable_sensitive_methods {
-            get_utxo_info()
+            get_utxo_info(params.parse())
         } else {
             unauthorized_method("getUtxoInfo")
         }
@@ -888,11 +888,15 @@ pub fn get_balance(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> Jso
 }
 
 /// Get utxos
-pub fn get_utxo_info() -> JsonRpcResultAsync {
+pub fn get_utxo_info(params: Result<(PublicKeyHash,), jsonrpc_core::Error>) -> JsonRpcResultAsync {
     let chain_manager_addr = ChainManager::from_registry();
+    let pkh = match params {
+        Ok(x) => x.0,
+        Err(e) => return Box::new(futures::failed(e)),
+    };
 
     let fut = chain_manager_addr
-        .send(GetUtxoInfo)
+        .send(GetUtxoInfo { pkh })
         .map_err(internal_error)
         .and_then(|dr_info| match dr_info {
             Ok(x) => match serde_json::to_value(&x) {

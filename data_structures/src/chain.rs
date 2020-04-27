@@ -2252,43 +2252,90 @@ pub struct UtxoInfo {
     pub old_utxos_counter: usize,
 }
 
+#[allow(clippy::cast_sign_loss)]
+fn create_utxo_metadata(
+    vto: &ValueTransferOutput,
+    o: &OutputPointer,
+    all_utxos: &UnspentOutputsPool,
+    collateral_min: u64,
+    block_number_limit: u32,
+    bigger_than_min_counter: &mut usize,
+    old_utxos_counter: &mut usize,
+) -> UtxoMetadata {
+    let now = get_timestamp() as u64;
+    let timelock = if vto.time_lock >= now {
+        vto.time_lock
+    } else {
+        0
+    };
+    if vto.value >= collateral_min {
+        *bigger_than_min_counter += 1;
+    }
+    let ready_for_collateral = (vto.value >= collateral_min)
+        && (all_utxos.included_in_block_number(o).unwrap() <= block_number_limit)
+        && timelock == 0;
+    if ready_for_collateral {
+        *old_utxos_counter += 1;
+    }
+
+    UtxoMetadata {
+        output_pointer: o.clone(),
+        value: vto.value,
+        timelock,
+        ready_for_collateral,
+    }
+}
+
 /// Get Utxo Information
 #[allow(clippy::cast_sign_loss)]
 pub fn get_utxo_info(
+    pkh: Option<PublicKeyHash>,
     own_utxos: &OwnUnspentOutputsPool,
     all_utxos: &UnspentOutputsPool,
     collateral_min: u64,
     block_number_limit: u32,
 ) -> UtxoInfo {
-    let bigger_than_min_counter = own_utxos.bigger_than_min_counter();
+    let mut bigger_than_min_counter = 0;
     let mut old_utxos_counter = 0;
 
-    let utxos = own_utxos
-        .iter()
-        .filter_map(|(o, _)| {
-            all_utxos.get(o).map(|vto| {
-                let now = get_timestamp() as u64;
-                let timelock = if vto.time_lock >= now {
-                    vto.time_lock
+    let utxos = if let Some(pkh) = pkh {
+        all_utxos
+            .iter()
+            .filter_map(|(o, vto)| {
+                if vto.pkh == pkh {
+                    Some(create_utxo_metadata(
+                        vto,
+                        o,
+                        all_utxos,
+                        collateral_min,
+                        block_number_limit,
+                        &mut bigger_than_min_counter,
+                        &mut old_utxos_counter,
+                    ))
                 } else {
-                    0
-                };
-                let ready_for_collateral = (vto.value >= collateral_min)
-                    && (all_utxos.included_in_block_number(o).unwrap() <= block_number_limit)
-                    && timelock == 0;
-                if ready_for_collateral {
-                    old_utxos_counter += 1;
-                }
-
-                UtxoMetadata {
-                    output_pointer: o.clone(),
-                    value: vto.value,
-                    timelock,
-                    ready_for_collateral,
+                    None
                 }
             })
-        })
-        .collect();
+            .collect()
+    } else {
+        // Read your own UtxoInfo is cheaper than from other pkhs
+        own_utxos
+            .iter()
+            .filter_map(|(o, _)| {
+                all_utxos.get(o).map(|vto| {
+                    create_utxo_metadata(
+                        vto,
+                        o,
+                        all_utxos,
+                        collateral_min,
+                        block_number_limit,
+                        &mut bigger_than_min_counter,
+                        &mut old_utxos_counter,
+                    )
+                })
+            })
+            .collect()
+    };
 
     UtxoInfo {
         utxos,

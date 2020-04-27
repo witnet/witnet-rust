@@ -116,9 +116,30 @@ pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
 }
 
 #[allow(clippy::cast_possible_wrap)]
-pub fn get_utxo_info(addr: SocketAddr, long: bool) -> Result<(), failure::Error> {
+pub fn get_utxo_info(
+    addr: SocketAddr,
+    long: bool,
+    pkh: Option<PublicKeyHash>,
+) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
-    let request = r#"{"jsonrpc": "2.0","method": "getUtxoInfo", "id": "1"}"#;
+
+    let pkh = match pkh {
+        Some(pkh) => pkh,
+        None => {
+            log::info!("No pkh specified, will default to node pkh");
+            let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
+            let response = send_request(&mut stream, &request)?;
+            let node_pkh = parse_response::<PublicKeyHash>(&response)?;
+            log::info!("Node pkh: {}", node_pkh);
+
+            node_pkh
+        }
+    };
+
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "getUtxoInfo", "params": [{}], "id": "1"}}"#,
+        serde_json::to_string(&pkh)?,
+    );
     let response = send_request(&mut stream, &request)?;
     let utxo_info = parse_response::<UtxoInfo>(&response)?;
 

@@ -910,7 +910,11 @@ impl Handler<GetBalance> for ChainManager {
 impl Handler<GetUtxoInfo> for ChainManager {
     type Result = Result<UtxoInfo, failure::Error>;
 
-    fn handle(&mut self, _: GetUtxoInfo, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(
+        &mut self,
+        GetUtxoInfo { pkh }: GetUtxoInfo,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
         if self.sm_state != StateMachine::Live {
             return Err(ChainManagerError::NotLive.into());
         }
@@ -921,7 +925,14 @@ impl Handler<GetUtxoInfo> for ChainManager {
             .block_number()
             .saturating_sub(chain_info.consensus_constants.collateral_age);
 
+        let pkh = if self.own_pkh == Some(pkh) {
+            None
+        } else {
+            Some(pkh)
+        };
+
         Ok(get_utxo_info(
+            pkh,
             &self.chain_state.own_utxos,
             &self.chain_state.unspent_outputs_pool,
             chain_info.consensus_constants.collateral_minimum,

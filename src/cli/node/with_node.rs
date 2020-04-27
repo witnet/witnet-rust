@@ -23,8 +23,9 @@ pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Err
             rpc::get_balance(node.unwrap_or(config.jsonrpc.server_address), pkh)
         }
         Command::GetPkh { node } => rpc::get_pkh(node.unwrap_or(config.jsonrpc.server_address)),
-        Command::GetUtxoInfo { node, long } => {
-            rpc::get_utxo_info(node.unwrap_or(config.jsonrpc.server_address), long)
+        Command::GetUtxoInfo { node, long, pkh } => {
+            let pkh = pkh.map(|x| x.parse()).transpose()?;
+            rpc::get_utxo_info(node.unwrap_or(config.jsonrpc.server_address), long, pkh)
         }
         Command::GetReputation { node, pkh, all } => {
             let pkh = pkh.map(|x| x.parse()).transpose()?;
@@ -250,6 +251,9 @@ pub enum Command {
         /// Show all the information about utxos
         #[structopt(long = "long")]
         long: bool,
+        /// Public key hash for which to get UTXO information. If omitted, defaults to the node pkh.
+        #[structopt(long = "pkh")]
+        pkh: Option<String>,
     },
     #[structopt(
         name = "getReputation",
