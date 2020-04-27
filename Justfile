@@ -84,6 +84,14 @@ docker-image-build-all:
 docker-image-build target:
     docker build --no-cache -t witnet-rust/{{target}} -f docker/cross-compilation/{{target}}/Dockerfile docker/cross-compilation
 
+docker-image-buildx version="latest" +flags="":
+    docker buildx build \
+        -f docker/witnet-rust/Dockerfile \
+        --build-arg WITNET_VERSION={{version}} \
+        --platform linux/amd64,linux/386,linux/arm64,linux/arm/v7 \
+        --tag witnet/witnet-rust:{{version}} \
+        docker/witnet-rust {{flags}}
+
 docker-python-tester test_name="example":
     docker run \
     --network=host \
