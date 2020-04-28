@@ -1,4 +1,4 @@
-FROM --platform=$TARGETPLATFORM ubuntu:disco
+FROM --platform=$TARGETPLATFORM ubuntu:focal
 
 # Install basic environment dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -22,11 +22,11 @@ EXPOSE 21338
 EXPOSE 11212
 
 # Run the install script
-RUN ["chmod", "+x", "./runner.sh"]
-RUN ["./runner.sh"]
+RUN ["chmod", "+x", "./downloader.sh", "./ip_detector.sh", "./runner.sh"]
+RUN ["./downloader.sh"]
 
 # Set compilation entry point (always gets executed)
-ENTRYPOINT ["./witnet"]
+ENTRYPOINT ["./runner.sh"]
 
 # Set default command (can be overriden)
 CMD ["node", "server"]
