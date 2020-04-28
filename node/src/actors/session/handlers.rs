@@ -54,9 +54,9 @@ impl Handler<EpochNotification<EveryEpochPayload>> for Session {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, ctx: &mut Context<Self>) {
-        log::debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        log::trace!("Periodic epoch notification received {:?}", msg.checkpoint);
         let current_timestamp = get_timestamp();
-        log::debug!(
+        log::trace!(
             "Timestamp diff: {}, Epoch timestamp: {}. Current timestamp: {}",
             current_timestamp as i64 - msg.timestamp as i64,
             msg.timestamp,
