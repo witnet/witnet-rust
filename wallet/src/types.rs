@@ -110,7 +110,7 @@ pub enum SeedSource {
 }
 
 pub struct UnlockedSessionWallet {
-    pub wallet: repository::Wallet<db::EncryptedDb>,
+    pub wallet: SessionWallet,
     pub data: WalletData,
     pub session_id: SessionId,
 }

@@ -56,19 +56,28 @@ impl State {
         }
     }
 
+    /// Get all wallets for a session
+    pub fn wallets(
+        &self,
+        session_id: &types::SessionId,
+    ) -> Result<HashMap<String, types::SessionWallet>> {
+        Ok(self
+            .sessions
+            .get(session_id)
+            .ok_or_else(|| Error::SessionNotFound)?
+            .wallets
+            .clone())
+    }
+
     /// Get a reference to an unlocked wallet.
     pub fn wallet(
         &self,
         session_id: &types::SessionId,
         wallet_id: &str,
     ) -> Result<types::SessionWallet> {
-        let session = self
-            .sessions
-            .get(session_id)
-            .ok_or_else(|| Error::SessionNotFound)?;
+        let wallets = self.wallets(&session_id)?;
 
-        let wallet = session
-            .wallets
+        let wallet = wallets
             .get(wallet_id)
             .cloned()
             .ok_or_else(|| Error::WalletNotFound)?;

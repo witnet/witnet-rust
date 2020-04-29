@@ -170,13 +170,13 @@ impl Worker {
                 err => Error::Db(err),
             })?;
 
-        let wallet = repository::Wallet::unlock(
+        let wallet = Arc::new(repository::Wallet::unlock(
             wallet_id,
             session_id.clone(),
             wallet_db,
             self.params.clone(),
             self.engine.clone(),
-        )?;
+        )?);
         let data = wallet.public_data()?;
 
         Ok(types::UnlockedSessionWallet {
@@ -282,7 +282,7 @@ impl Worker {
             let balance = wallet.balance()?;
             let wallet_data = wallet.public_data()?;
             let payload = json!({
-                "events": events,
+                "events": events.unwrap_or_default(),
                 "status": {
                     "account": {
                         "id": balance.account,

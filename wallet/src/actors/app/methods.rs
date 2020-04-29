@@ -3,7 +3,7 @@ use futures::future;
 
 use witnet_data_structures::chain::InventoryItem;
 
-use crate::actors::worker::HandleBlockRequest;
+use crate::actors::worker::{HandleBlockRequest, NotifyStatus};
 use crate::actors::*;
 use crate::{crypto, model, repository};
 
@@ -42,7 +42,18 @@ impl App {
         _subscription_id: types::SubscriptionId,
         sink: types::Sink,
     ) -> Result<()> {
-        self.state.subscribe(&session_id, sink).map(|_| ())
+        self.state.subscribe(&session_id, sink).map(|dyn_sink| {
+            // If the subscription was successful, notify subscriber about initial status for all
+            // wallets that belong to this session.
+            let wallets = self.state.wallets(&session_id);
+            if let Ok(wallets) = wallets {
+                for (_, wallet) in wallets.iter() {
+                    self.params
+                        .worker
+                        .do_send(NotifyStatus(wallet.clone(), dyn_sink.clone()));
+                }
+            }
+        })
     }
 
     /// Remove a subscription.
@@ -281,15 +292,14 @@ impl App {
                     data,
                 } = res;
 
-                let wallet_arc = Arc::new(wallet);
                 slf.state
-                    .create_session(session_id.clone(), wallet_id.clone(), wallet_arc.clone());
+                    .create_session(session_id.clone(), wallet_id.clone(), wallet.clone());
 
                 // Start synchronization for this wallet
                 let sink = slf.state.get_sink(&session_id);
                 slf.params.worker.do_send(worker::SyncRequest {
                     wallet_id,
-                    wallet: wallet_arc,
+                    wallet,
                     since_beacon: data.last_sync,
                     sink,
                 });
