@@ -11,7 +11,6 @@ use actix::SystemService;
 use itertools::Itertools;
 use jsonrpc_core::{futures, futures::Future, BoxFuture, MetaIoHandler, Params, Value};
 use jsonrpc_pubsub::{PubSubHandler, Session, Subscriber, SubscriptionId};
-use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
 use witnet_crypto::key::KeyPath;
@@ -151,7 +150,7 @@ pub fn jsonrpc_io_handler(
         (
             "witnet_subscribe",
             move |params: Params, _meta: Arc<Session>, subscriber: Subscriber| {
-                debug!("Called witnet_subscribe");
+                log::debug!("Called witnet_subscribe");
                 let params_vec: Vec<serde_json::Value> = match params {
                     Params::Array(v) => v,
                     _ => {
@@ -185,17 +184,17 @@ pub fn jsonrpc_io_handler(
                         if let Ok(sink) = subscriber.assign_id(id.clone()) {
                             let v = s.entry(method_name).or_insert_with(HashMap::new);
                             v.insert(id, (sink, method_params));
-                            debug!(
+                            log::debug!(
                                 "Subscribed to {}. There are {} subscriptions to this method",
                                 method_name,
                                 v.len()
                             );
                         } else {
                             // Session closed before we got a chance to reply
-                            debug!("Failed to assign id: session closed");
+                            log::debug!("Failed to assign id: session closed");
                         }
                     } else {
-                        error!("Failed to acquire lock in add_subscription");
+                        log::error!("Failed to acquire lock in add_subscription");
                         subscriber
                             .reject(internal_error_s("Failed to acquire lock"))
                             .ok();
@@ -207,7 +206,7 @@ pub fn jsonrpc_io_handler(
                         add_subscription("newBlocks", subscriber);
                     }
                     e => {
-                        debug!("Unknown subscription method: {}", e);
+                        log::debug!("Unknown subscription method: {}", e);
                         // Ignore errors with `.ok()` because an error here means the connection was closed
                         subscriber
                             .reject(jsonrpc_core::Error::invalid_params(format!(
@@ -225,7 +224,7 @@ pub fn jsonrpc_io_handler(
                 // If meta is None it means that the session is now closed
                 // If meta is Some it means that the client called witnet_unsubscribe for this id,
                 // but the session is still open
-                debug!("Closing subscription {:?}", id);
+                log::debug!("Closing subscription {:?}", id);
                 match ssu.lock() {
                     Ok(mut s) => {
                         let mut found = false;
@@ -240,7 +239,7 @@ pub fn jsonrpc_io_handler(
                         Box::new(futures::future::ok(Value::Bool(found)))
                     }
                     Err(e) => {
-                        error!("Failed to acquire lock in witnet_unsubscribe");
+                        log::error!("Failed to acquire lock in witnet_unsubscribe");
                         Box::new(futures::future::err(internal_error(e)))
                     }
                 }
@@ -304,7 +303,7 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
 
     match inv_elem {
         InventoryItem::Block(block) => {
-            debug!("Got block from JSON-RPC. Sending AnnounceItems message.");
+            log::debug!("Got block from JSON-RPC. Sending AnnounceItems message.");
 
             let chain_manager_addr = ChainManager::from_registry();
             let fut = chain_manager_addr
@@ -318,7 +317,7 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
         }
 
         InventoryItem::Transaction(transaction) => {
-            debug!("Got transaction from JSON-RPC. Sending AnnounceItems message.");
+            log::debug!("Got transaction from JSON-RPC. Sending AnnounceItems message.");
 
             let chain_manager_addr = ChainManager::from_registry();
             let fut = chain_manager_addr
@@ -333,7 +332,7 @@ pub fn inventory(params: Result<InventoryItem, jsonrpc_core::Error>) -> JsonRpcR
         }
 
         inv_elem => {
-            debug!(
+            log::debug!(
                 "Invalid type of inventory item from JSON-RPC: {:?}",
                 inv_elem
             );
@@ -641,7 +640,7 @@ pub fn get_output(output_pointer: Result<(String,), jsonrpc_core::Error>) -> Jso
 */
 /// Build data request transaction
 pub fn send_request(params: Result<BuildDrt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
-    debug!("Creating data request from JSON-RPC.");
+    log::debug!("Creating data request from JSON-RPC.");
 
     match params {
         Ok(msg) => Box::new(
@@ -671,7 +670,7 @@ pub fn send_request(params: Result<BuildDrt, jsonrpc_core::Error>) -> JsonRpcRes
 
 /// Build value transfer transaction
 pub fn send_value(params: Result<BuildVtt, jsonrpc_core::Error>) -> JsonRpcResultAsync {
-    debug!("Creating value transfer from JSON-RPC.");
+    log::debug!("Creating value transfer from JSON-RPC.");
 
     match params {
         Ok(msg) => Box::new(

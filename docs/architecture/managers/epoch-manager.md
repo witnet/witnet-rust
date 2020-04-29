@@ -64,7 +64,7 @@ The `GetEpoch` message wraps the `current_epoch()` method:
 ```rust
 fn handle(&mut self, _msg: GetEpoch, _ctx: &mut Self::Context) -> EpochResult<Epoch> {
     let r = self.current_epoch();
-    debug!("Current epoch: {:?}", r);
+    log::debug!("Current epoch: {:?}", r);
     r
 }
 ```
@@ -153,7 +153,7 @@ impl Handler<EpochNotification<EpochPayload>> for BlockManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
-        debug!("Epoch notification received {:?}", msg.checkpoint);
+        log::debug!("Epoch notification received {:?}", msg.checkpoint);
     }
 }
 ```
@@ -191,7 +191,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for BlockManager {
     type Result = ();
 
     fn handle(&mut self, msg: EpochNotification<EveryEpochPayload>, _ctx: &mut Context<Self>) {
-        debug!("Periodic epoch notification received {:?}", msg.checkpoint);
+        log::debug!("Periodic epoch notification received {:?}", msg.checkpoint);
     }
 }
 ```

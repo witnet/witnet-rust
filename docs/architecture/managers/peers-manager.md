@@ -50,7 +50,7 @@ impl Handler<AddPeers> for PeersManager {
 
     fn handle(&mut self, msg: AddPeers, _: &mut Context<Self>) -> Self::Result {
         // Insert address
-        debug!("Add peer handle for addresses: {:?}", msg.addresses);
+        log::debug!("Add peer handle for addresses: {:?}", msg.addresses);
         self.peers.add(msg.addresses)
     }
 }

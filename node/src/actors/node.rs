@@ -2,7 +2,6 @@ use std::{process::exit, result::Result};
 
 use actix::{Actor, System, SystemRegistry};
 use futures::future::Future;
-use log::info;
 
 use crate::actors::{
     chain_manager::ChainManager, connections_manager::ConnectionsManager,
@@ -70,7 +69,7 @@ pub fn run(config: Config, callback: fn()) -> Result<(), failure::Error> {
 
 /// Function to close the main system
 pub fn close() {
-    info!("Closing node");
+    log::info!("Closing node");
 
     // FIXME(#72): find out how to gracefully stop the system
     // System::current().stop();

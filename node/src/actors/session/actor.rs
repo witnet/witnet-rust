@@ -2,7 +2,6 @@ use actix::{
     Actor, ActorContext, ActorFuture, AsyncContext, Context, ContextFutureSpawner, Running,
     SystemService, WrapFuture,
 };
-use log::{debug, error, info, warn};
 
 use witnet_data_structures::types::Message as WitnetMessage;
 use witnet_p2p::sessions::{SessionStatus, SessionType};
@@ -26,7 +25,7 @@ impl Actor for Session {
         // Set Handshake timeout for stopping actor if session is still unconsolidated after given period of time
         ctx.run_later(self.handshake_timeout, |act, ctx| {
             if act.status != SessionStatus::Consolidated {
-                info!(
+                log::info!(
                     "Handshake timeout expired, disconnecting session with peer {:?}",
                     act.remote_addr
                 );
@@ -64,7 +63,7 @@ impl Actor for Session {
                 .into_actor(self)
                 .then(|res, act, ctx| match res {
                     Ok(Ok(_)) => {
-                        debug!(
+                        log::debug!(
                             "Successfully registered session {:?} into SessionManager",
                             act.remote_addr
                         );
@@ -72,7 +71,7 @@ impl Actor for Session {
                         actix::fut::ok(())
                     }
                     _ => {
-                        error!("Session register into Session Manager failed");
+                        log::error!("Session register into Session Manager failed");
                         ctx.stop();
 
                         actix::fut::err(())
@@ -116,7 +115,7 @@ impl Actor for Session {
             let chain_manager_addr = ChainManager::from_registry();
 
             chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
-            warn!("Session disconnected during block exchange");
+            log::warn!("Session disconnected during block exchange");
         }
 
         Running::Stop
@@ -154,13 +153,13 @@ impl Session {
                     }
                     Ok(Err(CheckpointZeroInTheFuture(zero))) => {
                         let date = pretty_print(zero, 0);
-                        warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
+                        log::warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
                         // Subscribe to all epochs with an EveryEpochPayload
                         epoch_manager_addr
                             .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
                     }
                     error => {
-                        error!("Current epoch could not be retrieved from EpochManager: {:?}", error);
+                        log::error!("Current epoch could not be retrieved from EpochManager: {:?}", error);
                     }
                 }
 

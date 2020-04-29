@@ -43,7 +43,6 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use log::warn;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::defaults::{Defaults, Testnet};
@@ -371,7 +370,7 @@ impl Config {
                 let consensus_constants_no_changes = PartialConsensusConstants::default();
                 // Warn the user if the config file contains a non-empty [consensus_constant] section
                 if config.consensus_constants != consensus_constants_no_changes {
-                    warn!(
+                    log::warn!(
                         "Consensus constants in the configuration are ignored when running mainnet"
                     );
                 }

@@ -1,4 +1,3 @@
-use log::{debug, error, info, trace};
 use std::{net::SocketAddr, time::Duration};
 
 use actix::{
@@ -66,7 +65,7 @@ impl SessionsManager {
         ctx.run_later(bootstrap_peers_period, move |act, ctx| {
             // Check if bootstrap is needed
             if act.sessions.is_outbound_bootstrap_needed() {
-                info!(
+                log::info!(
                     "{} Inbound: {} | Outbound: {}",
                     Cyan.bold().paint("[Sessions]"),
                     Cyan.bold()
@@ -74,7 +73,7 @@ impl SessionsManager {
                     Cyan.bold()
                         .paint(act.sessions.get_num_outbound_sessions().to_string())
                 );
-                trace!("{:#?}", act.sessions.show_ips());
+                log::trace!("{:#?}", act.sessions.show_ips());
 
                 // Get peers manager address
                 let peers_manager_addr = PeersManager::from_registry();
@@ -97,7 +96,7 @@ impl SessionsManager {
                     // Process the socket address received
                     // This returns a FutureResult containing a success or error
                     .and_then(|addresses, _act, _ctx| {
-                        debug!(
+                        log::debug!(
                             "Trying to create a new outbound connection to {:?}",
                             addresses
                         );
@@ -141,12 +140,12 @@ impl SessionsManager {
         let peers: Vec<SocketAddr> = response
             // Unwrap the Result<PeersSocketAddrResult, MailboxError>
             .unwrap_or_else(|_| {
-                error!("Failed to communicate with PeersManager");
+                log::error!("Failed to communicate with PeersManager");
                 Ok(vec![])
             })
             // Unwrap the PeersSocketAddrResult
             .unwrap_or_else(|_| {
-                error!("Error when trying to get a peer address from PeersManager");
+                log::error!("Error when trying to get a peer address from PeersManager");
                 vec![]
             })
             // Filter the result checking if outbound address is eligible as new peer
@@ -186,11 +185,11 @@ impl SessionsManager {
             .send(GetEpochConstants)
             .into_actor(self)
             .map_err(|err, _, _| {
-                error!("Failed to get epoch constants: {:?}", err);
+                log::error!("Failed to get epoch constants: {:?}", err);
             })
             .map(move |res, act, _ctx| match res {
                 Some(f) => act.epoch_constants = Some(f),
-                None => error!("Failed to get epoch constants"),
+                None => log::error!("Failed to get epoch constants"),
             })
             .wait(ctx);
     }
@@ -230,12 +229,12 @@ impl SessionsManager {
         let (pb, pnb) = match self.beacons.send() {
             Some(x) => x,
             None => {
-                debug!("{}", NotSendingPeersBeaconsBecause::AlreadySent);
+                log::debug!("{}", NotSendingPeersBeaconsBecause::AlreadySent);
                 return;
             }
         };
 
-        debug!("Sending PeersBeacons message");
+        log::debug!("Sending PeersBeacons message");
         let pb: Vec<_> = pb
             .iter()
             .map(|(k, v)| (*k, Some(*v)))

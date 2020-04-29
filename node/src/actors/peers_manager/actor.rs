@@ -1,5 +1,4 @@
 use actix::prelude::*;
-use log::{debug, error, info};
 
 use super::PeersManager;
 use crate::{actors::storage_keys, config_mngr, storage_mngr};
@@ -11,7 +10,7 @@ impl Actor for PeersManager {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        debug!("Peers Manager actor has been started!");
+        log::debug!("Peers Manager actor has been started!");
 
         // Send message to config manager and process response
         config_mngr::get()
@@ -37,13 +36,13 @@ impl Actor for PeersManager {
                 let feeler_peers_period = config.connections.feeler_peers_period;
 
                 // Add all peers
-                info!(
+                log::info!(
                     "Adding the following peer addresses from config: {:?}",
                     known_peers
                 );
                 match act.peers.add_to_new(known_peers.clone(), server_addr) {
                     Ok(_duplicated_peers) => {}
-                    Err(e) => error!("Error when adding peer addresses from config: {}", e),
+                    Err(e) => log::error!("Error when adding peer addresses from config: {}", e),
                 }
 
                 let consensus_constants = (&config.consensus_constants).clone();
@@ -52,7 +51,7 @@ impl Actor for PeersManager {
 
                 storage_mngr::get::<_, Peers>(&storage_keys::peers_key(magic))
                     .into_actor(act)
-                    .map_err(|e, _, _| error!("Couldn't get peers from storage: {}", e))
+                    .map_err(|e, _, _| log::error!("Couldn't get peers from storage: {}", e))
                     .and_then(move |peers_from_storage, act, _ctx| {
                         // peers_from_storage can be None if the storage does not contain that key
                         if let Some(peers_from_storage) = peers_from_storage {

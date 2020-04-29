@@ -39,7 +39,7 @@ impl Actor for Manager {
     
     /// Method that is executed when the actor is started
     fn started(&mut self, _ctx: &mut Self::Context) {
-        debug!("Manager actor has been started!")
+        log::debug!("Manager actor has been started!")
     }
 }
 ```

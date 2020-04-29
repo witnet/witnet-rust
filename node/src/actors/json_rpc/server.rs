@@ -10,7 +10,6 @@ use tokio::{
 };
 
 use futures::{sync::mpsc, Stream};
-use log::*;
 use std::{collections::HashMap, collections::HashSet, net::SocketAddr, rc::Rc, sync::Arc};
 
 use super::{
@@ -51,12 +50,12 @@ impl JsonRpcServer {
 
                 // Do not start the server if enabled = false
                 if !enabled {
-                    debug!("JSON-RPC interface explicitly disabled by configuration.");
+                    log::debug!("JSON-RPC interface explicitly disabled by configuration.");
                     ctx.stop();
                     return fut::ok(());
                 }
 
-                debug!("Starting JSON-RPC interface.");
+                log::debug!("Starting JSON-RPC interface.");
                 let server_addr = config.jsonrpc.server_address;
                 act.server_addr = Some(server_addr);
                 // Create and store the JSON-RPC method handler
@@ -74,7 +73,7 @@ impl JsonRpcServer {
                         // Shutdown the entire system on error
                         // For example, when the server_addr is already in use
                         // FIXME(#72): gracefully stop the system?
-                        error!("Could not start JSON-RPC server: {:?}", e);
+                        log::error!("Could not start JSON-RPC server: {:?}", e);
                         panic!("Could not start JSON-RPC server: {:?}", e);
                     }
                 };
@@ -87,7 +86,7 @@ impl JsonRpcServer {
                         .map(InboundTcpConnect::new),
                 );
 
-                debug!("JSON-RPC interface is now running at {}", server_addr);
+                log::debug!("JSON-RPC interface is now running at {}", server_addr);
 
                 fut::ok(())
             })
@@ -96,7 +95,7 @@ impl JsonRpcServer {
     }
 
     fn add_connection(&mut self, parent: Addr<JsonRpcServer>, stream: TcpStream) {
-        debug!(
+        log::debug!(
             "Add session (currently {} open connections)",
             1 + self.open_connections.len()
         );
@@ -124,7 +123,7 @@ impl JsonRpcServer {
 
     fn remove_connection(&mut self, addr: &Addr<JsonRpc>) {
         self.open_connections.remove(addr);
-        debug!(
+        log::debug!(
             "Remove session (currently {} open connections)",
             self.open_connections.len()
         );
@@ -171,14 +170,14 @@ impl Handler<NewBlock> for JsonRpcServer {
     type Result = ();
 
     fn handle(&mut self, msg: NewBlock, ctx: &mut Self::Context) -> Self::Result {
-        debug!("Got NewBlock message, sending notifications...");
+        log::debug!("Got NewBlock message, sending notifications...");
         let block = serde_json::to_value(msg.block).unwrap();
         if let Ok(subs) = self.subscriptions.lock() {
             let empty_map = HashMap::new();
             for (subscription, (sink, _subscription_params)) in
                 subs.get("newBlocks").unwrap_or(&empty_map)
             {
-                debug!("Sending NewBlock notification!");
+                log::debug!("Sending NewBlock notification!");
                 let r = SubscriptionResult {
                     result: block.clone(),
                     subscription: subscription.clone(),
@@ -188,7 +187,7 @@ impl Handler<NewBlock> for JsonRpcServer {
                         .into_actor(self)
                         .then(move |res, _act, _ctx| {
                             if let Err(e) = res {
-                                error!("Failed to send notification: {:?}", e);
+                                log::error!("Failed to send notification: {:?}", e);
                             }
 
                             actix::fut::ok(())
@@ -196,7 +195,7 @@ impl Handler<NewBlock> for JsonRpcServer {
                 );
             }
         } else {
-            error!("Failed to acquire lock in NewBlock handle");
+            log::error!("Failed to acquire lock in NewBlock handle");
         }
     }
 }

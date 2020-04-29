@@ -3,8 +3,6 @@ use actix::prelude::*;
 
 use ansi_term::Color::Purple;
 
-use log::{error, info, warn};
-
 use std::{collections::BTreeMap, time::Duration};
 
 use witnet_data_structures::{
@@ -81,7 +79,7 @@ impl EpochManager {
         mut checkpoints_period: u16,
     ) {
         if checkpoints_period == 0 {
-            warn!("Setting the checkpoint period to the minimum value of 1 second");
+            log::warn!("Setting the checkpoint period to the minimum value of 1 second");
             checkpoints_period = 1;
         }
         self.constants = Some(EpochConstants {
@@ -119,7 +117,7 @@ impl EpochManager {
                     config.consensus_constants.checkpoint_zero_timestamp,
                     config.consensus_constants.checkpoints_period,
                 );
-                info!(
+                log::info!(
                     "Checkpoint zero timestamp: {}, checkpoints period: {}",
                     actor.constants.as_ref().unwrap().checkpoint_zero_timestamp,
                     actor.constants.as_ref().unwrap().checkpoints_period,
@@ -224,7 +222,7 @@ impl EpochManager {
                 // Update last checked epoch
                 act.last_checked_epoch = Some(current_epoch);
 
-                info!(
+                log::info!(
                     "{} We are now in epoch #{}",
                     Purple.bold().paint("[Checkpoints]"),
                     Purple.bold().paint(current_epoch.to_string())
@@ -284,7 +282,7 @@ impl<T: Send> SendableNotification for SingleEpochSubscription<T> {
                 Err(_e) => {}
             };
         } else {
-            error!(
+            log::error!(
                 "No payload to be sent back to the subscribed actor for epoch {:?}",
                 epoch
             );

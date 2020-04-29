@@ -38,7 +38,6 @@ use actix::{
 use ansi_term::Color::{Purple, White, Yellow};
 use failure::Fail;
 use itertools::Itertools;
-use log::{error, info, trace, warn};
 use witnet_crypto::key::CryptoEngine;
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
@@ -183,7 +182,7 @@ impl ChainManager {
         match self.last_chain_state.chain_info.as_ref() {
             Some(x) => x,
             None => {
-                error!("Trying to persist an empty chain state value");
+                log::error!("Trying to persist an empty chain state value");
                 return;
             }
         };
@@ -194,10 +193,10 @@ impl ChainManager {
         )
         .into_actor(self)
         .and_then(|_, _, _| {
-            trace!("Successfully persisted chain_info into storage");
+            log::trace!("Successfully persisted chain_info into storage");
             fut::ok(())
         })
-        .map_err(|err, _, _| error!("Failed to persist chain_info into storage: {}", err))
+        .map_err(|err, _, _| log::error!("Failed to persist chain_info into storage: {}", err))
         .wait(ctx);
     }
     /// Method to persist the chain_state into storage
@@ -222,7 +221,7 @@ impl ChainManager {
                 // Process the response from InventoryManager
                 Err(e) => {
                     // Error when sending message
-                    error!("Unsuccessful communication with InventoryManager: {}", e);
+                    log::error!("Unsuccessful communication with InventoryManager: {}", e);
                     actix::fut::err(())
                 }
                 Ok(_) => actix::fut::ok(()),
@@ -244,9 +243,11 @@ impl ChainManager {
         let kvs_len = kvs.len();
         storage_mngr::put_batch(&kvs)
             .into_actor(self)
-            .map_err(|e, _, _| error!("Failed to persist data request report into storage: {}", e))
+            .map_err(|e, _, _| {
+                log::error!("Failed to persist data request report into storage: {}", e)
+            })
             .and_then(move |_, _, _| {
-                trace!(
+                log::trace!(
                     "Successfully persisted reports for {} data requests into storage",
                     kvs_len
                 );
@@ -284,7 +285,7 @@ impl ChainManager {
             self.secp.as_ref(),
         ) {
             if self.current_epoch.is_none() {
-                trace!("Called process_requested_block when current_epoch is None");
+                log::trace!("Called process_requested_block when current_epoch is None");
             }
             let block_number = self.chain_state.block_number();
             let mut vrf_input = chain_info.highest_vrf_output;
@@ -363,13 +364,13 @@ impl ChainManager {
                             self.broadcast_item(InventoryItem::Block(block));
                             log::debug!("Send Candidate");
                         }
-                        Err(e) => warn!("{}", e),
+                        Err(e) => log::warn!("{}", e),
                     },
-                    Err(e) => warn!("{}", e),
+                    Err(e) => log::warn!("{}", e),
                 }
             }
         } else {
-            warn!("ChainManager doesn't have current epoch");
+            log::warn!("ChainManager doesn't have current epoch");
         }
     }
 
@@ -397,7 +398,7 @@ impl ChainManager {
         let epoch_constants = match self.epoch_constants {
             Some(x) => x,
             None => {
-                error!("No EpochConstants loaded in ChainManager");
+                log::error!("No EpochConstants loaded in ChainManager");
                 return;
             }
         };
@@ -420,7 +421,7 @@ impl ChainManager {
                 let vrf_ctx = match self.vrf_ctx.as_mut() {
                     Some(x) => x,
                     None => {
-                        error!("No VRF context available");
+                        log::error!("No VRF context available");
                         return;
                     }
                 };
@@ -546,7 +547,7 @@ impl ChainManager {
                 }
             }
             _ => {
-                error!("No ChainInfo loaded in ChainManager");
+                log::error!("No ChainInfo loaded in ChainManager");
             }
         }
     }
@@ -1087,7 +1088,7 @@ fn show_tally_info(tally_tx: &TallyTransaction, block_epoch: Epoch) {
     let result_str = RadonReport::from_result(result, &ReportContext::default())
         .into_inner()
         .to_string();
-    info!(
+    log::info!(
         "{} {} completed at epoch #{} with result: {}",
         Yellow.bold().paint("[Data Request]"),
         Yellow.bold().paint(tally_tx.dr_pointer.to_string()),
@@ -1115,7 +1116,7 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
         });
 
     if info.is_empty() {
-        info!(
+        log::info!(
             "{} Block {} consolidated for epoch #{} {}",
             Purple.bold().paint("[Chain]"),
             Purple.bold().paint(block_hash.to_string()),
@@ -1123,7 +1124,7 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
             White.paint("with no data requests".to_string()),
         );
     } else {
-        info!(
+        log::info!(
             "{} Block {} consolidated for epoch #{}\n{}{}",
             Purple.bold().paint("[Chain]"),
             Purple.bold().paint(block_hash.to_string()),

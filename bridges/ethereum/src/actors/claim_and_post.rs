@@ -4,7 +4,6 @@ use crate::{actors::handle_receipt, actors::ClaimMsg, config::Config, eth::EthSt
 use async_jsonrpc_client::{futures::Stream, transports::tcp::TcpSocket, Transport};
 use ethabi::{Bytes, Token};
 use futures::{future::Either, sink::Sink};
-use log::*;
 use rand::{thread_rng, Rng};
 use serde_json::{json, Value};
 use std::{
@@ -58,7 +57,7 @@ fn try_to_claim_local_query(
             contract::Options::default(),
             None,
         )
-        .map_err(|e| error!("checkDataRequestsClaimability {:?}", e))
+        .map_err(|e| log::error!("checkDataRequestsClaimability {:?}", e))
         .and_then(move |claimable: Vec<bool>| {
             match claimable.get(0) {
                 Some(true) => {
@@ -69,10 +68,10 @@ fn try_to_claim_local_query(
                             eth_account,
                             contract::Options::default(),
                             None,
-                        ).map_err(|e| error!("readDataRequest {:?}", e)))
+                        ).map_err(|e| log::error!("readDataRequest {:?}", e)))
                 }
                 _ => {
-                    debug!("[{}] is not claimable", dr_id);
+                    log::debug!("[{}] is not claimable", dr_id);
 
                     Either::B(futures::failed(()))
                 }
@@ -97,7 +96,7 @@ fn try_to_claim_local_query(
                     Ok(dr)
                 }) {
                     Ok(x) => {
-                        debug!("{:?}", x);
+                        log::debug!("{:?}", x);
                         // TODO: check if we want to claim this data request:
                         // Is the price ok?
 
@@ -109,17 +108,17 @@ fn try_to_claim_local_query(
                             Ok(witnet_dr_bytes) => if dr_bytes == witnet_dr_bytes {
                                 x
                             } else {
-                                warn!(
+                                log::warn!(
                                     "[{}] uses an invalid serialization, will be ignored.\nETH DR BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
                                     dr_id, dr_bytes, witnet_dr_bytes
                                 );
-                                warn!("This usually happens when some fields are set to 0. \
+                                log::warn!("This usually happens when some fields are set to 0. \
                                        The Rust implementation of ProtocolBuffer skips those fields, \
                                        as missing fields are deserialized with the default value.");
                                 return Either::B(ignore_dr(dr_id));
                             },
                             Err(e) => {
-                                warn!(
+                                log::warn!(
                                     "[{}] uses an invalid serialization, will be ignored: {:?}",
                                     dr_id, e
                                 );
@@ -128,7 +127,7 @@ fn try_to_claim_local_query(
                         }
                     },
                     Err(e) => {
-                        warn!(
+                        log::warn!(
                             "[{}] uses an invalid serialization, will be ignored: {:?}",
                             dr_id, e
                         );
@@ -146,7 +145,7 @@ fn try_to_claim_local_query(
                         None,
                     )
                     .map(|x: Bytes| (x, dr_output))
-                    .map_err(|e| error!("getLastBeacon {:?}", e)),
+                    .map_err(|e| log::error!("getLastBeacon {:?}", e)),
             )
         })
         .and_then(move |(vrf_message, dr_output)| {
@@ -154,9 +153,9 @@ fn try_to_claim_local_query(
 
             witnet_client2
                 .execute("createVRF", vrf_message.into())
-                .map_err(|e| error!("createVRF: {:?}", e))
+                .map_err(|e| log::error!("createVRF: {:?}", e))
                 .map(move |vrf| {
-                    trace!("createVRF: {:?}", vrf);
+                    log::trace!("createVRF: {:?}", vrf);
 
                     (vrf, dr_output, last_beacon)
                 })
@@ -167,9 +166,9 @@ fn try_to_claim_local_query(
 
             witnet_client3
                 .execute("sign", hash.to_vec().into())
-                .map_err(|e| error!("sign: {:?}", e))
+                .map_err(|e| log::error!("sign: {:?}", e))
                 .map(|sign_addr| {
-                    trace!("sign: {:?}", sign_addr);
+                    log::trace!("sign: {:?}", sign_addr);
 
                     (vrf, sign_addr, dr_output, last_beacon)
                 })
@@ -179,9 +178,9 @@ fn try_to_claim_local_query(
 
             witnet_client4
                 .execute("getPublicKey", json!(null))
-                .map_err(|e| error!("getPublicKey: {:?}", e))
+                .map_err(|e| log::error!("getPublicKey: {:?}", e))
                 .map(move |witnet_pk| {
-                    trace!("getPublicKey: {:?}", witnet_pk);
+                    log::trace!("getPublicKey: {:?}", witnet_pk);
 
                     (vrf, sign_addr, witnet_pk, dr_output, last_beacon)
                 })
@@ -199,7 +198,7 @@ fn try_to_claim_local_query(
                     (poe, witnet_pk, sign_addr)
                 }
                 e => {
-                    error!(
+                    log::error!(
                         "Error deserializing value from witnet JSONRPC: {:?}",
                         e
                     );
@@ -210,11 +209,11 @@ fn try_to_claim_local_query(
                 }
             };
 
-            debug!(
+            log::debug!(
                 "\nPoE: {:?}\nWitnet Public Key: {:?}\nSignature Address: {:?}",
                 poe, witnet_pk.clone(), sign_addr
             );
-            info!("[{}] Checking eligibility for claiming dr", dr_id);
+            log::info!("[{}] Checking eligibility for claiming dr", dr_id);
 
             Box::new(
                 wrb_contract5
@@ -226,12 +225,12 @@ fn try_to_claim_local_query(
                         None,
                     )
                     .map_err(move |e| {
-                        warn!(
+                        log::warn!(
                             "[{}] Error decoding public Key:  {}",
                             dr_id, e);
                     })
                     .map(move |pk: [U256; 2]| {
-                        debug!("Received public key decode Point: {:?}", pk);
+                        log::debug!("Received public key decode Point: {:?}", pk);
 
                         (poe, sign_addr, pk, dr_output, last_beacon)
                     }),
@@ -249,12 +248,12 @@ fn try_to_claim_local_query(
                         None,
                     )
                     .map_err(move |e| {
-                        warn!(
+                        log::warn!(
                             "[{}] Error decoding proof:  {}",
                             dr_id, e);
                     })
                     .map(move |proof: [U256; 4]| {
-                        debug!("Received proof decode Point: {:?}", proof);
+                        log::debug!("Received proof decode Point: {:?}", proof);
 
                         (proof, sign_addr, witnet_pk, dr_output, last_beacon)
                     }),
@@ -272,12 +271,12 @@ fn try_to_claim_local_query(
                         None,
                     )
                     .map_err(move |e| {
-                        warn!(
+                        log::warn!(
                             "[{}] Error in params reception:  {}",
                             dr_id, e);
                     })
                     .map(move |(u_point, v_point): ([U256; 2], [U256; 4])| {
-                        debug!("Received fast verify params: ({:?}, {:?})", u_point, v_point);
+                        log::debug!("Received fast verify params: ({:?}, {:?})", u_point, v_point);
 
                         (poe, sign_addr, witnet_pk, dr_output, u_point , v_point)
                     }),
@@ -314,11 +313,11 @@ fn try_to_claim_local_query(
             Box::new(
                 fut1
                     .or_else(move |e| {
-                        debug!("claimDataRequests failed, retrying with different signature sign (v): {:?}", e);
+                        log::debug!("claimDataRequests failed, retrying with different signature sign (v): {:?}", e);
                         Box::new(fut2)
                     })
                     .map_err(move |e| {
-                        warn!(
+                        log::warn!(
                             "[{}] the POE is invalid, no eligibility for this epoch, or the data request has already been claimed :( {:?}",
                             dr_id, e);
                     })
@@ -350,7 +349,7 @@ fn claim_and_post_dr(
     try_to_claim_local_query(config, Arc::clone(&eth_state), Arc::clone(&witnet_client), dr_id)
         .and_then(move |(dr_output, claim_data_requests_params)| {
             // Claim dr
-            info!("[{}] Claiming dr", dr_id);
+            log::info!("[{}] Claiming dr", dr_id);
             let dr_output_hash = dr_output.hash();
             let dr_output = Arc::new(dr_output);
             let dr_output2 = Arc::clone(&dr_output);
@@ -370,19 +369,19 @@ fn claim_and_post_dr(
                         //   is not accepted into a Witnet block
                         //   (or is invalid because of double-spending).
 
-                        warn!("[{}] Posting to witnet again as we have not received a block containing this data request yet", dr_id);
+                        log::warn!("[{}] Posting to witnet again as we have not received a block containing this data request yet", dr_id);
 
                         let bdr_params = json!({"dro": dr_output2, "fee": 0});
 
                         Either::B(witnet_client2
                             .execute("sendRequest", bdr_params)
-                            .map_err(|e| error!("sendRequest: {:?}", e))
+                            .map_err(|e| log::error!("sendRequest: {:?}", e))
                             .map(move |bdr_res| {
-                                debug!("sendRequest: {:?}", bdr_res);
+                                log::debug!("sendRequest: {:?}", bdr_res);
                             }).then(|_| futures::failed(())))
                     } else {
                         // This data request is not available, abort.
-                        debug!("[{}] is not available for claiming, skipping", dr_id);
+                        log::debug!("[{}] is not available for claiming, skipping", dr_id);
                         Either::A(futures::failed(()))
                     }
                 })
@@ -400,15 +399,15 @@ fn claim_and_post_dr(
                             1,
                         )
                         .map_err(|e| {
-                            error!("claimDataRequests: {:?}", e);
+                            log::error!("claimDataRequests: {:?}", e);
                         })
                         .and_then(move |tx| {
-                            debug!("claimDataRequests: {:?}", tx);
+                            log::debug!("claimDataRequests: {:?}", tx);
                             handle_receipt(tx).map_err(move |_| {
                                 // Or the PoE became invalid because a new witnet block was
                                 // just relayed
                                 // In this case we should save this data request to retry later
-                                warn!(
+                                log::warn!(
                                     "[{}] has been claimed by another bridge node, or the PoE expired",
                                     dr_id
                                 );
@@ -431,15 +430,15 @@ fn claim_and_post_dr(
                 })
                 .and_then(move |_traces| {
                     // Post dr in witnet
-                    info!("[{}] Claimed dr, posting to witnet", dr_id);
+                    log::info!("[{}] Claimed dr, posting to witnet", dr_id);
 
                     let bdr_params = json!({"dro": dr_output, "fee": 0});
 
                     witnet_client
                         .execute("sendRequest", bdr_params)
-                        .map_err(|e| error!("sendRequest: {:?}", e))
+                        .map_err(|e| log::error!("sendRequest: {:?}", e))
                         .map(move |bdr_res| {
-                            debug!("sendRequest: {:?}", bdr_res);
+                            log::debug!("sendRequest: {:?}", bdr_res);
                         })
                 })
                 .map(|_| ())
@@ -470,7 +469,7 @@ pub fn claim_and_post(
             if !config.enable_claim_and_inclusion {
                 return futures::finished(());
             }
-            debug!("Got PostActorMessage: {:?}", msg);
+            log::debug!("Got PostActorMessage: {:?}", msg);
 
             let config2 = Arc::clone(&config);
             let eth_state2 = Arc::clone(&eth_state);
@@ -489,10 +488,11 @@ pub fn claim_and_post(
                         let known_dr_ids_claimed = known_dr_ids.claimed();
                         let sorted_dr_state: BTreeMap<_, _> =
                             known_dr_ids.requests().iter().collect();
-                        debug!("{:?}", sorted_dr_state);
-                        debug!(
+                        log::debug!("{:?}", sorted_dr_state);
+                        log::debug!(
                             "Known data requests in WRB: {:?}{:?}",
-                            known_dr_ids_posted, known_dr_ids_claimed
+                            known_dr_ids_posted,
+                            known_dr_ids_claimed
                         );
 
                         // Chose a random data request and try to claim and post it.
@@ -550,12 +550,12 @@ pub fn claim_ticker(
         Instant::now(),
         Duration::from_millis(config.claim_dr_rate_ms),
     )
-    .map_err(|e| error!("Error creating interval: {:?}", e))
+    .map_err(|e| log::error!("Error creating interval: {:?}", e))
     .and_then(move |_instant| {
         post_tx
             .clone()
             .send(ClaimMsg::Tick)
-            .map_err(|e| error!("Error sending tick to PostActor: {:?}", e))
+            .map_err(|e| log::error!("Error sending tick to PostActor: {:?}", e))
     })
     .for_each(|_| Ok(()))
 }

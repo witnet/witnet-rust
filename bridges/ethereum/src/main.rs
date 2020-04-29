@@ -1,6 +1,5 @@
 //! Witnet <> Ethereum bridge
 use futures::stream::Stream;
-use log::*;
 use std::time::{Duration, Instant};
 use std::{
     path::PathBuf,
@@ -81,9 +80,9 @@ fn post_example_dr(
             }),
         )
         .map(|tx| {
-            info!("posted dr to wrb: {:?}", tx);
+            log::info!("posted dr to wrb: {:?}", tx);
         })
-        .map_err(|e| error!("Error posting dr to wrb: {}", e))
+        .map_err(|e| log::error!("Error posting dr to wrb: {}", e))
 }
 
 /// Command line usage and flags
@@ -104,7 +103,7 @@ fn main() {
     init_logger();
 
     if let Err(err) = run() {
-        error!("{}", err);
+        log::error!("{}", err);
         std::process::exit(1);
     }
 }
@@ -166,7 +165,7 @@ fn run() -> Result<(), String> {
                 let witnet_event_fut = match witnet_block_fut.wait() {
                     Ok(x) => x,
                     Err(e) => {
-                        error!("{}", e);
+                        log::error!("{}", e);
                         return;
                     }
                 };
@@ -175,7 +174,7 @@ fn run() -> Result<(), String> {
                 let eth_state2 = eth_state.clone();
                 tokio::spawn(
                     Interval::new(Instant::now(), Duration::from_millis(10_000))
-                        .map_err(|e| error!("Error creating interval: {:?}", e))
+                        .map_err(|e| log::error!("Error creating interval: {:?}", e))
                         .and_then(move |_| {
                             get_new_requests(
                                 Arc::clone(&config2),
@@ -193,7 +192,7 @@ fn run() -> Result<(), String> {
                 let eth_state2 = eth_state.clone();
                 tokio::spawn(
                     Interval::new(Instant::now(), Duration::from_millis(10_000))
-                        .map_err(|e| error!("Error creating interval: {:?}", e))
+                        .map_err(|e| log::error!("Error creating interval: {:?}", e))
                         .and_then(move |_| {
                             wrb_requests_periodic_sync(
                                 Arc::clone(&config2),

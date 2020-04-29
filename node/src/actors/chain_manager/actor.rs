@@ -17,11 +17,9 @@ use witnet_data_structures::{
     vrf::VrfCtx,
 };
 
-use witnet_util::timestamp::pretty_print;
-
-use log::{debug, error, info, warn};
 use std::time::Duration;
 use witnet_crypto::key::CryptoEngine;
+use witnet_util::timestamp::pretty_print;
 
 /// Implement Actor trait for `ChainManager`
 impl Actor for ChainManager {
@@ -30,7 +28,7 @@ impl Actor for ChainManager {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
-        debug!("ChainManager actor has been started!");
+        log::debug!("ChainManager actor has been started!");
 
         self.initialize_from_storage(ctx);
 
@@ -40,7 +38,7 @@ impl Actor for ChainManager {
 
         self.vrf_ctx = VrfCtx::secp256k1()
             .map_err(|e| {
-                error!("Failed to create VRF context: {}", e);
+                log::error!("Failed to create VRF context: {}", e);
                 // Stop the node
                 ctx.stop();
             })
@@ -91,7 +89,7 @@ impl ChainManager {
                         let result = match chain_state_from_storage {
                             Ok(x) => (x, config),
                             Err(e) => {
-                                error!("Error while getting chain state from storage: {}", e);
+                                log::error!("Error while getting chain state from storage: {}", e);
                                 (None, config)
                             }
                         };
@@ -118,7 +116,7 @@ impl ChainManager {
 
                         if environment == chain_info_from_storage.environment {
                             if consensus_constants == &chain_info_from_storage.consensus_constants {
-                                debug!("ChainInfo successfully obtained from storage");
+                                log::debug!("ChainInfo successfully obtained from storage");
 
                                 chain_state_from_storage
                             } else {
@@ -143,12 +141,12 @@ impl ChainManager {
                     }
                     x => {
                         if x.is_some() {
-                            debug!(
+                            log::debug!(
                                 "Uninitialized local chain the ChainInfo in storage is incomplete. Proceeding to \
                                  initialize and store a new chain."
                             );
                         } else {
-                            debug!(
+                            log::debug!(
                                 "Uninitialized local chain (no ChainInfo in storage). Proceeding to \
                                  initialize and store a new chain."
                             );
@@ -181,7 +179,7 @@ impl ChainManager {
                 };
 
                 let chain_info = chain_state.chain_info.as_ref().unwrap();
-                info!(
+                log::info!(
                     "Actual ChainState CheckpointBeacon: epoch ({}), hash_block ({})",
                     chain_info.highest_block_checkpoint.checkpoint,
                     chain_info.highest_block_checkpoint.hash_prev_block
@@ -225,7 +223,7 @@ impl ChainManager {
         epoch_manager_addr.send(GetEpochConstants).into_actor(self).then(move |res, act, _ctx| {
             match res {
                 Ok(f) => act.epoch_constants = f,
-                error => error!("Failed to get epoch constants: {:?}", error),
+                error => log::error!("Failed to get epoch constants: {:?}", error),
             }
 
             epoch_manager_addr2
@@ -253,14 +251,14 @@ impl ChainManager {
                     }
                     Ok(Err(CheckpointZeroInTheFuture(zero))) => {
                         let date = pretty_print(zero, 0);
-                        warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
+                        log::warn!("Checkpoint zero is in the future ({:?}). Delaying chain bootstrapping until then.", date);
 
                         // Subscribe to all epochs with an EveryEpochPayload
                         epoch_manager_addr
                             .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
                     }
                     error => {
-                        error!("Current epoch could not be retrieved from EpochManager: {:?}", error);
+                        log::error!("Current epoch could not be retrieved from EpochManager: {:?}", error);
                     }
                 }
 
@@ -274,15 +272,15 @@ impl ChainManager {
         signature_mngr::pkh()
             .into_actor(self)
             .map_err(|e, _act, _ctx| {
-                error!(
+                log::error!(
                     "Error while getting public key hash from signature manager: {}",
                     e
                 );
             })
             .and_then(|res, act, _ctx| {
                 act.own_pkh = Some(res);
-                debug!("Public key hash successfully loaded from signature manager");
-                info!("PublicKeyHash: {}", res);
+                log::debug!("Public key hash successfully loaded from signature manager");
+                log::info!("PublicKeyHash: {}", res);
                 actix::fut::ok(())
             })
             .wait(ctx);

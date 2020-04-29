@@ -1,5 +1,3 @@
-use log::debug;
-
 use actix::{Actor, Context};
 
 use super::EpochManager;
@@ -11,7 +9,7 @@ impl Actor for EpochManager {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
-        debug!("Epoch Manager actor has been started!");
+        log::debug!("Epoch Manager actor has been started!");
 
         self.process_config(ctx);
     }

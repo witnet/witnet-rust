@@ -3,7 +3,6 @@
 use crate::{config::Config, eth::EthState};
 use async_jsonrpc_client::futures::Stream;
 use futures::{future::Either, sink::Sink};
-use log::*;
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -49,16 +48,16 @@ pub fn block_relay_check(
         Instant::now(),
         Duration::from_millis(config.block_relay_polling_rate_ms),
     )
-    .map_err(|e| error!("Error creating interval: {:?}", e))
+    .map_err(|e| log::error!("Error creating interval: {:?}", e))
     .map(Either::A)
     .select(
-        rx.map_err(|e| error!("Error receiving from block ticker channel: {:?}", e))
+        rx.map_err(|e| log::error!("Error receiving from block ticker channel: {:?}", e))
             .map(Either::B),
     )
     .and_then(move |x| block_hashes.write().map(|block_hashes| (block_hashes, x)))
     .and_then(move |(mut block_hashes, x)| match x {
         Either::A(_instant) => {
-            debug!("BlockRelay tick");
+            log::debug!("BlockRelay tick");
             let mut futs = Vec::with_capacity(block_hashes.len());
             for (block_hash, tx) in block_hashes.drain() {
                 let self_tx = self_tx.clone();
@@ -73,7 +72,7 @@ pub fn block_relay_check(
                     )
                     .then(move |x: Result<U256, _>| match x {
                         Ok(_res) => {
-                            debug!(
+                            log::debug!(
                                 "Block {:x} was included in BlockRelay contract!",
                                 block_hash
                             );
@@ -82,18 +81,21 @@ pub fn block_relay_check(
                             Either::A(futures::finished(()))
                         }
                         Err(e) => {
-                            debug!(
+                            log::debug!(
                                 "Block {:x} not yet included in BlockRelay contract: {:?}",
-                                block_hash, e
+                                block_hash,
+                                e
                             );
 
                             Either::B(
                                 self_tx
                                     .send((block_hash, tx))
                                     .map_err(|e| {
-                                        error!("Error sending message to BlockTicker: {:?}", e)
+                                        log::error!("Error sending message to BlockTicker: {:?}", e)
                                     })
-                                    .map(|_| debug!("Successfully sent message to BlockTicker")),
+                                    .map(|_| {
+                                        log::debug!("Successfully sent message to BlockTicker")
+                                    }),
                             )
                         }
                     })
@@ -104,7 +106,7 @@ pub fn block_relay_check(
             Either::A(future::join_all(futs).map(|_| ()))
         }
         Either::B((block_hash, tx)) => {
-            debug!("BlockTicker got new subscription to {:x}", block_hash);
+            log::debug!("BlockTicker got new subscription to {:x}", block_hash);
             // Only insert subscription if it did not already exist, to prevent overwriting
             // older subscriptions
             block_hashes.entry(block_hash).or_insert(tx);

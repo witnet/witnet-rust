@@ -1,5 +1,4 @@
 use actix::{Actor, Context};
-use log::debug;
 
 use super::ConnectionsManager;
 
@@ -10,7 +9,7 @@ impl Actor for ConnectionsManager {
 
     /// Method to be executed when the actor is started
     fn started(&mut self, ctx: &mut Self::Context) {
-        debug!("Connections Manager actor has been started!");
+        log::debug!("Connections Manager actor has been started!");
 
         // Start server
         // FIXME(#72): decide what to do with actor when server cannot be started

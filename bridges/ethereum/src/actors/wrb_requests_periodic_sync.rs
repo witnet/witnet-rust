@@ -6,7 +6,6 @@ use crate::{config::Config, eth::EthState};
 use async_jsonrpc_client::futures::Stream;
 use ethabi::Bytes;
 use futures::{future::Either, sink::Sink};
-use log::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use web3::{contract, futures::Future, types::U256};
@@ -28,7 +27,7 @@ pub fn get_new_requests(
             contract::Options::default(),
             None,
         )
-        .map_err(|e| error!("requestsCount: {:?}", e))
+        .map_err(|e| log::error!("requestsCount: {:?}", e))
         .and_then(move |new_num_requests: U256| {
             eth_state2
                 .wrb_requests
@@ -37,7 +36,7 @@ pub fn get_new_requests(
                 .map(move |old_num_requests| (U256::from(old_num_requests), new_num_requests))
         })
         .and_then(move |(old_num_requests, new_num_requests)| {
-            debug!(
+            log::debug!(
                 "{} new requests in WRB",
                 new_num_requests - old_num_requests
             );
@@ -63,7 +62,7 @@ pub fn get_new_requests(
             .for_each(|_| Ok(()))
         })
         .then(|_| {
-            debug!("New WRB Requests synchronization finished");
+            log::debug!("New WRB Requests synchronization finished");
             Ok(())
         })
 }
@@ -98,7 +97,7 @@ pub fn wrb_requests_periodic_sync(
             non_resolved_requests
         })
         .and_then(move |non_resolved_requests| {
-            debug!(
+            log::debug!(
                 "Checking the {} requests in non-resolved state",
                 non_resolved_requests.len()
             );
@@ -118,7 +117,7 @@ pub fn wrb_requests_periodic_sync(
             .for_each(|_| Ok(()))
         })
         .then(|_| {
-            debug!("Periodic WRB Requests synchronization finished");
+            log::debug!("Periodic WRB Requests synchronization finished");
             Ok(())
         })
 }
@@ -129,7 +128,7 @@ fn check_wrb_new_dr_state(
     tx: mpsc::Sender<ClaimMsg>,
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
-    info!("[{}] Getting new request", dr_id);
+    log::info!("[{}] Getting new request", dr_id);
     let eth_account = config.eth_account;
     eth_state
         .wrb_contract
@@ -140,12 +139,12 @@ fn check_wrb_new_dr_state(
             contract::Options::default(),
             None,
         )
-        .map_err(|e| error!("readResult: {:?}", e))
+        .map_err(|e| log::error!("readResult: {:?}", e))
         .map(move |x: Bytes| (x, dr_id))
         .and_then(move |(result, dr_id)| {
             if !result.is_empty() {
                 // In resolved state
-                info!("[{}] Request has been resolved", dr_id);
+                log::info!("[{}] Request has been resolved", dr_id);
                 Either::A(eth_state.wrb_requests.write().map(move |mut wrb_requests| {
                     wrb_requests.insert_result(dr_id, result);
                 }))
@@ -161,12 +160,12 @@ fn check_wrb_new_dr_state(
                             contract::Options::default(),
                             None,
                         )
-                        .map_err(|e| error!("readResult: {:?}", e))
+                        .map_err(|e| log::error!("readResult: {:?}", e))
                         .map(move |x: U256| (x, dr_id))
                         .and_then(move |(dr_tx_hash, dr_id)| {
                             if dr_tx_hash != U256::from(0) {
                                 // In included state
-                                info!("[{}] Request has been included", dr_id);
+                                log::info!("[{}] Request has been included", dr_id);
                                 Either::A(eth_state.wrb_requests.write().map(
                                     move |mut wrb_requests| {
                                         let dr_tx_hash = Hash::SHA256(dr_tx_hash.into());
@@ -174,7 +173,7 @@ fn check_wrb_new_dr_state(
                                     },
                                 ))
                             } else {
-                                info!("[{}] Request has been posted", dr_id);
+                                log::info!("[{}] Request has been posted", dr_id);
                                 // Not in included state, must be in posted state
                                 Either::B(eth_state.wrb_requests.write().and_then(
                                     move |mut wrb_requests| {
@@ -182,7 +181,10 @@ fn check_wrb_new_dr_state(
 
                                         tx.send(ClaimMsg::NewDr(dr_id))
                                             .map_err(|e| {
-                                                error!("Failed to send ClaimMsg message: {}", e)
+                                                log::error!(
+                                                    "Failed to send ClaimMsg message: {}",
+                                                    e
+                                                )
                                             })
                                             .map(|_| ())
                                     },
@@ -199,7 +201,7 @@ fn check_wrb_existing_dr_state(
     eth_state: Arc<EthState>,
     dr_id: U256,
 ) -> impl Future<Item = (), Error = ()> {
-    debug!("[{}] Getting existing request", dr_id);
+    log::debug!("[{}] Getting existing request", dr_id);
     let eth_account = config.eth_account;
     eth_state
         .wrb_contract
@@ -210,12 +212,12 @@ fn check_wrb_existing_dr_state(
             contract::Options::default(),
             None,
         )
-        .map_err(|e| error!("readResult: {:?}", e))
+        .map_err(|e| log::error!("readResult: {:?}", e))
         .map(move |x: Bytes| (x, dr_id))
         .and_then(move |(result, dr_id)| {
             if !result.is_empty() {
                 // In resolved state
-                info!("[{}] Request has been resolved", dr_id);
+                log::info!("[{}] Request has been resolved", dr_id);
                 Either::A(eth_state.wrb_requests.write().map(move |mut wrb_requests| {
                     wrb_requests.insert_result(dr_id, result);
                 }))
@@ -231,7 +233,7 @@ fn check_wrb_existing_dr_state(
                             contract::Options::default(),
                             None,
                         )
-                        .map_err(|e| error!("readResult: {:?}", e))
+                        .map_err(|e| log::error!("readResult: {:?}", e))
                         .map(move |x: U256| (x, dr_id))
                         .and_then(move |(dr_tx_hash, dr_id)| {
                             if dr_tx_hash != U256::from(0) {
@@ -244,7 +246,7 @@ fn check_wrb_existing_dr_state(
                                             Either::B(futures::finished(()))
                                         } else {
                                             // New included: update state
-                                            info!("[{}] Request has been included", dr_id);
+                                            log::info!("[{}] Request has been included", dr_id);
                                             // Drop read lock
                                             std::mem::drop(wrb_requests);
 

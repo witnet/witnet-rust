@@ -153,7 +153,7 @@ checkpoint.
 
 ```rust
 fn handle(&mut self, msg: EpochNotification<EpochPayload>, _ctx: &mut Context<Self>) {
-    debug!("Epoch notification received {:?}", msg.checkpoint);
+    log::debug!("Epoch notification received {:?}", msg.checkpoint);
 }
 ```
 

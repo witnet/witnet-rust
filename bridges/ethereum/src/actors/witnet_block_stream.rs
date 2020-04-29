@@ -3,7 +3,6 @@
 use crate::{actors::WitnetBlock, config::Config};
 use async_jsonrpc_client::{futures::Stream, DuplexTransport, Transport};
 use futures::{future::Either, sink::Sink};
-use log::*;
 use serde_json::json;
 use std::{sync::Arc, time::Duration};
 use tokio::{prelude::FutureExt, sync::mpsc};
@@ -25,7 +24,7 @@ pub fn witnet_block_stream(
     let witnet_addr = config.witnet_jsonrpc_addr.to_string();
     let witnet_addr1 = witnet_addr.clone();
     let witnet_addr2 = witnet_addr.clone();
-    info!("Connecting to witnet node at {}", witnet_addr);
+    log::info!("Connecting to witnet node at {}", witnet_addr);
     // Important: the handle cannot be dropped, otherwise the client stops
     // processing events
     let (handle, witnet_client) =
@@ -37,19 +36,19 @@ pub fn witnet_block_stream(
         .timeout(Duration::from_secs(1))
         .map_err(move |e| {
             if e.is_elapsed() {
-                error!(
+                log::error!(
                     "Timeout when trying to connect to witnet node at {}",
                     witnet_addr2
                 );
-                error!("Is the witnet node running?");
+                log::error!("Is the witnet node running?");
             } else if e.is_inner() {
-                error!(
+                log::error!(
                     "Error connecting to witnet node at {}: {:?}",
                     witnet_addr1,
                     e.into_inner()
                 );
             } else {
-                error!("Unhandled timeout error: {:?}", e);
+                log::error!("Unhandled timeout error: {:?}", e);
             }
         })
         .then(|witnet_subscription_id_value| {
@@ -68,7 +67,7 @@ pub fn witnet_block_stream(
                     );
                 }
             };
-            info!(
+            log::info!(
                 "Subscribed to witnet newBlocks with subscription id \"{}\"",
                 witnet_subscription_id
             );
@@ -78,16 +77,16 @@ pub fn witnet_block_stream(
             futures::finished(
                 witnet_client
                     .subscribe(&witnet_subscription_id.into())
-                    .map_err(|e| error!("witnet notification error = {:?}", e))
+                    .map_err(|e| log::error!("witnet notification error = {:?}", e))
                     .and_then(move |value| {
                         let tx1 = tx.clone();
                         match serde_json::from_value::<Block>(value) {
                             Ok(block) => {
-                                debug!("Got witnet block: {:?}", block);
+                                log::debug!("Got witnet block: {:?}", block);
                                 Either::A(
                                     tx1.send(WitnetBlock::New(block))
                                         .map_err(|e| {
-                                            error!(
+                                            log::error!(
                                                 "Failed to send WitnetBlock::New message: {:?}",
                                                 e
                                             )
@@ -96,7 +95,7 @@ pub fn witnet_block_stream(
                                 )
                             }
                             Err(e) => {
-                                error!("Error parsing witnet block: {:?}", e);
+                                log::error!("Error parsing witnet block: {:?}", e);
                                 Either::B(futures::finished(()))
                             }
                         }

@@ -1,6 +1,5 @@
 //! Configuration
 
-use log::*;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::Path;
@@ -79,7 +78,7 @@ pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, Box<dyn std::error::
     let f = file.as_ref();
     let mut contents = String::new();
 
-    debug!("Loading config from `{}`", f.to_string_lossy());
+    log::debug!("Loading config from `{}`", f.to_string_lossy());
 
     let mut file = File::open(file)?;
     file.read_to_string(&mut contents)?;

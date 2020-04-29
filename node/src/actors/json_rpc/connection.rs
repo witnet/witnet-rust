@@ -5,7 +5,6 @@ use actix::{
 use tokio::{io::WriteHalf, net::TcpStream};
 
 use bytes::BytesMut;
-use log::*;
 use std::{io, rc::Rc};
 
 use super::{
@@ -48,22 +47,22 @@ impl WriteHandler<io::Error> for JsonRpc {}
 impl StreamHandler<BytesMut, io::Error> for JsonRpc {
     /// This is main event loop for client requests
     fn handle(&mut self, bytes: BytesMut, ctx: &mut Self::Context) {
-        debug!("Got JSON-RPC message");
+        log::debug!("Got JSON-RPC message");
         let msg = match String::from_utf8(bytes.to_vec()) {
             Ok(msg) => {
                 // A valid utf8 string is forwarded to the JSON-RPC parser
                 // The message is assumed to be a valid JSON-RPC, otherwise an
                 // error is returned through the socket.
                 // For example, an empty string results in a JSON-RPC ParseError (-32700).
-                debug!("{}", msg);
+                log::debug!("{}", msg);
                 msg
             }
             Err(e) => {
                 // When the input is not a valid utf8 string, a
                 // ParseError (-32700) is returned thought the socket
                 // and the message is printed in the debug logs for further inspection.
-                error!("Invalid UTF8 in JSON-RPC input");
-                debug!("{:?}", e);
+                log::error!("Invalid UTF8 in JSON-RPC input");
+                log::debug!("{:?}", e);
 
                 // Generate a ParseError later by trying to parse an empty string
                 "".to_string()

@@ -1,5 +1,4 @@
 use futures::Future;
-use log::*;
 use web3::types::{TransactionReceipt, U256};
 use witnet_data_structures::chain::Block;
 
@@ -47,7 +46,7 @@ pub fn handle_receipt(receipt: TransactionReceipt) -> impl Future<Item = (), Err
             futures::failed(())
         }
         x => {
-            error!("Unknown return code, should be 0 or 1, is: {:?}", x);
+            log::error!("Unknown return code, should be 0 or 1, is: {:?}", x);
             futures::failed(())
         }
     }

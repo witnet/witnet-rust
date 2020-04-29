@@ -1,4 +1,3 @@
-use log::error;
 use serde_cbor::{
     self as cbor,
     value::{from_value, Value},
@@ -111,7 +110,7 @@ pub fn unpack_subscript(value: &Value) -> Result<Vec<RadonCall>, RadError> {
 }
 
 fn errorify(kind: RadError) -> RadError {
-    error!("Error unpacking a RADON script: {:?}", kind);
+    log::error!("Error unpacking a RADON script: {:?}", kind);
 
     kind
 }

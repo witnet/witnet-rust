@@ -1,7 +1,5 @@
 use actix::Handler;
 
-use log::{debug, error};
-
 use witnet_data_structures::chain::Epoch;
 
 use super::EpochManager;
@@ -22,13 +20,13 @@ impl Handler<GetEpoch> for EpochManager {
         let checkpoint = self.current_epoch();
         checkpoint
             .as_ref()
-            .map(|checkpoint| debug!("Asked for current epoch (#{})", checkpoint))
+            .map(|checkpoint| log::debug!("Asked for current epoch (#{})", checkpoint))
             .unwrap_or_else(|error| match error {
-                EpochManagerError::CheckpointZeroInTheFuture(_) => debug!(
+                EpochManagerError::CheckpointZeroInTheFuture(_) => log::debug!(
                     "Failed to retrieve epoch when asked to. Error was: {:?}",
                     error
                 ),
-                _ => error!(
+                _ => log::error!(
                     "Failed to retrieve epoch when asked to. Error was: {:?}",
                     error
                 ),
@@ -42,7 +40,7 @@ impl Handler<SubscribeEpoch> for EpochManager {
 
     /// Method to handle SubscribeEpoch messages
     fn handle(&mut self, msg: SubscribeEpoch, _ctx: &mut Self::Context) {
-        debug!("New subscription to checkpoint #{:?}", msg.checkpoint);
+        log::debug!("New subscription to checkpoint #{:?}", msg.checkpoint);
 
         // Store subscription to target checkpoint
         self.subscriptions_epoch
@@ -57,7 +55,7 @@ impl Handler<SubscribeAll> for EpochManager {
 
     /// Method to handle SubscribeAll messages
     fn handle(&mut self, msg: SubscribeAll, _ctx: &mut Self::Context) {
-        debug!("New subscription to every checkpoint");
+        log::debug!("New subscription to every checkpoint");
 
         // Store subscription to all checkpoints
         self.subscriptions_all.push(msg.notification);

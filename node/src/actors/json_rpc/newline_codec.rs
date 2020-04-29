@@ -42,7 +42,7 @@ impl Encoder for NewLineCodec {
     /// Method to encode a response into bytes. The input should not contain
     /// any newline characters, as the message will not be decoded correctly.
     fn encode(&mut self, bytes: BytesMut, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        //debug!("Encoding {:?}", bytes);
+        //log::debug!("Encoding {:?}", bytes);
         let mut encoded_msg = vec![];
         // push message
         encoded_msg.append(&mut bytes.to_vec());

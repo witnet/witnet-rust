@@ -3,7 +3,6 @@ use crate::multibimap::MultiBiMap;
 use ethabi::{Bytes, Token};
 use futures::Future;
 use futures_locks::RwLock;
-use log::*;
 use std::collections::{HashMap, HashSet};
 use web3::{
     contract::Contract,
@@ -101,18 +100,19 @@ impl WrbRequests {
                 self.posted.insert(dr_id);
             }
             Some(DrState::Posted) => {
-                debug!("Invalid state in WrbRequests: [{}] was being set to Posted, but it is already Posted", dr_id);
+                log::debug!("Invalid state in WrbRequests: [{}] was being set to Posted, but it is already Posted", dr_id);
             }
             Some(DrState::Ignored) => {
-                debug!(
+                log::debug!(
                     "Invalid state in WrbRequests: [{}] was being set to Posted, but it is Ignored",
                     dr_id
                 );
             }
             _ => {
-                warn!(
+                log::warn!(
                     "Invalid state in WrbRequests: [{}] was being set to Posted, but it is: {:?}",
-                    dr_id, self.requests[&dr_id]
+                    dr_id,
+                    self.requests[&dr_id]
                 );
             }
         }
@@ -135,15 +135,16 @@ impl WrbRequests {
                 self.included.insert(dr_id, dr_tx_hash);
             }
             Some(DrState::Included) => {
-                debug!("Invalid state in WrbRequests: [{}] was being set to Included, but it is already Included", dr_id);
+                log::debug!("Invalid state in WrbRequests: [{}] was being set to Included, but it is already Included", dr_id);
             }
             Some(DrState::Resolving { .. }) => {
-                debug!("Invalid state in WrbRequests: [{}] was being set to Included, but it is already Resolving", dr_id);
+                log::debug!("Invalid state in WrbRequests: [{}] was being set to Included, but it is already Resolving", dr_id);
             }
             _ => {
-                warn!(
+                log::warn!(
                     "Invalid state in WrbRequests: [{}] was being set to Included, but it is: {:?}",
-                    dr_id, self.requests[&dr_id]
+                    dr_id,
+                    self.requests[&dr_id]
                 );
             }
         }
@@ -206,7 +207,7 @@ impl WrbRequests {
         let dr_tx_hash = match self.included.remove_by_left(&dr_id) {
             Some((_, x)) => x,
             None => {
-                warn!("No dr to be removed in set_resolving");
+                log::warn!("No dr to be removed in set_resolving");
                 return;
             }
         };
@@ -305,7 +306,7 @@ pub struct EthState {
 impl EthState {
     /// Read addresses from config and create `State` struct
     pub fn create(config: &Config) -> Result<Self, String> {
-        info!(
+        log::info!(
             "Connecting to Ethereum node running at {}",
             config.eth_client_url
         );
@@ -317,7 +318,7 @@ impl EthState {
             .accounts()
             .wait()
             .map_err(|e| format!("Unable to get list of available accounts: {:?}", e))?;
-        debug!("Web3 accounts: {:?}", accounts);
+        log::debug!("Web3 accounts: {:?}", accounts);
 
         // Why read files at runtime when you can read files at compile time
         let wrb_contract_abi_json: &[u8] = include_bytes!("../wrb_abi.json");
@@ -337,7 +338,7 @@ impl EthState {
             block_relay_contract_abi,
         );
 
-        debug!("WRB events: {:?}", wrb_contract_abi.events);
+        log::debug!("WRB events: {:?}", wrb_contract_abi.events);
         let post_dr_event = wrb_contract_abi
             .event("PostedRequest")
             .map_err(|e| format!("Unable to get PostedRequest event: {:?}", e))?
@@ -375,7 +376,7 @@ impl EthState {
 pub fn read_u256_from_event_log(value: &web3::types::Log) -> Result<U256, ()> {
     let event_types = vec![ethabi::ParamType::Uint(0)];
     let event_data = ethabi::decode(&event_types, &value.data.0);
-    debug!("Event data: {:?}", event_data);
+    log::debug!("Event data: {:?}", event_data);
 
     // Errors are handled by the caller, if this fails there is nothing we can do
     match event_data.map_err(|_| ())?.get(0).ok_or(())? {

@@ -97,8 +97,8 @@ The way other actors will communicate with the sessions manager is:
         .into_actor(self)
         .then(|res, _act, ctx| {
             match res {
-                Ok(Ok(_)) => debug!("Session successfully registered into the Session Manager"),
-                _ => debug!("Session register into Session Manager failed")
+                Ok(Ok(_)) => log::debug!("Session successfully registered into the Session Manager"),
+                _ => log::debug!("Session register into Session Manager failed")
             }
             actix::fut::ok(())
         })

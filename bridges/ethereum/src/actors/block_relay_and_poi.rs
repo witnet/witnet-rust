@@ -4,7 +4,6 @@
 use crate::{actors::handle_receipt, actors::WitnetBlock, config::Config, eth::EthState};
 use ethabi::Bytes;
 use futures::{future::Either, sink::Sink, stream::Stream};
-use log::*;
 use std::sync::Arc;
 use tokio::{sync::mpsc, sync::oneshot};
 use web3::{contract, futures::Future, types::U256};
@@ -22,9 +21,9 @@ pub fn block_relay_and_poi(
 ) {
     let (tx, rx) = mpsc::channel(16);
 
-    let fut = rx.map_err(|e| error!("Failed to receive WitnetBlock message: {:?}", e))
+    let fut = rx.map_err(|e| log::error!("Failed to receive WitnetBlock message: {:?}", e))
         .for_each(move |msg| {
-            debug!("Got ActorMessage: {:?}", msg);
+            log::debug!("Got ActorMessage: {:?}", msg);
             let eth_state = eth_state.clone();
             let eth_state2 = eth_state.clone();
             let eth_account = config.eth_account;
@@ -42,7 +41,7 @@ pub fn block_relay_and_poi(
             // Optimization: do not process empty blocks
             let empty_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".parse().unwrap();
             if block.block_header.merkle_roots.dr_hash_merkle_root == empty_hash && block.block_header.merkle_roots.tally_hash_merkle_root == empty_hash {
-                debug!("Skipping empty block");
+                log::debug!("Skipping empty block");
                 return futures::finished(());
             }
 
@@ -77,10 +76,10 @@ pub fn block_relay_and_poi(
                             None,
                         )
                         .map(move |_: U256| {
-                            debug!("Block {:x} was already posted", block_hash);
+                            log::debug!("Block {:x} was already posted", block_hash);
                         })
                         .or_else(move |_| {
-                            debug!("Trying to relay block {:x}", block_hash);
+                            log::debug!("Trying to relay block {:x}", block_hash);
                             block_relay_contract2
                                 .call_with_confirmations(
                                     "postNewBlock",
@@ -91,16 +90,16 @@ pub fn block_relay_and_poi(
                                     }),
                                     1,
                                 )
-                                .map_err(|e| error!("postNewBlock: {:?}", e))
+                                .map_err(|e| log::error!("postNewBlock: {:?}", e))
                                 .and_then(move |tx| {
-                                    debug!("postNewBlock: {:?}", tx);
+                                    log::debug!("postNewBlock: {:?}", tx);
 
                                     handle_receipt(tx).map_err(move |()| {
-                                        warn!("Failed to post block {:x} to block relay, maybe it was already posted?", block_hash)
+                                        log::warn!("Failed to post block {:x} to block relay, maybe it was already posted?", block_hash)
                                     })
                                 })
                                 .map(move |()| {
-                                    info!("Posted block {:x} to block relay", block_hash);
+                                    log::info!("Posted block {:x} to block relay", block_hash);
                                 })
                         })
                 );
@@ -109,14 +108,14 @@ pub fn block_relay_and_poi(
             // Wait for someone else to publish the witnet block to ethereum
             let (wbtx, wbrx) = oneshot::channel();
             let fut = wait_for_witnet_block_tx.clone().send((block_hash, wbtx))
-                .map_err(|e| error!("Failed to send message to block_ticker channel: {}", e))
+                .map_err(|e| log::error!("Failed to send message to block_ticker channel: {}", e))
                 .and_then(move |_| {
                     // Receiving the new block notification can fail if the block_ticker got
                     // a different subscription to the same block hash.
                     // In that case, since there already is another future waiting for the
                     // same block, we can exit this one
                     wbrx.map_err(move |e| {
-                        debug!("Failed to receive message through oneshot channel while waiting for block {}: {:x}", e, block_hash)
+                        log::debug!("Failed to receive message through oneshot channel while waiting for block {}: {:x}", e, block_hash)
                     })
                 })
                 .and_then(move |()| {
@@ -141,7 +140,7 @@ pub fn block_relay_and_poi(
                                 let dr_inclusion_proof = match dr.data_proof_of_inclusion(&block) {
                                     Some(x) => x,
                                     None => {
-                                        error!("Error creating data request proof of inclusion");
+                                        log::error!("Error creating data request proof of inclusion");
                                         continue;
                                     }
                                 };
@@ -155,14 +154,14 @@ pub fn block_relay_and_poi(
                                     .collect();
                                 let poi_index = U256::from(dr_inclusion_proof.index);
 
-                                debug!(
+                                log::debug!(
                                     "Proof of inclusion for data request {}:\nPoi: {:x?}\nPoi index: {}",
                                     dr.hash(),
                                     poi,
                                     poi_index,
                                 );
-                                info!("[{}] Claimed dr got included in witnet block!", dr_id);
-                                info!("[{}] Sending proof of inclusion to WRB wrb_contract", dr_id);
+                                log::info!("[{}] Claimed dr got included in witnet block!", dr_id);
+                                log::info!("[{}] Sending proof of inclusion to WRB wrb_contract", dr_id);
 
                                 including.push((*dr_id, poi.clone(), poi_index, block_hash, block_epoch));
                             }
@@ -174,15 +173,15 @@ pub fn block_relay_and_poi(
                             for dr_id in waiting_for_tally.get_by_right(&tally.dr_pointer)
                             {
                                 let Hash::SHA256(dr_pointer_bytes) = tally.dr_pointer;
-                                info!("[{}] Found tally for data request, posting to WRB", dr_id);
+                                log::info!("[{}] Found tally for data request, posting to WRB", dr_id);
                                 let tally_inclusion_proof = match tally.data_proof_of_inclusion(&block) {
                                     Some(x) => x,
                                     None => {
-                                        error!("Error creating tally data proof of inclusion");
+                                        log::error!("Error creating tally data proof of inclusion");
                                         continue;
                                     }
                                 };
-                                debug!(
+                                log::debug!(
                                     "Proof of inclusion for tally        {}:\nData: {:?}\n{:?}",
                                     tally.hash(),
                                     [&dr_pointer_bytes[..], &tally.tally].concat(),
@@ -229,11 +228,11 @@ pub fn block_relay_and_poi(
                                             .then(move |tx| {
                                                 match tx {
                                                     Ok(tx) => {
-                                                        debug!("reportDataRequestInclusion: {:?}", tx);
-                                                        Either::A(handle_receipt(tx).map_err(|()| error!("handle_receipt: transaction failed")))
+                                                        log::debug!("reportDataRequestInclusion: {:?}", tx);
+                                                        Either::A(handle_receipt(tx).map_err(|()| log::error!("handle_receipt: transaction failed")))
                                                     }
                                                     Err(e) => {
-                                                        error!("reportDataRequestInclusion{}: {:?}", params_str, e);
+                                                        log::error!("reportDataRequestInclusion{}: {:?}", params_str, e);
                                                         Either::B(wrb_requests.write().map(move |mut wrb_requests| wrb_requests.undo_including(dr_id)))
                                                     }
                                                 }
@@ -261,11 +260,11 @@ pub fn block_relay_and_poi(
                                             .then(move |tx| {
                                                 match tx {
                                                     Ok(tx) => {
-                                                        debug!("reportResult: {:?}", tx);
-                                                        Either::A(handle_receipt(tx).map_err(|()| error!("handle_receipt: transaction failed")))
+                                                        log::debug!("reportResult: {:?}", tx);
+                                                        Either::A(handle_receipt(tx).map_err(|()| log::error!("handle_receipt: transaction failed")))
                                                     }
                                                     Err(e) => {
-                                                        error!("reportResult{}: {:?}", params_str, e);
+                                                        log::error!("reportResult{}: {:?}", params_str, e);
                                                         Either::B(wrb_requests.write().map(move |mut wrb_requests| wrb_requests.undo_resolving(dr_id)))
                                                     }
                                                 }

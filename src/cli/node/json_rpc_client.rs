@@ -11,7 +11,6 @@ use std::{
 use ansi_term::Color::{Purple, Red, White, Yellow};
 use failure::{bail, Fail};
 use itertools::Itertools;
-use log::*;
 use prettytable::{cell, row, Table};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -392,7 +391,7 @@ fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutpu
 
     let dr: DataRequestOutput = ProtobufConvert::from_pb_bytes(&dr_bytes)?;
 
-    debug!("{}", serde_json::to_string(&dr)?);
+    log::debug!("{}", serde_json::to_string(&dr)?);
 
     validate_data_request_output(&dr)?;
     validate_rad_request(&dr.data_request)?;
@@ -402,10 +401,10 @@ fn deserialize_and_validate_hex_dr(hex_bytes: String) -> Result<DataRequestOutpu
     let witnet_dr_bytes = dr.to_pb_bytes()?;
 
     if dr_bytes != witnet_dr_bytes {
-        warn!("Data request uses an invalid serialization, will be ignored.\nINPUT BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
+        log::warn!("Data request uses an invalid serialization, will be ignored.\nINPUT BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
               dr_bytes, witnet_dr_bytes
         );
-        warn!(
+        log::warn!(
             "This usually happens when some fields are set to 0. \
              The Rust implementation of ProtocolBuffer skips those fields, \
              as missing fields are deserialized with the default value."
