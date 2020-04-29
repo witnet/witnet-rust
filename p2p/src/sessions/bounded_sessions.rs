@@ -39,18 +39,18 @@ impl<T> BoundedSessions<T> {
         &mut self,
         address: SocketAddr,
         reference: T,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), SessionsError> {
         // Check num peers
         if self
             .limit
             .map(|limit| self.collection.len() >= limit as usize)
             .unwrap_or(false)
         {
-            return Err(SessionsError::MaxPeersReached.into());
+            return Err(SessionsError::MaxPeersReached);
         }
         // Check if address is already in sessions collection
         if self.collection.contains_key(&address) {
-            return Err(SessionsError::AddressAlreadyRegistered.into());
+            return Err(SessionsError::AddressAlreadyRegistered);
         }
         // Insert session into the right collection
         self.collection.insert(address, SessionInfo { reference });
@@ -62,11 +62,11 @@ impl<T> BoundedSessions<T> {
     pub fn unregister_session(
         &mut self,
         address: SocketAddr,
-    ) -> Result<SessionInfo<T>, failure::Error> {
+    ) -> Result<SessionInfo<T>, SessionsError> {
         // Insert session into the right map (if not present)
         match self.collection.remove(&address) {
             Some(info) => Ok(info),
-            None => Err(SessionsError::AddressNotFound.into()),
+            None => Err(SessionsError::AddressNotFound),
         }
     }
 }

@@ -18,18 +18,19 @@ use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 
 use witnet_data_structures::{
-    chain::UtxoSelectionStrategy,
     chain::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, PointerToBlock, PublicKeyHash, RADRequest, RADTally,
-        Reputation, UtxoInfo, ValueTransferOutput,
+        Reputation, UtxoInfo, UtxoSelectionStrategy, ValueTransferOutput,
     },
     radon_report::RadonReport,
     transaction::{CommitTransaction, RevealTransaction, Transaction},
 };
-use witnet_p2p::sessions::{GetConsolidatedPeersResult, SessionStatus, SessionType};
-use witnet_rad::error::RadError;
-use witnet_rad::types::RadonTypes;
+use witnet_p2p::{
+    error::SessionsError,
+    sessions::{GetConsolidatedPeersResult, SessionStatus, SessionType},
+};
+use witnet_rad::{error::RadError, types::RadonTypes};
 
 use super::{
     chain_manager::{ChainManagerError, StateMachine, MAX_BLOCKS_SYNC},
@@ -674,7 +675,7 @@ pub struct CloseSession;
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// Message result of unit
-pub type SessionsUnitResult = Result<(), failure::Error>;
+pub type SessionsUnitResult = Result<(), SessionsError>;
 
 /// Message indicating a new session needs to be created
 pub struct Create {

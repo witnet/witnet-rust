@@ -94,7 +94,7 @@ where
         &mut self,
         session_type: SessionType,
         status: SessionStatus,
-    ) -> Result<&mut BoundedSessions<T>, failure::Error> {
+    ) -> Result<&mut BoundedSessions<T>, SessionsError> {
         match session_type {
             SessionType::Inbound => match status {
                 SessionStatus::Unconsolidated => Ok(&mut self.inbound_unconsolidated),
@@ -104,7 +104,7 @@ where
                 SessionStatus::Unconsolidated => Ok(&mut self.outbound_unconsolidated),
                 SessionStatus::Consolidated => Ok(&mut self.outbound_consolidated),
             },
-            _ => Err(SessionsError::NotExpectedFeelerPeer.into()),
+            _ => Err(SessionsError::NotExpectedFeelerPeer),
         }
     }
     /// Method to set the server address
@@ -231,7 +231,7 @@ where
         session_type: SessionType,
         address: SocketAddr,
         reference: T,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), SessionsError> {
         // Get map to insert session to
         let sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated)?;
 
@@ -246,7 +246,7 @@ where
         session_type: SessionType,
         status: SessionStatus,
         address: SocketAddr,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), SessionsError> {
         // If this is an outbound consolidated session, try to remove it from the consensus list
         if let (SessionType::Outbound, SessionStatus::Consolidated) = (session_type, status) {
             // Explicitly ignore the result because we have no guarantees that this session was
@@ -265,7 +265,7 @@ where
         &mut self,
         session_type: SessionType,
         address: SocketAddr,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), SessionsError> {
         // Get map to remove session from
         let uncons_sessions = self.get_sessions(session_type, SessionStatus::Unconsolidated)?;
 
@@ -279,7 +279,7 @@ where
         cons_sessions.register_session(address, session_info.reference)
     }
     /// Method to mark a session as consensus safe
-    pub fn consensus_session(&mut self, address: SocketAddr) -> Result<(), failure::Error> {
+    pub fn consensus_session(&mut self, address: SocketAddr) -> Result<(), SessionsError> {
         if let Some(session_info) = self.outbound_consolidated.collection.get(&address) {
             let session_info = session_info.reference.clone();
             // Get map to insert session to
@@ -287,11 +287,11 @@ where
             // Register session into consolidated collection
             cons_sessions.register_session(address, session_info)
         } else {
-            Err(SessionsError::NotOutboundConsolidatedPeer.into())
+            Err(SessionsError::NotOutboundConsolidatedPeer)
         }
     }
     /// Method to mark a session as consensus unsafe
-    pub fn unconsensus_session(&mut self, address: SocketAddr) -> Result<(), failure::Error> {
+    pub fn unconsensus_session(&mut self, address: SocketAddr) -> Result<(), SessionsError> {
         // Get map to remove session from
         let cons_sessions = &mut self.outbound_consolidated_consensus;
 
