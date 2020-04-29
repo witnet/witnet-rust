@@ -808,6 +808,19 @@ impl Message for GetConsolidatedPeers {
     type Result = Result<GetConsolidatedPeersResult, ()>;
 }
 
+/// Request logging a session message
+#[derive(Clone, Debug)]
+pub struct LogMessage {
+    /// Message for logging
+    pub log_data: String,
+    /// Server address
+    pub addr: SocketAddr,
+}
+
+impl Message for LogMessage {
+    type Result = SessionsUnitResult;
+}
+
 // JsonRpcServer messages (notifications)
 
 /// New block notification

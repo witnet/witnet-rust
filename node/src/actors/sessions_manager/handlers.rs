@@ -16,7 +16,7 @@ use crate::actors::{
     codec::P2PCodec,
     messages::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, EpochNotification,
-        GetConsolidatedPeers, NumSessions, NumSessionsResult, PeerBeacon, Register,
+        GetConsolidatedPeers, LogMessage, NumSessions, NumSessionsResult, PeerBeacon, Register,
         SessionsUnitResult, TryMineBlock, Unregister,
     },
     peers_manager::PeersManager,
@@ -313,6 +313,9 @@ impl Handler<EpochNotification<()>> for SessionsManager {
         );
         log::trace!("{:#?}", self.sessions.show_ips());
 
+        // Clear the logging hashset
+        self.logging_messages.clear();
+
         self.current_epoch = msg.checkpoint;
 
         self.beacons.new_epoch();
@@ -403,5 +406,19 @@ impl Handler<GetConsolidatedPeers> for SessionsManager {
 
     fn handle(&mut self, _msg: GetConsolidatedPeers, _ctx: &mut Context<Self>) -> Self::Result {
         Ok(self.sessions.get_consolidated_sessions_addr())
+    }
+}
+
+/// Handler for Consolidate message.
+impl Handler<LogMessage> for SessionsManager {
+    type Result = SessionsUnitResult;
+
+    fn handle(&mut self, msg: LogMessage, _ctx: &mut Context<Self>) -> Self::Result {
+        if !self.logging_messages.contains(&msg.log_data) {
+            log::debug!("{}", msg.log_data);
+            self.logging_messages.insert(msg.log_data);
+        }
+
+        Ok(())
     }
 }

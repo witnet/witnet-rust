@@ -40,6 +40,8 @@ pub struct SessionsManager {
     epoch_constants: Option<EpochConstants>,
     // Current epoch
     current_epoch: Epoch,
+    // Logging message hashset
+    logging_messages: HashSet<String>,
 }
 
 #[derive(Debug, Fail)]

@@ -1,22 +1,19 @@
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
-use actix::io::FramedWrite;
+use actix::{io::FramedWrite, SystemService};
 
 use ansi_term::Color::Green;
-
-use log::{debug, error, trace};
 
 use tokio::{io::WriteHalf, net::TcpStream};
 
 use witnet_data_structures::{
-    chain::{Block, Hash},
+    chain::{Block, Epoch, Hash},
     proto::ProtobufConvert,
-    types::Message as WitnetMessage,
+    types::{Command, Message as WitnetMessage},
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
-use crate::actors::codec::P2PCodec;
-use witnet_data_structures::chain::Epoch;
+use crate::actors::{codec::P2PCodec, messages::LogMessage, sessions_manager::SessionsManager};
 
 mod actor;
 
@@ -129,34 +126,69 @@ impl Session {
         // Convert WitnetMessage into a vector of bytes
         match ProtobufConvert::to_pb_bytes(&msg) {
             Ok(bytes) => {
-                debug!(
-                    "{} Sending  {} message to session {:?} ({} bytes)",
-                    Green.bold().paint("[>]"),
-                    Green.bold().paint(msg.kind.to_string()),
-                    self.remote_addr,
-                    bytes.len(),
-                );
-                trace!("\t{:?}", msg);
+                match msg.kind {
+                    Command::Transaction(_) | Command::Block(_) => {
+                        let log_data = format!(
+                            "{} Sending {} message ({} bytes)",
+                            Green.bold().paint("[>]"),
+                            Green.bold().paint(msg.kind.to_string()),
+                            bytes.len(),
+                        );
+                        SessionsManager::from_registry().do_send(LogMessage {
+                            log_data,
+                            addr: self.remote_addr,
+                        })
+                    }
+                    _ => {
+                        log::debug!(
+                            "{} Sending  {} message to session {:?} ({} bytes)",
+                            Green.bold().paint("[>]"),
+                            Green.bold().paint(msg.kind.to_string()),
+                            self.remote_addr,
+                            bytes.len(),
+                        );
+                    }
+                }
+                log::trace!("\t{:?}", msg);
                 self.framed.write(bytes.into());
             }
             Err(e) => {
-                error!(
+                log::error!(
                     "Error sending {} message to session {:?}: {}",
-                    msg.kind, self.remote_addr, e,
+                    msg.kind,
+                    self.remote_addr,
+                    e,
                 );
-                trace!("\t{:?}", msg);
+                log::trace!("\t{:?}", msg);
             }
         }
     }
     // This method is useful to align the logs from receive_message with logs from send_message
     fn log_received_message(&self, msg: &WitnetMessage, bytes: &[u8]) {
-        debug!(
-            "{} Received {} message from session {:?} ({} bytes)",
-            Green.bold().paint("[<]"),
-            Green.bold().paint(msg.kind.to_string()),
-            self.remote_addr,
-            bytes.len(),
-        );
-        trace!("\t{:?}", msg);
+        match msg.kind {
+            Command::Transaction(_) | Command::Block(_) => {
+                let log_data = format!(
+                    "{} Received {} message ({} bytes)",
+                    Green.bold().paint("[<]"),
+                    Green.bold().paint(msg.kind.to_string()),
+                    bytes.len(),
+                );
+                SessionsManager::from_registry().do_send(LogMessage {
+                    log_data,
+                    addr: self.remote_addr,
+                })
+            }
+            _ => {
+                log::debug!(
+                    "{} Received {} message from session {:?} ({} bytes)",
+                    Green.bold().paint("[<]"),
+                    Green.bold().paint(msg.kind.to_string()),
+                    self.remote_addr,
+                    bytes.len(),
+                );
+            }
+        }
+
+        log::trace!("\t{:?}", msg);
     }
 }
