@@ -1,1 +1,0 @@
-../bertux-operator-stable/getPkh.sh

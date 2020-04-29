@@ -1,1 +1,0 @@
-../bertux-operator-stable/getReputation.sh
