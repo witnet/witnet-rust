@@ -81,7 +81,7 @@ impl ConnectionsManager {
                 // Process the ResolverResult
                 match res {
                     Err(error) => {
-                        log::warn!("Failed to connect to a peer with error: {:?}", error);
+                        log::debug!("Failed to connect to a peer with error: {:?}", error);
                         actix::fut::err(())
                     }
                     Ok(stream) => {

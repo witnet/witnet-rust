@@ -394,7 +394,7 @@ fn update_consolidate(session: &Session, ctx: &mut Context<Session>) {
                         actix::fut::ok(())
                     }
                     _ => {
-                        log::warn!(
+                        log::debug!(
                             "Failed to consolidate session {:?} in SessionManager",
                             act.remote_addr
                         );

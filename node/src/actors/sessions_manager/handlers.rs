@@ -22,7 +22,7 @@ use crate::actors::{
     peers_manager::PeersManager,
     session::Session,
 };
-use witnet_p2p::sessions::SessionType;
+use witnet_p2p::{error::SessionsError, sessions::SessionType};
 use witnet_util::timestamp::{duration_until_timestamp, get_timestamp};
 
 /// Handler for Create message.
@@ -94,6 +94,13 @@ impl Handler<Register> for SessionsManager {
                 msg.session_type,
                 msg.address
             ),
+            Err(error @ SessionsError::AddressAlreadyRegistered)
+            | Err(error @ SessionsError::MaxPeersReached) => log::debug!(
+                "Error while registering peer {} (session type {:?}): {}",
+                msg.address,
+                msg.session_type,
+                error
+            ),
             Err(error) => log::error!(
                 "Error while registering peer {} (session type {:?}): {}",
                 msg.address,
@@ -132,6 +139,12 @@ impl Handler<Unregister> for SessionsManager {
                         self.beacons.remove(&msg.address);
                     }
                 }
+                Err(error @ SessionsError::AddressNotFound) => log::debug!(
+                    "Error while unregistering peer {} (session type {:?}): {}",
+                    msg.address,
+                    msg.session_type,
+                    error
+                ),
                 Err(error) => log::error!(
                     "Error while unregistering peer {} (session type {:?}): {}",
                     msg.address,
@@ -185,6 +198,13 @@ impl Handler<Consolidate> for SessionsManager {
                     self.beacons.also_wait_for(msg.address);
                 }
             }
+            Err(error @ SessionsError::AddressAlreadyRegistered)
+            | Err(error @ SessionsError::MaxPeersReached) => log::debug!(
+                "Error while consolidating {:?} session with the peer at {}: {:?}",
+                msg.session_type,
+                msg.address,
+                error
+            ),
             Err(error) => log::error!(
                 "Error while consolidating {:?} session with the peer at {}: {:?}",
                 msg.session_type,
