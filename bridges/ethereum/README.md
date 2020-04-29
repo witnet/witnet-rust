@@ -8,14 +8,14 @@ Both the WitnetRequestBoard and the BlockRelay contracts have been deployed in R
 
     Network: rinkeby (id: 4)
         BlockRelay:
-        0xbB66954B2761011D2073a70946B420cd9d8F4090
+        0x70cc21A03ADbA2b53469e4254683774dfA9D9388
         WitnetRequestsBoard:
-        0x57f05733d9C04Cfc5c2f9c233c4e6d427e7ccC17
+        0xfA723Fe91e99f03aDf368794f33612F337507619
     Network: goerli (id: 5)
         BlockRelay:
-        0xd77C6F01bc6e4b6019d241d385C114e9E75353A2
+        0x6c1FeEDCf0dBfA38e589784A20A0Dc16e9e64BF2
         WitnetRequestsBoard:
-        0x72cf2DFf1Cf373AD818b37d8196C9d372A8f2ADE
+        0xE361333F6a4C441381c37dF3474fd9eb46a6e610
 
 ## Ethereum node
 
