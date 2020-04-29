@@ -179,7 +179,7 @@ where
 
         self.outbound_consolidated
             .limit
-            .map(|limit| limit as usize - num_outbound_sessions)
+            .map(|limit| usize::from(limit).saturating_sub(num_outbound_sessions))
             .unwrap_or(1)
     }
     /// Method to get a random consolidated outbound session

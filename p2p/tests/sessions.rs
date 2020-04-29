@@ -501,3 +501,70 @@ fn p2p_sessions_consensus() {
     assert!(sessions.consensus_session(outbound_address).is_err());
     assert!(sessions.unconsensus_session(outbound_address).is_err());
 }
+
+/// Check that when we temporarily have more outbound peers than the limit, num_missing_outbound
+/// does not overflow
+#[test]
+fn p2p_sessions_register_more_than_limit() {
+    // Create sessions struct
+    let mut sessions = Sessions::<String>::default();
+    // Accept at most 2 outbound peers
+    sessions.set_limits(8, 2);
+
+    assert_eq!(sessions.num_missing_outbound(), 2);
+
+    // Register an outbound session and check if result is Ok(())
+    let outbound_address1 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8001);
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_address1,
+            "reference1".to_string()
+        )
+        .is_ok());
+
+    // Check if outbound session was registered successfully into the unconsolidated sessions
+    assert_eq!(sessions.outbound_unconsolidated.collection.len(), 1);
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
+    // num_missing_outbound counts this peer and returns 2 - 1 = 1
+    assert_eq!(sessions.num_missing_outbound(), 1);
+
+    // Consolidate session
+    assert!(sessions
+        .consolidate_session(SessionType::Outbound, outbound_address1)
+        .is_ok());
+
+    // Check if outbound session was registered successfully into the consolidated sessions
+    assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 1);
+    // num_missing_outbound counts this peer and returns 2 - 1 = 1
+    assert_eq!(sessions.num_missing_outbound(), 1);
+
+    // Now add 2 peers more to unconsolidated sessions
+    let outbound_address2 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8002);
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_address2,
+            "reference2".to_string()
+        )
+        .is_ok());
+
+    let outbound_address3 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8003);
+    assert!(sessions
+        .register_session(
+            SessionType::Outbound,
+            outbound_address3,
+            "reference3".to_string()
+        )
+        .is_ok());
+
+    assert_eq!(sessions.outbound_unconsolidated.collection.len(), 2);
+    assert_eq!(sessions.outbound_consolidated.collection.len(), 1);
+
+    // Now, since the limit is 2 but we have 3 peers, num_missing_outbound used to overflow and
+    // return -1. But instead, num_missing_outbound returns 0
+    assert_eq!(sessions.outbound_consolidated.limit, Some(2));
+    assert_eq!(sessions.get_num_outbound_sessions(), 3);
+    assert_eq!(sessions.num_missing_outbound(), 0);
+}
