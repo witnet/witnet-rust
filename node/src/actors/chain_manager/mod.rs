@@ -361,6 +361,7 @@ impl ChainManager {
                             self.candidates
                                 .insert(hash_block, (block.clone(), vrf_hash[0]));
                             self.broadcast_item(InventoryItem::Block(block));
+                            log::debug!("Send Candidate");
                         }
                         Err(e) => warn!("{}", e),
                     },

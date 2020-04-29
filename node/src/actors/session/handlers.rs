@@ -1,9 +1,8 @@
-use std::io::Error;
+use std::{cmp::Ordering, io::Error, net::SocketAddr};
 
-use actix::io::WriteHandler;
 use actix::{
-    ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler, StreamHandler,
-    SystemService, WrapFuture,
+    io::WriteHandler, ActorContext, ActorFuture, Context, ContextFutureSpawner, Handler,
+    StreamHandler, SystemService, WrapFuture,
 };
 use futures::future;
 
@@ -20,22 +19,19 @@ use witnet_data_structures::{
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
 use super::Session;
-use crate::actors::messages::AddConsolidatedPeer;
 use crate::actors::{
     chain_manager::ChainManager,
     codec::BytesMut,
     inventory_manager::InventoryManager,
     messages::{
-        AddBlocks, AddCandidates, AddPeers, AddTransaction, CloseSession, Consolidate,
-        EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem, PeerBeacon,
-        RequestPeers, SendGetPeers, SendInventoryAnnouncement, SendInventoryItem, SendLastBeacon,
-        SessionUnitResult,
+        AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddTransaction, CloseSession,
+        Consolidate, EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem,
+        PeerBeacon, RequestPeers, SendGetPeers, SendInventoryAnnouncement, SendInventoryItem,
+        SendLastBeacon, SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
-use std::cmp::Ordering;
-use std::net::SocketAddr;
 use witnet_util::timestamp::get_timestamp;
 
 /// Implement WriteHandler for Session
@@ -467,46 +463,45 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
     let block_hash = block.hash();
 
     if block_epoch == session.current_epoch {
-        log::debug!("Send Candidate");
         // Send a message to the ChainManager to try to add a new candidate
         chain_manager_addr.do_send(AddCandidates {
-            blocks: vec![block.clone()],
+            blocks: vec![block],
         });
-    }
-
-    // Add block to requested_blocks
-    if session.requested_block_hashes.contains(&block_hash) {
-        session.requested_blocks.insert(block_hash, block);
-    } else if block_epoch != session.current_epoch {
-        log::error!("Unexpected not requested block: {}", block_hash);
-    }
-
-    if session.requested_blocks.len() == session.requested_block_hashes.len() {
-        let mut blocks_vector = vec![];
-        // Iterate over requested block hashes ordered by epoch
-        // TODO: Now we assume that it is sort by epoch,
-        // It would be nice to check it to sort it or discard it
-        for hash in session.requested_block_hashes.clone() {
-            if let Some(block) = session.requested_blocks.remove(&hash) {
-                blocks_vector.push(block);
-            } else {
-                // As soon as there is a missing block, stop processing the other
-                // blocks, send a empty message to the ChainManager and close the session
-                blocks_vector.clear();
-                chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
-                log::warn!("Unexpected missing block: {}", hash);
-            }
+    } else {
+        // Add block to requested_blocks
+        if session.requested_block_hashes.contains(&block_hash) {
+            session.requested_blocks.insert(block_hash, block);
+        } else if block_epoch != session.current_epoch {
+            log::debug!("Unexpected not requested block: {}", block_hash);
         }
 
-        // Send a message to the ChainManager to try to add a new block
-        chain_manager_addr.do_send(AddBlocks {
-            blocks: blocks_vector,
-        });
+        if session.requested_blocks.len() == session.requested_block_hashes.len() {
+            let mut blocks_vector = vec![];
+            // Iterate over requested block hashes ordered by epoch
+            // TODO: Now we assume that it is sort by epoch,
+            // It would be nice to check it to sort it or discard it
+            for hash in session.requested_block_hashes.clone() {
+                if let Some(block) = session.requested_blocks.remove(&hash) {
+                    blocks_vector.push(block);
+                } else {
+                    // As soon as there is a missing block, stop processing the other
+                    // blocks, send a empty message to the ChainManager and close the session
+                    blocks_vector.clear();
+                    chain_manager_addr.do_send(AddBlocks { blocks: vec![] });
+                    log::warn!("Unexpected missing block: {}", hash);
+                }
+            }
 
-        // Clear requested block structures
-        session.blocks_timestamp = 0;
-        session.requested_blocks.clear();
-        session.requested_block_hashes.clear();
+            // Send a message to the ChainManager to try to add a new block
+            chain_manager_addr.do_send(AddBlocks {
+                blocks: blocks_vector,
+            });
+
+            // Clear requested block structures
+            session.blocks_timestamp = 0;
+            session.requested_blocks.clear();
+            session.requested_block_hashes.clear();
+        }
     }
 }
 
