@@ -57,7 +57,7 @@ impl State {
     }
 
     /// Get all wallets for a session
-    pub fn wallets(
+    pub fn get_wallets_by_session(
         &self,
         session_id: &types::SessionId,
     ) -> Result<HashMap<String, types::SessionWallet>> {
@@ -70,12 +70,12 @@ impl State {
     }
 
     /// Get a reference to an unlocked wallet.
-    pub fn wallet(
+    pub fn get_wallet_by_session_and_id(
         &self,
         session_id: &types::SessionId,
         wallet_id: &str,
     ) -> Result<types::SessionWallet> {
-        let wallets = self.wallets(&session_id)?;
+        let wallets = self.get_wallets_by_session(&session_id)?;
 
         let wallet = wallets
             .get(wallet_id)

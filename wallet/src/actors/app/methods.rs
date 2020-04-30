@@ -45,7 +45,7 @@ impl App {
         self.state.subscribe(&session_id, sink).map(|dyn_sink| {
             // If the subscription was successful, notify subscriber about initial status for all
             // wallets that belong to this session.
-            let wallets = self.state.wallets(&session_id);
+            let wallets = self.state.get_wallets_by_session(&session_id);
             if let Ok(wallets) = wallets {
                 for (_, wallet) in wallets.iter() {
                     self.params
@@ -70,16 +70,18 @@ impl App {
         wallet_id: String,
         label: Option<String>,
     ) -> ResponseActFuture<model::Address> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::GenAddress(wallet, label))
-                    .flatten()
-                    .map_err(From::from)
-                    .into_actor(slf)
-            },
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::GenAddress(wallet, label))
+                .flatten()
+                .map_err(From::from)
+                .into_actor(slf)
+        });
 
         Box::new(f)
     }
@@ -92,16 +94,18 @@ impl App {
         offset: u32,
         limit: u32,
     ) -> ResponseActFuture<model::Addresses> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::GetAddresses(wallet, offset, limit))
-                    .flatten()
-                    .map_err(From::from)
-                    .into_actor(slf)
-            },
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::GetAddresses(wallet, offset, limit))
+                .flatten()
+                .map_err(From::from)
+                .into_actor(slf)
+        });
 
         Box::new(f)
     }
@@ -112,16 +116,18 @@ impl App {
         session_id: types::SessionId,
         wallet_id: String,
     ) -> ResponseActFuture<model::Balance> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::GetBalance(wallet))
-                    .flatten()
-                    .map_err(From::from)
-                    .into_actor(slf)
-            },
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::GetBalance(wallet))
+                .flatten()
+                .map_err(From::from)
+                .into_actor(slf)
+        });
 
         Box::new(f)
     }
@@ -134,16 +140,18 @@ impl App {
         offset: u32,
         limit: u32,
     ) -> ResponseActFuture<model::Transactions> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::GetTransactions(wallet, offset, limit))
-                    .flatten()
-                    .map_err(From::from)
-                    .into_actor(slf)
-            },
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::GetTransactions(wallet, offset, limit))
+                .flatten()
+                .map_err(From::from)
+                .into_actor(slf)
+        });
 
         Box::new(f)
     }
@@ -232,25 +240,27 @@ impl App {
         name: Option<String>,
         caption: Option<String>,
     ) -> ResponseActFuture<()> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                let wallet_update = slf
-                    .params
-                    .worker
-                    .send(worker::UpdateWallet(wallet, name.clone(), caption.clone()))
-                    .flatten()
-                    .map_err(From::from);
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            let wallet_update = slf
+                .params
+                .worker
+                .send(worker::UpdateWallet(wallet, name.clone(), caption.clone()))
+                .flatten()
+                .map_err(From::from);
 
-                let info_update = slf
-                    .params
-                    .worker
-                    .send(worker::UpdateWalletInfo(wallet_id, name, caption))
-                    .flatten()
-                    .map_err(From::from);
+            let info_update = slf
+                .params
+                .worker
+                .send(worker::UpdateWalletInfo(wallet_id, name, caption))
+                .flatten()
+                .map_err(From::from);
 
-                wallet_update.join(info_update).map(|_| ()).into_actor(slf)
-            },
-        );
+            wallet_update.join(info_update).map(|_| ()).into_actor(slf)
+        });
 
         Box::new(f)
     }
@@ -316,24 +326,26 @@ impl App {
         wallet_id: &str,
         vtt_params: types::VttParams,
     ) -> ResponseActFuture<types::Transaction> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::CreateVtt(wallet, vtt_params))
-                    .flatten()
-                    .map_err(|err| match err {
-                        worker::Error::Repository(repository::Error::InsufficientBalance) => {
-                            validation_error(field_error(
-                                "balance",
-                                "Wallet account has not enough balance",
-                            ))
-                        }
-                        err => From::from(err),
-                    })
-                    .into_actor(slf)
-            },
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::CreateVtt(wallet, vtt_params))
+                .flatten()
+                .map_err(|err| match err {
+                    worker::Error::Repository(repository::Error::InsufficientBalance) => {
+                        validation_error(field_error(
+                            "balance",
+                            "Wallet account has not enough balance",
+                        ))
+                    }
+                    err => From::from(err),
+                })
+                .into_actor(slf)
+        });
 
         Box::new(f)
     }
@@ -344,24 +356,26 @@ impl App {
         wallet_id: &str,
         params: types::DataReqParams,
     ) -> ResponseActFuture<types::Transaction> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::CreateDataReq(wallet, params))
-                    .flatten()
-                    .map_err(|err| match err {
-                        worker::Error::Repository(repository::Error::InsufficientBalance) => {
-                            validation_error(field_error(
-                                "balance",
-                                "Wallet account has not enough balance",
-                            ))
-                        }
-                        err => From::from(err),
-                    })
-                    .into_actor(slf)
-            },
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::CreateDataReq(wallet, params))
+                .flatten()
+                .map_err(|err| match err {
+                    worker::Error::Repository(repository::Error::InsufficientBalance) => {
+                        validation_error(field_error(
+                            "balance",
+                            "Wallet account has not enough balance",
+                        ))
+                    }
+                    err => From::from(err),
+                })
+                .into_actor(slf)
+        });
 
         Box::new(f)
     }
@@ -407,24 +421,26 @@ impl App {
         wallet_id: String,
         key: String,
     ) -> ResponseActFuture<Option<types::RpcValue>> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::Get(wallet, key))
-                    .flatten()
-                    .map_err(From::from)
-                    .and_then(|opt| match opt {
-                        Some(value) => future::result(
-                            serde_json::from_str(&value)
-                                .map_err(internal_error)
-                                .map(Some),
-                        ),
-                        None => future::result(Ok(None)),
-                    })
-                    .into_actor(slf)
-            },
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(|wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::Get(wallet, key))
+                .flatten()
+                .map_err(From::from)
+                .and_then(|opt| match opt {
+                    Some(value) => future::result(
+                        serde_json::from_str(&value)
+                            .map_err(internal_error)
+                            .map(Some),
+                    ),
+                    None => future::result(Ok(None)),
+                })
+                .into_actor(slf)
+        });
 
         Box::new(f)
     }
@@ -437,20 +453,22 @@ impl App {
         key: String,
         value: types::RpcParams,
     ) -> ResponseActFuture<()> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, _, _| {
-                fut::result(serde_json::to_string(&value).map_err(internal_error)).and_then(
-                    move |value, slf: &mut Self, _| {
-                        slf.params
-                            .worker
-                            .send(worker::Set(wallet, key, value))
-                            .flatten()
-                            .map_err(From::from)
-                            .into_actor(slf)
-                    },
-                )
-            },
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, _, _| {
+            fut::result(serde_json::to_string(&value).map_err(internal_error)).and_then(
+                move |value, slf: &mut Self, _| {
+                    slf.params
+                        .worker
+                        .send(worker::Set(wallet, key, value))
+                        .flatten()
+                        .map_err(From::from)
+                        .into_actor(slf)
+                },
+            )
+        });
 
         Box::new(f)
     }
@@ -529,9 +547,11 @@ impl App {
         wallet_id: &str,
         transaction: types::Transaction,
     ) -> ResponseActFuture<serde_json::Value> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |_wallet, slf: &mut Self, _| slf.send_inventory_transaction(transaction),
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |_wallet, slf: &mut Self, _| slf.send_inventory_transaction(transaction));
 
         Box::new(f)
     }
@@ -544,16 +564,18 @@ impl App {
         data: String,
         extended_pk: bool,
     ) -> ResponseActFuture<model::ExtendedKeyedSignature> {
-        let f = fut::result(self.state.wallet(&session_id, &wallet_id)).and_then(
-            move |wallet, slf: &mut Self, _| {
-                slf.params
-                    .worker
-                    .send(worker::SignData(wallet, data, extended_pk))
-                    .flatten()
-                    .map_err(From::from)
-                    .into_actor(slf)
-            },
-        );
+        let f = fut::result(
+            self.state
+                .get_wallet_by_session_and_id(&session_id, &wallet_id),
+        )
+        .and_then(move |wallet, slf: &mut Self, _| {
+            slf.params
+                .worker
+                .send(worker::SignData(wallet, data, extended_pk))
+                .flatten()
+                .map_err(From::from)
+                .into_actor(slf)
+        });
 
         Box::new(f)
     }
