@@ -7,7 +7,7 @@ version = "0.3.2"
 workspace = ".."
 
 [dependencies]
-failure = "0.1.6"
+failure = "0.1.8"
 itertools = "0.8.2"
 log = "0.4.8"
 

@@ -8,7 +8,7 @@ description = "RAD component"
 
 [dependencies]
 cbor-codec = "0.7.1"
-failure = "0.1.6"
+failure = "0.1.8"
 futures = "0.3.4"
 hex = "0.4.1"
 json = "0.12.1"
