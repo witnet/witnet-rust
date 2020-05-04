@@ -9,6 +9,7 @@ use futures::future::Future;
 
 use crate::{actors::storage_keys::MASTER_KEY, config_mngr, storage_mngr};
 
+use rand::{thread_rng, Rng};
 use std::path::PathBuf;
 use witnet_crypto::{
     key::{CryptoEngine, ExtendedPK, ExtendedSK, MasterKeyGen, SignEngine},
@@ -17,8 +18,8 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        ExtendedSecretKey, Hash, Hashable, KeyedSignature, PublicKey, PublicKeyHash, SecretKey,
-        Signature, SignaturesToVerify,
+        Bn256KeyedSignature, Bn256PublicKey, Bn256SecretKey, ExtendedSecretKey, Hash, Hashable,
+        KeyedSignature, PublicKey, PublicKeyHash, SecretKey, Signature, SignaturesToVerify,
     },
     vrf::{VrfCtx, VrfMessage, VrfProof},
 };
@@ -51,6 +52,16 @@ pub fn sign_data(data: [u8; 32]) -> impl Future<Item = KeyedSignature, Error = f
     addr.send(Sign(data.to_vec())).flatten()
 }
 
+/// Sign a piece of (Hashable) data with the stored key.
+///
+/// This might fail if the manager has not been initialized with a key
+pub fn bn256_sign(
+    message: Vec<u8>,
+) -> impl Future<Item = Bn256KeyedSignature, Error = failure::Error> {
+    let addr = SignatureManagerAdapter::from_registry();
+    addr.send(Bn256Sign(message)).flatten()
+}
+
 /// Get the public key hash.
 ///
 /// This might fail if the manager has not been initialized with a key
@@ -67,12 +78,29 @@ pub fn public_key() -> impl Future<Item = PublicKey, Error = failure::Error> {
     addr.send(GetPublicKey).flatten()
 }
 
+/// Get the BN256 public key.
+///
+/// This might fail if the manager has not been initialized with a key
+pub fn bn256_public_key() -> impl Future<Item = Bn256PublicKey, Error = failure::Error> {
+    let addr = SignatureManagerAdapter::from_registry();
+    addr.send(GetBn256PublicKey).flatten()
+}
+
 /// Get the public key and secret key.
 ///
 /// This might fail if the manager has not been initialized with a key
 pub fn key_pair() -> impl Future<Item = (ExtendedPK, ExtendedSK), Error = failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(GetKeyPair).flatten()
+}
+
+/// Get the BN256 public key and secret key.
+///
+/// This might fail if the manager has not been initialized with a key
+pub fn bn256_key_pair(
+) -> impl Future<Item = (Bn256PublicKey, Bn256SecretKey), Error = failure::Error> {
+    let addr = SignatureManagerAdapter::from_registry();
+    addr.send(GetBn256KeyPair).flatten()
 }
 
 /// Create a VRF proof for the provided message with the stored key
@@ -95,6 +123,8 @@ pub fn verify_signatures(
 struct SignatureManager {
     /// Secret and public key
     keypair: Option<(ExtendedSK, ExtendedPK)>,
+    /// BLS secret and public key
+    bls_keypair: Option<(Bn256SecretKey, Bn256PublicKey)>,
     /// VRF context
     vrf_ctx: Option<VrfCtx>,
     /// Secp256k1 context
@@ -111,13 +141,21 @@ impl SignatureManager {
 
 struct SetKey(ExtendedSK);
 
+// Note: this message is hashed
 struct Sign(Vec<u8>);
+
+// Note: this message is not hashed
+struct Bn256Sign(Vec<u8>);
 
 struct GetPkh;
 
 struct GetPublicKey;
 
+struct GetBn256PublicKey;
+
 struct GetKeyPair;
+
+struct GetBn256KeyPair;
 
 struct VrfProve(VrfMessage);
 
@@ -151,6 +189,36 @@ fn create_master_key() -> Box<dyn Future<Item = ExtendedSK, Error = failure::Err
     }
 }
 
+fn create_bls_keys() -> (Bn256SecretKey, Bn256PublicKey) {
+    let mut rng = thread_rng();
+    // Loop: if something fails, generate a new secret key and try again
+    loop {
+        // The secret key is 32 bytes
+        let secret: [u8; 32] = rng.gen();
+        let bls_secret = match Bn256SecretKey::from_slice(&secret) {
+            Ok(bls_secret) => bls_secret,
+            Err(e) => {
+                // This should never happen, as any 256-bit integer can be converted into a valid
+                // BN256 secret key
+                log::warn!(
+                    "Failed to generate BN256 secret key, retrying. Error: {}",
+                    e
+                );
+                continue;
+            }
+        };
+        match Bn256PublicKey::from_secret_key(&bls_secret) {
+            Ok(bls_public) => return (bls_secret, bls_public),
+            Err(e) => {
+                // This should never happen, as any valid private key can be used to derive a valid
+                // BN256 public key
+                log::warn!("Failed to derive BN256 public key, retrying. Error: {}", e);
+                continue;
+            }
+        }
+    }
+}
+
 impl Actor for SignatureManager {
     type Context = SyncContext<Self>;
 
@@ -166,6 +234,8 @@ impl Actor for SignatureManager {
             .ok();
 
         self.secp = Some(CryptoEngine::new());
+        // Generate a new BLS key on every node restart
+        self.bls_keypair = Some(create_bls_keys());
     }
 }
 
@@ -177,6 +247,10 @@ impl Message for Sign {
     type Result = Result<KeyedSignature, failure::Error>;
 }
 
+impl Message for Bn256Sign {
+    type Result = Result<Bn256KeyedSignature, failure::Error>;
+}
+
 impl Message for GetPkh {
     type Result = Result<PublicKeyHash, failure::Error>;
 }
@@ -185,8 +259,16 @@ impl Message for GetPublicKey {
     type Result = Result<PublicKey, failure::Error>;
 }
 
+impl Message for GetBn256PublicKey {
+    type Result = Result<Bn256PublicKey, failure::Error>;
+}
+
 impl Message for GetKeyPair {
     type Result = Result<(ExtendedPK, ExtendedSK), failure::Error>;
+}
+
+impl Message for GetBn256KeyPair {
+    type Result = Result<(Bn256PublicKey, Bn256SecretKey), failure::Error>;
 }
 
 impl Message for VrfProve {
@@ -227,6 +309,25 @@ impl Handler<Sign> for SignatureManager {
     }
 }
 
+impl Handler<Bn256Sign> for SignatureManager {
+    type Result = <Bn256Sign as Message>::Result;
+
+    fn handle(&mut self, Bn256Sign(message): Bn256Sign, _ctx: &mut Self::Context) -> Self::Result {
+        match &self.bls_keypair {
+            Some((secret, public)) => {
+                let signature = secret.sign(&message)?;
+                let keyed_signature = Bn256KeyedSignature {
+                    signature,
+                    public_key: public.clone(),
+                };
+
+                Ok(keyed_signature)
+            }
+            None => bail!("Signature Manager cannot sign because it contains no key"),
+        }
+    }
+}
+
 impl Handler<GetPkh> for SignatureManager {
     type Result = <GetPkh as Message>::Result;
 
@@ -244,7 +345,18 @@ impl Handler<GetPublicKey> for SignatureManager {
     fn handle(&mut self, _msg: GetPublicKey, _ctx: &mut Self::Context) -> Self::Result {
         match &self.keypair {
             Some((_secret, public)) => Ok(public.key.into()),
-            None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+            None => bail!("Tried to retrieve the public key for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+        }
+    }
+}
+
+impl Handler<GetBn256PublicKey> for SignatureManager {
+    type Result = <GetBn256PublicKey as Message>::Result;
+
+    fn handle(&mut self, _msg: GetBn256PublicKey, _ctx: &mut Self::Context) -> Self::Result {
+        match &self.bls_keypair {
+            Some((_secret, public)) => Ok(public.clone()),
+            None => bail!("Tried to retrieve the public key for node's BLS keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
         }
     }
 }
@@ -257,7 +369,20 @@ impl Handler<GetKeyPair> for SignatureManager {
             Some((secret, public)) => {
                 Ok((public.clone(), secret.clone()))
             },
-            None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+            None => bail!("Tried to retrieve the public and secret key for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+        }
+    }
+}
+
+impl Handler<GetBn256KeyPair> for SignatureManager {
+    type Result = <GetBn256KeyPair as Message>::Result;
+
+    fn handle(&mut self, _msg: GetBn256KeyPair, _ctx: &mut Self::Context) -> Self::Result {
+        match &self.bls_keypair {
+            Some((secret, public)) => {
+                Ok((public.clone(), secret.clone()))
+            },
+            None => bail!("Tried to retrieve the public and secret key for node's BLS keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
         }
     }
 }
@@ -401,6 +526,14 @@ impl Handler<Sign> for SignatureManagerAdapter {
     }
 }
 
+impl Handler<Bn256Sign> for SignatureManagerAdapter {
+    type Result = ResponseFuture<Bn256KeyedSignature, failure::Error>;
+
+    fn handle(&mut self, msg: Bn256Sign, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
 impl Handler<GetPkh> for SignatureManagerAdapter {
     type Result = ResponseFuture<PublicKeyHash, failure::Error>;
 
@@ -417,10 +550,26 @@ impl Handler<GetPublicKey> for SignatureManagerAdapter {
     }
 }
 
+impl Handler<GetBn256PublicKey> for SignatureManagerAdapter {
+    type Result = ResponseFuture<Bn256PublicKey, failure::Error>;
+
+    fn handle(&mut self, msg: GetBn256PublicKey, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
 impl Handler<GetKeyPair> for SignatureManagerAdapter {
     type Result = ResponseFuture<(ExtendedPK, ExtendedSK), failure::Error>;
 
     fn handle(&mut self, msg: GetKeyPair, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
+impl Handler<GetBn256KeyPair> for SignatureManagerAdapter {
+    type Result = ResponseFuture<(Bn256PublicKey, Bn256SecretKey), failure::Error>;
+
+    fn handle(&mut self, msg: GetBn256KeyPair, _ctx: &mut Self::Context) -> Self::Result {
         Box::new(self.crypto.send(msg).flatten())
     }
 }

@@ -37,6 +37,7 @@ use crate::{
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
 };
 use bech32::{FromBase32, ToBase32};
+use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
 use itertools::Itertools;
 use witnet_crypto::merkle::merkle_tree_root as crypto_merkle_tree_root;
 use witnet_util::timestamp::get_timestamp;
@@ -1024,15 +1025,6 @@ pub struct SecretKey {
     pub bytes: Protected,
 }
 
-// FIXME: SecretKey shouldn't implement Default
-impl Default for SecretKey {
-    fn default() -> Self {
-        Self {
-            bytes: Protected::new(Vec::new()),
-        }
-    }
-}
-
 /// Extended Secret Key data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ExtendedSecretKey {
@@ -1042,13 +1034,65 @@ pub struct ExtendedSecretKey {
     pub chain_code: Protected,
 }
 
-// FIXME: ExtendedSecretKey shouldn't implement Default
-impl Default for ExtendedSecretKey {
-    fn default() -> Self {
-        Self {
-            secret_key: Default::default(),
-            chain_code: Protected::new(Vec::new()),
-        }
+/// BLS data structures
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Bn256PublicKey")]
+pub struct Bn256PublicKey {
+    /// Compressed form of a BN256 public key
+    pub public_key: Vec<u8>,
+}
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct Bn256SecretKey {
+    pub bytes: Protected,
+}
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Bn256Signature")]
+pub struct Bn256Signature {
+    pub signature: Vec<u8>,
+}
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[protobuf_convert(pb = "witnet::Bn256KeyedSignature")]
+pub struct Bn256KeyedSignature {
+    pub signature: Bn256Signature,
+    pub public_key: Bn256PublicKey,
+}
+
+impl Bn256PublicKey {
+    pub fn from_secret_key(secret_key: &Bn256SecretKey) -> Result<Self, failure::Error> {
+        let public_key = Bn256.derive_public_key(&secret_key.bytes)?;
+
+        Ok(Self { public_key })
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, failure::Error> {
+        // Verify that this slice is a valid public key
+        let _ = bn256::PublicKey::from_compressed(bytes)?;
+
+        Ok(Self {
+            public_key: bytes.to_vec(),
+        })
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.public_key.clone()
+    }
+}
+
+impl Bn256SecretKey {
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, failure::Error> {
+        // Verify that this slice is a valid secret key
+        let _ = bn256::PrivateKey::new(bytes)?;
+
+        Ok(Self {
+            bytes: bytes.to_vec().into(),
+        })
+    }
+
+    pub fn sign(&self, message: &[u8]) -> Result<Bn256Signature, failure::Error> {
+        let signature = Bn256.sign(&self.bytes, &message)?;
+
+        Ok(Bn256Signature { signature })
     }
 }
 

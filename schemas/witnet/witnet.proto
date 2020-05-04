@@ -234,7 +234,15 @@ message Signature {
     }
 }
 
+message Bn256Signature {
+    bytes signature = 1;
+}
+
 message PublicKey {
+    bytes public_key = 1;
+}
+
+message Bn256PublicKey {
     bytes public_key = 1;
 }
 
@@ -245,6 +253,11 @@ message PublicKeyHash {
 message KeyedSignature {
     Signature signature = 1;
     PublicKey public_key = 2;
+}
+
+message Bn256KeyedSignature {
+    Bn256Signature signature = 1;
+    Bn256PublicKey public_key = 2;
 }
 
 message Address {
