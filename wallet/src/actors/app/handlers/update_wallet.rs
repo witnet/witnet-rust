@@ -12,17 +12,22 @@ pub struct UpdateWalletRequest {
     caption: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateWalletResponse {
+    pub success: bool,
+}
+
 impl Message for UpdateWalletRequest {
-    type Result = app::Result<bool>;
+    type Result = app::Result<UpdateWalletResponse>;
 }
 
 impl Handler<UpdateWalletRequest> for app::App {
-    type Result = app::ResponseActFuture<bool>;
+    type Result = app::ResponseActFuture<UpdateWalletResponse>;
 
     fn handle(&mut self, req: UpdateWalletRequest, _ctx: &mut Self::Context) -> Self::Result {
         let f = self
             .update_wallet(req.session_id, req.wallet_id, req.name, req.caption)
-            .map(|(), _, _| true);
+            .map(|(), _, _| UpdateWalletResponse { success: true });
 
         Box::new(f)
     }

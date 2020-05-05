@@ -149,12 +149,26 @@ pub fn connect_routes<T, S>(
     routes!(
         handler,
         api,
+        /*
+         * Get infos
+         */
         ("Get-Wallet-Infos", "get_wallet_infos", WalletInfosRequest),
+        /*
+         * Mnemonics
+         */
         (
             "Create-Mnemonics",
             "create_mnemonics",
             CreateMnemonicsRequest
         ),
+        (
+            "Validate-Mnemonics",
+            "validate_mnemonics",
+            ValidateMnemonicsRequest
+        ),
+        /*
+         * Wallet
+         */
         ("Create-Wallet", "create_wallet", CreateWalletRequest),
         ("Update-Wallet", "update_wallet", UpdateWalletRequest),
         ("Lock-Wallet", "lock_wallet", LockWalletRequest),
@@ -187,11 +201,6 @@ pub fn connect_routes<T, S>(
         ("Set", "set", SetRequest),
         ("Get", "get", GetRequest),
         ("Get-Balance", "get_balance", GetBalanceRequest),
-        (
-            "Validate-Mnemonics",
-            "validate_mnemonics",
-            ValidateMnemonicsRequest
-        ),
         ("Sign-Data", "sign_data", SignDataRequest),
         ("Shutdown", "shutdown", ShutdownRequest),
     );
