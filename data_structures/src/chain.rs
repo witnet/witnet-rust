@@ -1036,7 +1036,7 @@ pub struct ExtendedSecretKey {
 
 /// BLS data structures
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Bn256PublicKey")]
 pub struct Bn256PublicKey {
     /// Compressed form of a BN256 public key

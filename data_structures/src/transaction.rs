@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::{
-        Block, DataRequestOutput, Epoch, Hash, Hashable, Input, KeyedSignature, PublicKeyHash,
-        ValueTransferOutput,
+        Block, Bn256PublicKey, DataRequestOutput, Epoch, Hash, Hashable, Input, KeyedSignature,
+        PublicKeyHash, ValueTransferOutput,
     },
     proto::{schema::witnet, ProtobufConvert},
     vrf::DataRequestEligibilityClaim,
@@ -297,12 +297,14 @@ pub struct CommitTransactionBody {
     pub dr_pointer: Hash,
     // RevealTransaction Signature Hash
     pub commitment: Hash,
-    // Proof of elegibility for this pkh, epoch, and data request
+    // Proof of eligibility for this pkh, epoch, and data request
     pub proof: DataRequestEligibilityClaim,
     // Inputs used as collateral
     pub collateral: Vec<Input>,
     // Change from collateral
     pub outputs: Vec<ValueTransferOutput>,
+    // Bn256 public key signature
+    pub bn256_public_key: Option<Bn256PublicKey>,
 
     #[protobuf_convert(skip)]
     #[serde(skip)]
@@ -317,6 +319,7 @@ impl CommitTransactionBody {
         proof: DataRequestEligibilityClaim,
         collateral: Vec<Input>,
         outputs: Vec<ValueTransferOutput>,
+        bn256_public_key: Option<Bn256PublicKey>,
     ) -> Self {
         CommitTransactionBody {
             dr_pointer,
@@ -325,6 +328,7 @@ impl CommitTransactionBody {
             collateral,
             outputs,
             hash: MemoHash::new(),
+            bn256_public_key,
         }
     }
     /// Old `Self::new` still used in tests
@@ -340,6 +344,7 @@ impl CommitTransactionBody {
             collateral: vec![],
             outputs: vec![],
             hash: MemoHash::new(),
+            bn256_public_key: None,
         }
     }
 }
