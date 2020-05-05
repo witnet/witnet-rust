@@ -5,6 +5,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use failure::{ensure, format_err, Error};
 use protobuf::Message;
 use std::convert::TryFrom;
+use std::fmt::Debug;
 
 pub mod schema;
 
@@ -192,6 +193,27 @@ impl ProtobufConvert for [u8; 32] {
         let mut x = [0; 32];
         x.copy_from_slice(&pb);
         Ok(x)
+    }
+}
+
+impl<T> ProtobufConvert for Option<T>
+where
+    T: ProtobufConvert + Default + Eq + Debug,
+{
+    type ProtoStruct = <T as ProtobufConvert>::ProtoStruct;
+    fn to_pb(&self) -> Self::ProtoStruct {
+        match self {
+            Some(x) => x.to_pb(),
+            None => T::default().to_pb(),
+        }
+    }
+    fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
+        let res = T::from_pb(pb)?;
+        if res == T::default() {
+            Ok(None)
+        } else {
+            Ok(Some(res))
+        }
     }
 }
 
