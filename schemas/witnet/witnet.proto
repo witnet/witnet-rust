@@ -175,6 +175,7 @@ message CommitTransactionBody {
     DataRequestEligibilityClaim proof = 3;
     repeated Input collateral = 4;
     repeated ValueTransferOutput outputs = 5;
+    Bn256PublicKey bn256_public_key = 6;
 }
 
 message CommitTransaction {
