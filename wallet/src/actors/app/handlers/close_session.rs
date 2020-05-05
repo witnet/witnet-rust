@@ -9,8 +9,13 @@ pub struct CloseSessionRequest {
     pub(crate) session_id: types::SessionId,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CloseSessionResponse {
+    pub success: bool,
+}
+
 impl Message for CloseSessionRequest {
-    type Result = app::Result<()>;
+    type Result = app::Result<CloseSessionResponse>;
 }
 
 impl Handler<CloseSessionRequest> for app::App {
@@ -18,5 +23,6 @@ impl Handler<CloseSessionRequest> for app::App {
 
     fn handle(&mut self, msg: CloseSessionRequest, _ctx: &mut Self::Context) -> Self::Result {
         self.close_session(msg.session_id)
+            .map(|_| CloseSessionResponse { success: true })
     }
 }
