@@ -411,6 +411,10 @@ pub fn consensus_constants_from_partial(
             .checkpoints_period
             .to_owned()
             .unwrap_or_else(|| defaults.consensus_constants_checkpoints_period()),
+        superblock_period: config
+            .superblock_period
+            .to_owned()
+            .unwrap_or_else(|| defaults.consensus_constants_superblock_period()),
         bootstrap_hash: config
             .bootstrap_hash
             .to_owned()

@@ -89,6 +89,11 @@ pub trait Defaults {
         90
     }
 
+    /// Default period between superblocks
+    fn consensus_constants_superblock_period(&self) -> u16 {
+        10
+    }
+
     /// Default Hash value for the auxiliary bootstrap block
     // TODO Decide an appropriate default value
     fn consensus_constants_bootstrap_hash(&self) -> Hash {

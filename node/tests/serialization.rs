@@ -33,6 +33,7 @@ fn chain_state() {
             mining_replication_factor: 0,
             collateral_minimum: 0,
             collateral_age: 0,
+            superblock_period: 0,
         },
         highest_block_checkpoint: CheckpointBeacon {
             checkpoint: 0,

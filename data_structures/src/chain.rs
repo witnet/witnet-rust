@@ -153,6 +153,9 @@ pub struct ConsensusConstants {
 
     /// Minimum input age of an UTXO for being a valid collateral
     pub collateral_age: u32,
+
+    /// Build a superblock every `superblock_period` epochs
+    pub superblock_period: u16,
 }
 
 impl ConsensusConstants {
