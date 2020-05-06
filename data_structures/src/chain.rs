@@ -2950,7 +2950,7 @@ mod tests {
     #[test]
     fn test_block_hashable_trait() {
         let block = block_example();
-        let expected = "c7cb6dd8477459271c1e80eb6bf8f23ae2ebb38541ed614642441da4aa7aa6bd";
+        let expected = "70e15ac70bb00f49c7a593b2423f722dca187bbae53dc2f22647063b17608c01";
         assert_eq!(block.hash().to_string(), expected);
     }
 

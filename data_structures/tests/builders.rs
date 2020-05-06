@@ -25,6 +25,7 @@ fn builders_build_block() {
         beacon: CheckpointBeacon::default(),
         merkle_roots: BlockMerkleRoots::default(),
         proof: BlockEligibilityClaim::default(),
+        bn256_public_key: Default::default(),
     };
     let block_sig = KeyedSignature::default();
 

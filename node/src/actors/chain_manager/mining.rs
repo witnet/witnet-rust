@@ -998,6 +998,7 @@ mod tests {
             collateral_minimum,
             0,
             1,
+            None,
         );
         let block = Block {
             block_header,
@@ -1066,6 +1067,7 @@ mod tests {
             collateral_minimum,
             0,
             1,
+            None,
         );
 
         // Create a KeyedSignature
@@ -1221,6 +1223,7 @@ mod tests {
             collateral_minimum,
             0,
             1,
+            None,
         );
         let block = Block {
             block_header,
