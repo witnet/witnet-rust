@@ -7,7 +7,10 @@ use actix::prelude::*;
 use failure::{bail, format_err};
 use futures::future::Future;
 
-use crate::{actors::storage_keys::MASTER_KEY, config_mngr, storage_mngr};
+use crate::{
+    actors::storage_keys::{BN256_SECRET_KEY, MASTER_KEY},
+    config_mngr, storage_mngr,
+};
 
 use rand::{thread_rng, Rng};
 use std::path::PathBuf;
@@ -131,15 +134,9 @@ struct SignatureManager {
     secp: Option<CryptoEngine>,
 }
 
-impl SignatureManager {
-    fn set_key(&mut self, key: ExtendedSK) {
-        let public_key = ExtendedPK::from_secret_key(&SignEngine::signing_only(), &key);
-        self.keypair = Some((key, public_key));
-        log::debug!("Signature Manager received a key and is ready to sign");
-    }
-}
-
 struct SetKey(ExtendedSK);
+
+struct SetBn256Key(Bn256SecretKey);
 
 // Note: this message is hashed
 struct Sign(Vec<u8>);
@@ -169,6 +166,14 @@ fn persist_master_key(master_key: ExtendedSK) -> impl Future<Item = (), Error = 
     })
 }
 
+fn persist_bn256_key(
+    bn256_secret_key: Bn256SecretKey,
+) -> impl Future<Item = (), Error = failure::Error> {
+    storage_mngr::put(&BN256_SECRET_KEY, &bn256_secret_key).inspect(|_| {
+        log::trace!("Successfully persisted the BN256 secret key into storage");
+    })
+}
+
 fn create_master_key() -> Box<dyn Future<Item = ExtendedSK, Error = failure::Error>> {
     log::info!("Generating and persisting a new master key for this node");
 
@@ -189,32 +194,33 @@ fn create_master_key() -> Box<dyn Future<Item = ExtendedSK, Error = failure::Err
     }
 }
 
-fn create_bls_keys() -> (Bn256SecretKey, Bn256PublicKey) {
-    let mut rng = thread_rng();
-    // Loop: if something fails, generate a new secret key and try again
-    loop {
-        // The secret key is 32 bytes
-        let secret: [u8; 32] = rng.gen();
-        let bls_secret = match Bn256SecretKey::from_slice(&secret) {
-            Ok(bls_secret) => bls_secret,
-            Err(e) => {
-                // This should never happen, as any 256-bit integer can be converted into a valid
-                // BN256 secret key
-                log::warn!(
-                    "Failed to generate BN256 secret key, retrying. Error: {}",
-                    e
-                );
-                continue;
-            }
-        };
-        match Bn256PublicKey::from_secret_key(&bls_secret) {
-            Ok(bls_public) => return (bls_secret, bls_public),
-            Err(e) => {
-                // This should never happen, as any valid private key can be used to derive a valid
-                // BN256 public key
-                log::warn!("Failed to derive BN256 public key, retrying. Error: {}", e);
-                continue;
-            }
+fn create_bn256_key() -> Box<dyn Future<Item = Bn256SecretKey, Error = failure::Error>> {
+    // The secret key is 32 bytes
+    let secret: [u8; 32] = thread_rng().gen();
+    let bls_secret = match Bn256SecretKey::from_slice(&secret) {
+        Ok(bls_secret) => bls_secret,
+        Err(e) => {
+            // This should never happen, as any 256-bit integer can be converted into a valid
+            // BN256 secret key
+            log::error!("Failed to generate BN256 secret key: {}", e);
+            let fut = futures::future::err(e);
+            return Box::new(fut);
+        }
+    };
+
+    match Bn256PublicKey::from_secret_key(&bls_secret) {
+        Ok(_bls_public) => {
+            let fut = persist_bn256_key(bls_secret.clone()).map(move |_| bls_secret);
+
+            Box::new(fut)
+        }
+        Err(e) => {
+            // This should never happen, as any valid private key can be used to derive a valid
+            // BN256 public key
+            log::error!("Failed to derive BN256 public key: {}", e);
+            let fut = futures::future::err(e);
+
+            Box::new(fut)
         }
     }
 }
@@ -234,12 +240,14 @@ impl Actor for SignatureManager {
             .ok();
 
         self.secp = Some(CryptoEngine::new());
-        // Generate a new BLS key on every node restart
-        self.bls_keypair = Some(create_bls_keys());
     }
 }
 
 impl Message for SetKey {
+    type Result = Result<(), failure::Error>;
+}
+
+impl Message for SetBn256Key {
     type Result = Result<(), failure::Error>;
 }
 
@@ -283,7 +291,25 @@ impl Handler<SetKey> for SignatureManager {
     type Result = <SetKey as Message>::Result;
 
     fn handle(&mut self, SetKey(secret_key): SetKey, _ctx: &mut Self::Context) -> Self::Result {
-        self.set_key(secret_key);
+        let public_key = ExtendedPK::from_secret_key(&SignEngine::signing_only(), &secret_key);
+        self.keypair = Some((secret_key, public_key));
+        log::debug!("Signature Manager received master key and is ready to sign");
+
+        Ok(())
+    }
+}
+
+impl Handler<SetBn256Key> for SignatureManager {
+    type Result = <SetBn256Key as Message>::Result;
+
+    fn handle(
+        &mut self,
+        SetBn256Key(secret_key): SetBn256Key,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
+        let public_key = Bn256PublicKey::from_secret_key(&secret_key)?;
+        self.bls_keypair = Some((secret_key, public_key));
+        log::debug!("Signature Manager received BN256 key and is ready to sign");
 
         Ok(())
     }
@@ -507,6 +533,19 @@ impl Actor for SignatureManagerAdapter {
             })
             .into_actor(self)
             .wait(ctx);
+
+        let crypto = self.crypto.clone();
+        storage_mngr::get::<_, Bn256SecretKey>(&BN256_SECRET_KEY)
+            .and_then(|secret_key| match secret_key {
+                None => create_bn256_key(),
+                Some(from_storage) => Box::new(futures::finished(from_storage)),
+            })
+            .and_then(move |secret_key| crypto.send(SetBn256Key(secret_key)).flatten())
+            .map_err(|err| {
+                log::warn!("Failed to configure BN256 key: {}", err);
+            })
+            .into_actor(self)
+            .wait(ctx);
     }
 }
 
@@ -514,6 +553,14 @@ impl Handler<SetKey> for SignatureManagerAdapter {
     type Result = ResponseFuture<(), failure::Error>;
 
     fn handle(&mut self, msg: SetKey, _ctx: &mut Self::Context) -> Self::Result {
+        Box::new(self.crypto.send(msg).flatten())
+    }
+}
+
+impl Handler<SetBn256Key> for SignatureManagerAdapter {
+    type Result = ResponseFuture<(), failure::Error>;
+
+    fn handle(&mut self, msg: SetBn256Key, _ctx: &mut Self::Context) -> Self::Result {
         Box::new(self.crypto.send(msg).flatten())
     }
 }
