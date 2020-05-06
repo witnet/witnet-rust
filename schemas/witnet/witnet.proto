@@ -62,6 +62,7 @@ message Block {
         CheckpointBeacon beacon = 2;
         BlockMerkleRoots merkle_roots = 3;
         BlockEligibilityClaim proof = 4;
+        Bn256PublicKey bn256_public_key = 5;
     }
     message BlockTransactions {
         MintTransaction mint = 1;

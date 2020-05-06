@@ -368,6 +368,7 @@ impl Block {
                 },
                 merkle_roots,
                 proof: Default::default(),
+                bn256_public_key: Default::default(),
             },
             block_sig: Default::default(),
             txns,
@@ -519,6 +520,8 @@ pub struct BlockHeader {
     pub merkle_roots: BlockMerkleRoots,
     /// A miner-provided proof of leadership
     pub proof: BlockEligibilityClaim,
+    /// The Bn256 public key
+    pub bn256_public_key: Option<Bn256PublicKey>,
 }
 /// Block merkle tree roots
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]

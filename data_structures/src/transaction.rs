@@ -303,7 +303,7 @@ pub struct CommitTransactionBody {
     pub collateral: Vec<Input>,
     // Change from collateral
     pub outputs: Vec<ValueTransferOutput>,
-    // Bn256 public key signature
+    // BLS public key (curve bn256)
     pub bn256_public_key: Option<Bn256PublicKey>,
 
     #[protobuf_convert(skip)]
