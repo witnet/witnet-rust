@@ -58,10 +58,9 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
-use witnet_data_structures::chain::AltKeys;
 use witnet_data_structures::{
     chain::{
-        penalize_factor, reputation_issuance, Alpha, Block, Bn256PublicKey, ChainState,
+        penalize_factor, reputation_issuance, Alpha, AltKeys, Block, Bn256PublicKey, ChainState,
         CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch,
         EpochConstants, Hash, Hashable, InventoryItem, OwnUnspentOutputsPool, PublicKeyHash,
         Reputation, ReputationEngine, TransactionsPool, UnspentOutputsPool,
@@ -484,13 +483,8 @@ impl ChainManager {
                     );
                 }
 
-                // TODO: Update alt key mapping
-                let bn256_keys = vec![];
-                for (pkh, bn256_public_key) in bn256_keys {
-                    self.chain_state
-                        .alt_keys
-                        .insert_bn256(pkh, bn256_public_key);
-                }
+                // Update bn256 public keys with block information
+                self.chain_state.alt_keys.insert_keys_from_block(&block);
 
                 // Insert candidate block into `block_chain` state
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
@@ -1072,20 +1066,8 @@ fn update_reputation(
         log::error!("Error updating reputation in consolidation: {}", e);
     }
 
-    secp_bls_mapping.retain(|k| {
-        // Retain identities that exist in the ARS
-        if rep_eng.is_ars_member(k) {
-            // Keep identity
-            true
-        } else {
-            // Remove identity
-            log::trace!(
-                "Removing BLS identity from secp-bls mapping for pkh key: {}",
-                k
-            );
-            false
-        }
-    });
+    // Retain identities that exist in the ARS
+    secp_bls_mapping.retain(|k| rep_eng.is_ars_member(k));
 
     log::log!(
         log_level,

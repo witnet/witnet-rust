@@ -2440,6 +2440,19 @@ impl AltKeys {
     {
         self.bn256.retain(|k, _v| f(k));
     }
+    /// Insert all bn256 public keys that appeared in the block (from miner and/or committers)
+    pub fn insert_keys_from_block(&mut self, block: &Block) {
+        // Add miner bn256 public keys
+        if let Some(value) = block.block_header.bn256_public_key.clone() {
+            self.insert_bn256(block.block_header.proof.proof.pkh(), value);
+        }
+        // Add bn256 public keys from commitment transactions
+        for commit in &block.txns.commit_txns {
+            if let Some(value) = commit.body.bn256_public_key.clone() {
+                self.insert_bn256(commit.body.proof.proof.pkh(), value);
+            }
+        }
+    }
 }
 
 impl ChainState {
@@ -2565,10 +2578,6 @@ impl ReputationEngine {
 
     pub fn clear_threshold_cache(&self) {
         self.threshold_cache.borrow_mut().clear_threshold_cache()
-    }
-
-    pub fn is_ars_member(&self, pkh: &PublicKeyHash) -> bool {
-        self.ars.contains(pkh)
     }
 }
 
