@@ -58,6 +58,7 @@ use crate::{
     },
     signature_mngr, storage_mngr,
 };
+use witnet_data_structures::chain::AltKeys;
 use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, Block, Bn256PublicKey, ChainState,
@@ -474,12 +475,21 @@ impl ChainManager {
                 if block_hash != chain_info.consensus_constants.genesis_hash {
                     update_reputation(
                         reputation_engine,
+                        &mut self.chain_state.alt_keys,
                         &chain_info.consensus_constants,
                         miner_pkh,
                         rep_info,
                         log_level,
                         block_epoch,
                     );
+                }
+
+                // TODO: Update alt key mapping
+                let bn256_keys = vec![];
+                for (pkh, bn256_public_key) in bn256_keys {
+                    self.chain_state
+                        .alt_keys
+                        .insert_bn256(pkh, bn256_public_key);
                 }
 
                 // Insert candidate block into `block_chain` state
@@ -945,6 +955,7 @@ where
 #[allow(clippy::cognitive_complexity)]
 fn update_reputation(
     rep_eng: &mut ReputationEngine,
+    secp_bls_mapping: &mut AltKeys,
     consensus_constants: &ConsensusConstants,
     miner_pkh: PublicKeyHash,
     ReputationInfo {
@@ -1060,6 +1071,21 @@ fn update_reputation(
     {
         log::error!("Error updating reputation in consolidation: {}", e);
     }
+
+    secp_bls_mapping.retain(|k| {
+        // Retain identities that exist in the ARS
+        if rep_eng.ars().contains(k) {
+            // Keep identity
+            true
+        } else {
+            // Remove identity
+            log::trace!(
+                "Removing BLS identity from secp-bls mapping for pkh key: {}",
+                k
+            );
+            false
+        }
+    });
 
     log::log!(
         log_level,

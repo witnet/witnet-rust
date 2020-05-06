@@ -2406,6 +2406,37 @@ pub struct ChainState {
     pub own_utxos: OwnUnspentOutputsPool,
     /// Reputation engine
     pub reputation_engine: Option<ReputationEngine>,
+    /// Alternative public key mapping
+    pub alt_keys: AltKeys,
+}
+
+/// Alternative public key mapping: maps each secp256k1 public key hash to
+/// different public keys in other curves
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AltKeys {
+    /// BN256 curve
+    bn256: HashMap<PublicKeyHash, Bn256PublicKey>,
+}
+
+impl AltKeys {
+    /// Get the associated BN256 public key for a given identity
+    pub fn get_bn256(&self, k: &PublicKeyHash) -> Option<&Bn256PublicKey> {
+        self.bn256.get(k)
+    }
+    /// Insert a new BN256 public key for a given identity. If the identity already had an
+    /// associated BN256 public key, it will be overwritten.
+    /// Returns the old BN256 public key for this identity, if any
+    pub fn insert_bn256(&mut self, k: PublicKeyHash, v: Bn256PublicKey) -> Option<Bn256PublicKey> {
+        self.bn256.insert(k, v)
+    }
+    /// Retain only the identities that return true when applied the input function.
+    /// Used to remove multiple identities at once
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&PublicKeyHash) -> bool,
+    {
+        self.bn256.retain(|k, _v| f(k));
+    }
 }
 
 impl ChainState {
