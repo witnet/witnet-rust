@@ -16,9 +16,9 @@ use futures::future::{join_all, Future};
 
 use witnet_data_structures::{
     chain::{
-        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, CheckpointBeacon, CheckpointVRF,
-        EpochConstants, Hashable, OwnUnspentOutputsPool, PublicKeyHash, ReputationEngine,
-        TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
+        CheckpointVRF, EpochConstants, Hashable, OwnUnspentOutputsPool, PublicKeyHash,
+        ReputationEngine, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
     error::TransactionError,
@@ -189,6 +189,7 @@ impl ChainManager {
                     collateral_minimum,
                     collateral_age,
                     act.data_request_max_retrievals_per_epoch,
+                    act.bn256_public_key.clone(),
                 );
 
                 // Sign the block hash
@@ -680,6 +681,7 @@ fn build_block(
     collateral_minimum: u64,
     collateral_age: u32,
     data_request_max_retrievals_per_epoch: u16,
+    bn256_public_key: Option<Bn256PublicKey>,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool, own_utxos) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -830,6 +832,7 @@ fn build_block(
         beacon,
         merkle_roots,
         proof,
+        bn256_public_key,
     };
 
     let txns = BlockTransactions {
