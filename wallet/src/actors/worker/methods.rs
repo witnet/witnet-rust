@@ -625,7 +625,6 @@ impl Worker {
             for ChainEntry(epoch, id) in block_chain {
                 let get_block_future = self.get_block(id.clone());
                 let block: types::ChainBlock = futures03::executor::block_on(get_block_future)?;
-                log::debug!("[SU] For epoch {}, got block: {:?}", epoch, block);
 
                 // Process each block
                 self.handle_block(block.clone(), wallet.clone(), DynamicSink::default())?;
