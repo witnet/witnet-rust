@@ -1074,7 +1074,7 @@ fn update_reputation(
 
     secp_bls_mapping.retain(|k| {
         // Retain identities that exist in the ARS
-        if rep_eng.ars().contains(k) {
+        if rep_eng.is_ars_member(k) {
             // Keep identity
             true
         } else {

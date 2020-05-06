@@ -124,6 +124,7 @@ impl ChainManager {
         vrf_input.checkpoint = current_epoch;
 
         let own_pkh = self.own_pkh.unwrap_or_default();
+        let is_ars_member = rep_engine.is_ars_member(&own_pkh);
 
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
@@ -170,6 +171,13 @@ impl ChainManager {
             .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
                 let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
 
+                // If pkh is in ARS, no need to send bn256 public key
+                let bn256_public_key = if is_ars_member {
+                    None
+                } else {
+                    act.bn256_public_key.clone()
+                };
+
                 // Build the block using the supplied beacon and eligibility proof
                 let (block_header, txns) = build_block(
                     (
@@ -189,7 +197,7 @@ impl ChainManager {
                     collateral_minimum,
                     collateral_age,
                     act.data_request_max_retrievals_per_epoch,
-                    act.bn256_public_key.clone(),
+                    bn256_public_key,
                 );
 
                 // Sign the block hash
@@ -254,9 +262,6 @@ impl ChainManager {
         let tx_pending_timeout = self.tx_pending_timeout;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
-        // FIXME: Check if node is not in ARS to send bn256 public key or None
-        let is_ars_member = false; //act.chain_state.reputation_engine.is_member(own_pkh)
-
         // Data Request mining
         let dr_pointers = self
             .chain_state
@@ -264,6 +269,8 @@ impl ChainManager {
             .get_dr_output_pointers_by_epoch(current_epoch);
 
         let rep_eng = self.chain_state.reputation_engine.as_ref().unwrap();
+        let is_ars_member = rep_eng.is_ars_member(&own_pkh);
+
         let my_reputation = rep_eng.trs().get(&own_pkh).0 + 1;
         let total_active_reputation = rep_eng.total_active_reputation();
         let num_active_identities =
@@ -489,10 +496,12 @@ impl ChainManager {
                 })
                 .and_then(move |(reveal_bytes, vrf_proof_dr, collateral), act, _| {
                     let reveal_body = RevealTransactionBody::new(dr_pointer, reveal_bytes, own_pkh);
+
+                    // If pkh is in ARS, no need to send bn256 public key
                     let bn256_public_key = if is_ars_member {
-                        act.bn256_public_key.clone()
-                    } else {
                         None
+                    } else {
+                        act.bn256_public_key.clone()
                     };
 
                     sign_transaction(&reveal_body, 1)

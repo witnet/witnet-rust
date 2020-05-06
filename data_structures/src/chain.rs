@@ -2558,8 +2558,17 @@ impl ReputationEngine {
         self.threshold_cache.borrow_mut().invalidate()
     }
 
+    /// Check if the given `pkh` is in the Active Reputation Set
+    pub fn is_ars_member(&self, pkh: &PublicKeyHash) -> bool {
+        self.ars.contains(pkh)
+    }
+
     pub fn clear_threshold_cache(&self) {
         self.threshold_cache.borrow_mut().clear_threshold_cache()
+    }
+
+    pub fn is_ars_member(&self, pkh: &PublicKeyHash) -> bool {
+        self.ars.contains(pkh)
     }
 }
 
