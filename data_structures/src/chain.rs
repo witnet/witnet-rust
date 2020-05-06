@@ -830,6 +830,12 @@ impl fmt::Display for PublicKeyHash {
     }
 }
 
+impl Hashable for PublicKeyHash {
+    fn hash(&self) -> Hash {
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    }
+}
+
 /// Error when parsing hash from string
 #[derive(Debug, Fail)]
 pub enum PublicKeyHashParseError {

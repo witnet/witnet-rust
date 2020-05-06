@@ -1,3 +1,9 @@
+use actix::{
+    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture,
+};
+use ansi_term::Color::{White, Yellow};
+use futures::future::{join_all, Future};
+use itertools::Itertools;
 use std::{
     cmp::Ordering,
     collections::HashSet,
@@ -8,17 +14,11 @@ use std::{
     },
 };
 
-use actix::{
-    ActorFuture, AsyncContext, Context, ContextFutureSpawner, Handler, SystemService, WrapFuture,
-};
-use ansi_term::Color::{White, Yellow};
-use futures::future::{join_all, Future};
-
 use witnet_data_structures::{
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, EpochConstants, Hashable, OwnUnspentOutputsPool, PublicKeyHash,
-        ReputationEngine, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
+        CheckpointVRF, EpochConstants, Hash, Hashable, OwnUnspentOutputsPool, PublicKeyHash,
+        ReputationEngine, SuperBlock, TransactionsPool, UnspentOutputsPool, ValueTransferOutput,
     },
     data_request::{calculate_witness_reward, create_tally, DataRequestPool},
     error::TransactionError,
@@ -33,7 +33,7 @@ use witnet_rad::{error::RadError, types::serial_iter_decode};
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee,
-    merkle_tree_root, update_utxo_diff, vt_transaction_fee, UtxoDiff,
+    hash_merkle_tree_root, merkle_tree_root, update_utxo_diff, vt_transaction_fee, UtxoDiff,
 };
 
 use crate::{
@@ -42,7 +42,10 @@ use crate::{
             transaction_factory::{build_commit_collateral, sign_transaction},
             ChainManager, StateMachine,
         },
-        messages::{AddCandidates, AddCommitReveal, ResolveRA, RunTally},
+        inventory_manager::InventoryManager,
+        messages::{
+            AddCandidates, AddCommitReveal, GetBlocksEpochRange, GetItemBlock, ResolveRA, RunTally,
+        },
         rad_manager::RadManager,
     },
     signature_mngr,
@@ -93,7 +96,7 @@ impl ChainManager {
         let current_epoch = self.current_epoch.unwrap();
 
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
-
+        let genesis_hash = chain_info.consensus_constants.genesis_hash;
         let max_block_weight = chain_info.consensus_constants.max_block_weight;
 
         let mining_bf = chain_info.consensus_constants.mining_backup_factor;
@@ -125,6 +128,26 @@ impl ChainManager {
 
         let own_pkh = self.own_pkh.unwrap_or_default();
         let is_ars_member = rep_engine.is_ars_member(&own_pkh);
+
+        let superblock_period = u32::from(chain_info.consensus_constants.superblock_period);
+        if rep_engine.is_ars_member(&own_pkh) && current_epoch % superblock_period == 0 {
+            // FIXME(#1236): ARS Members have to use the BLS address when forwarding
+            // TODO: ARS Member addresses have to be selected from the last SuperBlock
+            let ars_members: Vec<PublicKeyHash> = rep_engine
+                .ars()
+                .active_identities()
+                .cloned()
+                .sorted()
+                .collect();
+
+            self.superblock_forwarding(
+                ctx,
+                current_epoch,
+                superblock_period,
+                ars_members,
+                genesis_hash,
+            );
+        }
 
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
@@ -545,6 +568,100 @@ impl ChainManager {
         }
     }
 
+    /// Create a superblock and forward it
+    fn superblock_forwarding(
+        &mut self,
+        ctx: &mut Context<Self>,
+        current_epoch: u32,
+        superblock_period: u32,
+        ars_members: Vec<PublicKeyHash>,
+        genesis_hash: Hash,
+    ) {
+        let superblock_index = current_epoch / superblock_period;
+
+        let inventory_manager = InventoryManager::from_registry();
+
+        let init_epoch = current_epoch - superblock_period;
+        let init_epoch = init_epoch.saturating_sub(1);
+        let final_epoch = current_epoch.saturating_sub(2);
+
+        futures::future::ok(self.handle(
+            GetBlocksEpochRange::new_with_limit(init_epoch..=final_epoch, 0),
+            ctx,
+        ))
+        .and_then(move |res| match res {
+            Ok(v) => {
+                let block_hashes: Vec<Hash> = v.into_iter().map(|(_epoch, hash)| hash).collect();
+                futures::future::ok(block_hashes)
+            }
+            Err(e) => {
+                log::error!("{}", e);
+                futures::future::err(())
+            }
+        })
+        .and_then(move |block_hashes| {
+            let aux = block_hashes.into_iter().map(move |hash| {
+                inventory_manager
+                    .send(GetItemBlock { hash })
+                    .then(move |res| match res {
+                        Ok(Ok(block)) => futures::future::ok(block.block_header),
+                        Ok(Err(e)) => {
+                            log::error!("{}", e);
+                            futures::future::err(())
+                        }
+                        Err(e) => {
+                            log::error!("{}", e);
+                            futures::future::err(())
+                        }
+                    })
+                    .then(|x| futures::future::ok(x.ok()))
+            });
+
+            join_all(aux)
+                // Map Option<Vec<T>> to Vec<T>, this returns all the non-error results
+                .map(|x| x.into_iter().flatten().collect::<Vec<BlockHeader>>())
+        })
+        .into_actor(self)
+        .and_then(move |block_headers, act, ctx| {
+            let last_hash = act
+                .handle(
+                    GetBlocksEpochRange::new_with_limit_from_end(..init_epoch, 1),
+                    ctx,
+                )
+                .map(move |v| {
+                    v.first()
+                        .map(|(_epoch, hash)| *hash)
+                        .unwrap_or(genesis_hash)
+                });
+            match last_hash {
+                Ok(last_hash) => actix::fut::ok((block_headers, last_hash)),
+                Err(e) => {
+                    log::error!("{}", e);
+                    actix::fut::err(())
+                }
+            }
+        })
+        .and_then(move |(block_headers, last_hash), _act, _ctx| {
+            let superblock =
+                build_superblock(&block_headers, &ars_members, superblock_index, last_hash);
+
+            match superblock {
+                Some(superblock) => {
+                    let superblock_hash = superblock.hash();
+
+                    // FIXME(#1236): Bootstrapping SUPERBLOCK to the people (and remove these logs)
+                    log::error!("SUPERBLOCK: {:?}", superblock);
+                    log::error!("SUPERBLOCK hash: {}", superblock_hash);
+                }
+                None => log::warn!("No blocks to build a superblocks"),
+            }
+
+            actix::fut::ok(())
+        })
+        .map_err(|e, _, _| log::error!("Superblock forwarding process fail: {:?}", e))
+        .wait(ctx)
+    }
+
     fn create_tally_transactions(
         &mut self,
     ) -> impl Future<Item = Vec<TallyTransaction>, Error = ()> {
@@ -861,6 +978,36 @@ fn build_block(
     };
 
     (block_header, txns)
+}
+
+/// Function that return an Option of a SuperBlock or None in case if there are not blocks
+/// to produce a SuperBlock
+fn build_superblock(
+    block_headers: &[BlockHeader],
+    sorted_ars_identities: &[PublicKeyHash],
+    index: u32,
+    last_block_in_previous_superblock: Hash,
+) -> Option<SuperBlock> {
+    let last_block = block_headers.last()?.hash();
+    let merkle_drs: Vec<Hash> = block_headers
+        .iter()
+        .map(|b| b.merkle_roots.dr_hash_merkle_root)
+        .collect();
+    let merkle_tallies: Vec<Hash> = block_headers
+        .iter()
+        .map(|b| b.merkle_roots.tally_hash_merkle_root)
+        .collect();
+
+    let pkh_hashes: Vec<Hash> = sorted_ars_identities.iter().map(|pkh| pkh.hash()).collect();
+
+    Some(SuperBlock {
+        data_request_root: hash_merkle_tree_root(&merkle_drs),
+        tally_root: hash_merkle_tree_root(&merkle_tallies),
+        ars_root: hash_merkle_tree_root(&pkh_hashes),
+        index,
+        last_block,
+        last_block_in_previous_superblock,
+    })
 }
 
 #[allow(clippy::many_single_char_names)]
