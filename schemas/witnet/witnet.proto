@@ -298,6 +298,7 @@ message ConsensusConstants {
     uint32 mining_replication_factor = 12;
     uint64 collateral_minimum = 13;
     uint32 collateral_age = 14;
+    uint32 superblock_period = 15;
 }
 
 message VrfProof {
@@ -312,4 +313,13 @@ message DataRequestVrfMessage {
 
 message DataRequestEligibilityClaim {
     VrfProof proof = 1;
+}
+
+message SuperBlock {
+    Hash ars_root = 1;
+    Hash data_request_root = 2;
+    uint32 index = 3;
+    Hash last_block = 4;
+    Hash last_block_in_previous_superblock = 5;
+    Hash tally_root = 6;
 }

@@ -544,6 +544,34 @@ pub struct BlockMerkleRoots {
     pub tally_hash_merkle_root: Hash,
 }
 
+/// `SuperBlock` abridges the tally and data request information that happened during a
+/// `superblock_period` number of Witnet epochs as well the ARS members merkle root
+/// as of the last block in that period.
+/// This is needed to ensure that the security and trustlessness properties of Witnet will
+/// be relayed to bridges with other block chains.
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default)]
+#[protobuf_convert(pb = "witnet::SuperBlock")]
+pub struct SuperBlock {
+    /// Merkle root of the Active Reputation Set members included into the previous SuperBlock
+    pub ars_root: Hash,
+    /// Merkle root of the data requests in the blocks created since the last SuperBlock
+    pub data_request_root: Hash,
+    /// Superblock index,
+    pub index: u32,
+    /// Hash of the block that this SuperBlock is attesting as the latest block in the block chain,
+    pub last_block: Hash,
+    /// Hash of the block that the previous SuperBlock used for its own `last_block` field,
+    pub last_block_in_previous_superblock: Hash,
+    /// Merkle root of the tallies in the blocks created since the last SuperBlock
+    pub tally_root: Hash,
+}
+
+impl Hashable for SuperBlock {
+    fn hash(&self) -> Hash {
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    }
+}
+
 /// Digital signatures structure (based on supported cryptosystems)
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Signature")]
