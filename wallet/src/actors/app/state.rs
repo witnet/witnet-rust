@@ -60,13 +60,12 @@ impl State {
     pub fn get_wallets_by_session(
         &self,
         session_id: &types::SessionId,
-    ) -> Result<HashMap<String, types::SessionWallet>> {
-        Ok(self
+    ) -> Result<&HashMap<String, types::SessionWallet>> {
+        Ok(&self
             .sessions
             .get(session_id)
             .ok_or_else(|| Error::SessionNotFound)?
-            .wallets
-            .clone())
+            .wallets)
     }
 
     /// Get a reference to an unlocked wallet.
