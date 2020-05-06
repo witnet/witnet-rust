@@ -36,6 +36,8 @@ impl Actor for ChainManager {
 
         self.get_pkh(ctx);
 
+        self.get_bn256_public_key(ctx);
+
         self.vrf_ctx = VrfCtx::secp256k1()
             .map_err(|e| {
                 log::error!("Failed to create VRF context: {}", e);
@@ -281,6 +283,24 @@ impl ChainManager {
                 act.own_pkh = Some(res);
                 log::debug!("Public key hash successfully loaded from signature manager");
                 log::info!("PublicKeyHash: {}", res);
+                actix::fut::ok(())
+            })
+            .wait(ctx);
+    }
+
+    /// Load bn256 public key from signature manager
+    fn get_bn256_public_key(&mut self, ctx: &mut Context<Self>) {
+        signature_mngr::bn256_public_key()
+            .into_actor(self)
+            .map_err(|e, _act, _ctx| {
+                log::error!(
+                    "Error while getting bn256 public key from signature manager: {}",
+                    e
+                );
+            })
+            .and_then(|res, act, _ctx| {
+                act.bn256_public_key = Some(res);
+                log::debug!("Bn256 public key successfully loaded from signature manager");
                 actix::fut::ok(())
             })
             .wait(ctx);
