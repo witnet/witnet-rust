@@ -60,10 +60,10 @@ use crate::{
 };
 use witnet_data_structures::{
     chain::{
-        penalize_factor, reputation_issuance, Alpha, Block, ChainState, CheckpointBeacon,
-        CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch, EpochConstants, Hash,
-        Hashable, InventoryItem, OwnUnspentOutputsPool, PublicKeyHash, Reputation,
-        ReputationEngine, TransactionsPool, UnspentOutputsPool,
+        penalize_factor, reputation_issuance, Alpha, Block, Bn256PublicKey, ChainState,
+        CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch,
+        EpochConstants, Hash, Hashable, InventoryItem, OwnUnspentOutputsPool, PublicKeyHash,
+        Reputation, ReputationEngine, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
@@ -149,6 +149,8 @@ pub struct ChainManager {
     candidates: HashMap<Hash, (Block, Hash)>,
     /// Our public key hash, used to create the mint transaction
     own_pkh: Option<PublicKeyHash>,
+    /// Our BLS public key, used to append in commit transactions
+    bn256_public_key: Option<Bn256PublicKey>,
     /// VRF context
     vrf_ctx: Option<VrfCtx>,
     /// Sign and verify context

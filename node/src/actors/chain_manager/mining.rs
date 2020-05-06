@@ -253,6 +253,9 @@ impl ChainManager {
         let tx_pending_timeout = self.tx_pending_timeout;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
 
+        // FIXME: Check if node is not in ARS to send bn256 public key or None
+        let is_ars_member = false; //act.chain_state.reputation_engine.is_member(own_pkh)
+
         // Data Request mining
         let dr_pointers = self
             .chain_state
@@ -485,6 +488,11 @@ impl ChainManager {
                 })
                 .and_then(move |(reveal_bytes, vrf_proof_dr, collateral), act, _| {
                     let reveal_body = RevealTransactionBody::new(dr_pointer, reveal_bytes, own_pkh);
+                    let bn256_public_key = if is_ars_member {
+                        act.bn256_public_key.clone()
+                    } else {
+                        None
+                    };
 
                     sign_transaction(&reveal_body, 1)
                         .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))
@@ -494,7 +502,7 @@ impl ChainManager {
                             let commitment = reveal_signatures[0].signature.hash();
                             let (inputs, outputs) = collateral;
                             let commit_body =
-                                CommitTransactionBody::new(dr_pointer, commitment, vrf_proof_dr, inputs, outputs);
+                                CommitTransactionBody::new(dr_pointer, commitment, vrf_proof_dr, inputs, outputs, bn256_public_key);
 
                             sign_transaction(&commit_body, 1)
                                 .map(|commit_signatures| {
