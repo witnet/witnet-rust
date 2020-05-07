@@ -132,7 +132,7 @@ impl ChainManager {
         let superblock_period = u32::from(chain_info.consensus_constants.superblock_period);
         if rep_engine.is_ars_member(&own_pkh) && current_epoch % superblock_period == 0 {
             // FIXME(#1236): ARS Members have to use the BLS address when forwarding
-            // TODO: ARS Member addresses have to be selected from the last SuperBlock
+            // FIXME: ARS Member addresses have to be selected from the last SuperBlock
             let ars_members: Vec<PublicKeyHash> = rep_engine
                 .ars()
                 .active_identities()
@@ -1428,6 +1428,127 @@ mod tests {
         assert_eq!(public_key, public_key2);
 
         assert!(verify(secp, &public_key2, &data, &signature2).is_ok());
+    }
+
+    #[test]
+    fn test_superblock_creation_no_blocks() {
+        let default_hash = Hash::default();
+        let superblock = build_superblock(&[], &[], 0, default_hash);
+        assert_eq!(superblock, None);
+    }
+
+    static DR_MERKLE_ROOT_1: &str =
+        "0000000000000000000000000000000000000000000000000000000000000000";
+    static TALLY_MERKLE_ROOT_1: &str =
+        "1111111111111111111111111111111111111111111111111111111111111111";
+    static DR_MERKLE_ROOT_2: &str =
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    static TALLY_MERKLE_ROOT_2: &str =
+        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+    #[test]
+    fn test_superblock_creation_one_block() {
+        let default_hash = Hash::default();
+        let default_proof = BlockEligibilityClaim::default();
+        let default_beacon = CheckpointBeacon::default();
+        let dr_merkle_root_1 = DR_MERKLE_ROOT_1.parse().unwrap();
+        let tally_merkle_root_1 = TALLY_MERKLE_ROOT_1.parse().unwrap();
+
+        let block = BlockHeader {
+            version: 1,
+            beacon: default_beacon,
+            merkle_roots: BlockMerkleRoots {
+                mint_hash: default_hash,
+                vt_hash_merkle_root: default_hash,
+                dr_hash_merkle_root: dr_merkle_root_1,
+                commit_hash_merkle_root: default_hash,
+                reveal_hash_merkle_root: default_hash,
+                tally_hash_merkle_root: tally_merkle_root_1,
+            },
+            proof: default_proof,
+            bn256_public_key: None,
+        };
+
+        let expected_superblock = SuperBlock {
+            data_request_root: dr_merkle_root_1,
+            tally_root: tally_merkle_root_1,
+            ars_root: PublicKeyHash::default().hash(),
+            index: 0,
+            last_block: block.hash(),
+            last_block_in_previous_superblock: default_hash,
+        };
+
+        let superblock =
+            build_superblock(&[block], &[PublicKeyHash::default()], 0, default_hash).unwrap();
+        assert_eq!(superblock, expected_superblock);
+    }
+
+    #[test]
+    fn test_superblock_creation_two_blocks() {
+        let default_hash = Hash::default();
+        let default_proof = BlockEligibilityClaim::default();
+        let default_beacon = CheckpointBeacon::default();
+        let dr_merkle_root_1 = DR_MERKLE_ROOT_1.parse().unwrap();
+        let tally_merkle_root_1 = TALLY_MERKLE_ROOT_1.parse().unwrap();
+        let dr_merkle_root_2 = DR_MERKLE_ROOT_2.parse().unwrap();
+        let tally_merkle_root_2 = TALLY_MERKLE_ROOT_2.parse().unwrap();
+        // Sha256(dr_merkle_root_1 || dr_merkle_root_2)
+        let expected_superblock_dr_root =
+            "bba91ca85dc914b2ec3efb9e16e7267bf9193b14350d20fba8a8b406730ae30a"
+                .parse()
+                .unwrap();
+        // Sha256(tally_merkle_root_1 || tally_merkle_root_2)
+        let expected_superblock_tally_root =
+            "83a70a79e9bef7bd811df52736eb61373095d7a8936aed05d0dc96d959b30b50"
+                .parse()
+                .unwrap();
+
+        let block_1 = BlockHeader {
+            version: 1,
+            beacon: default_beacon,
+            merkle_roots: BlockMerkleRoots {
+                mint_hash: default_hash,
+                vt_hash_merkle_root: default_hash,
+                dr_hash_merkle_root: dr_merkle_root_1,
+                commit_hash_merkle_root: default_hash,
+                reveal_hash_merkle_root: default_hash,
+                tally_hash_merkle_root: tally_merkle_root_1,
+            },
+            proof: default_proof.clone(),
+            bn256_public_key: None,
+        };
+
+        let block_2 = BlockHeader {
+            version: 1,
+            beacon: default_beacon,
+            merkle_roots: BlockMerkleRoots {
+                mint_hash: default_hash,
+                vt_hash_merkle_root: default_hash,
+                dr_hash_merkle_root: dr_merkle_root_2,
+                commit_hash_merkle_root: default_hash,
+                reveal_hash_merkle_root: default_hash,
+                tally_hash_merkle_root: tally_merkle_root_2,
+            },
+            proof: default_proof,
+            bn256_public_key: None,
+        };
+
+        let expected_superblock = SuperBlock {
+            data_request_root: expected_superblock_dr_root,
+            tally_root: expected_superblock_tally_root,
+            ars_root: PublicKeyHash::default().hash(),
+            index: 0,
+            last_block: block_2.hash(),
+            last_block_in_previous_superblock: default_hash,
+        };
+
+        let superblock = build_superblock(
+            &[block_1, block_2],
+            &[PublicKeyHash::default()],
+            0,
+            default_hash,
+        )
+        .unwrap();
+        assert_eq!(superblock, expected_superblock);
     }
 
     fn init_rep_engine(v_rep: Vec<u32>) -> (ReputationEngine, Vec<PublicKeyHash>) {
