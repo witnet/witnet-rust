@@ -28,7 +28,7 @@ impl Handler<GetAddressesRequest> for app::App {
             .offset
             .unwrap_or_else(|| constants::DEFAULT_PAGINATION_OFFSET);
         let limit = cmp::min(
-            msg.offset
+            msg.limit
                 .unwrap_or_else(|| constants::DEFAULT_PAGINATION_LIMIT),
             constants::MAX_PAGINATION_LIMIT,
         );
