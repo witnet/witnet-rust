@@ -224,6 +224,8 @@ impl ChainManager {
                     // This will run all the validations again
 
                     let block_hash = block.hash();
+                    act.chain_state.node_stats.last_block_proposed = block_hash;
+                    act.chain_state.node_stats.block_proposed_count += 1;
                     log::info!(
                         "Proposed block candidate {}",
                         Yellow.bold().paint(block_hash.to_string())
@@ -361,11 +363,14 @@ impl ChainManager {
                     }
                 })
                 .flatten()
+                .into_actor(self)
                 // Refrain from trying to resolve any more requests if we have already hit the limit
                 // of retrievals per epoch.
-                .and_then(move |vrf_proof| {
+                .and_then(move |vrf_proof, act, _| {
                     let mut start_retrieval_count = cloned_retrieval_count.load(atomic::Ordering::Relaxed);
                     let mut final_retrieval_count = start_retrieval_count.saturating_add(added_retrieval_count);
+
+                    act.chain_state.node_stats.dr_eligibility_count += 1;
 
                     if final_retrieval_count > maximum_retrieval_count {
                         log::info!("{} Refrained from resolving data request {} for epoch #{} because it contains {} \
@@ -383,7 +388,8 @@ impl ChainManager {
                             Yellow.bold().paint(maximum_retrieval_count.to_string())
                         );
 
-                        Err(())
+                        actix::fut::err(())
+
                     } else {
                         // Update `current_retrieval_count` thanks to interior mutability of the
                         // `cloned_retrieval_count` reference. This is a recursive operation so as
@@ -393,7 +399,7 @@ impl ChainManager {
                             let internal_retrieval_count = cloned_retrieval_count.compare_and_swap(start_retrieval_count, final_retrieval_count, atomic::Ordering::Relaxed);
                             if internal_retrieval_count == start_retrieval_count {
                                 // The counter update was updated successfully, we can move on.
-                                break Ok(vrf_proof);
+                                break actix::fut::ok(vrf_proof);
                             } else {
                                 // The counter was updated somewhere else, addition must be retried
                                 // after verifying that the limit has not been exceeded since last
@@ -402,13 +408,12 @@ impl ChainManager {
                                 final_retrieval_count = start_retrieval_count.saturating_add(added_retrieval_count);
 
                                 if final_retrieval_count > maximum_retrieval_count {
-                                    break Err(())
+                                    break actix::fut::err(());
                                 }
                             }
                         }
                     }
                 })
-                .into_actor(self)
                 // Collect outputs to be used as input for collateralized commitment,
                 // as well as outputs for change.
                 .and_then(move |vrf_proof, act, _| {
@@ -526,11 +531,13 @@ impl ChainManager {
                         })
                         .into_actor(act)
                 })
-                .and_then(move |(commit_transaction, reveal_transaction), _act, ctx| {
+                .and_then(move |(commit_transaction, reveal_transaction), act, ctx| {
                     ctx.notify(AddCommitReveal {
                         commit_transaction,
                         reveal_transaction,
                     });
+
+                    act.chain_state.node_stats.commits_proposed_count += 1;
 
                     actix::fut::ok(())
                 })

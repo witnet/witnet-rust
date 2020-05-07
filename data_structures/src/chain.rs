@@ -2393,6 +2393,25 @@ pub fn get_utxo_info(
 
 pub type Blockchain = BTreeMap<Epoch, Hash>;
 
+/// Node stats
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NodeStats {
+    /// Number of proposed blocks
+    pub block_proposed_count: u32,
+    /// Number of blocks included in the block chain
+    pub block_mined_count: u32,
+    /// Number of times we were eligible to participate in a Data Request
+    pub dr_eligibility_count: u32,
+    /// Number of proposed commits
+    pub commits_proposed_count: u32,
+    /// Number of commits included in a data request
+    pub commits_count: u32,
+    /// Last block proposed
+    pub last_block_proposed: Hash,
+    /// Number of slashed commits
+    pub out_of_consensus_count: u32,
+}
+
 /// Blockchain state (valid at a certain epoch)
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChainState {
@@ -2409,6 +2428,8 @@ pub struct ChainState {
     pub own_utxos: OwnUnspentOutputsPool,
     /// Reputation engine
     pub reputation_engine: Option<ReputationEngine>,
+    /// Node mining stats
+    pub node_stats: NodeStats,
     /// Alternative public key mapping
     pub alt_keys: AltKeys,
 }

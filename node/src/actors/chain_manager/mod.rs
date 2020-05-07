@@ -62,8 +62,8 @@ use witnet_data_structures::{
     chain::{
         penalize_factor, reputation_issuance, Alpha, AltKeys, Block, Bn256PublicKey, ChainState,
         CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestReport, Epoch,
-        EpochConstants, Hash, Hashable, InventoryItem, OwnUnspentOutputsPool, PublicKeyHash,
-        Reputation, ReputationEngine, TransactionsPool, UnspentOutputsPool,
+        EpochConstants, Hash, Hashable, InventoryItem, NodeStats, OwnUnspentOutputsPool,
+        PublicKeyHash, Reputation, ReputationEngine, TransactionsPool, UnspentOutputsPool,
     },
     data_request::DataRequestPool,
     radon_report::{RadonReport, ReportContext},
@@ -466,6 +466,7 @@ impl ChainManager {
                     self.own_pkh,
                     &mut self.chain_state.own_utxos,
                     epoch_constants,
+                    &mut self.chain_state.node_stats,
                 );
 
                 let miner_pkh = block.block_header.proof.proof.pkh();
@@ -480,6 +481,7 @@ impl ChainManager {
                         rep_info,
                         log_level,
                         block_epoch,
+                        self.own_pkh.unwrap_or_default(),
                     );
                 }
 
@@ -527,6 +529,11 @@ impl ChainManager {
                             .chain_state
                             .data_request_pool
                             .update_data_request_stages();
+
+                        if block_hash == self.chain_state.node_stats.last_block_proposed {
+                            self.chain_state.node_stats.block_mined_count += 1;
+                            log::info!("Congratulations! Your block was consolidated into the block chain by an apparent majority of peers");
+                        }
 
                         show_info_dr(&self.chain_state.data_request_pool, &block);
 
@@ -820,6 +827,8 @@ impl ReputationInfo {
         &mut self,
         tally_transaction: &TallyTransaction,
         data_request_pool: &DataRequestPool,
+        own_pkh: Option<PublicKeyHash>,
+        node_stats: &mut NodeStats,
     ) {
         let dr_pointer = tally_transaction.dr_pointer;
         let dr_state = &data_request_pool.data_request_pool[&dr_pointer];
@@ -842,6 +851,11 @@ impl ReputationInfo {
             // lie_count can contain identities which never lied, with lie_count = 0
             *self.lie_count.entry(*pkh).or_insert(0) += liar;
         }
+
+        // Update node stats
+        if own_pkh.is_some() && slashed_witnesses.contains(&own_pkh.unwrap()) {
+            node_stats.out_of_consensus_count += 1;
+        }
     }
 }
 
@@ -856,12 +870,13 @@ fn update_pools(
     own_pkh: Option<PublicKeyHash>,
     own_utxos: &mut OwnUnspentOutputsPool,
     epoch_constants: EpochConstants,
+    node_stats: &mut NodeStats,
 ) -> ReputationInfo {
     let mut rep_info = ReputationInfo::new();
 
     for ta_tx in &block.txns.tally_txns {
         // Process tally transactions: used to update reputation engine
-        rep_info.update(&ta_tx, data_request_pool);
+        rep_info.update(&ta_tx, data_request_pool, own_pkh, node_stats);
 
         // IMPORTANT: Update the data request pool after updating reputation info
         if let Err(e) = data_request_pool.process_tally(&ta_tx, &block.hash()) {
@@ -889,6 +904,8 @@ fn update_pools(
     for co_tx in &block.txns.commit_txns {
         if let Err(e) = data_request_pool.process_commit(&co_tx, &block.hash()) {
             log::error!("Error processing commit transaction:\n{}", e);
+        } else if Some(co_tx.body.proof.proof.pkh()) == own_pkh {
+            node_stats.commits_count += 1;
         }
     }
 
@@ -946,7 +963,12 @@ where
 }
 
 // FIXME(#676): Remove clippy skip error
-#[allow(clippy::cognitive_complexity)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cognitive_complexity,
+    clippy::too_many_arguments
+)]
 fn update_reputation(
     rep_eng: &mut ReputationEngine,
     secp_bls_mapping: &mut AltKeys,
@@ -958,6 +980,7 @@ fn update_reputation(
     }: ReputationInfo,
     log_level: log::Level,
     block_epoch: Epoch,
+    own_pkh: PublicKeyHash,
 ) {
     let old_alpha = rep_eng.current_alpha;
     let new_alpha = Alpha(old_alpha.0 + alpha_diff.0);
@@ -991,9 +1014,22 @@ fn update_reputation(
         old_alpha,
         new_alpha,
     );
+    let own_rep = rep_eng.trs().get(&own_pkh);
     // Penalize liars and accumulate the reputation
     // The penalization depends on the number of lies from the last epoch
     let liars_and_penalize_function = liars.iter().map(|(pkh, num_lies)| {
+        if own_pkh == *pkh {
+            let after_slashed_rep = f64::from(own_rep.0)
+                * consensus_constants
+                    .reputation_penalization_factor
+                    .powf(f64::from(*num_lies));
+            let slashed_rep = own_rep.0 - (after_slashed_rep as u32);
+            log::info!(
+                "Your reputation score has been slashed by {} points",
+                slashed_rep
+            );
+        }
+
         (
             pkh,
             penalize_factor(
@@ -1030,7 +1066,15 @@ fn update_reputation(
         // Expiration starts counting from new_alpha.
         // All the reputation earned in this block will expire at the same time.
         let expire_alpha = Alpha(new_alpha.0 + consensus_constants.reputation_expire_alpha_diff);
-        let honest_gain = honest.into_iter().map(|pkh| (pkh, Reputation(rep_reward)));
+        let honest_gain = honest.into_iter().map(|pkh| {
+            if own_pkh == pkh {
+                log::info!(
+                    "Your reputation score has increased by {} points",
+                    rep_reward
+                );
+            }
+            (pkh, Reputation(rep_reward))
+        });
         rep_eng.trs_mut().gain(expire_alpha, honest_gain).unwrap();
 
         let gained_rep = Reputation(rep_reward * num_honest);
@@ -1238,7 +1282,7 @@ mod tests {
         dr_pool.update_data_request_stages();
         dr_pool.process_reveal(&re_tx, &Hash::default()).unwrap();
 
-        rep_info.update(&ta_tx, &dr_pool);
+        rep_info.update(&ta_tx, &dr_pool, None, &mut NodeStats::default());
 
         assert_eq!(rep_info.lie_count[&pk1.pkh()], 0);
         assert_eq!(rep_info.lie_count[&pk2.pkh()], 1);
